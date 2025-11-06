@@ -1,5 +1,6 @@
 import './globals.css'
 import Providers from './providers'
+import Sidebar from '@/components/Sidebar'
 
 export const metadata = {
   title: 'Bookae Client',
@@ -10,7 +11,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko">
       <body className="bg-gray-50 text-gray-900">
-        <Providers>{children}</Providers>
+        <Providers>
+          <div className="flex min-h-screen">
+            <Sidebar />
+            <main className="flex-1 ml-64">
+              {children}
+            </main>
+          </div>
+        </Providers>
       </body>
     </html>
   )
