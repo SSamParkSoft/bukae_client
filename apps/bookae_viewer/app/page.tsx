@@ -1,15 +1,18 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { extractVideoId } from '@/lib/utils/videoId'
+import URLInput from '@/components/URLInput'
 
 export default function ViewerHomePage() {
   const searchParams = useSearchParams()
+  const [manualVideoId, setManualVideoId] = useState<string | null>(null)
+  const [manualSource, setManualSource] = useState<'input' | null>(null)
   
-  // videoID 추출 (useMemo로 최적화)
-  const { videoId, referer, source } = useMemo(() => {
+  // 자동 videoID 추출 (useMemo로 최적화)
+  const { videoId: autoVideoId, referer, source: autoSource } = useMemo(() => {
     const currentUrl = typeof window !== 'undefined' ? window.location.href : null
     const currentReferer = typeof window !== 'undefined' ? document.referrer : null
 
@@ -30,6 +33,16 @@ export default function ViewerHomePage() {
     }
   }, [searchParams])
 
+  // URLInput 컴포넌트에서 추출된 결과를 받는 콜백
+  const handleExtract = useCallback((videoId: string | null, source: 'input' | null) => {
+    setManualVideoId(videoId)
+    setManualSource(source)
+  }, [])
+
+  // 최종 videoID 결정 (수동 입력 > 자동 추출)
+  const finalVideoId = manualVideoId || autoVideoId
+  const finalSource = manualSource || autoSource
+
   // TODO: videoID를 사용하여 영상 데이터 로드
   // useEffect(() => {
   //   if (videoId) {
@@ -38,11 +51,14 @@ export default function ViewerHomePage() {
   // }, [videoId])
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-8">
       {/* 로고 */}
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-gray-900">📦 Bookae</h1>
       </div>
+
+      {/* URL 입력 필드 */}
+      <URLInput onExtract={handleExtract} />
 
       {/* 로딩 스피너 */}
       <div className="flex flex-col items-center gap-4">
@@ -50,22 +66,43 @@ export default function ViewerHomePage() {
         <p className="text-gray-600 text-lg">로딩 중...</p>
       </div>
 
-      {/* 디버깅 정보 (개발 환경에서만) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mt-12 p-4 bg-white rounded-lg shadow-sm border border-gray-200 text-sm text-gray-600 max-w-md">
-          <div className="space-y-2">
-            <div>
-              <strong>VideoID:</strong> {videoId || '없음'}
+      {/* 추출된 정보 표시 */}
+      <div className="mt-12 w-full max-w-2xl">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">추출된 정보</h2>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-start gap-2">
+              <strong className="text-gray-700 min-w-[80px]">VideoID:</strong>
+              <span className="text-gray-900 font-mono break-all">
+                {finalVideoId || '없음'}
+              </span>
             </div>
-            <div>
-              <strong>Source:</strong> {source || '없음'}
+            <div className="flex items-start gap-2">
+              <strong className="text-gray-700 min-w-[80px]">Source:</strong>
+              <span className="text-gray-900">
+                {finalSource || '없음'}
+                {manualSource && (
+                  <span className="ml-2 text-xs text-blue-600">(수동 입력)</span>
+                )}
+              </span>
             </div>
-            <div>
-              <strong>Referer:</strong> {referer || '없음'}
-            </div>
+            {process.env.NODE_ENV === 'development' && (
+              <>
+                <div className="flex items-start gap-2">
+                  <strong className="text-gray-700 min-w-[80px]">Referer:</strong>
+                  <span className="text-gray-600 break-all">{referer || '없음'}</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <strong className="text-gray-700 min-w-[80px]">자동 추출:</strong>
+                  <span className="text-gray-600">
+                    {autoVideoId || '없음'} ({autoSource || '없음'})
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
