@@ -1,15 +1,20 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { extractVideoId } from '@/lib/utils/videoId'
 import URLInput from '@/components/URLInput'
 
-export default function ViewerHomePage() {
+// useSearchParams를 사용하는 컴포넌트를 분리
+function VideoIdExtractor({
+  manualVideoId,
+  manualSource,
+}: {
+  manualVideoId: string | null
+  manualSource: 'input' | null
+}) {
   const searchParams = useSearchParams()
-  const [manualVideoId, setManualVideoId] = useState<string | null>(null)
-  const [manualSource, setManualSource] = useState<'input' | null>(null)
   
   // 자동 videoID 추출 (useMemo로 최적화)
   const { videoId: autoVideoId, referer, source: autoSource } = useMemo(() => {
@@ -33,33 +38,12 @@ export default function ViewerHomePage() {
     }
   }, [searchParams])
 
-  // URLInput 컴포넌트에서 추출된 결과를 받는 콜백
-  const handleExtract = useCallback((videoId: string | null, source: 'input' | null) => {
-    setManualVideoId(videoId)
-    setManualSource(source)
-  }, [])
-
   // 최종 videoID 결정 (수동 입력 > 자동 추출)
   const finalVideoId = manualVideoId || autoVideoId
   const finalSource = manualSource || autoSource
 
-  // TODO: videoID를 사용하여 영상 데이터 로드
-  // useEffect(() => {
-  //   if (videoId) {
-  //     fetchVideoData(videoId)
-  //   }
-  // }, [videoId])
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-8">
-      {/* 로고 */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900">📦 Bookae</h1>
-      </div>
-
-      {/* URL 입력 필드 */}
-      <URLInput onExtract={handleExtract} />
-
+    <>
       {/* 로딩 스피너 */}
       <div className="flex flex-col items-center gap-4">
         <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
@@ -103,6 +87,44 @@ export default function ViewerHomePage() {
           </div>
         </div>
       </div>
+    </>
+  )
+}
+
+export default function ViewerHomePage() {
+  const [manualVideoId, setManualVideoId] = useState<string | null>(null)
+  const [manualSource, setManualSource] = useState<'input' | null>(null)
+
+  // URLInput 컴포넌트에서 추출된 결과를 받는 콜백
+  const handleExtract = useCallback((videoId: string | null, source: 'input' | null) => {
+    setManualVideoId(videoId)
+    setManualSource(source)
+  }, [])
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-8">
+      {/* 로고 */}
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold text-gray-900">📦 Bookae</h1>
+      </div>
+
+      {/* URL 입력 필드 */}
+      <URLInput onExtract={handleExtract} />
+
+      {/* Suspense로 감싼 useSearchParams 사용 부분 */}
+      <Suspense
+        fallback={
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+            <p className="text-gray-600 text-lg">로딩 중...</p>
+          </div>
+        }
+      >
+        <VideoIdExtractor
+          manualVideoId={manualVideoId}
+          manualSource={manualSource}
+        />
+      </Suspense>
     </div>
   )
 }
