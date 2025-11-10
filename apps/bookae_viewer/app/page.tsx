@@ -70,12 +70,12 @@ function VideoIdExtractor({
                 )}
               </span>
             </div>
+            <div className="flex items-start gap-2">
+              <strong className="text-gray-700 min-w-[80px]">document.referrer:</strong>
+              <span className="text-gray-900 break-all">{referer || '없음'}</span>
+            </div>
             {process.env.NODE_ENV === 'development' && (
               <>
-                <div className="flex items-start gap-2">
-                  <strong className="text-gray-700 min-w-[80px]">Referer:</strong>
-                  <span className="text-gray-600 break-all">{referer || '없음'}</span>
-                </div>
                 <div className="flex items-start gap-2">
                   <strong className="text-gray-700 min-w-[80px]">자동 추출:</strong>
                   <span className="text-gray-600">
