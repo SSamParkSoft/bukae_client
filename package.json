@@ -1,33 +1,24 @@
 {
   "name": "bookae_client",
-  "version": "0.1.0",
   "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@headlessui/react": "^2.2.9",
-    "@tanstack/react-query": "^5.90.7",
-    "classnames": "^2.5.1",
-    "framer-motion": "^12.23.24",
-    "lucide-react": "^0.552.0",
-    "next": "16.0.1",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "zustand": "^5.0.8"
+    "dev": "pnpm --filter bookae_creator dev",
+    "dev:creator": "pnpm --filter bookae_creator dev",
+    "dev:viewer": "pnpm --filter bookae_viewer dev",
+    "dev:all": "pnpm --parallel --filter './apps/*' dev",
+    "build": "pnpm --filter bookae_creator build",
+    "build:creator": "pnpm --filter bookae_creator build",
+    "build:viewer": "pnpm --filter bookae_viewer build",
+    "build:all": "pnpm --filter './apps/*' build",
+    "start": "pnpm --filter bookae_creator start",
+    "start:creator": "pnpm --filter bookae_creator start",
+    "start:viewer": "pnpm --filter bookae_viewer start",
+    "lint": "pnpm --filter './apps/*' lint"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "babel-plugin-react-compiler": "1.0.0",
-    "eslint": "^9",
-    "eslint-config-next": "16.0.1",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "eslint": "^9"
   }
 }
