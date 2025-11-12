@@ -72,9 +72,9 @@ export default function Step3Page() {
 
   if (selectedProducts.length === 0) {
     return (
-      <div className="flex h-screen">
+      <div className="flex min-h-screen">
         <StepIndicator />
-        <div className="flex-1 ml-48 p-8 overflow-y-auto">
+        <div className="flex-1 p-8 overflow-y-auto">
           <div className="max-w-4xl mx-auto">
             <div className={`text-center py-12 ${
               theme === 'dark' ? 'text-white' : 'text-gray-900'
@@ -94,9 +94,9 @@ export default function Step3Page() {
   }
 
   return (
-    <div className="flex h-screen">
+    <div className="flex min-h-screen">
       <StepIndicator />
-      <div className="flex-1 ml-48 p-8 overflow-y-auto">
+      <div className="flex-1 p-8 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
           <h1 className={`text-3xl font-bold mb-2 ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'

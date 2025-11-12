@@ -44,9 +44,9 @@ export default function Step4Page() {
   }
 
   return (
-    <div className="flex h-screen">
+    <div className="flex min-h-screen">
       <StepIndicator />
-      <div className="flex-1 ml-48 p-8 overflow-y-auto">
+      <div className="flex-1 p-8 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">

@@ -31,12 +31,12 @@ export default function StepIndicator() {
   }
 
   return (
-    <div className={`fixed left-64 top-0 h-full w-48 border-r flex flex-col py-8 transition-colors ${
+    <div className={`sticky top-0 w-48 h-screen flex flex-col py-6 transition-colors z-10 ${
       theme === 'dark'
         ? 'bg-gray-900 border-gray-800'
         : 'bg-white border-gray-200'
     }`}>
-      <div className="px-6 mb-8">
+      <div className="px-6 mb-6">
         <h2 className={`text-lg font-semibold ${
           theme === 'dark' ? 'text-white' : 'text-gray-900'
         }`}>
@@ -44,7 +44,7 @@ export default function StepIndicator() {
         </h2>
       </div>
 
-      <nav className="flex-1 px-6 space-y-6">
+      <nav className="flex-1 px-6 space-y-6 overflow-y-auto">
         {steps.map((step, index) => {
           const isActive = currentStep === step.number
           const isCompleted = currentStep > step.number

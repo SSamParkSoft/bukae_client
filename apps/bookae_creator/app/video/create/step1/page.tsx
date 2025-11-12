@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { TrendingUp, ArrowRight, X, Search, ShoppingCart } from 'lucide-react'
+import { TrendingUp, ArrowRight, Search, ShoppingCart } from 'lucide-react'
 import { useVideoCreateStore, Product, Platform } from '../../../../store/useVideoCreateStore'
 import { useThemeStore } from '../../../../store/useThemeStore'
 import StepIndicator from '../../../../components/StepIndicator'
+import SelectedProductsPanel from '../../../../components/SelectedProductsPanel'
 
 // 인기 제품 더미 데이터
 const popularProducts = [
@@ -123,24 +124,6 @@ export default function Step1Page() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | 'all'>('all')
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    const data = e.dataTransfer.getData('application/json')
-    if (data) {
-      try {
-        const product = JSON.parse(data) as Product
-        addProduct(product)
-      } catch (error) {
-        console.error('Failed to parse product data:', error)
-      }
-    }
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-  }
-
   const handleDragStart = (e: React.DragEvent, product: Product) => {
     e.dataTransfer.setData('application/json', JSON.stringify(product))
     e.dataTransfer.effectAllowed = 'move'
@@ -179,10 +162,11 @@ export default function Step1Page() {
   }
 
   return (
-    <div className="flex h-screen">
-      <StepIndicator />
-      <div className="flex-1 ml-48 p-8 overflow-y-auto">
-        <div className="max-w-6xl mx-auto">
+    <div className="flex min-h-screen">
+      <div className="flex">
+        <StepIndicator />
+        <div className="flex-1 p-8">
+          <div className="max-w-5xl">
           <h1 className={`text-3xl font-bold mb-2 ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>
@@ -297,81 +281,6 @@ export default function Step1Page() {
             </div>
           </div>
 
-          {/* 드래그 앤 드롭 영역 */}
-          <div className={`mb-8 rounded-lg shadow-sm border p-6 ${
-            theme === 'dark'
-              ? 'bg-gray-800 border-gray-700'
-              : 'bg-white border-gray-200'
-          }`}>
-            <h2 className={`text-lg font-semibold mb-4 ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
-              선택된 상품
-            </h2>
-            <div
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragEnter={(e) => {
-                e.preventDefault()
-                e.currentTarget.classList.add('border-purple-500', 'bg-purple-50', 'dark:bg-purple-900/20')
-              }}
-              onDragLeave={(e) => {
-                e.preventDefault()
-                e.currentTarget.classList.remove('border-purple-500', 'bg-purple-50', 'dark:bg-purple-900/20')
-              }}
-              className={`min-h-[200px] rounded-lg border-2 border-dashed p-4 transition-colors ${
-                theme === 'dark'
-                  ? 'border-gray-700 bg-gray-900/50'
-                  : 'border-gray-300 bg-gray-50'
-              }`}
-            >
-              {selectedProducts.length === 0 ? (
-                <div className={`text-center py-8 ${
-                  theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
-                }`}>
-                  아래 상품을 드래그하거나 클릭하여 추가하세요
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {selectedProducts.map((product) => (
-                    <div
-                      key={product.id}
-                      className={`flex items-center justify-between p-4 rounded-lg border ${
-                        theme === 'dark'
-                          ? 'bg-gray-900 border-gray-700'
-                          : 'bg-white border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-lg" />
-                        <div>
-                          <h3 className={`font-semibold ${
-                            theme === 'dark' ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {product.name}
-                          </h3>
-                          <p className={`text-sm ${
-                            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                          }`}>
-                            {product.price.toLocaleString()}원
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => removeProduct(product.id)}
-                        className={`p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 ${
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                        }`}
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* 상품 그리드 */}
           <div className={`mb-8 rounded-lg shadow-sm border p-6 ${
             theme === 'dark'
@@ -449,7 +358,11 @@ export default function Step1Page() {
               <ArrowRight className="w-5 h-5" />
             </button>
           </div>
+          </div>
         </div>
+      </div>
+      <div className="p-8">
+        <SelectedProductsPanel />
       </div>
     </div>
   )

@@ -56,9 +56,9 @@ export default function Step2Page() {
   const currentStepData = creationSteps.find((s) => s.id === currentStep)
 
   return (
-    <div className="flex h-screen">
+    <div className="flex min-h-screen">
       <StepIndicator />
-      <div className="flex-1 ml-48 p-8 overflow-y-auto">
+      <div className="flex-1 p-8 overflow-y-auto">
         <div className="max-w-2xl mx-auto flex flex-col items-center justify-center min-h-full">
           <div className={`text-center mb-8 ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
