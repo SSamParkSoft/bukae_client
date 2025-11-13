@@ -53,7 +53,7 @@ export default function ScriptMethodPage() {
                 }`}>
                   대본 생성 방법 선택
                 </h1>
-                <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                <Badge variant="secondary" className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
                   UPDATE
                 </Badge>
               </div>
@@ -63,7 +63,7 @@ export default function ScriptMethodPage() {
               {/* 옵션 1: AI로 생성하고 직접 편집 */}
               <Card className={`cursor-pointer transition-all ${
                 selectedMethod === 'edit'
-                  ? 'border-2 border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                  ? 'border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                   : theme === 'dark'
                     ? 'border-gray-700 bg-gray-800'
                     : 'border-gray-200 bg-white'
@@ -87,7 +87,7 @@ export default function ScriptMethodPage() {
               {/* 옵션 2: AI에게 모두 맡기기 */}
               <Card className={`cursor-pointer transition-all ${
                 selectedMethod === 'auto'
-                  ? 'border-2 border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                  ? 'border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/20'
                   : theme === 'dark'
                     ? 'border-gray-700 bg-gray-800'
                     : 'border-gray-200 bg-white'

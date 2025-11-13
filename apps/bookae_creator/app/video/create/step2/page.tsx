@@ -273,9 +273,9 @@ export default function Step2Page() {
                 onClick={() => handleMethodChange('edit')}
                 className={`cursor-pointer transition-all ${
                   selectedMethod === 'edit'
-                    ? 'border-2 border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                    ? 'border-2 border-teal-500 bg-teal-50 shadow-md dark:bg-teal-900/20'
                     : theme === 'dark'
-                      ? 'border-gray-700 bg-gray-800'
+                      ? 'border-gray-700 bg-gray-900'
                       : 'border-gray-200 bg-white'
                 }`}
               >
@@ -300,9 +300,9 @@ export default function Step2Page() {
                 onClick={() => handleMethodChange('auto')}
                 className={`cursor-pointer transition-all ${
                   selectedMethod === 'auto'
-                    ? 'border-2 border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                    ? 'border-2 border-teal-500 bg-teal-50 shadow-md dark:bg-teal-900/20'
                     : theme === 'dark'
-                      ? 'border-gray-700 bg-gray-800'
+                      ? 'border-gray-700 bg-gray-900'
                       : 'border-gray-200 bg-white'
                 }`}
               >

@@ -66,9 +66,11 @@ export default function AIRecommendButton({
         size="sm"
         onClick={handleClick}
         disabled={isLoading}
-        className="gap-2"
+        className="gap-2 border-purple-500 text-purple-600 hover:bg-purple-50 hover:text-purple-700 dark:border-purple-400 dark:text-purple-400 dark:hover:bg-purple-900/20"
       >
-        <Sparkles className="h-4 w-4" />
+        <Sparkles className={`h-4 w-4 ${
+          theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+        }`} />
         {isLoading ? '추천 중...' : 'AI 추천'}
       </Button>
 

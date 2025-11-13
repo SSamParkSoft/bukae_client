@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Image, Mic, Type, Music, Shuffle, Play } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -101,7 +101,12 @@ export default function Step3Page() {
                     theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                   }`}>
                     <CardHeader>
-                      <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                      <CardTitle className={`flex items-center gap-2 ${
+                        theme === 'dark' ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        <Image className={`w-5 h-5 ${
+                          theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                        }`} />
                         썸네일 디자인
                       </CardTitle>
                     </CardHeader>
@@ -121,7 +126,12 @@ export default function Step3Page() {
                     theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                   }`}>
                     <CardHeader>
-                      <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                      <CardTitle className={`flex items-center gap-2 ${
+                        theme === 'dark' ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        <Mic className={`w-5 h-5 ${
+                          theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                        }`} />
                         목소리 선택
                       </CardTitle>
                     </CardHeader>
@@ -141,7 +151,12 @@ export default function Step3Page() {
                     theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                   }`}>
                     <CardHeader>
-                      <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                      <CardTitle className={`flex items-center gap-2 ${
+                        theme === 'dark' ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        <Type className={`w-5 h-5 ${
+                          theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                        }`} />
                         자막 선택
                       </CardTitle>
                     </CardHeader>
@@ -161,7 +176,12 @@ export default function Step3Page() {
                     theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                   }`}>
                     <CardHeader>
-                      <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                      <CardTitle className={`flex items-center gap-2 ${
+                        theme === 'dark' ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        <Music className={`w-5 h-5 ${
+                          theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                        }`} />
                         배경음악 선택
                       </CardTitle>
                     </CardHeader>
@@ -181,7 +201,12 @@ export default function Step3Page() {
                     theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                   }`}>
                     <CardHeader>
-                      <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                      <CardTitle className={`flex items-center gap-2 ${
+                        theme === 'dark' ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        <Shuffle className={`w-5 h-5 ${
+                          theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                        }`} />
                         화면 전환효과
                       </CardTitle>
                     </CardHeader>
@@ -201,7 +226,12 @@ export default function Step3Page() {
                     theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                   }`}>
                     <CardHeader>
-                      <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                      <CardTitle className={`flex items-center gap-2 ${
+                        theme === 'dark' ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        <Play className={`w-5 h-5 ${
+                          theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                        }`} />
                         인트로 선택
                       </CardTitle>
                     </CardHeader>
