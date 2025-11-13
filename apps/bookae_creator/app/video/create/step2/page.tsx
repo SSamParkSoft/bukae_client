@@ -26,9 +26,6 @@ export default function Step2Page() {
   const handleMethodChange = (value: string) => {
     const method = value as 'edit' | 'auto'
     setSelectedMethod(method)
-    if (method === 'auto') {
-      setShowConceptDialog(true)
-    }
   }
 
   const handleStart = () => {
@@ -272,13 +269,16 @@ export default function Step2Page() {
 
             <RadioGroup value={selectedMethod} onValueChange={handleMethodChange} className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* 옵션 1: AI로 생성하고 직접 편집 */}
-              <Card className={`cursor-pointer transition-all ${
-                selectedMethod === 'edit'
-                  ? 'border-2 border-teal-500 bg-teal-50 dark:bg-teal-900/20'
-                  : theme === 'dark'
-                    ? 'border-gray-700 bg-gray-800'
-                    : 'border-gray-200 bg-white'
-              }`}>
+              <Card 
+                onClick={() => handleMethodChange('edit')}
+                className={`cursor-pointer transition-all ${
+                  selectedMethod === 'edit'
+                    ? 'border-2 border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                    : theme === 'dark'
+                      ? 'border-gray-700 bg-gray-800'
+                      : 'border-gray-200 bg-white'
+                }`}
+              >
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-2">
                     <RadioGroupItem value="edit" id="edit" className="mt-1" />
@@ -296,13 +296,16 @@ export default function Step2Page() {
               </Card>
 
               {/* 옵션 2: AI에게 모두 맡기기 */}
-              <Card className={`cursor-pointer transition-all ${
-                selectedMethod === 'auto'
-                  ? 'border-2 border-teal-500 bg-teal-50 dark:bg-teal-900/20'
-                  : theme === 'dark'
-                    ? 'border-gray-700 bg-gray-800'
-                    : 'border-gray-200 bg-white'
-              }`}>
+              <Card 
+                onClick={() => handleMethodChange('auto')}
+                className={`cursor-pointer transition-all ${
+                  selectedMethod === 'auto'
+                    ? 'border-2 border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                    : theme === 'dark'
+                      ? 'border-gray-700 bg-gray-800'
+                      : 'border-gray-200 bg-white'
+                }`}
+              >
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-2">
                     <RadioGroupItem value="auto" id="auto" className="mt-1" />
@@ -316,24 +319,26 @@ export default function Step2Page() {
                   <CardDescription className="text-base mb-4">
                     컨셉과 말투만 선택 해놓으면, AI가 대본을 자동으로 작성하고, 편집 없이 바로 영상에 적용합니다. 빠르게 제작하고 싶을 때 추천해요!
                   </CardDescription>
-                  {selectedMethod === 'auto' && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="outline" className="bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                        컨셉 바이럴형
-                      </Badge>
-                      <Badge variant="outline" className="bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                        말투 이걸 나만 모르고 있었네
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowConceptDialog(true)}
-                        className="ml-auto"
-                      >
-                        선택 &gt;
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                      컨셉 바이럴형
+                    </Badge>
+                    <Badge variant="outline" className="bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                      말투 이걸 나만 모르고 있었네
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedMethod('auto')
+                        setShowConceptDialog(true)
+                      }}
+                      className="ml-auto"
+                    >
+                      선택 &gt;
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </RadioGroup>
