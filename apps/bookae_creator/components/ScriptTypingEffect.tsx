@@ -6,14 +6,15 @@ import { useThemeStore } from '@/store/useThemeStore'
 interface ScriptTypingEffectProps {
   onComplete: (script: string) => void
   scriptStyle?: string
+  mode?: 'manual' | 'auto'
 }
 
-export default function ScriptTypingEffect({ onComplete, scriptStyle }: ScriptTypingEffectProps) {
+export default function ScriptTypingEffect({ onComplete, scriptStyle, mode = 'manual' }: ScriptTypingEffectProps) {
   const theme = useThemeStore((state) => state.theme)
   const [displayedText, setDisplayedText] = useState('')
   const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0)
   const [isComplete, setIsComplete] = useState(false)
-  const [sentences] = useState(() => generateDummyScript())
+  const [sentences] = useState(() => generateDummyScript(mode))
 
   const fullScript = sentences.join('\n')
 
@@ -108,7 +109,7 @@ export default function ScriptTypingEffect({ onComplete, scriptStyle }: ScriptTy
   )
 }
 
-function generateDummyScript(): string[] {
+function generateDummyScript(mode: 'manual' | 'auto' = 'manual'): string[] {
   const topics = [
     '제품 언박싱 장면은',
     '제품 사용 전후 비교는',
@@ -126,11 +127,20 @@ function generateDummyScript(): string[] {
     '짧은 멘트와 함께',
   ]
 
-  const endings = [
+  // manual 모드: 촬영 지시문
+  const manualEndings = [
     '찍어주세요.',
     '촬영해주세요.',
     '담아주세요.',
     '보여주세요.',
+  ]
+
+  // auto 모드: AI가 만들겠다는 말투
+  const autoEndings = [
+    '만들게요.',
+    '제작할게요.',
+    '구성할게요.',
+    '만들어드릴게요.',
   ]
 
   const getRandom = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)]
@@ -138,7 +148,9 @@ function generateDummyScript(): string[] {
   return topics.map((topic, index) => {
     const duration = getRandom(durations)
     const style = getRandom(styles)
-    const ending = getRandom(endings)
+    const ending = mode === 'auto' 
+      ? getRandom(autoEndings)
+      : getRandom(manualEndings)
     return `${index + 1}. ${topic} ${duration} ${style} ${ending}`
   })
 }

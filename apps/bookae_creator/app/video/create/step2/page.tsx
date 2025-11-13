@@ -7,6 +7,14 @@ import { Camera, Bot, ArrowRight, Loader2, CheckCircle2, Video, FileText, Image 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore, Step2Mode } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
@@ -27,10 +35,14 @@ export default function Step2Page() {
   const [generatedScript, setGeneratedScript] = useState<string>('')
   const [finalScript, setFinalScript] = useState<string>('')
   const [selectedImages, setSelectedImages] = useState<string[]>([])
-  const [uploadedVideo, setUploadedVideo] = useState<File | null>(null)
+  const [uploadedVideos, setUploadedVideos] = useState<File[]>([])
   const [isCreatingVideo, setIsCreatingVideo] = useState(false)
   const [showConceptDialog, setShowConceptDialog] = useState(false)
   const [isGeneratingScript, setIsGeneratingScript] = useState(false)
+  const [draftVideoUrl, setDraftVideoUrl] = useState<string | null>(null)
+  const [creationProgress, setCreationProgress] = useState(0)
+  const [freeRegenerateUsed, setFreeRegenerateUsed] = useState(false)
+  const [showRegenerateDialog, setShowRegenerateDialog] = useState(false)
 
   // 각 단계의 활성화 상태
   const [activeSteps, setActiveSteps] = useState({
@@ -51,6 +63,7 @@ export default function Step2Page() {
   const shootingGuideRef = useRef<HTMLDivElement>(null)
   const videoUploadRef = useRef<HTMLDivElement>(null)
   const imageSelectionRef = useRef<HTMLDivElement>(null)
+  const videoCreatingRef = useRef<HTMLDivElement>(null)
 
   // 모드 선택
   const handleModeSelect = (selectedMode: Step2Mode) => {
@@ -132,8 +145,8 @@ export default function Step2Page() {
   }
 
   // 영상 업로드 완료
-  const handleVideoUploaded = (file: File) => {
-    setUploadedVideo(file)
+  const handleVideoUploaded = (files: File[]) => {
+    setUploadedVideos(files)
   }
 
   // 이미지 선택 변경
@@ -144,23 +157,101 @@ export default function Step2Page() {
   // 영상 초안 생성 시작
   const handleCreateDraftVideo = () => {
     setIsCreatingVideo(true)
+    setCreationProgress(0)
+    setDraftVideoUrl(null)
     setActiveSteps((prev) => ({ ...prev, videoCreating: true }))
+
+    // 스크롤
+    setTimeout(() => {
+      videoCreatingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+
+    // 더미 영상 생성 시뮬레이션 (진행률 표시)
+    const progressInterval = setInterval(() => {
+      setCreationProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval)
+          return 90
+        }
+        return prev + 10
+      })
+    }, 300)
 
     // 더미 영상 생성 시뮬레이션 (3~5초)
     setTimeout(() => {
-      const draftVideoUrl = 'https://example.com/draft-video.mp4' // 더미 URL
+      clearInterval(progressInterval)
+      const videoUrl = 'https://example.com/draft-video.mp4' // 더미 URL
+      setDraftVideoUrl(videoUrl)
+      setCreationProgress(100)
+      setIsCreatingVideo(false)
       
       const result = {
         mode: mode!,
         finalScript,
-        draftVideo: draftVideoUrl,
-        ...(mode === 'auto' ? { selectedImages } : uploadedVideo ? { uploadedVideo } : {}),
+        draftVideo: videoUrl,
+        ...(mode === 'auto' ? { selectedImages } : uploadedVideos.length > 0 ? { uploadedVideo: uploadedVideos[0] } : {}),
       }
 
       setStep2Result(result)
-      setIsCreatingVideo(false)
-      router.push('/video/create/step3')
     }, 3500)
+  }
+
+  // 영상 다시 만들기 버튼 클릭
+  const handleRegenerateVideo = () => {
+    // 무료 재생성이 남아있으면 바로 실행
+    if (!freeRegenerateUsed) {
+      executeRegenerate()
+      return
+    }
+
+    // 크레딧 소모인 경우 확인 팝업 표시
+    setShowRegenerateDialog(true)
+  }
+
+  // 실제 초기화 실행
+  const executeRegenerate = () => {
+    // 무료 재생성 사용 여부 체크
+    if (!freeRegenerateUsed) {
+      setFreeRegenerateUsed(true)
+    }
+
+    // 모든 상태 초기화
+    setMode(null)
+    setSelectedScriptStyle(null)
+    setSelectedTone(null)
+    setGeneratedScript('')
+    setFinalScript('')
+    setSelectedImages([])
+    setUploadedVideos([])
+    setDraftVideoUrl(null)
+    setCreationProgress(0)
+    setIsCreatingVideo(false)
+    setIsGeneratingScript(false)
+    
+    // 모든 단계 비활성화하고 첫 단계로
+    setActiveSteps({
+      modeSelection: true,
+      scriptStyleSelection: false,
+      scriptGenerating: false,
+      scriptEditing: false,
+      shootingGuide: false,
+      videoUpload: false,
+      imageSelection: false,
+      videoCreating: false,
+    })
+
+    // 팝업 닫기
+    setShowRegenerateDialog(false)
+
+    // 맨 위로 스크롤
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, 100)
+  }
+
+  // 다음 단계로 이동
+  const handleNextStep = () => {
+    router.push('/video/create/step3')
   }
 
   return (
@@ -212,7 +303,7 @@ export default function Step2Page() {
                   </CardHeader>
                   <CardContent>
                     <CardDescription className="text-base">
-                      AI가 대본을 생성하고, 직접 촬영한 영상을 업로드하여 영상을 제작합니다.
+                      AI가 스크립트를 생성하고, 직접 촬영한 영상을 업로드하여 영상을 제작합니다.
                     </CardDescription>
                   </CardContent>
                 </Card>
@@ -269,12 +360,12 @@ export default function Step2Page() {
                   <h2 className={`text-2xl font-bold mb-2 ${
                     theme === 'dark' ? 'text-white' : 'text-gray-900'
                   }`}>
-                    대본 스타일 선택
+                    대본 및 스크립트 스타일 선택
                   </h2>
                   <p className={`mt-2 ${
                     theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
                   }`}>
-                    원하는 대본 스타일과 말투를 선택해주세요
+                    원하는 대본 및 스크립트 스타일과 말투를 선택해주세요
                   </p>
                 </div>
 
@@ -347,7 +438,7 @@ export default function Step2Page() {
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-6"
               >
-                <ScriptTypingEffect onComplete={handleScriptGenerated} />
+                <ScriptTypingEffect onComplete={handleScriptGenerated} mode={mode || 'manual'} />
               </motion.section>
             )}
 
@@ -363,19 +454,19 @@ export default function Step2Page() {
                   <h2 className={`text-2xl font-bold mb-2 ${
                     theme === 'dark' ? 'text-white' : 'text-gray-900'
                   }`}>
-                    대본 확인 및 수정
+                    대본 및 스크립트 확인 및 수정
                   </h2>
                   <p className={`mt-2 ${
                     theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
                   }`}>
-                    생성된 대본을 확인하고 필요시 수정해주세요
+                    생성된 대본 및 스크립트를 확인하고 필요시 수정해주세요
                   </p>
                 </div>
 
                 <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
                   <CardHeader>
                     <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
-                      대본 편집
+                      대본 및 스크립트 편집
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -388,7 +479,7 @@ export default function Step2Page() {
                           ? 'bg-gray-900 border-gray-700 text-white placeholder-gray-400'
                           : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
                       } focus:outline-none focus:ring-2 focus:ring-purple-500`}
-                      placeholder="대본을 입력하세요..."
+                      placeholder="대본 및 스크립트를 입력하세요..."
                     />
                     <p className={`text-sm ${
                       theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
@@ -403,10 +494,10 @@ export default function Step2Page() {
                     variant="outline"
                     onClick={handleRegenerateScript}
                   >
-                    대본 다시 만들기 (크레딧 소모)
+                    대본 및 스크립트 다시 만들기 (크레딧 소모)
                   </Button>
                   <Button onClick={handleConfirmScript}>
-                    대본 확정하기
+                    대본 및 스크립트 확정하기
                   </Button>
                 </div>
 
@@ -444,14 +535,14 @@ export default function Step2Page() {
                   <p className={`text-lg ${
                     theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
                   }`}>
-                    이 대본을 참고하여 영상을 직접 촬영해주세요!
+                    이 대본 및 스크립트를 참고하여 영상을 직접 촬영해주세요!
                   </p>
                 </div>
 
                 <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
                   <CardHeader>
                     <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
-                      확정된 대본
+                      확정된 대본 및 스크립트
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -565,35 +656,217 @@ export default function Step2Page() {
               </motion.section>
             )}
 
-            {/* 8. 영상 초안 생성 중 */}
-            {activeSteps.videoCreating && isCreatingVideo && (
+            {/* 8. 영상 초안 생성 중/완료 */}
+            {activeSteps.videoCreating && (
               <motion.section
+                ref={videoCreatingRef}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-6"
               >
-                <div className="text-center space-y-8 py-12">
-                  <div className="space-y-4">
-                    <Loader2 className={`w-16 h-16 mx-auto animate-spin ${
-                      theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                    }`} />
-                    <h2 className={`text-2xl font-bold ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
-                      AI가 영상 초안을 생성하고 있어요
-                    </h2>
-                    <p className={`text-lg ${
-                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                    }`}>
-                      잠시만 기다려주세요...
-                    </p>
+                {isCreatingVideo ? (
+                  // 로딩 중
+                  <div className="text-center space-y-8 py-12">
+                    <div className="space-y-6">
+                      <motion.div
+                        initial={{ scale: 0.8 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <Loader2 className={`w-16 h-16 mx-auto animate-spin ${
+                          theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                        }`} />
+                      </motion.div>
+                      <div>
+                        <h2 className={`text-2xl font-bold mb-2 ${
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          AI가 영상 초안을 생성하고 있어요
+                        </h2>
+                        <p className={`text-lg ${
+                          theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                          잠시만 기다려주세요...
+                        </p>
+                      </div>
+
+                      {/* 진행률 표시 */}
+                      <div className="space-y-2 max-w-md mx-auto">
+                        <div className={`w-full h-3 rounded-full overflow-hidden ${
+                          theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
+                        }`}>
+                          <motion.div
+                            className={`h-full transition-colors ${
+                              theme === 'dark' ? 'bg-purple-500' : 'bg-purple-600'
+                            }`}
+                            initial={{ width: 0 }}
+                            animate={{ width: `${Math.min(creationProgress, 100)}%` }}
+                            transition={{ duration: 0.3 }}
+                          />
+                        </div>
+                        <motion.p
+                          className={`text-sm font-medium ${
+                            theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                          }`}
+                          key={Math.round(creationProgress)}
+                          initial={{ scale: 1.1 }}
+                          animate={{ scale: 1 }}
+                        >
+                          {Math.round(creationProgress)}% 완료
+                        </motion.p>
+                      </div>
+
+                      {/* 생성 중 단계 표시 */}
+                      <div className={`rounded-lg p-6 max-w-md mx-auto ${
+                        theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'
+                      }`}>
+                        <div className="space-y-3 text-left">
+                          <motion.div
+                            className={`flex items-center gap-3 transition-all ${
+                              creationProgress >= 30 ? 'opacity-100' : 'opacity-50'
+                            }`}
+                            animate={creationProgress >= 30 ? { x: 0 } : { x: -10 }}
+                          >
+                            {creationProgress >= 30 ? (
+                              <CheckCircle2 className={`w-5 h-5 ${
+                                theme === 'dark' ? 'text-green-400' : 'text-green-600'
+                              }`} />
+                            ) : (
+                              <div className={`w-2 h-2 rounded-full ${
+                                theme === 'dark' ? 'bg-gray-600' : 'bg-gray-400'
+                              }`} />
+                            )}
+                            <span className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                              {creationProgress >= 30 ? '영상 구성 완료' : '영상 구성 중...'}
+                            </span>
+                          </motion.div>
+                          <motion.div
+                            className={`flex items-center gap-3 transition-all ${
+                              creationProgress >= 60 ? 'opacity-100' : 'opacity-50'
+                            }`}
+                            animate={creationProgress >= 60 ? { x: 0 } : { x: -10 }}
+                          >
+                            {creationProgress >= 60 ? (
+                              <CheckCircle2 className={`w-5 h-5 ${
+                                theme === 'dark' ? 'text-green-400' : 'text-green-600'
+                              }`} />
+                            ) : (
+                              <div className={`w-2 h-2 rounded-full ${
+                                theme === 'dark' ? 'bg-gray-600' : 'bg-gray-400'
+                              }`} />
+                            )}
+                            <span className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                              {creationProgress >= 60 ? '효과 적용 완료' : '효과 적용 중...'}
+                            </span>
+                          </motion.div>
+                          <motion.div
+                            className={`flex items-center gap-3 transition-all ${
+                              creationProgress >= 90 ? 'opacity-100' : 'opacity-50'
+                            }`}
+                            animate={creationProgress >= 90 ? { x: 0 } : { x: -10 }}
+                          >
+                            {creationProgress >= 90 ? (
+                              <CheckCircle2 className={`w-5 h-5 ${
+                                theme === 'dark' ? 'text-green-400' : 'text-green-600'
+                              }`} />
+                            ) : (
+                              <div className={`w-2 h-2 rounded-full ${
+                                theme === 'dark' ? 'bg-gray-600' : 'bg-gray-400'
+                              }`} />
+                            )}
+                            <span className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                              {creationProgress >= 90 ? '최종 렌더링 완료' : '최종 렌더링 중...'}
+                            </span>
+                          </motion.div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : draftVideoUrl ? (
+                  // 영상 초안 완료
+                  <div className="space-y-6">
+                    <div>
+                      <h2 className={`text-2xl font-bold mb-2 ${
+                        theme === 'dark' ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        영상 초안 생성 완료
+                      </h2>
+                      <p className={`text-sm ${
+                        theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        생성된 영상 초안을 확인해주세요
+                      </p>
+                    </div>
+
+                    <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
+                      <CardContent className="p-6">
+                        <div className="space-y-4">
+                          <div className="w-full">
+                            <video
+                              src={draftVideoUrl}
+                              controls
+                              className="w-full rounded-lg"
+                              style={{ maxHeight: '500px' }}
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <div className="flex gap-4 justify-end">
+                      <Button
+                        variant="outline"
+                        onClick={handleRegenerateVideo}
+                        size="lg"
+                      >
+                        {freeRegenerateUsed ? '다시 만들기 (크레딧 소모)' : '다시 만들기 (무료)'}
+                      </Button>
+                      <Button
+                        onClick={handleNextStep}
+                        size="lg"
+                        className="gap-2"
+                      >
+                        다음 단계
+                        <ArrowRight className="w-5 h-5" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
               </motion.section>
             )}
           </div>
         </div>
       </div>
+
+      {/* 다시 만들기 확인 팝업 */}
+      <Dialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
+        <DialogContent className={theme === 'dark' ? 'bg-gray-800' : 'bg-white'}>
+          <DialogHeader>
+            <DialogTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+              정말 다시 만드시겠습니까?
+            </DialogTitle>
+            <DialogDescription className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+              모든 작업 내용이 초기화되고 처음부터 다시 시작됩니다.
+              <br />
+              크레딧이 소모됩니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowRegenerateDialog(false)}
+            >
+              취소
+            </Button>
+            <Button
+              onClick={executeRegenerate}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              확인
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }
