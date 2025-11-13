@@ -30,6 +30,7 @@ export interface CoupangDailyOrder {
   commissionRate: number // 수수료율 (%)
   commission: number // 수수료
   categoryName: string
+  thumbnailUrl?: string // 상품 썸네일 이미지 URL
 }
 
 // 일별 취소정보
@@ -81,6 +82,7 @@ export interface YouTubeVideo {
   title: string
   thumbnailUrl?: string
   publishedAt?: string
+  views?: number
 }
 
 export interface YouTubeStats {

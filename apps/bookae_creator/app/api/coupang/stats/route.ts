@@ -89,6 +89,9 @@ export async function GET() {
         const gmv = Math.floor(Math.random() * 200000) + 30000
         const commissionRate = Math.random() > 0.5 ? 3 : 5
         const commission = Math.floor((gmv * commissionRate) / 100)
+        
+        // 더미 썸네일 이미지 URL 생성 (placeholder.com 사용)
+        const thumbnailUrl = `https://via.placeholder.com/200x200/a78bfa/ffffff?text=${encodeURIComponent(productNames[productIndex].substring(0, 2))}`
 
         dailyOrders.push({
           date: formatDate(date),
@@ -104,6 +107,7 @@ export async function GET() {
           commissionRate,
           commission,
           categoryName: categories[categoryIndex],
+          thumbnailUrl,
         })
       })
     })
