@@ -1,242 +1,159 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { PenTool, Bot, ArrowRight, Loader2, CheckCircle2 } from 'lucide-react'
+import { Camera, Bot, ArrowRight, Video, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { Label } from '@/components/ui/label'
 import StepIndicator from '@/components/StepIndicator'
-import { useVideoCreateStore } from '@/store/useVideoCreateStore'
+import { useVideoCreateStore, Step2Mode } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import ConceptToneDialog from '@/components/ConceptToneDialog'
+import ScriptTypingEffect from '@/components/ScriptTypingEffect'
+import ImageSelectionPanel from '@/components/ImageSelectionPanel'
+import VideoUploader from '@/components/VideoUploader'
+import { conceptOptions, conceptTones, type ConceptType } from '@/lib/data/templates'
 
 export default function Step2Page() {
   const router = useRouter()
-  const { scriptMethod, setScriptMethod, setIsCreating, setCreationProgress } = useVideoCreateStore()
+  const { selectedProducts, setStep2Result, concept, tone, setConcept, setTone } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
+  
+  const [mode, setMode] = useState<Step2Mode | null>(null)
+  const [selectedScriptStyle, setSelectedScriptStyle] = useState<ConceptType | null>(null)
+  const [selectedTone, setSelectedTone] = useState<string | null>(null)
+  const [generatedScript, setGeneratedScript] = useState<string>('')
+  const [finalScript, setFinalScript] = useState<string>('')
+  const [selectedImages, setSelectedImages] = useState<string[]>([])
+  const [uploadedVideos, setUploadedVideos] = useState<File[]>([])
   const [showConceptDialog, setShowConceptDialog] = useState(false)
-  const [selectedMethod, setSelectedMethod] = useState<'edit' | 'auto'>(scriptMethod || 'edit')
-  const [hasSelected, setHasSelected] = useState(false)
-  const [localProgress, setLocalProgress] = useState(0)
+  const [isGeneratingScript, setIsGeneratingScript] = useState(false)
 
-  const handleMethodChange = (value: string) => {
-    const method = value as 'edit' | 'auto'
-    setSelectedMethod(method)
+  // 각 단계의 활성화 상태
+  const [activeSteps, setActiveSteps] = useState({
+    modeSelection: true,
+    scriptStyleSelection: false,
+    scriptGenerating: false,
+    scriptEditing: false,
+    shootingGuide: false, // manual only
+    videoUpload: false, // manual only
+      imageSelection: false, // auto only
+  })
+
+  // 섹션 refs
+  const scriptStyleRef = useRef<HTMLDivElement>(null)
+  const scriptGeneratingRef = useRef<HTMLDivElement>(null)
+  const scriptEditingRef = useRef<HTMLDivElement>(null)
+  const shootingGuideRef = useRef<HTMLDivElement>(null)
+  const videoUploadRef = useRef<HTMLDivElement>(null)
+  const imageSelectionRef = useRef<HTMLDivElement>(null)
+
+  // 모드 선택
+  const handleModeSelect = (selectedMode: Step2Mode) => {
+    setMode(selectedMode)
+    setActiveSteps((prev) => ({ ...prev, scriptStyleSelection: true }))
+    // 스크롤
+    setTimeout(() => {
+      scriptStyleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
   }
 
-  const handleStart = () => {
-    setScriptMethod(selectedMethod)
-    setHasSelected(true)
-    setLocalProgress(0)
-    
-    // AI 생성 시작
-    setIsCreating(true)
-    setCreationProgress(0)
+  // 대본 스타일 선택
+  const handleScriptStyleSelect = (concept: ConceptType, toneId: string) => {
+    setSelectedScriptStyle(concept)
+    setSelectedTone(toneId)
+    setConcept(concept)
+    setTone(toneId)
+    setActiveSteps((prev) => ({ ...prev, scriptGenerating: true, isGeneratingScript: true }))
+    setIsGeneratingScript(true)
+    // 스크롤
+    setTimeout(() => {
+      scriptGeneratingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
   }
 
-  // 진행률 시뮬레이션 및 3초 후 step3로 이동
-  useEffect(() => {
-    if (hasSelected) {
-      // 초기 진행률을 0으로 설정
-      setLocalProgress(0)
-      setCreationProgress(0)
-      
-      // 각 단계별로 30%씩 증가
-      // 1초 후: 대본 생성 완료 → 30%
-      const timer1 = setTimeout(() => {
-        setLocalProgress(30)
-        setCreationProgress(30)
-      }, 1000)
+  // 대본 생성 완료
+  const handleScriptGenerated = (script: string) => {
+    setGeneratedScript(script)
+    setFinalScript(script)
+    setIsGeneratingScript(false)
+    setActiveSteps((prev) => ({ ...prev, scriptEditing: true }))
+    // 스크롤
+    setTimeout(() => {
+      scriptEditingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+  }
 
-      // 2초 후: 영상 편집 완료 → 60%
-      const timer2 = setTimeout(() => {
-        setLocalProgress(60)
-        setCreationProgress(60)
-      }, 2000)
+  // 대본 다시 만들기
+  const handleRegenerateScript = () => {
+    setGeneratedScript('')
+    setFinalScript('')
+    setSelectedScriptStyle(null)
+    setSelectedTone(null)
+    setActiveSteps((prev) => ({
+      ...prev,
+      scriptGenerating: false,
+      scriptEditing: false,
+      shootingGuide: false,
+      videoUpload: false,
+      imageSelection: false,
+    }))
+    // 스크롤
+    setTimeout(() => {
+      scriptStyleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+  }
 
-      // 3초 후: 최종 검토 완료 → 90%
-      const timer3 = setTimeout(() => {
-        setLocalProgress(90)
-        setCreationProgress(90)
-      }, 3000)
-
-      // 3.5초 후: 전체 완료 → 100% 및 step3로 이동
-      const timer4 = setTimeout(() => {
-        setLocalProgress(100)
-        setCreationProgress(100)
-        setIsCreating(false)
-        router.push('/video/create/step3')
-      }, 3500)
-      
-      return () => {
-        clearTimeout(timer1)
-        clearTimeout(timer2)
-        clearTimeout(timer3)
-        clearTimeout(timer4)
-      }
+  // 대본 확정
+  const handleConfirmScript = () => {
+    if (mode === 'manual') {
+      setActiveSteps((prev) => ({ ...prev, shootingGuide: true }))
+      setTimeout(() => {
+        shootingGuideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    } else {
+      setActiveSteps((prev) => ({ ...prev, imageSelection: true }))
+      setTimeout(() => {
+        imageSelectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
     }
-  }, [hasSelected, router, setIsCreating, setCreationProgress])
-
-  // AI 생성 중 UI
-  if (hasSelected) {
-    const isComplete = localProgress >= 100
-    
-    return (
-      <motion.div
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -20 }}
-        transition={{ duration: 0.3 }}
-        className="flex min-h-screen justify-center"
-      >
-        <div className="flex w-full max-w-[1600px]">
-          <StepIndicator />
-          <div className="flex-1 p-4 md:p-8 overflow-y-auto min-w-0 flex items-center justify-center">
-            <div className="max-w-2xl mx-auto text-center space-y-8">
-              <div className="space-y-4">
-                <motion.div
-                  initial={{ scale: 0.8 }}
-                  animate={{ scale: 1 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  {isComplete ? (
-                    <CheckCircle2 className={`w-16 h-16 mx-auto ${
-                      theme === 'dark' ? 'text-green-400' : 'text-green-600'
-                    }`} />
-                  ) : (
-                    <Loader2 className={`w-16 h-16 mx-auto animate-spin ${
-                      theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                    }`} />
-                  )}
-                </motion.div>
-                <motion.h1 
-                  key={isComplete ? 'complete' : 'creating'}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`text-3xl font-bold ${
-                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                  }`}
-                >
-                  {isComplete ? '생성 완료!' : 'AI가 영상을 생성하고 있어요'}
-                </motion.h1>
-                <motion.p 
-                  key={isComplete ? 'complete-desc' : 'creating-desc'}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`text-lg ${
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                  }`}
-                >
-                  {isComplete ? '영상 생성이 완료되었습니다!' : '잠시만 기다려주세요...'}
-                </motion.p>
-              </div>
-
-              {/* 진행률 표시 */}
-              <div className="space-y-2">
-                <div className={`w-full h-3 rounded-full overflow-hidden ${
-                  theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
-                }`}>
-                  <motion.div
-                    className={`h-full transition-colors ${
-                      isComplete
-                        ? theme === 'dark' ? 'bg-green-500' : 'bg-green-600'
-                        : theme === 'dark' ? 'bg-purple-500' : 'bg-purple-600'
-                    }`}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(localProgress, 100)}%` }}
-                    transition={{ duration: 0.3 }}
-                  />
-                </div>
-                <motion.p 
-                  className={`text-sm font-medium ${
-                    isComplete
-                      ? theme === 'dark' ? 'text-green-400' : 'text-green-600'
-                      : theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                  }`}
-                  key={Math.round(localProgress)}
-                  initial={{ scale: 1.1 }}
-                  animate={{ scale: 1 }}
-                >
-                  {Math.round(localProgress)}% 완료
-                </motion.p>
-              </div>
-
-              {/* 생성 중 단계 표시 */}
-              <div className={`rounded-lg p-6 ${
-                theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'
-              }`}>
-                <div className="space-y-3 text-left">
-                  <motion.div 
-                    className={`flex items-center gap-3 transition-all ${
-                      localProgress >= 30 ? 'opacity-100' : 'opacity-50'
-                    }`}
-                    animate={localProgress >= 30 ? { x: 0 } : { x: -10 }}
-                  >
-                    {localProgress >= 30 ? (
-                      <CheckCircle2 className={`w-5 h-5 ${
-                        theme === 'dark' ? 'text-green-400' : 'text-green-600'
-                      }`} />
-                    ) : (
-                      <div className={`w-2 h-2 rounded-full ${
-                        theme === 'dark' ? 'bg-gray-600' : 'bg-gray-400'
-                      }`} />
-                    )}
-                    <span className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
-                      {localProgress >= 30 ? '대본 생성 완료' : '대본 생성 중...'}
-                    </span>
-                  </motion.div>
-                  <motion.div 
-                    className={`flex items-center gap-3 transition-all ${
-                      localProgress >= 60 ? 'opacity-100' : 'opacity-50'
-                    }`}
-                    animate={localProgress >= 60 ? { x: 0 } : { x: -10 }}
-                  >
-                    {localProgress >= 60 ? (
-                      <CheckCircle2 className={`w-5 h-5 ${
-                        theme === 'dark' ? 'text-green-400' : 'text-green-600'
-                      }`} />
-                    ) : (
-                      <div className={`w-2 h-2 rounded-full ${
-                        theme === 'dark' ? 'bg-gray-600' : 'bg-gray-400'
-                      }`} />
-                    )}
-                    <span className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
-                      {localProgress >= 60 ? '영상 편집 완료' : '영상 편집 중...'}
-                    </span>
-                  </motion.div>
-                  <motion.div 
-                    className={`flex items-center gap-3 transition-all ${
-                      localProgress >= 90 ? 'opacity-100' : 'opacity-50'
-                    }`}
-                    animate={localProgress >= 90 ? { x: 0 } : { x: -10 }}
-                  >
-                    {localProgress >= 90 ? (
-                      <CheckCircle2 className={`w-5 h-5 ${
-                        theme === 'dark' ? 'text-green-400' : 'text-green-600'
-                      }`} />
-                    ) : (
-                      <div className={`w-2 h-2 rounded-full ${
-                        theme === 'dark' ? 'bg-gray-600' : 'bg-gray-400'
-                      }`} />
-                    )}
-                    <span className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
-                      {localProgress >= 90 ? '최종 검토 완료' : '최종 검토 중...'}
-                    </span>
-                  </motion.div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    )
   }
 
-  // 선택 UI
+  // 촬영 안내 후 업로드로 이동
+  const handleGoToUpload = () => {
+    setActiveSteps((prev) => ({ ...prev, videoUpload: true }))
+    setTimeout(() => {
+      videoUploadRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 100)
+  }
+
+  // 영상 업로드 완료
+  const handleVideoUploaded = (files: File[]) => {
+    setUploadedVideos(files)
+  }
+
+  // 이미지 선택 변경
+  const handleImageSelectionChange = (images: string[]) => {
+    setSelectedImages(images)
+  }
+
+  // STEP3로 이동 (영상 편집 단계)
+  const handleGoToStep3 = () => {
+    // STEP2 결과 저장
+    const result = {
+      mode: mode!,
+      finalScript,
+      ...(mode === 'auto' ? { selectedImages } : uploadedVideos.length > 0 ? { uploadedVideo: uploadedVideos[0] } : {}),
+      draftVideo: '', // STEP3에서 생성할 예정
+    }
+
+    setStep2Result(result)
+    router.push('/video/create/step3')
+  }
+
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
@@ -248,115 +165,401 @@ export default function Step2Page() {
       <div className="flex w-full max-w-[1600px]">
         <StepIndicator />
         <div className="flex-1 p-4 md:p-8 overflow-y-auto min-w-0">
-          <div className="max-w-5xl mx-auto">
-            <div className="mb-8">
-              <div className="flex items-center gap-2 mb-2">
-                <h1 className={`text-3xl font-bold ${
+          <div className="max-w-5xl mx-auto space-y-12">
+            {/* 1. 모드 선택 */}
+            <section className="space-y-6">
+              <div>
+                <h1 className={`text-3xl font-bold mb-2 ${
                   theme === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}>
-                  대본 생성 방법 선택
+                  영상 제작 방식 선택
                 </h1>
-                <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                  UPDATE
-                </Badge>
+                <p className={`mt-2 ${
+                  theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  원하는 제작 방식을 선택해주세요
+                </p>
               </div>
-              <p className={`mt-2 ${
-                theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-              }`}>
-                AI에게 모두 맡길지, 생성 후 편집할지 선택하세요
-              </p>
-            </div>
 
-            <RadioGroup value={selectedMethod} onValueChange={handleMethodChange} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* 옵션 1: AI로 생성하고 직접 편집 */}
-              <Card 
-                onClick={() => handleMethodChange('edit')}
-                className={`cursor-pointer transition-all ${
-                  selectedMethod === 'edit'
-                    ? 'border-2 border-teal-500 bg-teal-50 shadow-md dark:bg-teal-900/20'
-                    : theme === 'dark'
-                      ? 'border-gray-700 bg-gray-900'
-                      : 'border-gray-200 bg-white'
-                }`}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 직접 촬영하기 */}
+                <Card
+                  onClick={() => handleModeSelect('manual')}
+                  className={`cursor-pointer transition-all ${
+                    mode === 'manual'
+                      ? 'border-2 border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                      : theme === 'dark'
+                        ? 'border-gray-700 bg-gray-900 hover:border-teal-500'
+                        : 'border-gray-200 bg-white hover:border-teal-500'
+                  }`}
+                >
+                  <CardHeader>
+                    <div className="flex items-center gap-3 mb-2">
+                      <Camera className={`h-6 w-6 ${
+                        theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      }`} />
+                      <CardTitle className="text-xl">직접 촬영하기</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="text-base">
+                      AI가 스크립트를 생성하고, 직접 촬영한 영상을 업로드하여 영상을 제작합니다.
+                    </CardDescription>
+                  </CardContent>
+                </Card>
+
+                {/* AI에게 모두 맡기기 */}
+                <Card
+                  onClick={() => handleModeSelect('auto')}
+                  className={`cursor-pointer transition-all ${
+                    mode === 'auto'
+                      ? 'border-2 border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                      : theme === 'dark'
+                        ? 'border-gray-700 bg-gray-900 hover:border-teal-500'
+                        : 'border-gray-200 bg-white hover:border-teal-500'
+                  }`}
+                >
+                  <CardHeader>
+                    <div className="flex items-center gap-3 mb-2">
+                      <Bot className={`h-6 w-6 ${
+                        theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      }`} />
+                      <CardTitle className="text-xl">AI에게 모두 맡기기</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="text-base">
+                      AI가 대본을 생성하고, 이미지를 선택하면 자동으로 영상을 제작합니다.
+                    </CardDescription>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {mode && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-center pt-4"
+                >
+                  <ChevronDown className={`w-8 h-8 animate-bounce ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  }`} />
+                </motion.div>
+              )}
+            </section>
+
+            {/* 2. 대본 스타일 선택 */}
+            {activeSteps.scriptStyleSelection && (
+              <motion.section
+                ref={scriptStyleRef}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
               >
-                <CardHeader>
-                  <div className="flex items-center gap-3 mb-2">
-                    <RadioGroupItem value="edit" id="edit" className="mt-1" />
-                    <PenTool className={`h-5 w-5 ${
-                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                    }`} />
-                    <CardTitle className="text-xl">AI로 생성하고, 내가 직접 편집하기</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription className="text-base">
-                    AI가 생성한 400자 내외의 상품 리뷰 대본을 직접 확인하고 수정할 수 있어요. 내가 직접 편집한 대본으로 스타일에 맞게 완성하고 싶을 때 선택하세요!
-                  </CardDescription>
-                </CardContent>
-              </Card>
+                <div>
+                  <h2 className={`text-2xl font-bold mb-2 ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    대본 및 스크립트 스타일 선택
+                  </h2>
+                  <p className={`mt-2 ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    원하는 대본 및 스크립트 스타일과 말투를 선택해주세요
+                  </p>
+                </div>
 
-              {/* 옵션 2: AI에게 모두 맡기기 */}
-              <Card 
-                onClick={() => handleMethodChange('auto')}
-                className={`cursor-pointer transition-all ${
-                  selectedMethod === 'auto'
-                    ? 'border-2 border-teal-500 bg-teal-50 shadow-md dark:bg-teal-900/20'
-                    : theme === 'dark'
-                      ? 'border-gray-700 bg-gray-900'
-                      : 'border-gray-200 bg-white'
-                }`}
+                <ConceptToneDialog
+                  open={showConceptDialog}
+                  onOpenChange={setShowConceptDialog}
+                />
+
+                <div className="space-y-6">
+                  {conceptOptions.map((conceptOption) => {
+                    const tones = conceptTones[conceptOption.id]
+                    return (
+                      <Card
+                        key={conceptOption.id}
+                        className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
+                      >
+                        <CardHeader>
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-lg">{conceptOption.label}</CardTitle>
+                            <Badge variant={conceptOption.tier === 'LIGHT' ? 'default' : 'secondary'}>
+                              {conceptOption.tier}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-2 gap-3">
+                            {tones.map((toneOption) => (
+                              <Button
+                                key={toneOption.id}
+                                variant="outline"
+                                onClick={() => handleScriptStyleSelect(conceptOption.id, toneOption.id)}
+                                className={`justify-start ${
+                                  selectedScriptStyle === conceptOption.id && selectedTone === toneOption.id
+                                    ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                                    : ''
+                                }`}
+                              >
+                                <span className="flex-1 text-left">{toneOption.label}</span>
+                                <Badge variant={toneOption.tier === 'LIGHT' ? 'default' : 'secondary'} className="ml-2">
+                                  {toneOption.tier}
+                                </Badge>
+                              </Button>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+
+                {isGeneratingScript && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex justify-center pt-4"
+                  >
+                    <ChevronDown className={`w-8 h-8 animate-bounce ${
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                    }`} />
+                  </motion.div>
+                )}
+              </motion.section>
+            )}
+
+            {/* 3. 대본 생성 중 */}
+            {activeSteps.scriptGenerating && isGeneratingScript && (
+              <motion.section
+                ref={scriptGeneratingRef}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
               >
-                <CardHeader>
-                  <div className="flex items-center gap-3 mb-2">
-                    <RadioGroupItem value="auto" id="auto" className="mt-1" />
-                    <Bot className={`h-5 w-5 ${
-                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                    }`} />
-                    <CardTitle className="text-xl">AI에게 모두 맡기기</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription className="text-base mb-4">
-                    컨셉과 말투만 선택 해놓으면, AI가 대본을 자동으로 작성하고, 편집 없이 바로 영상에 적용합니다. 빠르게 제작하고 싶을 때 추천해요!
-                  </CardDescription>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className="bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                      컨셉 바이럴형
-                    </Badge>
-                    <Badge variant="outline" className="bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
-                      말투 이걸 나만 모르고 있었네
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setSelectedMethod('auto')
-                        setShowConceptDialog(true)
-                      }}
-                      className="ml-auto"
-                    >
-                      선택 &gt;
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </RadioGroup>
+                <ScriptTypingEffect onComplete={handleScriptGenerated} mode={mode || 'manual'} />
+              </motion.section>
+            )}
 
-            <div className="flex justify-end mt-8">
-              <Button onClick={handleStart} size="lg" className="gap-2">
-                <span>시작하기</span>
-                <ArrowRight className="h-5 w-5" />
-              </Button>
-            </div>
+            {/* 4. 대본 편집 */}
+            {activeSteps.scriptEditing && (
+              <motion.section
+                ref={scriptEditingRef}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                <div>
+                  <h2 className={`text-2xl font-bold mb-2 ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    대본 및 스크립트 확인 및 수정
+                  </h2>
+                  <p className={`mt-2 ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    생성된 대본 및 스크립트를 확인하고 필요시 수정해주세요
+                  </p>
+                </div>
+
+                <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
+                  <CardHeader>
+                    <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                      대본 및 스크립트 편집
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <textarea
+                      value={finalScript}
+                      onChange={(e) => setFinalScript(e.target.value)}
+                      rows={10}
+                      className={`w-full p-3 rounded-md border resize-none ${
+                        theme === 'dark'
+                          ? 'bg-gray-900 border-gray-700 text-white placeholder-gray-400'
+                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                      } focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                      placeholder="대본 및 스크립트를 입력하세요..."
+                    />
+                    <p className={`text-sm ${
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      {finalScript.length}자
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <div className="flex gap-4 justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={handleRegenerateScript}
+                  >
+                    대본 및 스크립트 다시 만들기 (크레딧 소모)
+                  </Button>
+                  <Button onClick={handleConfirmScript}>
+                    대본 및 스크립트 확정하기
+                  </Button>
+                </div>
+
+                {((mode === 'manual' && activeSteps.shootingGuide) || (mode === 'auto' && activeSteps.imageSelection)) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex justify-center pt-4"
+                  >
+                    <ChevronDown className={`w-8 h-8 animate-bounce ${
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                    }`} />
+                  </motion.div>
+                )}
+              </motion.section>
+            )}
+
+            {/* 5. 촬영 안내 (manual only) */}
+            {mode === 'manual' && activeSteps.shootingGuide && (
+              <motion.section
+                ref={shootingGuideRef}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                <div className="text-center space-y-4">
+                  <Video className={`w-16 h-16 mx-auto ${
+                    theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                  }`} />
+                  <h2 className={`text-2xl font-bold ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    영상 촬영 안내
+                  </h2>
+                  <p className={`text-lg ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    이 대본 및 스크립트를 참고하여 영상을 직접 촬영해주세요!
+                  </p>
+                </div>
+
+                <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
+                  <CardHeader>
+                    <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                      확정된 대본 및 스크립트
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={`p-4 rounded-md ${
+                      theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'
+                    }`}>
+                      <p className={`whitespace-pre-wrap ${
+                        theme === 'dark' ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        {finalScript}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="flex justify-center">
+                  <Button size="lg" onClick={handleGoToUpload} className="gap-2">
+                    <Video className="w-5 h-5" />
+                    촬영한 영상 업로드하기
+                  </Button>
+                </div>
+
+                {activeSteps.videoUpload && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex justify-center pt-4"
+                  >
+                    <ChevronDown className={`w-8 h-8 animate-bounce ${
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                    }`} />
+                  </motion.div>
+                )}
+              </motion.section>
+            )}
+
+            {/* 6. 영상 업로드 (manual only) */}
+            {mode === 'manual' && activeSteps.videoUpload && (
+              <motion.section
+                ref={videoUploadRef}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                <div>
+                  <h2 className={`text-2xl font-bold mb-2 ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    영상 업로드
+                  </h2>
+                  <p className={`mt-2 ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    촬영한 영상 파일을 업로드해주세요
+                  </p>
+                </div>
+
+                <VideoUploader onVideoSelect={handleVideoUploaded} />
+
+                <div className="flex justify-end">
+                  <Button
+                    size="lg"
+                    onClick={handleGoToStep3}
+                    className="gap-2"
+                  >
+                    다음 단계
+                    <ArrowRight className="w-5 h-5" />
+                  </Button>
+                </div>
+              </motion.section>
+            )}
+
+            {/* 7. 이미지 선택 (auto only) */}
+            {mode === 'auto' && activeSteps.imageSelection && (
+              <motion.section
+                ref={imageSelectionRef}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                <div>
+                  <h2 className={`text-2xl font-bold mb-2 ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    이미지 선택
+                  </h2>
+                  <p className={`mt-2 ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    영상에 사용할 이미지를 선택해주세요 (4~5장)
+                  </p>
+                </div>
+
+                <ImageSelectionPanel
+                  onSelectionChange={handleImageSelectionChange}
+                  minSelection={4}
+                  maxSelection={5}
+                />
+
+                <div className="flex justify-end">
+                  <Button
+                    size="lg"
+                    onClick={handleGoToStep3}
+                    disabled={selectedImages.length < 4 || selectedImages.length > 5}
+                    className="gap-2"
+                  >
+                    다음 단계
+                    <ArrowRight className="w-5 h-5" />
+                  </Button>
+                </div>
+              </motion.section>
+            )}
+
           </div>
         </div>
       </div>
 
-      <ConceptToneDialog
-        open={showConceptDialog}
-        onOpenChange={setShowConceptDialog}
-      />
     </motion.div>
   )
 }

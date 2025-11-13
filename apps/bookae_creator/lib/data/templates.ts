@@ -1,5 +1,5 @@
 // 컨셉 타입
-export type ConceptType = 'viral' | 'product-info' | 'review'
+export type ConceptType = 'viral' | 'product-info' | 'review' | 'daily-review' | 'promotional' | 'calm-explanation' | 'emotional'
 
 // 말투 타입
 export type ToneType = string
@@ -42,6 +42,34 @@ export const conceptTones: Record<ConceptType, Array<{ id: string; label: string
     { id: 'review-7', label: '흥분한 세일즈맨', tier: 'PRO' },
     { id: 'review-8', label: '발랄한 틱톡커', tier: 'PRO' },
   ],
+  'daily-review': [
+    { id: 'daily-1', label: '일상적인 대화 톤', tier: 'LIGHT' },
+    { id: 'daily-2', label: '친구에게 추천하는 느낌', tier: 'LIGHT' },
+    { id: 'daily-3', label: '솔직한 후기 스타일', tier: 'PRO' },
+    { id: 'daily-4', label: '편안한 일상 리뷰', tier: 'PRO' },
+    { id: 'daily-5', label: '자연스러운 대화체', tier: 'PRO' },
+  ],
+  promotional: [
+    { id: 'promo-1', label: '홍보 전문가', tier: 'LIGHT' },
+    { id: 'promo-2', label: '광고 카피라이터', tier: 'PRO' },
+    { id: 'promo-3', label: '세일즈 전문가', tier: 'PRO' },
+    { id: 'promo-4', label: '마케팅 전문가', tier: 'PRO' },
+    { id: 'promo-5', label: '프로모션 전문가', tier: 'PRO' },
+  ],
+  'calm-explanation': [
+    { id: 'calm-1', label: '차분한 설명자', tier: 'LIGHT' },
+    { id: 'calm-2', label: '교육자 스타일', tier: 'PRO' },
+    { id: 'calm-3', label: '전문가 해설', tier: 'PRO' },
+    { id: 'calm-4', label: '안정적인 나레이션', tier: 'PRO' },
+    { id: 'calm-5', label: '신뢰감 있는 설명', tier: 'PRO' },
+  ],
+  emotional: [
+    { id: 'emo-1', label: '감성적인 톤', tier: 'LIGHT' },
+    { id: 'emo-2', label: '따뜻한 감성', tier: 'PRO' },
+    { id: 'emo-3', label: '로맨틱한 스타일', tier: 'PRO' },
+    { id: 'emo-4', label: '감동적인 나레이션', tier: 'PRO' },
+    { id: 'emo-5', label: '부드러운 감성톤', tier: 'PRO' },
+  ],
 }
 
 // 컨셉 옵션
@@ -49,6 +77,10 @@ export const conceptOptions: Array<{ id: ConceptType; label: string; tier: 'LIGH
   { id: 'viral', label: '바이럴형', tier: 'LIGHT' },
   { id: 'product-info', label: '상품 정보형', tier: 'LIGHT' },
   { id: 'review', label: '리뷰형', tier: 'PRO' },
+  { id: 'daily-review', label: '일상적 리뷰 스타일', tier: 'LIGHT' },
+  { id: 'promotional', label: '홍보형/광고 스타일', tier: 'PRO' },
+  { id: 'calm-explanation', label: '차분한 설명 스타일', tier: 'LIGHT' },
+  { id: 'emotional', label: '감성톤', tier: 'PRO' },
 ]
 
 // 썸네일 템플릿

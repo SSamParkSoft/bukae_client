@@ -22,6 +22,18 @@ export interface VideoEditData {
 // 스크립트 생성 방법
 export type ScriptMethod = 'edit' | 'auto'
 
+// STEP2 모드 타입
+export type Step2Mode = 'manual' | 'auto'
+
+// STEP2 결과물 인터페이스
+export interface Step2Result {
+  mode: Step2Mode
+  finalScript: string
+  selectedImages?: string[] // auto 모드용
+  uploadedVideo?: File // manual 모드용
+  draftVideo: string // AI 초안 영상 경로
+}
+
 interface VideoCreateState {
   currentStep: number
   selectedProducts: Product[]
@@ -50,6 +62,8 @@ interface VideoCreateState {
   transitionTemplate: string | null
   showPriceInfo: boolean
   introTemplate: string | null
+  // STEP2 관련
+  step2Result: Step2Result | null
   setCurrentStep: (step: number) => void
   addProduct: (product: Product) => void
   removeProduct: (productId: string) => void
@@ -76,6 +90,7 @@ interface VideoCreateState {
   setTransitionTemplate: (templateId: string | null) => void
   setShowPriceInfo: (show: boolean) => void
   setIntroTemplate: (templateId: string | null) => void
+  setStep2Result: (result: Step2Result | null) => void
   reset: () => void
 }
 
@@ -104,6 +119,7 @@ const initialState = {
   transitionTemplate: null,
   showPriceInfo: true,
   introTemplate: null,
+  step2Result: null,
 }
 
 export const useVideoCreateStore = create<VideoCreateState>((set) => ({
@@ -167,6 +183,7 @@ export const useVideoCreateStore = create<VideoCreateState>((set) => ({
   setTransitionTemplate: (templateId) => set({ transitionTemplate: templateId }),
   setShowPriceInfo: (show) => set({ showPriceInfo: show }),
   setIntroTemplate: (templateId) => set({ introTemplate: templateId }),
+  setStep2Result: (result) => set({ step2Result: result }),
   reset: () => set(initialState),
 }))
 
