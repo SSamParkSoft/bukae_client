@@ -16,7 +16,7 @@ export default function ProductGrid({ products, isLoading }: ProductGridProps) {
 
   if (isLoading) {
     return (
-      <div className="px-4 py-6 bg-purple-50/20">
+      <div className="px-4 py-6 bg-white">
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 text-purple-300 animate-spin" />
         </div>
@@ -26,15 +26,15 @@ export default function ProductGrid({ products, isLoading }: ProductGridProps) {
 
   if (products.length === 0) {
     return (
-      <div className="px-4 py-6 bg-purple-50/20">
+      <div className="px-4 py-6 bg-white">
         <p className="text-gray-500 text-center py-12">제품이 없습니다.</p>
       </div>
     )
   }
 
   return (
-    <div className="px-4 py-6 bg-gray-50">
-      <div className="grid grid-cols-2 gap-4">
+    <div className="px-4 py-6 bg-purple-50/20">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {products.map((product) => (
           <div
             key={product.id}

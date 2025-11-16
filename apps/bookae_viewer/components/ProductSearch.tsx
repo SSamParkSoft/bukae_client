@@ -34,7 +34,7 @@ export default function ProductSearch({
           value={searchQuery}
           onChange={handleChange}
           placeholder={placeholder}
-          className="w-full pl-4 pr-12 py-3 bg-purple-50/50 border border-purple-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-purple-200 text-gray-900 placeholder:text-gray-400"
+          className="w-full pl-4 pr-12 py-3 bg-white border border-purple-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-purple-200 text-gray-900 placeholder:text-gray-400"
         />
         <button
           type="submit"

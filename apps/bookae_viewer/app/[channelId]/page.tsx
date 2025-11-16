@@ -35,7 +35,7 @@ function ChannelPageContent({ channelId }: { channelId: string }) {
 
   if (channelLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-purple-50/30">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <Loader2 className="w-8 h-8 text-purple-300 animate-spin" />
       </div>
     )
@@ -43,7 +43,7 @@ function ChannelPageContent({ channelId }: { channelId: string }) {
 
   if (!channelInfo) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-purple-50/30">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">채널을 찾을 수 없습니다</h1>
           <p className="text-gray-600">존재하지 않는 채널 ID입니다.</p>
@@ -53,7 +53,7 @@ function ChannelPageContent({ channelId }: { channelId: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-purple-50/30">
+    <div className="min-h-screen bg-white">
       {/* 최상단 배너 */}
       <PartnershipBanner />
 
@@ -92,7 +92,7 @@ export default function ChannelPage({
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-purple-50/30">
+        <div className="min-h-screen flex items-center justify-center bg-white">
           <Loader2 className="w-8 h-8 text-purple-300 animate-spin" />
         </div>
       }
