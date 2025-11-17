@@ -46,6 +46,7 @@ export default function AutoModeSection({
   const [isRegenerating, setIsRegenerating] = useState(false)
   const [sceneStatuses, setSceneStatuses] = useState<Record<string, SceneStatus>>({})
   const timeoutRefs = useRef<Array<ReturnType<typeof setTimeout>>>([])
+  const sceneBoardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     timeoutRefs.current.forEach((id) => clearTimeout(id))
@@ -86,13 +87,6 @@ export default function AutoModeSection({
     setSceneStatuses((prev) => {
       const { [sceneId]: _, ...rest } = prev
       return rest
-    })
-  }
-
-  const handleReorderScenes = (orderedIds: string[]) => {
-    setScenes((prev) => {
-      const map = Object.fromEntries(prev.map((scene) => [scene.id, scene]))
-      return orderedIds.map((id) => map[id]).filter(Boolean) as AutoScene[]
     })
   }
 
@@ -148,6 +142,9 @@ export default function AutoModeSection({
         simulateSceneLoading(scene.id)
       }
     })
+    setTimeout(() => {
+      sceneBoardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 300)
   }
 
   const handleRegenerateScripts = () => {
@@ -173,10 +170,8 @@ export default function AutoModeSection({
         minSelection={minScenes}
         maxSelection={maxScenes}
         sceneStatuses={sceneStatuses}
-        loadingStages={SCENE_LOADING_STEPS}
         onSelectAsset={handleSelectAsset}
         onRemoveScene={handleRemoveScene}
-        onReorderScenes={handleReorderScenes}
         onConfirmAllScenes={handleConfirmAllScenes}
       />
 
@@ -190,6 +185,13 @@ export default function AutoModeSection({
         loadingStages={SCENE_LOADING_STEPS}
         onSceneChange={handleSceneChange}
         onRegenerateScripts={handleRegenerateScripts}
+        onReorderScenes={(ids) => {
+          setScenes((prev) => {
+            const map = Object.fromEntries(prev.map((scene) => [scene.id, scene]))
+            return ids.map((id) => map[id]).filter(Boolean) as AutoScene[]
+          })
+        }}
+        sectionRef={sceneBoardRef}
       />
 
       <div
