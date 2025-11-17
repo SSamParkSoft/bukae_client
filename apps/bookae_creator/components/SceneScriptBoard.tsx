@@ -113,7 +113,7 @@ export default function SceneScriptBoard({
       {!canRenderScenes && (
         <div
           className={`rounded-2xl border border-dashed p-6 text-center ${
-            theme === 'dark' ? 'border-gray-700 text-gray-400' : 'border-gray-300 text-gray-600'
+            theme === 'dark' ? 'border-gray-200 text-gray-400' : 'border-gray-300 text-gray-600'
           }`}
         >
           최소 {minSelection}장 이상 이미지를 선택하면 장면별 스크립트가 자동으로 생성됩니다.
@@ -170,7 +170,7 @@ function SortableSceneCard({
     <Card
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`${theme === 'dark' ? 'border-gray-700 bg-gray-900/50' : 'border-gray-200 bg-white'} ${
+      className={`${theme === 'dark' ? 'border-gray-200 bg-gray-900/50' : 'border-gray-200 bg-white'} ${
         isDragging ? 'ring-2 ring-purple-400 shadow-lg' : ''
       }`}
     >
@@ -194,7 +194,7 @@ function SortableSceneCard({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="grid gap-3 md:grid-cols-[160px_1fr]">
-          <div className={`overflow-hidden rounded-xl border ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
+          <div className={`overflow-hidden rounded-xl border ${theme === 'dark' ? 'border-gray-200' : 'border-gray-200'}`}>
             <img src={scene.imageUrl} alt={scene.imageLabel} className="h-full w-full object-cover" />
           </div>
           {status?.state === 'ready' ? (
@@ -205,7 +205,7 @@ function SortableSceneCard({
                 rows={5}
                 className={`w-full rounded-xl border p-3 text-sm leading-relaxed ${
                   theme === 'dark'
-                    ? 'border-gray-700 bg-gray-900 text-white placeholder-gray-500'
+                    ? 'border-gray-200 bg-gray-900 text-white placeholder-gray-500'
                     : 'border-gray-200 bg-white text-gray-900 placeholder-gray-500'
                 } focus:outline-none focus:ring-2 focus:ring-purple-500`}
                 placeholder="장면에 어울리는 스크립트를 입력하세요."
@@ -224,7 +224,7 @@ function SortableSceneCard({
           ) : (
             <div
               className={`flex h-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-6 text-center ${
-                theme === 'dark' ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-600'
+                theme === 'dark' ? 'border-gray-200 text-gray-300' : 'border-gray-200 text-gray-600'
               }`}
             >
               <p className="text-sm font-semibold text-purple-500">대본 생성하기 버튼을 눌러주세요</p>

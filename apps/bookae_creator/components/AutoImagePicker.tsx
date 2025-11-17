@@ -64,7 +64,7 @@ export default function AutoImagePicker({
         </p>
       </div>
 
-      <div className={`rounded-2xl border p-4 ${theme === 'dark' ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-white'}`}>
+      <div className={`rounded-2xl border p-4 ${theme === 'dark' ? 'border-gray-200 bg-gray-900/40' : 'border-gray-200 bg-white'}`}>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
@@ -122,7 +122,7 @@ export default function AutoImagePicker({
                   : disabled
                     ? 'opacity-50'
                     : theme === 'dark'
-                      ? 'border-gray-700 hover:border-gray-600'
+                      ? 'border-gray-200 hover:border-gray-200'
                       : 'border-gray-200 hover:border-gray-300'
               }`}
             >
@@ -148,7 +148,7 @@ export default function AutoImagePicker({
       {scenes.length === 0 && (
         <div
           className={`rounded-xl border border-dashed p-6 text-center ${
-            theme === 'dark' ? 'border-gray-700 text-gray-400' : 'border-gray-300 text-gray-500'
+            theme === 'dark' ? 'border-gray-200 text-gray-400' : 'border-gray-300 text-gray-500'
           }`}
         >
           아직 선택된 장면이 없어요. 위의 이미지에서 마음에 드는 사진을 골라 추가해주세요.

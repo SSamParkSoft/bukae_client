@@ -12,10 +12,10 @@ export default function HomeShortcut() {
 
   return (
     <Card
-      className={`border-2 ${
+      className={`border-2 border-gray-200 ${
         theme === 'dark'
-          ? 'border-purple-800/60 bg-gradient-to-r from-purple-950/40 to-purple-900/20'
-          : 'border-purple-100 bg-gradient-to-r from-purple-50 to-white'
+          ? 'bg-gradient-to-r from-purple-950/40 to-purple-900/20'
+          : 'bg-gradient-to-r from-purple-50 to-white'
       }`}
     >
       <CardHeader className="pb-3">

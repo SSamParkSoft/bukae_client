@@ -151,7 +151,15 @@ export default function YouTubeStats() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: index * 0.1 }}
               >
-                <Card className={`h-full ${stat.isHighlight ? `border-2 ${theme === 'dark' ? 'border-purple-700 shadow-lg shadow-purple-900/20' : 'border-purple-200 shadow-md'} ` : ''}`}>
+                <Card
+                  className={`h-full ${stat.isHighlight ? 'border-2' : 'border'} border-gray-200 ${
+                    stat.isHighlight
+                      ? theme === 'dark'
+                        ? 'shadow-lg shadow-purple-900/20'
+                        : 'shadow-md'
+                      : ''
+                  }`}
+                >
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div className={`p-2 rounded-lg ${stat.bgColor}`}>
@@ -187,7 +195,7 @@ export default function YouTubeStats() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: (revenueStats.length + index) * 0.1 }}
               >
-                <Card className="h-full">
+                <Card className="h-full border border-gray-200">
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div className={`p-2 rounded-lg ${stat.bgColor}`}>
@@ -205,7 +213,7 @@ export default function YouTubeStats() {
       </div>
 
       {/* 트래픽 유입경로 */}
-      <Card>
+      <Card className="border border-gray-200">
         <CardHeader>
           <CardTitle>트래픽 유입경로</CardTitle>
         </CardHeader>

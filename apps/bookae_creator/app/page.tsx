@@ -160,10 +160,10 @@ export default function HomePage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.1 }}
               >
-                <Card className={`h-full border-2 ${
+                <Card className={`h-full border-2 border-gray-200 ${
                   theme === 'dark' 
-                    ? 'border-purple-700 bg-purple-900/20' 
-                    : 'border-purple-200 bg-purple-50/50'
+                    ? 'bg-purple-900/20' 
+                    : 'bg-purple-50/50'
                 }`}>
                   <CardHeader>
                     <div className="flex items-center justify-between">
@@ -194,7 +194,7 @@ export default function HomePage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.2 }}
               >
-                <Card className="h-full">
+                <Card className="h-full border border-gray-200">
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div className={`p-3 rounded-lg ${
@@ -229,7 +229,7 @@ export default function HomePage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.3 }}
               >
-                <Card className="h-full">
+                <Card className="h-full border border-gray-200">
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div className={`p-3 rounded-lg ${
@@ -265,10 +265,10 @@ export default function HomePage() {
                 transition={{ duration: 0.3, delay: 0.4 }}
               >
                 <Card 
-                  className={`h-full cursor-pointer transition-all hover:shadow-lg ${
+                  className={`h-full border border-gray-200 cursor-pointer transition-all hover:shadow-lg ${
                     theme === 'dark' 
-                      ? 'border-purple-700 hover:bg-purple-900/30' 
-                      : 'border-purple-300 hover:bg-purple-50'
+                      ? 'hover:bg-purple-900/30' 
+                      : 'hover:bg-purple-50'
                   }`}
                   onClick={() => router.push('/video/create')}
                 >
@@ -303,7 +303,7 @@ export default function HomePage() {
             {/* 기존 섹션들 */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* 금주의 핫 키워드 */}
-            <Card>
+            <Card className="border border-gray-200">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <TrendingUp className={`w-5 h-5 ${
@@ -323,8 +323,8 @@ export default function HomePage() {
                         transition={{ duration: 0.3, delay: index * 0.1 }}
                         className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
                           theme === 'dark' 
-                            ? 'border-purple-800/50 hover:bg-purple-900/20 hover:border-purple-700' 
-                            : 'border-purple-200 hover:bg-purple-50 hover:border-purple-300'
+                            ? 'border-gray-200/40 hover:bg-purple-900/20' 
+                            : 'border-gray-200 hover:bg-purple-50'
                         }`}
                       >
                         <div className="flex items-center gap-3">
@@ -372,7 +372,7 @@ export default function HomePage() {
             </Card>
 
             {/* 가장 많이 팔린 상품 TOP 5 */}
-            <Card>
+            <Card className="border border-gray-200">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <ShoppingCart className={`w-5 h-5 ${
@@ -392,15 +392,15 @@ export default function HomePage() {
                         transition={{ duration: 0.3, delay: index * 0.1 }}
                         className={`p-3 rounded-lg border transition-colors ${
                           theme === 'dark' 
-                            ? 'border-purple-800/50 hover:bg-purple-900/20 hover:border-purple-700' 
-                            : 'border-purple-200 hover:bg-purple-50 hover:border-purple-300'
+                            ? 'border-gray-200/40 hover:bg-purple-900/20' 
+                            : 'border-gray-200 hover:bg-purple-50'
                         }`}
                       >
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-3 flex-1">
                             {/* 썸네일 이미지 */}
-                            <div className="relative flex-shrink-0">
-                              <div className="w-16 h-16 rounded-lg overflow-hidden border border-purple-200 dark:border-purple-800">
+                            <div className="relative shrink-0">
+                              <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
                                 {product.thumbnailUrl ? (
                                   <img
                                     src={product.thumbnailUrl}
@@ -465,7 +465,7 @@ export default function HomePage() {
                           </div>
                         </div>
                         <div className={`flex items-center justify-between mt-2 pt-2 border-t ${
-                          theme === 'dark' ? 'border-purple-800/50' : 'border-purple-200'
+                          theme === 'dark' ? 'border-gray-200/40' : 'border-gray-200'
                         }`}>
                           <div>
                             <p className={`text-xs ${
@@ -506,7 +506,7 @@ export default function HomePage() {
             </Card>
 
             {/* 가장 높은 조회수를 가진 영상 TOP 5 */}
-            <Card className="lg:col-span-2">
+            <Card className="lg:col-span-2 border border-gray-200">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Youtube className={`w-5 h-5 ${
@@ -594,7 +594,7 @@ export default function HomePage() {
 
             {/* 다른 회원들이 만든 상품 보러가기 */}
             <Card 
-              className="lg:col-span-2 cursor-pointer transition-all hover:shadow-lg"
+              className="lg:col-span-2 cursor-pointer transition-all hover:shadow-lg border border-gray-200"
               onClick={() => setIsComingSoonOpen(true)}
             >
               <CardHeader>
@@ -610,10 +610,10 @@ export default function HomePage() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3 }}
-                  className={`p-8 rounded-lg border-2 border-dashed text-center ${
+                  className={`p-8 rounded-lg border-2 border-dashed border-gray-200 text-center ${
                     theme === 'dark' 
-                      ? 'border-purple-800/50 bg-purple-900/10 hover:bg-purple-900/20 hover:border-purple-700' 
-                      : 'border-purple-200 bg-purple-50/50 hover:bg-purple-50 hover:border-purple-300'
+                      ? 'bg-purple-900/10 hover:bg-purple-900/20' 
+                      : 'bg-purple-50/50 hover:bg-purple-50'
                   } transition-colors`}
                 >
                   <div className="flex flex-col items-center gap-4">
@@ -656,8 +656,8 @@ export default function HomePage() {
 
       {/* 준비중 다이얼로그 */}
       <Dialog open={isComingSoonOpen} onOpenChange={setIsComingSoonOpen}>
-        <DialogContent className={`${
-          theme === 'dark' ? 'bg-gray-900 border-gray-800' : 'bg-white'
+        <DialogContent className={`border ${
+          theme === 'dark' ? 'bg-gray-900 border-gray-200' : 'bg-white border-gray-200'
         }`}>
           <DialogHeader>
             <div className="flex items-center justify-center mb-4">

@@ -155,7 +155,7 @@ export default function ProfilePage() {
           <TabsContent value="profile">
             <div className="space-y-6">
               {/* 프로필 정보 카드 */}
-              <Card>
+              <Card className="border border-gray-200">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle>프로필 정보</CardTitle>
@@ -275,7 +275,7 @@ export default function ProfilePage() {
 
               {/* 통계 요약 카드 */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
+                <Card className="border border-gray-200">
                   <CardHeader>
                     <div className="flex items-center gap-2">
                       <Video className={`w-5 h-5 ${
@@ -298,7 +298,7 @@ export default function ProfilePage() {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="border border-gray-200">
                   <CardHeader>
                     <div className="flex items-center gap-2">
                       <Eye className={`w-5 h-5 ${
@@ -321,7 +321,7 @@ export default function ProfilePage() {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="border border-gray-200">
                   <CardHeader>
                     <div className="flex items-center gap-2">
                       <DollarSign className={`w-5 h-5 ${
@@ -351,7 +351,7 @@ export default function ProfilePage() {
           <TabsContent value="services">
             <div className="space-y-6">
               {/* 쿠팡파트너스 연동 */}
-              <Card>
+              <Card className="border border-gray-200">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -414,7 +414,7 @@ export default function ProfilePage() {
               </Card>
 
               {/* YouTube 연동 */}
-              <Card>
+              <Card className="border border-gray-200">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -504,7 +504,7 @@ export default function ProfilePage() {
           <TabsContent value="activity">
             <div className="space-y-6">
               {/* 최근 제작한 영상 */}
-              <Card>
+              <Card className="border border-gray-200">
                 <CardHeader>
                   <CardTitle>최근 제작한 영상</CardTitle>
                 </CardHeader>
@@ -520,11 +520,11 @@ export default function ProfilePage() {
                           key={video.videoId}
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className={`p-4 rounded-lg border cursor-pointer transition-colors ${
-                            theme === 'dark'
-                              ? 'border-purple-800/50 hover:bg-purple-900/20'
-                              : 'border-purple-200 hover:bg-purple-50'
-                          }`}
+                        className={`p-4 rounded-lg border border-gray-200 cursor-pointer transition-colors ${
+                          theme === 'dark'
+                            ? 'hover:bg-purple-900/20'
+                            : 'hover:bg-purple-50'
+                        }`}
                         >
                           <div className="relative aspect-video rounded-lg overflow-hidden mb-3">
                             {video.thumbnailUrl ? (
@@ -582,7 +582,7 @@ export default function ProfilePage() {
           <TabsContent value="settings">
             <div className="space-y-6">
               {/* 알림 설정 */}
-              <Card>
+              <Card className="border border-gray-200">
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <Bell className={`w-5 h-5 ${
@@ -592,7 +592,7 @@ export default function ProfilePage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                     <div>
                       <div className={`font-medium ${
                         theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
@@ -618,7 +618,7 @@ export default function ProfilePage() {
                     </label>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                     <div>
                       <div className={`font-medium ${
                         theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
@@ -644,7 +644,7 @@ export default function ProfilePage() {
                     </label>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                     <div>
                       <div className={`font-medium ${
                         theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
@@ -673,7 +673,7 @@ export default function ProfilePage() {
               </Card>
 
               {/* 계정 설정 */}
-              <Card>
+              <Card className="border border-gray-200">
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <Settings className={`w-5 h-5 ${
@@ -733,7 +733,11 @@ export default function ProfilePage() {
 
       {/* 프로필 수정 다이얼로그 */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className={theme === 'dark' ? 'bg-gray-900 border-gray-800' : ''}>
+        <DialogContent
+          className={`border ${
+            theme === 'dark' ? 'bg-gray-900 border-gray-200' : 'border-gray-200'
+          }`}
+        >
           <DialogHeader>
             <DialogTitle>프로필 정보 수정</DialogTitle>
             <DialogDescription>
@@ -772,7 +776,11 @@ export default function ProfilePage() {
 
       {/* 비밀번호 변경 다이얼로그 */}
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
-        <DialogContent className={theme === 'dark' ? 'bg-gray-900 border-gray-800' : ''}>
+        <DialogContent
+          className={`border ${
+            theme === 'dark' ? 'bg-gray-900 border-gray-200' : 'border-gray-200'
+          }`}
+        >
           <DialogHeader>
             <DialogTitle>비밀번호 변경</DialogTitle>
             <DialogDescription>
@@ -816,7 +824,11 @@ export default function ProfilePage() {
 
       {/* 계정 삭제 다이얼로그 */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className={theme === 'dark' ? 'bg-gray-900 border-gray-800' : ''}>
+        <DialogContent
+          className={`border ${
+            theme === 'dark' ? 'bg-gray-900 border-gray-200' : 'border-gray-200'
+          }`}
+        >
           <DialogHeader>
             <DialogTitle>계정 삭제</DialogTitle>
             <DialogDescription>

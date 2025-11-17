@@ -114,7 +114,7 @@ export default function CoupangStats() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay: index * 0.1 }}
             >
-              <Card className="h-full">
+              <Card className="h-full border border-gray-200">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className={`p-2 rounded-lg ${colorClasses[stat.color as keyof typeof colorClasses]}`}>
@@ -132,7 +132,7 @@ export default function CoupangStats() {
       </div>
 
       {/* 일별 상세 정보 테이블 */}
-      <Card>
+      <Card className="border border-gray-200">
         <CardHeader>
           <CardTitle>최근 7일 상세 통계</CardTitle>
         </CardHeader>
@@ -140,7 +140,7 @@ export default function CoupangStats() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b">
+                <tr className="border-b border-gray-200">
                   <th className="text-left p-2">날짜</th>
                   <th className="text-right p-2">조회수</th>
                   <th className="text-right p-2">주문수</th>
@@ -165,7 +165,7 @@ export default function CoupangStats() {
                       key={revenue.date} 
                       className={`border-b transition-colors ${
                         theme === 'dark' 
-                          ? 'hover:bg-purple-900/20 border-gray-700' 
+                          ? 'hover:bg-purple-900/20 border-gray-200/40' 
                           : 'hover:bg-purple-50 border-gray-200'
                       }`}
                     >
