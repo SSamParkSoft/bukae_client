@@ -76,18 +76,22 @@ export default function SceneScriptBoard({
 
   return (
     <div className="space-y-4" ref={sectionRef}>
-      <div className="flex flex-col gap-3 rounded-2xl border p-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 rounded-2xl p-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+          <h3 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
             2. 장면별 AI 추천 대본
+          </h3>
+          <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+            선택한 스타일 · 말투를 기준으로 이미지마다 적합한 대본이 자동 생성돼요. 카드를 드래그하면 순서를 바꿀 수
+            있습니다.
           </p>
-          <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-            선택한 스타일 · 말투를 기준으로 이미지마다 적합한 대본이 자동 생성돼요.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2 text-sm">
+          <div className="mt-3 flex flex-wrap gap-2 text-xs md:text-sm">
             <Badge variant="secondary">{conceptLabel}</Badge>
             <Badge variant="secondary">{toneLabel}</Badge>
             <Badge variant="outline">총 {totalCharacters}자</Badge>
+            <Badge variant="outline" className="border-dashed">
+              드래그로 순서 변경
+            </Badge>
           </div>
         </div>
         <Button
