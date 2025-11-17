@@ -42,7 +42,7 @@ export default function SelectedProductsPanel() {
   }
 
   return (
-    <Card className="sticky top-8 w-72 xl:w-80 h-[calc(50vh-4rem)] flex flex-col">
+    <Card className="sticky top-8 w-72 xl:w-80 h-[calc(50vh-4rem)] flex flex-col border-gray-200">
       <CardHeader>
         <CardTitle>선택된 상품</CardTitle>
         <p className={`text-sm ${
@@ -83,7 +83,7 @@ export default function SelectedProductsPanel() {
         ) : (
           <div className="space-y-3">
             {selectedProducts.map((product) => (
-              <Card key={product.id}>
+              <Card key={product.id} className="border-gray-200">
                 <CardContent className="p-3">
                   <div className="flex items-start gap-3">
                     <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg" />
