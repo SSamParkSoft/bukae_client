@@ -2,7 +2,10 @@
   "name": "bookae_client",
   "private": true,
   "version": "0.1.0",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "pnpm --filter bookae_creator dev",
     "dev:creator": "pnpm --filter bookae_creator dev",
@@ -19,7 +22,7 @@
     "seed-demo": "pnpm --filter bookae_creator run seed-demo"
   },
   "devDependencies": {
-    "typescript": "^5",
-    "eslint": "^9"
+    "eslint": "^9",
+    "typescript": "^5"
   }
 }
