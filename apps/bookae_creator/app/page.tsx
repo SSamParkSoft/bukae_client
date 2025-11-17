@@ -4,12 +4,13 @@ import { motion } from 'framer-motion'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCoupangStats } from '@/lib/hooks/useCoupangStats'
+import { useMediaAssets } from '@/lib/hooks/useMediaAssets'
 import { useYouTubeVideos } from '@/lib/hooks/useYouTubeVideos'
 import { useYouTubeStats } from '@/lib/hooks/useYouTubeStats'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useThemeStore } from '@/store/useThemeStore'
-import { TrendingUp, ShoppingCart, Eye, Loader2, Youtube, Users, Store, DollarSign, Video, ArrowRight } from 'lucide-react'
+import { TrendingUp, ShoppingCart, Eye, Loader2, Youtube, Users, Store, DollarSign, Video, ArrowRight, Image as ImageIcon } from 'lucide-react'
 import HomeShortcut from '@/components/HomeShortcut'
 
 const formatNumber = (num: number): string => {
@@ -29,11 +30,21 @@ const formatCurrency = (num: number): string => {
   }).format(num)
 }
 
+const buildAssetUrl = (filePath: string) => {
+  if (!filePath) return ''
+  return filePath.startsWith('/') ? filePath : `/${filePath}`
+}
+
 export default function HomePage() {
   const router = useRouter()
   const { data: coupangData, isLoading: coupangLoading } = useCoupangStats()
   const { data: youtubeVideos, isLoading: youtubeLoading } = useYouTubeVideos()
   const { data: youtubeStats, isLoading: youtubeStatsLoading } = useYouTubeStats()
+  const {
+    data: mediaAssets,
+    isLoading: mediaLoading,
+    error: mediaError,
+  } = useMediaAssets()
   const theme = useThemeStore((state) => state.theme)
   const [isComingSoonOpen, setIsComingSoonOpen] = useState(false)
 
@@ -113,6 +124,18 @@ export default function HomePage() {
     }
   }, [coupangData, youtubeStats])
 
+  const videoAsset = useMemo(
+    () => mediaAssets?.find((asset) => asset.type === 'video'),
+    [mediaAssets],
+  )
+
+  const imageAssets = useMemo(
+    () => mediaAssets?.filter((asset) => asset.type === 'image') ?? [],
+    [mediaAssets],
+  )
+
+  const hasMediaAssets = (mediaAssets?.length ?? 0) > 0
+
   const isLoading = coupangLoading || youtubeLoading || youtubeStatsLoading
 
   return (
@@ -140,6 +163,117 @@ export default function HomePage() {
 
         {/* 내 홈페이지 바로가기 */}
         <HomeShortcut />
+
+        {/* 발표 시나리오 미디어 자산 */}
+        <Card className="border border-gray-200">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Video className={`w-5 h-5 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-600'}`} />
+              <CardTitle>발표용 시나리오 미디어</CardTitle>
+            </div>
+            <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+              로컬 SQLite에 저장된 영상/이미지를 불러와 발표 시 실제 데모처럼 사용할 수 있어요.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {mediaLoading ? (
+              <div className="flex items-center gap-2 text-sm">
+                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                <span>미디어를 불러오는 중...</span>
+              </div>
+            ) : mediaError ? (
+              <p className="text-sm text-red-500">데모 미디어를 불러오지 못했습니다. DB 파일을 확인해주세요.</p>
+            ) : hasMediaAssets ? (
+              <div className="space-y-6">
+                {videoAsset && (
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_1fr]">
+                    <div className="space-y-3 rounded-2xl border border-gray-200 p-4">
+                      <p className={`text-xs font-semibold uppercase tracking-wide ${theme === 'dark' ? 'text-purple-400' : 'text-purple-500'}`}>
+                        최종 영상
+                      </p>
+                      <div className={`rounded-xl border ${theme === 'dark' ? 'border-gray-700 bg-black' : 'border-gray-200 bg-gray-50'}`}>
+                        <video
+                          src={buildAssetUrl(videoAsset.filePath)}
+                          controls
+                          className="w-full rounded-xl"
+                        />
+                      </div>
+                    </div>
+                    <div className={`rounded-2xl border p-4 ${theme === 'dark' ? 'border-gray-700 bg-gray-900/60' : 'border-gray-100 bg-white'}`}>
+                      <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-500'}`}>
+                        영상 오디오 스크립트
+                      </p>
+                      <h4 className={`text-lg font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        {videoAsset.title}
+                      </h4>
+                      <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                        {videoAsset.description}
+                      </p>
+                      {videoAsset.script && (
+                        <div className={`mt-4 rounded-xl border p-4 text-sm leading-relaxed ${theme === 'dark' ? 'border-purple-900/50 bg-purple-900/10 text-purple-100' : 'border-purple-100 bg-purple-50 text-purple-900'}`}>
+                          {videoAsset.script}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {imageAssets.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <ImageIcon className={`w-4 h-4 ${theme === 'dark' ? 'text-purple-300' : 'text-purple-500'}`} />
+                      <p className={`text-sm font-semibold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>컷별 연출 스크립트</p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {imageAssets.map((asset) => (
+                        <div
+                          key={asset.id}
+                          className={`rounded-2xl border p-3 ${theme === 'dark' ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-white'}`}
+                        >
+                          <div className="relative mb-3 overflow-hidden rounded-xl border border-gray-200">
+                            <img
+                              src={buildAssetUrl(asset.filePath)}
+                              alt={asset.title}
+                              className="h-48 w-full object-cover"
+                              onError={(event) => {
+                                const target = event.target as HTMLImageElement
+                                target.style.display = 'none'
+                                const fallback = target.parentElement?.querySelector('.media-fallback') as HTMLElement
+                                if (fallback) {
+                                  fallback.style.display = 'flex'
+                                }
+                              }}
+                            />
+                            <div
+                              className={`media-fallback absolute inset-0 hidden items-center justify-center ${theme === 'dark' ? 'bg-gray-900/70' : 'bg-gray-100'}`}
+                            >
+                              <ImageIcon className={`w-10 h-10 ${theme === 'dark' ? 'text-purple-400' : 'text-purple-500'}`} />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-purple-500">{asset.title}</p>
+                            {asset.description && (
+                              <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>{asset.description}</p>
+                            )}
+                            {asset.script && (
+                              <p className={`text-sm leading-relaxed ${theme === 'dark' ? 'text-gray-200' : 'text-gray-700'}`}>
+                                {asset.script}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className={`rounded-xl border border-dashed p-6 text-center ${theme === 'dark' ? 'border-gray-700 text-gray-300' : 'border-gray-300 text-gray-600'}`}>
+                data/demo.db 파일에 시나리오 자산을 추가하면 여기에서 바로 확인할 수 있어요.
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* 통계 요약 및 영상 만들러가기 */}
         {isLoading ? (

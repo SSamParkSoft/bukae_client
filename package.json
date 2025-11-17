@@ -15,7 +15,8 @@
     "start": "pnpm --filter bookae_creator start",
     "start:creator": "pnpm --filter bookae_creator start",
     "start:viewer": "pnpm --filter bookae_viewer start",
-    "lint": "pnpm --filter './apps/*' lint"
+    "lint": "pnpm --filter './apps/*' lint",
+    "seed-demo": "pnpm --filter bookae_creator run seed-demo"
   },
   "devDependencies": {
     "typescript": "^5",
