@@ -1,5 +1,3 @@
-'use client'
-
 export type SceneLayout = 'default' | 'highlight'
 
 export interface AutoScene {
@@ -11,6 +9,3 @@ export interface AutoScene {
   editedScript: string
   layout: SceneLayout
 }
-
-*** End Patch
-
