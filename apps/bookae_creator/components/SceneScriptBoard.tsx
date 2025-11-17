@@ -30,7 +30,7 @@ interface SceneScriptBoardProps {
   onSceneChange: (sceneId: string, updates: Partial<AutoScene>) => void
   onRegenerateScripts: () => void
   onReorderScenes: (sceneIds: string[]) => void
-  sectionRef?: RefObject<HTMLDivElement>
+  sectionRef?: RefObject<HTMLDivElement | null>
   isGenerating?: boolean
 }
 
