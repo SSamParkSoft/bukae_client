@@ -11,64 +11,64 @@ export interface CrawledImageAsset {
 
 export const crawledImagePool: CrawledImageAsset[] = [
   {
-    id: 'vitc-1',
+    id: 'prod-1',
     url: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=600&q=80',
-    label: '비타민C 세럼 정면샷',
-    description: '맑은 옐로우 빛 유리병과 스포이드가 돋보이는 대표컷',
+    label: '제품 사진 1',
+    description: '제품 전체 모습을 가장 잘 보여주는 대표 컷',
   },
   {
-    id: 'vitc-2',
+    id: 'prod-2',
     url: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=600&q=60',
-    label: '세럼 디테일샷',
-    description: '광택이 살아있는 병 디자인과 레이블 문구를 가까이 보여주는 컷',
+    label: '제품 사진 2',
+    description: '라벨과 텍스트를 가까이에서 보여주는 디테일 컷',
   },
   {
-    id: 'vitc-3',
+    id: 'prod-3',
     url: 'https://images.unsplash.com/photo-1612831662375-295c1003d3ca?auto=format&fit=crop&w=600&q=80',
-    label: '스포이드 사용컷',
-    description: '스포이드가 세럼을 떨어뜨리는 모습을 담아 제형을 강조',
+    label: '제품 사진 3',
+    description: '제품 사용 장면을 담아 활용도를 보여주는 컷',
   },
   {
-    id: 'vitc-4',
+    id: 'prod-4',
     url: 'https://images.unsplash.com/photo-1612810806695-30f7a8258399?auto=format&fit=crop&w=600&q=80',
-    label: '텍스처 클로즈업',
-    description: '세럼 질감과 점도를 한눈에 보여주는 배경컷',
+    label: '제품 사진 4',
+    description: '텍스처와 질감을 강조한 클로즈업 컷',
   },
   {
-    id: 'vitc-5',
+    id: 'prod-5',
     url: 'https://images.unsplash.com/photo-1612817159949-195b6eb9e31a?auto=format&fit=crop&w=600&q=80',
-    label: '사용 컷(손등)',
-    description: '손등에 세럼을 펴바르는 모습을 통해 사용감을 전달',
+    label: '제품 사진 5',
+    description: '피부나 손 등 실제 사용감을 보여주는 장면',
   },
   {
-    id: 'vitc-6',
+    id: 'prod-6',
     url: 'https://images.unsplash.com/photo-1612810806800-9d1ad8b3c0a8?auto=format&fit=crop&w=600&q=80',
-    label: '피부 전후 비교',
-    description: '피부가 맑아지는 과정을 상상하게 하는 슬로건용 이미지',
+    label: '제품 사진 6',
+    description: '전후 느낌을 비교할 수 있는 분위기 컷',
   },
   {
-    id: 'vitc-7',
+    id: 'prod-7',
     url: 'https://images.unsplash.com/photo-1612810806683-3fa63cf62ca1?auto=format&fit=crop&w=600&q=80',
-    label: '제품 구성 컷',
-    description: '제품 박스와 세럼을 함께 배치해 패키지를 강조',
+    label: '제품 사진 7',
+    description: '구성품을 함께 담아 전체 패키지를 보여주는 장면',
   },
   {
-    id: 'vitc-8',
+    id: 'prod-8',
     url: 'https://images.unsplash.com/photo-1612817158181-8a38f6c3096e?auto=format&fit=crop&w=600&q=80',
-    label: '성분 설명 컷',
-    description: '주요 성분 표기 라벨을 확대해 신뢰감을 주는 이미지',
+    label: '제품 사진 8',
+    description: '주요 특징을 설명하는 문구와 함께 촬영된 컷',
   },
   {
-    id: 'vitc-9',
+    id: 'prod-9',
     url: 'https://images.unsplash.com/photo-1612831455359-c4adf7b5d8bb?auto=format&fit=crop&w=600&q=80',
-    label: '제품과 과일 소품',
-    description: '비타민C를 연상시키는 과일과 함께 촬영한 감성 컷',
+    label: '제품 사진 9',
+    description: '소품과 함께 연출해 감성을 더한 이미지',
   },
   {
-    id: 'vitc-10',
+    id: 'prod-10',
     url: 'https://images.unsplash.com/photo-1612831200143-f0d7b0d4c7b9?auto=format&fit=crop&w=600&q=80',
-    label: '텍스트 정보 컷',
-    description: '제품 정보 텍스트를 그대로 보여줘 디테일을 전달',
+    label: '제품 사진 10',
+    description: '제품 정보가 한눈에 보이도록 구성한 컷',
   },
 ]
 
@@ -77,26 +77,26 @@ const toneCopyPresets: Record<
   { opener: string; benefit: string; cta: string }
 > = {
   'viral-1': {
-    opener: '이걸 이제야 알았다니!',
-    benefit: '한 번 쓰면 주변에 자랑하고 싶어지는 밝기 업그레이드',
-    cta: '당장 장바구니에 담아야 할 이유 충분하죠?',
+    opener: '이 사진, 그냥 지나치기 아까워요.',
+    benefit: '한 번 보면 바로 공유하고 싶은 포인트가 가득합니다.',
+    cta: '지금 담아두면 콘텐츠 완성도가 확 달라져요.',
   },
   'info-1': {
-    opener: '피부를 맑게 밝혀줄 핵심 포인트입니다.',
-    benefit: '임상 테스트로 입증된 비타민C 30,150ppm의 탄탄한 효능',
-    cta: '하루 한 번 루틴에 추가하면 확실한 변화를 느낄 수 있어요.',
+    opener: '제품 정보를 한눈에 정리해볼게요.',
+    benefit: '신뢰감 있는 디테일을 차분하게 전달해드립니다.',
+    cta: '영상 속 핵심 문장으로 쓰기 딱 좋은 구성이에요.',
   },
   'daily-1': {
-    opener: '하루 한 번, 세럼 한 방울이면',
-    benefit: '칙칙했던 피부가 은은하게 환해지는 걸 직접 확인했어요.',
-    cta: '꾸준히 쓰기 딱 좋은 가벼운 제형이라 더 마음에 들어요.',
+    opener: '일상 속 자연스럽게 꺼내는 추천 한마디.',
+    benefit: '가볍게 말해도 설득력 있는 경험담으로 연결돼요.',
+    cta: '친구에게 이야기하듯 편하게 이어가 볼까요?',
   },
 }
 
 const defaultCopyPreset = {
-  opener: '지금 보여드리는 컷, 놓치지 마세요.',
-  benefit: '성분부터 사용감까지, 하나하나가 사랑스러운 포인트예요.',
-  cta: '영상 끝까지 보시면 왜 다들 찾는지 느껴집니다.',
+  opener: '이 컷은 영상에 꼭 넣고 싶네요.',
+  benefit: '제품의 특징과 분위기를 동시에 보여줄 수 있어요.',
+  cta: '시청자가 한눈에 이해하도록 정리해볼게요.',
 }
 
 const conceptLabelMap = Object.fromEntries(conceptOptions.map((option) => [option.id, option.label]))

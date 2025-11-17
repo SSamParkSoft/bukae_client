@@ -72,6 +72,11 @@ export default function Step2Page() {
       setTimeout(() => {
         scriptGeneratingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }, 100)
+    } else if (mode === 'auto') {
+      setActiveSteps((prev) => ({ ...prev, imageSelection: true }))
+      setTimeout(() => {
+        imageSelectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 200)
     }
   }
 
@@ -531,6 +536,8 @@ export default function Step2Page() {
                 <AutoModeSection
                   conceptId={selectedScriptStyle}
                   toneId={selectedTone}
+                  minScenes={5}
+                  maxScenes={6}
                   onComplete={handleAutoScenesComplete}
                 />
               </motion.section>

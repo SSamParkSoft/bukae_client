@@ -8,26 +8,42 @@ import { GripVertical, X } from 'lucide-react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { useThemeStore } from '@/store/useThemeStore'
 import type { AutoScene } from '@/lib/types/video'
 import type { CrawledImageAsset } from '@/lib/data/autoScenes'
+
+interface SceneStatus {
+  state: 'idle' | 'loading' | 'ready'
+  progress: number
+  stage: number
+}
 
 interface AutoImagePickerProps {
   assets: CrawledImageAsset[]
   scenes: AutoScene[]
   minSelection?: number
   maxSelection?: number
+  sceneStatuses: Record<string, SceneStatus>
+  loadingStages: string[]
   onSelectAsset: (asset: CrawledImageAsset) => void
   onRemoveScene: (sceneId: string) => void
   onReorderScenes: (sceneIdsInOrder: string[]) => void
+  onConfirmScene: (sceneId: string) => void
 }
 
 const SortableSceneThumbnail = ({
   scene,
+  status,
+  stages,
   onRemove,
+  onConfirm,
 }: {
   scene: AutoScene
+  status: SceneStatus
+  stages: string[]
   onRemove: (sceneId: string) => void
+  onConfirm: (sceneId: string) => void
 }) => {
   const theme = useThemeStore((state) => state.theme)
   const {
@@ -68,13 +84,33 @@ const SortableSceneThumbnail = ({
           {scene.imageLabel}
         </p>
         <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>#{scene.assetId}</p>
+        {status.state === 'ready' && (
+          <p className="text-xs font-semibold text-green-500">대본 생성 완료</p>
+        )}
+        {status.state === 'loading' && (
+          <div className="mt-1 text-xs text-purple-400">
+            {stages[status.stage] ?? stages[stages.length - 1]} · {Math.round(status.progress)}%
+          </div>
+        )}
       </div>
-      <button
-        onClick={() => onRemove(scene.id)}
-        className="text-gray-400 transition-colors hover:text-red-500"
-      >
-        <X className="h-4 w-4" />
-      </button>
+      <div className="flex items-center gap-3">
+        {status.state === 'idle' && (
+          <Button size="sm" onClick={() => onConfirm(scene.id)} className="text-xs">
+            이 사진으로 진행하기
+          </Button>
+        )}
+        {status.state === 'loading' && (
+          <div className="flex items-center gap-2 text-purple-400">
+            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" opacity="0.3" />
+              <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" />
+            </svg>
+          </div>
+        )}
+        <button onClick={() => onRemove(scene.id)} className="text-gray-400 transition-colors hover:text-red-500">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   )
 }
@@ -82,11 +118,14 @@ const SortableSceneThumbnail = ({
 export default function AutoImagePicker({
   assets,
   scenes,
-  minSelection = 4,
+  minSelection = 5,
   maxSelection = 6,
+  sceneStatuses,
+  loadingStages,
   onSelectAsset,
   onRemoveScene,
   onReorderScenes,
+  onConfirmScene,
 }: AutoImagePickerProps) {
   const theme = useThemeStore((state) => state.theme)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
@@ -136,7 +175,7 @@ export default function AutoImagePicker({
           theme === 'dark' ? 'border-gray-700 bg-gray-900/40' : 'border-gray-200 bg-white'
         }`}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <p className={`text-sm font-medium ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
               선택된 장면 {scenes.length}/{maxSelection}
@@ -165,7 +204,14 @@ export default function AutoImagePicker({
               <SortableContext items={scenes.map((scene) => scene.id)} strategy={horizontalListSortingStrategy}>
                 <div className="flex flex-col gap-3">
                   {scenes.map((scene) => (
-                    <SortableSceneThumbnail key={scene.id} scene={scene} onRemove={onRemoveScene} />
+                    <SortableSceneThumbnail
+                      key={scene.id}
+                      scene={scene}
+                      status={sceneStatuses[scene.id] ?? { state: 'idle', progress: 0, stage: 0 }}
+                      stages={loadingStages}
+                      onRemove={onRemoveScene}
+                      onConfirm={onConfirmScene}
+                    />
                   ))}
                 </div>
               </SortableContext>

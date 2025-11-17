@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { AlertTriangle, ArrowRight } from 'lucide-react'
 
@@ -18,6 +18,14 @@ import {
   type CrawledImageAsset,
 } from '@/lib/data/autoScenes'
 
+const SCENE_LOADING_STEPS = ['이미지 분석 중', '핵심 포인트 추출 중', '톤 맞춤 중']
+
+type SceneStatus = {
+  state: 'idle' | 'loading' | 'ready'
+  progress: number
+  stage: number
+}
+
 interface AutoModeSectionProps {
   conceptId: ConceptType
   toneId: string
@@ -29,17 +37,28 @@ interface AutoModeSectionProps {
 export default function AutoModeSection({
   conceptId,
   toneId,
-  minScenes = 4,
+  minScenes = 5,
   maxScenes = 6,
   onComplete,
 }: AutoModeSectionProps) {
   const theme = useThemeStore((state) => state.theme)
   const [scenes, setScenes] = useState<AutoScene[]>([])
   const [isRegenerating, setIsRegenerating] = useState(false)
+  const [sceneStatuses, setSceneStatuses] = useState<Record<string, SceneStatus>>({})
+  const timeoutRefs = useRef<Array<ReturnType<typeof setTimeout>>>([])
 
   useEffect(() => {
+    timeoutRefs.current.forEach((id) => clearTimeout(id))
+    timeoutRefs.current = []
     setScenes([])
+    setSceneStatuses({})
   }, [conceptId, toneId])
+
+  useEffect(() => {
+    return () => {
+      timeoutRefs.current.forEach((id) => clearTimeout(id))
+    }
+  }, [])
 
   const conceptLabel = useMemo(
     () => conceptOptions.find((option) => option.id === conceptId)?.label ?? '선택된 컨셉',
@@ -54,12 +73,20 @@ export default function AutoModeSection({
     setScenes((prev) => {
       if (prev.some((scene) => scene.assetId === asset.id)) return prev
       const nextScene = createSceneFromAsset(asset, conceptId, toneId, prev.length)
+      setSceneStatuses((statuses) => ({
+        ...statuses,
+        [nextScene.id]: { state: 'idle', progress: 0, stage: 0 },
+      }))
       return [...prev, nextScene]
     })
   }
 
   const handleRemoveScene = (sceneId: string) => {
     setScenes((prev) => prev.filter((scene) => scene.id !== sceneId))
+    setSceneStatuses((prev) => {
+      const { [sceneId]: _, ...rest } = prev
+      return rest
+    })
   }
 
   const handleReorderScenes = (orderedIds: string[]) => {
@@ -67,6 +94,51 @@ export default function AutoModeSection({
       const map = Object.fromEntries(prev.map((scene) => [scene.id, scene]))
       return orderedIds.map((id) => map[id]).filter(Boolean) as AutoScene[]
     })
+  }
+
+  const scheduleTimeout = (fn: () => void, delay: number) => {
+    const id = setTimeout(() => {
+      fn()
+      timeoutRefs.current = timeoutRefs.current.filter((stored) => stored !== id)
+    }, delay)
+    timeoutRefs.current.push(id)
+  }
+
+  const simulateSceneLoading = (sceneId: string) => {
+    setSceneStatuses((prev) => ({
+      ...prev,
+      [sceneId]: { state: 'loading', progress: 0, stage: 0 },
+    }))
+
+    SCENE_LOADING_STEPS.forEach((_, index) => {
+      scheduleTimeout(() => {
+        setSceneStatuses((prev) => {
+          const current = prev[sceneId]
+          if (!current) return prev
+          return {
+            ...prev,
+            [sceneId]: {
+              ...current,
+              progress: Math.min(((index + 1) / SCENE_LOADING_STEPS.length) * 100, 95),
+              stage: index,
+            },
+          }
+        })
+      }, (index + 1) * 700)
+    })
+
+    scheduleTimeout(() => {
+      setSceneStatuses((prev) => ({
+        ...prev,
+        [sceneId]: { state: 'ready', progress: 100, stage: SCENE_LOADING_STEPS.length - 1 },
+      }))
+    }, SCENE_LOADING_STEPS.length * 700 + 400)
+  }
+
+  const handleConfirmScene = (sceneId: string) => {
+    const status = sceneStatuses[sceneId]
+    if (!status || status.state === 'ready' || status.state === 'loading') return
+    simulateSceneLoading(sceneId)
   }
 
   const handleSceneChange = (sceneId: string, updates: Partial<AutoScene>) => {
@@ -83,7 +155,8 @@ export default function AutoModeSection({
     }, 600)
   }
 
-  const canComplete = scenes.length >= minScenes
+  const readyScenes = scenes.filter((scene) => sceneStatuses[scene.id]?.state === 'ready')
+  const canComplete = readyScenes.length >= minScenes && readyScenes.length === scenes.length
 
   return (
     <motion.section
@@ -96,9 +169,12 @@ export default function AutoModeSection({
         scenes={scenes}
         minSelection={minScenes}
         maxSelection={maxScenes}
+        sceneStatuses={sceneStatuses}
+        loadingStages={SCENE_LOADING_STEPS}
         onSelectAsset={handleSelectAsset}
         onRemoveScene={handleRemoveScene}
         onReorderScenes={handleReorderScenes}
+        onConfirmScene={handleConfirmScene}
       />
 
       <SceneScriptBoard
@@ -107,6 +183,8 @@ export default function AutoModeSection({
         toneLabel={toneLabel}
         isRegenerating={isRegenerating}
         minSelection={minScenes}
+        sceneStatuses={sceneStatuses}
+        loadingStages={SCENE_LOADING_STEPS}
         onSceneChange={handleSceneChange}
         onRegenerateScripts={handleRegenerateScripts}
       />
@@ -138,7 +216,7 @@ export default function AutoModeSection({
           <Button
             size="lg"
             disabled={!canComplete}
-            onClick={() => onComplete(scenes)}
+            onClick={() => onComplete(readyScenes)}
             className="gap-2"
           >
             다음 단계로 이동

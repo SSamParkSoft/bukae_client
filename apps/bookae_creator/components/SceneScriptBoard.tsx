@@ -6,13 +6,9 @@ import { RefreshCw } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import type { AutoScene, SceneLayout } from '@/lib/types/video'
+import { Loader2 } from 'lucide-react'
+import type { AutoScene } from '@/lib/types/video'
 import { useThemeStore } from '@/store/useThemeStore'
-
-const layoutOptions: Array<{ id: SceneLayout; label: string; description: string }> = [
-  { id: 'default', label: '기본', description: '이미지와 스크립트를 균형 있게 배치' },
-  { id: 'highlight', label: '강조', description: '스크립트에 강조 효과를 넣어 강렬하게' },
-]
 
 interface SceneScriptBoardProps {
   scenes: AutoScene[]
@@ -20,6 +16,15 @@ interface SceneScriptBoardProps {
   toneLabel: string
   isRegenerating: boolean
   minSelection?: number
+  sceneStatuses: Record<
+    string,
+    {
+      state: 'idle' | 'loading' | 'ready'
+      progress: number
+      stage: number
+    }
+  >
+  loadingStages: string[]
   onSceneChange: (sceneId: string, updates: Partial<AutoScene>) => void
   onRegenerateScripts: () => void
 }
@@ -30,6 +35,8 @@ export default function SceneScriptBoard({
   toneLabel,
   isRegenerating,
   minSelection = 4,
+  sceneStatuses,
+  loadingStages,
   onSceneChange,
   onRegenerateScripts,
 }: SceneScriptBoardProps) {
@@ -37,8 +44,13 @@ export default function SceneScriptBoard({
   const canRenderScenes = scenes.length >= minSelection
 
   const totalCharacters = useMemo(
-    () => scenes.reduce((sum, scene) => sum + scene.editedScript.length, 0),
-    [scenes],
+    () =>
+      scenes.reduce((sum, scene) => {
+        const status = sceneStatuses[scene.id]
+        if (status?.state !== 'ready') return sum
+        return sum + scene.editedScript.length
+      }, 0),
+    [scenes, sceneStatuses],
   )
 
   return (
@@ -87,7 +99,9 @@ export default function SceneScriptBoard({
                   <p className="text-sm font-semibold text-purple-500">Scene {index + 1}</p>
                   <CardTitle className="text-xl">{scene.imageLabel}</CardTitle>
                 </div>
-                <Badge variant="secondary">{scene.layout === 'highlight' ? '강조형' : '기본형'}</Badge>
+                <Badge variant="secondary">
+                  {sceneStatuses[scene.id]?.state === 'ready' ? '대본 준비 완료' : '대기 중'}
+                </Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -95,52 +109,57 @@ export default function SceneScriptBoard({
                 <div className="overflow-hidden rounded-xl border">
                   <img src={scene.imageUrl} alt={scene.imageLabel} className="h-full w-full object-cover" />
                 </div>
-                <div className="space-y-4">
-                  <textarea
-                    value={scene.editedScript}
-                    onChange={(e) => onSceneChange(scene.id, { editedScript: e.target.value })}
-                    rows={6}
-                    className={`w-full rounded-xl border p-3 text-sm leading-relaxed ${
-                      theme === 'dark'
-                        ? 'border-gray-700 bg-gray-900 text-white placeholder-gray-500'
-                        : 'border-gray-200 bg-white text-gray-900 placeholder-gray-500'
-                    } focus:outline-none focus:ring-2 focus:ring-purple-500`}
-                    placeholder="장면에 어울리는 스크립트를 입력하세요."
-                  />
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>{scene.editedScript.length}자</span>
-                    <button
-                      type="button"
-                      className="text-purple-500 underline"
-                      onClick={() => onSceneChange(scene.id, { editedScript: scene.recommendedScript })}
-                    >
-                      추천 문장으로 되돌리기
-                    </button>
+                {sceneStatuses[scene.id]?.state === 'ready' ? (
+                  <div className="space-y-4">
+                    <textarea
+                      value={scene.editedScript}
+                      onChange={(e) => onSceneChange(scene.id, { editedScript: e.target.value })}
+                      rows={6}
+                      className={`w-full rounded-xl border p-3 text-sm leading-relaxed ${
+                        theme === 'dark'
+                          ? 'border-gray-700 bg-gray-900 text-white placeholder-gray-500'
+                          : 'border-gray-200 bg-white text-gray-900 placeholder-gray-500'
+                      } focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                      placeholder="장면에 어울리는 스크립트를 입력하세요."
+                    />
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>{scene.editedScript.length}자</span>
+                      <button
+                        type="button"
+                        className="text-purple-500 underline"
+                        onClick={() => onSceneChange(scene.id, { editedScript: scene.recommendedScript })}
+                      >
+                        추천 문장으로 되돌리기
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                {layoutOptions.map((layout) => {
-                  const selected = scene.layout === layout.id
-                  return (
-                    <button
-                      key={layout.id}
-                      type="button"
-                      onClick={() => onSceneChange(scene.id, { layout: layout.id })}
-                      className={`flex flex-col rounded-xl border px-4 py-3 text-left transition ${
-                        selected
-                          ? 'border-purple-500 bg-purple-50 text-purple-600 dark:bg-purple-500/10 dark:text-purple-200'
-                          : theme === 'dark'
-                            ? 'border-gray-700 text-gray-200'
-                            : 'border-gray-200 text-gray-700'
-                      }`}
-                    >
-                      <span className="text-sm font-semibold">{layout.label}</span>
-                      <span className="text-xs opacity-80">{layout.description}</span>
-                    </button>
-                  )
-                })}
+                ) : (
+                  <div
+                    className={`flex h-full flex-col items-center justify-center gap-3 rounded-xl border border-dashed p-6 text-center ${
+                      theme === 'dark' ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-600'
+                    }`}
+                  >
+                    <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
+                    <p className="text-sm font-semibold">
+                      {sceneStatuses[scene.id]?.state === 'loading'
+                        ? `${loadingStages[sceneStatuses[scene.id]?.stage ?? 0]}`
+                        : '이 사진으로 진행하기 버튼을 눌러주세요'}
+                    </p>
+                    {sceneStatuses[scene.id]?.state === 'loading' && (
+                      <div className="w-full">
+                        <div className={`h-2 rounded-full ${theme === 'dark' ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                          <div
+                            className="h-full rounded-full bg-purple-500 transition-all"
+                            style={{ width: `${sceneStatuses[scene.id]?.progress ?? 0}%` }}
+                          />
+                        </div>
+                        <p className="mt-1 text-xs text-purple-400">
+                          {Math.round(sceneStatuses[scene.id]?.progress ?? 0)}% 완료
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
