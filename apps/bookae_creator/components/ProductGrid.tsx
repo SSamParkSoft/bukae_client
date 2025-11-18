@@ -13,6 +13,7 @@ import { SPAEL_PRODUCT } from '@/lib/data/spaelProduct'
 // 더미 데이터
 const dummyProducts: Record<Platform, Product[]> = {
   coupang: [
+    SPAEL_PRODUCT,
     {
       id: 'c1',
       name: '무선 이어폰 블루투스 5.0',
@@ -71,7 +72,6 @@ const dummyProducts: Record<Platform, Product[]> = {
       url: 'https://www.aliexpress.com/item/a1',
       description: 'RGB LED 조명',
     },
-    SPAEL_PRODUCT,
   ],
   amazon: [
     {
