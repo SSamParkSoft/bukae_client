@@ -71,7 +71,7 @@ pnpm start:creator  # 포트 3000
 pnpm start:viewer   # 포트 3001
 ```
 
-## 📽️ 발표용 SQLite 데모 데이터 준비
+## 📽️ SQLite 데이터
 
 1. 발표용 영상과 사진을 `apps/bookae_creator/public/media/` 폴더에 복사합니다.
    - 기본 seed는 `final-video.mp4`와 `photo-1.jpg` ~ `photo-5.jpg` 파일명을 사용합니다.
@@ -81,5 +81,3 @@ pnpm start:viewer   # 포트 3001
 ```bash
 pnpm seed-demo
 ```
-
-위 명령은 `apps/bookae_creator/data/demo.db`를 생성/덮어쓰고, 대시보드의 “발표용 시나리오 미디어” 카드에서 바로 확인할 수 있습니다.
