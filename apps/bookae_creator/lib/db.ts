@@ -47,10 +47,9 @@ const getDatabase = (): Database.Database => {
     const dbPath = resolveDemoDbPath()
     const database = new Database(dbPath, { readonly: true })
     
-    if (process.env.NODE_ENV !== 'production') {
-      global.__bookaeDemoDb = database
-      global.__bookaeDemoDbPath = dbPath
-    }
+    // 프로덕션 환경에서도 캐싱 허용 (서버리스 환경에서 재사용)
+    global.__bookaeDemoDb = database
+    global.__bookaeDemoDbPath = dbPath
     
     return database
   } catch (error) {
@@ -71,6 +70,13 @@ export const getMediaAssets = (): MediaAsset[] => {
     return statement.all() as MediaAsset[]
   } catch (error) {
     console.error('[db] getMediaAssets 실패:', error)
+    // 배포 환경에서 DB 파일이 없을 경우 빈 배열 반환
+    // 앱이 계속 작동할 수 있도록 함
+    const isProduction = process.env.NODE_ENV === 'production'
+    if (isProduction) {
+      console.warn('[db] 프로덕션 환경에서 DB 접근 실패, 빈 배열 반환')
+      return []
+    }
     throw error
   }
 }
