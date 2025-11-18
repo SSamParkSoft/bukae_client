@@ -3,49 +3,49 @@ import { ChannelStats, TopProduct } from '@/lib/types/viewer'
 
 // 쿠팡 통계 더미 데이터 (bookae_creator의 구조 참고)
 const generateDummyStats = (channelId: string): ChannelStats => {
-  // 더미 주문 데이터
+  // 더미 주문 데이터 (새로운 30가지 제품 목록 기준)
   const dummyOrders = [
     {
       productId: 1234567,
-      productName: '[모노마트] 와후카레 중간 맛(레토르트) 1kg',
+      productName: '일본 카레라이스 1인분',
       quantity: 45,
       gmv: 324000,
-      thumbnailUrl: 'https://via.placeholder.com/200/f59e0b/ffffff?text=카레',
+      thumbnailUrl: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=400&h=400&fit=crop', // 카레
     },
     {
       productId: 1234568,
-      productName: '[모노마트] 다이쇼 마파두부소스(마라소스) 1.16kg',
+      productName: '마파두부 1인분',
       quantity: 32,
       gmv: 486400,
-      thumbnailUrl: 'https://via.placeholder.com/200/ef4444/ffffff?text=마파두부',
+      thumbnailUrl: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=400&h=400&fit=crop', // 마파두부
     },
     {
       productId: 1234569,
-      productName: '등심 돈까스 800g (100g*8ea)',
+      productName: '돈까스 정식 1인분',
       quantity: 28,
       gmv: 464800,
-      thumbnailUrl: 'https://via.placeholder.com/200/10b981/ffffff?text=돈까스',
+      thumbnailUrl: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400&h=400&fit=crop', // 돈까스
     },
     {
       productId: 1234570,
-      productName: '빵가루 새우 튀김(헤드 OFF) 450g(45g*10ea)',
+      productName: '새우튀김 10개',
       quantity: 25,
       gmv: 170000,
-      thumbnailUrl: 'https://via.placeholder.com/200/3b82f6/ffffff?text=새우',
+      thumbnailUrl: 'https://images.unsplash.com/photo-1626700051175-54f28ea4c103?w=400&h=400&fit=crop', // 새우튀김
     },
     {
       productId: 1234571,
-      productName: '와후 치킨가라아게 1kg',
+      productName: '치킨가라아게 1인분',
       quantity: 22,
       gmv: 275000,
-      thumbnailUrl: 'https://via.placeholder.com/200/f97316/ffffff?text=치킨',
+      thumbnailUrl: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400&h=400&fit=crop', // 치킨가라아게
     },
     {
       productId: 1234572,
-      productName: '고구마 치즈 고로케 720g(40g*18ea)',
+      productName: '피자 마르게리타 L',
       quantity: 18,
-      gmv: 207000,
-      thumbnailUrl: 'https://via.placeholder.com/200/a855f7/ffffff?text=고로케',
+      gmv: 340200,
+      thumbnailUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&h=400&fit=crop', // 피자
     },
   ]
 

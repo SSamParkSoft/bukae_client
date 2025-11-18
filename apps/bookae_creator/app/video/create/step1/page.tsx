@@ -92,6 +92,14 @@ const generateProducts = (platform: Platform, count: number): Product[] => {
   const template = productTemplates[platform]
   const products: Product[] = []
 
+  // 각 플랫폼의 첫 번째 제품 이미지 매핑
+  const firstProductImages: Record<Platform, string> = {
+    coupang: '/media/spael-massager.png', // 스파알 제품 (이미 SPAEL_PRODUCT로 교체됨)
+    naver: '/media/air-filter-set.png', // 에어컨 필터 세트
+    aliexpress: '/media/led-strip-light.png', // LED 스트립 라이트
+    amazon: '/media/bluetooth-speaker.png', // Bluetooth Speaker
+  }
+
   for (let i = 1; i <= count; i++) {
     const nameIndex = (i - 1) % template.names.length
     const descIndex = (i - 1) % template.descriptions.length
@@ -99,11 +107,14 @@ const generateProducts = (platform: Platform, count: number): Product[] => {
       Math.random() * (template.priceRange[1] - template.priceRange[0]) + template.priceRange[0]
     )
     
+    // 첫 번째 제품이면 이미지 설정, 아니면 placeholder
+    const image = i === 1 ? firstProductImages[platform] : 'https://via.placeholder.com/200'
+    
     products.push({
       id: `${platform}${i}`,
       name: `${template.names[nameIndex]} ${i > template.names.length ? `(${Math.floor(i / template.names.length) + 1})` : ''}`,
       price: Math.floor(price / 100) * 100, // 100원 단위로 반올림
-      image: 'https://via.placeholder.com/200',
+      image,
       platform,
       url: `https://${platform === 'coupang' ? 'www.coupang.com/vp/products' : platform === 'naver' ? 'shopping.naver.com/products' : platform === 'aliexpress' ? 'www.aliexpress.com/item' : 'www.amazon.com/dp'}/${platform}${i}`,
       description: template.descriptions[descIndex],
@@ -410,8 +421,16 @@ export default function Step1Page() {
                           : 'border-gray-200 bg-white hover:border-purple-300'
                     }`}
                   >
-                    <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg mb-3 flex items-center justify-center">
-                      <ShoppingCart className="w-8 h-8 text-gray-400" />
+                    <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+                      {product.image && product.image !== 'https://via.placeholder.com/200' ? (
+                        <img 
+                          src={product.image} 
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <ShoppingCart className="w-8 h-8 text-gray-400" />
+                      )}
                     </div>
                     <div className={`text-xs font-medium mb-1 ${
                       theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
