@@ -6,29 +6,40 @@ import type { MediaAsset } from '@/lib/types/media'
 
 const resolveDemoDbPath = () => {
   const cwd = process.cwd()
+  const libDir = __dirname
   
-  // 다양한 가능한 경로들
+  // Vercel 환경 체크
+  const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV
+  
+  // 다양한 가능한 경로들 (우선순위 순)
   const candidates = [
-    // 현재 작업 디렉토리 기준 (프로덕션 실행 시)
-    path.join(cwd, 'apps', 'bookae_creator', 'data', 'demo.db'),
+    // 1. Vercel 런타임 경로 (최우선)
+    ...(isVercel ? [
+      path.join('/var/task', 'apps', 'bookae_creator', 'data', 'demo.db'),
+      path.join('/var/task', '.next', 'server', 'data', 'demo.db'),
+      path.join('/var/task', 'data', 'demo.db'),
+    ] : []),
+    
+    // 2. __dirname 기준 (프로덕션에서 가장 확실한 방법)
+    // .next/server/app/lib/db.js -> .next/server/data/demo.db
+    path.resolve(libDir, '..', '..', 'data', 'demo.db'),
+    path.resolve(libDir, '..', '..', 'apps', 'bookae_creator', 'data', 'demo.db'),
+    path.resolve(libDir, '..', '..', '..', 'data', 'demo.db'),
+    
+    // 3. 현재 작업 디렉토리 기준
     path.join(cwd, 'data', 'demo.db'),
-    // .next/server 내부 (프로덕션 빌드)
-    path.join(cwd, '.next', 'server', 'apps', 'bookae_creator', 'data', 'demo.db'),
+    path.join(cwd, 'apps', 'bookae_creator', 'data', 'demo.db'),
     path.join(cwd, '.next', 'server', 'data', 'demo.db'),
-    // standalone 모드
-    path.join(cwd, '.next', 'standalone', 'apps', 'bookae_creator', 'data', 'demo.db'),
-    // 절대 경로로도 시도
-    path.resolve(cwd, 'apps', 'bookae_creator', 'data', 'demo.db'),
+    path.join(cwd, '.next', 'server', 'apps', 'bookae_creator', 'data', 'demo.db'),
+    
+    // 4. 절대 경로
     path.resolve(cwd, 'data', 'demo.db'),
-    // 프로덕션에서 __dirname 기준 (컴파일된 파일 위치)
-    path.resolve(__dirname, '..', 'data', 'demo.db'),
-    path.resolve(__dirname, '..', '..', 'data', 'demo.db'),
-    // 모노레포 루트에서 실행되는 경우
     path.resolve(cwd, 'apps', 'bookae_creator', 'data', 'demo.db'),
   ]
 
+  console.log('[db] Vercel 환경:', isVercel)
   console.log('[db] process.cwd():', cwd)
-  console.log('[db] __dirname:', __dirname)
+  console.log('[db] __dirname:', libDir)
   console.log('[db] 후보 경로들:', candidates)
 
   for (const candidate of candidates) {
@@ -38,7 +49,24 @@ const resolveDemoDbPath = () => {
     }
   }
 
-  const errorMsg = `demo.db 파일을 찾을 수 없습니다. 검색한 경로:\n${candidates.map((p, i) => `  ${i + 1}. ${p} (존재: ${fs.existsSync(p)})`).join('\n')}\n현재 작업 디렉토리: ${cwd}`
+  // Vercel 환경에서 파일을 찾지 못한 경우, /tmp로 복사 시도
+  if (isVercel) {
+    const tmpPath = path.join('/tmp', 'demo.db')
+    // 먼저 후보 경로에서 찾기
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        try {
+          fs.copyFileSync(candidate, tmpPath)
+          console.log('[db] DB 파일을 /tmp로 복사:', tmpPath)
+          return tmpPath
+        } catch (error) {
+          console.warn('[db] /tmp 복사 실패:', error)
+        }
+      }
+    }
+  }
+
+  const errorMsg = `demo.db 파일을 찾을 수 없습니다. 검색한 경로:\n${candidates.map((p, i) => `  ${i + 1}. ${p} (존재: ${fs.existsSync(p)})`).join('\n')}\n현재 작업 디렉토리: ${cwd}\n__dirname: ${libDir}`
   console.error('[db]', errorMsg)
   throw new Error(errorMsg)
 }
