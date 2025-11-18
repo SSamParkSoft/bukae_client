@@ -14,18 +14,33 @@ export interface SpaelScenarioAssets {
 }
 
 export const mapMediaAssetsToSpaelScenario = (assets: MediaAsset[]): SpaelScenarioAssets => {
+  if (!assets || assets.length === 0) {
+    console.warn('[spaelAssets] 빈 assets 배열이 전달되었습니다.')
+    return { images: [] }
+  }
+
   const images = assets
     .filter((asset) => asset.type === 'image')
     .sort((a, b) => a.id - b.id)
-    .map((asset) => ({
-      id: `spael-image-${asset.id}`,
-      url: normalizeFilePath(asset.filePath),
-      label: asset.title,
-      description: asset.description ?? '',
-      scriptOverride: asset.script ?? undefined,
-    }))
+    .map((asset) => {
+      const normalizedUrl = normalizeFilePath(asset.filePath)
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[spaelAssets] 이미지 매핑: ${asset.filePath} -> ${normalizedUrl}`)
+      }
+      return {
+        id: `spael-image-${asset.id}`,
+        url: normalizedUrl,
+        label: asset.title,
+        description: asset.description ?? '',
+        scriptOverride: asset.script ?? undefined,
+      }
+    })
 
   const videoAsset = assets.find((asset) => asset.type === 'video')
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[spaelAssets] 시나리오 생성 완료: ${images.length}개 이미지, ${videoAsset ? '비디오 있음' : '비디오 없음'}`)
+  }
 
   return {
     images,

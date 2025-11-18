@@ -24,12 +24,15 @@ export default function Step2Page() {
   const router = useRouter()
   const { selectedProducts, setStep2Result, concept, tone, setConcept, setTone } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
-  const { data: mediaAssets } = useMediaAssets()
+  const { data: mediaAssets, isLoading: isLoadingMediaAssets, error: mediaAssetsError } = useMediaAssets()
   const selectedProduct = selectedProducts[0]
   const isSpaelSelected = isSpaelProduct(selectedProduct)
   const spaelScenario = useMemo(() => {
     if (!isSpaelSelected || !mediaAssets) return null
-    return mapMediaAssetsToSpaelScenario(mediaAssets)
+    // 빈 배열이어도 시나리오 객체는 생성 (이미지가 없을 수도 있음)
+    const scenario = mapMediaAssetsToSpaelScenario(mediaAssets)
+    // 이미지가 하나도 없으면 null 반환 (로딩 실패로 간주)
+    return scenario.images.length > 0 ? scenario : null
   }, [isSpaelSelected, mediaAssets])
   const spaelReferenceVideo = spaelScenario?.finalVideo?.url
   
@@ -549,11 +552,23 @@ export default function Step2Page() {
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-6"
               >
-                {isSpaelSelected && !spaelScenario ? (
+                {isSpaelSelected && (isLoadingMediaAssets || !spaelScenario) ? (
                   <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
                     <CardHeader>
-                      <CardTitle>스파알 전용 시나리오 불러오는 중...</CardTitle>
-                      <CardDescription>DB에 저장된 이미지와 대본을 로딩하고 있습니다.</CardDescription>
+                      <CardTitle>
+                        {isLoadingMediaAssets 
+                          ? '스파알 전용 시나리오 불러오는 중...' 
+                          : mediaAssetsError 
+                            ? '시나리오 로딩 실패' 
+                            : '시나리오 데이터를 찾을 수 없습니다'}
+                      </CardTitle>
+                      <CardDescription>
+                        {isLoadingMediaAssets 
+                          ? 'DB에 저장된 이미지와 대본을 로딩하고 있습니다.' 
+                          : mediaAssetsError 
+                            ? '미디어 데이터를 불러오는 중 오류가 발생했습니다. 페이지를 새로고침해주세요.' 
+                            : 'DB에 시나리오 이미지가 없습니다. seed-demo 스크립트를 실행해주세요.'}
+                      </CardDescription>
                     </CardHeader>
                   </Card>
                 ) : (
@@ -561,7 +576,7 @@ export default function Step2Page() {
                     conceptId={selectedScriptStyle}
                     toneId={selectedTone}
                     minScenes={5}
-                    assets={isSpaelSelected ? spaelScenario?.images : undefined}
+                    assets={isSpaelSelected && spaelScenario ? spaelScenario.images : undefined}
                     onComplete={handleAutoScenesComplete}
                   />
                 )}
