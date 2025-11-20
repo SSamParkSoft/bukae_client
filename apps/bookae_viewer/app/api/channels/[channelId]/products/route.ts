@@ -37,39 +37,6 @@ const generateDummyProducts = (channelId: string): Product[] => {
     { name: '케이크 1조각', price: 8900, color: 'ec4899', desc: '달콤한 케이크', text: '케이크' },
   ]
 
-  // 30가지 제품 이미지 URL 매핑 - Unsplash에서 찾기 쉬운 음식 사진 (23번은 스파알 제외)
-  const productImages: Record<number, string> = {
-    1: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=400&h=400&fit=crop', // 카레
-    2: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=400&h=400&fit=crop', // 마파두부
-    3: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400&h=400&fit=crop', // 돈까스
-    4: 'https://images.unsplash.com/photo-1626700051175-54f28ea4c103?w=400&h=400&fit=crop', // 새우튀김
-    5: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400&h=400&fit=crop', // 치킨가라아게
-    6: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&h=400&fit=crop', // 피자
-    7: 'https://images.unsplash.com/photo-1550547660-d9450f859349?w=400&h=400&fit=crop', // 햄버거
-    8: 'https://images.unsplash.com/photo-1551183053-bf91a1d81141?w=400&h=400&fit=crop', // 파스타
-    9: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=400&h=400&fit=crop', // 스테이크
-    10: 'https://images.unsplash.com/photo-1579584425555-c3ce17fd4351?w=400&h=400&fit=crop', // 초밥
-    11: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400&h=400&fit=crop', // 라멘
-    12: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400&h=400&fit=crop', // 비빔밥
-    13: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=400&h=400&fit=crop', // 김치찌개
-    14: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=400&h=400&fit=crop', // 된장찌개
-    15: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400&h=400&fit=crop', // 짜장면
-    16: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?w=400&h=400&fit=crop', // 볶음밥
-    17: 'https://images.unsplash.com/photo-1565299585323-38174c3b0d2e?w=400&h=400&fit=crop', // 타코
-    18: 'https://images.unsplash.com/photo-1539252554453-80ab65ce3586?w=400&h=400&fit=crop', // 샌드위치
-    19: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=400&h=400&fit=crop', // 샐러드
-    20: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=400&h=400&fit=crop', // 수프
-    21: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?w=400&h=400&fit=crop', // 연어
-    22: 'https://images.unsplash.com/photo-1528607929212-4d8e5c0c8b8b?w=400&h=400&fit=crop', // 삼겹살
-    24: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=400&h=400&fit=crop', // 불고기
-    25: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400&h=400&fit=crop', // 치킨윙
-    26: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=400&h=400&fit=crop', // 갈비탕
-    27: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=400&h=400&fit=crop', // 설렁탕
-    28: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=400&h=400&fit=crop', // 순두부찌개
-    29: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400&h=400&fit=crop', // 김치전
-    30: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=400&h=400&fit=crop', // 케이크
-  }
-
   // 제품 목록 생성
   const products: Product[] = productTemplates.map((template, index) => {
     const order = index + 1
@@ -89,7 +56,9 @@ const generateDummyProducts = (channelId: string): Product[] => {
     }
     
     // 전체 제품에 실제 이미지 사용 (없으면 placeholder)
-    const imageUrl = productImages[order] || `https://via.placeholder.com/200/${template.color}/ffffff?text=${encodeURIComponent(template.text)}`
+    const imageUrl = `https://placehold.co/400x400/${template.color}/ffffff?text=${encodeURIComponent(
+      template.text,
+    )}`
     
     return {
     id: String(index + 1),

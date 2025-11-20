@@ -3,6 +3,18 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'via.placeholder.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'placehold.co',
+      },
+    ],
+  },
   // better-sqlite3는 서버 사이드에서만 사용 (Turbopack 호환)
   serverExternalPackages: ['better-sqlite3'],
   // 배포 시 data 폴더의 demo.db 파일을 포함시킴

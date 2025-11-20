@@ -71,6 +71,29 @@ pnpm start:creator  # 포트 3000
 pnpm start:viewer   # 포트 3001
 ```
 
+## 🔧 환경 설정
+
+### 백엔드 서버 연동
+
+프론트엔드는 백엔드 API 서버와 연동됩니다. 백엔드 서버를 별도로 실행해야 합니다.
+
+1. **백엔드 서버 실행**
+   - 백엔드 서버를 GitHub에서 클론하여 실행합니다
+   - 기본 포트: `http://localhost:8080`
+
+2. **환경 변수 설정** (선택사항)
+   - 각 앱의 루트 디렉토리에 `.env.local` 파일을 생성합니다
+   - 백엔드 서버 URL이 기본값(`http://localhost:8080`)과 다른 경우 설정합니다:
+   ```bash
+   # apps/bookae_creator/.env.local
+   NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+   ```
+   - 환경 변수를 설정하지 않으면 기본값(`http://localhost:8080`)이 사용됩니다
+
+3. **서버 미실행 시**
+   - 프론트엔드는 서버가 실행되지 않아도 빌드/실행 가능합니다
+   - API 호출 시 적절한 에러 메시지가 표시됩니다
+
 ## 📽️ SQLite 데이터
 
 1. 발표용 영상과 사진을 `apps/bookae_creator/public/media/` 폴더에 복사합니다.

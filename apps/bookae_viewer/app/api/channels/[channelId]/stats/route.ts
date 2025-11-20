@@ -10,42 +10,42 @@ const generateDummyStats = (channelId: string): ChannelStats => {
       productName: '일본 카레라이스 1인분',
       quantity: 45,
       gmv: 324000,
-      thumbnailUrl: 'https://images.unsplash.com/photo-1585937421612-70a008356fbe?w=400&h=400&fit=crop', // 카레
+      thumbnailUrl: 'https://placehold.co/400x400/f59e0b/ffffff?text=%EC%B9%B4%EB%A0%88',
     },
     {
       productId: 1234568,
       productName: '마파두부 1인분',
       quantity: 32,
       gmv: 486400,
-      thumbnailUrl: 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=400&h=400&fit=crop', // 마파두부
+      thumbnailUrl: 'https://placehold.co/400x400/ef4444/ffffff?text=%EB%A7%88%ED%8C%8C%EB%91%90%EB%B6%80',
     },
     {
       productId: 1234569,
       productName: '돈까스 정식 1인분',
       quantity: 28,
       gmv: 464800,
-      thumbnailUrl: 'https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=400&h=400&fit=crop', // 돈까스
+      thumbnailUrl: 'https://placehold.co/400x400/10b981/ffffff?text=%EB%8F%88%EA%B9%8C%EC%8A%A4',
     },
     {
       productId: 1234570,
       productName: '새우튀김 10개',
       quantity: 25,
       gmv: 170000,
-      thumbnailUrl: 'https://images.unsplash.com/photo-1626700051175-54f28ea4c103?w=400&h=400&fit=crop', // 새우튀김
+      thumbnailUrl: 'https://placehold.co/400x400/3b82f6/ffffff?text=%EC%83%88%EC%9A%B0',
     },
     {
       productId: 1234571,
       productName: '치킨가라아게 1인분',
       quantity: 22,
       gmv: 275000,
-      thumbnailUrl: 'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=400&h=400&fit=crop', // 치킨가라아게
+      thumbnailUrl: 'https://placehold.co/400x400/f97316/ffffff?text=%EC%B9%98%ED%82%A8',
     },
     {
       productId: 1234572,
       productName: '피자 마르게리타 L',
       quantity: 18,
       gmv: 340200,
-      thumbnailUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&h=400&fit=crop', // 피자
+      thumbnailUrl: 'https://placehold.co/400x400/ef4444/ffffff?text=%ED%94%BC%EC%9E%90',
     },
   ]
 

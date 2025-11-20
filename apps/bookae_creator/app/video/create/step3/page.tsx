@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, Image, Mic, Type, Music, Shuffle, Play, Loader2, CheckCircle2 } from 'lucide-react'
+import { ArrowRight, Image, Mic, Type, Music, Shuffle, Play, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,7 +20,7 @@ import IntroSelectionDialog from '@/components/IntroSelectionDialog'
 
 export default function Step3Page() {
   const router = useRouter()
-  const { step2Result } = useVideoCreateStore()
+  const { step2Result, selectedProducts, thumbnailTitle } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false)
   const [generationProgress, setGenerationProgress] = useState(0)
@@ -36,8 +36,12 @@ export default function Step3Page() {
   }
 
   // 최종 영상 생성
-  const handleGenerateFinalVideo = () => {
+  const handleGenerateFinalVideo = async () => {
     if (!checkEffectsComplete()) return
+    if (!step2Result || !selectedProducts[0]) {
+      alert('상품과 스크립트 정보가 필요합니다.')
+      return
+    }
 
     setIsGeneratingVideo(true)
     setGenerationProgress(0)
@@ -48,30 +52,15 @@ export default function Step3Page() {
       videoGeneratingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 100)
 
-    // 더미 영상 생성 시뮬레이션 (진행률 표시)
-    const progressInterval = setInterval(() => {
-      setGenerationProgress((prev) => {
-        if (prev >= 90) {
-          clearInterval(progressInterval)
-          return 90
-        }
-        return prev + 10
-      })
-    }, 300)
-
-    // 더미 영상 생성 시뮬레이션 (3~5초)
+    // 2초 후에 완성된 영상 제공 (데모용)
     setTimeout(() => {
-      clearInterval(progressInterval)
-      const videoUrl = '/media/Scenario_video.mp4' // 실제 영상 파일 경로
-      setFinalVideoUrl(videoUrl)
       setGenerationProgress(100)
       setIsGeneratingVideo(false)
-      
-      // 최종 영상 섹션으로 스크롤
+      setFinalVideoUrl('/media/Scenario_video.mp4')
       setTimeout(() => {
         finalVideoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }, 100)
-    }, 3500)
+    }, 2000)
   }
 
   // 효과 수정하기 (효과 섹션으로 즉시 스크롤)

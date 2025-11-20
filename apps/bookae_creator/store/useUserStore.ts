@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { authStorage } from '@/lib/api/auth-storage'
 
 export interface User {
   id: string
@@ -30,10 +31,12 @@ interface UserState {
   user: User | null
   connectedServices: ConnectedService[]
   notificationSettings: NotificationSettings
+  isAuthenticated: boolean
   setUser: (user: User | null) => void
   updateUser: (updates: Partial<User>) => void
   setConnectedService: (service: ConnectedService) => void
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void
+  checkAuth: () => boolean
   reset: () => void
 }
 
@@ -66,11 +69,12 @@ const defaultNotificationSettings: NotificationSettings = {
 
 export const useUserStore = create<UserState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: defaultUser,
       connectedServices: defaultConnectedServices,
       notificationSettings: defaultNotificationSettings,
-      setUser: (user) => set({ user }),
+      isAuthenticated: authStorage.hasTokens(),
+      setUser: (user) => set({ user, isAuthenticated: authStorage.hasTokens() }),
       updateUser: (updates) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...updates } : null,
@@ -96,12 +100,20 @@ export const useUserStore = create<UserState>()(
             ...settings,
           },
         })),
-      reset: () =>
+      checkAuth: () => {
+        const hasTokens = authStorage.hasTokens()
+        set({ isAuthenticated: hasTokens })
+        return hasTokens
+      },
+      reset: () => {
+        authStorage.clearTokens()
         set({
           user: defaultUser,
           connectedServices: defaultConnectedServices,
           notificationSettings: defaultNotificationSettings,
-        }),
+          isAuthenticated: false,
+        })
+      },
     }),
     {
       name: 'bookae-user-storage',

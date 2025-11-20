@@ -1,6 +1,8 @@
 'use client'
 
-import { X, ArrowRight } from 'lucide-react'
+import { useState } from 'react'
+import { X, ArrowRight, ShoppingCart } from 'lucide-react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,6 +14,7 @@ export default function SelectedProductsPanel() {
   const router = useRouter()
   const { selectedProducts, removeProduct, addProduct } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
+  const [imageError, setImageError] = useState<Record<string, boolean>>({})
 
   const handleNext = () => {
     if (selectedProducts.length > 0) {
@@ -88,7 +91,25 @@ export default function SelectedProductsPanel() {
               <Card key={product.id} className="border-gray-200">
                 <CardContent className="p-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg" />
+                    <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden">
+                      {product.image && !imageError[product.id] ? (
+                        <Image
+                          src={product.image}
+                          alt={product.name}
+                          width={48}
+                          height={48}
+                          className="w-12 h-12 object-cover"
+                          onError={() =>
+                            setImageError((prev) => ({
+                              ...prev,
+                              [product.id]: true,
+                            }))
+                          }
+                        />
+                      ) : (
+                        <ShoppingCart className="w-5 h-5 text-gray-400" />
+                      )}
+                    </div>
                     <div className="flex-1 min-w-0">
                       <h3 className={`font-semibold text-sm mb-1 line-clamp-2 ${
                         theme === 'dark' ? 'text-white' : 'text-gray-900'

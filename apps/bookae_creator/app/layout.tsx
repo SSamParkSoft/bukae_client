@@ -1,7 +1,6 @@
 import './globals.css'
 import Providers from './providers'
-import Sidebar from '../components/Sidebar'
-import ThemeToggle from '../components/ThemeToggle'
+import AppShell from '../components/AppShell'
 import ThemeInitializer from '../components/ThemeInitializer'
 
 export const metadata = {
@@ -15,13 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="transition-colors">
         <ThemeInitializer />
         <Providers>
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <main className="flex-1 ml-64">
-              {children}
-            </main>
-          </div>
-          <ThemeToggle />
+          <AppShell>{children}</AppShell>
         </Providers>
       </body>
     </html>
