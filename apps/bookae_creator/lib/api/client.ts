@@ -75,20 +75,25 @@ export async function apiRequest<T>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { skipAuth = false, ...fetchOptions } = options
+  const { skipAuth = false, headers: initHeaders, ...fetchOptions } = options
 
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`
 
-  const headers: HeadersInit = {
+  const headers = new Headers({
     'Content-Type': 'application/json',
-    ...fetchOptions.headers,
+  })
+
+  if (initHeaders) {
+    new Headers(initHeaders).forEach((value, key) => {
+      headers.set(key, value)
+    })
   }
 
   // 인증 토큰 추가
   if (!skipAuth) {
     const accessToken = authStorage.getAccessToken()
     if (accessToken) {
-      headers['Authorization'] = `Bearer ${accessToken}`
+      headers.set('Authorization', `Bearer ${accessToken}`)
     }
   }
 
