@@ -1,11 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { Home, Video, BarChart3, User } from 'lucide-react'
+import { usePathname, useRouter } from 'next/navigation'
+import { Home, Video, BarChart3, User, LogIn, LogOut } from 'lucide-react'
 import classNames from 'classnames'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useThemeStore } from '../store/useThemeStore'
+import { useUserStore } from '../store/useUserStore'
+import { useLogout } from '@/lib/hooks/useAuth'
 
 const navigation = [
   { name: '메인', href: '/', icon: Home },
@@ -16,7 +18,16 @@ const navigation = [
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const theme = useThemeStore((state) => state.theme)
+  const { isAuthenticated, checkAuth } = useUserStore()
+  const logout = useLogout()
+
+  const handleLogout = () => {
+    logout()
+    checkAuth()
+    router.push('/login')
+  }
 
   return (
     <aside className={`fixed left-0 top-0 h-full w-64 border-r flex flex-col transition-colors ${
@@ -98,6 +109,39 @@ export default function Sidebar() {
           )
         })}
       </nav>
+
+      {/* 로그인/로그아웃 버튼 */}
+      <div className={`p-4 border-t ${
+        theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
+      }`}>
+        {isAuthenticated ? (
+          <button
+            onClick={handleLogout}
+            className={classNames(
+              'w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors',
+              theme === 'dark'
+                ? 'text-gray-300 hover:bg-gray-800/80'
+                : 'text-gray-700 hover:bg-gray-100'
+            )}
+          >
+            <LogOut className="w-5 h-5" />
+            <span>로그아웃</span>
+          </button>
+        ) : (
+          <Link
+            href="/login"
+            className={classNames(
+              'w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors',
+              theme === 'dark'
+                ? 'text-gray-300 hover:bg-gray-800/80'
+                : 'text-gray-700 hover:bg-gray-100'
+            )}
+          >
+            <LogIn className="w-5 h-5" />
+            <span>로그인</span>
+          </Link>
+        )}
+      </div>
     </aside>
   )
 }

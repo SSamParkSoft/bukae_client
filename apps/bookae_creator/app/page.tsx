@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useThemeStore } from '@/store/useThemeStore'
 import { TrendingUp, ShoppingCart, Eye, Loader2, Youtube, Users, Store, DollarSign, Video, ArrowRight } from 'lucide-react'
 import HomeShortcut from '@/components/HomeShortcut'
+import PageHeader from '@/components/PageHeader'
 
 const formatNumber = (num: number): string => {
   if (num >= 1000000) {
@@ -125,18 +126,10 @@ export default function HomePage() {
     >
       <div className="max-w-7xl mx-auto space-y-8">
         {/* 헤더 */}
-        <div>
-          <h1 className={`text-3xl font-bold mb-2 ${
-            theme === 'dark' ? 'text-white' : 'text-gray-900'
-          }`}>
-            📦 Bookae 대시보드
-          </h1>
-          <p className={`${
-            theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            금주의 인기 키워드와 성과를 확인하세요
-          </p>
-        </div>
+        <PageHeader
+          title="📦 Bookae 대시보드"
+          description="금주의 인기 키워드와 성과를 확인하세요"
+        />
 
         {/* 내 홈페이지 바로가기 */}
         <HomeShortcut />

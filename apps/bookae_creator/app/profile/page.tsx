@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { useUserStore } from '@/store/useUserStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useYouTubeVideos } from '@/lib/hooks/useYouTubeVideos'
+import PageHeader from '@/components/PageHeader'
 import { useCoupangStats } from '@/lib/hooks/useCoupangStats'
 import { useYouTubeStats } from '@/lib/hooks/useYouTubeStats'
 import {
@@ -128,18 +129,10 @@ export default function ProfilePage() {
       className="p-8"
     >
       <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <h1 className={`text-3xl font-bold mb-2 ${
-            theme === 'dark' ? 'text-white' : 'text-gray-900'
-          }`}>
-            마이페이지
-          </h1>
-          <p className={`${
-            theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            계정 정보 및 설정을 관리하세요
-          </p>
-        </div>
+        <PageHeader
+          title="마이페이지"
+          description="프로필 정보와 설정을 관리하세요"
+        />
 
         <Tabs defaultValue="profile" className="w-full">
           <TabsList className={`grid w-full grid-cols-4 max-w-2xl mb-6 ${
