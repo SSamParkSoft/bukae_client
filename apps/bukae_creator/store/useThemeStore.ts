@@ -22,25 +22,16 @@ const setStoredTheme = (theme: Theme) => {
 
 export const useThemeStore = create<ThemeState>((set) => {
   const initialTheme = getStoredTheme()
-  if (typeof document !== 'undefined') {
-    document.documentElement.setAttribute('data-theme', initialTheme)
-  }
 
   return {
     theme: initialTheme,
     toggleTheme: () =>
       set((state) => {
         const newTheme = state.theme === 'light' ? 'dark' : 'light'
-        if (typeof document !== 'undefined') {
-          document.documentElement.setAttribute('data-theme', newTheme)
-        }
         setStoredTheme(newTheme)
         return { theme: newTheme }
       }),
     setTheme: (theme) => {
-      if (typeof document !== 'undefined') {
-        document.documentElement.setAttribute('data-theme', theme)
-      }
       setStoredTheme(theme)
       set({ theme })
     },

@@ -73,26 +73,28 @@ pnpm start:viewer   # 포트 3001
 
 ## 🔧 환경 설정
 
+### Supabase 인증(PostgreSQL) 연동
+
+`apps/bookae_creator`는 Supabase Auth(PostgreSQL 기반)를 통해 로그인/회원가입을 처리합니다.
+
+1. **Supabase 프로젝트 생성**
+   - Database: PostgreSQL (Supabase 기본값)
+   - Authentication > Email templates에서 발송 메일을 원하는 브랜드에 맞게 수정하세요.
+2. **환경 변수 구성**
+   - `apps/bookae_creator/env.example` 파일을 참고하여 `.env.local`을 생성합니다.
+   ```bash
+   NEXT_PUBLIC_SUPABASE_URL=<Supabase 프로젝트 URL>
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=<Supabase anon key>
+   NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL=http://localhost:3000/login
+   ```
+   - `NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL`는 이메일 인증 완료 후 이동할 경로입니다.
+3. **로컬 개발 시**
+   - `pnpm dev` 실행 후 `/signup`에서 회원가입하면 Supabase Postgres에 계정이 생성됩니다.
+   - 로그인/로그아웃 상태는 Supabase 세션과 동기화되어 있어 새로고침 후에도 유지됩니다.
+
 ### 백엔드 서버 연동
 
-프론트엔드는 백엔드 API 서버와 연동됩니다. 백엔드 서버를 별도로 실행해야 합니다.
-
-1. **백엔드 서버 실행**
-   - 백엔드 서버를 GitHub에서 클론하여 실행합니다
-   - 기본 포트: `http://localhost:8080`
-
-2. **환경 변수 설정** (선택사항)
-   - 각 앱의 루트 디렉토리에 `.env.local` 파일을 생성합니다
-   - 백엔드 서버 URL이 기본값(`http://localhost:8080`)과 다른 경우 설정합니다:
-   ```bash
-   # apps/bookae_creator/.env.local
-   NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
-   ```
-   - 환경 변수를 설정하지 않으면 기본값(`http://localhost:8080`)이 사용됩니다
-
-3. **서버 미실행 시**
-   - 프론트엔드는 서버가 실행되지 않아도 빌드/실행 가능합니다
-   - API 호출 시 적절한 에러 메시지가 표시됩니다
+기존 REST API(상품/영상 데이터 등)를 사용한다면 `NEXT_PUBLIC_API_BASE_URL`을 설정하고 백엔드 서버를 실행해주세요. 서버가 실행되지 않아도 프론트엔드는 동작하며, API 호출 시에만 오류가 표시됩니다.
 
 ## 📽️ SQLite 데이터
 

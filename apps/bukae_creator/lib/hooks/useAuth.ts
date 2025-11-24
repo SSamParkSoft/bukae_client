@@ -2,24 +2,27 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/lib/api/auth'
-import type {
-  EmailVerificationRequest,
-  EmailVerifyRequest,
-  SignUpRequest,
-  LoginRequest,
-} from '@/lib/types/api/auth'
+import type { SignUpRequest, LoginRequest } from '@/lib/types/api/auth'
+import { getSupabaseClient } from '@/lib/supabase/client'
+import { useUserStore } from '@/store/useUserStore'
 
-export const useSendVerificationEmail = () => {
-  return useMutation({
-    mutationFn: (email: string) => authApi.sendVerificationEmail(email),
-  })
-}
+const mapSupabaseUser = (user: {
+  id: string
+  email?: string
+  created_at?: string
+  user_metadata?: Record<string, unknown>
+}) => {
+  const fullName = (user.user_metadata?.full_name as string | undefined) ?? ''
+  const fallbackName = user.email?.split('@')[0] ?? '사용자'
 
-export const useVerifyEmail = () => {
-  return useMutation({
-    mutationFn: ({ email, code }: { email: string; code: string }) =>
-      authApi.verifyEmail(email, code),
-  })
+  return {
+    id: user.id,
+    name: fullName || fallbackName,
+    email: user.email ?? '',
+    profileImage: user.user_metadata?.avatar_url as string | undefined,
+    createdAt: user.created_at ?? new Date().toISOString(),
+    accountStatus: 'active' as const,
+  }
 }
 
 export const useSignUp = () => {
@@ -30,22 +33,28 @@ export const useSignUp = () => {
 
 export const useLogin = () => {
   const queryClient = useQueryClient()
+  const setUser = useUserStore((state) => state.setUser)
 
   return useMutation({
     mutationFn: (data: LoginRequest) => authApi.login(data),
-    onSuccess: () => {
-      // 로그인 성공 시 관련 쿼리 무효화
+    onSuccess: async () => {
       queryClient.invalidateQueries()
+      const supabase = getSupabaseClient()
+      const { data: userData } = await supabase.auth.getUser()
+      if (userData.user) {
+        setUser(mapSupabaseUser(userData.user))
+      }
     },
   })
 }
 
 export const useLogout = () => {
   const queryClient = useQueryClient()
+  const resetUser = useUserStore((state) => state.reset)
 
-  return () => {
-    authApi.logout()
-    // 모든 쿼리 무효화 및 캐시 클리어
+  return async () => {
+    await authApi.logout()
+    resetUser()
     queryClient.clear()
   }
 }

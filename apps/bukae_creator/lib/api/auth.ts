@@ -1,59 +1,87 @@
 // Auth API 함수
 
-import { api } from './client'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { authStorage } from './auth-storage'
-import type {
-  EmailVerificationRequest,
-  EmailVerifyRequest,
-  SignUpRequest,
-  LoginRequest,
-  TokenResponse,
-} from '@/lib/types/api/auth'
+import type { SignUpRequest, LoginRequest, TokenResponse } from '@/lib/types/api/auth'
+
+const getEmailRedirectUrl = () => {
+  if (typeof window !== 'undefined' && window.location.origin) {
+    return (
+      process.env.NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL ?? `${window.location.origin}/login`
+    )
+  }
+  return process.env.NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL ?? 'http://localhost:3000/login'
+}
+
+const mapErrorMessage = (message: string) => {
+  if (message.includes('Invalid login credentials')) {
+    return '이메일 또는 비밀번호가 올바르지 않습니다.'
+  }
+  if (message.includes('User already registered')) {
+    return '이미 가입된 이메일입니다.'
+  }
+  return message
+}
 
 export const authApi = {
   /**
-   * 인증코드 이메일 발송
-   * POST /api/email/send-verification
+   * Supabase 회원가입
    */
-  sendVerificationEmail: async (email: string): Promise<void> => {
-    const data: EmailVerificationRequest = { email }
-    return api.post<void>('/api/email/send-verification', data, { skipAuth: true })
-  },
+  signUp: async ({ email, name, password }: SignUpRequest): Promise<void> => {
+    const supabase = getSupabaseClient()
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: getEmailRedirectUrl(),
+        data: {
+          full_name: name,
+        },
+      },
+    })
 
-  /**
-   * 이메일 인증코드 확인
-   * POST /api/email/verify
-   */
-  verifyEmail: async (email: string, code: string): Promise<void> => {
-    const data: EmailVerifyRequest = { email, code }
-    return api.post<void>('/api/email/verify', data, { skipAuth: true })
-  },
-
-  /**
-   * 회원가입
-   * POST /api/auth/signup
-   */
-  signUp: async (data: SignUpRequest): Promise<void> => {
-    return api.post<void>('/api/auth/signup', data, { skipAuth: true })
-  },
-
-  /**
-   * 로그인
-   * POST /api/auth/login
-   */
-  login: async (data: LoginRequest): Promise<TokenResponse> => {
-    const response = await api.post<TokenResponse>('/api/auth/login', data, { skipAuth: true })
-    // 로그인 성공 시 토큰 저장
-    if (response.accessToken && response.refreshToken) {
-      authStorage.setTokens(response.accessToken, response.refreshToken)
+    if (error) {
+      throw new Error(mapErrorMessage(error.message))
     }
-    return response
+
+    if (data.session) {
+      authStorage.setTokens(data.session.access_token, data.session.refresh_token)
+    }
   },
 
   /**
-   * 로그아웃
+   * Supabase 이메일/비밀번호 로그인
    */
-  logout: (): void => {
+  login: async ({ email, password }: LoginRequest): Promise<TokenResponse> => {
+    const supabase = getSupabaseClient()
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      throw new Error(mapErrorMessage(error.message))
+    }
+
+    const session = data.session
+    if (!session) {
+      throw new Error('세션 정보를 가져오지 못했습니다. 다시 시도해주세요.')
+    }
+
+    authStorage.setTokens(session.access_token, session.refresh_token)
+
+    return {
+      accessToken: session.access_token,
+      refreshToken: session.refresh_token,
+    }
+  },
+
+  /**
+   * Supabase 로그아웃
+   */
+  logout: async (): Promise<void> => {
+    const supabase = getSupabaseClient()
+    await supabase.auth.signOut()
     authStorage.clearTokens()
   },
 }

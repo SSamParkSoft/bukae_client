@@ -19,8 +19,8 @@ export default function PageHeader({ title, description, children }: PageHeaderP
   const { isAuthenticated, user, checkAuth } = useUserStore()
   const logout = useLogout()
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     checkAuth()
     router.push('/login')
   }

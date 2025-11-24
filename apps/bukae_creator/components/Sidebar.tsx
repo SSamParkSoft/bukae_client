@@ -23,8 +23,8 @@ export default function Sidebar() {
   const { isAuthenticated, checkAuth } = useUserStore()
   const logout = useLogout()
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     checkAuth()
     router.push('/login')
   }
