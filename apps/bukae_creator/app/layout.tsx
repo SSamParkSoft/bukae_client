@@ -4,8 +4,11 @@ import AppShell from '../components/AppShell'
 import ThemeInitializer from '../components/ThemeInitializer'
 
 export const metadata = {
-  title: 'Bookae Client',
-  description: 'AI 기반 부업 자동화 서비스 클라이언트',
+  title: 'Bukae Dashboard',
+  description: 'AI 기반 부업 자동화 서비스 대시보드',
+  icons: {
+    icon: '/logo-icon.svg',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
