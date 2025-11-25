@@ -105,7 +105,11 @@ export default function ViewerHomePage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-8">
       {/* 로고 */}
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900">📦 Bookae</h1>
+        <img 
+          src="/logo-typography.svg" 
+          alt="부캐 로고" 
+          className="h-12 w-auto"
+        />
       </div>
 
       {/* URL 입력 필드 */}

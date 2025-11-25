@@ -127,9 +127,28 @@ export default function HomePage() {
       <div className="max-w-7xl mx-auto space-y-8">
         {/* 헤더 */}
         <PageHeader
-          title="📦 Bookae 대시보드"
-          description="금주의 인기 키워드와 성과를 확인하세요"
-        />
+          title=""
+        >
+          <div className="mb-1">
+            <div className="flex items-center mb-2">
+              <img 
+                src="/logo-icon.svg" 
+                alt="부캐 아이콘" 
+                className="w-10 h-10"
+              />
+              <img 
+                src="/logo-typography.svg" 
+                alt="부캐 타이포" 
+                className="h-10 w-auto -ml-8"
+              />
+            </div>
+            <p className={`${
+              theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+            }`}>
+              금주의 인기 키워드와 성과를 확인하세요
+            </p>
+          </div>
+        </PageHeader>
 
         {/* 내 홈페이지 바로가기 */}
         <HomeShortcut />

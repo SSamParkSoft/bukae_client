@@ -30,20 +30,31 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className={`fixed left-0 top-0 h-full w-64 border-r flex flex-col transition-colors ${
+    <aside className={`fixed left-0 top-0 h-full w-56 border-r flex flex-col transition-colors ${
       theme === 'dark' 
         ? 'bg-gray-900 border-gray-800' 
         : 'bg-white border-gray-200'
     }`}>
-      <div className={`p-6 border-b ${
+      <div className={`p-4 border-b ${
         theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
       }`}>
-        <h1 className={`text-xl font-bold ${
-          theme === 'dark' ? 'text-white' : 'text-gray-900'
-        }`}>📦 Bookae</h1>
-        <p className={`text-sm mt-1 ${
-          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-        }`}>부업 자동화 서비스</p>
+        <Link href="/" className="block">
+          <div className="flex items-center ">
+            <img 
+              src="/logo-icon.svg" 
+              alt="부캐 아이콘" 
+              className="w-13 h-13"
+            />
+            <img 
+              src="/logo-typography.svg" 
+              alt="부캐 타이포" 
+              className="h-13 w-auto -ml-12"
+            />
+          </div>
+          <p className={`text-md ml-3 ${
+            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+          }`}>부업 자동화 서비스</p>
+        </Link>
       </div>
       
       <nav className="flex-1 p-4 space-y-2">
