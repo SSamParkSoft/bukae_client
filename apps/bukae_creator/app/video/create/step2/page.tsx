@@ -37,13 +37,14 @@ export default function Step2Page() {
   const spaelReferenceVideo = spaelScenario?.finalVideo?.url
   
   const [mode, setMode] = useState<Step2Mode | null>(null)
-  const [selectedScriptStyle, setSelectedScriptStyle] = useState<ConceptType | null>(null)
-  const [selectedTone, setSelectedTone] = useState<string | null>(null)
+  const [selectedScriptStyle, setSelectedScriptStyle] = useState<ConceptType | null>(concept)
+  const [selectedTone, setSelectedTone] = useState<string | null>(tone)
   const [generatedScript, setGeneratedScript] = useState<string>('')
   const [finalScript, setFinalScript] = useState<string>('')
   const [uploadedVideos, setUploadedVideos] = useState<File[]>([])
   const [showConceptDialog, setShowConceptDialog] = useState(false)
   const [isGeneratingScript, setIsGeneratingScript] = useState(false)
+  const [expandedConceptId, setExpandedConceptId] = useState<ConceptType | null>(() => concept ?? null)
 
   // 각 단계의 활성화 상태
   const [activeSteps, setActiveSteps] = useState({
@@ -78,12 +79,18 @@ export default function Step2Page() {
     }, 100)
   }
 
+  // 토글 열기
+  const handleConceptToggle = (conceptId: ConceptType) => {
+    setExpandedConceptId((prev) => (prev === conceptId ? null : conceptId))
+  }
+
   // 대본 스타일 선택
   const handleScriptStyleSelect = (concept: ConceptType, toneId: string) => {
     setSelectedScriptStyle(concept)
     setSelectedTone(toneId)
     setConcept(concept)
     setTone(toneId)
+    setExpandedConceptId(concept)
     if (mode === 'manual') {
       setActiveSteps((prev) => ({ ...prev, scriptGenerating: true }))
       setIsGeneratingScript(true)
@@ -116,6 +123,7 @@ export default function Step2Page() {
     setFinalScript('')
     setSelectedScriptStyle(null)
     setSelectedTone(null)
+    setExpandedConceptId(null)
     setActiveSteps((prev) => ({
       ...prev,
       scriptGenerating: false,
@@ -150,6 +158,16 @@ export default function Step2Page() {
   // 영상 업로드 완료
   const handleVideoUploaded = (files: File[]) => {
     setUploadedVideos(files)
+  }
+
+  const handleBackToScriptStyle = () => {
+    if (!activeSteps.scriptStyleSelection) return
+    if (selectedScriptStyle) {
+      setExpandedConceptId(selectedScriptStyle)
+    }
+    setTimeout(() => {
+      scriptStyleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 50)
   }
 
   // STEP3로 이동 (영상 편집 단계)
@@ -306,40 +324,60 @@ export default function Step2Page() {
                 <div className="space-y-6">
                   {conceptOptions.map((conceptOption) => {
                     const tones = conceptTones[conceptOption.id]
+                    const toneTiers = Array.from(new Set(tones.map((tone) => tone.tier)))
                     return (
                       <Card
                         key={conceptOption.id}
                         className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
                       >
-                        <CardHeader>
+                        <CardHeader
+                          onClick={() => handleConceptToggle(conceptOption.id)}
+                          className="cursor-pointer"
+                        >
                           <div className="flex items-center justify-between">
-                            <CardTitle className="text-lg">{conceptOption.label}</CardTitle>
-                            <Badge variant={conceptOption.tier === 'LIGHT' ? 'default' : 'secondary'}>
-                              {conceptOption.tier}
-                            </Badge>
+                            <div>
+                              <CardTitle className="text-lg">{conceptOption.label}</CardTitle>
+                              <div className="flex gap-2 flex-wrap mt-2">
+                                {toneTiers.map((tier) => (
+                                  <Badge
+                                    key={tier}
+                                    variant={tier === 'LIGHT' ? 'default' : 'secondary'}
+                                  >
+                                    {tier}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                            <ChevronDown
+                              className={`w-5 h-5 transition-transform ${
+                                expandedConceptId === conceptOption.id ? 'rotate-180' : ''
+                              } ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}
+                            />
                           </div>
                         </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-2 gap-3">
-                            {tones.map((toneOption) => (
-                              <Button
-                                key={toneOption.id}
-                                variant="outline"
-                                onClick={() => handleScriptStyleSelect(conceptOption.id, toneOption.id)}
-                                className={`justify-start ${
-                                  selectedScriptStyle === conceptOption.id && selectedTone === toneOption.id
-                                    ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
-                                    : ''
-                                }`}
-                              >
-                                <span className="flex-1 text-left">{toneOption.label}</span>
-                                <Badge variant={toneOption.tier === 'LIGHT' ? 'default' : 'secondary'} className="ml-2">
-                                  {toneOption.tier}
-                                </Badge>
-                              </Button>
-                            ))}
-                          </div>
-                        </CardContent>
+                        {expandedConceptId === conceptOption.id && (
+                          <CardContent>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {tones.map((toneOption) => (
+                                <Button
+                                  key={toneOption.id}
+                                  variant="outline"
+                                  onClick={() => handleScriptStyleSelect(conceptOption.id, toneOption.id)}
+                                  className={`justify-start ${
+                                    selectedScriptStyle === conceptOption.id && selectedTone === toneOption.id
+                                      ? 'border-teal-500 bg-teal-50 dark:bg-teal-900/20'
+                                      : ''
+                                  }`}
+                                >
+                                  <span className="flex-1 text-left">{toneOption.label}</span>
+                                  <Badge variant={toneOption.tier === 'LIGHT' ? 'default' : 'secondary'} className="ml-2">
+                                    {toneOption.tier}
+                                  </Badge>
+                                </Button>
+                              ))}
+                            </div>
+                          </CardContent>
+                        )}
                       </Card>
                     )
                   })}
@@ -367,6 +405,11 @@ export default function Step2Page() {
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-6"
               >
+                <div className="flex justify-end">
+                  <Button variant="ghost" size="sm" onClick={handleBackToScriptStyle}>
+                    이전 단계로 돌아가기
+                  </Button>
+                </div>
                 <ScriptTypingEffect onComplete={handleScriptGenerated} mode={mode || 'manual'} />
               </motion.section>
             )}
@@ -379,17 +422,22 @@ export default function Step2Page() {
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-6"
               >
-                <div>
-                  <h2 className={`text-2xl font-bold mb-2 ${
-                    theme === 'dark' ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    대본 및 스크립트 확인 및 수정
-                  </h2>
-                  <p className={`mt-2 ${
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    생성된 대본 및 스크립트를 확인하고 필요시 수정해주세요
-                  </p>
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h2 className={`text-2xl font-bold mb-2 ${
+                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      대본 및 스크립트 확인 및 수정
+                    </h2>
+                    <p className={`mt-2 ${
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      생성된 대본 및 스크립트를 확인하고 필요시 수정해주세요
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={handleBackToScriptStyle}>
+                    이전 단계로 돌아가기
+                  </Button>
                 </div>
 
                 <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
@@ -552,6 +600,11 @@ export default function Step2Page() {
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-6"
               >
+                <div className="flex justify-end">
+                  <Button variant="ghost" size="sm" onClick={handleBackToScriptStyle}>
+                    이전 단계로 돌아가기
+                  </Button>
+                </div>
                 {isSpaelSelected && (isLoadingMediaAssets || !spaelScenario) ? (
                   <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
                     <CardHeader>
