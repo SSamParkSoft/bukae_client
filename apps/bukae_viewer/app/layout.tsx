@@ -4,6 +4,9 @@ import Providers from './providers'
 export const metadata = {
   title: 'Bookae Viewer',
   description: '부캐 영상 시청 플랫폼',
+  icons: {
+    icon: '/logo-icon.svg',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
