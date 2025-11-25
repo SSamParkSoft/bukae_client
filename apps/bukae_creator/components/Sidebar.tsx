@@ -41,17 +41,12 @@ export default function Sidebar() {
         <Link href="/" className="block">
           <div className="flex items-center ">
             <img 
-              src="/logo-icon.svg" 
-              alt="부캐 아이콘" 
-              className="w-13 h-13"
-            />
-            <img 
               src="/logo-typography.svg" 
               alt="부캐 타이포" 
-              className="h-13 w-auto -ml-12"
+              className="h-7 w-auto -ml-1 mt-2"
             />
           </div>
-          <p className={`text-md ml-3 ${
+          <p className={`text-sm ml-3 mt-2 ${
             theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
           }`}>부업 자동화 서비스</p>
         </Link>

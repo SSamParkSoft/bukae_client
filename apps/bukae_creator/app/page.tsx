@@ -132,14 +132,9 @@ export default function HomePage() {
           <div className="mb-1">
             <div className="flex items-center mb-2">
               <img 
-                src="/logo-icon.svg" 
-                alt="부캐 아이콘" 
-                className="w-10 h-10"
-              />
-              <img 
                 src="/logo-typography.svg" 
                 alt="부캐 타이포" 
-                className="h-10 w-auto -ml-8"
+                className="h-10 w-auto -ml-6"
               />
             </div>
             <p className={`${
