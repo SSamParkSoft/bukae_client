@@ -11,6 +11,8 @@ const PRODUCT_URLS = {
     'https://www.coupang.com/vp/products/181699807?itemId=520561494&vendorItemId=85694345825&src=1139000&spec=10799999&addtag=400&ctag=181699807&lptag=AF4647824&itime=20251120203401&pageType=PRODUCT&pageValue=181699807&wPcid=17510469561163597660443&wRef=&wTime=20251120203401&redirect=landing&traceid=V0-181-81e5ee4cf0a4cd21&mcid=c4ce7403a3fc435581559ed6a8773c7e&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&subparam=',
   viper:
     'https://www.coupang.com/vp/products/8609316210?itemId=24969131250&vendorItemId=91974737006&src=1139000&spec=10799999&addtag=400&ctag=8609316210&lptag=AF4647824&itime=20251120203404&pageType=PRODUCT&pageValue=8609316210&wPcid=17510469561163597660443&wRef=&wTime=20251120203404&redirect=landing&traceid=V0-181-d7f087c23b2393b7&mcid=4cf9c0d3d7e545fbb186eeab9760568a&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&subparam=',
+  sleepandsleep:
+    'https://www.coupang.com/vp/products/8529253500?itemId=24694860335&vendorItemId=89625752062&src=1139000&spec=10799999&addtag=400&ctag=8529253500&lptag=AF4647824&itime=20251127202722&pageType=PRODUCT&pageValue=8529253500&wPcid=17510469561163597660443&wRef=&wTime=20251127202722&redirect=landing&traceid=V0-181-fbce8af0ad776348&mcid=2071b6f7292149e082d6af96b6d3d4e8&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&subparam='
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -64,6 +66,16 @@ export const STATIC_PRODUCTS: Product[] = [
     thumbnailUrl: '/dummy/comet.png',
     url: PRODUCT_URLS.comet,
   },
+  {
+    id: 'comet',
+    productId: 1006,
+    name: '(+베이지커버 증정) 슬립앤슬립 깊은잠베개',
+    price: 95500,
+    description: '누적판매량 550,000',
+    order: 6,
+    thumbnailUrl: '/dummy/sleepandsleep.png',
+    url: PRODUCT_URLS.sleepandsleep,
+  },
 ]
 
 export const STATIC_TOP_PRODUCTS: TopProduct[] = [
@@ -116,6 +128,16 @@ export const STATIC_TOP_PRODUCTS: TopProduct[] = [
     averagePrice: 219000,
     orderCount: 52,
     productUrl: PRODUCT_URLS.viper,
+  },
+  {
+    productId: 1006,
+    productName: '(+베이지커버 증정) 슬립앤슬립 깊은잠베개',
+    thumbnailUrl: '/dummy/sleepandsleep.png',
+    totalQuantity: 100,
+    totalGmv: 9550000,
+    averagePrice: 95500,
+    orderCount: 100,
+    productUrl: PRODUCT_URLS.sleepandsleep,
   },
 ]
 
