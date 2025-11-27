@@ -10,7 +10,11 @@ import { Badge } from '@/components/ui/badge'
 import { useVideoCreateStore, Product } from '../store/useVideoCreateStore'
 import { useThemeStore } from '../store/useThemeStore'
 
-export default function SelectedProductsPanel() {
+interface SelectedProductsPanelProps {
+  className?: string
+}
+
+export default function SelectedProductsPanel({ className = '' }: SelectedProductsPanelProps) {
   const router = useRouter()
   const { selectedProducts, removeProduct, addProduct } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
@@ -47,7 +51,7 @@ export default function SelectedProductsPanel() {
   }
 
   return (
-    <Card className="sticky top-8 w-72 xl:w-80 h-[calc(50vh-4rem)] flex flex-col border-gray-200">
+    <Card className={`w-full h-[calc(50vh-4rem)] flex flex-col border-gray-200 ${className}`}>
       <CardHeader>
         <CardTitle>선택된 상품</CardTitle>
         <p className={`text-sm ${

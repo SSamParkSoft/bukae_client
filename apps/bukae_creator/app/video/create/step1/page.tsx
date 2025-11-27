@@ -570,9 +570,9 @@ export default function Step1Page() {
         </div>
       </div>
       <div className="hidden lg:block p-4 md:p-8 flex-shrink-0">
-        <div className="flex flex-col gap-6">
+        <div className="sticky top-8 flex flex-col gap-6 w-72 xl:w-80">
           <SelectedProductsPanel />
-          <PopularProductsCard theme={theme} className="w-72 xl:w-80" />
+          <PopularProductsCard theme={theme} />
         </div>
       </div>
     </motion.div>
