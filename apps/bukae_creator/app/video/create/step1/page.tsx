@@ -2,15 +2,17 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { TrendingUp, ArrowRight, Search, ShoppingCart, Loader2, AlertCircle } from 'lucide-react'
+import { TrendingUp, ArrowRight, Search, ShoppingCart, Loader2, AlertCircle, Camera, Bot } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { useVideoCreateStore, Product, Platform } from '../../../../store/useVideoCreateStore'
+import { useVideoCreateStore, Product, Platform, CreationMode } from '../../../../store/useVideoCreateStore'
 import { useThemeStore } from '../../../../store/useThemeStore'
 import StepIndicator from '../../../../components/StepIndicator'
 import SelectedProductsPanel from '../../../../components/SelectedProductsPanel'
 import { SPAEL_PRODUCT, isSpaelProduct } from '@/lib/data/spaelProduct'
 import { useProducts } from '@/lib/hooks/useProducts'
 import { transformProductResponseToProduct } from '@/lib/utils/product-transform'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 type ThemeMode = 'light' | 'dark'
 
@@ -213,7 +215,7 @@ const platformNames: Record<Platform, string> = {
 
 export default function Step1Page() {
   const router = useRouter()
-  const { selectedProducts, removeProduct, addProduct } = useVideoCreateStore()
+  const { selectedProducts, removeProduct, addProduct, creationMode, setCreationMode } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | 'all'>('all')
@@ -352,9 +354,15 @@ export default function Step1Page() {
     return selectedProducts.some((p) => p.id === productId)
   }
 
+  const handleModeSelect = (mode: CreationMode) => {
+    setCreationMode(mode)
+    // 제작 방식 선택 후 Step2로 이동
+    router.push('/video/create/step2')
+  }
+
   const handleNext = () => {
-    if (selectedProducts.length > 0) {
-      router.push('/video/create/script-method')
+    if (selectedProducts.length > 0 && creationMode) {
+      router.push('/video/create/step2')
     }
   }
 
@@ -373,12 +381,12 @@ export default function Step1Page() {
           <h1 className={`text-3xl font-bold mb-2 ${
             theme === 'dark' ? 'text-white' : 'text-gray-900'
           }`}>
-            상품 선택
+            상품 선택 및 제작 방식 선택
           </h1>
           <p className={`mb-8 ${
             theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
           }`}>
-            영상에 사용할 상품을 선택하세요
+            영상에 사용할 상품을 선택하고 제작 방식을 선택하세요
           </p>
 
           {/* 검색 및 필터 */}
@@ -568,6 +576,97 @@ export default function Step1Page() {
               </div>
             )}
           </div>
+
+          {/* 제작 방식 선택 */}
+          {selectedProducts.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`mt-8 rounded-lg shadow-sm border p-6 ${
+                theme === 'dark'
+                  ? 'bg-gray-800 border-gray-700'
+                  : 'bg-white border-gray-200'
+              }`}
+            >
+              <h2 className={`text-2xl font-bold mb-4 ${
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}>
+                제작 방식 선택
+              </h2>
+              <p className={`mb-6 ${
+                theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                원하는 제작 방식을 선택해주세요
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 직접 촬영하기 */}
+                <Card
+                  onClick={() => handleModeSelect('manual')}
+                  className={`cursor-pointer transition-all ${
+                    creationMode === 'manual'
+                      ? 'border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                      : theme === 'dark'
+                        ? 'border-gray-700 bg-gray-900 hover:border-purple-500'
+                        : 'border-gray-200 bg-white hover:border-purple-500'
+                  }`}
+                >
+                  <CardHeader>
+                    <div className="flex items-center gap-3 mb-2">
+                      <Camera className={`h-6 w-6 ${
+                        theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      }`} />
+                      <CardTitle className="text-xl">직접 촬영하기</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="text-base">
+                      AI가 스크립트를 생성하고, 직접 촬영한 영상을 업로드하여 영상을 제작합니다.
+                    </CardDescription>
+                  </CardContent>
+                </Card>
+
+                {/* AI에게 모두 맡기기 */}
+                <Card
+                  onClick={() => handleModeSelect('auto')}
+                  className={`cursor-pointer transition-all ${
+                    creationMode === 'auto'
+                      ? 'border-2 border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                      : theme === 'dark'
+                        ? 'border-gray-700 bg-gray-900 hover:border-purple-500'
+                        : 'border-gray-200 bg-white hover:border-purple-500'
+                  }`}
+                >
+                  <CardHeader>
+                    <div className="flex items-center gap-3 mb-2">
+                      <Bot className={`h-6 w-6 ${
+                        theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                      }`} />
+                      <CardTitle className="text-xl">AI에게 모두 맡기기</CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="text-base">
+                      AI가 대본을 생성하고, 이미지를 선택하면 자동으로 영상을 제작합니다.
+                    </CardDescription>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {creationMode && (
+                <div className="mt-6 flex justify-end">
+                  <Button
+                    onClick={handleNext}
+                    size="lg"
+                    className="gap-2"
+                  >
+                    다음 단계
+                    <ArrowRight className="w-5 h-5" />
+                  </Button>
+                </div>
+              )}
+            </motion.div>
+          )}
 
           </div>
         </div>

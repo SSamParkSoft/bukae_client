@@ -37,6 +37,37 @@ export interface Step2Result {
   referenceVideo?: string // DB 추천 영상 경로
 }
 
+// 새로운 프로세스용 타입들
+export type CreationMode = 'manual' | 'auto'
+
+// Scene Script (씬별 대본)
+export interface SceneScript {
+  sceneId: number
+  script: string
+  imageUrl?: string
+}
+
+// Timeline 데이터 구조
+export interface TimelineScene {
+  sceneId: number
+  duration: number
+  transition: string
+  image: string // base64 또는 URL
+  text: {
+    content: string
+    font: string
+    color: string
+    position?: string
+    fontSize?: number
+  }
+}
+
+export interface TimelineData {
+  fps: number
+  resolution: string
+  scenes: TimelineScene[]
+}
+
 interface VideoCreateState {
   currentStep: number
   selectedProducts: Product[]
@@ -67,6 +98,14 @@ interface VideoCreateState {
   introTemplate: string | null
   // STEP2 관련
   step2Result: Step2Result | null
+  // 새로운 프로세스 관련
+  creationMode: CreationMode | null // 'manual' | 'auto'
+  scriptStyle: ConceptType | null // 대본 스타일
+  selectedImages: string[] // 선택된 이미지 URL 배열 (순서 포함)
+  scenes: SceneScript[] // 씬별 대본
+  timeline: TimelineData | null // 타임라인 데이터
+  videoTitle: string // 유튜브 영상 제목
+  videoTitleCandidates: string[] // AI 추천 제목 후보
   setCurrentStep: (step: number) => void
   addProduct: (product: Product) => void
   removeProduct: (productId: string) => void
@@ -94,6 +133,14 @@ interface VideoCreateState {
   setShowPriceInfo: (show: boolean) => void
   setIntroTemplate: (templateId: string | null) => void
   setStep2Result: (result: Step2Result | null) => void
+  // 새로운 프로세스 setter
+  setCreationMode: (mode: CreationMode | null) => void
+  setScriptStyle: (style: ConceptType | null) => void
+  setSelectedImages: (images: string[]) => void
+  setScenes: (scenes: SceneScript[]) => void
+  setTimeline: (timeline: TimelineData | null) => void
+  setVideoTitle: (title: string) => void
+  setVideoTitleCandidates: (candidates: string[]) => void
   reset: () => void
 }
 
@@ -123,6 +170,14 @@ const initialState = {
   showPriceInfo: true,
   introTemplate: null,
   step2Result: null,
+  // 새로운 프로세스 초기값
+  creationMode: null,
+  scriptStyle: null,
+  selectedImages: [],
+  scenes: [],
+  timeline: null,
+  videoTitle: '',
+  videoTitleCandidates: [],
 }
 
 export const useVideoCreateStore = create<VideoCreateState>((set) => ({
@@ -198,6 +253,14 @@ export const useVideoCreateStore = create<VideoCreateState>((set) => ({
   setShowPriceInfo: (show) => set({ showPriceInfo: show }),
   setIntroTemplate: (templateId) => set({ introTemplate: templateId }),
   setStep2Result: (result) => set({ step2Result: result }),
+  // 새로운 프로세스 setter
+  setCreationMode: (mode) => set({ creationMode: mode }),
+  setScriptStyle: (style) => set({ scriptStyle: style }),
+  setSelectedImages: (images) => set({ selectedImages: images }),
+  setScenes: (scenes) => set({ scenes }),
+  setTimeline: (timeline) => set({ timeline }),
+  setVideoTitle: (title) => set({ videoTitle: title }),
+  setVideoTitleCandidates: (candidates) => set({ videoTitleCandidates: candidates }),
   reset: () => set(initialState),
 }))
 
