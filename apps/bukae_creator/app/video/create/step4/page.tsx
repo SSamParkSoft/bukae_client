@@ -246,6 +246,18 @@ export default function Step4Page() {
     setScenes(updatedScenes)
   }
 
+  // 씬 전환 효과 수정
+  const handleSceneTransitionChange = (index: number, value: string) => {
+    if (!timeline) return
+    const nextTimeline: TimelineData = {
+      ...timeline,
+      scenes: timeline.scenes.map((scene, i) =>
+        i === index ? { ...scene, transition: value } : scene,
+      ),
+    }
+    setTimeline(nextTimeline)
+  }
+
   // 최종 영상 생성
   const handleGenerateVideo = async () => {
     if (!timeline) {
@@ -465,6 +477,8 @@ export default function Step4Page() {
                         {scenes.map((scene, index) => {
                           const thumb = sceneThumbnails[index]
                           const isActive = currentSceneIndex === index
+                          const sceneTransition =
+                            timeline?.scenes[index]?.transition ?? 'fade'
                           return (
                             <div
                               key={scene.sceneId ?? index}
@@ -493,6 +507,22 @@ export default function Step4Page() {
                                   }`}>
                                     Scene {index + 1}
                                   </span>
+                                  <select
+                                    value={sceneTransition}
+                                    onChange={(e) =>
+                                      handleSceneTransitionChange(index, e.target.value)
+                                    }
+                                    className={`text-xs rounded-md border px-2 py-1 bg-transparent ${
+                                      theme === 'dark'
+                                        ? 'border-gray-700 text-gray-200'
+                                        : 'border-gray-300 text-gray-700'
+                                    } focus:outline-none focus:ring-1 focus:ring-purple-500`}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <option value="fade">Fade</option>
+                                    <option value="slide">Slide</option>
+                                    <option value="zoom">Zoom</option>
+                                  </select>
                                 </div>
                                 <textarea
                                   rows={3}
