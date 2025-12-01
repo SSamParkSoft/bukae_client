@@ -37,9 +37,13 @@ export default function Step4Page() {
   } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const glRef = useRef<WebGLRenderingContext | null>(null)
+  const programRef = useRef<WebGLProgram | null>(null)
+  const texturesRef = useRef<Map<string, WebGLTexture>>(new Map())
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
+  const [transitionProgress, setTransitionProgress] = useState(0)
   const animationFrameRef = useRef<number>()
 
   // 씬 썸네일 계산
@@ -77,39 +81,484 @@ export default function Step4Page() {
     setTimeline(nextTimeline)
   }, [scenes, selectedImages, subtitleFont, subtitleColor, subtitlePosition, setTimeline])
 
-  // Canvas 렌더링
+  // WebGL Shader 초기화
+  useEffect(() => {
+    if (!canvasRef.current) return
+
+    const canvas = canvasRef.current
+    canvas.width = 1080
+    canvas.height = 1920
+
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
+    if (!gl) {
+      console.warn('WebGL not supported, falling back to Canvas 2D')
+      return
+    }
+
+    glRef.current = gl
+
+    // Vertex Shader
+    const vertexShaderSource = `
+      attribute vec2 a_position;
+      attribute vec2 a_texCoord;
+      varying vec2 v_texCoord;
+      void main() {
+        gl_Position = vec4(a_position, 0.0, 1.0);
+        v_texCoord = a_texCoord;
+      }
+    `
+
+    // Fragment Shader (전환 효과 포함)
+    const fragmentShaderSource = `
+      precision mediump float;
+      uniform sampler2D u_texture1;
+      uniform sampler2D u_texture2;
+      uniform float u_progress;
+      uniform int u_transition;
+      uniform vec2 u_resolution;
+      varying vec2 v_texCoord;
+
+      // Fade
+      vec4 fade() {
+        vec4 color1 = texture2D(u_texture1, v_texCoord);
+        vec4 color2 = texture2D(u_texture2, v_texCoord);
+        return mix(color1, color2, u_progress);
+      }
+
+      // Slide Left
+      vec4 slideLeft() {
+        vec2 coord = v_texCoord;
+        vec4 color1 = texture2D(u_texture1, coord);
+        vec4 color2 = texture2D(u_texture2, coord);
+        if (coord.x < u_progress) {
+          return color2;
+        }
+        return color1;
+      }
+
+      // Slide Right
+      vec4 slideRight() {
+        vec2 coord = v_texCoord;
+        vec4 color1 = texture2D(u_texture1, coord);
+        vec4 color2 = texture2D(u_texture2, coord);
+        if (coord.x > 1.0 - u_progress) {
+          return color2;
+        }
+        return color1;
+      }
+
+      // Slide Up
+      vec4 slideUp() {
+        vec2 coord = v_texCoord;
+        vec4 color1 = texture2D(u_texture1, coord);
+        vec4 color2 = texture2D(u_texture2, coord);
+        if (coord.y < u_progress) {
+          return color2;
+        }
+        return color1;
+      }
+
+      // Slide Down
+      vec4 slideDown() {
+        vec2 coord = v_texCoord;
+        vec4 color1 = texture2D(u_texture1, coord);
+        vec4 color2 = texture2D(u_texture2, coord);
+        if (coord.y > 1.0 - u_progress) {
+          return color2;
+        }
+        return color1;
+      }
+
+      // Zoom In
+      vec4 zoomIn() {
+        vec2 coord = v_texCoord;
+        vec2 center = vec2(0.5, 0.5);
+        vec2 offset = (coord - center) * (1.0 - u_progress);
+        vec4 color1 = texture2D(u_texture1, coord);
+        vec4 color2 = texture2D(u_texture2, center + offset);
+        return mix(color1, color2, u_progress);
+      }
+
+      // Zoom Out
+      vec4 zoomOut() {
+        vec2 coord = v_texCoord;
+        vec2 center = vec2(0.5, 0.5);
+        vec2 offset = (coord - center) * u_progress;
+        vec4 color1 = texture2D(u_texture1, center + offset);
+        vec4 color2 = texture2D(u_texture2, coord);
+        return mix(color1, color2, u_progress);
+      }
+
+      // Wipe Left
+      vec4 wipeLeft() {
+        vec2 coord = v_texCoord;
+        vec4 color1 = texture2D(u_texture1, coord);
+        vec4 color2 = texture2D(u_texture2, coord);
+        float edge = smoothstep(u_progress - 0.1, u_progress, coord.x);
+        return mix(color1, color2, edge);
+      }
+
+      // Wipe Right
+      vec4 wipeRight() {
+        vec2 coord = v_texCoord;
+        vec4 color1 = texture2D(u_texture1, coord);
+        vec4 color2 = texture2D(u_texture2, coord);
+        float edge = smoothstep(1.0 - u_progress - 0.1, 1.0 - u_progress, coord.x);
+        return mix(color1, color2, edge);
+      }
+
+      // Blur
+      vec4 blur() {
+        vec2 coord = v_texCoord;
+        vec4 color1 = texture2D(u_texture1, coord);
+        vec4 color2 = texture2D(u_texture2, coord);
+        float blurAmount = u_progress * 0.1;
+        vec4 blurred1 = color1;
+        vec4 blurred2 = color2;
+        for (int i = -2; i <= 2; i++) {
+          for (int j = -2; j <= 2; j++) {
+            vec2 offset = vec2(float(i), float(j)) * blurAmount / u_resolution;
+            blurred1 += texture2D(u_texture1, coord + offset);
+            blurred2 += texture2D(u_texture2, coord + offset);
+          }
+        }
+        blurred1 /= 25.0;
+        blurred2 /= 25.0;
+        return mix(blurred1, blurred2, u_progress);
+      }
+
+      // Glitch
+      vec4 glitch() {
+        vec2 coord = v_texCoord;
+        vec4 color1 = texture2D(u_texture1, coord);
+        vec4 color2 = texture2D(u_texture2, coord);
+        float glitchAmount = sin(u_progress * 20.0) * 0.02;
+        vec2 glitchCoord = coord + vec2(glitchAmount, 0.0);
+        vec4 glitched = texture2D(u_texture2, glitchCoord);
+        return mix(color1, glitched, u_progress);
+      }
+
+      // Rotate
+      vec4 rotate() {
+        vec2 coord = v_texCoord - 0.5;
+        float angle = u_progress * 3.14159;
+        float c = cos(angle);
+        float s = sin(angle);
+        vec2 rotated = vec2(
+          coord.x * c - coord.y * s,
+          coord.x * s + coord.y * c
+        ) + 0.5;
+        vec4 color1 = texture2D(u_texture1, v_texCoord);
+        vec4 color2 = texture2D(u_texture2, rotated);
+        return mix(color1, color2, u_progress);
+      }
+
+      // Pixelate
+      vec4 pixelate() {
+        vec2 coord = v_texCoord;
+        float pixelSize = mix(1.0, 20.0, u_progress);
+        vec2 pixelated = floor(coord * pixelSize) / pixelSize;
+        vec4 color1 = texture2D(u_texture1, v_texCoord);
+        vec4 color2 = texture2D(u_texture2, pixelated);
+        return mix(color1, color2, u_progress);
+      }
+
+      // Wave
+      vec4 wave() {
+        vec2 coord = v_texCoord;
+        float waveAmount = sin(coord.y * 10.0 + u_progress * 10.0) * 0.02 * u_progress;
+        vec2 waved = coord + vec2(waveAmount, 0.0);
+        vec4 color1 = texture2D(u_texture1, v_texCoord);
+        vec4 color2 = texture2D(u_texture2, waved);
+        return mix(color1, color2, u_progress);
+      }
+
+      // Ripple
+      vec4 ripple() {
+        vec2 coord = v_texCoord;
+        vec2 center = vec2(0.5, 0.5);
+        float dist = distance(coord, center);
+        float ripple = sin(dist * 20.0 - u_progress * 10.0) * 0.02 * u_progress;
+        vec2 rippled = coord + normalize(coord - center) * ripple;
+        vec4 color1 = texture2D(u_texture1, v_texCoord);
+        vec4 color2 = texture2D(u_texture2, rippled);
+        return mix(color1, color2, u_progress);
+      }
+
+      // Circle
+      vec4 circle() {
+        vec2 coord = v_texCoord;
+        vec2 center = vec2(0.5, 0.5);
+        float dist = distance(coord, center);
+        float radius = u_progress * 1.5;
+        vec4 color1 = texture2D(u_texture1, coord);
+        vec4 color2 = texture2D(u_texture2, coord);
+        float edge = smoothstep(radius - 0.1, radius, dist);
+        return mix(color1, color2, 1.0 - edge);
+      }
+
+      // Crossfade
+      vec4 crossfade() {
+        vec4 color1 = texture2D(u_texture1, v_texCoord);
+        vec4 color2 = texture2D(u_texture2, v_texCoord);
+        float eased = u_progress * u_progress * (3.0 - 2.0 * u_progress);
+        return mix(color1, color2, eased);
+      }
+
+      void main() {
+        if (u_transition == 0) gl_FragColor = fade();
+        else if (u_transition == 1) gl_FragColor = slideLeft();
+        else if (u_transition == 2) gl_FragColor = slideRight();
+        else if (u_transition == 3) gl_FragColor = slideUp();
+        else if (u_transition == 4) gl_FragColor = slideDown();
+        else if (u_transition == 5) gl_FragColor = zoomIn();
+        else if (u_transition == 6) gl_FragColor = zoomOut();
+        else if (u_transition == 7) gl_FragColor = wipeLeft();
+        else if (u_transition == 8) gl_FragColor = wipeRight();
+        else if (u_transition == 9) gl_FragColor = blur();
+        else if (u_transition == 10) gl_FragColor = glitch();
+        else if (u_transition == 11) gl_FragColor = rotate();
+        else if (u_transition == 12) gl_FragColor = pixelate();
+        else if (u_transition == 13) gl_FragColor = wave();
+        else if (u_transition == 14) gl_FragColor = ripple();
+        else if (u_transition == 15) gl_FragColor = circle();
+        else if (u_transition == 16) gl_FragColor = crossfade();
+        else gl_FragColor = fade();
+      }
+    `
+
+    const compileShader = (source: string, type: number): WebGLShader | null => {
+      const shader = gl.createShader(type)
+      if (!shader) return null
+      gl.shaderSource(shader, source)
+      gl.compileShader(shader)
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error('Shader compile error:', gl.getShaderInfoLog(shader))
+        gl.deleteShader(shader)
+        return null
+      }
+      return shader
+    }
+
+    const vertexShader = compileShader(vertexShaderSource, gl.VERTEX_SHADER)
+    const fragmentShader = compileShader(fragmentShaderSource, gl.FRAGMENT_SHADER)
+    if (!vertexShader || !fragmentShader) return
+
+    const program = gl.createProgram()
+    if (!program) return
+    gl.attachShader(program, vertexShader)
+    gl.attachShader(program, fragmentShader)
+    gl.linkProgram(program)
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error('Program link error:', gl.getProgramInfoLog(program))
+      return
+    }
+
+    programRef.current = program
+
+    // Quad vertices
+    const positions = new Float32Array([
+      -1, -1, 0, 1,
+       1, -1, 1, 1,
+      -1,  1, 0, 0,
+       1,  1, 1, 0,
+    ])
+
+    const buffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+    gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW)
+
+    const positionLoc = gl.getAttribLocation(program, 'a_position')
+    const texCoordLoc = gl.getAttribLocation(program, 'a_texCoord')
+
+    gl.enableVertexAttribArray(positionLoc)
+    gl.vertexAttribPointer(positionLoc, 2, gl.FLOAT, false, 16, 0)
+    gl.enableVertexAttribArray(texCoordLoc)
+    gl.vertexAttribPointer(texCoordLoc, 2, gl.FLOAT, false, 16, 8)
+
+    gl.useProgram(program)
+    gl.viewport(0, 0, canvas.width, canvas.height)
+  }, [])
+
+  // 텍스처 로드 함수
+  const loadTexture = (gl: WebGLRenderingContext, url: string): Promise<WebGLTexture> => {
+    return new Promise((resolve, reject) => {
+      if (texturesRef.current.has(url)) {
+        resolve(texturesRef.current.get(url)!)
+        return
+      }
+
+      const texture = gl.createTexture()
+      if (!texture) {
+        reject(new Error('Failed to create texture'))
+        return
+      }
+
+      gl.bindTexture(gl.TEXTURE_2D, texture)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      img.onload = () => {
+        gl.bindTexture(gl.TEXTURE_2D, texture)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img)
+        texturesRef.current.set(url, texture)
+        resolve(texture)
+      }
+      img.onerror = () => reject(new Error('Failed to load image'))
+      img.src = url
+    })
+  }
+
+  // 전환 효과 이름을 숫자로 매핑
+  const getTransitionIndex = (transition: string): number => {
+    const map: Record<string, number> = {
+      fade: 0,
+      'slide-left': 1,
+      'slide-right': 2,
+      'slide-up': 3,
+      'slide-down': 4,
+      'zoom-in': 5,
+      'zoom-out': 6,
+      'wipe-left': 7,
+      'wipe-right': 8,
+      blur: 9,
+      glitch: 10,
+      rotate: 11,
+      pixelate: 12,
+      wave: 13,
+      ripple: 14,
+      circle: 15,
+      crossfade: 16,
+    }
+    return map[transition] ?? 0
+  }
+
+  // WebGL 렌더링 (WebGL 미지원 시 Canvas 2D fallback)
   useEffect(() => {
     if (!canvasRef.current || !timeline) return
 
     const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    const scene = timeline.scenes[currentSceneIndex]
+    if (!scene) return
 
-    // 해상도 설정
-    canvas.width = 1080
-    canvas.height = 1920
+    // WebGL이 지원되는 경우
+    if (glRef.current && programRef.current) {
+      const gl = glRef.current
+      const program = programRef.current
+      const nextSceneIndex = currentSceneIndex + 1
+      const nextScene = timeline.scenes[nextSceneIndex]
 
-    const renderScene = (sceneIndex: number) => {
-      if (sceneIndex >= timeline.scenes.length) return
+      // 현재 씬과 다음 씬의 전환 진행도 계산
+      const sceneStartTime = timeline.scenes
+        .slice(0, currentSceneIndex)
+        .reduce((acc, s) => acc + s.duration, 0)
+      const sceneEndTime = sceneStartTime + scene.duration
+      const transitionDuration = 0.3 // 전환 시간 0.3초
+      const transitionStartTime = sceneEndTime - transitionDuration
+      let progress = 0
 
-      const scene = timeline.scenes[sceneIndex]
-      
-      // 배경 이미지 그리기
+      if (nextScene && currentTime >= transitionStartTime && currentTime <= sceneEndTime) {
+        progress = (currentTime - transitionStartTime) / transitionDuration
+        progress = Math.max(0, Math.min(1, progress))
+      }
+
+      setTransitionProgress(progress)
+
+      const render = async () => {
+        try {
+          const texture1 = await loadTexture(gl, scene.image)
+          const texture2 = nextScene ? await loadTexture(gl, nextScene.image) : texture1
+
+          gl.useProgram(program)
+          gl.clearColor(0, 0, 0, 1)
+          gl.clear(gl.COLOR_BUFFER_BIT)
+
+          gl.activeTexture(gl.TEXTURE0)
+          gl.bindTexture(gl.TEXTURE_2D, texture1)
+          gl.uniform1i(gl.getUniformLocation(program, 'u_texture1'), 0)
+
+          gl.activeTexture(gl.TEXTURE1)
+          gl.bindTexture(gl.TEXTURE_2D, texture2)
+          gl.uniform1i(gl.getUniformLocation(program, 'u_texture2'), 1)
+
+          const transitionIndex = getTransitionIndex(scene.transition)
+          gl.uniform1i(gl.getUniformLocation(program, 'u_transition'), transitionIndex)
+          gl.uniform1f(gl.getUniformLocation(program, 'u_progress'), progress)
+          gl.uniform2f(gl.getUniformLocation(program, 'u_resolution'), 1080, 1920)
+
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+
+          // 텍스트는 Canvas 2D로 오버레이
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height)
+            if (scene.text.content) {
+              ctx.fillStyle = scene.text.color
+              ctx.font = `${scene.text.fontSize || 32}px ${scene.text.font}`
+              ctx.textAlign = 'center'
+              ctx.textBaseline = 'middle'
+
+              let textX = canvas.width / 2
+              let textY = canvas.height / 2
+
+              if (scene.text.position === 'top') {
+                textY = 200
+              } else if (scene.text.position === 'bottom') {
+                textY = canvas.height - 200
+              }
+
+              ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
+              ctx.shadowBlur = 10
+              ctx.shadowOffsetX = 2
+              ctx.shadowOffsetY = 2
+
+              ctx.fillText(scene.text.content, textX, textY)
+
+              ctx.shadowColor = 'transparent'
+              ctx.shadowBlur = 0
+              ctx.shadowOffsetX = 0
+              ctx.shadowOffsetY = 0
+            }
+          }
+        } catch (error) {
+          console.error('WebGL render error:', error)
+          // WebGL 실패 시 Canvas 2D로 fallback
+          renderCanvas2D()
+        }
+      }
+
+      render()
+    } else {
+      // WebGL 미지원 시 Canvas 2D로 렌더링
+      renderCanvas2D()
+    }
+
+    function renderCanvas2D() {
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      canvas.width = 1080
+      canvas.height = 1920
+
       if (scene.image) {
         const img = new Image()
         img.crossOrigin = 'anonymous'
         img.onload = () => {
           ctx.clearRect(0, 0, canvas.width, canvas.height)
-          
+
           // 이미지 그리기 (비율 유지)
           const imgAspect = img.width / img.height
           const canvasAspect = canvas.width / canvas.height
-          
+
           let drawWidth = canvas.width
           let drawHeight = canvas.height
           let drawX = 0
           let drawY = 0
-          
+
           if (imgAspect > canvasAspect) {
             drawHeight = canvas.width / imgAspect
             drawY = (canvas.height - drawHeight) / 2
@@ -117,35 +566,32 @@ export default function Step4Page() {
             drawWidth = canvas.height * imgAspect
             drawX = (canvas.width - drawWidth) / 2
           }
-          
+
           ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight)
-          
+
           // 텍스트 오버레이
           if (scene.text.content) {
             ctx.fillStyle = scene.text.color
             ctx.font = `${scene.text.fontSize || 32}px ${scene.text.font}`
             ctx.textAlign = 'center'
             ctx.textBaseline = 'middle'
-            
-            // 텍스트 위치 계산
+
             let textX = canvas.width / 2
             let textY = canvas.height / 2
-            
+
             if (scene.text.position === 'top') {
               textY = 200
             } else if (scene.text.position === 'bottom') {
               textY = canvas.height - 200
             }
-            
-            // 텍스트 그림자
+
             ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
             ctx.shadowBlur = 10
             ctx.shadowOffsetX = 2
             ctx.shadowOffsetY = 2
-            
+
             ctx.fillText(scene.text.content, textX, textY)
-            
-            // 그림자 초기화
+
             ctx.shadowColor = 'transparent'
             ctx.shadowBlur = 0
             ctx.shadowOffsetX = 0
@@ -155,9 +601,7 @@ export default function Step4Page() {
         img.src = scene.image
       }
     }
-
-    renderScene(currentSceneIndex)
-  }, [timeline, currentSceneIndex])
+  }, [timeline, currentSceneIndex, currentTime, transitionProgress])
 
   // 재생/일시정지
   const handlePlayPause = () => {
@@ -684,8 +1128,22 @@ export default function Step4Page() {
                                       onClick={(e) => e.stopPropagation()}
                                     >
                                       <option value="fade">Fade</option>
-                                      <option value="slide">Slide</option>
-                                      <option value="zoom">Zoom</option>
+                                      <option value="slide-left">Slide Left</option>
+                                      <option value="slide-right">Slide Right</option>
+                                      <option value="slide-up">Slide Up</option>
+                                      <option value="slide-down">Slide Down</option>
+                                      <option value="zoom-in">Zoom In</option>
+                                      <option value="zoom-out">Zoom Out</option>
+                                      <option value="wipe-left">Wipe Left</option>
+                                      <option value="wipe-right">Wipe Right</option>
+                                      <option value="blur">Blur</option>
+                                      <option value="glitch">Glitch</option>
+                                      <option value="rotate">Rotate</option>
+                                      <option value="pixelate">Pixelate</option>
+                                      <option value="wave">Wave</option>
+                                      <option value="ripple">Ripple</option>
+                                      <option value="circle">Circle</option>
+                                      <option value="crossfade">Crossfade</option>
                                     </select>
                                   </div>
                                 </div>
