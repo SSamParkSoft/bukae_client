@@ -44,7 +44,7 @@ export default function Step4Page() {
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
   const [transitionProgress, setTransitionProgress] = useState(0)
-  const animationFrameRef = useRef<number>()
+  const animationFrameRef = useRef<number | undefined>(undefined)
 
   // 씬 썸네일 계산
   const sceneThumbnails = useMemo(
