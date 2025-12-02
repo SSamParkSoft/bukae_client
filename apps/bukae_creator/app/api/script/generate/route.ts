@@ -29,7 +29,7 @@ function generateDummyScenes(
   const scenes: Array<{ sceneId: number; script: string }> = []
 
   // 스타일별 기본 대본 템플릿
-  const templates: Record<string, string[]> = {
+  const templates: Record<ConceptType, string[]> = {
     viral: [
       '이거 진짜 미쳤다',
       `${productName} 완전 대박이에요!`,
@@ -37,33 +37,40 @@ function generateDummyScenes(
       '후회 안 하실 거예요',
       '이거 하나면 끝!',
     ],
-    purchase: [
-      `지금 ${productName}을 구매하시면`,
-      '특별 할인가로 만나보세요',
-      '한정 수량이니 서두르세요',
-      '지금 바로 주문하세요!',
-      '만족도 97% 달성!',
-    ],
-    info: [
+    'product-info': [
       `${productName}의 특징을 소개합니다`,
       '이 제품의 핵심 기능은',
       '사용자들이 가장 좋아하는 점은',
       '이런 분들께 추천드려요',
       '지금 바로 확인해보세요',
     ],
-    storytelling: [
+    review: [
       '어느 날, 평범한 하루였어요',
       '그런데 이 제품을 만나게 되었죠',
       '생각보다 훨씬 좋았어요',
       '이제는 없으면 안 되는 제품이 되었어요',
       '여러분도 한번 써보세요',
     ],
-    tiktok: [
-      'POV: 이거 사면 후회 안 함',
-      `${productName} 진짜 꿀템이에요`,
-      '이거 하나면 끝!',
-      '지금 바로 구매하세요',
-      '팔로우하고 더 많은 정보 받아가세요',
+    'daily-review': [
+      '어느 날, 평범한 하루였어요',
+      '그런데 이 제품을 만나게 되었죠',
+      '생각보다 훨씬 좋았어요',
+      '이제는 없으면 안 되는 제품이 되었어요',
+      '여러분도 한번 써보세요',
+    ],
+    promotional: [
+      `지금 ${productName}을 구매하시면`,
+      '특별 할인가로 만나보세요',
+      '한정 수량이니 서두르세요',
+      '지금 바로 주문하세요!',
+      '만족도 97% 달성!',
+    ],
+    'calm-explanation': [
+      `${productName}의 특징을 소개합니다`,
+      '이 제품의 핵심 기능은',
+      '사용자들이 가장 좋아하는 점은',
+      '이런 분들께 추천드려요',
+      '지금 바로 확인해보세요',
     ],
     emotional: [
       '하루 종일 피곤하셨나요?',
@@ -75,12 +82,7 @@ function generateDummyScenes(
   }
 
   // 기본 템플릿 선택 (스타일에 따라)
-  let selectedTemplates = templates.viral
-  if (scriptStyle === 'purchase') selectedTemplates = templates.purchase
-  else if (scriptStyle === 'info') selectedTemplates = templates.info
-  else if (scriptStyle === 'storytelling') selectedTemplates = templates.storytelling
-  else if (scriptStyle === 'tiktok') selectedTemplates = templates.tiktok
-  else if (scriptStyle === 'emotional') selectedTemplates = templates.emotional
+  const selectedTemplates = templates[scriptStyle] || templates.viral
 
   // 이미지 개수만큼 씬 생성
   for (let i = 0; i < imageCount; i++) {
