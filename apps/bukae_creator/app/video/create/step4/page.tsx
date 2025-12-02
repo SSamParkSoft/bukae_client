@@ -89,7 +89,7 @@ export default function Step4Page() {
     canvas.width = 1080
     canvas.height = 1920
 
-    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
+    const gl = (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null
     if (!gl) {
       console.warn('WebGL not supported, falling back to Canvas 2D')
       return
