@@ -11,6 +11,7 @@ import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore, TimelineData } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import * as PIXI from 'pixi.js'
+import { gsap } from 'gsap'
 
 export default function Step4Page() {
   const router = useRouter()
@@ -42,37 +43,40 @@ export default function Step4Page() {
   const texturesRef = useRef<Map<string, PIXI.Texture>>(new Map())
   const spritesRef = useRef<Map<number, PIXI.Sprite>>(new Map())
   const textsRef = useRef<Map<number, PIXI.Text>>(new Map())
+  const handlesRef = useRef<PIXI.Graphics | null>(null)
+  const isDraggingRef = useRef(false)
+  const dragStartPosRef = useRef({ x: 0, y: 0 })
   
   // State
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
-  const [aspectRatio, setAspectRatio] = useState<string>('9/16')
+  const aspectRatio = '9/16' // 9:16 고정
   const [rightPanelTab, setRightPanelTab] = useState('animation')
   const [isDraggingTimeline, setIsDraggingTimeline] = useState(false)
+  const [playbackSpeed, setPlaybackSpeed] = useState(1.0) // 전체 영상 배속
+  const [editMode, setEditMode] = useState<'none' | 'image' | 'text'>('none')
+  const [selectedElementIndex, setSelectedElementIndex] = useState<number | null>(null)
+  const [selectedElementType, setSelectedElementType] = useState<'image' | 'text' | null>(null)
   const timelineBarRef = useRef<HTMLDivElement>(null)
   const [pixiReady, setPixiReady] = useState(false)
   const rafIdRef = useRef<number | null>(null)
   const lastTimestampRef = useRef<number | null>(null)
   const [mounted, setMounted] = useState(false)
+  const isManualSceneSelectRef = useRef(false)
+  const previousSceneIndexRef = useRef<number | null>(null)
 
   // 클라이언트에서만 렌더링 (SSR/Hydration mismatch 방지)
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // 스테이지 크기 계산
+  // 스테이지 크기 계산 (9:16 고정)
   const stageDimensions = useMemo(() => {
-    const [widthRatio, heightRatio] = aspectRatio.split('/').map(Number)
     const baseSize = 1080
-    const ratio = widthRatio / heightRatio
-    
-    if (ratio > 1) {
-      return { width: baseSize * ratio, height: baseSize }
-    } else {
-      return { width: baseSize, height: baseSize / ratio }
-    }
-  }, [aspectRatio])
+    const ratio = 9 / 16
+    return { width: baseSize, height: baseSize / ratio }
+  }, [])
 
   // 대본 길이 기반 자동 duration 계산 (대략 초당 8글자, 1~5초 범위)
   const getSceneDuration = (script: string) => {
@@ -92,6 +96,7 @@ export default function Step4Page() {
     const nextTimeline: TimelineData = {
       fps: 30,
       resolution: '1080x1920',
+      playbackSpeed: timeline?.playbackSpeed ?? playbackSpeed,
       scenes: scenes.map((scene, index) => {
         const existingScene = timeline?.scenes[index]
         return {
@@ -130,7 +135,14 @@ export default function Step4Page() {
     if (hasChanged) {
       setTimeline(nextTimeline)
     }
-  }, [scenes, selectedImages, subtitleFont, subtitleColor, subtitlePosition, setTimeline, timeline])
+  }, [scenes, selectedImages, subtitleFont, subtitleColor, subtitlePosition, setTimeline, timeline, playbackSpeed])
+
+  // timeline의 playbackSpeed와 state 동기화
+  useEffect(() => {
+    if (timeline?.playbackSpeed !== undefined && timeline.playbackSpeed !== playbackSpeed) {
+      setPlaybackSpeed(timeline.playbackSpeed)
+    }
+  }, [timeline?.playbackSpeed])
 
   // PixiJS 초기화
   useEffect(() => {
@@ -281,10 +293,296 @@ export default function Step4Page() {
     })
   }
 
+  // 씬 등장 효과 함수들 (이미지가 나타날 때 적용)
+  const applyEnterEffect = useCallback((
+    toSprite: PIXI.Sprite | null,
+    toText: PIXI.Text | null,
+    transition: string,
+    duration: number,
+    stageWidth: number,
+    stageHeight: number
+  ) => {
+    if (!toSprite) return
+
+    const tl = gsap.timeline()
+    
+    // 기본 설정: toSprite는 시작 시 보이지 않음
+    if (toSprite) {
+      toSprite.visible = true
+      toSprite.alpha = 0
+    }
+    if (toText) {
+      toText.visible = true
+      toText.alpha = 0
+    }
+
+    switch (transition) {
+      case 'fade':
+        // 페이드
+        tl.to(toSprite, { alpha: 1, duration }, 0)
+        if (toText) {
+          tl.to(toText, { alpha: 1, duration }, 0)
+        }
+        break
+
+      case 'slide-left':
+        // 슬라이드 좌 (왼쪽에서 나타남)
+        const toSlideLeftObj = { x: stageWidth, alpha: 0 }
+        toSprite.x = stageWidth
+        if (toText) {
+          toText.x = (toText.x || 0) + stageWidth
+        }
+        tl.to(toSlideLeftObj, { x: 0, alpha: 1, duration, onUpdate: function() {
+          if (toSprite) {
+            toSprite.x = toSlideLeftObj.x
+            toSprite.alpha = toSlideLeftObj.alpha
+          }
+        }}, 0)
+        if (toText) {
+          const toTextSlideLeftObj = { x: toText.x, alpha: 0 }
+          tl.to(toTextSlideLeftObj, { x: toTextSlideLeftObj.x - stageWidth, alpha: 1, duration, onUpdate: function() {
+            if (toText) {
+              toText.x = toTextSlideLeftObj.x
+              toText.alpha = toTextSlideLeftObj.alpha
+            }
+          }}, 0)
+        }
+        break
+
+      case 'slide-right':
+        // 슬라이드 우 (오른쪽에서 나타남)
+        const toSlideRightObj = { x: -stageWidth, alpha: 0 }
+        toSprite.x = -stageWidth
+        if (toText) {
+          toText.x = (toText.x || 0) - stageWidth
+        }
+        tl.to(toSlideRightObj, { x: 0, alpha: 1, duration, onUpdate: function() {
+          if (toSprite) {
+            toSprite.x = toSlideRightObj.x
+            toSprite.alpha = toSlideRightObj.alpha
+          }
+        }}, 0)
+        if (toText) {
+          const toTextSlideRightObj = { x: toText.x, alpha: 0 }
+          tl.to(toTextSlideRightObj, { x: toTextSlideRightObj.x + stageWidth, alpha: 1, duration, onUpdate: function() {
+            if (toText) {
+              toText.x = toTextSlideRightObj.x
+              toText.alpha = toTextSlideRightObj.alpha
+            }
+          }}, 0)
+        }
+        break
+
+      case 'slide-up':
+        // 슬라이드 상 (아래에서 나타남)
+        const toSlideUpObj = { y: stageHeight, alpha: 0 }
+        toSprite.y = stageHeight
+        if (toText) {
+          toText.y = (toText.y || 0) + stageHeight
+        }
+        tl.to(toSlideUpObj, { y: 0, alpha: 1, duration, onUpdate: function() {
+          if (toSprite) {
+            toSprite.y = toSlideUpObj.y
+            toSprite.alpha = toSlideUpObj.alpha
+          }
+        }}, 0)
+        if (toText) {
+          const toTextSlideUpObj = { y: toText.y, alpha: 0 }
+          tl.to(toTextSlideUpObj, { y: toTextSlideUpObj.y - stageHeight, alpha: 1, duration, onUpdate: function() {
+            if (toText) {
+              toText.y = toTextSlideUpObj.y
+              toText.alpha = toTextSlideUpObj.alpha
+            }
+          }}, 0)
+        }
+        break
+
+      case 'slide-down':
+        // 슬라이드 하 (위에서 나타남)
+        const toSlideDownObj = { y: -stageHeight, alpha: 0 }
+        toSprite.y = -stageHeight
+        if (toText) {
+          toText.y = (toText.y || 0) - stageHeight
+        }
+        tl.to(toSlideDownObj, { y: 0, alpha: 1, duration, onUpdate: function() {
+          if (toSprite) {
+            toSprite.y = toSlideDownObj.y
+            toSprite.alpha = toSlideDownObj.alpha
+          }
+        }}, 0)
+        if (toText) {
+          const toTextSlideDownObj = { y: toText.y, alpha: 0 }
+          tl.to(toTextSlideDownObj, { y: toTextSlideDownObj.y + stageHeight, alpha: 1, duration, onUpdate: function() {
+            if (toText) {
+              toText.y = toTextSlideDownObj.y
+              toText.alpha = toTextSlideDownObj.alpha
+            }
+          }}, 0)
+        }
+        break
+
+      case 'zoom-in':
+        // 확대 (작은 크기에서 확대)
+        const toZoomObj = { scale: 0.5, alpha: 0 }
+        toSprite.scale.set(0.5, 0.5)
+        if (toText) {
+          toText.scale.set(0.5, 0.5)
+        }
+        tl.to(toZoomObj, { scale: 1, alpha: 1, duration, onUpdate: function() {
+          if (toSprite) {
+            toSprite.scale.set(toZoomObj.scale, toZoomObj.scale)
+            toSprite.alpha = toZoomObj.alpha
+          }
+        }}, 0)
+        if (toText) {
+          tl.to(toZoomObj, { scale: 1, alpha: 1, duration, onUpdate: function() {
+            if (toText) {
+              toText.scale.set(toZoomObj.scale, toZoomObj.scale)
+              toText.alpha = toZoomObj.alpha
+            }
+          }}, 0)
+        }
+        break
+
+      case 'zoom-out':
+        // 축소 (큰 크기에서 축소)
+        const toZoomOutObj = { scale: 1.5, alpha: 0 }
+        toSprite.scale.set(1.5, 1.5)
+        if (toText) {
+          toText.scale.set(1.5, 1.5)
+        }
+        tl.to(toZoomOutObj, { scale: 1, alpha: 1, duration, onUpdate: function() {
+          if (toSprite) {
+            toSprite.scale.set(toZoomOutObj.scale, toZoomOutObj.scale)
+            toSprite.alpha = toZoomOutObj.alpha
+          }
+        }}, 0)
+        if (toText) {
+          tl.to(toZoomOutObj, { scale: 1, alpha: 1, duration, onUpdate: function() {
+            if (toText) {
+              toText.scale.set(toZoomOutObj.scale, toZoomOutObj.scale)
+              toText.alpha = toZoomOutObj.alpha
+            }
+          }}, 0)
+        }
+        break
+
+      case 'rotate':
+        // 회전 (회전하며 나타남)
+        const toRotateObj = { rotation: -Math.PI * 2, alpha: 0 }
+        toSprite.rotation = -Math.PI * 2
+        if (toText) {
+          toText.rotation = -Math.PI * 2
+        }
+        tl.to(toRotateObj, { rotation: 0, alpha: 1, duration, onUpdate: function() {
+          if (toSprite) {
+            toSprite.rotation = toRotateObj.rotation
+            toSprite.alpha = toRotateObj.alpha
+          }
+        }}, 0)
+        if (toText) {
+          tl.to(toRotateObj, { rotation: 0, alpha: 1, duration, onUpdate: function() {
+            if (toText) {
+              toText.rotation = toRotateObj.rotation
+              toText.alpha = toRotateObj.alpha
+            }
+          }}, 0)
+        }
+        break
+
+
+      case 'blur':
+        // 블러 (블러에서 선명하게)
+        const toBlurFilter = new PIXI.BlurFilter()
+        toBlurFilter.blur = 20
+        toSprite.filters = [toBlurFilter]
+        const toBlurObj = { blur: 20, alpha: 0 }
+        tl.to(toBlurObj, { blur: 0, alpha: 1, duration, onUpdate: function() {
+          if (toSprite) {
+            toBlurFilter.blur = toBlurObj.blur
+            toSprite.alpha = toBlurObj.alpha
+          }
+        }}, 0)
+        if (toText) {
+          tl.to(toText, { alpha: 1, duration }, 0)
+        }
+        break
+
+      case 'glitch':
+        // 글리치 (랜덤 위치 이동하며 나타남)
+        const glitchObj = { x: toSprite.x, alpha: 0 }
+        const glitchAnim = () => {
+          const offset = (Math.random() - 0.5) * 20
+          gsap.to(glitchObj, { x: glitchObj.x + offset, duration: 0.05, yoyo: true, repeat: 5, onUpdate: function() {
+            if (toSprite) {
+              toSprite.x = glitchObj.x
+            }
+          }})
+        }
+        glitchAnim()
+        tl.to(glitchObj, { alpha: 1, duration, onUpdate: function() {
+          if (toSprite) {
+            toSprite.alpha = glitchObj.alpha
+          }
+        }}, 0)
+        break
+
+
+      case 'ripple':
+        // 물결 효과 (작은 크기에서 확장)
+        const toRippleObj = { scale: 0.8, alpha: 0 }
+        toSprite.scale.set(0.8, 0.8)
+        tl.to(toRippleObj, { scale: 1, alpha: 1, duration, onUpdate: function() {
+          if (toSprite) {
+            toSprite.scale.set(toRippleObj.scale, toRippleObj.scale)
+            toSprite.alpha = toRippleObj.alpha
+          }
+        }}, 0)
+        break
+
+      case 'circle':
+        // 원형 마스크 확장 (중앙에서 원형으로 확장)
+        const circleMask = new PIXI.Graphics()
+        circleMask.beginFill(0xffffff)
+        circleMask.drawCircle(stageWidth / 2, stageHeight / 2, 0)
+        circleMask.endFill()
+        toSprite.mask = circleMask
+        const maskRadius = { value: 0 }
+        const maxRadius = Math.sqrt(stageWidth * stageWidth + stageHeight * stageHeight) / 2
+        tl.to(maskRadius, { 
+          value: maxRadius,
+          duration,
+          onUpdate: function() {
+            circleMask.clear()
+            circleMask.beginFill(0xffffff)
+            circleMask.drawCircle(stageWidth / 2, stageHeight / 2, maskRadius.value)
+            circleMask.endFill()
+          }
+        })
+        tl.to(toSprite, { alpha: 1, duration: 0 }, 0)
+        break
+
+
+      default:
+        // 기본: 페이드
+        tl.to(toSprite, { alpha: 1, duration }, 0)
+        if (toText) {
+          tl.to(toText, { alpha: 1, duration }, 0)
+        }
+    }
+
+    // 애니메이션 완료 후 정리
+    tl.call(() => {
+      if (appRef.current) {
+        appRef.current.render()
+      }
+    })
+  }, [])
+
   // 현재 씬 업데이트
   const updateCurrentScene = useCallback(() => {
     console.log('Step4: updateCurrentScene called, index:', currentSceneIndex, 'container:', !!containerRef.current, 'timeline:', !!timeline)
-    if (!containerRef.current || !timeline) {
+    if (!containerRef.current || !timeline || !appRef.current) {
       console.log('Step4: updateCurrentScene skipped - missing container or timeline')
       return
     }
@@ -293,43 +591,61 @@ export default function Step4Page() {
     const textCount = textsRef.current.size
     console.log('Step4: updateCurrentScene - sprites:', spriteCount, 'texts:', textCount)
 
-    spritesRef.current.forEach((sprite, index) => {
-      if (sprite?.parent) {
-        sprite.visible = false
-        sprite.alpha = 0
-      }
-    })
-    textsRef.current.forEach((text, index) => {
-      if (text?.parent) {
-        text.visible = false
-        text.alpha = 0
-      }
-    })
+    const currentScene = timeline.scenes[currentSceneIndex]
+    const previousIndex = previousSceneIndexRef.current
+    const previousScene = previousIndex !== null ? timeline.scenes[previousIndex] : null
 
     const currentSprite = spritesRef.current.get(currentSceneIndex)
     const currentText = textsRef.current.get(currentSceneIndex)
+    const previousSprite = previousIndex !== null ? spritesRef.current.get(previousIndex) : null
+    const previousText = previousIndex !== null ? textsRef.current.get(previousIndex) : null
 
-    console.log('Step4: updateCurrentScene - currentSprite:', !!currentSprite, 'currentText:', !!currentText)
+    // 이전 씬 숨기기
+    if (previousSprite && previousIndex !== null && previousIndex !== currentSceneIndex) {
+      previousSprite.visible = false
+      previousSprite.alpha = 0
+    }
+    if (previousText && previousIndex !== null && previousIndex !== currentSceneIndex) {
+      previousText.visible = false
+      previousText.alpha = 0
+    }
 
-    if (currentSprite?.parent) {
-      currentSprite.visible = true
-      currentSprite.alpha = 1
-      console.log('Step4: Current sprite made visible')
+    // 현재 씬 등장 효과 적용
+    if (currentSprite) {
+      const transition = currentScene.transition || 'fade'
+      const transitionDuration = currentScene.transitionDuration || 0.5
+      const { width, height } = stageDimensions
+
+      applyEnterEffect(
+        currentSprite,
+        currentText || null,
+        transition,
+        transitionDuration,
+        width,
+        height
+      )
     } else {
-      console.log('Step4: Current sprite not found or not in parent')
-    }
-    if (currentText?.parent) {
-      currentText.visible = true
-      currentText.alpha = 1
-      console.log('Step4: Current text made visible')
+      // 스프라이트가 없으면 즉시 표시
+      spritesRef.current.forEach((sprite, index) => {
+        if (sprite?.parent) {
+          sprite.visible = index === currentSceneIndex
+          sprite.alpha = index === currentSceneIndex ? 1 : 0
+        }
+      })
+      textsRef.current.forEach((text, index) => {
+        if (text?.parent) {
+          text.visible = index === currentSceneIndex
+          text.alpha = index === currentSceneIndex ? 1 : 0
+        }
+      })
+
+      if (appRef.current) {
+        appRef.current.render()
+      }
     }
 
-    // 렌더링 강제 실행
-    if (appRef.current) {
-      appRef.current.render()
-      console.log('Step4: Rendered after updateCurrentScene')
-    }
-  }, [currentSceneIndex, timeline])
+    previousSceneIndexRef.current = currentSceneIndex
+  }, [currentSceneIndex, timeline, stageDimensions, applyEnterEffect])
 
   // 모든 씬 로드
   const loadAllScenes = useCallback(async () => {
@@ -468,14 +784,26 @@ export default function Step4Page() {
   const handleSceneSelect = (index: number) => {
     if (!timeline) return
     if (isPlaying) setIsPlaying(false)
-    setCurrentSceneIndex(index)
     
     let timeUntilScene = 0
     for (let i = 0; i < index; i++) {
       timeUntilScene += timeline.scenes[i].duration + (timeline.scenes[i].transitionDuration || 0.5)
     }
+    
+    // 수동 선택 플래그 설정
+    isManualSceneSelectRef.current = true
+    setCurrentSceneIndex(index)
     setCurrentTime(timeUntilScene)
-    updateCurrentScene()
+    
+    // 다음 프레임에 확실히 업데이트되도록
+    requestAnimationFrame(() => {
+      updateCurrentScene()
+    })
+    
+    // useEffect가 실행된 후 플래그 리셋 (다음 이벤트 루프에서)
+    setTimeout(() => {
+      isManualSceneSelectRef.current = false
+    }, 0)
   }
 
   // 전체 재생 시간 계산
@@ -506,7 +834,10 @@ export default function Step4Page() {
       lastTimestampRef.current = timestamp
 
       setCurrentTime((prev) => {
-        const next = prev + delta
+        // 전체 영상 배속 적용
+        const speed = timeline?.playbackSpeed || playbackSpeed || 1.0
+        const speedAdjustedDelta = delta * speed
+        const next = prev + speedAdjustedDelta
         if (next >= totalDuration) {
           // 재생 끝
           setIsPlaying(false)
@@ -531,10 +862,12 @@ export default function Step4Page() {
     }
   }, [isPlaying, totalDuration])
 
-  // currentTime 변화에 따라 현재 씬 업데이트
+  // currentTime 변화에 따라 현재 씬 업데이트 (수동 선택 시 제외)
   useEffect(() => {
     if (!timeline || timeline.scenes.length === 0) return
     if (totalDuration === 0) return
+    // 수동 씬 선택 중이면 건너뛰기
+    if (isManualSceneSelectRef.current) return
 
     let accumulated = 0
     let sceneIndex = 0
@@ -589,6 +922,8 @@ export default function Step4Page() {
 
   const handleSceneTransitionChange = (index: number, value: string) => {
     if (!timeline) return
+    // 씬 선택 유지
+    isManualSceneSelectRef.current = true
     const nextTimeline: TimelineData = {
       ...timeline,
       scenes: timeline.scenes.map((scene, i) =>
@@ -596,10 +931,19 @@ export default function Step4Page() {
       ),
     }
     setTimeline(nextTimeline)
+    // 효과 적용 후 미리보기 업데이트
+    requestAnimationFrame(() => {
+      updateCurrentScene()
+      setTimeout(() => {
+        isManualSceneSelectRef.current = false
+      }, 50)
+    })
   }
 
   const handleSceneImageFitChange = (index: number, value: 'cover' | 'contain' | 'fill') => {
     if (!timeline) return
+    // 씬 선택 유지
+    isManualSceneSelectRef.current = true
     const nextTimeline: TimelineData = {
       ...timeline,
       scenes: timeline.scenes.map((scene, i) =>
@@ -607,6 +951,29 @@ export default function Step4Page() {
       ),
     }
     setTimeline(nextTimeline)
+    // 이미지 fit 변경 시 해당 씬만 재로드
+    if (pixiReady && appRef.current && containerRef.current) {
+      loadAllScenes().then(() => {
+        setTimeout(() => {
+          isManualSceneSelectRef.current = false
+        }, 50)
+      })
+    } else {
+      setTimeout(() => {
+        isManualSceneSelectRef.current = false
+      }, 50)
+    }
+  }
+
+  const handlePlaybackSpeedChange = (value: number) => {
+    setPlaybackSpeed(value)
+    if (timeline) {
+      const nextTimeline: TimelineData = {
+        ...timeline,
+        playbackSpeed: value,
+      }
+      setTimeline(nextTimeline)
+    }
   }
 
   // 타임라인 드래그
@@ -696,6 +1063,38 @@ export default function Step4Page() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
+  // 전환 효과 한글 매핑
+  const transitionLabels: Record<string, string> = {
+    'fade': '페이드',
+    'slide-left': '슬라이드 좌',
+    'slide-right': '슬라이드 우',
+    'slide-up': '슬라이드 상',
+    'slide-down': '슬라이드 하',
+    'zoom-in': '확대',
+    'zoom-out': '축소',
+    'rotate': '회전',
+    'blur': '블러',
+    'glitch': '글리치',
+    'ripple': '물결',
+    'circle': '원형',
+  }
+
+  // 모든 전환 효과 옵션
+  const allTransitions = [
+    { value: 'fade', label: '페이드' },
+    { value: 'slide-left', label: '슬라이드 좌' },
+    { value: 'slide-right', label: '슬라이드 우' },
+    { value: 'slide-up', label: '슬라이드 상' },
+    { value: 'slide-down', label: '슬라이드 하' },
+    { value: 'zoom-in', label: '확대' },
+    { value: 'zoom-out', label: '축소' },
+    { value: 'rotate', label: '회전' },
+    { value: 'blur', label: '블러' },
+    { value: 'glitch', label: '글리치' },
+    { value: 'ripple', label: '물결' },
+    { value: 'circle', label: '원형' },
+  ]
+
   // 서버 전송
   const handleExport = async () => {
     if (!timeline) {
@@ -775,30 +1174,6 @@ export default function Step4Page() {
           </div>
           
           <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden">
-            {/* 비율 선택 */}
-            <div>
-              <label className="block text-sm mb-2" style={{
-                color: theme === 'dark' ? '#d1d5db' : '#374151'
-              }}>
-                비율
-              </label>
-              <select
-                value={aspectRatio}
-                onChange={(e) => setAspectRatio(e.target.value)}
-                className="w-full rounded-md border px-3 py-2 text-sm"
-                style={{
-                  backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-                  borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                  color: theme === 'dark' ? '#ffffff' : '#111827'
-                }}
-              >
-                <option value="9/16">9:16 (세로)</option>
-                <option value="16/9">16:9 (가로)</option>
-                <option value="1/1">1:1 (정사각형)</option>
-                <option value="4/3">4:3</option>
-              </select>
-            </div>
-
             {/* PixiJS 미리보기 */}
             <div className="flex-1 flex items-center justify-center bg-black rounded-lg overflow-hidden min-h-0">
               <div
@@ -860,6 +1235,41 @@ export default function Step4Page() {
                 >
                   내보내기
                 </Button>
+              </div>
+              
+              {/* 배속 선택 */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs" style={{
+                  color: theme === 'dark' ? '#9ca3af' : '#6b7280'
+                }}>
+                  배속:
+                </label>
+                <select
+                  value={timeline?.playbackSpeed || playbackSpeed}
+                  onChange={(e) => handlePlaybackSpeedChange(parseFloat(e.target.value))}
+                  className="flex-1 px-2 py-1 rounded border text-xs"
+                  style={{
+                    backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                    borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
+                    color: theme === 'dark' ? '#ffffff' : '#111827'
+                  }}
+                >
+                  <option value="0.5">0.5x</option>
+                  <option value="0.75">0.75x</option>
+                  <option value="1.0">1x</option>
+                  <option value="1.25">1.25x</option>
+                  <option value="1.5">1.5x</option>
+                  <option value="2.0">2x</option>
+                </select>
+                <span className="text-xs" style={{
+                  color: theme === 'dark' ? '#9ca3af' : '#6b7280'
+                }}>
+                  {(() => {
+                    const speed = timeline?.playbackSpeed || playbackSpeed || 1.0
+                    const totalTime = totalDuration / speed
+                    return `실제 재생: ${formatTime(totalTime)}`
+                  })()}
+                </span>
               </div>
             </div>
 
@@ -948,12 +1358,6 @@ export default function Step4Page() {
                                 씬 {index + 1}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 text-xs" style={{
-                              color: theme === 'dark' ? '#9ca3af' : '#6b7280'
-                            }}>
-                              <Clock className="w-3 h-3" />
-                              <span>{sceneData?.duration.toFixed(1) || '2.5'}초</span>
-                            </div>
                           </div>
 
                           {/* 텍스트 입력 */}
@@ -971,25 +1375,8 @@ export default function Step4Page() {
                             placeholder="씬 텍스트 입력..."
                           />
 
-                          {/* 설정 (전환 효과만 표시, 시간은 대본 길이로 자동 계산) */}
-                          <div className="flex items-center gap-2 text-xs">
-                            <select
-                              value={sceneData?.transition || 'fade'}
-                              onChange={(e) => handleSceneTransitionChange(index, e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="px-2 py-1 rounded border text-xs"
-                              style={{
-                                backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-                                borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                                color: theme === 'dark' ? '#ffffff' : '#111827'
-                              }}
-                            >
-                              <option value="fade">Fade</option>
-                              <option value="slide-left">Slide Left</option>
-                              <option value="slide-right">Slide Right</option>
-                              <option value="zoom-in">Zoom In</option>
-                              <option value="zoom-out">Zoom Out</option>
-                            </select>
+                          {/* 설정 */}
+                          <div className="flex items-center gap-2 text-xs flex-wrap">
                             <span
                               className="px-2 py-1 rounded border text-xs"
                               style={{
@@ -998,8 +1385,23 @@ export default function Step4Page() {
                                 color: theme === 'dark' ? '#9ca3af' : '#6b7280'
                               }}
                             >
-                              {sceneData?.duration.toFixed(1) || '1.0'}초 (자동)
+                              {transitionLabels[sceneData?.transition || 'fade'] || '페이드'}
                             </span>
+                            <select
+                              value={sceneData?.imageFit || 'cover'}
+                              onChange={(e) => handleSceneImageFitChange(index, e.target.value as 'cover' | 'contain' | 'fill')}
+                              onClick={(e) => e.stopPropagation()}
+                              className="px-2 py-1 rounded border text-xs"
+                              style={{
+                                backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
+                                borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
+                                color: theme === 'dark' ? '#ffffff' : '#111827'
+                              }}
+                            >
+                              <option value="cover">Cover</option>
+                              <option value="contain">Contain</option>
+                              <option value="fill">Fill</option>
+                            </select>
                           </div>
                         </div>
                       </div>
@@ -1038,42 +1440,35 @@ export default function Step4Page() {
                   <h3 className="text-sm font-semibold mb-2" style={{
                     color: theme === 'dark' ? '#ffffff' : '#111827'
                   }}>
-                    등장/퇴장
+                    전환 효과
                   </h3>
                   <div className="grid grid-cols-2 gap-2">
-                    {['페이드', '슬라이드', '줌', '회전'].map((effect) => (
-                      <button
-                        key={effect}
-                        className="p-3 rounded-lg border text-sm hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
-                        style={{
-                          borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-                          color: theme === 'dark' ? '#d1d5db' : '#374151'
-                        }}
-                      >
-                        {effect}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold mb-2" style={{
-                    color: theme === 'dark' ? '#ffffff' : '#111827'
-                  }}>
-                    강조
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {['펄스', '흔들림', '반짝임', '확대'].map((effect) => (
-                      <button
-                        key={effect}
-                        className="p-3 rounded-lg border text-sm hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
-                        style={{
-                          borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-                          color: theme === 'dark' ? '#d1d5db' : '#374151'
-                        }}
-                      >
-                        {effect}
-                      </button>
-                    ))}
+                    {allTransitions.map((transition) => {
+                      const isSelected = timeline?.scenes[currentSceneIndex]?.transition === transition.value
+                      return (
+                        <button
+                          key={transition.value}
+                          onClick={() => {
+                            if (timeline && currentSceneIndex >= 0) {
+                              handleSceneTransitionChange(currentSceneIndex, transition.value)
+                            }
+                          }}
+                          className={`p-3 rounded-lg border text-sm transition-colors ${
+                            isSelected 
+                              ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500' 
+                              : 'hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                          }`}
+                          style={{
+                            borderColor: isSelected 
+                              ? '#8b5cf6' 
+                              : (theme === 'dark' ? '#374151' : '#e5e7eb'),
+                            color: theme === 'dark' ? '#d1d5db' : '#374151'
+                          }}
+                        >
+                          {transition.label}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               </TabsContent>

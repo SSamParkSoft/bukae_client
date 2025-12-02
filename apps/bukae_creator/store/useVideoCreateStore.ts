@@ -57,12 +57,34 @@ export interface TimelineScene {
   transitionDuration?: number // 전환 시간 (초), 기본값 0.5
   image: string // base64 또는 URL
   imageFit?: 'cover' | 'contain' | 'fill' // 이미지 표시 방식
+  imageTransform?: {
+    x: number
+    y: number
+    width: number
+    height: number
+    scaleX: number
+    scaleY: number
+    rotation: number
+  }
   text: {
     content: string
     font: string
     color: string
     position?: string
     fontSize?: number
+    transform?: {
+      x: number
+      y: number
+      width: number
+      height: number
+      rotation: number
+    }
+    style?: {
+      bold?: boolean
+      italic?: boolean
+      underline?: boolean
+      align?: 'left' | 'center' | 'right' | 'justify'
+    }
   }
 }
 
@@ -70,6 +92,7 @@ export interface TimelineData {
   fps: number
   resolution: string
   scenes: TimelineScene[]
+  playbackSpeed?: number // 전체 영상 재생 배속 (기본값 1.0)
 }
 
 interface VideoCreateState {
