@@ -105,7 +105,7 @@ export default function Step4Page() {
           transition: existingScene?.transition || 'fade',
           transitionDuration: existingScene?.transitionDuration || 0.5,
           image: scene.imageUrl || selectedImages[index] || '',
-          imageFit: existingScene?.imageFit || 'cover',
+          imageFit: existingScene?.imageFit || 'fill', // 기본값을 fill로 변경하여 9:16 캔버스를 항상 채움
           text: {
             content: scene.script,
             font: subtitleFont || 'Pretendard-Bold',
@@ -789,7 +789,7 @@ export default function Step4Page() {
         const texture = await loadPixiTexture(scene.image)
         console.log(`Step4: Texture loaded for scene ${sceneIndex}, size:`, texture.width, texture.height)
         const sprite = new PIXI.Sprite(texture)
-        const imageFit = scene.imageFit || 'cover'
+        const imageFit = scene.imageFit || 'fill' // 기본값을 fill로 변경하여 9:16 캔버스를 항상 채움
         const params = calculateSpriteParams(
           texture.width,
           texture.height,
@@ -1480,7 +1480,7 @@ export default function Step4Page() {
                 <div className="font-semibold mb-2">선택된 애셋</div>
                 <div className="space-y-1 text-xs">
                   <div>씬: {currentSceneIndex + 1}</div>
-                  <div>이미지: {timeline.scenes[currentSceneIndex].imageFit || 'cover'}</div>
+                  <div>이미지: {timeline.scenes[currentSceneIndex].imageFit || 'fill'}</div>
                   <div>텍스트: {timeline.scenes[currentSceneIndex].text.content.substring(0, 30)}...</div>
                 </div>
               </div>
@@ -1585,7 +1585,7 @@ export default function Step4Page() {
                               {transitionLabels[sceneData?.transition || 'fade'] || '페이드'}
                             </span>
                             <select
-                              value={sceneData?.imageFit || 'cover'}
+                              value={sceneData?.imageFit || 'fill'}
                               onChange={(e) => handleSceneImageFitChange(index, e.target.value as 'cover' | 'contain' | 'fill')}
                               onClick={(e) => e.stopPropagation()}
                               className="px-2 py-1 rounded border text-xs"
