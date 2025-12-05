@@ -46,6 +46,8 @@ export default function Step4Page() {
   const handlesRef = useRef<PIXI.Graphics | null>(null)
   const isDraggingRef = useRef(false)
   const dragStartPosRef = useRef({ x: 0, y: 0 })
+  const particlesRef = useRef<Map<number, PIXI.Container>>(new Map()) // 씬별 파티클 컨테이너
+  const particleAnimationsRef = useRef<Map<number, gsap.core.Timeline>>(new Map()) // 파티클 애니메이션
   
   // State
   const [isPlaying, setIsPlaying] = useState(false)
@@ -296,6 +298,223 @@ export default function Step4Page() {
 
   // 진행 중인 애니메이션 추적
   const activeAnimationsRef = useRef<Map<number, gsap.core.Timeline>>(new Map())
+
+  // GlowFilter 구현 (BlurFilter를 조합하여 후광 효과 생성)
+  const createGlowFilter = (
+    distance: number = 10,
+    outerStrength: number = 4,
+    innerStrength: number = 0,
+    color: number = 0xffffff
+  ): PIXI.BlurFilter => {
+    const blurFilter = new PIXI.BlurFilter()
+    blurFilter.blur = distance
+    // 후광 효과를 위해 여러 필터를 조합할 수 있지만, 간단하게 BlurFilter 사용
+    return blurFilter
+  }
+
+  // GlitchFilter 구현 (DisplacementFilter 사용)
+  const createGlitchFilter = (intensity: number = 10): PIXI.DisplacementFilter | null => {
+    if (!appRef.current) return null
+    
+    // 간단한 Displacement 텍스처 생성
+    const size = 256
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+
+    // 랜덤 노이즈 생성
+    const imageData = ctx.createImageData(size, size)
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      const value = Math.random() * 255
+      imageData.data[i] = value // R
+      imageData.data[i + 1] = value // G
+      imageData.data[i + 2] = 128 // B (중간값)
+      imageData.data[i + 3] = 255 // A
+    }
+    ctx.putImageData(imageData, 0, 0)
+
+    const texture = PIXI.Texture.from(canvas)
+    const sprite = new PIXI.Sprite(texture)
+    const filter = new PIXI.DisplacementFilter(sprite, intensity)
+    return filter
+  }
+
+  // 파티클 시스템 생성
+  const createParticleSystem = (
+    type: 'sparkle' | 'snow' | 'confetti' | 'stars',
+    count: number,
+    stageWidth: number,
+    stageHeight: number,
+    duration: number
+  ): PIXI.Container => {
+    const container = new PIXI.Container()
+    const particles: PIXI.Graphics[] = []
+
+    for (let i = 0; i < count; i++) {
+      const particle = new PIXI.Graphics()
+      
+      switch (type) {
+        case 'sparkle':
+          // 반짝이는 별 모양 (수동으로 그리기)
+          particle.beginFill(0xffffff, 1)
+          const sparkleSize = 5
+          for (let i = 0; i < 5; i++) {
+            const angle = (Math.PI * 2 * i) / 5
+            const x1 = Math.cos(angle) * sparkleSize
+            const y1 = Math.sin(angle) * sparkleSize
+            const x2 = Math.cos(angle + Math.PI / 5) * sparkleSize * 0.5
+            const y2 = Math.sin(angle + Math.PI / 5) * sparkleSize * 0.5
+            if (i === 0) {
+              particle.moveTo(x1, y1)
+            } else {
+              particle.lineTo(x1, y1)
+            }
+            particle.lineTo(x2, y2)
+          }
+          particle.closePath()
+          particle.endFill()
+          break
+        case 'snow':
+          // 눈송이 (원)
+          particle.beginFill(0xffffff, 0.8)
+          particle.drawCircle(0, 0, 3)
+          particle.endFill()
+          break
+        case 'confetti':
+          // 컨페티 (사각형)
+          const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff]
+          particle.beginFill(colors[Math.floor(Math.random() * colors.length)], 1)
+          particle.drawRect(-5, -5, 10, 10)
+          particle.endFill()
+          break
+        case 'stars':
+          // 별 (수동으로 그리기)
+          particle.beginFill(0xffff00, 1)
+          const starSize = 4
+          for (let i = 0; i < 5; i++) {
+            const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
+            const x1 = Math.cos(angle) * starSize
+            const y1 = Math.sin(angle) * starSize
+            const x2 = Math.cos(angle + Math.PI / 5) * starSize * 0.5
+            const y2 = Math.sin(angle + Math.PI / 5) * starSize * 0.5
+            if (i === 0) {
+              particle.moveTo(x1, y1)
+            } else {
+              particle.lineTo(x1, y1)
+            }
+            particle.lineTo(x2, y2)
+          }
+          particle.closePath()
+          particle.endFill()
+          break
+      }
+
+      // 랜덤 위치
+      particle.x = Math.random() * stageWidth
+      particle.y = Math.random() * stageHeight
+      particle.alpha = 0
+      particle.scale.set(0.5 + Math.random() * 0.5)
+
+      container.addChild(particle)
+      particles.push(particle)
+    }
+
+    // 파티클 애니메이션
+    const tl = gsap.timeline()
+    particles.forEach((particle, index) => {
+      const delay = (index / count) * 0.1
+      const fallSpeed = 50 + Math.random() * 100
+      const horizontalDrift = (Math.random() - 0.5) * 50
+
+      // 등장 애니메이션
+      tl.to(particle, {
+        alpha: 1,
+        duration: 0.3,
+        delay,
+      }, 0)
+
+      // 이동 애니메이션
+      tl.to(particle, {
+        y: stageHeight + 50,
+        x: particle.x + horizontalDrift,
+        rotation: Math.PI * 2 * (Math.random() > 0.5 ? 1 : -1),
+        duration: duration,
+        delay,
+        ease: 'none',
+      }, 0)
+
+      // 사라짐 애니메이션
+      tl.to(particle, {
+        alpha: 0,
+        duration: 0.3,
+        delay: delay + duration - 0.3,
+      }, 0)
+    })
+
+    return container
+  }
+
+  // 고급 효과 적용
+  const applyAdvancedEffects = useCallback((
+    sprite: PIXI.Sprite,
+    sceneIndex: number,
+    effects?: TimelineScene['advancedEffects']
+  ) => {
+    if (!effects || !appRef.current || !containerRef.current) return
+
+    const filters: PIXI.Filter[] = []
+
+    // Glow 효과
+    if (effects.glow?.enabled) {
+      const glowFilter = createGlowFilter(
+        effects.glow.distance || 10,
+        effects.glow.outerStrength || 4,
+        effects.glow.innerStrength || 0,
+        effects.glow.color || 0xffffff
+      )
+      filters.push(glowFilter)
+    }
+
+    // Glitch 효과
+    if (effects.glitch?.enabled) {
+      const glitchFilter = createGlitchFilter(effects.glitch.intensity || 10)
+      if (glitchFilter) {
+        filters.push(glitchFilter)
+      }
+    }
+
+    sprite.filters = filters.length > 0 ? filters : null
+
+    // 파티클 효과
+    if (effects.particles?.enabled && effects.particles.type) {
+      const existingParticles = particlesRef.current.get(sceneIndex)
+      if (existingParticles && existingParticles.parent) {
+        existingParticles.parent.removeChild(existingParticles)
+        particlesRef.current.delete(sceneIndex)
+      }
+
+      const particleSystem = createParticleSystem(
+        effects.particles.type,
+        effects.particles.count || 50,
+        stageDimensions.width,
+        stageDimensions.height,
+        effects.particles.duration || 2
+      )
+
+      containerRef.current.addChild(particleSystem)
+      particlesRef.current.set(sceneIndex, particleSystem)
+
+      // 파티클 애니메이션 완료 후 제거
+      setTimeout(() => {
+        if (particleSystem.parent) {
+          particleSystem.parent.removeChild(particleSystem)
+        }
+        particlesRef.current.delete(sceneIndex)
+      }, (effects.particles.duration || 2) * 1000)
+    }
+  }, [stageDimensions])
 
   // 씬 등장 효과 함수들 (이미지가 나타날 때 적용)
   const applyEnterEffect = useCallback((
@@ -664,7 +883,15 @@ export default function Step4Page() {
         appRef.current.render()
       }
     })
-  }, [])
+
+    // 고급 효과 적용
+    if (toSprite && timeline) {
+      const scene = timeline.scenes[sceneIndex]
+      if (scene?.advancedEffects) {
+        applyAdvancedEffects(toSprite, sceneIndex, scene.advancedEffects)
+      }
+    }
+  }, [timeline, stageDimensions, applyAdvancedEffects])
 
   // 현재 씬 업데이트
   const updateCurrentScene = useCallback((skipAnimation: boolean = false) => {
@@ -728,6 +955,11 @@ export default function Step4Page() {
           activeAnimationsRef.current.delete(idx)
         }
       })
+
+      // 고급 효과 적용
+      if (currentScene.advancedEffects) {
+        applyAdvancedEffects(currentSprite, currentSceneIndex, currentScene.advancedEffects)
+      }
 
       applyEnterEffect(
         currentSprite,
@@ -1148,6 +1380,48 @@ export default function Step4Page() {
       }
       setTimeline(nextTimeline)
     }
+  }
+
+  // 고급 효과 핸들러
+  const handleAdvancedEffectChange = (
+    sceneIndex: number,
+    effectType: 'glow' | 'particles' | 'glitch',
+    value: any
+  ) => {
+    if (!timeline) return
+    
+    isManualSceneSelectRef.current = true
+    const currentScene = timeline.scenes[sceneIndex]
+    const currentEffects = currentScene.advancedEffects || {}
+    
+    const nextTimeline: TimelineData = {
+      ...timeline,
+      scenes: timeline.scenes.map((scene, i) => {
+        if (i === sceneIndex) {
+          return {
+            ...scene,
+            advancedEffects: {
+              ...currentEffects,
+              [effectType]: value,
+            },
+          }
+        }
+        return scene
+      }),
+    }
+    setTimeline(nextTimeline)
+    
+    // 효과 적용
+    requestAnimationFrame(() => {
+      const sprite = spritesRef.current.get(sceneIndex)
+      if (sprite) {
+        applyAdvancedEffects(sprite, sceneIndex, nextTimeline.scenes[sceneIndex].advancedEffects)
+      }
+      updateCurrentScene()
+      setTimeout(() => {
+        isManualSceneSelectRef.current = false
+      }, 50)
+    })
   }
 
   // 타임라인 드래그
@@ -1666,6 +1940,121 @@ export default function Step4Page() {
                         </button>
                       )
                     })}
+                  </div>
+                </div>
+
+                {/* 고급 효과 */}
+                <div>
+                  <h3 className="text-sm font-semibold mb-2" style={{
+                    color: theme === 'dark' ? '#ffffff' : '#111827'
+                  }}>
+                    고급 효과
+                  </h3>
+                  
+                  {/* 후광 효과 */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs" style={{
+                        color: theme === 'dark' ? '#d1d5db' : '#374151'
+                      }}>
+                        후광 효과
+                      </label>
+                      <input
+                        type="checkbox"
+                        checked={timeline?.scenes[currentSceneIndex]?.advancedEffects?.glow?.enabled || false}
+                        onChange={(e) => {
+                          if (timeline && currentSceneIndex >= 0) {
+                            handleAdvancedEffectChange(
+                              currentSceneIndex,
+                              'glow',
+                              e.target.checked
+                                ? {
+                                    enabled: true,
+                                    distance: 10,
+                                    outerStrength: 4,
+                                    innerStrength: 0,
+                                    color: 0xffffff,
+                                  }
+                                : { enabled: false }
+                            )
+                          }
+                        }}
+                        className="w-4 h-4"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 글리치 효과 */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs" style={{
+                        color: theme === 'dark' ? '#d1d5db' : '#374151'
+                      }}>
+                        글리치 효과
+                      </label>
+                      <input
+                        type="checkbox"
+                        checked={timeline?.scenes[currentSceneIndex]?.advancedEffects?.glitch?.enabled || false}
+                        onChange={(e) => {
+                          if (timeline && currentSceneIndex >= 0) {
+                            handleAdvancedEffectChange(
+                              currentSceneIndex,
+                              'glitch',
+                              e.target.checked
+                                ? {
+                                    enabled: true,
+                                    intensity: 10,
+                                  }
+                                : { enabled: false }
+                            )
+                          }
+                        }}
+                        className="w-4 h-4"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 파티클 효과 */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs" style={{
+                        color: theme === 'dark' ? '#d1d5db' : '#374151'
+                      }}>
+                        파티클 효과
+                      </label>
+                      <select
+                        value={timeline?.scenes[currentSceneIndex]?.advancedEffects?.particles?.type || 'none'}
+                        onChange={(e) => {
+                          if (timeline && currentSceneIndex >= 0) {
+                            const value = e.target.value
+                            handleAdvancedEffectChange(
+                              currentSceneIndex,
+                              'particles',
+                              value !== 'none'
+                                ? {
+                                    enabled: true,
+                                    type: value as 'sparkle' | 'snow' | 'confetti' | 'stars',
+                                    count: 50,
+                                    duration: 2,
+                                  }
+                                : { enabled: false }
+                            )
+                          }
+                        }}
+                        className="px-2 py-1 rounded border text-xs"
+                        style={{
+                          backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
+                          borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
+                          color: theme === 'dark' ? '#ffffff' : '#111827'
+                        }}
+                      >
+                        <option value="none">없음</option>
+                        <option value="sparkle">반짝임</option>
+                        <option value="snow">눈송이</option>
+                        <option value="confetti">컨페티</option>
+                        <option value="stars">별</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </TabsContent>

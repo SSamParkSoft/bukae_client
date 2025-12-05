@@ -66,6 +66,26 @@ export interface TimelineScene {
     scaleY: number
     rotation: number
   }
+  // 고급 효과
+  advancedEffects?: {
+    glow?: {
+      enabled: boolean
+      distance?: number // 후광 거리
+      outerStrength?: number // 외부 강도
+      innerStrength?: number // 내부 강도
+      color?: number // 색상 (hex)
+    }
+    particles?: {
+      enabled: boolean
+      type?: 'sparkle' | 'snow' | 'confetti' | 'stars' // 파티클 타입
+      count?: number // 파티클 개수
+      duration?: number // 지속 시간
+    }
+    glitch?: {
+      enabled: boolean
+      intensity?: number // 글리치 강도
+    }
+  }
   text: {
     content: string
     font: string
