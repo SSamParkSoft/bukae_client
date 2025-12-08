@@ -45,13 +45,15 @@ export default function Step4Page() {
   const textsRef = useRef<Map<number, PIXI.Text>>(new Map())
   const handlesRef = useRef<PIXI.Graphics | null>(null)
   const isDraggingRef = useRef(false)
-  const dragStartPosRef = useRef({ x: 0, y: 0 })
+  const dragStartPosRef = useRef<{ x: number; y: number; boundsWidth?: number; boundsHeight?: number }>({ x: 0, y: 0 })
   const particlesRef = useRef<Map<number, PIXI.Container>>(new Map()) // 씬별 파티클 컨테이너
   const particleAnimationsRef = useRef<Map<number, gsap.core.Timeline>>(new Map()) // 파티클 애니메이션
   const editHandlesRef = useRef<Map<number, PIXI.Container>>(new Map()) // 편집 핸들 컨테이너 (씬별)
   const isResizingRef = useRef(false)
   const resizeHandleRef = useRef<'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | null>(null)
-  const originalTransformRef = useRef<{ x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number } | null>(null)
+  const resizeStartPosRef = useRef<{ x: number; y: number } | null>(null)
+  const isFirstResizeMoveRef = useRef(true)
+  const originalTransformRef = useRef<{ x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number; baseWidth?: number; baseHeight?: number } | null>(null)
   const originalSpriteTransformRef = useRef<Map<number, { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }>>(new Map()) // 편집 시작 시 원래 Transform 저장
   const originalTextTransformRef = useRef<Map<number, { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }>>(new Map()) // 텍스트 편집 시작 시 원래 Transform 저장
   const isSavingTransformRef = useRef(false) // Transform 저장 중 플래그 (loadAllScenes 재호출 방지)
@@ -1100,9 +1102,12 @@ export default function Step4Page() {
 
           // 텍스트 Transform 적용
           if (scene.text.transform) {
+            // scaleX, scaleY가 있으면 사용, 없으면 기본값 1 사용
+            const scaleX = scene.text.transform.scaleX ?? 1
+            const scaleY = scene.text.transform.scaleY ?? 1
             text.x = scene.text.transform.x
             text.y = scene.text.transform.y
-            text.scale.set(scene.text.transform.width / (text.width || 1), scene.text.transform.height / (text.height || 1))
+            text.scale.set(scaleX, scaleY)
             text.rotation = scene.text.transform.rotation
           }
 
@@ -1469,42 +1474,30 @@ export default function Step4Page() {
         e.stopPropagation()
         isResizingRef.current = true
         resizeHandleRef.current = handle.type
+        isFirstResizeMoveRef.current = true
         const sprite = spritesRef.current.get(sceneIndex)
-        if (sprite) {
-          // 원래 Transform을 timeline에서 가져오거나 저장된 값 사용
-          let originalTransform
-          if (originalSpriteTransformRef.current.has(sceneIndex)) {
-            originalTransform = originalSpriteTransformRef.current.get(sceneIndex)!
-          } else {
-            const scene = timeline?.scenes[sceneIndex]
-            if (scene?.imageTransform) {
-              originalTransform = scene.imageTransform
-            } else {
-              // timeline에 Transform이 없으면 현재 스프라이트의 초기 위치 사용
-              originalTransform = {
-                x: sprite.x,
-                y: sprite.y,
-                width: sprite.width,
-                height: sprite.height,
-                scaleX: sprite.scale.x,
-                scaleY: sprite.scale.y,
-                rotation: sprite.rotation,
-              }
-            }
-            originalSpriteTransformRef.current.set(sceneIndex, originalTransform)
-          }
-          
+        if (sprite && appRef.current) {
           // 리사이즈 시작 시 현재 스프라이트의 실제 bounds를 기준으로 설정
           // getBounds()를 사용하여 스케일과 앵커를 고려한 실제 위치와 크기를 가져옴
           const bounds = sprite.getBounds()
+          const baseWidth = bounds.width / (sprite.scale.x || 1)
+          const baseHeight = bounds.height / (sprite.scale.y || 1)
+          // 스프라이트의 실제 width/height를 저장 (스케일 적용 전)
           originalTransformRef.current = {
             x: bounds.x,
             y: bounds.y,
-            width: bounds.width,
-            height: bounds.height,
+            width: bounds.width, // getBounds()는 스케일이 적용된 크기
+            height: bounds.height, // getBounds()는 스케일이 적용된 크기
             scaleX: sprite.scale.x,
             scaleY: sprite.scale.y,
             rotation: sprite.rotation,
+            baseWidth,
+            baseHeight,
+          }
+          // 핸들러 클릭 시점의 마우스 위치를 저장 (스테이지 좌표)
+          resizeStartPosRef.current = {
+            x: e.global.x,
+            y: e.global.y,
           }
         }
         setSelectedElementIndex(sceneIndex)
@@ -1513,7 +1506,7 @@ export default function Step4Page() {
 
       // 리사이즈 중 (전역 이벤트로 처리)
       const handleGlobalMove = (e: MouseEvent) => {
-        if (isResizingRef.current && resizeHandleRef.current === handle.type && appRef.current) {
+        if (isResizingRef.current && resizeHandleRef.current === handle.type && appRef.current && resizeStartPosRef.current) {
           // MouseEvent를 PixiJS 스테이지 좌표로 변환
           const canvas = appRef.current.canvas
           const rect = canvas.getBoundingClientRect()
@@ -1522,6 +1515,17 @@ export default function Step4Page() {
           const globalPos = {
             x: (e.clientX - rect.left) * scaleX,
             y: (e.clientY - rect.top) * scaleY,
+          }
+          
+          // 첫 번째 mousemove는 무시 (핸들러 클릭 시점의 위치와 동일하면 리사이즈 시작하지 않음)
+          if (isFirstResizeMoveRef.current) {
+            const dx = Math.abs(globalPos.x - resizeStartPosRef.current.x)
+            const dy = Math.abs(globalPos.y - resizeStartPosRef.current.y)
+            // 마우스가 최소 3픽셀 이상 이동했을 때만 리사이즈 시작
+            if (dx < 3 && dy < 3) {
+              return
+            }
+            isFirstResizeMoveRef.current = false
           }
           
           // PixiJS 이벤트처럼 변환
@@ -1536,6 +1540,8 @@ export default function Step4Page() {
         if (isResizingRef.current && resizeHandleRef.current === handle.type) {
           isResizingRef.current = false
           resizeHandleRef.current = null
+          resizeStartPosRef.current = null
+          isFirstResizeMoveRef.current = true
           // 리사이즈 종료 시 Transform 저장하지 않음 (편집 종료 시 저장)
           document.removeEventListener('mousemove', handleGlobalMove)
           document.removeEventListener('mouseup', handleGlobalUp)
@@ -1716,8 +1722,13 @@ export default function Step4Page() {
     }
 
     // 스프라이트 업데이트
-    sprite.width = newWidth
-    sprite.height = newHeight
+    // baseWidth/baseHeight(스케일 적용 전 크기)를 기준으로 스케일 계산
+    const baseWidth = original.baseWidth || original.width / (original.scaleX || 1)
+    const baseHeight = original.baseHeight || original.height / (original.scaleY || 1)
+    const scaleX = newWidth / baseWidth
+    const scaleY = newHeight / baseHeight
+
+    sprite.scale.set(scaleX, scaleY)
     sprite.x = newX
     sprite.y = newY
 
@@ -1885,14 +1896,14 @@ export default function Step4Page() {
     text.rotation = transform.rotation
   }, [])
 
-  // 텍스트 리사이즈 핸들러
+  // 텍스트 리사이즈 핸들러 (이미지 리사이즈 로직 재사용)
   const handleTextResize = useCallback((e: PIXI.FederatedPointerEvent | MouseEvent, sceneIndex: number) => {
     if (!isResizingTextRef.current || !resizeHandleRef.current || !originalTransformRef.current) return
 
     const text = textsRef.current.get(sceneIndex)
     if (!text || !appRef.current) return
 
-    // 마우스 좌표를 PixiJS 스테이지 좌표로 변환
+    // 마우스 좌표를 PixiJS 좌표로 변환
     let globalPos: { x: number; y: number }
     if (e instanceof MouseEvent) {
       const canvas = appRef.current.canvas
@@ -1911,6 +1922,7 @@ export default function Step4Page() {
     const handleType = resizeHandleRef.current
     const original = originalTransformRef.current
 
+    // 이미지 리사이즈와 동일한 계산 로직 사용
     let newWidth = original.width
     let newHeight = original.height
     let newX = original.x
@@ -1971,15 +1983,18 @@ export default function Step4Page() {
       }
     }
 
-    // 텍스트 스케일 계산 (원본 크기 대비)
-    const baseWidth = text.width / text.scale.x
-    const baseHeight = text.height / text.scale.y
+    // 텍스트는 scale을 사용하고 anchor가 0.5, 0.5이므로 중심점으로 변환
+    // baseWidth/baseHeight(스케일 적용 전 크기)를 기준으로 스케일 계산
+    const baseWidth = original.baseWidth || original.width / (original.scaleX || 1)
+    const baseHeight = original.baseHeight || original.height / (original.scaleY || 1)
     const scaleX = newWidth / baseWidth
     const scaleY = newHeight / baseHeight
-
+    const centerX = newX + newWidth / 2
+    const centerY = newY + newHeight / 2
+    
     text.scale.set(scaleX, scaleY)
-    text.x = newX
-    text.y = newY
+    text.x = centerX
+    text.y = centerY
 
     // 핸들 위치 업데이트
     const existingHandles = textEditHandlesRef.current.get(sceneIndex)
@@ -2057,35 +2072,15 @@ export default function Step4Page() {
         e.stopPropagation()
         isResizingTextRef.current = true
         resizeHandleRef.current = handle.type
+        isFirstResizeMoveRef.current = true
         const text = textsRef.current.get(sceneIndex)
-        if (text) {
-          let originalTransform
-          if (originalTextTransformRef.current.has(sceneIndex)) {
-            originalTransform = originalTextTransformRef.current.get(sceneIndex)!
-          } else {
-            const scene = timeline?.scenes[sceneIndex]
-            if (scene?.text?.transform) {
-              const transform = scene.text.transform
-              originalTransform = {
-                ...transform,
-                scaleX: transform.scaleX ?? 1,
-                scaleY: transform.scaleY ?? 1,
-              }
-            } else {
-              originalTransform = {
-                x: text.x,
-                y: text.y,
-                width: text.width * text.scale.x,
-                height: text.height * text.scale.y,
-                scaleX: text.scale.x,
-                scaleY: text.scale.y,
-                rotation: text.rotation,
-              }
-            }
-            originalTextTransformRef.current.set(sceneIndex, originalTransform)
-          }
-          
+        if (text && appRef.current) {
+          // 텍스트의 현재 bounds를 가져와서 리사이즈 시작점으로 사용
           const bounds = text.getBounds()
+          const baseWidth = bounds.width / (text.scale.x || 1)
+          const baseHeight = bounds.height / (text.scale.y || 1)
+          
+          // originalTransformRef에 현재 bounds 저장 (리사이즈 계산용)
           originalTransformRef.current = {
             x: bounds.x,
             y: bounds.y,
@@ -2094,6 +2089,13 @@ export default function Step4Page() {
             scaleX: text.scale.x,
             scaleY: text.scale.y,
             rotation: text.rotation,
+            baseWidth,
+            baseHeight,
+          }
+          // 핸들러 클릭 시점의 마우스 위치를 저장 (스테이지 좌표)
+          resizeStartPosRef.current = {
+            x: e.global.x,
+            y: e.global.y,
           }
         }
         setSelectedElementIndex(sceneIndex)
@@ -2101,7 +2103,7 @@ export default function Step4Page() {
       })
 
       const handleGlobalMove = (e: MouseEvent) => {
-        if (isResizingTextRef.current && resizeHandleRef.current === handle.type && appRef.current) {
+        if (isResizingTextRef.current && resizeHandleRef.current === handle.type && appRef.current && resizeStartPosRef.current) {
           const canvas = appRef.current.canvas
           const rect = canvas.getBoundingClientRect()
           const scaleX = canvas.width / rect.width
@@ -2111,10 +2113,21 @@ export default function Step4Page() {
             y: (e.clientY - rect.top) * scaleY,
           }
           
+          // 첫 번째 mousemove는 무시 (핸들러 클릭 시점의 위치와 동일하면 리사이즈 시작하지 않음)
+          if (isFirstResizeMoveRef.current) {
+            const dx = Math.abs(globalPos.x - resizeStartPosRef.current.x)
+            const dy = Math.abs(globalPos.y - resizeStartPosRef.current.y)
+            // 마우스가 최소 3픽셀 이상 이동했을 때만 리사이즈 시작
+            if (dx < 3 && dy < 3) {
+              return
+            }
+            isFirstResizeMoveRef.current = false
+          }
+          
           const pixiEvent = {
             global: globalPos,
           } as PIXI.FederatedPointerEvent
-          handleResize(pixiEvent, sceneIndex)
+          handleTextResize(pixiEvent, sceneIndex)
         }
       }
 
@@ -2122,6 +2135,8 @@ export default function Step4Page() {
         if (isResizingTextRef.current && resizeHandleRef.current === handle.type) {
           isResizingTextRef.current = false
           resizeHandleRef.current = null
+          resizeStartPosRef.current = null
+          isFirstResizeMoveRef.current = true
           document.removeEventListener('mousemove', handleGlobalMove)
           document.removeEventListener('mouseup', handleGlobalUp)
         }
@@ -2162,10 +2177,17 @@ export default function Step4Page() {
         e.stopPropagation()
         isDraggingRef.current = true
         const globalPos = e.global
+        // 텍스트의 bounds를 기준으로 드래그 시작 위치 계산
+        // anchor가 0.5, 0.5이므로 bounds의 좌상단 모서리를 기준으로 계산
+        const bounds = text.getBounds()
+        // 드래그 시작 시점의 bounds 크기를 저장 (드래그 중 크기 변경 방지)
         dragStartPosRef.current = {
-          x: globalPos.x - text.x,
-          y: globalPos.y - text.y,
+          x: globalPos.x - bounds.x,
+          y: globalPos.y - bounds.y,
+          boundsWidth: bounds.width,
+          boundsHeight: bounds.height,
         }
+        // 편집 시작 시 원래 Transform 저장 (취소 시 복원용)
         if (!originalTextTransformRef.current.has(sceneIndex)) {
           const scene = timeline?.scenes[sceneIndex]
           if (scene?.text?.transform) {
@@ -2196,11 +2218,19 @@ export default function Step4Page() {
       text.on('pointermove', (e: PIXI.FederatedPointerEvent) => {
         if (isDraggingRef.current && !isResizingTextRef.current) {
           const globalPos = e.global
-          text.x = globalPos.x - dragStartPosRef.current.x
-          text.y = globalPos.y - dragStartPosRef.current.y
+          // bounds의 좌상단 모서리를 기준으로 새 위치 계산
+          const newBoundsX = globalPos.x - dragStartPosRef.current.x
+          const newBoundsY = globalPos.y - dragStartPosRef.current.y
+          // 텍스트의 anchor가 0.5, 0.5이므로 중심점으로 변환
+          // 드래그 시작 시 저장한 bounds 크기를 사용 (드래그 중 크기 변경 방지)
+          const centerX = newBoundsX + (dragStartPosRef.current.boundsWidth || 0) / 2
+          const centerY = newBoundsY + (dragStartPosRef.current.boundsHeight || 0) / 2
+          text.x = centerX
+          text.y = centerY
           if (appRef.current) {
             appRef.current.render()
           }
+          // 핸들 위치 업데이트
           drawTextEditHandles(text, sceneIndex, handleTextResize, saveTextTransform)
         }
       })
@@ -2270,9 +2300,12 @@ export default function Step4Page() {
     }
   }, [editMode, selectedElementIndex, selectedElementType, timeline, drawEditHandles, setupSpriteDrag, handleResize, saveImageTransform, drawTextEditHandles, setupTextDrag, handleTextResize, saveTextTransform])
 
-  // 격자 그리기 함수
+  // 격자 그리기 함수 (이미지/자막 배치 가이드)
   const drawGrid = useCallback(() => {
-    if (!containerRef.current || !appRef.current) return
+    if (!appRef.current) {
+      console.log('drawGrid: appRef.current is null')
+      return
+    }
 
     // 기존 격자 제거
     if (gridGraphicsRef.current && gridGraphicsRef.current.parent) {
@@ -2281,34 +2314,72 @@ export default function Step4Page() {
       gridGraphicsRef.current = null
     }
 
-    if (!showGrid) return
+    if (!showGrid) {
+      console.log('drawGrid: showGrid is false, skipping')
+      return
+    }
 
     const { width, height } = stageDimensions
+    console.log('drawGrid: Drawing grid with dimensions:', width, height)
     const gridGraphics = new PIXI.Graphics()
     
-    // 격자 색상 (반투명 흰색)
-    const gridColor = 0xffffff
-    const gridAlpha = 0.3
-    const gridLineWidth = 1
+    // 격자 색상 설정
+    const lineColor = 0xffffff
+    const lineAlpha = 0.6
+    const lineWidth = 2
+    const areaAlpha = 0.1
 
-    // 3x3 격자 그리기 (Rule of Thirds)
+    // 이미지 영역: 상단 15%부터 시작, 높이 70% (하단 15% 여백)
+    const imageAreaY = height * 0.15
+    const imageAreaHeight = height * 0.7
+    
+    // 자막 영역: 하단에서 약 8% 위에 위치, 높이 7%
+    const textAreaY = height * 0.92
+    const textAreaHeight = height * 0.07
+    const textAreaWidth = width * 0.75
+    const textAreaX = width * 0.5 - textAreaWidth / 2
+
+    // 이미지 영역 배경 (반투명)
+    gridGraphics.beginFill(0x00ff00, areaAlpha) // 초록색 반투명
+    gridGraphics.drawRect(0, imageAreaY, width, imageAreaHeight)
+    gridGraphics.endFill()
+
+    // 이미지 영역 테두리
+    gridGraphics.lineStyle(lineWidth, 0x00ff00, lineAlpha) // 초록색
+    gridGraphics.drawRect(0, imageAreaY, width, imageAreaHeight)
+
+    // 자막 영역 배경 (반투명)
+    gridGraphics.beginFill(0x0000ff, areaAlpha) // 파란색 반투명
+    gridGraphics.drawRect(textAreaX, textAreaY - textAreaHeight / 2, textAreaWidth, textAreaHeight)
+    gridGraphics.endFill()
+
+    // 자막 영역 테두리
+    gridGraphics.lineStyle(lineWidth, 0x0000ff, lineAlpha) // 파란색
+    gridGraphics.drawRect(textAreaX, textAreaY - textAreaHeight / 2, textAreaWidth, textAreaHeight)
+
+    // 3x3 격자선 (Rule of Thirds) - 흰색
+    gridGraphics.lineStyle(1, lineColor, lineAlpha * 0.5)
     // 수직선 2개 (1/3, 2/3 위치)
-    gridGraphics.lineStyle(gridLineWidth, gridColor, gridAlpha)
     gridGraphics.moveTo(width / 3, 0)
     gridGraphics.lineTo(width / 3, height)
     gridGraphics.moveTo(width * 2 / 3, 0)
     gridGraphics.lineTo(width * 2 / 3, height)
-    
     // 수평선 2개 (1/3, 2/3 위치)
     gridGraphics.moveTo(0, height / 3)
     gridGraphics.lineTo(width, height / 3)
     gridGraphics.moveTo(0, height * 2 / 3)
     gridGraphics.lineTo(width, height * 2 / 3)
 
-    // 격자를 가장 위 레이어에 추가
-    gridGraphics.zIndex = 1000
-    containerRef.current.addChild(gridGraphics)
+    // 중앙선 (가로, 세로)
+    gridGraphics.moveTo(0, height / 2)
+    gridGraphics.lineTo(width, height / 2)
+    gridGraphics.moveTo(width / 2, 0)
+    gridGraphics.lineTo(width / 2, height)
+
+    // 격자를 stage에 직접 추가하여 항상 최상위에 표시
+    appRef.current.stage.addChild(gridGraphics)
     gridGraphicsRef.current = gridGraphics
+    console.log('drawGrid: Grid added to stage, children count:', appRef.current.stage.children.length)
 
     if (appRef.current) {
       appRef.current.render()
@@ -2320,6 +2391,16 @@ export default function Step4Page() {
     if (!pixiReady) return
     drawGrid()
   }, [showGrid, pixiReady, drawGrid])
+
+  // loadAllScenes 후 격자 다시 그리기
+  useEffect(() => {
+    if (!pixiReady || !showGrid) return
+    // loadAllScenes가 완료된 후 격자를 다시 그리기 위해 약간의 지연
+    const timer = setTimeout(() => {
+      drawGrid()
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [pixiReady, timeline?.scenes.length, showGrid, drawGrid])
 
   // 고급 효과 핸들러
   const handleAdvancedEffectChange = (
@@ -2776,9 +2857,9 @@ export default function Step4Page() {
                   <Edit2 className="w-3 h-3 mr-1" />
                   {editMode === 'image' ? '편집 종료' : '이미지 편집'}
                 </Button>
-              </div>
-            </div>
                         </div>
+                          </div>
+                      </div>
 
           <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden min-h-0">
             {/* PixiJS 미리보기 */}
