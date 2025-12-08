@@ -12,6 +12,7 @@ import { useVideoCreateStore, TimelineData, TimelineScene } from '@/store/useVid
 import { useThemeStore } from '@/store/useThemeStore'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
+import * as fabric from 'fabric'
 
 export default function Step4Page() {
   const router = useRouter()
@@ -61,6 +62,10 @@ export default function Step4Page() {
   const textEditHandlesRef = useRef<Map<number, PIXI.Container>>(new Map()) // 텍스트 편집 핸들 컨테이너 (씬별)
   const isResizingTextRef = useRef(false) // 텍스트 리사이즈 중 플래그
   const gridGraphicsRef = useRef<PIXI.Graphics | null>(null) // 격자 Graphics 객체
+  // Fabric.js refs
+  const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
+  const fabricCanvasElementRef = useRef<HTMLCanvasElement | null>(null)
+  const useFabricEditing = true
   
   // State
   const [isPlaying, setIsPlaying] = useState(false)
@@ -76,6 +81,8 @@ export default function Step4Page() {
   const [showGrid, setShowGrid] = useState(false) // 격자 표시 여부
   const timelineBarRef = useRef<HTMLDivElement>(null)
   const [pixiReady, setPixiReady] = useState(false)
+  const [fabricReady, setFabricReady] = useState(false)
+  const fabricScaleRatioRef = useRef<number>(1) // Fabric.js 좌표 스케일 비율
   const rafIdRef = useRef<number | null>(null)
   const lastTimestampRef = useRef<number | null>(null)
   const [mounted, setMounted] = useState(false)
@@ -194,9 +201,13 @@ export default function Step4Page() {
       autoStart: true,  // 자동 렌더링 활성화
     }).then(() => {
       console.log('Step4: PixiJS initialized successfully')
+      // 9:16 비율을 유지하면서 컨테이너에 맞게 표시
       app.canvas.style.width = '100%'
       app.canvas.style.height = '100%'
+      app.canvas.style.maxWidth = '100%'
+      app.canvas.style.maxHeight = '100%'
       app.canvas.style.display = 'block'
+      app.canvas.style.objectFit = 'contain'
       container.appendChild(app.canvas)
       appRef.current = app
 
@@ -217,15 +228,210 @@ export default function Step4Page() {
 
     return () => {
       if (appRef.current) {
-        const existingCanvas = container.querySelector('canvas')
-        if (existingCanvas) container.removeChild(existingCanvas)
+        // PixiJS destroy가 canvas를 자동으로 정리함
         appRef.current.destroy(true, { children: true, texture: true })
         appRef.current = null
         containerRef.current = null
       }
+      if (fabricCanvasRef.current) {
+        fabricCanvasRef.current.dispose()
+        fabricCanvasRef.current = null
+      }
+      if (fabricCanvasElementRef.current && pixiContainerRef.current?.contains(fabricCanvasElementRef.current)) {
+        pixiContainerRef.current.removeChild(fabricCanvasElementRef.current)
+      }
+      setFabricReady(false)
       setPixiReady(false)
     }
   }, [mounted, stageDimensions])
+
+  // Fabric.js 초기화 (편집 오버레이)
+  useEffect(() => {
+    console.log('Fabric init effect check', {
+      pixiContainerRef: !!pixiContainerRef.current,
+      pixiReady,
+      useFabricEditing,
+      stageDimensions,
+    })
+    if (!pixiContainerRef.current || !pixiReady || !useFabricEditing) {
+      console.log('Fabric init skipped - conditions not met')
+      return
+    }
+    const container = pixiContainerRef.current
+    container.style.position = 'relative'
+    container.style.pointerEvents = 'auto' // 오버레이가 항상 포인터를 받을 수 있게
+
+    // 기존 Fabric 제거
+    if (fabricCanvasRef.current) {
+      fabricCanvasRef.current.dispose()
+      fabricCanvasRef.current = null
+    }
+    if (fabricCanvasElementRef.current && container.contains(fabricCanvasElementRef.current)) {
+      container.removeChild(fabricCanvasElementRef.current)
+    }
+
+    const canvasEl = document.createElement('canvas')
+    canvasEl.width = stageDimensions.width
+    canvasEl.height = stageDimensions.height
+    canvasEl.style.position = 'absolute'
+    canvasEl.style.inset = '0'
+    canvasEl.style.width = '100%'
+    canvasEl.style.height = '100%'
+    canvasEl.style.pointerEvents = useFabricEditing ? 'auto' : 'none'
+    canvasEl.style.zIndex = '5' // Pixi 위에 확실히 노출
+    fabricCanvasElementRef.current = canvasEl
+    container.appendChild(canvasEl)
+
+    const fabricCanvas = new fabric.Canvas(canvasEl, {
+      selection: true,
+      preserveObjectStacking: true,
+    })
+    fabricCanvas.defaultCursor = 'default'
+    fabricCanvas.hoverCursor = 'move'
+    fabricCanvas.moveCursor = 'move'
+    fabricCanvas.skipTargetFind = false
+    console.log('Fabric init', {
+      width: canvasEl.width,
+      height: canvasEl.height,
+      editMode,
+    })
+    // upper 캔버스도 동일한 포인터/레이어 설정
+    if (fabricCanvas.upperCanvasEl) {
+      fabricCanvas.upperCanvasEl.style.position = 'absolute'
+      fabricCanvas.upperCanvasEl.style.inset = '0'
+      fabricCanvas.upperCanvasEl.style.width = '100%'
+      fabricCanvas.upperCanvasEl.style.height = '100%'
+      fabricCanvas.upperCanvasEl.style.pointerEvents = useFabricEditing ? 'auto' : 'none'
+      fabricCanvas.upperCanvasEl.style.zIndex = '6'
+    }
+    // lower 캔버스도 명시적 z-index 지정
+    if (fabricCanvas.lowerCanvasEl) {
+      fabricCanvas.lowerCanvasEl.style.position = 'absolute'
+      fabricCanvas.lowerCanvasEl.style.inset = '0'
+      fabricCanvas.lowerCanvasEl.style.width = '100%'
+      fabricCanvas.lowerCanvasEl.style.height = '100%'
+      fabricCanvas.lowerCanvasEl.style.zIndex = '5'
+    }
+    // canvas-container (wrapper)를 Pixi 위에 겹치도록 설정
+    if (fabricCanvas.wrapperEl) {
+      fabricCanvas.wrapperEl.style.position = 'absolute'
+      fabricCanvas.wrapperEl.style.inset = '0'
+      fabricCanvas.wrapperEl.style.width = '100%'
+      fabricCanvas.wrapperEl.style.height = '100%'
+      fabricCanvas.wrapperEl.style.zIndex = '5'
+    }
+    
+    fabricCanvasRef.current = fabricCanvas
+    
+    // CSS 스케일링에 따른 좌표 보정
+    // 캔버스를 9:16 비율을 유지하면서 컨테이너에 맞게 설정
+    setTimeout(() => {
+      const containerEl = container
+      if (containerEl && fabricCanvasRef.current) {
+        const containerWidth = containerEl.clientWidth
+        const containerHeight = containerEl.clientHeight
+        const targetRatio = 9 / 16 // 0.5625
+        
+        // 컨테이너 내에서 9:16 비율을 유지하는 최대 크기 계산
+        let displayWidth: number, displayHeight: number
+        if (containerWidth / containerHeight > targetRatio) {
+          // 컨테이너가 더 넓음 → 높이에 맞춤
+          displayHeight = containerHeight
+          displayWidth = containerHeight * targetRatio
+        } else {
+          // 컨테이너가 더 좁음 → 너비에 맞춤
+          displayWidth = containerWidth
+          displayHeight = containerWidth / targetRatio
+        }
+        
+        const scaleRatio = displayWidth / stageDimensions.width
+        fabricScaleRatioRef.current = scaleRatio
+        console.log('Fabric scale setup', {
+          containerWidth,
+          containerHeight,
+          displayWidth,
+          displayHeight,
+          internalWidth: stageDimensions.width,
+          internalHeight: stageDimensions.height,
+          scaleRatio,
+          ratio: displayWidth / displayHeight,
+        })
+        
+        // 캔버스 크기를 9:16 비율로 설정
+        fabricCanvasRef.current.setDimensions({ width: displayWidth, height: displayHeight })
+        
+        // wrapper를 중앙 정렬
+        if (fabricCanvasRef.current.wrapperEl) {
+          const wrapper = fabricCanvasRef.current.wrapperEl
+          wrapper.style.position = 'absolute'
+          wrapper.style.left = '50%'
+          wrapper.style.top = '50%'
+          wrapper.style.transform = 'translate(-50%, -50%)'
+          wrapper.style.width = `${displayWidth}px`
+          wrapper.style.height = `${displayHeight}px`
+        }
+        
+        fabricCanvasRef.current.calcOffset()
+        fabricCanvasRef.current.requestRenderAll()
+        
+        // 스케일 설정 후에 fabricReady 활성화
+        setFabricReady(true)
+      }
+    }, 100)
+
+    return () => {
+      fabricCanvas.dispose()
+      if (container.contains(canvasEl)) {
+        container.removeChild(canvasEl)
+      }
+      fabricCanvasRef.current = null
+      fabricCanvasElementRef.current = null
+      setFabricReady(false)
+    }
+  }, [pixiReady, useFabricEditing, editMode, stageDimensions])
+
+  // Fabric 포인터 활성화 상태 갱신 (upper/lower 모두)
+  useEffect(() => {
+    const lower = fabricCanvasElementRef.current
+    const upper = fabricCanvasRef.current?.upperCanvasEl
+    const pointer = useFabricEditing ? 'auto' : 'none'
+    if (lower) lower.style.pointerEvents = pointer
+    if (upper) upper.style.pointerEvents = pointer
+  }, [editMode, useFabricEditing])
+
+  // Pixi 캔버스 포인터 이벤트 제어 및 Fabric 편집 시 숨김
+  useEffect(() => {
+    if (!pixiContainerRef.current) return
+    const pixiCanvas = pixiContainerRef.current.querySelector('canvas:not([data-fabric])') as HTMLCanvasElement
+    if (!pixiCanvas) return
+    if (useFabricEditing && fabricReady) {
+      // Fabric.js 편집 활성화 시 PixiJS 캔버스 숨김 (중복 렌더링 방지)
+      pixiCanvas.style.opacity = '0'
+      pixiCanvas.style.pointerEvents = 'none'
+    } else {
+      pixiCanvas.style.opacity = '1'
+      pixiCanvas.style.pointerEvents = 'auto'
+    }
+  }, [useFabricEditing, fabricReady, pixiReady])
+
+  // Fabric 오브젝트 선택 가능 여부를 편집 모드에 맞춰 갱신
+  useEffect(() => {
+    if (!fabricReady || !fabricCanvasRef.current || !useFabricEditing) return
+    const fabricCanvas = fabricCanvasRef.current
+    // 항상 선택 가능 (커서가 올라가면 바로 편집 가능)
+    fabricCanvas.selection = true
+    fabricCanvas.forEachObject((obj: fabric.Object & { dataType?: 'image' | 'text' }) => {
+      obj.set({
+        selectable: true,
+        evented: true,
+        lockScalingFlip: true,
+        hoverCursor: 'move',
+        moveCursor: 'move',
+      })
+    })
+    fabricCanvas.discardActiveObject()
+    fabricCanvas.renderAll()
+  }, [fabricReady, editMode, useFabricEditing])
 
   // 이미지 fit 계산
   const calculateSpriteParams = (
@@ -1008,6 +1214,365 @@ export default function Step4Page() {
     previousSceneIndexRef.current = currentSceneIndex
   }, [currentSceneIndex, timeline, stageDimensions, applyEnterEffect])
 
+  // Fabric 오브젝트를 현재 씬 상태에 맞게 동기화
+  const syncFabricWithScene = useCallback(async () => {
+    if (!useFabricEditing || !fabricCanvasRef.current || !timeline) return
+    const fabricCanvas = fabricCanvasRef.current
+    const scene = timeline.scenes[currentSceneIndex]
+    if (!scene) return
+    const scale = fabricScaleRatioRef.current
+    console.log('Fabric sync start', {
+      sceneIndex: currentSceneIndex,
+      image: !!scene.image,
+      text: scene.text?.content,
+      scale,
+    })
+    fabricCanvas.clear()
+
+    const { width, height } = stageDimensions
+
+    // 이미지 (좌표를 스케일 비율에 맞게 조정)
+    if (scene.image) {
+      const img = await (fabric.Image.fromURL as any)(scene.image, { crossOrigin: 'anonymous' }) as fabric.Image
+      if (img) {
+        const transform = scene.imageTransform
+        let left: number, top: number, imgScaleX: number, imgScaleY: number, angleDeg: number
+        
+        if (transform) {
+          angleDeg = (transform.rotation || 0) * (180 / Math.PI)
+          const effectiveWidth = transform.width * (transform.scaleX || 1)
+          const effectiveHeight = transform.height * (transform.scaleY || 1)
+          imgScaleX = (effectiveWidth / img.width) * scale
+          imgScaleY = (effectiveHeight / img.height) * scale
+          left = transform.x * scale
+          top = transform.y * scale
+        } else {
+          // 초기 contain/cover 계산과 동일하게 배치
+          const params = calculateSpriteParams(img.width, img.height, width, height, scene.imageFit || 'fill')
+          imgScaleX = (params.width / img.width) * scale
+          imgScaleY = (params.height / img.height) * scale
+          left = params.x * scale
+          top = params.y * scale
+          angleDeg = 0
+        }
+        
+        img.set({
+          originX: 'left',
+          originY: 'top',
+          left,
+          top,
+          scaleX: imgScaleX,
+          scaleY: imgScaleY,
+          angle: angleDeg,
+          selectable: true,
+          evented: true,
+        })
+        ;(img as any).dataType = 'image'
+        fabricCanvas.add(img)
+      }
+    }
+
+    // 텍스트 (좌표를 스케일 비율에 맞게 조정)
+    if (scene.text?.content) {
+      const transform = scene.text.transform
+      const angleDeg = (transform?.rotation || 0) * (180 / Math.PI)
+      const baseFontSize = scene.text.fontSize || 32
+      const scaledFontSize = baseFontSize * scale
+      
+      const textObj = new fabric.Textbox(scene.text.content, {
+        left: (transform?.x ?? width / 2) * scale,
+        top: (transform?.y ?? height * 0.9) * scale,
+        originX: 'center',
+        originY: 'center',
+        fontFamily: scene.text.font || 'Arial',
+        fontSize: scaledFontSize,
+        fill: scene.text.color || '#ffffff',
+        fontWeight: scene.text.style?.bold ? 'bold' : 'normal',
+        fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
+        underline: scene.text.style?.underline || false,
+        textAlign: scene.text.style?.align || 'center',
+        selectable: true,
+        evented: true,
+        angle: angleDeg,
+      })
+      if (transform) {
+        // width가 있으면 박스 크기 반영
+        if (transform.width) {
+          textObj.set({ width: transform.width * scale })
+        }
+        // scaleX/scaleY는 이미 fontSize와 width에 반영됨
+      }
+      ;(textObj as any).dataType = 'text'
+      fabricCanvas.add(textObj)
+    }
+
+    console.log('Fabric sync done', {
+      objects: fabricCanvas.getObjects().length,
+      scale,
+    })
+    fabricCanvas.renderAll()
+  }, [currentSceneIndex, editMode, stageDimensions, timeline, useFabricEditing, calculateSpriteParams])
+
+  // Fabric 변경사항을 타임라인에 반영
+  useEffect(() => {
+    if (!fabricReady || !fabricCanvasRef.current || !timeline) return
+    const fabricCanvas = fabricCanvasRef.current
+
+    const handleModified = (e: fabric.ModifiedEvent<fabric.TPointerEvent>) => {
+      const target = e?.target as (fabric.Object & { dataType?: 'image' | 'text' })
+      if (!target || currentSceneIndex == null) return
+      
+      // 스케일된 좌표를 원래 좌표로 역변환
+      const scale = fabricScaleRatioRef.current || 1
+      const invScale = 1 / scale
+      
+      // 씬 이동 방지: 현재 씬 인덱스 저장 및 플래그 설정
+      const savedIndex = currentSceneIndex
+      isSavingTransformRef.current = true
+      savedSceneIndexRef.current = savedIndex
+      isManualSceneSelectRef.current = true
+      
+      if (target.dataType === 'image') {
+        const nextTransform = {
+          x: (target.left ?? 0) * invScale,
+          y: (target.top ?? 0) * invScale,
+          width: (target.getScaledWidth() ?? (target.width || 0)) * invScale,
+          height: (target.getScaledHeight() ?? (target.height || 0)) * invScale,
+          scaleX: 1,
+          scaleY: 1,
+          rotation: ((target.angle || 0) * Math.PI) / 180,
+        }
+        console.log('Fabric image modified', { scale, invScale, nextTransform, savedIndex })
+        const nextTimeline: TimelineData = {
+          ...timeline,
+          scenes: timeline.scenes.map((scene, idx) =>
+            idx === savedIndex
+              ? {
+                  ...scene,
+                  imageTransform: nextTransform,
+                }
+              : scene
+          ),
+        }
+        setTimeline(nextTimeline)
+      } else if (target.dataType === 'text') {
+        const textbox = target as fabric.Textbox
+        const nextTransform = {
+          x: (target.left ?? 0) * invScale,
+          y: (target.top ?? 0) * invScale,
+          width: (target.getScaledWidth() ?? (target.width || 0)) * invScale,
+          height: (target.getScaledHeight() ?? (target.height || 0)) * invScale,
+          scaleX: 1,
+          scaleY: 1,
+          rotation: ((target.angle || 0) * Math.PI) / 180,
+        }
+        const textContent = textbox.text ?? ''
+        // 리사이즈 시 scaleY를 fontSize에 반영 (scaleY * fontSize = 실제 표시 크기)
+        const baseFontSize = textbox.fontSize ?? 32
+        const textScaleY = textbox.scaleY ?? 1
+        // 실제 표시되는 폰트 크기 계산 후 좌표계 역변환
+        const actualFontSize = baseFontSize * textScaleY * invScale
+        const fontFamily = textbox.fontFamily ?? 'Arial'
+        const fill = textbox.fill ?? '#ffffff'
+        const align = textbox.textAlign ?? 'center'
+
+        console.log('Fabric text modified', { 
+          scale, invScale, nextTransform, 
+          baseFontSize, textScaleY, actualFontSize, 
+          savedIndex 
+        })
+        const nextTimeline: TimelineData = {
+          ...timeline,
+          scenes: timeline.scenes.map((scene, idx) =>
+            idx === savedIndex
+              ? {
+                  ...scene,
+                  text: {
+                    ...scene.text,
+                    content: textContent,
+                    fontSize: actualFontSize,
+                    font: fontFamily,
+                    color: typeof fill === 'string' ? fill : '#ffffff',
+                    style: {
+                      ...scene.text.style,
+                      align: align as 'left' | 'center' | 'right' | 'justify',
+                    },
+                    transform: nextTransform,
+                  },
+                }
+              : scene
+          ),
+        }
+        setTimeline(nextTimeline)
+        
+        // 리사이즈 후 scale을 1로 리셋하고 fontSize를 실제 크기로 설정
+        textbox.set({
+          fontSize: baseFontSize * textScaleY,
+          scaleX: 1,
+          scaleY: 1,
+        })
+        fabricCanvasRef.current?.requestRenderAll()
+      }
+      
+      // 플래그 해제 (약간의 지연)
+      setTimeout(() => {
+        isSavingTransformRef.current = false
+        isManualSceneSelectRef.current = false
+      }, 200)
+    }
+
+    const handleMouseDown = (e: any) => {
+      const objects = fabricCanvas.getObjects()
+      const vpt = fabricCanvas.viewportTransform
+      console.log('Fabric mouse:down', {
+        pointer: e.pointer,
+        absolutePointer: e.absolutePointer,
+        viewportTransform: vpt,
+        canvasWidth: fabricCanvas.width,
+        canvasHeight: fabricCanvas.height,
+        objectsCount: objects.length,
+        objects: objects.map((o: any) => ({
+          type: o.type,
+          dataType: o.dataType,
+          left: o.left,
+          top: o.top,
+          width: o.width,
+          height: o.height,
+          scaleX: o.scaleX,
+          scaleY: o.scaleY,
+          selectable: o.selectable,
+          evented: o.evented,
+        })),
+        targetType: (e.target as any)?.dataType,
+        target: e.target,
+      })
+    }
+
+    // 텍스트 내용 변경 시 저장 (typing으로 변경할 때)
+    const handleTextChanged = (e: any) => {
+      const target = e?.target as (fabric.Textbox & { dataType?: 'image' | 'text' })
+      if (!target || target.dataType !== 'text' || currentSceneIndex == null) return
+      
+      const scale = fabricScaleRatioRef.current || 1
+      const invScale = 1 / scale
+      
+      const savedIndex = currentSceneIndex
+      isSavingTransformRef.current = true
+      savedSceneIndexRef.current = savedIndex
+      isManualSceneSelectRef.current = true
+      
+      const textContent = target.text ?? ''
+      const scaledFontSize = target.fontSize ?? 32
+      const fontSize = scaledFontSize * invScale
+      
+      console.log('Fabric text:changed', { textContent, fontSize, savedIndex })
+      
+      const nextTimeline: TimelineData = {
+        ...timeline,
+        scenes: timeline.scenes.map((scene, idx) =>
+          idx === savedIndex
+            ? {
+                ...scene,
+                text: {
+                  ...scene.text,
+                  content: textContent,
+                  fontSize,
+                },
+              }
+            : scene
+        ),
+      }
+      setTimeline(nextTimeline)
+      
+      setTimeout(() => {
+        isSavingTransformRef.current = false
+        isManualSceneSelectRef.current = false
+      }, 200)
+    }
+
+    // 텍스트 편집 종료 시 저장
+    const handleTextEditingExited = (e: any) => {
+      const target = e?.target as (fabric.Textbox & { dataType?: 'image' | 'text' })
+      if (!target || target.dataType !== 'text' || currentSceneIndex == null) return
+      
+      const scale = fabricScaleRatioRef.current || 1
+      const invScale = 1 / scale
+      
+      const savedIndex = currentSceneIndex
+      isSavingTransformRef.current = true
+      savedSceneIndexRef.current = savedIndex
+      isManualSceneSelectRef.current = true
+      
+      const nextTransform = {
+        x: (target.left ?? 0) * invScale,
+        y: (target.top ?? 0) * invScale,
+        width: (target.getScaledWidth() ?? (target.width || 0)) * invScale,
+        height: (target.getScaledHeight() ?? (target.height || 0)) * invScale,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: ((target.angle || 0) * Math.PI) / 180,
+      }
+      const textContent = target.text ?? ''
+      // 리사이즈 시 scaleY를 fontSize에 반영
+      const baseFontSize = target.fontSize ?? 32
+      const textScaleY = target.scaleY ?? 1
+      const actualFontSize = baseFontSize * textScaleY * invScale
+      const fontFamily = target.fontFamily ?? 'Arial'
+      const fill = target.fill ?? '#ffffff'
+      const align = target.textAlign ?? 'center'
+
+      console.log('Fabric text:editing:exited', { textContent, nextTransform, baseFontSize, textScaleY, actualFontSize, savedIndex })
+      
+      const nextTimeline: TimelineData = {
+        ...timeline,
+        scenes: timeline.scenes.map((scene, idx) =>
+          idx === savedIndex
+            ? {
+                ...scene,
+                text: {
+                  ...scene.text,
+                  content: textContent,
+                  fontSize: actualFontSize,
+                  font: fontFamily,
+                  color: typeof fill === 'string' ? fill : '#ffffff',
+                  style: {
+                    ...scene.text.style,
+                    align: align as 'left' | 'center' | 'right' | 'justify',
+                  },
+                  transform: nextTransform,
+                },
+              }
+            : scene
+        ),
+      }
+      setTimeline(nextTimeline)
+      
+      // 리사이즈 후 scale을 1로 리셋하고 fontSize를 실제 크기로 설정
+      target.set({
+        fontSize: baseFontSize * textScaleY,
+        scaleX: 1,
+        scaleY: 1,
+      })
+      fabricCanvasRef.current?.requestRenderAll()
+      
+      setTimeout(() => {
+        isSavingTransformRef.current = false
+        isManualSceneSelectRef.current = false
+      }, 200)
+    }
+
+    fabricCanvas.on('object:modified', handleModified as any)
+    fabricCanvas.on('mouse:down', handleMouseDown as any)
+    fabricCanvas.on('text:changed', handleTextChanged as any)
+    fabricCanvas.on('text:editing:exited', handleTextEditingExited as any)
+    return () => {
+      fabricCanvas.off('object:modified', handleModified as any)
+      fabricCanvas.off('mouse:down', handleMouseDown as any)
+      fabricCanvas.off('text:changed', handleTextChanged as any)
+      fabricCanvas.off('text:editing:exited', handleTextEditingExited as any)
+    }
+  }, [fabricReady, timeline, currentSceneIndex, setTimeline])
+
   // 모든 씬 로드
   const loadAllScenes = useCallback(async () => {
     if (!appRef.current || !containerRef.current || !timeline) {
@@ -1162,6 +1727,12 @@ export default function Step4Page() {
       loadAllScenes()
     })
   }, [pixiReady, timeline, loadAllScenes])
+
+  // Fabric 씬 동기화
+  useEffect(() => {
+    if (!fabricReady || !timeline || timeline.scenes.length === 0) return
+    syncFabricWithScene()
+  }, [fabricReady, timeline, currentSceneIndex, editMode, syncFabricWithScene])
   
   // timeline 변경 시 저장된 씬 인덱스 복원 (더 이상 필요 없음 - 편집 종료 버튼에서 직접 처리)
 
@@ -1428,6 +1999,7 @@ export default function Step4Page() {
 
   // 편집 핸들 그리기
   const drawEditHandles = useCallback((sprite: PIXI.Sprite, sceneIndex: number, handleResize: (e: PIXI.FederatedPointerEvent, sceneIndex: number) => void, saveImageTransform: (sceneIndex: number, sprite: PIXI.Sprite) => void) => {
+    if (useFabricEditing) return
     if (!containerRef.current || !sprite) return
 
     // 기존 핸들 제거
@@ -1780,9 +2352,9 @@ export default function Step4Page() {
     sprite.off('pointerupoutside')
 
     sprite.interactive = true
-    sprite.cursor = editMode === 'image' ? 'move' : 'default'
+    sprite.cursor = editMode === 'image' && !useFabricEditing ? 'move' : 'default'
 
-    if (editMode === 'image') {
+    if (editMode === 'image' && !useFabricEditing) {
       sprite.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
         e.stopPropagation()
         isDraggingRef.current = true
@@ -2029,6 +2601,7 @@ export default function Step4Page() {
 
   // 텍스트 편집 핸들 그리기
   const drawTextEditHandles = useCallback((text: PIXI.Text, sceneIndex: number, handleResize: (e: PIXI.FederatedPointerEvent, sceneIndex: number) => void, saveTextTransform: (sceneIndex: number, text: PIXI.Text) => void) => {
+    if (useFabricEditing) return
     if (!containerRef.current || !text) return
 
     // 기존 핸들 제거
@@ -2170,9 +2743,9 @@ export default function Step4Page() {
     text.off('pointerupoutside')
 
     text.interactive = true
-    text.cursor = editMode === 'text' ? 'move' : 'default'
+    text.cursor = editMode === 'text' && !useFabricEditing ? 'move' : 'default'
 
-    if (editMode === 'text') {
+    if (editMode === 'text' && !useFabricEditing) {
       text.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
         e.stopPropagation()
         isDraggingRef.current = true
@@ -2641,230 +3214,16 @@ export default function Step4Page() {
                 미리보기
               </h2>
               {/* 편집 모드 토글 */}
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => {
-                    const newMode = editMode === 'text' ? 'none' : 'text'
-                    if (newMode === 'none') {
-                      // 텍스트 편집 종료 시 현재 씬 인덱스 저장 (변경 방지)
-                      const savedSceneIndex = currentSceneIndex
-                      savedSceneIndexRef.current = savedSceneIndex
-                      
-                      // 자동 씬 인덱스 계산 방지
-                      isManualSceneSelectRef.current = true
-                      
-                      // 모든 편집된 텍스트의 Transform 수집
-                      const transformsToSave = new Map<number, { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }>()
-                      
-                      // 선택된 요소의 Transform 저장
-                      if (selectedElementIndex !== null && selectedElementType === 'text') {
-                        const text = textsRef.current.get(selectedElementIndex)
-                        if (text) {
-                          transformsToSave.set(selectedElementIndex, {
-                            x: text.x,
-                            y: text.y,
-                            width: text.width * text.scale.x,
-                            height: text.height * text.scale.y,
-                            scaleX: text.scale.x,
-                            scaleY: text.scale.y,
-                            rotation: text.rotation,
-                          })
-                        }
-                      }
-                      
-                      // 모든 편집된 텍스트의 Transform 수집
-                      textsRef.current.forEach((text, index) => {
-                        if (originalTextTransformRef.current.has(index)) {
-                          transformsToSave.set(index, {
-                            x: text.x,
-                            y: text.y,
-                            width: text.width * text.scale.x,
-                            height: text.height * text.scale.y,
-                            scaleX: text.scale.x,
-                            scaleY: text.scale.y,
-                            rotation: text.rotation,
-                          })
-                        }
-                      })
-                      
-                      // 모든 Transform을 한 번에 저장
-                      if (transformsToSave.size > 0 && timeline) {
-                        isSavingTransformRef.current = true
-                        const nextTimeline: TimelineData = {
-                          ...timeline,
-                          scenes: timeline.scenes.map((scene, i) => {
-                            if (transformsToSave.has(i)) {
-                              const transform = transformsToSave.get(i)!
-                              return {
-                                ...scene,
-                                text: {
-                                  ...scene.text,
-                                  transform,
-                                },
-                              }
-                            }
-                            return scene
-                          }),
-                        }
-                        setTimeline(nextTimeline)
-                        setTimeout(() => {
-                          isSavingTransformRef.current = false
-                        }, 100)
-                      }
-                      
-                      originalTextTransformRef.current.clear()
-                      setSelectedElementIndex(null)
-                      setSelectedElementType(null)
-                      
-                      // 씬 인덱스 강제 복원 및 자동 계산 방지 해제
-                      setTimeout(() => {
-                        if (currentSceneIndex !== savedSceneIndex) {
-                          setCurrentSceneIndex(savedSceneIndex)
-                        }
-                        setTimeout(() => {
-                          isManualSceneSelectRef.current = false
-                        }, 100)
-                      }, 200)
-                    } else {
-                      // 텍스트 편집 모드 시작 시 모든 텍스트의 원래 Transform 저장
-                      originalTextTransformRef.current.clear()
-                      if (timeline) {
-                        textsRef.current.forEach((text, index) => {
-                          const scene = timeline.scenes[index]
-                          if (scene?.text?.transform) {
-                            const transform = scene.text.transform
-                            originalTextTransformRef.current.set(index, {
-                              ...transform,
-                              scaleX: transform.scaleX ?? 1,
-                              scaleY: transform.scaleY ?? 1,
-                            })
-                          } else if (text) {
-                            originalTextTransformRef.current.set(index, {
-                              x: text.x,
-                              y: text.y,
-                              width: text.width * text.scale.x,
-                              height: text.height * text.scale.y,
-                              scaleX: text.scale.x,
-                              scaleY: text.scale.y,
-                              rotation: text.rotation,
-                            })
-                          }
-                        })
-                      }
-                    }
-                    setEditMode(newMode)
-                  }}
-                  variant={editMode === 'text' ? 'default' : 'outline'}
-                  size="sm"
-                  className="text-xs"
-                >
-                  <Type className="w-3 h-3 mr-1" />
-                  {editMode === 'text' ? '텍스트 편집 종료' : '텍스트 편집'}
-                </Button>
-                <Button
-                  onClick={() => {
-                    const newMode = editMode === 'image' ? 'none' : 'image'
-                    if (newMode === 'none') {
-                      // 편집 종료 시 현재 씬 인덱스 저장 (변경 방지)
-                      const savedSceneIndex = currentSceneIndex
-                      savedSceneIndexRef.current = savedSceneIndex
-                      
-                      // 자동 씬 인덱스 계산 방지
-                      isManualSceneSelectRef.current = true
-                      
-                      // 모든 편집된 스프라이트의 Transform 수집
-                      const transformsToSave = new Map<number, { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }>()
-                      
-                      // 선택된 요소의 Transform 저장
-                      if (selectedElementIndex !== null && selectedElementType === 'image') {
-                        const sprite = spritesRef.current.get(selectedElementIndex)
-                        if (sprite) {
-                          transformsToSave.set(selectedElementIndex, {
-                            x: sprite.x,
-                            y: sprite.y,
-                            width: sprite.width,
-                            height: sprite.height,
-                            scaleX: sprite.scale.x,
-                            scaleY: sprite.scale.y,
-                            rotation: sprite.rotation,
-                          })
-                        }
-                      }
-                      
-                      // 모든 편집된 스프라이트의 Transform 수집
-                      spritesRef.current.forEach((sprite, index) => {
-                        if (originalSpriteTransformRef.current.has(index)) {
-                          transformsToSave.set(index, {
-                            x: sprite.x,
-                            y: sprite.y,
-                            width: sprite.width,
-                            height: sprite.height,
-                            scaleX: sprite.scale.x,
-                            scaleY: sprite.scale.y,
-                            rotation: sprite.rotation,
-                          })
-                        }
-                      })
-                      
-                      // 모든 Transform을 한 번에 저장
-                      if (transformsToSave.size > 0) {
-                        saveAllImageTransforms(transformsToSave)
-                      }
-                      
-                      originalSpriteTransformRef.current.clear()
-                      setSelectedElementIndex(null)
-                      setSelectedElementType(null)
-                      
-                      // 씬 인덱스 강제 복원 및 자동 계산 방지 해제
-                      setTimeout(() => {
-                        if (currentSceneIndex !== savedSceneIndex) {
-                          setCurrentSceneIndex(savedSceneIndex)
-                        }
-                        // 자동 계산 방지 해제는 조금 더 늦게
-                        setTimeout(() => {
-                          isManualSceneSelectRef.current = false
-                        }, 100)
-                      }, 200)
-                    } else {
-                      // 편집 모드 시작 시 모든 스프라이트의 원래 Transform 저장
-                      originalSpriteTransformRef.current.clear()
-                      if (timeline) {
-                        spritesRef.current.forEach((sprite, index) => {
-                          const scene = timeline.scenes[index]
-                          if (scene?.imageTransform) {
-                            originalSpriteTransformRef.current.set(index, scene.imageTransform)
-                          } else if (sprite) {
-                            // timeline에 Transform이 없으면 현재 스프라이트 위치 저장
-                            originalSpriteTransformRef.current.set(index, {
-                              x: sprite.x,
-                              y: sprite.y,
-                              width: sprite.width,
-                              height: sprite.height,
-                              scaleX: sprite.scale.x,
-                              scaleY: sprite.scale.y,
-                              rotation: sprite.rotation,
-                            })
-                          }
-                        })
-                      }
-                    }
-                    setEditMode(newMode)
-                  }}
-                  variant={editMode === 'image' ? 'default' : 'outline'}
-                  size="sm"
-                  className="text-xs"
-                >
-                  <Edit2 className="w-3 h-3 mr-1" />
-                  {editMode === 'image' ? '편집 종료' : '이미지 편집'}
-                </Button>
-                        </div>
-                          </div>
-                      </div>
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                편집 버튼 없이 바로 드래그/리사이즈 가능합니다.
+              </div>
+            </div>
+          </div>
 
           <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden min-h-0">
-            {/* PixiJS 미리보기 */}
+            {/* PixiJS 미리보기 - 9:16 비율 고정 (1080x1920) */}
             <div 
-              className="flex-1 flex items-center justify-center bg-black rounded-lg overflow-hidden min-h-0"
+              className="flex-1 flex items-center justify-center rounded-lg overflow-hidden min-h-0"
               onClick={(e) => {
                 // 편집 모드일 때 캔버스 배경 클릭 시 선택만 해제 (편집 모드는 유지)
                 if (editMode === 'image' && e.target === e.currentTarget) {
@@ -2875,15 +3234,14 @@ export default function Step4Page() {
             >
               <div
                 ref={pixiContainerRef}
-                className="w-full h-full"
+                className="relative bg-black"
                 style={{ 
-                  aspectRatio: '9/16',
-                  maxWidth: '100%',
+                  aspectRatio: '9 / 16',
+                  height: '100%',
                   maxHeight: '100%',
-                  objectFit: 'contain'
                 }}
-                        />
-                      </div>
+              />
+            </div>
 
             {/* 재생 컨트롤 */}
             <div className="space-y-2">
