@@ -69,6 +69,7 @@ export default function Step4Page() {
   
   // State
   const [isPlaying, setIsPlaying] = useState(false)
+  const [isPreviewingTransition, setIsPreviewingTransition] = useState(false) // 전환 효과 미리보기 중
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
   const aspectRatio = '9/16' // 9:16 고정
@@ -400,19 +401,45 @@ export default function Step4Page() {
   }, [editMode, useFabricEditing])
 
   // Pixi 캔버스 포인터 이벤트 제어 및 Fabric 편집 시 숨김
+  // 재생 중 또는 전환 효과 미리보기 중일 때는 PixiJS를 보여서 전환 효과가 보이도록 함
   useEffect(() => {
     if (!pixiContainerRef.current) return
     const pixiCanvas = pixiContainerRef.current.querySelector('canvas:not([data-fabric])') as HTMLCanvasElement
     if (!pixiCanvas) return
-    if (useFabricEditing && fabricReady) {
+    
+    // 재생 중 또는 전환 효과 미리보기 중이면 PixiJS 보이기
+    if (isPlaying || isPreviewingTransition) {
+      pixiCanvas.style.opacity = '1'
+      pixiCanvas.style.pointerEvents = 'none' // 클릭 비활성화
+    } else if (useFabricEditing && fabricReady) {
       // Fabric.js 편집 활성화 시 PixiJS 캔버스 숨김 (중복 렌더링 방지)
       pixiCanvas.style.opacity = '0'
       pixiCanvas.style.pointerEvents = 'none'
-    } else {
+          } else {
       pixiCanvas.style.opacity = '1'
       pixiCanvas.style.pointerEvents = 'auto'
     }
-  }, [useFabricEditing, fabricReady, pixiReady])
+  }, [useFabricEditing, fabricReady, pixiReady, isPlaying, isPreviewingTransition])
+
+  // 재생 중 또는 전환 효과 미리보기 중일 때 Fabric.js 캔버스 숨기기
+  useEffect(() => {
+    if (!fabricCanvasRef.current) return
+    const fabricCanvas = fabricCanvasRef.current
+    
+    if (isPlaying || isPreviewingTransition) {
+      // 재생 중 또는 전환 효과 미리보기 중일 때 Fabric 캔버스 숨기기
+      if (fabricCanvas.wrapperEl) {
+        fabricCanvas.wrapperEl.style.opacity = '0'
+        fabricCanvas.wrapperEl.style.pointerEvents = 'none'
+          }
+        } else {
+      // 재생 중이 아닐 때 Fabric 캔버스 보이기
+      if (fabricCanvas.wrapperEl) {
+        fabricCanvas.wrapperEl.style.opacity = '1'
+        fabricCanvas.wrapperEl.style.pointerEvents = 'auto'
+      }
+    }
+  }, [isPlaying, isPreviewingTransition, fabricReady])
 
   // Fabric 오브젝트 선택 가능 여부를 편집 모드에 맞춰 갱신
   useEffect(() => {
@@ -458,7 +485,7 @@ export default function Step4Page() {
         width,
         height,
           }
-        } else {
+          } else {
       const scale = imgAspect > stageAspect 
         ? stageWidth / textureWidth 
         : stageHeight / textureHeight
@@ -1619,12 +1646,14 @@ export default function Step4Page() {
         sprite.alpha = 0
 
         // Transform 데이터 적용
+        // 주의: sprite.width/height 설정 시 PixiJS가 내부적으로 scale을 계산하므로
+        // scale.set()을 별도로 호출하면 안됨
         if (scene.imageTransform) {
           sprite.x = scene.imageTransform.x
           sprite.y = scene.imageTransform.y
           sprite.width = scene.imageTransform.width
           sprite.height = scene.imageTransform.height
-          sprite.scale.set(scene.imageTransform.scaleX, scene.imageTransform.scaleY)
+          // scale.set() 호출 제거 - width/height에 이미 스케일이 적용된 크기가 저장됨
           sprite.rotation = scene.imageTransform.rotation
         }
 
@@ -1754,13 +1783,76 @@ export default function Step4Page() {
       
       console.log('Step4: Play button clicked, currentSceneIndex:', currentSceneIndex)
       
+      // PixiJS가 준비되지 않으면 재생하지 않음
+      if (!pixiReady || spritesRef.current.size === 0) {
+        console.log('Step4: PixiJS not ready or no sprites loaded, skipping sync')
+    setIsPlaying(!isPlaying)
+        return
+      }
+      
+      // 재생 시작 전에 모든 PixiJS 스프라이트를 timeline 데이터와 동기화
+      timeline.scenes.forEach((scene, index) => {
+        const sprite = spritesRef.current.get(index)
+        const text = textsRef.current.get(index)
+        
+        // 스프라이트가 유효한 경우에만 처리
+        if (sprite && sprite.x !== undefined) {
+          // 모든 스프라이트를 먼저 숨김
+          sprite.visible = false
+          sprite.alpha = 0
+          
+          // Transform 동기화
+          // 주의: sprite.width/height 설정 후 scale.set()을 호출하면 안됨
+          // PixiJS에서 width/height 설정 시 내부적으로 scale이 계산됨
+          if (scene.imageTransform) {
+            sprite.x = scene.imageTransform.x
+            sprite.y = scene.imageTransform.y
+            sprite.width = scene.imageTransform.width
+            sprite.height = scene.imageTransform.height
+            sprite.rotation = scene.imageTransform.rotation || 0
+          }
+        }
+        
+        // 텍스트가 유효한 경우에만 처리
+        if (text && text.x !== undefined) {
+          text.visible = false
+          text.alpha = 0
+          
+          if (scene.text.transform) {
+            text.x = scene.text.transform.x
+            text.y = scene.text.transform.y
+            text.rotation = scene.text.transform.rotation || 0
+          }
+          if (scene.text.fontSize) {
+            text.style.fontSize = scene.text.fontSize
+          }
+        }
+      })
+      
+      // 현재 씬만 보이게 설정
+      const currentSprite = spritesRef.current.get(currentSceneIndex)
+      const currentText = textsRef.current.get(currentSceneIndex)
+      if (currentSprite) {
+        currentSprite.visible = true
+        currentSprite.alpha = 1
+      }
+      if (currentText) {
+        currentText.visible = true
+        currentText.alpha = 1
+      }
+      
       const startTime = getSceneStartTime(currentSceneIndex)
       console.log('Step4: Setting currentTime to:', startTime)
       setCurrentTime(startTime)
       
-      // 재생 시작 시 현재 씬을 애니메이션 없이 즉시 표시
-      console.log('Step4: Showing scene without animation')
-      updateCurrentScene(true)  // skipAnimation = true
+      // 재생 시작 시 현재 씬에도 등장 효과 적용 (첫 번째 씬 포함)
+      console.log('Step4: Showing scene with animation')
+      updateCurrentScene(false)  // skipAnimation = false, 등장 효과 적용
+      
+      // PixiJS 캔버스 강제 렌더링
+      if (appRef.current) {
+        appRef.current.render()
+      }
     }
     setIsPlaying(!isPlaying)
   }
@@ -1881,29 +1973,44 @@ export default function Step4Page() {
     }
   }, [isPlaying, totalDuration, timeline?.playbackSpeed, playbackSpeed])
 
-  // currentTime 변화에 따라 현재 씬 업데이트 (수동 선택 시 제외)
+  // currentTime 변화에 따라 현재 씬 인덱스만 업데이트
   useEffect(() => {
     if (!timeline || timeline.scenes.length === 0) return
     if (totalDuration === 0) return
     // 수동 씬 선택 중이면 건너뛰기
     if (isManualSceneSelectRef.current) return
 
-    let accumulated = 0
-    let sceneIndex = 0
-    for (let i = 0; i < timeline.scenes.length; i++) {
+        let accumulated = 0
+        let sceneIndex = 0
+        for (let i = 0; i < timeline.scenes.length; i++) {
       const sceneDuration =
         timeline.scenes[i].duration + (timeline.scenes[i].transitionDuration || 0.5)
       accumulated += sceneDuration
       if (currentTime <= accumulated) {
-        sceneIndex = i
-        break
-      }
-    }
-    setCurrentSceneIndex(sceneIndex)
+            sceneIndex = i
+            break
+          }
+        }
     
-    // 재생 중에는 애니메이션 없이 즉시 표시 (씬 클릭과 동일하게)
-    updateCurrentScene(true)
-  }, [currentTime, timeline, totalDuration, updateCurrentScene])
+    // 씬 인덱스가 바뀌었을 때만 업데이트
+    if (sceneIndex !== currentSceneIndex) {
+      setCurrentSceneIndex(sceneIndex)
+    }
+  }, [currentTime, timeline, totalDuration, currentSceneIndex])
+
+  // 씬 인덱스 변경 시 전환 효과 적용 (재생 중일 때만 애니메이션)
+  useEffect(() => {
+    if (!timeline || timeline.scenes.length === 0) return
+    if (isManualSceneSelectRef.current) return
+    
+    const previousIndex = previousSceneIndexRef.current
+    // 재생 중이고 씬이 바뀌면 전환 효과 적용
+    if (isPlaying && previousIndex !== null && previousIndex !== currentSceneIndex) {
+      updateCurrentScene(false) // 전환 효과 적용
+    } else if (previousIndex !== currentSceneIndex) {
+      updateCurrentScene(true) // 즉시 표시
+    }
+  }, [currentSceneIndex, isPlaying, timeline, updateCurrentScene])
 
   // 진행률 계산
   const progressRatio = useMemo(() => {
@@ -1952,12 +2059,25 @@ export default function Step4Page() {
       ),
     }
     setTimeline(nextTimeline)
-    // 효과 적용 후 미리보기 업데이트
+    
+    // 전환 효과 미리보기 활성화 (PixiJS 캔버스 표시)
+    setIsPreviewingTransition(true)
+    
+    // 효과 적용 후 미리보기 업데이트 - 애니메이션 포함
     requestAnimationFrame(() => {
-      updateCurrentScene()
+      // 선택된 씬으로 이동하여 전환 효과 미리보기
+      if (index !== currentSceneIndex) {
+        setCurrentSceneIndex(index)
+      }
+      // 전환 효과 미리보기 (애니메이션 적용)
+      updateCurrentScene(false)
+      
+      // 애니메이션 완료 후 미리보기 상태 해제
+      const transitionDuration = timeline.scenes[index]?.transitionDuration || 0.5
       setTimeout(() => {
+        setIsPreviewingTransition(false)
         isManualSceneSelectRef.current = false
-      }, 50)
+      }, transitionDuration * 1000 + 200) // 전환 시간 + 여유시간
     })
   }
 
@@ -2415,6 +2535,8 @@ export default function Step4Page() {
   }, [editMode, drawEditHandles, saveImageTransform, handleResize, timeline])
 
   // Transform 데이터 적용
+  // 주의: sprite.width/height 설정 시 PixiJS가 내부적으로 scale을 계산하므로
+  // scale.set()을 별도로 호출하면 안됨
   const applyImageTransform = useCallback((sprite: PIXI.Sprite, transform?: TimelineScene['imageTransform']) => {
     if (!transform || !sprite) return
 
@@ -2422,7 +2544,7 @@ export default function Step4Page() {
     sprite.y = transform.y
     sprite.width = transform.width
     sprite.height = transform.height
-    sprite.scale.set(transform.scaleX, transform.scaleY)
+    // scale.set() 호출 제거 - width/height에 이미 스케일이 적용된 크기가 저장됨
     sprite.rotation = transform.rotation
   }, [])
 
@@ -3217,8 +3339,8 @@ export default function Step4Page() {
               <div className="flex items-center gap-2 text-xs text-gray-400">
                 편집 버튼 없이 바로 드래그/리사이즈 가능합니다.
               </div>
+              </div>
             </div>
-          </div>
 
           <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden min-h-0">
             {/* PixiJS 미리보기 - 9:16 비율 고정 (1080x1920) */}
@@ -3240,8 +3362,61 @@ export default function Step4Page() {
                   height: '100%',
                   maxHeight: '100%',
                 }}
-              />
-            </div>
+              >
+                {/* 격자 오버레이 (크기 조정하기 템플릿 가이드) */}
+                {showGrid && (
+                  <div 
+                    className="absolute inset-0 pointer-events-none z-50"
+                    style={{ aspectRatio: '9 / 16' }}
+                  >
+                    {/* 이미지 추천 영역 (녹색) - 상단 15%부터 70% 높이 */}
+                    <div 
+                      className="absolute border-2 border-green-500"
+                      style={{
+                        top: '15%',
+                        left: '0',
+                        right: '0',
+                        height: '70%',
+                        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                      }}
+                    >
+                      <span className="absolute top-1 left-1 text-xs text-green-400 bg-black/50 px-1 rounded">
+                        이미지 영역
+                      </span>
+                    </div>
+                    
+                    {/* 텍스트 추천 영역 (파란색) - 하단 중앙, 75% 너비 */}
+                    <div 
+                      className="absolute border-2 border-blue-500"
+                      style={{
+                        top: '88.5%',
+                        left: '12.5%',
+                        width: '75%',
+                        height: '7%',
+                        backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                      }}
+                    >
+                      <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs text-blue-400 bg-black/50 px-1 rounded whitespace-nowrap">
+                        자막 영역
+                      </span>
+                    </div>
+                    
+                    {/* 3x3 격자선 (Rule of Thirds) */}
+                    <div className="absolute inset-0">
+                      {/* 수직선 */}
+                      <div className="absolute top-0 bottom-0 left-1/3 w-px bg-white/30" />
+                      <div className="absolute top-0 bottom-0 left-2/3 w-px bg-white/30" />
+                      {/* 수평선 */}
+                      <div className="absolute left-0 right-0 top-1/3 h-px bg-white/30" />
+                      <div className="absolute left-0 right-0 top-2/3 h-px bg-white/30" />
+                      {/* 중심선 */}
+                      <div className="absolute top-0 bottom-0 left-1/2 w-px bg-white/50" />
+                      <div className="absolute left-0 right-0 top-1/2 h-px bg-white/50" />
+                    </div>
+                  </div>
+                )}
+              </div>
+                      </div>
 
             {/* 재생 컨트롤 */}
             <div className="space-y-2">
