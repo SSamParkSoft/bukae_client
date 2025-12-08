@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCoupangStats } from '@/lib/hooks/useCoupangStats'
 import { useYouTubeVideos } from '@/lib/hooks/useYouTubeVideos'
@@ -12,6 +12,7 @@ import { useThemeStore } from '@/store/useThemeStore'
 import { TrendingUp, ShoppingCart, Eye, Loader2, Youtube, Users, Store, DollarSign, Video, ArrowRight } from 'lucide-react'
 import HomeShortcut from '@/components/HomeShortcut'
 import PageHeader from '@/components/PageHeader'
+import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 
 const formatNumber = (num: number): string => {
   if (num >= 1000000) {
@@ -37,6 +38,13 @@ export default function HomePage() {
   const { data: youtubeStats, isLoading: youtubeStatsLoading } = useYouTubeStats()
   const theme = useThemeStore((state) => state.theme)
   const [isComingSoonOpen, setIsComingSoonOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const resetVideoCreate = useVideoCreateStore((state) => state.reset)
+
+  // 클라이언트에서만 렌더링 (SSR/hydration mismatch 방지)
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // 금주의 핫 키워드 (카테고리별 주문 수 집계)
   const hotKeywords = useMemo(() => {
@@ -115,6 +123,16 @@ export default function HomePage() {
   }, [coupangData, youtubeStats])
 
   const isLoading = coupangLoading || youtubeLoading || youtubeStatsLoading
+
+  // 영상 제작 플로우 진입 시 상태 초기화 후 step1로 이동
+  const handleStartVideoCreate = () => {
+    resetVideoCreate()
+    router.push('/video/create/step1')
+  }
+
+  if (!mounted) {
+    return null
+  }
 
   return (
     <motion.div
@@ -278,7 +296,7 @@ export default function HomePage() {
                       ? 'bg-gradient-to-br from-purple-600/80 to-purple-400/20 hover:from-purple-400/70 hover:to-purple-500/70' 
                       : 'bg-gradient-to-br from-purple-200/20 to-purple-400/80 hover:from-purple-200/70 hover:to-purple-300/70'
                   }`}
-                  onClick={() => router.push('/video/create')}
+                  onClick={handleStartVideoCreate}
                 >
                   <Card 
                     className={`h-full border-0 cursor-pointer transition-all rounded-lg ${
@@ -287,7 +305,9 @@ export default function HomePage() {
                         : 'bg-gradient-to-br from-purple-300/10 to-purple-400/70 hover:from-purple-200/60 hover:to-purple-300/60'
                     }`}
                   >
-                    <CardHeader className="h-full flex flex-col justify-center">
+                  <CardHeader
+                    className="h-full flex flex-col justify-center cursor-pointer"
+                  >
                       <div className="flex flex-col items-center gap-5">
                         <div className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg ${
                           theme === 'dark' 

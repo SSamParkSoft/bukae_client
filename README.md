@@ -1,4 +1,4 @@
-# 🚀 Bookae Client (Monorepo)
+# Bukae Client (Monorepo)
 
 AI 기반 부업 자동화 서비스 **부캐(Bookae)** 의 모노레포 프론트엔드입니다.  
 Next.js 16 + TypeScript 기반으로, 상품 정보를 자동으로 크롤링하고 영상 생성 및 YouTube 업로드 기능을 제공합니다.
@@ -7,16 +7,16 @@ Next.js 16 + TypeScript 기반으로, 상품 정보를 자동으로 크롤링하
 
 이 모노레포는 두 개의 독립적인 앱으로 구성되어 있습니다:
 
-- **`apps/bookae_creator`** - 관리자용 대시보드 (포트: 3000)
+- **`apps/bukae_creator`** - 관리자용 대시보드 (포트: 3000)
   - 영상 제작 관리
   - 통계 확인
   - 계정 설정
 
-- **`apps/bookae_viewer`** - 제3자용 공개 웹사이트 (포트: 3001)
+- **`apps/bukae_viewer`** - 제3자용 공개 웹사이트 (포트: 3001)
   - 영상 시청 플랫폼
   - 공개 콘텐츠 제공
 
-## ⚙️ 기술 스택
+## ⚙️ 기술 스택 (25.12.07 ReactServerComponent 취약점 업데이트 완료)
 - **Framework:** Next.js 16 (App Router)
 - **Language:** TypeScript
 - **Styling:** TailwindCSS
@@ -71,38 +71,8 @@ pnpm start:creator  # 포트 3000
 pnpm start:viewer   # 포트 3001
 ```
 
-## 🔧 환경 설정
+## 📽️ 미리보기 렌더링에 사용한 주요 라이브러리
 
-### Supabase 인증(PostgreSQL) 연동
-
-`apps/bookae_creator`는 Supabase Auth(PostgreSQL 기반)를 통해 로그인/회원가입을 처리합니다.
-
-1. **Supabase 프로젝트 생성**
-   - Database: PostgreSQL (Supabase 기본값)
-   - Authentication > Email templates에서 발송 메일을 원하는 브랜드에 맞게 수정하세요.
-2. **환경 변수 구성**
-   - `apps/bookae_creator/env.example` 파일을 참고하여 `.env.local`을 생성합니다.
-   ```bash
-   NEXT_PUBLIC_SUPABASE_URL=<Supabase 프로젝트 URL>
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=<Supabase anon key>
-   NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL=http://localhost:3000/login
-   ```
-   - `NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL`는 이메일 인증 완료 후 이동할 경로입니다.
-3. **로컬 개발 시**
-   - `pnpm dev` 실행 후 `/signup`에서 회원가입하면 Supabase Postgres에 계정이 생성됩니다.
-   - 로그인/로그아웃 상태는 Supabase 세션과 동기화되어 있어 새로고침 후에도 유지됩니다.
-
-### 백엔드 서버 연동
-
-기존 REST API(상품/영상 데이터 등)를 사용한다면 `NEXT_PUBLIC_API_BASE_URL`을 설정하고 백엔드 서버를 실행해주세요. 서버가 실행되지 않아도 프론트엔드는 동작하며, API 호출 시에만 오류가 표시됩니다.
-
-## 📽️ SQLite 데이터
-
-1. 발표용 영상과 사진을 `apps/bookae_creator/public/media/` 폴더에 복사합니다.
-   - 기본 seed는 `final-video.mp4`와 `photo-1.jpg` ~ `photo-5.jpg` 파일명을 사용합니다.
-   - 다른 이름을 쓰고 싶다면 `scripts/seed-demo.mjs`의 `demoAssets` 배열을 수정하세요.
-2. 아래 명령으로 SQLite seed 데이터를 새로 생성합니다.
-
-```bash
-pnpm seed-demo
-```
+- **PixiJS**: 캔버스 기반 이미지/텍스트 렌더링 및 재생 시 전환 효과 적용
+- **Fabric.js**: 편집 모드에서 이미지·텍스트 드래그/리사이즈/회전 등 인터랙션 처리
+- **GSAP**: 씬 전환 애니메이션(페이드, 슬라이드, 줌 등) 구현

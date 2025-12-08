@@ -67,7 +67,7 @@ export const STATIC_PRODUCTS: Product[] = [
     url: PRODUCT_URLS.comet,
   },
   {
-    id: 'comet',
+    id: 'sleepandsleep',
     productId: 1006,
     name: '(+베이지커버 증정) 슬립앤슬립 깊은잠베개',
     price: 95500,

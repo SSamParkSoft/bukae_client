@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import { Home, Video, BarChart3, User, LogIn, LogOut } from 'lucide-react'
 import classNames from 'classnames'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -22,12 +23,22 @@ export default function Sidebar() {
   const theme = useThemeStore((state) => state.theme)
   const { isAuthenticated, checkAuth } = useUserStore()
   const logout = useLogout()
+  const [mounted, setMounted] = useState(false)
+
+  // 클라이언트에서만 마운트 상태 확인 (Hydration 오류 방지)
+  useEffect(() => {
+    setMounted(true)
+    checkAuth()
+  }, [checkAuth])
 
   const handleLogout = async () => {
     await logout()
     checkAuth()
     router.push('/login')
   }
+
+  // 마운트 전에는 항상 로그인 링크를 표시 (서버와 클라이언트 일치)
+  const showAuthenticated = mounted && isAuthenticated
 
   return (
     <aside className={`fixed left-0 top-0 h-full w-56 border-r flex flex-col transition-colors ${
@@ -120,7 +131,7 @@ export default function Sidebar() {
       <div className={`p-4 border-t ${
         theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
       }`}>
-        {isAuthenticated ? (
+        {showAuthenticated ? (
           <button
             onClick={handleLogout}
             className={classNames(

@@ -54,13 +54,59 @@ export interface TimelineScene {
   sceneId: number
   duration: number
   transition: string
+  transitionDuration?: number // 전환 시간 (초), 기본값 0.5
   image: string // base64 또는 URL
+  imageFit?: 'cover' | 'contain' | 'fill' // 이미지 표시 방식
+  imageTransform?: {
+    x: number
+    y: number
+    width: number
+    height: number
+    scaleX: number
+    scaleY: number
+    rotation: number
+  }
+  // 고급 효과
+  advancedEffects?: {
+    glow?: {
+      enabled: boolean
+      distance?: number // 후광 거리
+      outerStrength?: number // 외부 강도
+      innerStrength?: number // 내부 강도
+      color?: number // 색상 (hex)
+    }
+    particles?: {
+      enabled: boolean
+      type?: 'sparkle' | 'snow' | 'confetti' | 'stars' // 파티클 타입
+      count?: number // 파티클 개수
+      duration?: number // 지속 시간
+    }
+    glitch?: {
+      enabled: boolean
+      intensity?: number // 글리치 강도
+    }
+  }
   text: {
     content: string
     font: string
     color: string
     position?: string
     fontSize?: number
+    transform?: {
+      x: number
+      y: number
+      width: number
+      height: number
+      scaleX: number
+      scaleY: number
+      rotation: number
+    }
+    style?: {
+      bold?: boolean
+      italic?: boolean
+      underline?: boolean
+      align?: 'left' | 'center' | 'right' | 'justify'
+    }
   }
 }
 
@@ -68,6 +114,7 @@ export interface TimelineData {
   fps: number
   resolution: string
   scenes: TimelineScene[]
+  playbackSpeed?: number // 전체 영상 재생 배속 (기본값 1.0)
 }
 
 interface VideoCreateState {
@@ -198,11 +245,11 @@ export const useVideoCreateStore = create<VideoCreateState>((set) => ({
       const existingDetailImages = state.productDetailImages[product.id]
 
       return {
-        selectedProducts: [product],
-        productNames: { [product.id]: product.name },
-        productVideos: existingVideos ? { [product.id]: existingVideos } : {},
-        productImages: existingImages ? { [product.id]: existingImages } : {},
-        productDetailImages: existingDetailImages ? { [product.id]: existingDetailImages } : {},
+        selectedProducts: [...state.selectedProducts, product],
+        productNames: { ...state.productNames, [product.id]: product.name },
+        productVideos: existingVideos ? { ...state.productVideos, [product.id]: existingVideos } : state.productVideos,
+        productImages: existingImages ? { ...state.productImages, [product.id]: existingImages } : state.productImages,
+        productDetailImages: existingDetailImages ? { ...state.productDetailImages, [product.id]: existingDetailImages } : state.productDetailImages,
       }
     }),
   removeProduct: (productId) =>

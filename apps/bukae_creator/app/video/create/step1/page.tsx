@@ -213,13 +213,21 @@ const platformNames: Record<Platform, string> = {
 
 export default function Step1Page() {
   const router = useRouter()
-  const { selectedProducts, removeProduct, addProduct } = useVideoCreateStore()
+  const { removeProduct, addProduct, clearProducts } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | 'all'>('all')
   const [displayCount, setDisplayCount] = useState(16) // 초기 표시 개수
   const [isLoading, setIsLoading] = useState(false)
   const observerTarget = useRef<HTMLDivElement>(null)
+  
+  // Step1에서는 항상 빈 배열로 시작 (store 값 무시)
+  const [localSelectedProducts, setLocalSelectedProducts] = useState<Product[]>([])
+  
+  // Step1 진입 시 store의 selectedProducts 초기화
+  useEffect(() => {
+    clearProducts()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // API에서 상품 목록 가져오기
   const { data: apiProducts, isLoading: isLoadingApi, error: apiError } = useProducts()
@@ -349,11 +357,21 @@ export default function Step1Page() {
   }, [searchQuery, selectedPlatform])
 
   const isProductSelected = (productId: string) => {
-    return selectedProducts.some((p) => p.id === productId)
+    return localSelectedProducts.some((p) => p.id === productId)
+  }
+
+  const handleProductToggle = (product: Product) => {
+    if (isProductSelected(product.id)) {
+      removeProduct(product.id)
+      setLocalSelectedProducts((prev) => prev.filter((p) => p.id !== product.id))
+    } else {
+      addProduct(product)
+      setLocalSelectedProducts((prev) => [...prev, product])
+    }
   }
 
   const handleNext = () => {
-    if (selectedProducts.length > 0) {
+    if (localSelectedProducts.length > 0) {
       router.push('/video/create/step2')
     }
   }
@@ -491,13 +509,7 @@ export default function Step1Page() {
                     key={product.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, product)}
-                    onClick={() => {
-                      if (isSelected) {
-                        removeProduct(product.id)
-                      } else {
-                        addProduct(product)
-                      }
-                    }}
+                    onClick={() => handleProductToggle(product)}
                     className={`p-4 rounded-lg border-2 cursor-move transition-all ${
                       isSelected
                         ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
@@ -570,7 +582,7 @@ export default function Step1Page() {
           </div>
 
           {/* 다음 단계 버튼 */}
-          {selectedProducts.length > 0 && (
+          {localSelectedProducts.length > 0 && (
             <div className="mt-6 flex justify-end">
               <button
                 onClick={handleNext}
