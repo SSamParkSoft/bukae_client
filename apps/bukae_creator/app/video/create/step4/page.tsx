@@ -291,6 +291,22 @@ export default function Step4Page() {
     fabricCanvas.hoverCursor = 'move'
     fabricCanvas.moveCursor = 'move'
     fabricCanvas.skipTargetFind = false
+    
+    // Fabric.js 핸들러 스타일 커스터마이징 (이쁜 UI)
+    fabric.Object.prototype.set({
+      transparentCorners: false,
+      cornerColor: '#8b5cf6', // 보라색 핸들
+      cornerStrokeColor: '#ffffff', // 흰색 테두리
+      cornerSize: 12, // 핸들 크기
+      cornerStyle: 'circle', // 원형 핸들
+      borderColor: '#8b5cf6', // 보라색 선택 테두리
+      borderScaleFactor: 2, // 테두리 두께
+      padding: 8, // 핸들과 객체 간 여백
+    })
+    // 회전 핸들 스타일 (Fabric.js 6.x 호환)
+    if (fabric.Object.prototype.controls && fabric.Object.prototype.controls.mtr) {
+      fabric.Object.prototype.controls.mtr.offsetY = -30
+    }
     console.log('Fabric init', {
       width: canvasEl.width,
       height: canvasEl.height,
@@ -3326,21 +3342,19 @@ export default function Step4Page() {
           borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
           backgroundColor: theme === 'dark' ? '#111827' : '#ffffff'
         }}>
-          <div className="p-4 border-b shrink-0" style={{
-            borderColor: theme === 'dark' ? '#374151' : '#e5e7eb'
+          <div className="p-4 border-b shrink-0 flex items-center" style={{
+            borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+            minHeight: '64px',
+            marginTop: '7px', // 씬 리스트와 상단선 맞춤을 위해 미세 조정
           }}>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between w-full">
               <h2 className="text-lg font-semibold" style={{
                 color: theme === 'dark' ? '#ffffff' : '#111827'
               }}>
                 미리보기
               </h2>
-              {/* 편집 모드 토글 */}
-              <div className="flex items-center gap-2 text-xs text-gray-400">
-                편집 버튼 없이 바로 드래그/리사이즈 가능합니다.
-              </div>
-              </div>
             </div>
+          </div>
 
           <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden min-h-0">
             {/* PixiJS 미리보기 - 9:16 비율 고정 (1080x1920) */}
@@ -3549,10 +3563,12 @@ export default function Step4Page() {
           borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
           backgroundColor: theme === 'dark' ? '#111827' : '#ffffff'
         }}>
-          <div className="p-4 border-b shrink-0" style={{
-            borderColor: theme === 'dark' ? '#374151' : '#e5e7eb'
+          <div className="p-4 border-b shrink-0 flex items-center" style={{
+            borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+            minHeight: '64px',
+            marginTop: '2px', // 씬 리스트와 상단선 맞춤을 위해 미세 조정
           }}>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between w-full">
               <h2 className="text-lg font-semibold" style={{
                 color: theme === 'dark' ? '#ffffff' : '#111827'
               }}>
@@ -3760,15 +3776,19 @@ export default function Step4Page() {
         <div className="w-[30%] flex flex-col h-full overflow-hidden" style={{
           backgroundColor: theme === 'dark' ? '#111827' : '#ffffff'
         }}>
-          <div className="p-4 border-b shrink-0" style={{
-            borderColor: theme === 'dark' ? '#374151' : '#e5e7eb'
+          <div className="p-4 border-b shrink-0 flex items-center" style={{
+            borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+            minHeight: '64px',
+            marginTop: '7px', // 씬 리스트와 상단선 맞춤을 위해 미세 조정
           }}>
-            <h2 className="text-lg font-semibold" style={{
-              color: theme === 'dark' ? '#ffffff' : '#111827'
-            }}>
-              효과
-            </h2>
-        </div>
+            <div className="flex items-center justify-between w-full">
+              <h2 className="text-lg font-semibold" style={{
+                color: theme === 'dark' ? '#ffffff' : '#111827'
+              }}>
+                효과
+              </h2>
+            </div>
+          </div>
 
           <div className="flex-1 overflow-y-auto min-h-0">
             <Tabs value={rightPanelTab} onValueChange={setRightPanelTab} className="p-4">
@@ -4021,7 +4041,7 @@ export default function Step4Page() {
                         value={timeline.scenes[currentSceneIndex]?.text?.font || 'Arial'}
                         onChange={(e) => {
                           if (timeline) {
-                            isSavingTransformRef.current = true
+                            const newFont = e.target.value
                             const nextTimeline: TimelineData = {
                               ...timeline,
                               scenes: timeline.scenes.map((scene, i) => {
@@ -4030,7 +4050,7 @@ export default function Step4Page() {
                                     ...scene,
                                     text: {
                                       ...scene.text,
-                                      font: e.target.value,
+                                      font: newFont,
                                     },
                                   }
                                 }
@@ -4038,11 +4058,7 @@ export default function Step4Page() {
                               }),
                             }
                             setTimeline(nextTimeline)
-                            // syncFabricWithScene 호출로 캔버스 즉시 업데이트
-                            setTimeout(() => {
-                              syncFabricWithScene()
-                              isSavingTransformRef.current = false
-                            }, 50)
+                            // useEffect가 자동으로 syncFabricWithScene 호출함
                           }
                         }}
                         className="w-full px-3 py-2 rounded border text-sm"
@@ -4073,16 +4089,17 @@ export default function Step4Page() {
                         크기
                       </label>
                       <div className="flex items-center gap-2">
-                        {/* 직접 입력 */}
+                        {/* 직접 입력 - 포커스 아웃 또는 Enter 시에만 적용 */}
                         <input
-                          type="number"
-                          min="8"
-                          max="200"
-                          value={timeline.scenes[currentSceneIndex]?.text?.fontSize || 32}
-                          onChange={(e) => {
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          defaultValue={timeline.scenes[currentSceneIndex]?.text?.fontSize || 32}
+                          key={`fontSize-${currentSceneIndex}-${timeline.scenes[currentSceneIndex]?.text?.fontSize}`}
+                          onBlur={(e) => {
                             if (timeline) {
-                              const fontSize = Math.max(8, Math.min(200, parseInt(e.target.value) || 32))
-                              isSavingTransformRef.current = true
+                              const value = parseInt(e.target.value) || 32
+                              const fontSize = Math.max(8, Math.min(200, value))
                               const nextTimeline: TimelineData = {
                                 ...timeline,
                                 scenes: timeline.scenes.map((scene, i) => {
@@ -4099,10 +4116,11 @@ export default function Step4Page() {
                                 }),
                               }
                               setTimeline(nextTimeline)
-                              setTimeout(() => {
-                                syncFabricWithScene()
-                                isSavingTransformRef.current = false
-                              }, 50)
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              (e.target as HTMLInputElement).blur()
                             }
                           }}
                           className="w-16 px-2 py-1 rounded border text-sm text-center"
@@ -4121,7 +4139,6 @@ export default function Step4Page() {
                               key={size}
                               onClick={() => {
                                 if (timeline) {
-                                  isSavingTransformRef.current = true
                                   const nextTimeline: TimelineData = {
                                     ...timeline,
                                     scenes: timeline.scenes.map((scene, i) => {
@@ -4138,10 +4155,6 @@ export default function Step4Page() {
                                     }),
                                   }
                                   setTimeline(nextTimeline)
-                                  setTimeout(() => {
-                                    syncFabricWithScene()
-                                    isSavingTransformRef.current = false
-                                  }, 50)
                                 }
                               }}
                               className={`px-2 py-1 rounded text-xs ${
@@ -4163,7 +4176,7 @@ export default function Step4Page() {
                           ))}
                         </div>
                       </div>
-                      {/* 슬라이더 */}
+                      {/* 슬라이더 - 보라색 */}
                       <input
                         type="range"
                         min="8"
@@ -4172,7 +4185,6 @@ export default function Step4Page() {
                         onChange={(e) => {
                           if (timeline) {
                             const fontSize = parseInt(e.target.value)
-                            isSavingTransformRef.current = true
                             const nextTimeline: TimelineData = {
                               ...timeline,
                               scenes: timeline.scenes.map((scene, i) => {
@@ -4189,13 +4201,10 @@ export default function Step4Page() {
                               }),
                             }
                             setTimeline(nextTimeline)
-                            setTimeout(() => {
-                              syncFabricWithScene()
-                              isSavingTransformRef.current = false
-                            }, 50)
                           }
                         }}
                         className="w-full mt-2"
+                        style={{ accentColor: '#8b5cf6' }}
                       />
                     </div>
 
@@ -4212,7 +4221,6 @@ export default function Step4Page() {
                             key={color}
                             onClick={() => {
                               if (timeline) {
-                                isSavingTransformRef.current = true
                                 const nextTimeline: TimelineData = {
                                   ...timeline,
                                   scenes: timeline.scenes.map((scene, i) => {
@@ -4229,10 +4237,6 @@ export default function Step4Page() {
                                   }),
                                 }
                                 setTimeline(nextTimeline)
-                                setTimeout(() => {
-                                  syncFabricWithScene()
-                                  isSavingTransformRef.current = false
-                                }, 50)
                               }
                             }}
                             className={`w-7 h-7 rounded border-2 transition-colors`}
@@ -4249,7 +4253,6 @@ export default function Step4Page() {
                           value={timeline.scenes[currentSceneIndex]?.text?.color || '#ffffff'}
                           onChange={(e) => {
                             if (timeline) {
-                              isSavingTransformRef.current = true
                               const nextTimeline: TimelineData = {
                                 ...timeline,
                                 scenes: timeline.scenes.map((scene, i) => {
@@ -4266,10 +4269,6 @@ export default function Step4Page() {
                                 }),
                               }
                               setTimeline(nextTimeline)
-                              setTimeout(() => {
-                                syncFabricWithScene()
-                                isSavingTransformRef.current = false
-                              }, 50)
                             }
                           }}
                           className="w-7 h-7 rounded cursor-pointer border"
@@ -4289,8 +4288,7 @@ export default function Step4Page() {
                         <button
                           onClick={() => {
                             if (timeline) {
-                              const isBold = !timeline.scenes[currentSceneIndex]?.text?.style?.bold
-                              isSavingTransformRef.current = true
+                              const currentBold = timeline.scenes[currentSceneIndex]?.text?.style?.bold || false
                               const nextTimeline: TimelineData = {
                                 ...timeline,
                                 scenes: timeline.scenes.map((scene, i) => {
@@ -4301,7 +4299,7 @@ export default function Step4Page() {
                                         ...scene.text,
                                         style: {
                                           ...scene.text.style,
-                                          bold: isBold,
+                                          bold: !currentBold,
                                         },
                                       },
                                     }
@@ -4310,22 +4308,23 @@ export default function Step4Page() {
                                 }),
                               }
                               setTimeline(nextTimeline)
-                              setTimeout(() => {
-                                syncFabricWithScene()
-                                isSavingTransformRef.current = false
-                              }, 50)
                             }
                           }}
-                          className={`px-3 py-1 rounded border text-sm font-bold ${
+                          className={`px-3 py-1.5 rounded border text-sm font-bold transition-all ${
                             timeline.scenes[currentSceneIndex]?.text?.style?.bold 
-                              ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500' 
+                              ? 'bg-purple-500 text-white border-purple-500' 
                               : ''
                           }`}
                           style={{
                             borderColor: timeline.scenes[currentSceneIndex]?.text?.style?.bold 
                               ? '#8b5cf6' 
                               : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                            color: theme === 'dark' ? '#d1d5db' : '#374151'
+                            color: timeline.scenes[currentSceneIndex]?.text?.style?.bold 
+                              ? '#ffffff' 
+                              : (theme === 'dark' ? '#d1d5db' : '#374151'),
+                            backgroundColor: timeline.scenes[currentSceneIndex]?.text?.style?.bold 
+                              ? '#8b5cf6' 
+                              : 'transparent'
                           }}
                         >
                           B
@@ -4333,8 +4332,7 @@ export default function Step4Page() {
                         <button
                           onClick={() => {
                             if (timeline) {
-                              const isItalic = !timeline.scenes[currentSceneIndex]?.text?.style?.italic
-                              isSavingTransformRef.current = true
+                              const currentItalic = timeline.scenes[currentSceneIndex]?.text?.style?.italic || false
                               const nextTimeline: TimelineData = {
                                 ...timeline,
                                 scenes: timeline.scenes.map((scene, i) => {
@@ -4345,7 +4343,7 @@ export default function Step4Page() {
                                         ...scene.text,
                                         style: {
                                           ...scene.text.style,
-                                          italic: isItalic,
+                                          italic: !currentItalic,
                                         },
                                       },
                                     }
@@ -4354,22 +4352,23 @@ export default function Step4Page() {
                                 }),
                               }
                               setTimeline(nextTimeline)
-                              setTimeout(() => {
-                                syncFabricWithScene()
-                                isSavingTransformRef.current = false
-                              }, 50)
                             }
                           }}
-                          className={`px-3 py-1 rounded border text-sm italic ${
+                          className={`px-3 py-1.5 rounded border text-sm italic transition-all ${
                             timeline.scenes[currentSceneIndex]?.text?.style?.italic 
-                              ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500' 
+                              ? 'bg-purple-500 text-white border-purple-500' 
                               : ''
                           }`}
                           style={{
                             borderColor: timeline.scenes[currentSceneIndex]?.text?.style?.italic 
                               ? '#8b5cf6' 
                               : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                            color: theme === 'dark' ? '#d1d5db' : '#374151'
+                            color: timeline.scenes[currentSceneIndex]?.text?.style?.italic 
+                              ? '#ffffff' 
+                              : (theme === 'dark' ? '#d1d5db' : '#374151'),
+                            backgroundColor: timeline.scenes[currentSceneIndex]?.text?.style?.italic 
+                              ? '#8b5cf6' 
+                              : 'transparent'
                           }}
                         >
                           I
@@ -4377,8 +4376,7 @@ export default function Step4Page() {
                         <button
                           onClick={() => {
                             if (timeline) {
-                              const isUnderline = !timeline.scenes[currentSceneIndex]?.text?.style?.underline
-                              isSavingTransformRef.current = true
+                              const currentUnderline = timeline.scenes[currentSceneIndex]?.text?.style?.underline || false
                               const nextTimeline: TimelineData = {
                                 ...timeline,
                                 scenes: timeline.scenes.map((scene, i) => {
@@ -4389,7 +4387,7 @@ export default function Step4Page() {
                                         ...scene.text,
                                         style: {
                                           ...scene.text.style,
-                                          underline: isUnderline,
+                                          underline: !currentUnderline,
                                         },
                                       },
                                     }
@@ -4398,22 +4396,23 @@ export default function Step4Page() {
                                 }),
                               }
                               setTimeline(nextTimeline)
-                              setTimeout(() => {
-                                syncFabricWithScene()
-                                isSavingTransformRef.current = false
-                              }, 50)
                             }
                           }}
-                          className={`px-3 py-1 rounded border text-sm underline ${
+                          className={`px-3 py-1.5 rounded border text-sm underline transition-all ${
                             timeline.scenes[currentSceneIndex]?.text?.style?.underline 
-                              ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500' 
+                              ? 'bg-purple-500 text-white border-purple-500' 
                               : ''
                           }`}
                           style={{
                             borderColor: timeline.scenes[currentSceneIndex]?.text?.style?.underline 
                               ? '#8b5cf6' 
                               : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                            color: theme === 'dark' ? '#d1d5db' : '#374151'
+                            color: timeline.scenes[currentSceneIndex]?.text?.style?.underline 
+                              ? '#ffffff' 
+                              : (theme === 'dark' ? '#d1d5db' : '#374151'),
+                            backgroundColor: timeline.scenes[currentSceneIndex]?.text?.style?.underline 
+                              ? '#8b5cf6' 
+                              : 'transparent'
                           }}
                         >
                           U
@@ -4434,7 +4433,6 @@ export default function Step4Page() {
                             key={align}
                             onClick={() => {
                               if (timeline) {
-                                isSavingTransformRef.current = true
                                 const nextTimeline: TimelineData = {
                                   ...timeline,
                                   scenes: timeline.scenes.map((scene, i) => {
@@ -4454,22 +4452,23 @@ export default function Step4Page() {
                                   }),
                                 }
                                 setTimeline(nextTimeline)
-                                setTimeout(() => {
-                                  syncFabricWithScene()
-                                  isSavingTransformRef.current = false
-                                }, 50)
                               }
                             }}
-                            className={`px-3 py-1 rounded border text-xs ${
+                            className={`px-3 py-1.5 rounded border text-xs transition-all ${
                               timeline.scenes[currentSceneIndex]?.text?.style?.align === align 
-                                ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500' 
+                                ? 'bg-purple-500 text-white' 
                                 : ''
                             }`}
                             style={{
                               borderColor: timeline.scenes[currentSceneIndex]?.text?.style?.align === align 
                                 ? '#8b5cf6' 
                                 : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                              color: theme === 'dark' ? '#d1d5db' : '#374151'
+                              color: timeline.scenes[currentSceneIndex]?.text?.style?.align === align 
+                                ? '#ffffff' 
+                                : (theme === 'dark' ? '#d1d5db' : '#374151'),
+                              backgroundColor: timeline.scenes[currentSceneIndex]?.text?.style?.align === align 
+                                ? '#8b5cf6' 
+                                : 'transparent'
                             }}
                           >
                             {align === 'left' ? '좌측' : align === 'center' ? '중앙' : '우측'}
@@ -4496,7 +4495,6 @@ export default function Step4Page() {
                             onClick={() => {
                               if (timeline) {
                                 const { width, height } = stageDimensions
-                                isSavingTransformRef.current = true
                                 const nextTimeline: TimelineData = {
                                   ...timeline,
                                   scenes: timeline.scenes.map((scene, i) => {
@@ -4524,22 +4522,23 @@ export default function Step4Page() {
                                 }
                                 setTimeline(nextTimeline)
                                 setSubtitlePosition(pos)
-                                setTimeout(() => {
-                                  syncFabricWithScene()
-                                  isSavingTransformRef.current = false
-                                }, 50)
                               }
                             }}
-                            className={`p-2 rounded-lg border text-xs transition-colors ${
+                            className={`p-2 rounded-lg border text-xs transition-all ${
                               timeline.scenes[currentSceneIndex]?.text?.position === pos 
-                                ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500' 
+                                ? 'bg-purple-500 text-white' 
                                 : ''
                             } hover:bg-purple-50 dark:hover:bg-purple-900/20`}
                             style={{
                               borderColor: timeline.scenes[currentSceneIndex]?.text?.position === pos 
                                 ? '#8b5cf6' 
                                 : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                              color: theme === 'dark' ? '#d1d5db' : '#374151'
+                              color: timeline.scenes[currentSceneIndex]?.text?.position === pos 
+                                ? '#ffffff' 
+                                : (theme === 'dark' ? '#d1d5db' : '#374151'),
+                              backgroundColor: timeline.scenes[currentSceneIndex]?.text?.position === pos 
+                                ? '#8b5cf6' 
+                                : 'transparent'
                             }}
                           >
                             {label}
@@ -4561,7 +4560,6 @@ export default function Step4Page() {
                       const currentText = timeline.scenes[currentSceneIndex]?.text
                       if (!currentText) return
                       
-                      isSavingTransformRef.current = true
                       const nextTimeline: TimelineData = {
                         ...timeline,
                         scenes: timeline.scenes.map((scene) => ({
@@ -4578,10 +4576,6 @@ export default function Step4Page() {
                         })),
                       }
                       setTimeline(nextTimeline)
-                      setTimeout(() => {
-                        syncFabricWithScene()
-                        isSavingTransformRef.current = false
-                      }, 50)
                       
                       // 알림
                       alert(`현재 자막 스타일이 모든 씬(${timeline.scenes.length}개)에 적용되었습니다.`)
