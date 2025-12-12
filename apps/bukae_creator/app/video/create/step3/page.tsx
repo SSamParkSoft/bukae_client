@@ -276,7 +276,7 @@ export default function Step3Page() {
       newImages.forEach((imageUrl, newIndex) => {
         // 기존 스크립트 찾기
         let foundScript: SceneScript | undefined
-        for (const [_oldIndex, script] of prev.entries()) {
+        for (const [, script] of prev.entries()) {
           if (script.imageUrl === imageUrl) {
             foundScript = script
             break

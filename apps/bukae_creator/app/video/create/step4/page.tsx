@@ -3,18 +3,17 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Play, Pause, Clock, Edit2, GripVertical, Type, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, AlignJustify, Sparkles, Grid3x3 } from 'lucide-react'
+import { Play, Pause, Clock, Edit2, Type, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, AlignJustify, Sparkles, Grid3x3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore, TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
-import { BgmSelector } from '@/components/video-editor/BgmSelector'
-import { SubtitleSettings } from '@/components/video-editor/SubtitleSettings'
 import { useSceneHandlers } from '@/hooks/video/useSceneHandlers'
 import { useTimelinePlayer } from '@/hooks/video/useTimelinePlayer'
 import { usePixiFabric } from '@/hooks/video/usePixiFabric'
+import { SceneList } from '@/components/video-editor/SceneList'
+import { EffectsPanel } from '@/components/video-editor/EffectsPanel'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import * as fabric from 'fabric'
@@ -3307,306 +3306,33 @@ export default function Step4Page() {
           </div>
           
           <div className="flex-1 overflow-y-auto p-4 min-h-0">
-                    {scenes.length === 0 ? (
-              <div className="text-center py-8 text-sm" style={{
-                color: theme === 'dark' ? '#9ca3af' : '#6b7280'
-              }}>
-                        Step3에서 이미지와 스크립트를 먼저 생성해주세요.
-              </div>
-                    ) : (
-              <div className="space-y-3">
-                        {scenes.map((scene, index) => {
-                          const isActive = currentSceneIndex === index
-                  const sceneData = timeline?.scenes[index]
-                  
-                          return (
-                            <div
-                              key={scene.sceneId ?? index}
-                      className="rounded-lg border p-3 cursor-pointer transition-colors"
-                      style={{
-                        borderColor: isActive 
-                          ? '#8b5cf6' 
-                          : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                        backgroundColor: isActive
-                          ? (theme === 'dark' ? '#3b1f5f' : '#f3e8ff')
-                          : (theme === 'dark' ? '#1f2937' : '#ffffff')
-                      }}
-                              onClick={() => handleSceneSelect(index)}
-                            >
-                      <div className="flex gap-3">
-                        {/* 썸네일 */}
-                        <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-200 shrink-0">
-                          {sceneThumbnails[index] && (
-                            <img
-                              src={sceneThumbnails[index]}
-                                    alt={`Scene ${index + 1}`}
-                                    className="w-full h-full object-cover"
-                                  />
-                          )}
-                              </div>
-
-                        {/* 씬 정보 */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <GripVertical className="w-4 h-4" style={{
-                                color: theme === 'dark' ? '#9ca3af' : '#6b7280'
-                              }} />
-                              <span className="text-sm font-semibold" style={{
-                                color: theme === 'dark' ? '#ffffff' : '#111827'
-                              }}>
-                                씬 {index + 1}
-                                      </span>
-                                    </div>
-                          </div>
-
-                          {/* 텍스트 입력 */}
-                          <textarea
-                            rows={2}
-                            value={scene.script}
-                            onChange={(e) => handleSceneScriptChange(index, e.target.value)}
-                                      onClick={(e) => e.stopPropagation()}
-                            className="w-full text-sm rounded-md border px-2 py-1 resize-none mb-2"
-                            style={{
-                              backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-                              borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                              color: theme === 'dark' ? '#ffffff' : '#111827'
-                            }}
-                            placeholder="씬 텍스트 입력..."
-                          />
-
-                          {/* 설정 */}
-                          <div className="flex items-center gap-2 text-xs flex-wrap">
-                            <span
-                              className="px-2 py-1 rounded border text-xs"
-                              style={{
-                                backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb',
-                                borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                                color: theme === 'dark' ? '#9ca3af' : '#6b7280'
-                              }}
-                            >
-                              {transitionLabels[sceneData?.transition || 'fade'] || '페이드'}
-                                  </span>
-                                  <select
-                              value={sceneData?.imageFit || 'fill'}
-                              onChange={(e) => handleSceneImageFitChange(index, e.target.value as 'cover' | 'contain' | 'fill')}
-                                    onClick={(e) => e.stopPropagation()}
-                              className="px-2 py-1 rounded border text-xs"
-                              style={{
-                                backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-                                borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                                color: theme === 'dark' ? '#ffffff' : '#111827'
-                              }}
-                                  >
-                                    <option value="cover">Cover</option>
-                                    <option value="contain">Contain</option>
-                                    <option value="fill">Fill</option>
-                                  </select>
-                                </div>
-                        </div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-              </div>
+            <SceneList
+              scenes={scenes}
+              timeline={timeline}
+              sceneThumbnails={sceneThumbnails}
+              currentSceneIndex={currentSceneIndex}
+              theme={theme}
+              transitionLabels={transitionLabels}
+              onSelect={handleSceneSelect}
+              onScriptChange={handleSceneScriptChange}
+              onImageFitChange={handleSceneImageFitChange}
+            />
             </div>
 
-        {/* 오른쪽 패널: 효과 선택 */}
-        <div className="w-[30%] flex flex-col h-full overflow-hidden" style={{
-          backgroundColor: theme === 'dark' ? '#111827' : '#ffffff'
-        }}>
-          <div className="p-4 border-b shrink-0 flex items-center" style={{
-            borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-            minHeight: '64px',
-            marginTop: '7px', // 씬 리스트와 상단선 맞춤을 위해 미세 조정
-          }}>
-            <div className="flex items-center justify-between w-full">
-              <h2 className="text-lg font-semibold" style={{
-                color: theme === 'dark' ? '#ffffff' : '#111827'
-              }}>
-                효과
-              </h2>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <Tabs value={rightPanelTab} onValueChange={setRightPanelTab} className="p-4">
-              <TabsList className="grid w-full grid-cols-3 mb-4">
-                <TabsTrigger value="animation">애니메이션</TabsTrigger>
-                <TabsTrigger value="bgm">배경음악</TabsTrigger>
-                <TabsTrigger value="subtitle">자막</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="animation" className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-semibold mb-2" style={{
-                    color: theme === 'dark' ? '#ffffff' : '#111827'
-                  }}>
-                    전환 효과
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {allTransitions.map((transition) => {
-                      const isSelected = timeline?.scenes[currentSceneIndex]?.transition === transition.value
-                      return (
-                        <button
-                          key={transition.value}
-                          onClick={() => {
-                            if (timeline && currentSceneIndex >= 0) {
-                              handleSceneTransitionChange(currentSceneIndex, transition.value)
-                            }
-                          }}
-                          className={`p-3 rounded-lg border text-sm transition-colors ${
-                            isSelected 
-                              ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500' 
-                              : 'hover:bg-purple-50 dark:hover:bg-purple-900/20'
-                          }`}
-                          style={{
-                            borderColor: isSelected 
-                              ? '#8b5cf6' 
-                              : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                            color: theme === 'dark' ? '#d1d5db' : '#374151'
-                          }}
-                        >
-                          {transition.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-
-                {/* 고급 효과 */}
-                <div>
-                  <h3 className="text-sm font-semibold mb-2" style={{
-                    color: theme === 'dark' ? '#ffffff' : '#111827'
-                  }}>
-                    고급 효과
-                  </h3>
-                  
-                  {/* 후광 효과 */}
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs" style={{
-                        color: theme === 'dark' ? '#d1d5db' : '#374151'
-                      }}>
-                        후광 효과
-                      </label>
-                      <input
-                        type="checkbox"
-                        checked={timeline?.scenes[currentSceneIndex]?.advancedEffects?.glow?.enabled || false}
-                        onChange={(e) => {
-                          if (timeline && currentSceneIndex >= 0) {
-                            handleAdvancedEffectChange(
-                              currentSceneIndex,
-                              'glow',
-                              e.target.checked
-                                ? {
-                                    enabled: true,
-                                    distance: 10,
-                                    outerStrength: 4,
-                                    innerStrength: 0,
-                                    color: 0xffffff,
-                                  }
-                                : { enabled: false }
-                            )
-                          }
-                        }}
-                        className="w-4 h-4"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 글리치 효과 */}
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs" style={{
-                        color: theme === 'dark' ? '#d1d5db' : '#374151'
-                      }}>
-                        글리치 효과
-                      </label>
-                      <input
-                        type="checkbox"
-                        checked={timeline?.scenes[currentSceneIndex]?.advancedEffects?.glitch?.enabled || false}
-                        onChange={(e) => {
-                          if (timeline && currentSceneIndex >= 0) {
-                            handleAdvancedEffectChange(
-                              currentSceneIndex,
-                              'glitch',
-                              e.target.checked
-                                ? {
-                                    enabled: true,
-                                    intensity: 10,
-                                  }
-                                : { enabled: false }
-                            )
-                          }
-                        }}
-                        className="w-4 h-4"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 파티클 효과 */}
-                  <div className="mb-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs" style={{
-                        color: theme === 'dark' ? '#d1d5db' : '#374151'
-                      }}>
-                        파티클 효과
-                      </label>
-                      <select
-                        value={timeline?.scenes[currentSceneIndex]?.advancedEffects?.particles?.type || 'none'}
-                        onChange={(e) => {
-                          if (timeline && currentSceneIndex >= 0) {
-                            const value = e.target.value
-                            handleAdvancedEffectChange(
-                              currentSceneIndex,
-                              'particles',
-                              value !== 'none'
-                                ? {
-                                    enabled: true,
-                                    type: value as 'sparkle' | 'snow' | 'confetti' | 'stars',
-                                    count: 50,
-                                    duration: 2,
-                                  }
-                                : { enabled: false }
-                            )
-                          }
-                        }}
-                        className="px-2 py-1 rounded border text-xs"
-                        style={{
-                          backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-                          borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                          color: theme === 'dark' ? '#ffffff' : '#111827'
-                        }}
-                      >
-                        <option value="none">없음</option>
-                        <option value="sparkle">반짝임</option>
-                        <option value="snow">눈송이</option>
-                        <option value="confetti">컨페티</option>
-                        <option value="stars">별</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="bgm" className="space-y-4">
-                <BgmSelector bgmTemplate={bgmTemplate} theme={theme} setBgmTemplate={setBgmTemplate} />
-              </TabsContent>
-
-              <TabsContent value="subtitle" className="space-y-4">
-                <SubtitleSettings
-                  timeline={timeline}
-                  currentSceneIndex={currentSceneIndex}
-                  theme={theme}
-                  setTimeline={setTimeline}
-                />
-              </TabsContent>
-            </Tabs>
-          </div>
-        </div>
+        <EffectsPanel
+          theme={theme}
+          rightPanelTab={rightPanelTab}
+          setRightPanelTab={setRightPanelTab}
+          timeline={timeline}
+          currentSceneIndex={currentSceneIndex}
+          allTransitions={allTransitions}
+          onTransitionChange={handleSceneTransitionChange}
+          onAdvancedEffectChange={handleAdvancedEffectChange}
+          bgmTemplate={bgmTemplate}
+          setBgmTemplate={setBgmTemplate}
+          setTimeline={setTimeline}
+        />
+      </div>
       </div>
     </motion.div>
   )

@@ -159,7 +159,7 @@ export default function Step4Page() {
             {/* 생성된 대본 목록 */}
             {generatedScenes.length > 0 && (
               <div className="space-y-4">
-                {generatedScenes.map((scene, _index) => (
+                {generatedScenes.map((scene) => (
                   <Card
                     key={scene.sceneId}
                     className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}

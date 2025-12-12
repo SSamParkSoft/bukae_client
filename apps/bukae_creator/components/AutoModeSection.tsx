@@ -57,10 +57,10 @@ export default function AutoModeSection({
   useEffect(() => {
     timeoutRefs.current.forEach((id) => clearTimeout(id))
     timeoutRefs.current = []
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setScenes([])
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSceneStatuses({})
+    setTimeout(() => {
+      setScenes([])
+      setSceneStatuses({})
+    }, 0)
   }, [conceptId, toneId])
 
   useEffect(() => {
@@ -68,19 +68,19 @@ export default function AutoModeSection({
     const presetScenes = presetAssets.map((asset, index) =>
       createSceneFromAsset(asset, conceptId, toneId, index),
     )
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setScenes(presetScenes)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSceneStatuses(
-      presetScenes.reduce<Record<string, SceneStatus>>((acc, scene) => {
-        acc[scene.id] = {
-          state: 'ready',
-          progress: 100,
-          stage: SCENE_LOADING_STEPS.length - 1,
-        }
-        return acc
-      }, {}),
-    )
+    setTimeout(() => {
+      setScenes(presetScenes)
+      setSceneStatuses(
+        presetScenes.reduce<Record<string, SceneStatus>>((acc, scene) => {
+          acc[scene.id] = {
+            state: 'ready',
+            progress: 100,
+            stage: SCENE_LOADING_STEPS.length - 1,
+          }
+          return acc
+        }, {}),
+      )
+    }, 0)
   }, [presetAssets, conceptId, toneId, scenes.length])
 
   useEffect(() => {
@@ -92,14 +92,12 @@ export default function AutoModeSection({
   useEffect(() => {
     if (!isSceneGenerating) return
     if (scenes.length === 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsSceneGenerating(false)
+      queueMicrotask(() => setIsSceneGenerating(false))
       return
     }
     const allReady = scenes.every((scene) => sceneStatuses[scene.id]?.state === 'ready')
     if (allReady) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsSceneGenerating(false)
+      queueMicrotask(() => setIsSceneGenerating(false))
     }
   }, [isSceneGenerating, scenes, sceneStatuses])
 
