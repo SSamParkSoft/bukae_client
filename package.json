@@ -23,6 +23,8 @@
   },
   "devDependencies": {
     "eslint": "^9",
+    "eslint-config-next": "16",
+    "next": "16",
     "typescript": "^5"
   }
 }

@@ -11,6 +11,10 @@ import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore, TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { BgmSelector } from '@/components/video-editor/BgmSelector'
+import { SubtitleSettings } from '@/components/video-editor/SubtitleSettings'
+import { useSceneHandlers } from '@/hooks/video/useSceneHandlers'
+import { useTimelinePlayer } from '@/hooks/video/useTimelinePlayer'
+import { usePixiFabric } from '@/hooks/video/usePixiFabric'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import * as fabric from 'fabric'
@@ -69,14 +73,8 @@ export default function Step4Page() {
   const useFabricEditing = true
   
   // State
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [isPreviewingTransition, setIsPreviewingTransition] = useState(false) // 전환 효과 미리보기 중
-  const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
-  const [currentTime, setCurrentTime] = useState(0)
-  const aspectRatio = '9/16' // 9:16 고정
   const [rightPanelTab, setRightPanelTab] = useState('animation')
   const [isDraggingTimeline, setIsDraggingTimeline] = useState(false)
-  const [playbackSpeed, setPlaybackSpeed] = useState(1.0) // 전체 영상 배속
   const [editMode, setEditMode] = useState<'none' | 'image' | 'text'>('none')
   const [selectedElementIndex, setSelectedElementIndex] = useState<number | null>(null)
   const [selectedElementType, setSelectedElementType] = useState<'image' | 'text' | null>(null)
@@ -85,11 +83,7 @@ export default function Step4Page() {
   const [pixiReady, setPixiReady] = useState(false)
   const [fabricReady, setFabricReady] = useState(false)
   const fabricScaleRatioRef = useRef<number>(1) // Fabric.js 좌표 스케일 비율
-  const rafIdRef = useRef<number | null>(null)
-  const lastTimestampRef = useRef<number | null>(null)
   const [mounted, setMounted] = useState(false)
-  const isManualSceneSelectRef = useRef(false)
-  const previousSceneIndexRef = useRef<number | null>(null)
 
   // 클라이언트에서만 렌더링 (SSR/Hydration mismatch 방지)
   useEffect(() => {
@@ -170,243 +164,19 @@ export default function Step4Page() {
     }
   }, [timeline?.playbackSpeed])
 
-  // PixiJS 초기화
-  useEffect(() => {
-    if (!mounted) return
-    if (!pixiContainerRef.current) {
-      console.log('Step4: pixiContainerRef.current is null')
-      return
-    }
-
-    const container = pixiContainerRef.current
-    const { width, height } = stageDimensions
-
-    console.log('Step4: Initializing PixiJS with dimensions:', width, height)
-
-    if (appRef.current) {
-      const existingCanvas = container.querySelector('canvas')
-      if (existingCanvas) container.removeChild(existingCanvas)
-      appRef.current.destroy(true, { children: true, texture: true })
-      appRef.current = null
-      containerRef.current = null
-    }
-
-    const app = new PIXI.Application()
-    
-    app.init({
-      width,
-      height,
-      backgroundColor: 0x000000,
-      antialias: true,
-      resolution: window.devicePixelRatio || 1,
-      autoDensity: true,
-      autoStart: true,  // 자동 렌더링 활성화
-    }).then(() => {
-      console.log('Step4: PixiJS initialized successfully')
-      // 9:16 비율을 유지하면서 컨테이너에 맞게 표시
-      app.canvas.style.width = '100%'
-      app.canvas.style.height = '100%'
-      app.canvas.style.maxWidth = '100%'
-      app.canvas.style.maxHeight = '100%'
-      app.canvas.style.display = 'block'
-      app.canvas.style.objectFit = 'contain'
-      container.appendChild(app.canvas)
-      appRef.current = app
-
-      const mainContainer = new PIXI.Container()
-      app.stage.addChild(mainContainer)
-      containerRef.current = mainContainer
-
-      console.log('Step4: appRef and containerRef set, app:', !!appRef.current, 'container:', !!containerRef.current)
-
-      // 다음 프레임에 pixiReady 설정하여 ref가 확실히 업데이트된 후 loadAllScenes가 실행되도록
-      requestAnimationFrame(() => {
-        setPixiReady(true)
-        console.log('Step4: pixiReady set to true')
-      })
-    }).catch((error) => {
-      console.error('Step4: Failed to initialize PixiJS:', error)
-    })
-
-    return () => {
-      if (appRef.current) {
-        // PixiJS destroy가 canvas를 자동으로 정리함
-        appRef.current.destroy(true, { children: true, texture: true })
-        appRef.current = null
-        containerRef.current = null
-      }
-      if (fabricCanvasRef.current) {
-        fabricCanvasRef.current.dispose()
-        fabricCanvasRef.current = null
-      }
-      if (fabricCanvasElementRef.current && pixiContainerRef.current?.contains(fabricCanvasElementRef.current)) {
-        pixiContainerRef.current.removeChild(fabricCanvasElementRef.current)
-      }
-      setFabricReady(false)
-      setPixiReady(false)
-    }
-  }, [mounted, stageDimensions])
-
-  // Fabric.js 초기화 (편집 오버레이)
-  useEffect(() => {
-    console.log('Fabric init effect check', {
-      pixiContainerRef: !!pixiContainerRef.current,
-      pixiReady,
-      useFabricEditing,
-      stageDimensions,
-    })
-    if (!pixiContainerRef.current || !pixiReady || !useFabricEditing) {
-      console.log('Fabric init skipped - conditions not met')
-      return
-    }
-    const container = pixiContainerRef.current
-    container.style.position = 'relative'
-    container.style.pointerEvents = 'auto' // 오버레이가 항상 포인터를 받을 수 있게
-
-    // 기존 Fabric 제거
-    if (fabricCanvasRef.current) {
-      fabricCanvasRef.current.dispose()
-      fabricCanvasRef.current = null
-    }
-    if (fabricCanvasElementRef.current && container.contains(fabricCanvasElementRef.current)) {
-      container.removeChild(fabricCanvasElementRef.current)
-    }
-
-    const canvasEl = document.createElement('canvas')
-    canvasEl.width = stageDimensions.width
-    canvasEl.height = stageDimensions.height
-    canvasEl.style.position = 'absolute'
-    canvasEl.style.inset = '0'
-    canvasEl.style.width = '100%'
-    canvasEl.style.height = '100%'
-    canvasEl.style.pointerEvents = useFabricEditing ? 'auto' : 'none'
-    canvasEl.style.zIndex = '5' // Pixi 위에 확실히 노출
-    fabricCanvasElementRef.current = canvasEl
-    container.appendChild(canvasEl)
-
-    const fabricCanvas = new fabric.Canvas(canvasEl, {
-      selection: true,
-      preserveObjectStacking: true,
-    })
-    fabricCanvas.defaultCursor = 'default'
-    fabricCanvas.hoverCursor = 'move'
-    fabricCanvas.moveCursor = 'move'
-    fabricCanvas.skipTargetFind = false
-    
-    // Fabric.js 핸들러 스타일 커스터마이징 (이쁜 UI)
-    fabric.Object.prototype.set({
-      transparentCorners: false,
-      cornerColor: '#8b5cf6', // 보라색 핸들
-      cornerStrokeColor: '#ffffff', // 흰색 테두리
-      cornerSize: 12, // 핸들 크기
-      cornerStyle: 'circle', // 원형 핸들
-      borderColor: '#8b5cf6', // 보라색 선택 테두리
-      borderScaleFactor: 2, // 테두리 두께
-      padding: 8, // 핸들과 객체 간 여백
-    })
-    // 회전 핸들 스타일 (Fabric.js 6.x 호환)
-    if (fabric.Object.prototype.controls && fabric.Object.prototype.controls.mtr) {
-      fabric.Object.prototype.controls.mtr.offsetY = -30
-    }
-    console.log('Fabric init', {
-      width: canvasEl.width,
-      height: canvasEl.height,
-      editMode,
-    })
-    // upper 캔버스도 동일한 포인터/레이어 설정
-    if (fabricCanvas.upperCanvasEl) {
-      fabricCanvas.upperCanvasEl.style.position = 'absolute'
-      fabricCanvas.upperCanvasEl.style.inset = '0'
-      fabricCanvas.upperCanvasEl.style.width = '100%'
-      fabricCanvas.upperCanvasEl.style.height = '100%'
-      fabricCanvas.upperCanvasEl.style.pointerEvents = useFabricEditing ? 'auto' : 'none'
-      fabricCanvas.upperCanvasEl.style.zIndex = '6'
-    }
-    // lower 캔버스도 명시적 z-index 지정
-    if (fabricCanvas.lowerCanvasEl) {
-      fabricCanvas.lowerCanvasEl.style.position = 'absolute'
-      fabricCanvas.lowerCanvasEl.style.inset = '0'
-      fabricCanvas.lowerCanvasEl.style.width = '100%'
-      fabricCanvas.lowerCanvasEl.style.height = '100%'
-      fabricCanvas.lowerCanvasEl.style.zIndex = '5'
-    }
-    // canvas-container (wrapper)를 Pixi 위에 겹치도록 설정
-    if (fabricCanvas.wrapperEl) {
-      fabricCanvas.wrapperEl.style.position = 'absolute'
-      fabricCanvas.wrapperEl.style.inset = '0'
-      fabricCanvas.wrapperEl.style.width = '100%'
-      fabricCanvas.wrapperEl.style.height = '100%'
-      fabricCanvas.wrapperEl.style.zIndex = '5'
-    }
-    
-    fabricCanvasRef.current = fabricCanvas
-    
-    // CSS 스케일링에 따른 좌표 보정
-    // 캔버스를 9:16 비율을 유지하면서 컨테이너에 맞게 설정
-    setTimeout(() => {
-      const containerEl = container
-      if (containerEl && fabricCanvasRef.current) {
-        const containerWidth = containerEl.clientWidth
-        const containerHeight = containerEl.clientHeight
-        const targetRatio = 9 / 16 // 0.5625
-        
-        // 컨테이너 내에서 9:16 비율을 유지하는 최대 크기 계산
-        let displayWidth: number, displayHeight: number
-        if (containerWidth / containerHeight > targetRatio) {
-          // 컨테이너가 더 넓음 → 높이에 맞춤
-          displayHeight = containerHeight
-          displayWidth = containerHeight * targetRatio
-        } else {
-          // 컨테이너가 더 좁음 → 너비에 맞춤
-          displayWidth = containerWidth
-          displayHeight = containerWidth / targetRatio
-        }
-        
-        const scaleRatio = displayWidth / stageDimensions.width
-        fabricScaleRatioRef.current = scaleRatio
-        console.log('Fabric scale setup', {
-          containerWidth,
-          containerHeight,
-          displayWidth,
-          displayHeight,
-          internalWidth: stageDimensions.width,
-          internalHeight: stageDimensions.height,
-          scaleRatio,
-          ratio: displayWidth / displayHeight,
-        })
-        
-        // 캔버스 크기를 9:16 비율로 설정
-        fabricCanvasRef.current.setDimensions({ width: displayWidth, height: displayHeight })
-        
-        // wrapper를 중앙 정렬
-        if (fabricCanvasRef.current.wrapperEl) {
-          const wrapper = fabricCanvasRef.current.wrapperEl
-          wrapper.style.position = 'absolute'
-          wrapper.style.left = '50%'
-          wrapper.style.top = '50%'
-          wrapper.style.transform = 'translate(-50%, -50%)'
-          wrapper.style.width = `${displayWidth}px`
-          wrapper.style.height = `${displayHeight}px`
-        }
-        
-        fabricCanvasRef.current.calcOffset()
-        fabricCanvasRef.current.requestRenderAll()
-        
-        // 스케일 설정 후에 fabricReady 활성화
-        setFabricReady(true)
-      }
-    }, 100)
-
-    return () => {
-      fabricCanvas.dispose()
-      if (container.contains(canvasEl)) {
-        container.removeChild(canvasEl)
-      }
-      fabricCanvasRef.current = null
-      fabricCanvasElementRef.current = null
-      setFabricReady(false)
-    }
-  }, [pixiReady, useFabricEditing, editMode, stageDimensions])
+  usePixiFabric({
+    pixiContainerRef,
+    appRef,
+    containerRef,
+    fabricCanvasRef,
+    fabricCanvasElementRef,
+    setPixiReady,
+    setFabricReady,
+    useFabricEditing,
+    stageDimensions,
+    fabricScaleRatioRef,
+    editMode,
+  })
 
   // Fabric 포인터 활성화 상태 갱신 (upper/lower 모두)
   useEffect(() => {
@@ -1934,86 +1704,31 @@ export default function Step4Page() {
     }, 0)
   }
 
-  // 전체 재생 시간 계산
-  const totalDuration = useMemo(() => {
-    if (!timeline) return 0
-    return timeline.scenes.reduce(
-      (acc, scene) => acc + scene.duration + (scene.transitionDuration || 0.5),
-      0
-    )
-  }, [timeline])
-
-  // 재생 루프 (requestAnimationFrame)
-  useEffect(() => {
-    if (!isPlaying || totalDuration === 0) {
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current)
-        rafIdRef.current = null
-      }
-      lastTimestampRef.current = null
-      return
-    }
-
-    const step = (timestamp: number) => {
-      if (lastTimestampRef.current == null) {
-        lastTimestampRef.current = timestamp
-      }
-      const delta = (timestamp - lastTimestampRef.current) / 1000
-      lastTimestampRef.current = timestamp
-
-      setCurrentTime((prev) => {
-        // 전체 영상 배속 적용
-        const speed = timeline?.playbackSpeed || playbackSpeed || 1.0
-        const speedAdjustedDelta = delta * speed
-        const next = prev + speedAdjustedDelta
-        if (next >= totalDuration) {
-          // 재생 끝
-          setIsPlaying(false)
-          return totalDuration
-        }
-        return next
-      })
-
-      if (isPlaying) {
-        rafIdRef.current = requestAnimationFrame(step)
-      }
-    }
-
-    rafIdRef.current = requestAnimationFrame(step)
-
-    return () => {
-      if (rafIdRef.current !== null) {
-        cancelAnimationFrame(rafIdRef.current)
-        rafIdRef.current = null
-      }
-      lastTimestampRef.current = null
-    }
-  }, [isPlaying, totalDuration, timeline?.playbackSpeed, playbackSpeed])
-
-  // currentTime 변화에 따라 현재 씬 인덱스만 업데이트
-  useEffect(() => {
-    if (!timeline || timeline.scenes.length === 0) return
-    if (totalDuration === 0) return
-    // 수동 씬 선택 중이면 건너뛰기
-    if (isManualSceneSelectRef.current) return
-
-        let accumulated = 0
-        let sceneIndex = 0
-        for (let i = 0; i < timeline.scenes.length; i++) {
-      const sceneDuration =
-        timeline.scenes[i].duration + (timeline.scenes[i].transitionDuration || 0.5)
-      accumulated += sceneDuration
-      if (currentTime <= accumulated) {
-            sceneIndex = i
-            break
-          }
-        }
-    
-    // 씬 인덱스가 바뀌었을 때만 업데이트
-    if (sceneIndex !== currentSceneIndex) {
-      setCurrentSceneIndex(sceneIndex)
-    }
-  }, [currentTime, timeline, totalDuration, currentSceneIndex])
+  const {
+    isPlaying,
+    setIsPlaying,
+    isPreviewingTransition,
+    setIsPreviewingTransition,
+    currentSceneIndex,
+    setCurrentSceneIndex,
+    currentTime,
+    setCurrentTime,
+    progressRatio,
+    playbackSpeed,
+    setPlaybackSpeed,
+    totalDuration,
+    selectScene,
+    togglePlay,
+    getStageDimensions,
+    isManualSceneSelectRef,
+  } = useTimelinePlayer({
+    timeline,
+    updateCurrentScene,
+    loadAllScenes,
+    appRef,
+    containerRef,
+    pixiReady,
+  })
 
   // 씬 인덱스 변경 시 전환 효과 적용 (재생 중일 때만 애니메이션)
   useEffect(() => {
@@ -2036,103 +1751,28 @@ export default function Step4Page() {
   }, [totalDuration, currentTime])
 
   // 씬 편집 핸들러들
-  const handleSceneScriptChange = (index: number, value: string) => {
-    const updatedScenes = scenes.map((scene, i) =>
-      i === index ? { ...scene, script: value } : scene
-    )
-    setScenes(updatedScenes)
-    
-    if (timeline) {
-      const nextTimeline: TimelineData = {
-        ...timeline,
-        scenes: timeline.scenes.map((scene, i) =>
-          i === index ? { ...scene, text: { ...scene.text, content: value } } : scene
-        ),
-      }
-      setTimeline(nextTimeline)
-    }
-  }
-
-  const handleSceneDurationChange = (index: number, value: number) => {
-    if (!timeline) return
-    const clampedValue = Math.max(0.5, Math.min(10, value))
-    const nextTimeline: TimelineData = {
-      ...timeline,
-      scenes: timeline.scenes.map((scene, i) =>
-        i === index ? { ...scene, duration: clampedValue } : scene
-      ),
-    }
-    setTimeline(nextTimeline)
-  }
-
-  const handleSceneTransitionChange = (index: number, value: string) => {
-    if (!timeline) return
-    // 씬 선택 유지
-    isManualSceneSelectRef.current = true
-    const nextTimeline: TimelineData = {
-      ...timeline,
-      scenes: timeline.scenes.map((scene, i) =>
-        i === index ? { ...scene, transition: value } : scene
-      ),
-    }
-    setTimeline(nextTimeline)
-    
-    // 전환 효과 미리보기 활성화 (PixiJS 캔버스 표시)
-    setIsPreviewingTransition(true)
-    
-    // 효과 적용 후 미리보기 업데이트 - 애니메이션 포함
-    requestAnimationFrame(() => {
-      // 선택된 씬으로 이동하여 전환 효과 미리보기
-      if (index !== currentSceneIndex) {
-        setCurrentSceneIndex(index)
-      }
-      // 전환 효과 미리보기 (애니메이션 적용)
-      updateCurrentScene(false)
-      
-      // 애니메이션 완료 후 미리보기 상태 해제
-      const transitionDuration = timeline.scenes[index]?.transitionDuration || 0.5
-      setTimeout(() => {
-        setIsPreviewingTransition(false)
-        isManualSceneSelectRef.current = false
-      }, transitionDuration * 1000 + 200) // 전환 시간 + 여유시간
-    })
-  }
-
-  const handleSceneImageFitChange = (index: number, value: 'cover' | 'contain' | 'fill') => {
-    if (!timeline) return
-    // 씬 선택 유지
-    isManualSceneSelectRef.current = true
-    const nextTimeline: TimelineData = {
-      ...timeline,
-      scenes: timeline.scenes.map((scene, i) =>
-        i === index ? { ...scene, imageFit: value } : scene
-      ),
-    }
-    setTimeline(nextTimeline)
-    // 이미지 fit 변경 시 해당 씬만 재로드
-    if (pixiReady && appRef.current && containerRef.current) {
-      loadAllScenes().then(() => {
-        setTimeout(() => {
-          isManualSceneSelectRef.current = false
-        }, 50)
-      })
-    } else {
-      setTimeout(() => {
-        isManualSceneSelectRef.current = false
-      }, 50)
-    }
-  }
-
-  const handlePlaybackSpeedChange = (value: number) => {
-    setPlaybackSpeed(value)
-    if (timeline) {
-      const nextTimeline: TimelineData = {
-        ...timeline,
-        playbackSpeed: value,
-      }
-      setTimeline(nextTimeline)
-    }
-  }
+  const {
+    handleSceneScriptChange,
+    handleSceneDurationChange,
+    handleSceneTransitionChange,
+    handleSceneImageFitChange,
+    handlePlaybackSpeedChange,
+  } = useSceneHandlers({
+    scenes,
+    timeline,
+    setScenes,
+    setTimeline,
+    currentSceneIndex,
+    setCurrentSceneIndex,
+    updateCurrentScene,
+    setIsPreviewingTransition,
+    isManualSceneSelectRef,
+    pixiReady,
+    appRef,
+    containerRef,
+    loadAllScenes,
+    setPlaybackSpeed,
+  })
 
   // 편집 핸들 그리기
   const drawEditHandles = useCallback((sprite: PIXI.Sprite, sceneIndex: number, handleResize: (e: PIXI.FederatedPointerEvent, sceneIndex: number) => void, saveImageTransform: (sceneIndex: number, sprite: PIXI.Sprite) => void) => {
@@ -3957,600 +3597,12 @@ export default function Step4Page() {
               </TabsContent>
 
               <TabsContent value="subtitle" className="space-y-4">
-                {/* 현재 씬 자막 설정 */}
-                {timeline && timeline.scenes[currentSceneIndex] && (
-                  <>
-                    <div className="p-3 rounded-lg border" style={{
-                      backgroundColor: theme === 'dark' ? '#1f2937' : '#f9fafb',
-                      borderColor: theme === 'dark' ? '#374151' : '#e5e7eb'
-                    }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-sm font-semibold" style={{
-                          color: theme === 'dark' ? '#ffffff' : '#111827'
-                        }}>
-                          씬 {currentSceneIndex + 1} 자막 설정
-                        </h3>
-                      </div>
-                      
-                      {/* 자막 내용 미리보기 */}
-                      <p 
-                        className="text-sm mb-2 p-2 rounded truncate"
-                        style={{
-                          fontFamily: timeline.scenes[currentSceneIndex]?.text?.font || 'Arial',
-                          fontSize: Math.min(timeline.scenes[currentSceneIndex]?.text?.fontSize || 32, 20),
-                          color: timeline.scenes[currentSceneIndex]?.text?.color || '#ffffff',
-                          fontWeight: timeline.scenes[currentSceneIndex]?.text?.style?.bold ? 'bold' : 'normal',
-                          fontStyle: timeline.scenes[currentSceneIndex]?.text?.style?.italic ? 'italic' : 'normal',
-                          textDecoration: timeline.scenes[currentSceneIndex]?.text?.style?.underline ? 'underline' : 'none',
-                          backgroundColor: theme === 'dark' ? '#111827' : '#374151',
-                        }}
-                      >
-                        {timeline.scenes[currentSceneIndex]?.text?.content || '(자막 없음)'}
-                      </p>
-                    </div>
-
-                    {/* 폰트 선택 - 워드 스타일 */}
-                    <div>
-                      <label className="text-xs mb-1 block" style={{
-                        color: theme === 'dark' ? '#d1d5db' : '#374151'
-                      }}>
-                        폰트
-                      </label>
-                      <select
-                        value={timeline.scenes[currentSceneIndex]?.text?.font || 'Arial'}
-                        onChange={(e) => {
-                          if (timeline) {
-                            const newFont = e.target.value
-                            const nextTimeline: TimelineData = {
-                              ...timeline,
-                              scenes: timeline.scenes.map((scene, i) => {
-                                if (i === currentSceneIndex) {
-                                  return {
-                                    ...scene,
-                                    text: {
-                                      ...scene.text,
-                                      font: newFont,
-                                    },
-                                  }
-                                }
-                                return scene
-                              }),
-                            }
-                            setTimeline(nextTimeline)
-                            // useEffect가 자동으로 syncFabricWithScene 호출함
-                          }
-                        }}
-                        className="w-full px-3 py-2 rounded border text-sm"
-                        style={{
-                          backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-                          borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                          color: theme === 'dark' ? '#ffffff' : '#111827',
-                          fontFamily: timeline.scenes[currentSceneIndex]?.text?.font || 'Arial',
-                        }}
-                      >
-                        {[
-                          'Arial', 'Helvetica', 'Times New Roman', 'Courier New', 
-                          'Verdana', 'Georgia', 'Palatino', 'Garamond', 
-                          'Impact', 'Comic Sans MS', 'Trebuchet MS', 'Lucida Console'
-                        ].map((font) => (
-                          <option key={font} value={font} style={{ fontFamily: font }}>
-                            {font}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* 폰트 크기 - 개선된 UX */}
-                    <div>
-                      <label className="text-xs mb-1 block" style={{
-                        color: theme === 'dark' ? '#d1d5db' : '#374151'
-                      }}>
-                        크기
-                      </label>
-                      <div className="flex items-center gap-2">
-                        {/* 직접 입력 - 포커스 아웃 또는 Enter 시에만 적용 */}
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          defaultValue={timeline.scenes[currentSceneIndex]?.text?.fontSize || 32}
-                          key={`fontSize-${currentSceneIndex}-${timeline.scenes[currentSceneIndex]?.text?.fontSize}`}
-                          onBlur={(e) => {
-                            if (timeline) {
-                              const value = parseInt(e.target.value) || 32
-                              const fontSize = Math.max(8, Math.min(200, value))
-                              const nextTimeline: TimelineData = {
-                                ...timeline,
-                                scenes: timeline.scenes.map((scene, i) => {
-                                  if (i === currentSceneIndex) {
-                                    return {
-                                      ...scene,
-                                      text: {
-                                        ...scene.text,
-                                        fontSize,
-                                      },
-                                    }
-                                  }
-                                  return scene
-                                }),
-                              }
-                              setTimeline(nextTimeline)
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              (e.target as HTMLInputElement).blur()
-                            }
-                          }}
-                          className="w-16 px-2 py-1 rounded border text-sm text-center"
-                          style={{
-                            backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-                            borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                            color: theme === 'dark' ? '#ffffff' : '#111827'
-                          }}
-                        />
-                        <span className="text-xs" style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>px</span>
-                        
-                        {/* 크기 프리셋 버튼 */}
-                        <div className="flex gap-1 ml-2">
-                          {[24, 32, 48, 64, 80].map((size) => (
-                            <button
-                              key={size}
-                              onClick={() => {
-                                if (timeline) {
-                                  const nextTimeline: TimelineData = {
-                                    ...timeline,
-                                    scenes: timeline.scenes.map((scene, i) => {
-                                      if (i === currentSceneIndex) {
-                                        return {
-                                          ...scene,
-                                          text: {
-                                            ...scene.text,
-                                            fontSize: size,
-                                          },
-                                        }
-                                      }
-                                      return scene
-                                    }),
-                                  }
-                                  setTimeline(nextTimeline)
-                                }
-                              }}
-                              className={`px-2 py-1 rounded text-xs ${
-                                timeline.scenes[currentSceneIndex]?.text?.fontSize === size
-                                  ? 'bg-purple-500 text-white'
-                                  : ''
-                              }`}
-                              style={{
-                                backgroundColor: timeline.scenes[currentSceneIndex]?.text?.fontSize === size
-                                  ? undefined
-                                  : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                                color: timeline.scenes[currentSceneIndex]?.text?.fontSize === size
-                                  ? undefined
-                                  : (theme === 'dark' ? '#d1d5db' : '#374151')
-                              }}
-                            >
-                              {size}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      {/* 슬라이더 - 보라색 */}
-                      <input
-                        type="range"
-                        min="8"
-                        max="120"
-                        value={timeline.scenes[currentSceneIndex]?.text?.fontSize || 32}
-                        onChange={(e) => {
-                          if (timeline) {
-                            const fontSize = parseInt(e.target.value)
-                            const nextTimeline: TimelineData = {
-                              ...timeline,
-                              scenes: timeline.scenes.map((scene, i) => {
-                                if (i === currentSceneIndex) {
-                                  return {
-                                    ...scene,
-                                    text: {
-                                      ...scene.text,
-                                      fontSize,
-                                    },
-                                  }
-                                }
-                                return scene
-                              }),
-                            }
-                            setTimeline(nextTimeline)
-                          }
-                        }}
-                        className="w-full mt-2"
-                        style={{ accentColor: '#8b5cf6' }}
-                      />
-                    </div>
-
-                    {/* 색상 선택 */}
-                    <div>
-                      <label className="text-xs mb-1 block" style={{
-                        color: theme === 'dark' ? '#d1d5db' : '#374151'
-                      }}>
-                        색상
-                      </label>
-                      <div className="flex gap-2 flex-wrap items-center">
-                        {['#ffffff', '#000000', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'].map((color) => (
-                          <button
-                            key={color}
-                            onClick={() => {
-                              if (timeline) {
-                                const nextTimeline: TimelineData = {
-                                  ...timeline,
-                                  scenes: timeline.scenes.map((scene, i) => {
-                                    if (i === currentSceneIndex) {
-                                      return {
-                                        ...scene,
-                                        text: {
-                                          ...scene.text,
-                                          color,
-                                        },
-                                      }
-                                    }
-                                    return scene
-                                  }),
-                                }
-                                setTimeline(nextTimeline)
-                              }
-                            }}
-                            className={`w-7 h-7 rounded border-2 transition-colors`}
-                            style={{
-                              backgroundColor: color,
-                              borderColor: timeline.scenes[currentSceneIndex]?.text?.color === color 
-                                ? '#8b5cf6' 
-                                : (theme === 'dark' ? '#374151' : '#e5e7eb')
-                            }}
-                          />
-                        ))}
-                        <input
-                          type="color"
-                          value={timeline.scenes[currentSceneIndex]?.text?.color || '#ffffff'}
-                          onChange={(e) => {
-                            if (timeline) {
-                              const nextTimeline: TimelineData = {
-                                ...timeline,
-                                scenes: timeline.scenes.map((scene, i) => {
-                                  if (i === currentSceneIndex) {
-                                    return {
-                                      ...scene,
-                                      text: {
-                                        ...scene.text,
-                                        color: e.target.value,
-                                      },
-                                    }
-                                  }
-                                  return scene
-                                }),
-                              }
-                              setTimeline(nextTimeline)
-                            }
-                          }}
-                          className="w-7 h-7 rounded cursor-pointer border"
-                          style={{ borderColor: theme === 'dark' ? '#374151' : '#d1d5db' }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* 스타일 (굵기, 기울임, 밑줄) */}
-                    <div>
-                      <label className="text-xs mb-1 block" style={{
-                        color: theme === 'dark' ? '#d1d5db' : '#374151'
-                      }}>
-                        스타일
-                      </label>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            if (timeline) {
-                              const currentBold = timeline.scenes[currentSceneIndex]?.text?.style?.bold || false
-                              const nextTimeline: TimelineData = {
-                                ...timeline,
-                                scenes: timeline.scenes.map((scene, i) => {
-                                  if (i === currentSceneIndex) {
-                                    return {
-                                      ...scene,
-                                      text: {
-                                        ...scene.text,
-                                        style: {
-                                          ...scene.text.style,
-                                          bold: !currentBold,
-                                        },
-                                      },
-                                    }
-                                  }
-                                  return scene
-                                }),
-                              }
-                              setTimeline(nextTimeline)
-                            }
-                          }}
-                          className={`px-3 py-1.5 rounded border text-sm font-bold transition-all ${
-                            timeline.scenes[currentSceneIndex]?.text?.style?.bold 
-                              ? 'bg-purple-500 text-white border-purple-500' 
-                              : ''
-                          }`}
-                          style={{
-                            borderColor: timeline.scenes[currentSceneIndex]?.text?.style?.bold 
-                              ? '#8b5cf6' 
-                              : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                            color: timeline.scenes[currentSceneIndex]?.text?.style?.bold 
-                              ? '#ffffff' 
-                              : (theme === 'dark' ? '#d1d5db' : '#374151'),
-                            backgroundColor: timeline.scenes[currentSceneIndex]?.text?.style?.bold 
-                              ? '#8b5cf6' 
-                              : 'transparent'
-                          }}
-                        >
-                          B
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (timeline) {
-                              const currentItalic = timeline.scenes[currentSceneIndex]?.text?.style?.italic || false
-                              const nextTimeline: TimelineData = {
-                                ...timeline,
-                                scenes: timeline.scenes.map((scene, i) => {
-                                  if (i === currentSceneIndex) {
-                                    return {
-                                      ...scene,
-                                      text: {
-                                        ...scene.text,
-                                        style: {
-                                          ...scene.text.style,
-                                          italic: !currentItalic,
-                                        },
-                                      },
-                                    }
-                                  }
-                                  return scene
-                                }),
-                              }
-                              setTimeline(nextTimeline)
-                            }
-                          }}
-                          className={`px-3 py-1.5 rounded border text-sm italic transition-all ${
-                            timeline.scenes[currentSceneIndex]?.text?.style?.italic 
-                              ? 'bg-purple-500 text-white border-purple-500' 
-                              : ''
-                          }`}
-                          style={{
-                            borderColor: timeline.scenes[currentSceneIndex]?.text?.style?.italic 
-                              ? '#8b5cf6' 
-                              : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                            color: timeline.scenes[currentSceneIndex]?.text?.style?.italic 
-                              ? '#ffffff' 
-                              : (theme === 'dark' ? '#d1d5db' : '#374151'),
-                            backgroundColor: timeline.scenes[currentSceneIndex]?.text?.style?.italic 
-                              ? '#8b5cf6' 
-                              : 'transparent'
-                          }}
-                        >
-                          I
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (timeline) {
-                              const currentUnderline = timeline.scenes[currentSceneIndex]?.text?.style?.underline || false
-                              const nextTimeline: TimelineData = {
-                                ...timeline,
-                                scenes: timeline.scenes.map((scene, i) => {
-                                  if (i === currentSceneIndex) {
-                                    return {
-                                      ...scene,
-                                      text: {
-                                        ...scene.text,
-                                        style: {
-                                          ...scene.text.style,
-                                          underline: !currentUnderline,
-                                        },
-                                      },
-                                    }
-                                  }
-                                  return scene
-                                }),
-                              }
-                              setTimeline(nextTimeline)
-                            }
-                          }}
-                          className={`px-3 py-1.5 rounded border text-sm underline transition-all ${
-                            timeline.scenes[currentSceneIndex]?.text?.style?.underline 
-                              ? 'bg-purple-500 text-white border-purple-500' 
-                              : ''
-                          }`}
-                          style={{
-                            borderColor: timeline.scenes[currentSceneIndex]?.text?.style?.underline 
-                              ? '#8b5cf6' 
-                              : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                            color: timeline.scenes[currentSceneIndex]?.text?.style?.underline 
-                              ? '#ffffff' 
-                              : (theme === 'dark' ? '#d1d5db' : '#374151'),
-                            backgroundColor: timeline.scenes[currentSceneIndex]?.text?.style?.underline 
-                              ? '#8b5cf6' 
-                              : 'transparent'
-                          }}
-                        >
-                          U
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 정렬 */}
-                    <div>
-                      <label className="text-xs mb-1 block" style={{
-                        color: theme === 'dark' ? '#d1d5db' : '#374151'
-                      }}>
-                        정렬
-                      </label>
-                      <div className="flex gap-2">
-                        {(['left', 'center', 'right'] as const).map((align) => (
-                          <button
-                            key={align}
-                            onClick={() => {
-                              if (timeline) {
-                                const nextTimeline: TimelineData = {
-                                  ...timeline,
-                                  scenes: timeline.scenes.map((scene, i) => {
-                                    if (i === currentSceneIndex) {
-                                      return {
-                                        ...scene,
-                                        text: {
-                                          ...scene.text,
-                                          style: {
-                                            ...scene.text.style,
-                                            align,
-                                          },
-                                        },
-                                      }
-                                    }
-                                    return scene
-                                  }),
-                                }
-                                setTimeline(nextTimeline)
-                              }
-                            }}
-                            className={`px-3 py-1.5 rounded border text-xs transition-all ${
-                              timeline.scenes[currentSceneIndex]?.text?.style?.align === align 
-                                ? 'bg-purple-500 text-white' 
-                                : ''
-                            }`}
-                            style={{
-                              borderColor: timeline.scenes[currentSceneIndex]?.text?.style?.align === align 
-                                ? '#8b5cf6' 
-                                : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                              color: timeline.scenes[currentSceneIndex]?.text?.style?.align === align 
-                                ? '#ffffff' 
-                                : (theme === 'dark' ? '#d1d5db' : '#374151'),
-                              backgroundColor: timeline.scenes[currentSceneIndex]?.text?.style?.align === align 
-                                ? '#8b5cf6' 
-                                : 'transparent'
-                            }}
-                          >
-                            {align === 'left' ? '좌측' : align === 'center' ? '중앙' : '우측'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 위치 프리셋 */}
-                    <div>
-                      <label className="text-xs mb-1 block" style={{
-                        color: theme === 'dark' ? '#d1d5db' : '#374151'
-                      }}>
-                        위치
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { pos: 'top', label: '상단', y: 0.1 },
-                          { pos: 'center', label: '중앙', y: 0.5 },
-                          { pos: 'bottom', label: '하단', y: 0.92 }
-                        ].map(({ pos, label, y }) => (
-                          <button
-                            key={pos}
-                            onClick={() => {
-                              if (timeline) {
-                                const { width, height } = stageDimensions
-                                const nextTimeline: TimelineData = {
-                                  ...timeline,
-                                  scenes: timeline.scenes.map((scene, i) => {
-                                    if (i === currentSceneIndex) {
-                                      return {
-                                        ...scene,
-                                        text: {
-                                          ...scene.text,
-                                          position: pos,
-                                          transform: {
-                                            ...scene.text.transform,
-                                            x: width / 2,
-                                            y: height * y,
-                                            width: width * 0.75,
-                                            height: height * 0.07,
-                                            scaleX: 1,
-                                            scaleY: 1,
-                                            rotation: 0,
-                                          },
-                                        },
-                                      }
-                                    }
-                                    return scene
-                                  }),
-                                }
-                                setTimeline(nextTimeline)
-                                setSubtitlePosition(pos)
-                              }
-                            }}
-                            className={`p-2 rounded-lg border text-xs transition-all ${
-                              timeline.scenes[currentSceneIndex]?.text?.position === pos 
-                                ? 'bg-purple-500 text-white' 
-                                : ''
-                            } hover:bg-purple-50 dark:hover:bg-purple-900/20`}
-                            style={{
-                              borderColor: timeline.scenes[currentSceneIndex]?.text?.position === pos 
-                                ? '#8b5cf6' 
-                                : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                              color: timeline.scenes[currentSceneIndex]?.text?.position === pos 
-                                ? '#ffffff' 
-                                : (theme === 'dark' ? '#d1d5db' : '#374151'),
-                              backgroundColor: timeline.scenes[currentSceneIndex]?.text?.position === pos 
-                                ? '#8b5cf6' 
-                                : 'transparent'
-                            }}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                {/* 모든 씬에 적용하기 버튼 */}
-                <div className="pt-4 border-t" style={{
-                  borderColor: theme === 'dark' ? '#374151' : '#e5e7eb'
-                }}>
-                  <Button
-                    onClick={() => {
-                      if (!timeline) return
-                      
-                      const currentText = timeline.scenes[currentSceneIndex]?.text
-                      if (!currentText) return
-                      
-                      const nextTimeline: TimelineData = {
-                        ...timeline,
-                        scenes: timeline.scenes.map((scene) => ({
-                          ...scene,
-                          text: {
-                            ...scene.text,
-                            font: currentText.font,
-                            fontSize: currentText.fontSize,
-                            color: currentText.color,
-                            position: currentText.position,
-                            style: { ...currentText.style },
-                            transform: currentText.transform ? { ...currentText.transform } : scene.text.transform,
-                          },
-                        })),
-                      }
-                      setTimeline(nextTimeline)
-                      
-                      // 알림
-                      alert(`현재 자막 스타일이 모든 씬(${timeline.scenes.length}개)에 적용되었습니다.`)
-                    }}
-                    className="w-full"
-                    variant="outline"
-                  >
-                    ✨ 모든 씬에 적용하기
-                  </Button>
-                  <p className="text-xs mt-2 text-center" style={{
-                    color: theme === 'dark' ? '#6b7280' : '#9ca3af'
-                  }}>
-                    현재 씬의 자막 스타일을 모든 씬에 일괄 적용합니다
-                  </p>
-                </div>
-
+                <SubtitleSettings
+                  timeline={timeline}
+                  currentSceneIndex={currentSceneIndex}
+                  theme={theme}
+                  setTimeline={setTimeline}
+                />
               </TabsContent>
             </Tabs>
           </div>
