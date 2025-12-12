@@ -3,13 +3,14 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Play, Pause, Volume2, Image as ImageIcon, Clock, Edit2, GripVertical, Type, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, AlignJustify, Sparkles, Grid3x3 } from 'lucide-react'
+import { Play, Pause, Clock, Edit2, GripVertical, Type, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, AlignJustify, Sparkles, Grid3x3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore, TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
+import { BgmSelector } from '@/components/video-editor/BgmSelector'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import * as fabric from 'fabric'
@@ -3952,49 +3953,7 @@ export default function Step4Page() {
               </TabsContent>
 
               <TabsContent value="bgm" className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-semibold mb-2" style={{
-                    color: theme === 'dark' ? '#ffffff' : '#111827'
-                  }}>
-                    배경음악
-                  </h3>
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => setBgmTemplate('library')}
-                      className={`w-full p-3 rounded-lg border text-sm text-left transition-colors ${
-                        bgmTemplate === 'library' ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500' : ''
-                      } hover:bg-purple-50 dark:hover:bg-purple-900/20`}
-                      style={{
-                        borderColor: bgmTemplate === 'library' 
-                          ? '#8b5cf6' 
-                          : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                        color: theme === 'dark' ? '#d1d5db' : '#374151'
-                      }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Volume2 className="w-4 h-4" />
-                        <span>무료 음악 라이브러리</span>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setBgmTemplate('custom')}
-                      className={`w-full p-3 rounded-lg border text-sm text-left transition-colors ${
-                        bgmTemplate === 'custom' ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500' : ''
-                      } hover:bg-purple-50 dark:hover:bg-purple-900/20`}
-                      style={{
-                        borderColor: bgmTemplate === 'custom' 
-                          ? '#8b5cf6' 
-                          : (theme === 'dark' ? '#374151' : '#e5e7eb'),
-                        color: theme === 'dark' ? '#d1d5db' : '#374151'
-                      }}
-                    >
-                      <div className="flex items-center gap-2">
-                        <ImageIcon className="w-4 h-4" />
-                        <span>내 음악</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
+                <BgmSelector bgmTemplate={bgmTemplate} theme={theme} setBgmTemplate={setBgmTemplate} />
               </TabsContent>
 
               <TabsContent value="subtitle" className="space-y-4">
