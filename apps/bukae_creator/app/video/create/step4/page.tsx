@@ -67,6 +67,9 @@ export default function Step4Page() {
   const textEditHandlesRef = useRef<Map<number, PIXI.Container>>(new Map()) // 텍스트 편집 핸들 컨테이너 (씬별)
   const isResizingTextRef = useRef(false) // 텍스트 리사이즈 중 플래그
   const gridGraphicsRef = useRef<PIXI.Graphics | null>(null) // 격자 Graphics 객체
+  const previousSceneIndexRef = useRef<number | null>(null)
+  const currentSceneIndexRef = useRef(0)
+  const updateCurrentSceneRef = useRef<(skipAnimation?: boolean) => void>(() => {})
   // Fabric.js refs
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
   const fabricCanvasElementRef = useRef<HTMLCanvasElement | null>(null)
@@ -115,7 +118,7 @@ export default function Step4Page() {
     const nextTimeline: TimelineData = {
       fps: 30,
       resolution: '1080x1920',
-      playbackSpeed: timeline?.playbackSpeed ?? playbackSpeed ?? 1.0,
+      playbackSpeed: timeline?.playbackSpeed ?? 1.0,
       scenes: scenes.map((scene, index) => {
         const existingScene = timeline?.scenes[index]
         return {
@@ -155,7 +158,7 @@ export default function Step4Page() {
     if (hasChanged) {
       setTimeline(nextTimeline)
     }
-  }, [scenes, selectedImages, subtitleFont, subtitleColor, subtitlePosition, setTimeline, timeline, playbackSpeed])
+  }, [scenes, selectedImages, subtitleFont, subtitleColor, subtitlePosition, setTimeline, timeline])
 
   // timeline의 playbackSpeed와 state 동기화
   useEffect(() => {
@@ -187,46 +190,6 @@ export default function Step4Page() {
     if (upper) upper.style.pointerEvents = pointer
   }, [editMode, useFabricEditing])
 
-  // Pixi 캔버스 포인터 이벤트 제어 및 Fabric 편집 시 숨김
-  // 재생 중 또는 전환 효과 미리보기 중일 때는 PixiJS를 보여서 전환 효과가 보이도록 함
-  useEffect(() => {
-    if (!pixiContainerRef.current) return
-    const pixiCanvas = pixiContainerRef.current.querySelector('canvas:not([data-fabric])') as HTMLCanvasElement
-    if (!pixiCanvas) return
-    
-    // 재생 중 또는 전환 효과 미리보기 중이면 PixiJS 보이기
-    if (isPlaying || isPreviewingTransition) {
-      pixiCanvas.style.opacity = '1'
-      pixiCanvas.style.pointerEvents = 'none' // 클릭 비활성화
-    } else if (useFabricEditing && fabricReady) {
-      // Fabric.js 편집 활성화 시 PixiJS 캔버스 숨김 (중복 렌더링 방지)
-      pixiCanvas.style.opacity = '0'
-      pixiCanvas.style.pointerEvents = 'none'
-          } else {
-      pixiCanvas.style.opacity = '1'
-      pixiCanvas.style.pointerEvents = 'auto'
-    }
-  }, [useFabricEditing, fabricReady, pixiReady, isPlaying, isPreviewingTransition])
-
-  // 재생 중 또는 전환 효과 미리보기 중일 때 Fabric.js 캔버스 숨기기
-  useEffect(() => {
-    if (!fabricCanvasRef.current) return
-    const fabricCanvas = fabricCanvasRef.current
-    
-    if (isPlaying || isPreviewingTransition) {
-      // 재생 중 또는 전환 효과 미리보기 중일 때 Fabric 캔버스 숨기기
-      if (fabricCanvas.wrapperEl) {
-        fabricCanvas.wrapperEl.style.opacity = '0'
-        fabricCanvas.wrapperEl.style.pointerEvents = 'none'
-          }
-        } else {
-      // 재생 중이 아닐 때 Fabric 캔버스 보이기
-      if (fabricCanvas.wrapperEl) {
-        fabricCanvas.wrapperEl.style.opacity = '1'
-        fabricCanvas.wrapperEl.style.pointerEvents = 'auto'
-      }
-    }
-  }, [isPlaying, isPreviewingTransition, fabricReady])
 
   // Fabric 오브젝트 선택 가능 여부를 편집 모드에 맞춰 갱신
   useEffect(() => {
@@ -930,7 +893,8 @@ export default function Step4Page() {
 
   // 현재 씬 업데이트
   const updateCurrentScene = useCallback((skipAnimation: boolean = false) => {
-    console.log('Step4: updateCurrentScene called, index:', currentSceneIndex, 'skipAnimation:', skipAnimation, 'container:', !!containerRef.current, 'timeline:', !!timeline)
+    const sceneIndex = currentSceneIndexRef.current
+    console.log('Step4: updateCurrentScene called, index:', sceneIndex, 'skipAnimation:', skipAnimation, 'container:', !!containerRef.current, 'timeline:', !!timeline)
     if (!containerRef.current || !timeline || !appRef.current) {
       console.log('Step4: updateCurrentScene skipped - missing container or timeline')
         return
@@ -940,21 +904,21 @@ export default function Step4Page() {
     const textCount = textsRef.current.size
     console.log('Step4: updateCurrentScene - sprites:', spriteCount, 'texts:', textCount)
 
-    const currentScene = timeline.scenes[currentSceneIndex]
+    const currentScene = timeline.scenes[sceneIndex]
     const previousIndex = previousSceneIndexRef.current
     const previousScene = previousIndex !== null ? timeline.scenes[previousIndex] : null
 
-    const currentSprite = spritesRef.current.get(currentSceneIndex)
-    const currentText = textsRef.current.get(currentSceneIndex)
+    const currentSprite = spritesRef.current.get(sceneIndex)
+    const currentText = textsRef.current.get(sceneIndex)
     const previousSprite = previousIndex !== null ? spritesRef.current.get(previousIndex) : null
     const previousText = previousIndex !== null ? textsRef.current.get(previousIndex) : null
 
     // 이전 씬 숨기기
-    if (previousSprite && previousIndex !== null && previousIndex !== currentSceneIndex) {
+    if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
       previousSprite.visible = false
       previousSprite.alpha = 0
     }
-    if (previousText && previousIndex !== null && previousIndex !== currentSceneIndex) {
+    if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
       previousText.visible = false
       previousText.alpha = 0
     }
@@ -973,7 +937,7 @@ export default function Step4Page() {
       if (appRef.current) {
         appRef.current.render()
       }
-      previousSceneIndexRef.current = currentSceneIndex
+      previousSceneIndexRef.current = sceneIndex
         return
       }
 
@@ -996,27 +960,19 @@ export default function Step4Page() {
         applyAdvancedEffects(currentSprite, currentSceneIndex, currentScene.advancedEffects)
       }
 
-      applyEnterEffect(
-        currentSprite,
-        currentText || null,
-        transition,
-        transitionDuration,
-        width,
-        height,
-        currentSceneIndex
-      )
+      applyEnterEffect(currentSprite, currentText || null, transition, transitionDuration, width, height, sceneIndex)
     } else {
       // 스프라이트가 없으면 즉시 표시
       spritesRef.current.forEach((sprite, index) => {
         if (sprite?.parent) {
-          sprite.visible = index === currentSceneIndex
-          sprite.alpha = index === currentSceneIndex ? 1 : 0
+          sprite.visible = index === sceneIndex
+          sprite.alpha = index === sceneIndex ? 1 : 0
         }
       })
       textsRef.current.forEach((text, index) => {
         if (text?.parent) {
-          text.visible = index === currentSceneIndex
-          text.alpha = index === currentSceneIndex ? 1 : 0
+          text.visible = index === sceneIndex
+          text.alpha = index === sceneIndex ? 1 : 0
         }
       })
 
@@ -1025,18 +981,19 @@ export default function Step4Page() {
       }
     }
 
-    previousSceneIndexRef.current = currentSceneIndex
-  }, [currentSceneIndex, timeline, stageDimensions, applyEnterEffect])
+    previousSceneIndexRef.current = sceneIndex
+  }, [timeline, stageDimensions, applyEnterEffect])
 
   // Fabric 오브젝트를 현재 씬 상태에 맞게 동기화
   const syncFabricWithScene = useCallback(async () => {
     if (!useFabricEditing || !fabricCanvasRef.current || !timeline) return
     const fabricCanvas = fabricCanvasRef.current
-    const scene = timeline.scenes[currentSceneIndex]
+    const sceneIndex = currentSceneIndexRef.current
+    const scene = timeline.scenes[sceneIndex]
     if (!scene) return
     const scale = fabricScaleRatioRef.current
     console.log('Fabric sync start', {
-      sceneIndex: currentSceneIndex,
+      sceneIndex,
       image: !!scene.image,
       text: scene.text?.content,
       scale,
@@ -1125,7 +1082,7 @@ export default function Step4Page() {
       scale,
     })
     fabricCanvas.renderAll()
-  }, [currentSceneIndex, editMode, stageDimensions, timeline, useFabricEditing, calculateSpriteParams])
+  }, [editMode, stageDimensions, timeline, useFabricEditing, calculateSpriteParams])
 
   // Fabric 변경사항을 타임라인에 반영
   useEffect(() => {
@@ -1134,14 +1091,15 @@ export default function Step4Page() {
 
     const handleModified = (e: fabric.ModifiedEvent<fabric.TPointerEvent>) => {
       const target = e?.target as (fabric.Object & { dataType?: 'image' | 'text' })
-      if (!target || currentSceneIndex == null) return
+      const sceneIndex = currentSceneIndexRef.current
+      if (!target) return
       
       // 스케일된 좌표를 원래 좌표로 역변환
       const scale = fabricScaleRatioRef.current || 1
       const invScale = 1 / scale
       
       // 씬 이동 방지: 현재 씬 인덱스 저장 및 플래그 설정
-      const savedIndex = currentSceneIndex
+      const savedIndex = sceneIndex
       isSavingTransformRef.current = true
       savedSceneIndexRef.current = savedIndex
       isManualSceneSelectRef.current = true
@@ -1265,12 +1223,13 @@ export default function Step4Page() {
     // 텍스트 내용 변경 시 저장 (typing으로 변경할 때)
     const handleTextChanged = (e: any) => {
       const target = e?.target as (fabric.Textbox & { dataType?: 'image' | 'text' })
-      if (!target || target.dataType !== 'text' || currentSceneIndex == null) return
+      if (!target || target.dataType !== 'text') return
+      const sceneIndex = currentSceneIndexRef.current
       
       const scale = fabricScaleRatioRef.current || 1
       const invScale = 1 / scale
       
-      const savedIndex = currentSceneIndex
+      const savedIndex = sceneIndex
       isSavingTransformRef.current = true
       savedSceneIndexRef.current = savedIndex
       isManualSceneSelectRef.current = true
@@ -1307,12 +1266,13 @@ export default function Step4Page() {
     // 텍스트 편집 종료 시 저장
     const handleTextEditingExited = (e: any) => {
       const target = e?.target as (fabric.Textbox & { dataType?: 'image' | 'text' })
-      if (!target || target.dataType !== 'text' || currentSceneIndex == null) return
+      if (!target || target.dataType !== 'text') return
+      const sceneIndex = currentSceneIndexRef.current
       
       const scale = fabricScaleRatioRef.current || 1
       const invScale = 1 / scale
       
-      const savedIndex = currentSceneIndex
+      const savedIndex = sceneIndex
       isSavingTransformRef.current = true
       savedSceneIndexRef.current = savedIndex
       isManualSceneSelectRef.current = true
@@ -1385,7 +1345,7 @@ export default function Step4Page() {
       fabricCanvas.off('text:changed', handleTextChanged as any)
       fabricCanvas.off('text:editing:exited', handleTextEditingExited as any)
     }
-  }, [fabricReady, timeline, currentSceneIndex, setTimeline])
+  }, [fabricReady, timeline, setTimeline])
 
   // 모든 씬 로드
   const loadAllScenes = useCallback(async () => {
@@ -1511,7 +1471,8 @@ export default function Step4Page() {
     
     // 렌더링 강제 실행
     requestAnimationFrame(() => {
-      console.log('Step4: Updating current scene after load, index:', currentSceneIndex)
+      const sceneIndex = currentSceneIndexRef.current
+      console.log('Step4: Updating current scene after load, index:', sceneIndex)
       // Transform 저장 중이 아닐 때만 updateCurrentScene 호출
       if (!isSavingTransformRef.current) {
         updateCurrentScene()
@@ -1523,7 +1484,7 @@ export default function Step4Page() {
         console.error('Step4: appRef.current is null after loadAllScenes')
       }
     })
-  }, [timeline, stageDimensions, updateCurrentScene, currentSceneIndex])
+  }, [timeline, stageDimensions, updateCurrentScene])
 
   // Pixi와 타임라인이 모두 준비되면 씬 로드
   useEffect(() => {
@@ -1548,7 +1509,7 @@ export default function Step4Page() {
   useEffect(() => {
     if (!fabricReady || !timeline || timeline.scenes.length === 0) return
     syncFabricWithScene()
-  }, [fabricReady, timeline, currentSceneIndex, editMode, syncFabricWithScene])
+  }, [fabricReady, timeline, editMode, syncFabricWithScene])
   
   // timeline 변경 시 저장된 씬 인덱스 복원 (더 이상 필요 없음 - 편집 종료 버튼에서 직접 처리)
 
@@ -1730,6 +1691,10 @@ export default function Step4Page() {
     pixiReady,
   })
 
+  useEffect(() => {
+    currentSceneIndexRef.current = currentSceneIndex
+  }, [currentSceneIndex])
+
   // 씬 인덱스 변경 시 전환 효과 적용 (재생 중일 때만 애니메이션)
   useEffect(() => {
     if (!timeline || timeline.scenes.length === 0) return
@@ -1743,12 +1708,6 @@ export default function Step4Page() {
       updateCurrentScene(true) // 즉시 표시
     }
   }, [currentSceneIndex, isPlaying, timeline, updateCurrentScene])
-
-  // 진행률 계산
-  const progressRatio = useMemo(() => {
-    if (totalDuration === 0) return 0
-    return Math.min(1, currentTime / totalDuration)
-  }, [totalDuration, currentTime])
 
   // 씬 편집 핸들러들
   const {
@@ -1773,6 +1732,47 @@ export default function Step4Page() {
     loadAllScenes,
     setPlaybackSpeed,
   })
+
+  // Pixi 캔버스 포인터 이벤트 제어 및 Fabric 편집 시 숨김
+  // 재생 중 또는 전환 효과 미리보기 중일 때는 PixiJS를 보여서 전환 효과가 보이도록 함
+  useEffect(() => {
+    if (!pixiContainerRef.current) return
+    const pixiCanvas = pixiContainerRef.current.querySelector('canvas:not([data-fabric])') as HTMLCanvasElement
+    if (!pixiCanvas) return
+    
+    // 재생 중 또는 전환 효과 미리보기 중이면 PixiJS 보이기
+    if (isPlaying || isPreviewingTransition) {
+      pixiCanvas.style.opacity = '1'
+      pixiCanvas.style.pointerEvents = 'none' // 클릭 비활성화
+    } else if (useFabricEditing && fabricReady) {
+      // Fabric.js 편집 활성화 시 PixiJS 캔버스 숨김 (중복 렌더링 방지)
+      pixiCanvas.style.opacity = '0'
+      pixiCanvas.style.pointerEvents = 'none'
+    } else {
+      pixiCanvas.style.opacity = '1'
+      pixiCanvas.style.pointerEvents = 'auto'
+    }
+  }, [useFabricEditing, fabricReady, pixiReady, isPlaying, isPreviewingTransition])
+
+  // 재생 중 또는 전환 효과 미리보기 중일 때 Fabric.js 캔버스 숨기기
+  useEffect(() => {
+    if (!fabricCanvasRef.current) return
+    const fabricCanvas = fabricCanvasRef.current
+    
+    if (isPlaying || isPreviewingTransition) {
+      // 재생 중 또는 전환 효과 미리보기 중일 때 Fabric 캔버스 숨기기
+      if (fabricCanvas.wrapperEl) {
+        fabricCanvas.wrapperEl.style.opacity = '0'
+        fabricCanvas.wrapperEl.style.pointerEvents = 'none'
+      }
+    } else {
+      // 재생 중이 아닐 때 Fabric 캔버스 보이기
+      if (fabricCanvas.wrapperEl) {
+        fabricCanvas.wrapperEl.style.opacity = '1'
+        fabricCanvas.wrapperEl.style.pointerEvents = 'auto'
+      }
+    }
+  }, [isPlaying, isPreviewingTransition, fabricReady, useFabricEditing])
 
   // 편집 핸들 그리기
   const drawEditHandles = useCallback((sprite: PIXI.Sprite, sceneIndex: number, handleResize: (e: PIXI.FederatedPointerEvent, sceneIndex: number) => void, saveImageTransform: (sceneIndex: number, sprite: PIXI.Sprite) => void) => {
