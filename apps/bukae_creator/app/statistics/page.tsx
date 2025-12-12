@@ -4,12 +4,9 @@ import { motion } from 'framer-motion'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import CoupangStats from '@/components/CoupangStats'
 import YouTubeStats from '@/components/YouTubeStats'
-import { useThemeStore } from '@/store/useThemeStore'
 import PageHeader from '@/components/PageHeader'
 
 export default function StatisticsPage() {
-  const theme = useThemeStore((state) => state.theme)
-
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}

@@ -4,7 +4,6 @@ import { useLayoutEffect } from 'react'
 import { useThemeStore } from '../store/useThemeStore'
 
 export default function ThemeInitializer() {
-  const setTheme = useThemeStore((state) => state.setTheme)
   const theme = useThemeStore((state) => state.theme)
 
   useLayoutEffect(() => {

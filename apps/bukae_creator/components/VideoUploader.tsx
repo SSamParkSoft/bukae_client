@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Upload, Video, X, CheckCircle2, ArrowUp, ArrowDown, GripVertical } from 'lucide-react'
+import { Upload, Video, X, CheckCircle2, ArrowUp, ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'

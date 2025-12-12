@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowRight, GripVertical, X, Loader2, CheckCircle2, Edit2, Sparkles } from 'lucide-react'
+import { ArrowRight, GripVertical, X, Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import StepIndicator from '@/components/StepIndicator'
@@ -17,11 +17,9 @@ export default function Step3Page() {
   const { 
     selectedProducts, 
     selectedImages, 
-    setSelectedImages,
-    creationMode,
+    setSelectedImages, 
     scriptStyle,
     tone,
-    scenes,
     setScenes,
   } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
@@ -95,11 +93,11 @@ export default function Step3Page() {
   const [generatingScenes, setGeneratingScenes] = useState<Set<number>>(new Set())
   const [sceneScripts, setSceneScripts] = useState<Map<number, SceneScript>>(new Map())
   const [isGeneratingAll, setIsGeneratingAll] = useState(false)
-  const [editingSceneId, setEditingSceneId] = useState<number | null>(null) // TODO: 추후 구간별 편집 모드에 활용 가능
   const [editedScripts, setEditedScripts] = useState<Map<number, string>>(new Map())
   const selectedListRef = useRef<HTMLDivElement | null>(null)
 
   // 이미지별 대본 생성 (단일 이미지용 - 현재는 일괄 생성에서만 사용)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const generateScriptForImage = async (imageUrl: string, sceneIndex: number) => {
     if (!scriptStyle || !tone) {
       return
@@ -252,7 +250,6 @@ export default function Step3Page() {
       })
     } else {
       // 새 이미지 추가
-      const newIndex = selectedImages.length
       setSelectedImages([...selectedImages, imageUrl])
       // 대본은 사용자가 명시적으로 버튼을 눌렀을 때만 생성
     }
@@ -279,7 +276,7 @@ export default function Step3Page() {
       newImages.forEach((imageUrl, newIndex) => {
         // 기존 스크립트 찾기
         let foundScript: SceneScript | undefined
-        for (const [oldIndex, script] of prev.entries()) {
+        for (const [_oldIndex, script] of prev.entries()) {
           if (script.imageUrl === imageUrl) {
             foundScript = script
             break

@@ -57,7 +57,9 @@ export default function AutoModeSection({
   useEffect(() => {
     timeoutRefs.current.forEach((id) => clearTimeout(id))
     timeoutRefs.current = []
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setScenes([])
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSceneStatuses({})
   }, [conceptId, toneId])
 
@@ -66,7 +68,9 @@ export default function AutoModeSection({
     const presetScenes = presetAssets.map((asset, index) =>
       createSceneFromAsset(asset, conceptId, toneId, index),
     )
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setScenes(presetScenes)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSceneStatuses(
       presetScenes.reduce<Record<string, SceneStatus>>((acc, scene) => {
         acc[scene.id] = {
@@ -88,11 +92,13 @@ export default function AutoModeSection({
   useEffect(() => {
     if (!isSceneGenerating) return
     if (scenes.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsSceneGenerating(false)
       return
     }
     const allReady = scenes.every((scene) => sceneStatuses[scene.id]?.state === 'ready')
     if (allReady) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsSceneGenerating(false)
     }
   }, [isSceneGenerating, scenes, sceneStatuses])
@@ -121,8 +127,9 @@ export default function AutoModeSection({
   const handleRemoveScene = (sceneId: string) => {
     setScenes((prev) => prev.filter((scene) => scene.id !== sceneId))
     setSceneStatuses((prev) => {
-      const { [sceneId]: _, ...rest } = prev
-      return rest
+      const next = { ...prev }
+      delete next[sceneId]
+      return next
     })
   }
 

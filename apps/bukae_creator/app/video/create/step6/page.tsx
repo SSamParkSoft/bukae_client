@@ -37,7 +37,6 @@ export default function Step6Page() {
       // TODO: 실제 GPT API 호출
       // 현재는 더미 데이터 생성
       const productName = selectedProducts[0].name
-      const firstScript = scenes[0]?.script || ''
       
       const dummyCandidates = [
         `이거 쓰고 목 통증 사라짐? ${productName} 후기`,

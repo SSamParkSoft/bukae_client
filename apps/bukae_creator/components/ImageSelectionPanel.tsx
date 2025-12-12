@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Image as ImageIcon, Check, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Check, X } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useThemeStore } from '@/store/useThemeStore'
