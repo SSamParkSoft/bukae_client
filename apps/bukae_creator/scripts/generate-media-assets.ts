@@ -40,9 +40,10 @@ export const mediaAssets: MediaAsset[] = ${JSON.stringify(assets, null, 2)} as c
 
     fs.writeFileSync(outputPath, output, 'utf-8')
     console.log(`✓ Media assets generated: ${assets.length} items`)
-  } catch (error: any) {
+  } catch (error: unknown) {
     // better-sqlite3가 없거나 DB 파일이 없으면 경고만 출력하고 계속 진행
-    if (error?.message?.includes('bindings') || error?.message?.includes('Could not locate')) {
+    const message = error instanceof Error ? error.message : ''
+    if (message.includes('bindings') || message.includes('Could not locate')) {
       console.warn('⚠️  better-sqlite3 not available, using existing mediaAssets.generated.ts if present')
       if (!fs.existsSync(outputPath)) {
         console.error('❌ mediaAssets.generated.ts not found and cannot generate. Please commit this file to Git.')

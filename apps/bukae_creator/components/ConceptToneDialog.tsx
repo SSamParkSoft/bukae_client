@@ -32,15 +32,6 @@ export default function ConceptToneDialog({ open, onOpenChange }: ConceptToneDia
   )
   const [selectedTone, setSelectedTone] = useState<string>(tone || '')
 
-  useEffect(() => {
-    if (concept) {
-      setSelectedConcept(concept)
-    }
-    if (tone) {
-      setSelectedTone(tone)
-    }
-  }, [concept, tone])
-
   const handleConceptChange = (newConcept: ConceptType) => {
     setSelectedConcept(newConcept)
     // 컨셉 변경 시 첫 번째 말투로 자동 선택

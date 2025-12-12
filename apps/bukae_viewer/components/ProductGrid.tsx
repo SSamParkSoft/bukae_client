@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 import { Product } from '@/lib/types/viewer'
 import { Loader2, ShoppingCart } from 'lucide-react'
@@ -62,10 +63,12 @@ export default function ProductGrid({ products, isLoading }: ProductGridProps) {
                     }
 
                     return (
-                      <img
+                      <Image
                         src={imageUrl}
                         alt={product.name}
-                        className="w-full h-full object-cover"
+                        fill
+                        sizes="(min-width: 1024px) 20vw, 50vw"
+                        className="object-cover"
                         onError={() => setImageError(true)}
                       />
                     )

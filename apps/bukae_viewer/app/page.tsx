@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState, useMemo, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
@@ -105,10 +106,13 @@ export default function ViewerHomePage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-8">
       {/* 로고 */}
       <div className="mb-8">
-        <img 
+        <Image 
           src="/logo-typography.svg" 
           alt="부캐 로고" 
+          width={200}
+          height={48}
           className="h-12 w-auto"
+          priority
         />
       </div>
 

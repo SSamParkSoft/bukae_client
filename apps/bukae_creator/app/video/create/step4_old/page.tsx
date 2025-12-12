@@ -56,11 +56,13 @@ export default function Step4Page() {
       }
 
       const data = await response.json()
-      const sceneScripts: SceneScript[] = data.scenes.map((scene: any, index: number) => ({
+      const sceneScripts: SceneScript[] = data.scenes.map(
+        (scene: { sceneId?: number; script: string }, index: number) => ({
         sceneId: scene.sceneId || index + 1,
         script: scene.script,
         imageUrl: selectedImages[index] || undefined,
-      }))
+        })
+      )
 
       setGeneratedScenes(sceneScripts)
       setScenes(sceneScripts)

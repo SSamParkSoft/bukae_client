@@ -9,6 +9,9 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    "**/.next/**",
+    "apps/**/.next/**",
+    "apps/bukae_viewer/.next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
