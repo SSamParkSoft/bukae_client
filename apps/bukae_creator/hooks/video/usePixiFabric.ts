@@ -93,18 +93,26 @@ export function usePixiFabric({
         // Canvas 스타일 설정 - container 크기에 맞춰 조정 (다음 프레임에 실행하여 container 크기가 확정된 후)
         requestAnimationFrame(() => {
           // app과 canvas가 여전히 유효한지 확인 (안전하게 체크)
-          if (!app) {
-            console.error('usePixiFabric: app is null after init')
+          // appRef.current를 우선 확인 (가장 최신 상태)
+          if (!appRef.current) {
+            console.error('usePixiFabric: appRef.current is null after init')
             return
           }
           
-          if (!app.canvas) {
-            console.error('usePixiFabric: app.canvas is null after init, app may be destroyed')
+          // appRef.current가 유효한지 확인
+          const currentApp = appRef.current
+          if (!currentApp) {
+            console.error('usePixiFabric: currentApp is null after init')
+            return
+          }
+          
+          if (!currentApp.canvas) {
+            console.error('usePixiFabric: currentApp.canvas is null after init, app may be destroyed')
             return
           }
           
           // appRef가 여전히 같은 app을 가리키는지 확인
-          if (appRef.current !== app) {
+          if (currentApp !== app) {
             console.log('usePixiFabric: appRef changed, skipping canvas setup')
             return
           }
@@ -135,27 +143,27 @@ export function usePixiFabric({
           }
           
           // canvas가 여전히 유효한지 다시 확인
-          if (!app || !app.canvas) {
-            console.error('usePixiFabric: canvas is null before style setup', { app: !!app, canvas: app?.canvas })
+          if (!currentApp || !currentApp.canvas) {
+            console.error('usePixiFabric: canvas is null before style setup', { currentApp: !!currentApp, canvas: currentApp?.canvas })
             return
           }
           
-          app.canvas.style.width = `${displayWidth}px`
-          app.canvas.style.height = `${displayHeight}px`
-          app.canvas.style.maxWidth = '100%'
-          app.canvas.style.maxHeight = '100%'
-          app.canvas.style.display = 'block'
-          app.canvas.style.objectFit = 'contain'
-          app.canvas.style.position = 'absolute'
-          app.canvas.style.top = '50%'
-          app.canvas.style.left = '50%'
-          app.canvas.style.transform = 'translate(-50%, -50%)'
-          container.appendChild(app.canvas)
+          currentApp.canvas.style.width = `${displayWidth}px`
+          currentApp.canvas.style.height = `${displayHeight}px`
+          currentApp.canvas.style.maxWidth = '100%'
+          currentApp.canvas.style.maxHeight = '100%'
+          currentApp.canvas.style.display = 'block'
+          currentApp.canvas.style.objectFit = 'contain'
+          currentApp.canvas.style.position = 'absolute'
+          currentApp.canvas.style.top = '50%'
+          currentApp.canvas.style.left = '50%'
+          currentApp.canvas.style.transform = 'translate(-50%, -50%)'
+          container.appendChild(currentApp.canvas)
           
           console.log('usePixiFabric: Canvas appended to container', { 
-            canvasInContainer: app && app.canvas ? container.contains(app.canvas) : false,
-            canvasWidth: app?.canvas?.width,
-            canvasHeight: app?.canvas?.height,
+            canvasInContainer: currentApp && currentApp.canvas ? container.contains(currentApp.canvas) : false,
+            canvasWidth: currentApp?.canvas?.width,
+            canvasHeight: currentApp?.canvas?.height,
             displayWidth,
             displayHeight,
             containerWidth: container.clientWidth,
@@ -163,13 +171,13 @@ export function usePixiFabric({
           })
           
           // 초기 렌더링 강제
-          app.render()
+          currentApp.render()
           
           // Ticker가 자동으로 실행되도록 확인 (재생 중 전환 효과를 위해)
           // autoStart: true로 설정되어 있지만, 명시적으로 확인
-          if (!app.ticker.started) {
+          if (!currentApp.ticker.started) {
             console.log('usePixiFabric: Starting PixiJS ticker')
-            app.ticker.start()
+            currentApp.ticker.start()
           }
           
           // Ticker에 기본 렌더링 콜백 추가

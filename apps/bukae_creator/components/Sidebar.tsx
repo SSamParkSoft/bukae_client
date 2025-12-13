@@ -23,10 +23,11 @@ export default function Sidebar() {
   const theme = useThemeStore((state) => state.theme)
   const { isAuthenticated, checkAuth } = useUserStore()
   const logout = useLogout()
-  const [mounted] = useState(() => typeof window !== 'undefined')
+  const [mounted, setMounted] = useState(false)
 
-  // 인증 상태만 동기화
+  // 클라이언트에서만 마운트 상태 설정 (서버와 클라이언트 일치를 위해)
   useEffect(() => {
+    setMounted(true)
     checkAuth()
   }, [checkAuth])
 
