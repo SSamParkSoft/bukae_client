@@ -756,6 +756,12 @@ export const usePixiEffects = ({
           circleMask.beginFill(0xffffff)
           circleMask.drawCircle(stageWidth / 2, stageHeight / 2, 0)
           circleMask.endFill()
+          
+          // 마스크를 컨테이너에 추가 (마스크가 표시되려면 컨테이너에 있어야 함)
+          if (containerRef.current) {
+            containerRef.current.addChild(circleMask)
+          }
+          
           toSprite.mask = circleMask
           toSprite.alpha = 1
           // visible은 이미 위에서 설정됨
@@ -767,13 +773,47 @@ export const usePixiEffects = ({
             value: maxRadius,
             duration,
             onUpdate: function() {
+              // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
+              if (toSprite && containerRef.current) {
+                if (!toSprite.parent || toSprite.parent !== containerRef.current) {
+                  if (toSprite.parent) {
+                    toSprite.parent.removeChild(toSprite)
+                  }
+                  containerRef.current.addChild(toSprite)
+                }
+              }
+              
+              // 마스크가 컨테이너에 있는지 확인하고 없으면 추가
+              if (circleMask && containerRef.current) {
+                if (!circleMask.parent || circleMask.parent !== containerRef.current) {
+                  if (circleMask.parent) {
+                    circleMask.parent.removeChild(circleMask)
+                  }
+                  containerRef.current.addChild(circleMask)
+                }
+              }
+              
               circleMask.clear()
               circleMask.beginFill(0xffffff)
               circleMask.drawCircle(stageWidth / 2, stageHeight / 2, maskRadius.value)
               circleMask.endFill()
+              
+              if (toText && containerRef.current) {
+                if (!toText.parent || toText.parent !== containerRef.current) {
+                  if (toText.parent) {
+                    toText.parent.removeChild(toText)
+                  }
+                  containerRef.current.addChild(toText)
+                }
+              }
+              
               if (appRef.current) {
                 appRef.current.render()
               }
+            },
+            onComplete: function() {
+              // 전환 효과 완료 후 마스크 정리 (선택사항)
+              // 마스크는 유지해도 되지만, 필요하면 제거할 수 있음
             }
           })
           

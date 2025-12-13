@@ -717,12 +717,14 @@ export default function Step4Page() {
     // 전환 효과 미리보기 활성화
     setIsPreviewingTransition(true)
     
-    // 이전 씬 인덱스 계산 (씬 클릭할 때와 동일)
-    // 재생 중이고 현재 씬을 다시 선택하는 경우 (재생 시작 시)
+    // 이전 씬 인덱스 계산
+    // 씬 리스트에서 선택할 때: 현재 렌더링된 씬을 이전 씬으로 사용
+    // 같은 씬을 다시 선택하는 경우: null로 설정하여 페이드 인 효과 적용
     let prevIndex: number | null = null
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:723',message:'prevIndex 계산 전 조건 확인',data:{skipStopPlaying,lastRenderedSceneIndexRef:lastRenderedSceneIndexRef.current,index,currentSceneIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
     // #endregion
+    
     if (skipStopPlaying && lastRenderedSceneIndexRef.current === index && index === currentSceneIndex) {
       // 재생 시작 시 현재 씬을 다시 선택: 이전 씬으로 설정
       // 첫 씬일 때는 null로 설정하여 페이드 인 효과가 나타나도록 함
@@ -736,10 +738,18 @@ export default function Step4Page() {
       fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:725',message:'재생 시작 시 현재 씬 재선택 감지',data:{prevIndex,index},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
       // #endregion
     } else {
-      // 일반적인 경우: lastRenderedSceneIndexRef가 있으면 사용, 없으면 index > 0일 때 index - 1, 아니면 null
-      prevIndex = lastRenderedSceneIndexRef.current !== null 
-        ? lastRenderedSceneIndexRef.current 
-        : (index > 0 ? index - 1 : null)
+      // 씬 리스트에서 선택할 때: 현재 렌더링된 씬을 이전 씬으로 사용
+      // 같은 씬을 다시 선택하는 경우: null로 설정하여 페이드 인 효과 적용
+      if (lastRenderedSceneIndexRef.current !== null && lastRenderedSceneIndexRef.current !== index) {
+        // 다른 씬에서 선택된 씬으로 전환
+        prevIndex = lastRenderedSceneIndexRef.current
+      } else if (lastRenderedSceneIndexRef.current === index) {
+        // 같은 씬을 다시 선택: 페이드 인 효과 적용
+        prevIndex = null
+      } else {
+        // 처음 선택하는 경우: index > 0이면 이전 씬으로, 아니면 null
+        prevIndex = index > 0 ? index - 1 : null
+      }
     }
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:720',message:'prevIndex 계산',data:{prevIndex,lastRenderedSceneIndexRef:lastRenderedSceneIndexRef.current,index},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
@@ -753,13 +763,22 @@ export default function Step4Page() {
     fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:727',message:'플래그 설정',data:{isManualSceneSelectRef:isManualSceneSelectRef.current,isPreviewingTransition:true},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
     // #endregion
     
-    // 전환 효과 적용 (씬 클릭할 때와 완전히 동일)
+    // 선택된 씬의 전환 효과 가져오기
+    const selectedScene = timeline.scenes[index]
+    const transition = selectedScene?.transition || 'fade'
+    
+    // 씬 리스트에서 선택할 때는 이전 씬을 보여주지 않고 검은 캔버스에서 시작
+    // previousIndex를 null로 설정하여 페이드 인 효과처럼 보이게 함
+    if (!skipStopPlaying) {
+      prevIndex = null
+    }
+    
     requestAnimationFrame(() => {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:730',message:'updateCurrentScene 호출 전',data:{index,prevIndex,skipAnimation:false,skipStopPlaying,isPlayingRef:isPlayingRef.current,hasOnTransitionComplete:!!onTransitionComplete},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:730',message:'updateCurrentScene 호출 전',data:{index,prevIndex,transition,skipStopPlaying,isPlayingRef:isPlayingRef.current,hasOnTransitionComplete:!!onTransitionComplete},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
-      // 전환 효과 적용 및 씬 렌더링 (skipAnimation: false)
-      // 각 씬이 선택되면서 전환 효과가 나타나고 캔버스에 렌더링됨
+      
+      // 씬 리스트에서 선택할 때와 재생 중일 때 모두 전환 효과 적용
       const transitionCompleteCallback = () => {
         // #region agent log
         fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:763',message:'전환 효과 완료, 씬 렌더링 완료',data:{index,isPlayingRef:isPlayingRef.current,skipStopPlaying},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
@@ -785,8 +804,8 @@ export default function Step4Page() {
       }
       
       // Timeline의 onComplete 콜백을 사용하여 전환 효과 완료 시점을 정확히 감지
-      // 이전 코드 패턴으로 변경했으므로 Timeline이 제대로 작동함
-      updateCurrentScene(false, prevIndex, undefined, transitionCompleteCallback)
+      // 선택된 씬의 전환 효과를 forceTransition으로 전달하여 해당 씬의 전환 효과가 표시되도록 함
+      updateCurrentScene(false, prevIndex, transition, transitionCompleteCallback)
     })
   }
 
@@ -1001,7 +1020,7 @@ export default function Step4Page() {
   const {
     handleSceneScriptChange,
     handleSceneDurationChange,
-    handleSceneTransitionChange,
+    handleSceneTransitionChange: originalHandleSceneTransitionChange,
     handleSceneImageFitChange,
     handlePlaybackSpeedChange,
   } = useSceneHandlers({
@@ -1022,6 +1041,13 @@ export default function Step4Page() {
     loadAllScenes,
     setPlaybackSpeed,
   })
+
+  // 전환 효과 변경 핸들러 래핑: currentSceneIndexRef를 먼저 설정
+  const handleSceneTransitionChange = useCallback((index: number, value: string) => {
+    // currentSceneIndexRef를 먼저 설정하여 updateCurrentScene이 올바른 씬 인덱스를 사용하도록 함
+    currentSceneIndexRef.current = index
+    originalHandleSceneTransitionChange(index, value)
+  }, [originalHandleSceneTransitionChange])
 
   // PixiJS 컨테이너에 빈 공간 클릭 감지 추가
   useEffect(() => {

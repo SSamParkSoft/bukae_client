@@ -215,70 +215,25 @@ export const useSceneManager = ({
         console.log(`[updateCurrentScene] 텍스트를 컨테이너에 추가 - sceneIndex: ${sceneIndex}`)
       }
       
-      // 2. 이전 씬 즉시 숨기기
-      // skipAnimation이 false일 때는 전환 효과가 진행되므로 이전 씬을 유지해야 함
-      if (skipAnimation) {
-        // skipAnimation이 true일 때만 이전 씬을 즉시 숨김
-        if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
-          previousSprite.visible = false
-          previousSprite.alpha = 0
-          console.log(`[updateCurrentScene] 이전 씬 숨김 - previousIndex: ${previousIndex}, visible: ${previousSprite.visible}, alpha: ${previousSprite.alpha}`)
-        }
-        if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
-          previousText.visible = false
-          previousText.alpha = 0
-        }
-      } else {
-        // skipAnimation이 false일 때는 전환 효과가 진행되므로 이전 씬을 유지
-        // 전환 효과가 완료되면 Timeline의 onComplete에서 이전 씬을 숨김
-        if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
-          // 이전 씬이 컨테이너에 있는지 확인하고 없으면 추가
-          if (!previousSprite.parent && containerRef.current) {
-            console.warn(`[updateCurrentScene] 이전 씬 스프라이트가 컨테이너에 없음 - previousIndex: ${previousIndex}, 강제 추가`)
-            containerRef.current.addChild(previousSprite)
-          }
-          // 이전 씬이 visible하고 alpha가 1인지 확인 (전환 효과를 위해)
-          if (!previousSprite.visible) {
-            previousSprite.visible = true
-          }
-          if (previousSprite.alpha === 0) {
-            previousSprite.alpha = 1
-          }
-          console.log(`[updateCurrentScene] 전환 효과 진행 중 - 이전 씬 유지 - previousIndex: ${previousIndex}, visible: ${previousSprite.visible}, alpha: ${previousSprite.alpha}, parent: ${previousSprite.parent !== null}`)
-        }
-      }
-      
-      // 3. 다른 씬들 숨기기 (previousIndex가 null이 아니고 idx가 previousIndex와 같으면 전환 효과를 위해 유지)
+      // 2. 모든 다른 씬들 숨기기 (검은 캔버스에서 시작하기 위해)
+      // previousIndex가 null이면 이전 씬을 보여주지 않고 검은 캔버스에서 시작
       spritesRef.current.forEach((sprite, idx) => {
         if (sprite && idx !== sceneIndex) {
-          // previousIndex가 null이 아니고 idx가 previousIndex와 같으면 전환 효과를 위해 유지
-          if (previousIndex !== null && idx === previousIndex) {
-            // 전환 효과 중이므로 유지 (skipAnimation이 false일 때)
-            if (!skipAnimation) {
-              // 전환 효과 중이므로 유지
-            } else {
-              // skipAnimation이 true일 때는 숨김
-              sprite.visible = false
-              sprite.alpha = 0
-            }
-          } else {
-            // 다른 씬들은 숨김
-            sprite.visible = false
-            sprite.alpha = 0
-          }
+          sprite.visible = false
+          sprite.alpha = 0
         }
       })
       textsRef.current.forEach((text, idx) => {
         if (text && idx !== sceneIndex) {
-          // previousIndex가 null이 아니고 idx가 previousIndex와 같으면 전환 효과를 위해 유지
-          if (previousIndex !== null && idx === previousIndex) {
-            // 전환 효과 중이므로 유지
-          } else {
-            text.visible = false
-            text.alpha = 0
-          }
+          text.visible = false
+          text.alpha = 0
         }
       })
+      
+      // 검은 캔버스 상태 렌더링 (모든 씬이 숨겨진 상태)
+      if (appRef.current) {
+        appRef.current.render()
+      }
       
       // 4. 현재 씬 visible 설정 및 alpha 초기화 (전환 효과를 위해 alpha를 0으로 설정)
       // applyEnterEffect에서 alpha: 0으로 설정하고 애니메이션을 시작하지만,
@@ -310,8 +265,81 @@ export const useSceneManager = ({
       // applyEnterEffect에서 초기 상태 설정 후 렌더링하므로 여기서는 렌더링하지 않음
       // onAnimationComplete가 전달되면 Timeline 완료 시 호출됨
       const wrappedOnComplete = onAnimationComplete ? () => {
+        // 전환 효과 완료 후 이전 씬 숨기기
+        if (!skipAnimation && previousIndex !== null && previousIndex !== sceneIndex) {
+          const prevSprite = spritesRef.current.get(previousIndex)
+          const prevText = textsRef.current.get(previousIndex)
+          
+          if (prevSprite) {
+            prevSprite.visible = false
+            prevSprite.alpha = 0
+            // 컨테이너에서 제거하지 않음 (나중에 다시 사용할 수 있으므로)
+            console.log(`[updateCurrentScene] 전환 효과 완료 - 이전 씬 숨김 - previousIndex: ${previousIndex}`)
+          }
+          
+          if (prevText) {
+            prevText.visible = false
+            prevText.alpha = 0
+          }
+        }
+        
+        // 이전 씬이 없거나 null인 경우에도 다른 모든 씬들을 다시 한 번 확인하여 숨김
+        // (혹시 모를 경우를 대비)
+        spritesRef.current.forEach((sprite, idx) => {
+          if (sprite && idx !== sceneIndex) {
+            sprite.visible = false
+            sprite.alpha = 0
+          }
+        })
+        textsRef.current.forEach((text, idx) => {
+          if (text && idx !== sceneIndex) {
+            text.visible = false
+            text.alpha = 0
+          }
+        })
+        
+        // 최종 렌더링
+        if (appRef.current) {
+          appRef.current.render()
+        }
+        
+        // 원래 onAnimationComplete 콜백 호출
         onAnimationComplete(sceneIndex)
-      } : undefined
+      } : (() => {
+        // onAnimationComplete가 없어도 이전 씬을 숨겨야 함
+        if (!skipAnimation && previousIndex !== null && previousIndex !== sceneIndex) {
+          const prevSprite = spritesRef.current.get(previousIndex)
+          const prevText = textsRef.current.get(previousIndex)
+          
+          if (prevSprite) {
+            prevSprite.visible = false
+            prevSprite.alpha = 0
+          }
+          
+          if (prevText) {
+            prevText.visible = false
+            prevText.alpha = 0
+          }
+          
+          // 다른 모든 씬들도 숨김
+          spritesRef.current.forEach((sprite, idx) => {
+            if (sprite && idx !== sceneIndex) {
+              sprite.visible = false
+              sprite.alpha = 0
+            }
+          })
+          textsRef.current.forEach((text, idx) => {
+            if (text && idx !== sceneIndex) {
+              text.visible = false
+              text.alpha = 0
+            }
+          })
+          
+          if (appRef.current) {
+            appRef.current.render()
+          }
+        }
+      })
       
       // 전환 효과 적용 전에 한 번 렌더링하여 초기 상태 확인
       if (appRef.current) {
@@ -576,4 +604,3 @@ export const useSceneManager = ({
     loadAllScenes,
   }
 }
-

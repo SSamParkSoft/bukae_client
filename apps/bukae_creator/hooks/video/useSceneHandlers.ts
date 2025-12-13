@@ -92,27 +92,24 @@ export function useSceneHandlers({
 
       setIsPreviewingTransition(true)
       
-      const previousIndex = lastRenderedSceneIndexRef.current !== null 
-        ? lastRenderedSceneIndexRef.current 
-        : currentSceneIndex
+      // 전환 효과 변경 시에는 현재 씬 인덱스를 유지
+      // previousIndex는 현재 씬 인덱스와 같게 설정 (같은 씬에서 전환 효과만 변경)
+      const targetSceneIndex = index
       
-      if (index !== currentSceneIndex) {
-        setCurrentSceneIndex(index)
+      // 현재 씬 인덱스가 변경된 씬과 다르면 현재 씬 인덱스 업데이트
+      if (targetSceneIndex !== currentSceneIndex) {
+        setCurrentSceneIndex(targetSceneIndex)
       }
       
       requestAnimationFrame(() => {
         setTimeout(() => {
-          if (previousIndex !== null && previousIndex !== index) {
-            updateCurrentScene(false, previousIndex, value)
-          } else if (previousIndex === index) {
-            updateCurrentScene(false, index, value)
-          } else {
+          // 전환 효과 변경 시에는 같은 씬에서 전환 효과만 변경하므로
+          // previousIndex는 null로 설정하여 페이드 인 효과 적용
             updateCurrentScene(false, null, value)
-          }
           
-          lastRenderedSceneIndexRef.current = index
+          lastRenderedSceneIndexRef.current = targetSceneIndex
 
-          const transitionDuration = nextTimeline.scenes[index]?.transitionDuration || 0.5
+          const transitionDuration = nextTimeline.scenes[targetSceneIndex]?.transitionDuration || 0.5
           setTimeout(() => {
             setIsPreviewingTransition(false)
             isManualSceneSelectRef.current = false
