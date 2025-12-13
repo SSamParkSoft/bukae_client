@@ -1553,22 +1553,28 @@ export default function Step4Page() {
               onScriptChange={handleSceneScriptChange}
               onImageFitChange={handleSceneImageFitChange}
             />
-            </div>
+          </div>
+        </div>
 
-        <EffectsPanel
-          theme={theme}
-          rightPanelTab={rightPanelTab}
-          setRightPanelTab={setRightPanelTab}
-          timeline={timeline}
-          currentSceneIndex={currentSceneIndex}
-          allTransitions={allTransitions}
-          onTransitionChange={handleSceneTransitionChange}
-          onAdvancedEffectChange={handleAdvancedEffectChange}
-          bgmTemplate={bgmTemplate}
-          setBgmTemplate={setBgmTemplate}
-          setTimeline={setTimeline}
-        />
-      </div>
+        {/* 오른쪽 패널: 효과 설정 */}
+        <div className="w-[30%] flex flex-col h-full overflow-hidden" style={{
+          borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+          backgroundColor: theme === 'dark' ? '#111827' : '#ffffff'
+        }}>
+          <EffectsPanel
+            theme={theme}
+            rightPanelTab={rightPanelTab}
+            setRightPanelTab={setRightPanelTab}
+            timeline={timeline}
+            currentSceneIndex={currentSceneIndex}
+            allTransitions={allTransitions}
+            onTransitionChange={handleSceneTransitionChange}
+            onAdvancedEffectChange={handleAdvancedEffectChange}
+            bgmTemplate={bgmTemplate}
+            setBgmTemplate={setBgmTemplate}
+            setTimeline={setTimeline}
+          />
+        </div>
       </div>
     </motion.div>
   )

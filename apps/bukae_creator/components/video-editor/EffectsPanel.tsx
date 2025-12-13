@@ -60,7 +60,7 @@ export function EffectsPanel({
 }: EffectsPanelProps) {
   return (
     <div
-      className="w-[30%] flex flex-col h-full overflow-hidden"
+      className="w-full flex flex-col h-full overflow-hidden"
       style={{ backgroundColor: theme === 'dark' ? '#111827' : '#ffffff' }}
     >
       <div
