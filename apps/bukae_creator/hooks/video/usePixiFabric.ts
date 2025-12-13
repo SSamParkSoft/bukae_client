@@ -82,7 +82,7 @@ export function usePixiFabric({
         autoStart: true,
       })
       .then(() => {
-        console.log('usePixiFabric: PixiJS init success', { canvas: !!app.canvas, container: !!container })
+        console.log('usePixiFabric: PixiJS init success', { app: !!app, canvas: !!app?.canvas, container: !!container })
         
         appRef.current = app
 
@@ -135,8 +135,8 @@ export function usePixiFabric({
           }
           
           // canvas가 여전히 유효한지 다시 확인
-          if (!app.canvas) {
-            console.error('usePixiFabric: canvas is null before style setup')
+          if (!app || !app.canvas) {
+            console.error('usePixiFabric: canvas is null before style setup', { app: !!app, canvas: app?.canvas })
             return
           }
           
@@ -153,9 +153,9 @@ export function usePixiFabric({
           container.appendChild(app.canvas)
           
           console.log('usePixiFabric: Canvas appended to container', { 
-            canvasInContainer: container.contains(app.canvas),
-            canvasWidth: app.canvas.width,
-            canvasHeight: app.canvas.height,
+            canvasInContainer: app && app.canvas ? container.contains(app.canvas) : false,
+            canvasWidth: app?.canvas?.width,
+            canvasHeight: app?.canvas?.height,
             displayWidth,
             displayHeight,
             containerWidth: container.clientWidth,
