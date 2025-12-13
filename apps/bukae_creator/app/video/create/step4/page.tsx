@@ -55,6 +55,7 @@ export default function Step4Page() {
   const textsRef = useRef<Map<number, PIXI.Text>>(new Map())
   const handlesRef = useRef<PIXI.Graphics | null>(null)
   const isDraggingRef = useRef(false)
+  const draggingElementRef = useRef<'image' | 'text' | null>(null) // 현재 드래그 중인 요소 타입
   const dragStartPosRef = useRef<{ x: number; y: number; boundsWidth?: number; boundsHeight?: number }>({ x: 0, y: 0 })
   const particlesRef = useRef<Map<number, PIXI.Container>>(new Map()) // 씬별 파티클 컨테이너
   const particleAnimationsRef = useRef<Map<number, gsap.core.Timeline>>(new Map()) // 파티클 애니메이션
@@ -71,18 +72,21 @@ export default function Step4Page() {
   const textEditHandlesRef = useRef<Map<number, PIXI.Container>>(new Map()) // 텍스트 편집 핸들 컨테이너 (씬별)
   const isResizingTextRef = useRef(false) // 텍스트 리사이즈 중 플래그
   const gridGraphicsRef = useRef<PIXI.Graphics | null>(null) // 격자 Graphics 객체
-  const previousSceneIndexRef = useRef<number | null>(null)
   const currentSceneIndexRef = useRef(0)
+  const previousSceneIndexRef = useRef<number | null>(null) // useTimelinePlayer와 공유
+  const lastRenderedSceneIndexRef = useRef<number | null>(null) // 전환 효과 추적용 (로컬)
   const updateCurrentSceneRef = useRef<(skipAnimation?: boolean) => void>(() => {})
   // Fabric.js refs
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
   const fabricCanvasElementRef = useRef<HTMLCanvasElement | null>(null)
-  const useFabricEditing = true
   
   // State
   const [rightPanelTab, setRightPanelTab] = useState('animation')
   const [isDraggingTimeline, setIsDraggingTimeline] = useState(false)
   const [editMode, setEditMode] = useState<'none' | 'image' | 'text'>('none')
+  
+  // PixiJS 편집 모드일 때는 Fabric.js 편집 비활성화
+  const useFabricEditing = false // PixiJS 편집 사용
   const [selectedElementIndex, setSelectedElementIndex] = useState<number | null>(null)
   const [selectedElementType, setSelectedElementType] = useState<'image' | 'text' | null>(null)
   const [showGrid, setShowGrid] = useState(false) // 격자 표시 여부
@@ -91,6 +95,7 @@ export default function Step4Page() {
   const [fabricReady, setFabricReady] = useState(false)
   const fabricScaleRatioRef = useRef<number>(1) // Fabric.js 좌표 스케일 비율
   const [mounted, setMounted] = useState(false)
+  const [canvasSize, setCanvasSize] = useState<{ width: string; height: string }>({ width: '100%', height: '100%' }) // Canvas 크기 상태
 
   // 클라이언트에서만 렌더링 (SSR/Hydration mismatch 방지)
   useEffect(() => {
@@ -108,9 +113,6 @@ export default function Step4Page() {
   // 타임라인 초기화
   useEffect(() => {
     if (scenes.length === 0) return
-
-    console.log('Step4 scenes from store:', scenes)
-    console.log('Step4 selectedImages from store:', selectedImages)
 
     const nextTimeline: TimelineData = {
       fps: 30,
@@ -135,8 +137,6 @@ export default function Step4Page() {
         }
       }),
     }
-
-    console.log('Step4 nextTimeline:', nextTimeline)
 
     const hasChanged = 
       !timeline ||
@@ -164,6 +164,10 @@ export default function Step4Page() {
     }
   }, [timeline?.playbackSpeed])
 
+  // 진행 중인 애니메이션 추적 (usePixiFabric보다 먼저 선언)
+  const activeAnimationsRef = useRef<Map<number, gsap.core.Timeline>>(new Map())
+
+  // mounted 상태와 pixiContainerRef가 준비된 후에만 PixiJS 초기화
   usePixiFabric({
     pixiContainerRef,
     appRef,
@@ -176,6 +180,9 @@ export default function Step4Page() {
     stageDimensions,
     fabricScaleRatioRef,
     editMode,
+    mounted, // mounted 상태 전달
+    setCanvasSize, // Canvas 크기 상태 업데이트 함수 전달
+    activeAnimationsRef, // 전환 효과 중인지 확인용
   })
 
   // Fabric 포인터 활성화 상태 갱신 (upper/lower 모두)
@@ -212,40 +219,7 @@ export default function Step4Page() {
     return loadPixiTexture(url, texturesRef.current)
   }
 
-  // 진행 중인 애니메이션 추적
-  const activeAnimationsRef = useRef<Map<number, gsap.core.Timeline>>(new Map())
-
-  // PixiJS 효과 적용 hook
-  const { applyAdvancedEffects, applyEnterEffect } = usePixiEffects({
-    appRef,
-    containerRef,
-    particlesRef,
-    activeAnimationsRef,
-    stageDimensions,
-    timeline,
-  })
-
-  // 씬 관리 hook
-  const { updateCurrentScene, syncFabricWithScene, loadAllScenes } = useSceneManager({
-    appRef,
-    containerRef,
-    spritesRef,
-    textsRef,
-    currentSceneIndexRef,
-    previousSceneIndexRef,
-    activeAnimationsRef,
-    fabricCanvasRef,
-    fabricScaleRatioRef,
-    isSavingTransformRef,
-    timeline,
-    stageDimensions,
-    useFabricEditing,
-    loadPixiTextureWithCache,
-    applyAdvancedEffects,
-    applyEnterEffect,
-  })
-
-  // 편집 핸들러 hook
+  // 편집 핸들러 hook (먼저 선언하여 콜백에서 사용 가능하도록)
   const {
     drawEditHandles,
     saveImageTransform,
@@ -266,6 +240,7 @@ export default function Step4Page() {
     editHandlesRef,
     textEditHandlesRef,
     isDraggingRef,
+    draggingElementRef,
     dragStartPosRef,
     isResizingRef,
     resizeHandleRef,
@@ -278,6 +253,7 @@ export default function Step4Page() {
     currentSceneIndexRef,
     isSavingTransformRef,
     editMode,
+    setEditMode,
     selectedElementIndex,
     setSelectedElementIndex,
     selectedElementType,
@@ -285,6 +261,66 @@ export default function Step4Page() {
     timeline,
     setTimeline,
     useFabricEditing,
+  })
+
+  // 애니메이션 완료 후 드래그 설정 재적용
+  const handleAnimationComplete = useCallback((sceneIndex: number) => {
+    const sprite = spritesRef.current.get(sceneIndex)
+    const text = textsRef.current.get(sceneIndex)
+    
+    if (sprite && sprite.visible) {
+      setupSpriteDrag(sprite, sceneIndex)
+    }
+    
+    if (text && text.visible) {
+      setupTextDrag(text, sceneIndex)
+    }
+  }, [setupSpriteDrag, setupTextDrag])
+
+  // 로드 완료 후 드래그 설정 재적용
+  const handleLoadComplete = useCallback((sceneIndex: number) => {
+    const sprite = spritesRef.current.get(sceneIndex)
+    const text = textsRef.current.get(sceneIndex)
+    
+    if (sprite) {
+      setupSpriteDrag(sprite, sceneIndex)
+    }
+    
+    if (text) {
+      setupTextDrag(text, sceneIndex)
+    }
+  }, [setupSpriteDrag, setupTextDrag])
+
+  // PixiJS 효과 적용 hook
+  const { applyAdvancedEffects, applyEnterEffect } = usePixiEffects({
+    appRef,
+    containerRef,
+    particlesRef,
+    activeAnimationsRef,
+    stageDimensions,
+    timeline,
+    onAnimationComplete: handleAnimationComplete,
+  })
+
+  // 씬 관리 hook
+  const { updateCurrentScene, syncFabricWithScene, loadAllScenes } = useSceneManager({
+    appRef,
+    containerRef,
+    spritesRef,
+    textsRef,
+    currentSceneIndexRef,
+    previousSceneIndexRef,
+    activeAnimationsRef,
+    fabricCanvasRef,
+    fabricScaleRatioRef,
+    isSavingTransformRef,
+    timeline,
+    stageDimensions,
+    useFabricEditing,
+    loadPixiTextureWithCache,
+    applyAdvancedEffects,
+    applyEnterEffect,
+    onLoadComplete: handleLoadComplete,
   })
 
   // Fabric 변경사항을 타임라인에 반영
@@ -317,7 +353,6 @@ export default function Step4Page() {
           scaleY: 1,
           rotation: ((target.angle || 0) * Math.PI) / 180,
         }
-        console.log('Fabric image modified', { scale, invScale, nextTransform, savedIndex })
         const nextTimeline: TimelineData = {
           ...timeline,
           scenes: timeline.scenes.map((scene, idx) =>
@@ -351,11 +386,6 @@ export default function Step4Page() {
         const fill = textbox.fill ?? '#ffffff'
         const align = textbox.textAlign ?? 'center'
 
-        console.log('Fabric text modified', { 
-          scale, invScale, nextTransform, 
-          baseFontSize, textScaleY, actualFontSize, 
-          savedIndex 
-        })
         const nextTimeline: TimelineData = {
           ...timeline,
           scenes: timeline.scenes.map((scene, idx) =>
@@ -398,29 +428,6 @@ export default function Step4Page() {
 
     const handleMouseDown = (e: any) => {
       const objects = fabricCanvas.getObjects()
-      const vpt = fabricCanvas.viewportTransform
-      console.log('Fabric mouse:down', {
-        pointer: e.pointer,
-        absolutePointer: e.absolutePointer,
-        viewportTransform: vpt,
-        canvasWidth: fabricCanvas.width,
-        canvasHeight: fabricCanvas.height,
-        objectsCount: objects.length,
-        objects: objects.map((o: any) => ({
-          type: o.type,
-          dataType: o.dataType,
-          left: o.left,
-          top: o.top,
-          width: o.width,
-          height: o.height,
-          scaleX: o.scaleX,
-          scaleY: o.scaleY,
-          selectable: o.selectable,
-          evented: o.evented,
-        })),
-        targetType: (e.target as any)?.dataType,
-        target: e.target,
-      })
     }
 
     // 텍스트 내용 변경 시 저장 (typing으로 변경할 때)
@@ -440,8 +447,6 @@ export default function Step4Page() {
       const textContent = target.text ?? ''
       const scaledFontSize = target.fontSize ?? 32
       const fontSize = scaledFontSize * invScale
-      
-      console.log('Fabric text:changed', { textContent, fontSize, savedIndex })
       
       const nextTimeline: TimelineData = {
         ...timeline,
@@ -498,8 +503,6 @@ export default function Step4Page() {
       const fill = target.fill ?? '#ffffff'
       const align = target.textAlign ?? 'center'
 
-      console.log('Fabric text:editing:exited', { textContent, nextTransform, baseFontSize, textScaleY, actualFontSize, savedIndex })
-      
       const nextTimeline: TimelineData = {
         ...timeline,
         scenes: timeline.scenes.map((scene, idx) =>
@@ -551,22 +554,85 @@ export default function Step4Page() {
   }, [fabricReady, timeline, setTimeline])
 
 
+  // timeline의 scenes 배열 길이나 구조가 변경될 때만 loadAllScenes 호출
+  const timelineScenesLengthRef = useRef<number>(0)
+  const timelineScenesRef = useRef<any[]>([])
+
   // Pixi와 타임라인이 모두 준비되면 씬 로드
   useEffect(() => {
-    console.log('Step4: loadAllScenes effect - pixiReady:', pixiReady, 'app:', !!appRef.current, 'container:', !!containerRef.current, 'timeline:', !!timeline, 'scenes:', timeline?.scenes.length, 'isSavingTransform:', isSavingTransformRef.current)
     if (!pixiReady || !appRef.current || !containerRef.current || !timeline || timeline.scenes.length === 0) {
-      console.log('Step4: loadAllScenes effect skipped - waiting for refs')
       return
     }
-    // Transform 저장 중일 때는 loadAllScenes를 호출하지 않음 (편집 종료 시 원래 Transform으로 되돌아가는 것 방지)
+    
+    // Transform 저장 중일 때는 loadAllScenes를 호출하지 않음
     if (isSavingTransformRef.current) {
-      console.log('Step4: loadAllScenes effect skipped - saving transform')
       return
     }
-    console.log('Step4: Calling loadAllScenes')
+
+    // scenes 배열의 길이나 구조가 변경되었는지 확인 (Transform만 변경된 경우는 제외)
+    const scenesLength = timeline.scenes.length
+    const scenesChanged = timelineScenesLengthRef.current !== scenesLength || 
+      timeline.scenes.some((scene, i) => {
+        const prevScene = timelineScenesRef.current[i]
+        if (!prevScene) return true
+        // 이미지나 텍스트 내용이 변경되었는지 확인 (Transform 제외)
+        return prevScene.image !== scene.image || 
+               prevScene.text?.content !== scene.text?.content ||
+               prevScene.duration !== scene.duration ||
+               prevScene.transition !== scene.transition
+      })
+
+    if (!scenesChanged && timelineScenesLengthRef.current > 0) {
+      return
+    }
+
+    // scenes 정보 업데이트
+    timelineScenesLengthRef.current = scenesLength
+    timelineScenesRef.current = timeline.scenes.map(scene => ({
+      image: scene.image,
+      text: scene.text ? { content: scene.text.content } : null,
+      duration: scene.duration,
+      transition: scene.transition,
+    }))
+
     // 다음 프레임에 실행하여 ref가 확실히 설정된 후 실행
-    requestAnimationFrame(() => {
-      loadAllScenes()
+    requestAnimationFrame(async () => {
+      await loadAllScenes()
+      // loadAllScenes 완료 후 현재 씬 표시
+      setTimeout(() => {
+        const sceneIndex = currentSceneIndexRef.current
+        if (appRef.current && containerRef.current) {
+          // 모든 씬 숨기기
+          spritesRef.current.forEach((sprite) => {
+            if (sprite) {
+              sprite.visible = false
+              sprite.alpha = 0
+            }
+          })
+          textsRef.current.forEach((text) => {
+            if (text) {
+              text.visible = false
+              text.alpha = 0
+            }
+          })
+          // 현재 씬만 표시
+          const currentSprite = spritesRef.current.get(sceneIndex)
+          const currentText = textsRef.current.get(sceneIndex)
+          if (currentSprite) {
+            currentSprite.visible = true
+            currentSprite.alpha = 1
+          }
+          if (currentText) {
+            currentText.visible = true
+            currentText.alpha = 1
+          }
+          appRef.current.render()
+          
+          // lastRenderedSceneIndexRef 초기화 (전환 효과 추적용)
+          lastRenderedSceneIndexRef.current = sceneIndex
+          previousSceneIndexRef.current = sceneIndex
+        }
+      }, 100)
     })
   }, [pixiReady, timeline, loadAllScenes])
 
@@ -588,110 +654,11 @@ export default function Step4Page() {
     return time
   }, [timeline])
 
-  // 재생/일시정지
-  const handlePlayPause = () => {
-    if (!isPlaying) {
-      // 재생 시작: 현재 선택된 씬의 시작 시간으로 설정
-      if (!timeline) return
-      
-      console.log('Step4: Play button clicked, currentSceneIndex:', currentSceneIndex)
-      
-      // PixiJS가 준비되지 않으면 재생하지 않음
-      if (!pixiReady || spritesRef.current.size === 0) {
-        console.log('Step4: PixiJS not ready or no sprites loaded, skipping sync')
-    setIsPlaying(!isPlaying)
-        return
-      }
-      
-      // 재생 시작 전에 모든 PixiJS 스프라이트를 timeline 데이터와 동기화
-      timeline.scenes.forEach((scene, index) => {
-        const sprite = spritesRef.current.get(index)
-        const text = textsRef.current.get(index)
-        
-        // 스프라이트가 유효한 경우에만 처리
-        if (sprite && sprite.x !== undefined) {
-          // 모든 스프라이트를 먼저 숨김
-          sprite.visible = false
-          sprite.alpha = 0
-          
-          // Transform 동기화
-          // 주의: sprite.width/height 설정 후 scale.set()을 호출하면 안됨
-          // PixiJS에서 width/height 설정 시 내부적으로 scale이 계산됨
-          if (scene.imageTransform) {
-            sprite.x = scene.imageTransform.x
-            sprite.y = scene.imageTransform.y
-            sprite.width = scene.imageTransform.width
-            sprite.height = scene.imageTransform.height
-            sprite.rotation = scene.imageTransform.rotation || 0
-          }
-        }
-        
-        // 텍스트가 유효한 경우에만 처리
-        if (text && text.x !== undefined) {
-          text.visible = false
-          text.alpha = 0
-          
-          if (scene.text.transform) {
-            text.x = scene.text.transform.x
-            text.y = scene.text.transform.y
-            text.rotation = scene.text.transform.rotation || 0
-          }
-          if (scene.text.fontSize) {
-            text.style.fontSize = scene.text.fontSize
-          }
-        }
-      })
-      
-      // 현재 씬만 보이게 설정
-      const currentSprite = spritesRef.current.get(currentSceneIndex)
-      const currentText = textsRef.current.get(currentSceneIndex)
-      if (currentSprite) {
-        currentSprite.visible = true
-        currentSprite.alpha = 1
-      }
-      if (currentText) {
-        currentText.visible = true
-        currentText.alpha = 1
-      }
-      
-      const startTime = getSceneStartTime(currentSceneIndex)
-      console.log('Step4: Setting currentTime to:', startTime)
-      setCurrentTime(startTime)
-      
-      // 재생 시작 시 현재 씬에도 등장 효과 적용 (첫 번째 씬 포함)
-      console.log('Step4: Showing scene with animation')
-      updateCurrentScene(false)  // skipAnimation = false, 등장 효과 적용
-      
-      // PixiJS 캔버스 강제 렌더링
-      if (appRef.current) {
-        appRef.current.render()
-      }
+  // 씬을 표시하는 공통 함수 (씬 선택과 재생 모두에서 사용)
+  const showScene = useCallback((index: number) => {
+    if (!appRef.current || !containerRef.current) {
+      return
     }
-    setIsPlaying(!isPlaying)
-  }
-
-  // 씬 선택
-  const handleSceneSelect = (index: number) => {
-    if (!timeline) return
-    if (isPlaying) setIsPlaying(false)
-    
-    console.log('Step4: Scene selected:', index)
-    
-    let timeUntilScene = 0
-    for (let i = 0; i < index; i++) {
-      timeUntilScene += timeline.scenes[i].duration + (timeline.scenes[i].transitionDuration || 0.5)
-    }
-    
-    // 수동 선택 플래그 설정
-    isManualSceneSelectRef.current = true
-    setCurrentSceneIndex(index)
-    setCurrentTime(timeUntilScene)
-    
-    // 선택된 씬을 즉시 표시 (애니메이션 없이)
-    const selectedSprite = spritesRef.current.get(index)
-    const selectedText = textsRef.current.get(index)
-    
-    console.log('Step4: Immediately showing selected scene', index, 'sprite:', !!selectedSprite, 'text:', !!selectedText)
     
     // 모든 씬 숨기기
     spritesRef.current.forEach((sprite, idx) => {
@@ -708,26 +675,111 @@ export default function Step4Page() {
     })
     
     // 선택된 씬만 즉시 표시
+    const selectedSprite = spritesRef.current.get(index)
+    const selectedText = textsRef.current.get(index)
+    
     if (selectedSprite) {
+      if (!selectedSprite.parent && containerRef.current) {
+        containerRef.current.addChild(selectedSprite)
+      }
       selectedSprite.visible = true
       selectedSprite.alpha = 1
-      console.log('Step4: Set sprite alpha to 1 for scene', index)
     }
+    
     if (selectedText) {
+      if (!selectedText.parent && containerRef.current) {
+        containerRef.current.addChild(selectedText)
+      }
       selectedText.visible = true
       selectedText.alpha = 1
-      console.log('Step4: Set text alpha to 1 for scene', index)
     }
     
-    if (appRef.current) {
-      console.log('Step4: Rendering PixiJS app for scene selection')
-      appRef.current.render()
+    appRef.current.render()
+  }, [appRef, containerRef])
+
+  // 씬 선택 (재생 중에는 재생을 중지하지 않음 - 재생 로직에서 호출할 때 사용)
+  const handleSceneSelect = (index: number, skipStopPlaying: boolean = false, onTransitionComplete?: () => void) => {
+    if (!timeline) return
+    // 재생 중이 아니거나 skipStopPlaying이 false일 때만 재생 중지
+    if (isPlaying && !skipStopPlaying) {
+      setIsPlaying(false)
     }
     
-    // useEffect가 실행된 후 플래그 리셋 (다음 이벤트 루프에서)
-    setTimeout(() => {
-      isManualSceneSelectRef.current = false
-    }, 0)
+    let timeUntilScene = 0
+    for (let i = 0; i < index; i++) {
+      timeUntilScene += timeline.scenes[i].duration + (timeline.scenes[i].transitionDuration || 0.5)
+    }
+    
+    // 전환 효과 미리보기 활성화
+    console.log(`[handleSceneSelect] setIsPreviewingTransition(true) 호출`)
+    setIsPreviewingTransition(true)
+    
+    // 이전 씬 인덱스
+    // 재생 중이고 첫 씬일 때는 null로 설정하여 전환 효과가 적용되도록 함
+    let prevIndex: number | null = null
+    if (skipStopPlaying && lastRenderedSceneIndexRef.current === null) {
+      // 재생 시작 시 첫 씬: 현재 씬을 숨기고 전환 효과 적용
+      prevIndex = null
+    } else {
+      prevIndex = lastRenderedSceneIndexRef.current !== null ? lastRenderedSceneIndexRef.current : (skipStopPlaying ? null : currentSceneIndex)
+    }
+    
+    // 재생 시작 시 첫 씬이면 현재 씬을 숨기기
+    if (skipStopPlaying && lastRenderedSceneIndexRef.current === null && index === currentSceneIndex) {
+      const currentSprite = spritesRef.current.get(index)
+      const currentText = textsRef.current.get(index)
+      if (currentSprite) {
+        currentSprite.visible = false
+        currentSprite.alpha = 0
+      }
+      if (currentText) {
+        currentText.visible = false
+        currentText.alpha = 0
+      }
+      if (appRef.current) {
+        appRef.current.render()
+      }
+    }
+    
+    // 씬 선택
+    // isManualSceneSelectRef를 먼저 설정하여 useEffect가 실행되지 않도록 함
+    isManualSceneSelectRef.current = true
+    // currentSceneIndexRef를 먼저 업데이트
+    currentSceneIndexRef.current = index
+    // setCurrentSceneIndex는 나중에 호출하여 다른 로직과의 호환성 유지
+    // 하지만 requestAnimationFrame 내에서 호출하여 useEffect와의 타이밍 충돌 방지
+    setCurrentTime(timeUntilScene)
+    
+    // 전환 효과 적용
+    requestAnimationFrame(() => {
+      // currentSceneIndexRef는 이미 업데이트됨
+      console.log(`[handleSceneSelect] 전환 효과 적용 시작 - index: ${index}, prevIndex: ${prevIndex}, skipStopPlaying: ${skipStopPlaying}`)
+      console.log(`[handleSceneSelect] currentSprite 존재: ${!!spritesRef.current.get(index)}`)
+      console.log(`[handleSceneSelect] isManualSceneSelectRef: ${isManualSceneSelectRef.current}`)
+      // 전환 효과 적용 (skipAnimation: false)
+      updateCurrentScene(false, prevIndex)
+      
+      // 전환 효과 duration 후 미리보기 종료 및 콜백 호출
+      const transitionDuration = timeline.scenes[index]?.transitionDuration || 0.5
+      setTimeout(() => {
+        // 전환 효과 완료 후 lastRenderedSceneIndexRef 업데이트
+        lastRenderedSceneIndexRef.current = index
+        previousSceneIndexRef.current = index
+        
+        // 전환 효과 완료 후에 setCurrentSceneIndex 호출 (다른 로직과의 호환성을 위해)
+        // 이 시점에는 이미 updateCurrentScene(false)가 완료되고 lastRenderedSceneIndexRef가 업데이트되었으므로
+        // useEffect가 실행되어도 lastRenderedIndex === currentSceneIndex 조건으로 인해 실행되지 않음
+        setCurrentSceneIndex(index)
+        
+        setIsPreviewingTransition(false)
+        isManualSceneSelectRef.current = false
+        
+        // 전환 효과 완료 콜백 호출 (재생 중 다음 씬으로 넘어갈 때 사용)
+        if (onTransitionComplete) {
+          onTransitionComplete()
+        }
+      }, transitionDuration * 1000 + 100)
+    })
   }
 
   const {
@@ -754,25 +806,142 @@ export default function Step4Page() {
     appRef,
     containerRef,
     pixiReady,
+    previousSceneIndexRef, // previousSceneIndexRef 전달
   })
 
   useEffect(() => {
     currentSceneIndexRef.current = currentSceneIndex
   }, [currentSceneIndex])
 
-  // 씬 인덱스 변경 시 전환 효과 적용 (재생 중일 때만 애니메이션)
+  // 재생/일시정지 (씬 선택 로직을 그대로 사용)
+  const playTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const isPlayingRef = useRef(false)
+  const currentPlayIndexRef = useRef<number>(0)
+  
+  // isPlaying 상태와 ref 동기화
+  useEffect(() => {
+    isPlayingRef.current = isPlaying
+  }, [isPlaying])
+  
+  const handlePlayPause = () => {
+    if (!isPlaying) {
+      // 재생 시작: 현재 선택된 씬부터 마지막 씬까지 순차적으로 handleSceneSelect 호출
+      if (!timeline) return
+      
+      // PixiJS가 준비되지 않으면 재생하지 않음
+      if (!pixiReady || spritesRef.current.size === 0) {
+        setIsPlaying(true)
+        return
+      }
+      
+      // useTimelinePlayer의 재생 루프가 씬을 변경하지 않도록 isManualSceneSelectRef를 true로 설정
+      isManualSceneSelectRef.current = true
+      
+      // 재생 시작 시 lastRenderedSceneIndexRef를 null로 초기화하여 각 씬이 처음 선택되는 것처럼 동작
+      lastRenderedSceneIndexRef.current = null
+      
+      setIsPlaying(true)
+      isPlayingRef.current = true
+      currentPlayIndexRef.current = currentSceneIndex
+      
+      // 현재 씬부터 마지막 씬까지 순차적으로 재생
+      const playNextScene = () => {
+        // 재생이 중지되었거나 마지막 씬을 넘어가면 종료
+        if (!isPlayingRef.current || currentPlayIndexRef.current >= timeline.scenes.length) {
+          setIsPlaying(false)
+          isPlayingRef.current = false
+          isManualSceneSelectRef.current = false
+          return
+        }
+        
+        const sceneIndex = currentPlayIndexRef.current
+        
+        // 각 씬이 처음 선택되는 것처럼 동작하도록 lastRenderedSceneIndexRef를 이전 씬으로 설정
+        // (씬 선택 로직에서 lastRenderedSceneIndexRef를 사용하여 이전 씬을 결정)
+        if (sceneIndex > 0) {
+          lastRenderedSceneIndexRef.current = sceneIndex - 1
+        } else {
+          lastRenderedSceneIndexRef.current = null
+        }
+        
+        const currentScene = timeline.scenes[sceneIndex]
+        const transitionDuration = currentScene.transitionDuration || 0.5
+        const sceneDuration = currentScene.duration
+        
+        // handleSceneSelect를 직접 호출하여 씬 선택 로직 재사용 (씬 선택 로직은 절대 변경하지 않음)
+        // 재생 중이므로 skipStopPlaying을 true로 설정하여 재생이 중지되지 않도록 함
+        // 전환 효과 완료 후 씬 duration만큼 대기한 다음 다음 씬으로 넘어가도록 콜백 전달
+        handleSceneSelect(sceneIndex, true, () => {
+          // 전환 효과가 완료된 후 씬 duration만큼 대기
+          currentPlayIndexRef.current++
+          if (currentPlayIndexRef.current < timeline.scenes.length) {
+            // 다음 씬으로 이동
+            playTimeoutRef.current = setTimeout(() => {
+              if (isPlayingRef.current) {
+                playNextScene()
+              }
+            }, sceneDuration * 1000)
+          } else {
+            // 마지막 씬이 끝나면 재생 종료
+            playTimeoutRef.current = setTimeout(() => {
+              setIsPlaying(false)
+              isPlayingRef.current = false
+              isManualSceneSelectRef.current = false
+            }, sceneDuration * 1000)
+          }
+        })
+      }
+      
+      // 첫 번째 씬 시작
+      playNextScene()
+    } else {
+      // 재생 중지
+      if (playTimeoutRef.current) {
+        clearTimeout(playTimeoutRef.current)
+        playTimeoutRef.current = null
+      }
+      setIsPlaying(false)
+      isPlayingRef.current = false
+      isManualSceneSelectRef.current = false
+    }
+  }
+  
+  // 재생 중지 시 timeout 정리
+  useEffect(() => {
+    if (!isPlaying && playTimeoutRef.current) {
+      clearTimeout(playTimeoutRef.current)
+      playTimeoutRef.current = null
+    }
+  }, [isPlaying])
+
+  // 재생 중이 아닐 때 씬 변경 처리 (씬 선택 로직은 handleSceneSelect에서 처리)
   useEffect(() => {
     if (!timeline || timeline.scenes.length === 0) return
-    if (isManualSceneSelectRef.current) return
+    if (isPlaying) return // 재생 중일 때는 handleSceneSelect가 처리하므로 여기서는 처리하지 않음
+    if (isManualSceneSelectRef.current) return // 수동 씬 선택 중일 때는 handleSceneSelect가 처리하므로 여기서는 처리하지 않음
+    if (isPreviewingTransition) return // 전환 효과 미리보기 중일 때는 handleSceneSelect가 처리하므로 여기서는 처리하지 않음
     
-    const previousIndex = previousSceneIndexRef.current
-    // 재생 중이고 씬이 바뀌면 전환 효과 적용
-    if (isPlaying && previousIndex !== null && previousIndex !== currentSceneIndex) {
-      updateCurrentScene(false) // 전환 효과 적용
-    } else if (previousIndex !== currentSceneIndex) {
-      updateCurrentScene(true) // 즉시 표시
+    // 전환 효과가 진행 중인지 확인
+    let hasActiveAnimation = false
+    activeAnimationsRef.current.forEach((anim) => {
+      if (anim && anim.isActive && anim.isActive()) {
+        hasActiveAnimation = true
+      }
+    })
+    if (hasActiveAnimation) {
+      console.log(`[useEffect] 전환 효과 진행 중 - skipAnimation 호출 무시`)
+      return
     }
-  }, [currentSceneIndex, isPlaying, timeline, updateCurrentScene])
+    
+    const lastRenderedIndex = lastRenderedSceneIndexRef.current
+    if (lastRenderedIndex !== currentSceneIndex) {
+      // 재생 중이 아닐 때는 즉시 표시
+      currentSceneIndexRef.current = currentSceneIndex
+      updateCurrentScene(true)
+      lastRenderedSceneIndexRef.current = currentSceneIndex
+      previousSceneIndexRef.current = currentSceneIndex
+    }
+  }, [currentSceneIndex, isPlaying, timeline, updateCurrentScene, isPreviewingTransition, activeAnimationsRef])
 
   // 씬 편집 핸들러들
   const {
@@ -790,13 +959,72 @@ export default function Step4Page() {
     setCurrentSceneIndex,
     updateCurrentScene,
     setIsPreviewingTransition,
+    isPreviewingTransition, // 전환 효과 미리보기 중인지 확인용
     isManualSceneSelectRef,
+    lastRenderedSceneIndexRef, // 전환 효과 미리보기용
     pixiReady,
     appRef,
     containerRef,
     loadAllScenes,
     setPlaybackSpeed,
   })
+
+  // PixiJS 컨테이너에 빈 공간 클릭 감지 추가
+  useEffect(() => {
+    if (!containerRef.current || !appRef.current || useFabricEditing || !pixiReady) return
+
+    const container = containerRef.current
+    const app = appRef.current
+
+    // 컨테이너에 클릭 이벤트 추가 (빈 공간 클릭 감지)
+    const handleContainerClick = (e: PIXI.FederatedPointerEvent) => {
+      // 클릭한 위치에서 hit test 수행
+      const clickedSprite = spritesRef.current.get(currentSceneIndexRef.current)
+      const clickedText = textsRef.current.get(currentSceneIndexRef.current)
+      
+      // 핸들 클릭인지 확인
+      const clickedOnHandle = editHandlesRef.current.get(currentSceneIndexRef.current)?.children.some(handle => {
+        if (handle instanceof PIXI.Graphics) {
+          const handleBounds = handle.getBounds()
+          return e.global.x >= handleBounds.x && e.global.x <= handleBounds.x + handleBounds.width &&
+                 e.global.y >= handleBounds.y && e.global.y <= handleBounds.y + handleBounds.height
+        }
+        return false
+      }) || textEditHandlesRef.current.get(currentSceneIndexRef.current)?.children.some(handle => {
+        if (handle instanceof PIXI.Graphics) {
+          const handleBounds = handle.getBounds()
+          return e.global.x >= handleBounds.x && e.global.x <= handleBounds.x + handleBounds.width &&
+                 e.global.y >= handleBounds.y && e.global.y <= handleBounds.y + handleBounds.height
+        }
+        return false
+      })
+
+      // 스프라이트나 텍스트를 클릭하지 않고, 핸들도 클릭하지 않은 경우 (빈 공간)
+      const spriteBounds = clickedSprite?.getBounds()
+      const clickedOnSprite = spriteBounds && 
+        e.global.x >= spriteBounds.x && e.global.x <= spriteBounds.x + spriteBounds.width &&
+        e.global.y >= spriteBounds.y && e.global.y <= spriteBounds.y + spriteBounds.height
+      
+      const textBounds = clickedText?.getBounds()
+      const clickedOnText = textBounds &&
+        e.global.x >= textBounds.x && e.global.x <= textBounds.x + textBounds.width &&
+        e.global.y >= textBounds.y && e.global.y <= textBounds.y + textBounds.height
+      
+      if (!clickedOnHandle && !clickedOnSprite && !clickedOnText) {
+        // 빈 공간 클릭: 선택 해제 및 편집 모드 종료
+        setSelectedElementIndex(null)
+        setSelectedElementType(null)
+        setEditMode('none')
+      }
+    }
+
+    container.interactive = true
+    container.on('pointerdown', handleContainerClick)
+
+    return () => {
+      container.off('pointerdown', handleContainerClick)
+    }
+  }, [containerRef, appRef, useFabricEditing, pixiReady, currentSceneIndexRef, spritesRef, textsRef, editHandlesRef, textEditHandlesRef, setSelectedElementIndex, setSelectedElementType, setEditMode])
 
   // Pixi 캔버스 포인터 이벤트 제어 및 Fabric 편집 시 숨김
   // 재생 중 또는 전환 효과 미리보기 중일 때는 PixiJS를 보여서 전환 효과가 보이도록 함
@@ -805,19 +1033,24 @@ export default function Step4Page() {
     const pixiCanvas = pixiContainerRef.current.querySelector('canvas:not([data-fabric])') as HTMLCanvasElement
     if (!pixiCanvas) return
     
-    // 재생 중 또는 전환 효과 미리보기 중이면 PixiJS 보이기
+    // 재생 중이거나 전환 효과 미리보기 중이면 항상 PixiJS 보이기
+    // 재생 중에는 isPreviewingTransition이 false여도 PixiJS를 보여야 함
     if (isPlaying || isPreviewingTransition) {
       pixiCanvas.style.opacity = '1'
-      pixiCanvas.style.pointerEvents = 'none' // 클릭 비활성화
+      pixiCanvas.style.pointerEvents = 'none'
+      pixiCanvas.style.zIndex = '10'
     } else if (useFabricEditing && fabricReady) {
-      // Fabric.js 편집 활성화 시 PixiJS 캔버스 숨김 (중복 렌더링 방지)
+      // Fabric.js 편집 활성화 시 PixiJS 캔버스 숨김
       pixiCanvas.style.opacity = '0'
       pixiCanvas.style.pointerEvents = 'none'
+      pixiCanvas.style.zIndex = '1'
     } else {
+      // PixiJS 편집 모드: editMode가 'none'이 아니어도 보임 (편집 중에도 보여야 함)
       pixiCanvas.style.opacity = '1'
       pixiCanvas.style.pointerEvents = 'auto'
+      pixiCanvas.style.zIndex = '10'
     }
-  }, [useFabricEditing, fabricReady, pixiReady, isPlaying, isPreviewingTransition])
+  }, [useFabricEditing, fabricReady, pixiReady, isPlaying, isPreviewingTransition, editMode])
 
   // 재생 중 또는 전환 효과 미리보기 중일 때 Fabric.js 캔버스 숨기기
   useEffect(() => {
@@ -841,6 +1074,66 @@ export default function Step4Page() {
 
 
 
+  // 선택된 요소에 따라 편집 모드 자동 설정
+  useEffect(() => {
+    // 선택이 해제되면 편집 모드도 해제
+    if (selectedElementIndex === null && selectedElementType === null) {
+      if (editMode !== 'none') {
+        setEditMode('none')
+      }
+      return
+    }
+    
+    // 선택된 요소 타입에 따라 편집 모드 설정
+    if (selectedElementType === 'image' && editMode !== 'image') {
+      setEditMode('image')
+    } else if (selectedElementType === 'text' && editMode !== 'text') {
+      setEditMode('text')
+    }
+  }, [selectedElementIndex, selectedElementType, editMode])
+
+  // 현재 씬 변경 시 드래그 설정 재적용
+  useEffect(() => {
+    if (!containerRef.current || !timeline) {
+      return
+    }
+
+    // 재생 중일 때는 드래그 설정을 하지 않음 (전환 효과가 보이도록)
+    if (isPlaying) {
+      return
+    }
+
+    // 재생 중이 아닐 때만 드래그 설정
+    const setupDrag = () => {
+      const currentSprite = spritesRef.current.get(currentSceneIndexRef.current)
+      const currentText = textsRef.current.get(currentSceneIndexRef.current)
+      
+      if (currentSprite) {
+        setupSpriteDrag(currentSprite, currentSceneIndexRef.current)
+      }
+      
+      if (currentText) {
+        setupTextDrag(currentText, currentSceneIndexRef.current)
+      }
+
+      if (appRef.current) {
+        appRef.current.render()
+      }
+    }
+
+    // 전환 효과 미리보기 중일 때는 약간의 지연
+    if (isPreviewingTransition) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setupDrag()
+        })
+      })
+    } else {
+      // 일반적인 경우 즉시 실행
+      setupDrag()
+    }
+  }, [currentSceneIndex, timeline, setupSpriteDrag, setupTextDrag, isPlaying, isPreviewingTransition])
+
   // 편집 모드 변경 시 핸들 표시/숨김
   useEffect(() => {
     if (!containerRef.current || !timeline) return
@@ -859,43 +1152,41 @@ export default function Step4Page() {
         }
       })
       textEditHandlesRef.current.clear()
-      setSelectedElementIndex(null)
-      setSelectedElementType(null)
+      // 편집 모드가 none이면 선택도 해제 (단, 이미 null이 아닐 때만 - 무한 루프 방지)
+      if (selectedElementIndex !== null || selectedElementType !== null) {
+        setSelectedElementIndex(null)
+        setSelectedElementType(null)
+      }
     } else if (editMode === 'image' && selectedElementIndex !== null && selectedElementType === 'image') {
-      // 선택된 이미지 요소가 있으면 핸들 표시
+      // 선택된 이미지 요소가 있으면 핸들 표시 (이미 핸들이 있으면 다시 그리지 않음)
       const sprite = spritesRef.current.get(selectedElementIndex)
-      if (sprite) {
-        drawEditHandles(sprite, selectedElementIndex, handleResize, saveImageTransform)
+      if (sprite && sprite.visible) {
+        const existingHandles = editHandlesRef.current.get(selectedElementIndex)
+        if (!existingHandles || !existingHandles.parent) {
+          drawEditHandles(sprite, selectedElementIndex, handleResize, saveImageTransform)
+        }
         setupSpriteDrag(sprite, selectedElementIndex)
       }
     } else if (editMode === 'text' && selectedElementIndex !== null && selectedElementType === 'text') {
-      // 선택된 텍스트 요소가 있으면 핸들 표시
+      // 선택된 텍스트 요소가 있으면 핸들 표시 (이미 핸들이 있으면 다시 그리지 않음)
       const text = textsRef.current.get(selectedElementIndex)
-      if (text) {
-        drawTextEditHandles(text, selectedElementIndex, handleTextResize, saveTextTransform)
+      if (text && text.visible) {
+        const existingHandles = textEditHandlesRef.current.get(selectedElementIndex)
+        if (!existingHandles || !existingHandles.parent) {
+          drawTextEditHandles(text, selectedElementIndex, handleTextResize, saveTextTransform)
+        }
         setupTextDrag(text, selectedElementIndex)
       }
     }
 
-    // 모든 스프라이트에 드래그 설정 적용
-    spritesRef.current.forEach((sprite, index) => {
-      setupSpriteDrag(sprite, index)
-    })
-    
-    // 모든 텍스트에 드래그 설정 적용
-    textsRef.current.forEach((text, index) => {
-      setupTextDrag(text, index)
-    })
-
     if (appRef.current) {
       appRef.current.render()
     }
-  }, [editMode, selectedElementIndex, selectedElementType, timeline, drawEditHandles, setupSpriteDrag, handleResize, saveImageTransform, drawTextEditHandles, setupTextDrag, handleTextResize, saveTextTransform])
+  }, [editMode, selectedElementIndex, selectedElementType, timeline, drawEditHandles, setupSpriteDrag, handleResize, saveImageTransform, drawTextEditHandles, setupTextDrag, handleTextResize, saveTextTransform, editHandlesRef, textEditHandlesRef])
 
   // 격자 그리기 함수 (이미지/자막 배치 가이드)
   const drawGrid = useCallback(() => {
     if (!appRef.current) {
-      console.log('drawGrid: appRef.current is null')
       return
     }
 
@@ -907,12 +1198,10 @@ export default function Step4Page() {
     }
 
     if (!showGrid) {
-      console.log('drawGrid: showGrid is false, skipping')
       return
     }
 
     const { width, height } = stageDimensions
-    console.log('drawGrid: Drawing grid with dimensions:', width, height)
     const gridGraphics = new PIXI.Graphics()
     
     // 격자 색상 설정
@@ -971,7 +1260,6 @@ export default function Step4Page() {
     // 격자를 stage에 직접 추가하여 항상 최상위에 표시
     appRef.current.stage.addChild(gridGraphics)
     gridGraphicsRef.current = gridGraphics
-    console.log('drawGrid: Grid added to stage, children count:', appRef.current.stage.children.length)
 
     if (appRef.current) {
       appRef.current.render()
@@ -980,9 +1268,36 @@ export default function Step4Page() {
 
   // 격자 표시/숨김
   useEffect(() => {
-    if (!pixiReady) return
+    if (!pixiReady || !appRef.current) return
     drawGrid()
+    // 격자 표시 시 canvas 크기에 맞춰 오버레이도 업데이트되도록 강제 리렌더링
+    if (showGrid) {
+      requestAnimationFrame(() => {
+        if (appRef.current) {
+          appRef.current.render()
+        }
+      })
+    }
   }, [showGrid, pixiReady, drawGrid])
+
+  // Canvas 실제 크기 계산 (container div와 동기화용)
+  const canvasDisplaySize = useMemo(() => {
+    if (!appRef.current || !pixiContainerRef.current) return null
+    const canvas = appRef.current.canvas
+    const canvasRect = canvas.getBoundingClientRect()
+    const actualWidth = canvasRect.width > 0 ? canvasRect.width : (parseFloat(canvas.style.width) || parseFloat(canvasSize.width.replace('px', '')) || 0)
+    const actualHeight = canvasRect.height > 0 ? canvasRect.height : (parseFloat(canvas.style.height) || parseFloat(canvasSize.height.replace('px', '')) || 0)
+    
+    if (actualWidth <= 0 || actualHeight <= 0) return null
+    
+    return { width: actualWidth, height: actualHeight }
+  }, [canvasSize, pixiReady])
+
+  // 격자 오버레이 크기 계산 (canvas 실제 크기 사용)
+  const gridOverlaySize = useMemo(() => {
+    if (!showGrid || !canvasDisplaySize) return null
+    return canvasDisplaySize
+  }, [showGrid, canvasDisplaySize])
 
   // loadAllScenes 후 격자 다시 그리기
   useEffect(() => {
@@ -1029,7 +1344,8 @@ export default function Step4Page() {
       if (sprite) {
         applyAdvancedEffects(sprite, sceneIndex, nextTimeline.scenes[sceneIndex].advancedEffects)
       }
-      updateCurrentScene()
+      // 고급 효과 변경 시 즉시 표시 (전환 효과 없이)
+      updateCurrentScene(true)
       setTimeout(() => {
         isManualSceneSelectRef.current = false
       }, 50)
@@ -1071,7 +1387,10 @@ export default function Step4Page() {
       }
     }
     setCurrentSceneIndex(sceneIndex)
-    updateCurrentScene()
+    // 타임라인 클릭 시 즉시 표시 (전환 효과 없이)
+    updateCurrentScene(true)
+    lastRenderedSceneIndexRef.current = sceneIndex
+    previousSceneIndexRef.current = sceneIndex
   }
 
   useEffect(() => {
@@ -1100,7 +1419,10 @@ export default function Step4Page() {
         }
       }
       setCurrentSceneIndex(sceneIndex)
-      updateCurrentScene()
+      // 타임라인 드래그 시 즉시 표시 (전환 효과 없이)
+      updateCurrentScene(true)
+      lastRenderedSceneIndexRef.current = sceneIndex
+      previousSceneIndexRef.current = sceneIndex
     }
 
     const handleMouseUp = () => {
@@ -1171,8 +1493,6 @@ export default function Step4Page() {
         },
       }
 
-      console.log('Exporting timeline data:', exportData)
-
       // API 엔드포인트로 전송
       const response = await fetch('/api/videos/generate', {
         method: 'POST',
@@ -1191,7 +1511,6 @@ export default function Step4Page() {
       // 성공 시 다음 단계로 이동하거나 결과 페이지로 이동
       // router.push(`/video/create/result?id=${result.videoId}`)
     } catch (error) {
-      console.error('Export error:', error)
       alert(`영상 생성 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
     }
   }
@@ -1236,28 +1555,29 @@ export default function Step4Page() {
             {/* PixiJS 미리보기 - 9:16 비율 고정 (1080x1920) */}
             <div 
               className="flex-1 flex items-center justify-center rounded-lg overflow-hidden min-h-0"
-              onClick={(e) => {
-                // 편집 모드일 때 캔버스 배경 클릭 시 선택만 해제 (편집 모드는 유지)
-                if (editMode === 'image' && e.target === e.currentTarget) {
-                  setSelectedElementIndex(null)
-                  setSelectedElementType(null)
-                }
-              }}
             >
               <div
                 ref={pixiContainerRef}
                 className="relative bg-black"
                 style={{ 
-                  aspectRatio: '9 / 16',
-                  height: '100%',
+                  width: canvasDisplaySize ? `${canvasDisplaySize.width}px` : '100%',
+                  height: canvasDisplaySize ? `${canvasDisplaySize.height}px` : '100%',
+                  aspectRatio: canvasDisplaySize ? undefined : '9 / 16',
+                  maxWidth: '100%',
                   maxHeight: '100%',
                 }}
               >
                 {/* 격자 오버레이 (크기 조정하기 템플릿 가이드) */}
-                {showGrid && (
+                {gridOverlaySize && (
                   <div 
-                    className="absolute inset-0 pointer-events-none z-50"
-                    style={{ aspectRatio: '9 / 16' }}
+                    className="absolute pointer-events-none z-50"
+                    style={{ 
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      width: `${gridOverlaySize.width}px`,
+                      height: `${gridOverlaySize.height}px`,
+                    }}
                   >
                     {/* 이미지 추천 영역 (녹색) - 상단 15%부터 70% 높이 */}
                     <div 
@@ -1338,10 +1658,11 @@ export default function Step4Page() {
                           onMouseDown={handleTimelineMouseDown}
                         >
                           <div
-                  className="h-full rounded-full transition-all"
+                  className="h-full rounded-full"
                   style={{
                     width: `${progressRatio * 100}%`,
-                    backgroundColor: '#8b5cf6'
+                    backgroundColor: '#8b5cf6',
+                    transition: isPlaying ? 'none' : 'width 0.1s ease-out'
                   }}
                 />
                         </div>
@@ -1528,6 +1849,32 @@ export default function Step4Page() {
                     // 모든 씬을 다시 로드하여 Transform 적용
                     setTimeout(() => {
                       loadAllScenes()
+                      // Canvas 크기 재계산
+                      if (pixiContainerRef.current && appRef.current) {
+                        const container = pixiContainerRef.current
+                        const containerRect = container.getBoundingClientRect()
+                        const containerWidth = containerRect.width || container.clientWidth
+                        const containerHeight = containerRect.height || container.clientHeight
+                        const targetRatio = 9 / 16
+                        
+                        let displayWidth: number
+                        let displayHeight: number
+                        if (containerWidth > 0 && containerHeight > 0) {
+                          if (containerWidth / containerHeight > targetRatio) {
+                            displayHeight = containerHeight
+                            displayWidth = containerHeight * targetRatio
+                          } else {
+                            displayWidth = containerWidth
+                            displayHeight = containerWidth / targetRatio
+                          }
+                          
+                          const canvas = appRef.current.canvas
+                          canvas.style.width = `${displayWidth}px`
+                          canvas.style.height = `${displayHeight}px`
+                          setCanvasSize({ width: `${displayWidth}px`, height: `${displayHeight}px` })
+                          appRef.current.render()
+                        }
+                      }
                     }, 100)
                   }}
                   variant="outline"

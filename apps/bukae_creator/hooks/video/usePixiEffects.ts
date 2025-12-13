@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import { TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
@@ -11,6 +11,7 @@ interface UsePixiEffectsParams {
   activeAnimationsRef: React.MutableRefObject<Map<number, gsap.core.Timeline>>
   stageDimensions: { width: number; height: number }
   timeline: TimelineData | null
+  onAnimationComplete?: (sceneIndex: number) => void
 }
 
 export const usePixiEffects = ({
@@ -20,6 +21,7 @@ export const usePixiEffects = ({
   activeAnimationsRef,
   stageDimensions,
   timeline,
+  onAnimationComplete,
 }: UsePixiEffectsParams) => {
   // 고급 효과 적용
   const applyAdvancedEffects = useCallback((
@@ -31,13 +33,11 @@ export const usePixiEffects = ({
 
     const filters: PIXI.Filter[] = []
 
-    // Glow 효과
     if (effects.glow?.enabled) {
       const glowFilter = createGlowFilter(effects.glow.distance || 10)
       filters.push(glowFilter)
     }
 
-    // Glitch 효과
     if (effects.glitch?.enabled) {
       const glitchFilter = createGlitchFilter(appRef.current, effects.glitch.intensity || 10)
       if (glitchFilter) {
@@ -47,7 +47,6 @@ export const usePixiEffects = ({
 
     sprite.filters = filters.length > 0 ? filters : null
 
-    // 파티클 효과
     if (effects.particles?.enabled && effects.particles.type) {
       const existingParticles = particlesRef.current.get(sceneIndex)
       if (existingParticles && existingParticles.parent) {
@@ -66,7 +65,6 @@ export const usePixiEffects = ({
       containerRef.current.addChild(particleSystem)
       particlesRef.current.set(sceneIndex, particleSystem)
 
-      // 파티클 애니메이션 완료 후 제거
       setTimeout(() => {
         if (particleSystem.parent) {
           particleSystem.parent.removeChild(particleSystem)
@@ -76,7 +74,7 @@ export const usePixiEffects = ({
     }
   }, [appRef, containerRef, particlesRef, stageDimensions])
 
-  // 씬 등장 효과 함수들 (이미지가 나타날 때 적용)
+  // 전환 효과 적용 - 완전히 새로 작성
   const applyEnterEffect = useCallback((
     toSprite: PIXI.Sprite | null,
     toText: PIXI.Text | null,
@@ -85,369 +83,488 @@ export const usePixiEffects = ({
     stageWidth: number,
     stageHeight: number,
     sceneIndex: number,
-    applyAdvancedEffectsFn: (sprite: PIXI.Sprite, sceneIndex: number, effects?: TimelineScene['advancedEffects']) => void
+    applyAdvancedEffectsFn: (sprite: PIXI.Sprite, sceneIndex: number, effects?: TimelineScene['advancedEffects']) => void,
+    forceTransition?: string
   ) => {
-    console.log(`Step4: applyEnterEffect called for scene ${sceneIndex}, transition: ${transition}`)
-    if (!toSprite) {
-      console.log(`Step4: applyEnterEffect - no sprite for scene ${sceneIndex}`)
+    const actualTransition = (forceTransition || transition || 'fade').trim().toLowerCase()
+    
+    if (!toSprite || !appRef.current || !containerRef.current) {
+      console.error(`[전환효과] 필수 요소 없음`)
       return
     }
 
-    // 이전 애니메이션 kill
-    const prevAnim = activeAnimationsRef.current.get(sceneIndex)
-    if (prevAnim) {
-      prevAnim.kill()
+    // 이전 애니메이션 정리
+    const existingAnim = activeAnimationsRef.current.get(sceneIndex)
+    if (existingAnim) {
+      existingAnim.kill()
       activeAnimationsRef.current.delete(sceneIndex)
     }
 
+    // 컨테이너에 추가
+    if (toSprite.parent !== containerRef.current) {
+      if (toSprite.parent) {
+        toSprite.parent.removeChild(toSprite)
+      }
+      containerRef.current.addChild(toSprite)
+    }
+    
+    if (toText && toText.parent !== containerRef.current) {
+      if (toText.parent) {
+        toText.parent.removeChild(toText)
+      }
+      containerRef.current.addChild(toText)
+    }
+
+    // 원래 위치 계산
+    let originalX = toSprite.x
+    let originalY = toSprite.y
+    
+    if (timeline?.scenes[sceneIndex]?.imageTransform) {
+      const transform = timeline.scenes[sceneIndex].imageTransform!
+      originalX = transform.x
+      originalY = transform.y
+    }
+
+    console.log(`[전환효과] 시작 - scene: ${sceneIndex}, transition: ${actualTransition}, duration: ${duration}, 원래위치: (${originalX}, ${originalY})`)
+
+    // Timeline 생성 및 즉시 시작
     const tl = gsap.timeline({
-      onStart: () => {
-        console.log(`Step4: GSAP animation started for scene ${sceneIndex}`)
-      },
+      paused: false, // 즉시 시작
       onComplete: () => {
-        console.log(`Step4: GSAP animation completed for scene ${sceneIndex}`)
+        if (toSprite) {
+          toSprite.visible = true
+          toSprite.alpha = 1
+        }
+        if (toText) {
+          toText.visible = true
+          toText.alpha = 1
+        }
+        if (appRef.current) {
+          appRef.current.render()
+        }
+        activeAnimationsRef.current.delete(sceneIndex)
+        if (onAnimationComplete) {
+          onAnimationComplete(sceneIndex)
+        }
       }
     })
     activeAnimationsRef.current.set(sceneIndex, tl)
-    
-    // 원래 위치 저장
-    const originalSpriteX = toSprite.x
-    const originalSpriteY = toSprite.y
-    
-    const originalTextX = toText ? toText.x : 0
-    const originalTextY = toText ? toText.y : 0
-    
-    // 기본 설정: toSprite는 시작 시 보이지 않음
-    console.log(`Step4: Setting sprite ${sceneIndex} to visible=true, alpha=0`)
-    if (toSprite) {
-      toSprite.visible = true
-      toSprite.alpha = 0
-    }
-    if (toText) {
-      toText.visible = true
+
+    // 텍스트 페이드
+    const applyTextFade = () => {
+      if (!toText) return
+      const textFadeObj = { alpha: 0 }
       toText.alpha = 0
+      toText.visible = true
+      if (toText.mask) {
+        toText.mask = null
+      }
+      tl.to(textFadeObj, {
+        alpha: 1,
+        duration,
+        ease: 'none',
+        onUpdate: function() {
+          if (toText) {
+            toText.alpha = textFadeObj.alpha
+          }
+          if (appRef.current) {
+            appRef.current.render()
+          }
+        }
+      }, 0)
     }
 
-    switch (transition) {
+    // 전환 효과별 처리
+    switch (actualTransition) {
       case 'fade':
-        // 페이드
-        console.log(`Step4: Applying fade effect for scene ${sceneIndex}`)
-        const fadeObj = { alpha: 0 }
-        tl.to(fadeObj, { 
-          alpha: 1, 
-          duration, 
-          onUpdate: function() {
-            if (toSprite) {
-              toSprite.alpha = fadeObj.alpha
-            }
-            if (toText) {
-              toText.alpha = fadeObj.alpha
-            }
-            // PixiJS 렌더링 강제 실행
-            if (appRef.current) {
-              appRef.current.render()
-            }
-          },
-          onComplete: function() {
-            console.log(`Step4: Fade complete for scene ${sceneIndex}, final alpha:`, toSprite?.alpha)
-            // 최종 렌더링
-            if (appRef.current) {
-              appRef.current.render()
-            }
+        {
+          const fadeObj = { alpha: 0 }
+          toSprite.alpha = 0
+          toSprite.visible = true
+          if (toText) {
+            toText.alpha = 0
+            toText.visible = true
           }
-        }, 0)
+          
+          tl.to(fadeObj, {
+            alpha: 1,
+            duration,
+            ease: 'none',
+            onUpdate: function() {
+              if (toSprite) {
+                toSprite.alpha = fadeObj.alpha
+              }
+              if (toText) {
+                toText.alpha = fadeObj.alpha
+              }
+              if (appRef.current) {
+                appRef.current.render()
+              }
+            }
+          }, 0)
+          
+          if (appRef.current) {
+            appRef.current.render()
+          }
+        }
         break
 
       case 'slide-left':
-        // 슬라이드 좌 (왼쪽에서 나타남)
-        const toSlideLeftObj = { x: originalSpriteX - stageWidth, alpha: 0 }
-        toSprite.x = originalSpriteX - stageWidth
-        if (toText) {
-          toText.x = originalTextX - stageWidth
-        }
-        tl.to(toSlideLeftObj, { x: originalSpriteX, alpha: 1, duration, onUpdate: function() {
-          if (toSprite) {
-            toSprite.x = toSlideLeftObj.x
-            toSprite.alpha = toSlideLeftObj.alpha
-          }
-        }}, 0)
-        if (toText) {
-          const toTextSlideLeftObj = { x: originalTextX - stageWidth, alpha: 0 }
-          tl.to(toTextSlideLeftObj, { x: originalTextX, alpha: 1, duration, onUpdate: function() {
-            if (toText) {
-              toText.x = toTextSlideLeftObj.x
-              toText.alpha = toTextSlideLeftObj.alpha
+        {
+          const startX = originalX - stageWidth
+          const slideObj = { x: startX, alpha: 0 }
+          
+          toSprite.x = startX
+          toSprite.alpha = 0
+          toSprite.visible = true
+          
+          tl.to(slideObj, {
+            x: originalX,
+            alpha: 1,
+            duration,
+            ease: 'none',
+            onUpdate: function() {
+              if (toSprite) {
+                toSprite.x = slideObj.x
+                toSprite.alpha = slideObj.alpha
+              }
+              if (appRef.current) {
+                appRef.current.render()
+              }
+            },
+            onComplete: function() {
+              if (toSprite) {
+                toSprite.x = originalX
+                toSprite.alpha = 1
+              }
             }
-          }}, 0)
+          }, 0)
+          
+          applyTextFade()
+          
+          if (appRef.current) {
+            appRef.current.render()
+          }
         }
         break
 
       case 'slide-right':
-        // 슬라이드 우 (오른쪽에서 나타남)
-        const toSlideRightObj = { x: originalSpriteX + stageWidth, alpha: 0 }
-        toSprite.x = originalSpriteX + stageWidth
-        if (toText) {
-          toText.x = originalTextX + stageWidth
-        }
-        tl.to(toSlideRightObj, { x: originalSpriteX, alpha: 1, duration, onUpdate: function() {
-          if (toSprite) {
-            toSprite.x = toSlideRightObj.x
-            toSprite.alpha = toSlideRightObj.alpha
-          }
-        }}, 0)
-        if (toText) {
-          const toTextSlideRightObj = { x: originalTextX + stageWidth, alpha: 0 }
-          tl.to(toTextSlideRightObj, { x: originalTextX, alpha: 1, duration, onUpdate: function() {
-            if (toText) {
-              toText.x = toTextSlideRightObj.x
-              toText.alpha = toTextSlideRightObj.alpha
+        {
+          const startX = originalX + stageWidth
+          const slideObj = { x: startX, alpha: 0 }
+          
+          toSprite.x = startX
+          toSprite.alpha = 0
+          toSprite.visible = true
+          
+          tl.to(slideObj, {
+            x: originalX,
+            alpha: 1,
+            duration,
+            ease: 'none',
+            onUpdate: function() {
+              if (toSprite) {
+                toSprite.x = slideObj.x
+                toSprite.alpha = slideObj.alpha
+              }
+              if (appRef.current) {
+                appRef.current.render()
+              }
+            },
+            onComplete: function() {
+              if (toSprite) {
+                toSprite.x = originalX
+                toSprite.alpha = 1
+              }
             }
-          }}, 0)
+          }, 0)
+          
+          applyTextFade()
+          
+          if (appRef.current) {
+            appRef.current.render()
+          }
         }
         break
 
       case 'slide-up':
-        // 슬라이드 상 (아래에서 나타남)
-        const toSlideUpObj = { y: originalSpriteY + stageHeight, alpha: 0 }
-        toSprite.y = originalSpriteY + stageHeight
-        if (toText) {
-          toText.y = originalTextY + stageHeight
-        }
-        tl.to(toSlideUpObj, { y: originalSpriteY, alpha: 1, duration, onUpdate: function() {
-          if (toSprite) {
-            toSprite.y = toSlideUpObj.y
-            toSprite.alpha = toSlideUpObj.alpha
-          }
-        }}, 0)
-        if (toText) {
-          const toTextSlideUpObj = { y: originalTextY + stageHeight, alpha: 0 }
-          tl.to(toTextSlideUpObj, { y: originalTextY, alpha: 1, duration, onUpdate: function() {
-            if (toText) {
-              toText.y = toTextSlideUpObj.y
-              toText.alpha = toTextSlideUpObj.alpha
+        {
+          const startY = originalY + stageHeight
+          const slideObj = { y: startY, alpha: 0 }
+          
+          toSprite.y = startY
+          toSprite.alpha = 0
+          toSprite.visible = true
+          
+          tl.to(slideObj, {
+            y: originalY,
+            alpha: 1,
+            duration,
+            ease: 'none',
+            onUpdate: function() {
+              if (toSprite) {
+                toSprite.y = slideObj.y
+                toSprite.alpha = slideObj.alpha
+              }
+              if (appRef.current) {
+                appRef.current.render()
+              }
+            },
+            onComplete: function() {
+              if (toSprite) {
+                toSprite.y = originalY
+                toSprite.alpha = 1
+              }
             }
-          }}, 0)
+          }, 0)
+          
+          applyTextFade()
+          
+          if (appRef.current) {
+            appRef.current.render()
+          }
         }
         break
 
       case 'slide-down':
-        // 슬라이드 하 (위에서 나타남)
-        const toSlideDownObj = { y: originalSpriteY - stageHeight, alpha: 0 }
-        toSprite.y = originalSpriteY - stageHeight
-        if (toText) {
-          toText.y = originalTextY - stageHeight
-        }
-        tl.to(toSlideDownObj, { y: originalSpriteY, alpha: 1, duration, onUpdate: function() {
-          if (toSprite) {
-            toSprite.y = toSlideDownObj.y
-            toSprite.alpha = toSlideDownObj.alpha
-          }
-        }}, 0)
-        if (toText) {
-          const toTextSlideDownObj = { y: originalTextY - stageHeight, alpha: 0 }
-          tl.to(toTextSlideDownObj, { y: originalTextY, alpha: 1, duration, onUpdate: function() {
-            if (toText) {
-              toText.y = toTextSlideDownObj.y
-              toText.alpha = toTextSlideDownObj.alpha
+        {
+          const startY = originalY - stageHeight
+          const slideObj = { y: startY, alpha: 0 }
+          
+          console.log(`[전환효과] slide-down - startY: ${startY}, targetY: ${originalY}, stageHeight: ${stageHeight}`)
+          
+          toSprite.y = startY
+          toSprite.alpha = 0
+          toSprite.visible = true
+          
+          console.log(`[전환효과] slide-down 초기 설정 완료 - sprite.y: ${toSprite.y}, sprite.alpha: ${toSprite.alpha}`)
+          
+          tl.to(slideObj, {
+            y: originalY,
+            alpha: 1,
+            duration,
+            ease: 'none',
+            onStart: function() {
+              console.log(`[전환효과] slide-down Timeline onStart`)
+            },
+            onUpdate: function() {
+              if (toSprite) {
+                toSprite.y = slideObj.y
+                toSprite.alpha = slideObj.alpha
+              }
+              if (appRef.current) {
+                appRef.current.render()
+              }
+            },
+            onComplete: function() {
+              console.log(`[전환효과] slide-down 완료`)
+              if (toSprite) {
+                toSprite.y = originalY
+                toSprite.alpha = 1
+              }
+              if (appRef.current) {
+                appRef.current.render()
+              }
             }
-          }}, 0)
+          }, 0)
+          
+          applyTextFade()
+          
+          if (appRef.current) {
+            appRef.current.render()
+            console.log(`[전환효과] slide-down 첫 렌더링 완료`)
+          }
         }
         break
 
       case 'zoom-in':
-        // 확대 (작은 크기에서 확대)
-        const toZoomObj = { scale: 0.5, alpha: 0 }
-        toSprite.scale.set(0.5, 0.5)
-        toSprite.x = originalSpriteX + (toSprite.width * 0.25)
-        toSprite.y = originalSpriteY + (toSprite.height * 0.25)
-        if (toText) {
-          toText.scale.set(0.5, 0.5)
+        {
+          const zoomObj = { scale: 0.5, alpha: 0 }
+          toSprite.scale.set(0.5, 0.5)
+          toSprite.alpha = 0
+          toSprite.visible = true
+          
+          tl.to(zoomObj, {
+            scale: 1,
+            alpha: 1,
+            duration,
+            ease: 'none',
+            onUpdate: function() {
+              if (toSprite) {
+                toSprite.scale.set(zoomObj.scale, zoomObj.scale)
+                toSprite.alpha = zoomObj.alpha
+              }
+              if (appRef.current) {
+                appRef.current.render()
+              }
+            },
+            onComplete: function() {
+              if (toSprite) {
+                toSprite.scale.set(1, 1)
+                toSprite.alpha = 1
+              }
+            }
+          }, 0)
+          
+          applyTextFade()
+          
+          if (appRef.current) {
+            appRef.current.render()
+          }
         }
-        tl.to(toZoomObj, { scale: 1, alpha: 1, duration, onUpdate: function() {
-          if (toSprite) {
-            const scaleFactor = toZoomObj.scale
-            toSprite.scale.set(scaleFactor, scaleFactor)
-            toSprite.x = originalSpriteX + (toSprite.width * (1 - scaleFactor) / 2)
-            toSprite.y = originalSpriteY + (toSprite.height * (1 - scaleFactor) / 2)
-            toSprite.alpha = toZoomObj.alpha
-          }
-          if (toText) {
-            toText.scale.set(toZoomObj.scale, toZoomObj.scale)
-            toText.alpha = toZoomObj.alpha
-          }
-        }}, 0)
         break
 
       case 'zoom-out':
-        // 축소 (큰 크기에서 축소)
-        const toZoomOutObj = { scale: 1.5, alpha: 0 }
-        toSprite.scale.set(1.5, 1.5)
-        toSprite.x = originalSpriteX - (toSprite.width * 0.25)
-        toSprite.y = originalSpriteY - (toSprite.height * 0.25)
-        if (toText) {
-          toText.scale.set(1.5, 1.5)
+        {
+          const zoomObj = { scale: 1.5, alpha: 0 }
+          toSprite.scale.set(1.5, 1.5)
+          toSprite.alpha = 0
+          toSprite.visible = true
+          
+          tl.to(zoomObj, {
+            scale: 1,
+            alpha: 1,
+            duration,
+            ease: 'none',
+            onUpdate: function() {
+              if (toSprite) {
+                toSprite.scale.set(zoomObj.scale, zoomObj.scale)
+                toSprite.alpha = zoomObj.alpha
+              }
+              if (appRef.current) {
+                appRef.current.render()
+              }
+            },
+            onComplete: function() {
+              if (toSprite) {
+                toSprite.scale.set(1, 1)
+                toSprite.alpha = 1
+              }
+            }
+          }, 0)
+          
+          applyTextFade()
+          
+          if (appRef.current) {
+            appRef.current.render()
+          }
         }
-        tl.to(toZoomOutObj, { scale: 1, alpha: 1, duration, onUpdate: function() {
-          if (toSprite) {
-            const scaleFactor = toZoomOutObj.scale
-            toSprite.scale.set(scaleFactor, scaleFactor)
-            toSprite.x = originalSpriteX - (toSprite.width * (scaleFactor - 1) / 2)
-            toSprite.y = originalSpriteY - (toSprite.height * (scaleFactor - 1) / 2)
-            toSprite.alpha = toZoomOutObj.alpha
-          }
-          if (toText) {
-            toText.scale.set(toZoomOutObj.scale, toZoomOutObj.scale)
-            toText.alpha = toZoomOutObj.alpha
-          }
-        }}, 0)
         break
 
       case 'rotate':
-        // 회전 (회전하며 나타남)
-        const toRotateObj = { rotation: -Math.PI * 2, alpha: 0 }
-        toSprite.rotation = -Math.PI * 2
-        if (toText) {
-          toText.rotation = -Math.PI * 2
-        }
-        tl.to(toRotateObj, { rotation: 0, alpha: 1, duration, onUpdate: function() {
-          if (toSprite) {
-            toSprite.rotation = toRotateObj.rotation
-            toSprite.alpha = toRotateObj.alpha
-          }
-        }}, 0)
-        if (toText) {
-          tl.to(toRotateObj, { rotation: 0, alpha: 1, duration, onUpdate: function() {
-            if (toText) {
-              toText.rotation = toRotateObj.rotation
-              toText.alpha = toRotateObj.alpha
+        {
+          const rotateObj = { rotation: -Math.PI * 2, alpha: 0 }
+          toSprite.rotation = -Math.PI * 2
+          toSprite.alpha = 0
+          toSprite.visible = true
+          
+          tl.to(rotateObj, {
+            rotation: 0,
+            alpha: 1,
+            duration,
+            ease: 'none',
+            onUpdate: function() {
+              if (toSprite) {
+                toSprite.rotation = rotateObj.rotation
+                toSprite.alpha = rotateObj.alpha
+              }
+              if (appRef.current) {
+                appRef.current.render()
+              }
+            },
+            onComplete: function() {
+              if (toSprite) {
+                toSprite.rotation = 0
+                toSprite.alpha = 1
+              }
             }
-          }}, 0)
+          }, 0)
+          
+          applyTextFade()
+          
+          if (appRef.current) {
+            appRef.current.render()
+          }
         }
-        break
-
-      case 'blur':
-        // 블러 (블러에서 선명하게)
-        const toBlurFilter = new PIXI.BlurFilter()
-        toBlurFilter.blur = 20
-        toSprite.filters = [toBlurFilter]
-        const toBlurObj = { blur: 20, alpha: 0 }
-        tl.to(toBlurObj, { blur: 0, alpha: 1, duration, onUpdate: function() {
-          if (toSprite) {
-            toBlurFilter.blur = toBlurObj.blur
-            toSprite.alpha = toBlurObj.alpha
-          }
-          if (toText) {
-            toText.alpha = toBlurObj.alpha
-          }
-        }}, 0)
-        break
-
-      case 'glitch':
-        // 글리치 (랜덤 위치 이동하며 나타남)
-        const glitchObj = { x: originalSpriteX, alpha: 0 }
-        toSprite.x = originalSpriteX
-        const glitchAnim = () => {
-          const offset = (Math.random() - 0.5) * 20
-          gsap.to(glitchObj, { x: originalSpriteX + offset, duration: 0.05, yoyo: true, repeat: 5, onUpdate: function() {
-            if (toSprite) {
-              toSprite.x = glitchObj.x
-            }
-          }})
-        }
-        glitchAnim()
-        tl.to(glitchObj, { alpha: 1, duration, onUpdate: function() {
-          if (toSprite) {
-            toSprite.alpha = glitchObj.alpha
-          }
-          if (toText) {
-            toText.alpha = glitchObj.alpha
-          }
-        }}, 0)
-        break
-
-      case 'ripple':
-        // 물결 효과 (작은 크기에서 확장)
-        const toRippleObj = { scale: 0.8, alpha: 0 }
-        toSprite.scale.set(0.8, 0.8)
-        toSprite.x = originalSpriteX + (toSprite.width * 0.1)
-        toSprite.y = originalSpriteY + (toSprite.height * 0.1)
-        tl.to(toRippleObj, { scale: 1, alpha: 1, duration, onUpdate: function() {
-          if (toSprite) {
-            const scaleFactor = toRippleObj.scale
-            toSprite.scale.set(scaleFactor, scaleFactor)
-            toSprite.x = originalSpriteX + (toSprite.width * (1 - scaleFactor) / 2)
-            toSprite.y = originalSpriteY + (toSprite.height * (1 - scaleFactor) / 2)
-            toSprite.alpha = toRippleObj.alpha
-          }
-          if (toText) {
-            toText.alpha = toRippleObj.alpha
-          }
-        }}, 0)
-        break
-
-      case 'circle':
-        // 원형 마스크 확장 (중앙에서 원형으로 확장)
-        const circleMask = new PIXI.Graphics()
-        circleMask.beginFill(0xffffff)
-        circleMask.drawCircle(stageWidth / 2, stageHeight / 2, 0)
-        circleMask.endFill()
-        toSprite.mask = circleMask
-        const maskRadius = { value: 0 }
-        const maxRadius = Math.sqrt(stageWidth * stageWidth + stageHeight * stageHeight) / 2
-        const circleAlphaObj = { alpha: 0 }
-        tl.to(maskRadius, { 
-          value: maxRadius,
-          duration,
-          onUpdate: function() {
-            circleMask.clear()
-            circleMask.beginFill(0xffffff)
-            circleMask.drawCircle(stageWidth / 2, stageHeight / 2, maskRadius.value)
-            circleMask.endFill()
-          }
-        })
-        tl.to(circleAlphaObj, { alpha: 1, duration, onUpdate: function() {
-          if (toSprite) {
-            toSprite.alpha = circleAlphaObj.alpha
-          }
-          if (toText) {
-            toText.alpha = circleAlphaObj.alpha
-          }
-        }}, 0)
         break
 
       default:
-        // 기본: 페이드
-        const defaultFadeObj = { alpha: 0 }
-        tl.to(defaultFadeObj, { alpha: 1, duration, onUpdate: function() {
-          if (toSprite) {
-            toSprite.alpha = defaultFadeObj.alpha
-          }
+        // 기본 페이드
+        {
+          const fadeObj = { alpha: 0 }
+          toSprite.alpha = 0
+          toSprite.visible = true
           if (toText) {
-            toText.alpha = defaultFadeObj.alpha
+            toText.alpha = 0
+            toText.visible = true
           }
-        }}, 0)
+          
+          tl.to(fadeObj, {
+            alpha: 1,
+            duration,
+            ease: 'none',
+            onUpdate: function() {
+              if (toSprite) {
+                toSprite.alpha = fadeObj.alpha
+              }
+              if (toText) {
+                toText.alpha = fadeObj.alpha
+              }
+              if (appRef.current) {
+                appRef.current.render()
+              }
+            }
+          }, 0)
+          
+          if (appRef.current) {
+            appRef.current.render()
+          }
+        }
     }
 
-    // 애니메이션 완료 후 정리
-    tl.call(() => {
-      activeAnimationsRef.current.delete(sceneIndex)
-      if (appRef.current) {
+    // GSAP ticker로 렌더링
+    const renderTicker = gsap.ticker.add(() => {
+      if (!tl.paused() && appRef.current) {
         appRef.current.render()
       }
     })
 
-    // 고급 효과 적용
-    if (toSprite && timeline) {
-      const scene = timeline.scenes[sceneIndex]
-      if (scene?.advancedEffects) {
-        applyAdvancedEffectsFn(toSprite, sceneIndex, scene.advancedEffects)
+    const originalOnComplete = tl.eventCallback('onComplete')
+    tl.eventCallback('onComplete', () => {
+      if (originalOnComplete) originalOnComplete()
+      requestAnimationFrame(() => {
+        gsap.ticker.remove(renderTicker)
+      })
+    })
+
+    // Timeline 상태 확인
+    const timelineDuration = tl.duration()
+    const childrenCount = tl.getChildren().length
+    
+    console.log(`[전환효과] Timeline 생성 완료 - duration: ${timelineDuration}, children: ${childrenCount}, paused: ${tl.paused()}, isActive: ${tl.isActive()}`)
+    
+    // Timeline이 paused: false로 생성되었으므로 자동으로 시작됨
+    // 하지만 확실히 하기 위해 wake 호출
+    gsap.ticker.wake()
+    
+    if (childrenCount === 0 || timelineDuration === 0) {
+      console.error(`[전환효과] Timeline에 애니메이션이 없음!`)
+      if (toSprite) {
+        toSprite.visible = true
+        toSprite.alpha = 1
+      }
+      if (toText) {
+        toText.visible = true
+        toText.alpha = 1
+      }
+      if (appRef.current) {
+        appRef.current.render()
       }
     }
-  }, [appRef, activeAnimationsRef, timeline])
+  }, [appRef, containerRef, activeAnimationsRef, timeline, onAnimationComplete])
 
   return {
     applyAdvancedEffects,
     applyEnterEffect,
   }
 }
-

@@ -100,6 +100,8 @@ export interface TimelineScene {
       scaleX: number
       scaleY: number
       rotation: number
+      baseWidth?: number // 원본 텍스트 너비 (scale 제거)
+      baseHeight?: number // 원본 텍스트 높이 (scale 제거)
     }
     style?: {
       bold?: boolean

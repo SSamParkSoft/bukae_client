@@ -34,8 +34,10 @@ interface UseSceneManagerParams {
     stageWidth: number,
     stageHeight: number,
     sceneIndex: number,
-    applyAdvancedEffectsFn: (sprite: PIXI.Sprite, sceneIndex: number, effects?: TimelineScene['advancedEffects']) => void
+    applyAdvancedEffectsFn: (sprite: PIXI.Sprite, sceneIndex: number, effects?: TimelineScene['advancedEffects']) => void,
+    forceTransition?: string // 강제로 적용할 전환 효과 (timeline 값 무시)
   ) => void
+  onLoadComplete?: (sceneIndex: number) => void // 로드 완료 후 콜백
 }
 
 export const useSceneManager = ({
@@ -55,41 +57,73 @@ export const useSceneManager = ({
   loadPixiTextureWithCache,
   applyAdvancedEffects,
   applyEnterEffect,
+  onLoadComplete,
 }: UseSceneManagerParams) => {
   // 현재 씬 업데이트
-  const updateCurrentScene = useCallback((skipAnimation: boolean = false) => {
+  // previousIndex 파라미터: 명시적으로 이전 씬 인덱스를 전달받음 (optional, 없으면 previousSceneIndexRef 사용)
+  // forceTransition: 강제로 적용할 전환 효과 (timeline 값 무시, 전환 효과 미리보기용)
+  const updateCurrentScene = useCallback((skipAnimation: boolean = false, explicitPreviousIndex?: number | null, forceTransition?: string) => {
     const sceneIndex = currentSceneIndexRef.current
-    console.log('Step4: updateCurrentScene called, index:', sceneIndex, 'skipAnimation:', skipAnimation, 'container:', !!containerRef.current, 'timeline:', !!timeline)
-    if (!containerRef.current || !timeline || !appRef.current) {
-      console.log('Step4: updateCurrentScene skipped - missing container or timeline')
-      return
-    }
-
-    const spriteCount = spritesRef.current.size
-    const textCount = textsRef.current.size
-    console.log('Step4: updateCurrentScene - sprites:', spriteCount, 'texts:', textCount)
+    
+    console.log(`[updateCurrentScene] 호출 - sceneIndex: ${sceneIndex}, skipAnimation: ${skipAnimation}, explicitPreviousIndex: ${explicitPreviousIndex}`)
+    
+    try {
+      if (!containerRef.current || !timeline || !appRef.current) {
+        console.warn(`[updateCurrentScene] 조건 체크 실패 - containerRef: ${!!containerRef.current}, timeline: ${!!timeline}, appRef: ${!!appRef.current}`)
+        return
+      }
 
     const currentScene = timeline.scenes[sceneIndex]
-    const previousIndex = previousSceneIndexRef.current
+    const previousIndex = explicitPreviousIndex !== undefined ? explicitPreviousIndex : previousSceneIndexRef.current
 
     const currentSprite = spritesRef.current.get(sceneIndex)
     const currentText = textsRef.current.get(sceneIndex)
     const previousSprite = previousIndex !== null ? spritesRef.current.get(previousIndex) : null
     const previousText = previousIndex !== null ? textsRef.current.get(previousIndex) : null
 
-    // 이전 씬 숨기기
-    if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
-      previousSprite.visible = false
-      previousSprite.alpha = 0
-    }
-    if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
-      previousText.visible = false
-      previousText.alpha = 0
-    }
-
-    // 애니메이션 스킵 시 즉시 표시
-    if (skipAnimation) {
-      console.log('Step4: Skipping animation, showing immediately')
+      // 애니메이션 스킵 시 즉시 표시
+      if (skipAnimation) {
+      // 전환 효과가 진행 중이면 무시 (전환 효과를 중단하지 않음)
+      // activeAnimationsRef에 있는 모든 애니메이션 확인
+      let hasActiveAnimation = false
+      activeAnimationsRef.current.forEach((anim) => {
+        if (anim && anim.isActive && anim.isActive()) {
+          hasActiveAnimation = true
+        }
+      })
+      
+      if (hasActiveAnimation) {
+        console.log(`[updateCurrentScene] 전환 효과 진행 중 - skipAnimation 호출 무시 - sceneIndex: ${sceneIndex}`)
+        return
+      }
+      
+      // 이전 씬 숨기기
+      if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
+        previousSprite.visible = false
+        previousSprite.alpha = 0
+      }
+      if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
+        previousText.visible = false
+        previousText.alpha = 0
+      }
+      
+      // 모든 씬을 먼저 숨김 (이전 씬이 null인 경우를 대비)
+      if (previousIndex === null) {
+        spritesRef.current.forEach((sprite, idx) => {
+          if (sprite && idx !== sceneIndex) {
+            sprite.visible = false
+            sprite.alpha = 0
+          }
+        })
+        textsRef.current.forEach((text, idx) => {
+          if (text && idx !== sceneIndex) {
+            text.visible = false
+            text.alpha = 0
+          }
+        })
+      }
+      
+      // 현재 씬 표시
       if (currentSprite) {
         currentSprite.visible = true
         currentSprite.alpha = 1
@@ -104,28 +138,96 @@ export const useSceneManager = ({
       previousSceneIndexRef.current = sceneIndex
       return
     }
-
+    
     // 현재 씬 등장 효과 적용
     if (currentSprite) {
-      const transition = currentScene.transition || 'fade'
-      const transitionDuration = currentScene.transitionDuration || 0.5
+      const transition = forceTransition || currentScene.transition || 'fade'
+      const transitionDuration = currentScene.transitionDuration || 1.0
       const { width, height } = stageDimensions
+      
+      console.log(`[updateCurrentScene] 전환 효과 적용 - sceneIndex: ${sceneIndex}, transition: ${transition}, duration: ${transitionDuration}`)
 
-      // 이전 씬의 애니메이션 모두 kill
+      // 모든 이전 애니메이션 kill
       activeAnimationsRef.current.forEach((anim, idx) => {
-        if (idx !== sceneIndex) {
+        if (anim && anim.isActive && anim.isActive()) {
           anim.kill()
-          activeAnimationsRef.current.delete(idx)
+        }
+        activeAnimationsRef.current.delete(idx)
+      })
+      activeAnimationsRef.current.clear()
+
+      // ===== 전환 효과 준비 =====
+      
+      // 1. 현재 씬을 컨테이너에 추가
+      if (currentSprite.parent !== containerRef.current) {
+        if (currentSprite.parent) {
+          currentSprite.parent.removeChild(currentSprite)
+        }
+        if (containerRef.current) {
+          containerRef.current.addChild(currentSprite)
+        }
+      }
+      
+      if (currentText && currentText.parent !== containerRef.current) {
+        if (currentText.parent) {
+          currentText.parent.removeChild(currentText)
+        }
+        if (containerRef.current) {
+          containerRef.current.addChild(currentText)
+        }
+      }
+      
+      // 2. 이전 씬 즉시 숨기기
+      if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
+        previousSprite.visible = false
+        previousSprite.alpha = 0
+      }
+      if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
+        previousText.visible = false
+        previousText.alpha = 0
+      }
+      
+      // 3. 다른 씬들 숨기기
+      spritesRef.current.forEach((sprite, idx) => {
+        if (sprite && idx !== sceneIndex && idx !== previousIndex) {
+          sprite.visible = false
+          sprite.alpha = 0
         }
       })
+      textsRef.current.forEach((text, idx) => {
+        if (text && idx !== sceneIndex && idx !== previousIndex) {
+          text.visible = false
+          text.alpha = 0
+        }
+      })
+      
+      // 4. 현재 씬 visible 설정 (alpha와 위치는 applyEnterEffect에서 설정)
+      currentSprite.visible = true
+      if (currentText) {
+        currentText.visible = true
+      }
 
       // 고급 효과 적용
       if (currentScene.advancedEffects) {
         applyAdvancedEffects(currentSprite, sceneIndex, currentScene.advancedEffects)
       }
+      
+      // 고급 효과 적용 후에도 스프라이트가 컨테이너에 있는지 확인
+      if (!currentSprite.parent && containerRef.current) {
+        console.warn(`[updateCurrentScene] 고급 효과 적용 후 스프라이트가 컨테이너에 없음 - scene: ${sceneIndex}, 강제 추가`)
+        containerRef.current.addChild(currentSprite)
+      }
+      if (currentText && !currentText.parent && containerRef.current) {
+        console.warn(`[updateCurrentScene] 고급 효과 적용 후 텍스트가 컨테이너에 없음 - scene: ${sceneIndex}, 강제 추가`)
+        containerRef.current.addChild(currentText)
+      }
 
-      applyEnterEffect(currentSprite, currentText || null, transition, transitionDuration, width, height, sceneIndex, applyAdvancedEffects)
+      // 전환 효과 적용
+      console.log(`[updateCurrentScene] applyEnterEffect 호출 - sceneIndex: ${sceneIndex}`)
+      // applyEnterEffect에서 초기 상태 설정 후 렌더링하므로 여기서는 렌더링하지 않음
+      applyEnterEffect(currentSprite, currentText || null, transition, transitionDuration, width, height, sceneIndex, applyAdvancedEffects, forceTransition)
     } else {
+      console.warn(`[updateCurrentScene] currentSprite가 없음 - sceneIndex: ${sceneIndex}`)
       // 스프라이트가 없으면 즉시 표시
       spritesRef.current.forEach((sprite, index) => {
         if (sprite?.parent) {
@@ -145,7 +247,10 @@ export const useSceneManager = ({
       }
     }
 
-    previousSceneIndexRef.current = sceneIndex
+      previousSceneIndexRef.current = sceneIndex
+    } catch (error) {
+      console.error('updateCurrentScene error:', error)
+    }
   }, [timeline, stageDimensions, applyEnterEffect, applyAdvancedEffects, appRef, containerRef, spritesRef, textsRef, currentSceneIndexRef, previousSceneIndexRef, activeAnimationsRef])
 
   // Fabric 오브젝트를 현재 씬 상태에 맞게 동기화
@@ -156,12 +261,6 @@ export const useSceneManager = ({
     const scene = timeline.scenes[sceneIndex]
     if (!scene) return
     const scale = fabricScaleRatioRef.current
-    console.log('Fabric sync start', {
-      sceneIndex,
-      image: !!scene.image,
-      text: scene.text?.content,
-      scale,
-    })
     fabricCanvas.clear()
 
     const { width, height } = stageDimensions
@@ -241,21 +340,14 @@ export const useSceneManager = ({
       fabricCanvas.add(textObj)
     }
 
-    console.log('Fabric sync done', {
-      objects: fabricCanvas.getObjects().length,
-      scale,
-    })
     fabricCanvas.renderAll()
   }, [useFabricEditing, fabricCanvasRef, fabricScaleRatioRef, currentSceneIndexRef, timeline, stageDimensions])
 
   // 모든 씬 로드
   const loadAllScenes = useCallback(async () => {
     if (!appRef.current || !containerRef.current || !timeline) {
-      console.log('Step4: loadAllScenes skipped - app:', !!appRef.current, 'container:', !!containerRef.current, 'timeline:', !!timeline)
       return
     }
-
-    console.log('Step4: loadAllScenes started, scenes count:', timeline.scenes.length)
 
     const container = containerRef.current
     const { width, height } = stageDimensions
@@ -267,14 +359,11 @@ export const useSceneManager = ({
     const loadScene = async (sceneIndex: number) => {
       const scene = timeline.scenes[sceneIndex]
       if (!scene || !scene.image) {
-        console.log(`Step4: Scene ${sceneIndex} skipped - no scene or image`)
         return
       }
 
       try {
-        console.log(`Step4: Loading scene ${sceneIndex}, image:`, scene.image)
         const texture = await loadPixiTextureWithCache(scene.image)
-        console.log(`Step4: Texture loaded for scene ${sceneIndex}, size:`, texture.width, texture.height)
         const sprite = new PIXI.Sprite(texture)
         const imageFit = scene.imageFit || 'fill'
         const params = calculateSpriteParams(
@@ -304,7 +393,6 @@ export const useSceneManager = ({
 
         container.addChild(sprite)
         spritesRef.current.set(sceneIndex, sprite)
-        console.log(`Step4: Sprite added for scene ${sceneIndex}`)
 
         if (scene.text?.content) {
           const textStyle = new PIXI.TextStyle({
@@ -359,29 +447,35 @@ export const useSceneManager = ({
 
     await Promise.all(timeline.scenes.map((_, index) => loadScene(index)))
     
-    console.log(
-      'Step4: All scenes loaded - sprites:',
-      spritesRef.current.size,
-      'texts:',
-      textsRef.current.size
-    )
-    
     // 렌더링 강제 실행
     requestAnimationFrame(() => {
       const sceneIndex = currentSceneIndexRef.current
-      console.log('Step4: Updating current scene after load, index:', sceneIndex)
-      // Transform 저장 중이 아닐 때만 updateCurrentScene 호출
-      if (!isSavingTransformRef.current) {
-        updateCurrentScene()
+      if (isSavingTransformRef.current) {
+        const currentSprite = spritesRef.current.get(sceneIndex)
+        const currentText = textsRef.current.get(sceneIndex)
+        if (currentSprite) {
+          currentSprite.visible = true
+          currentSprite.alpha = 1
+        }
+        if (currentText) {
+          currentText.visible = true
+          currentText.alpha = 1
+        }
+        if (appRef.current) {
+          appRef.current.render()
+        }
+      } else {
+        updateCurrentScene(true)
       }
       if (appRef.current) {
-        console.log('Step4: Rendering PixiJS app')
         appRef.current.render()
-      } else {
-        console.error('Step4: appRef.current is null after loadAllScenes')
+      }
+      
+      if (onLoadComplete) {
+        onLoadComplete(sceneIndex)
       }
     })
-  }, [timeline, stageDimensions, updateCurrentScene, appRef, containerRef, spritesRef, textsRef, currentSceneIndexRef, isSavingTransformRef, loadPixiTextureWithCache])
+  }, [timeline, stageDimensions, updateCurrentScene, appRef, containerRef, spritesRef, textsRef, currentSceneIndexRef, isSavingTransformRef, loadPixiTextureWithCache, onLoadComplete])
 
   return {
     updateCurrentScene,

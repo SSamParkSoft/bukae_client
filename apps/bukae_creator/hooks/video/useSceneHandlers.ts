@@ -12,9 +12,11 @@ interface UseSceneHandlersParams {
   setTimeline: (timeline: TimelineData | null) => void
   currentSceneIndex: number
   setCurrentSceneIndex: (index: number) => void
-  updateCurrentScene: (skipAnimation?: boolean) => void
+  updateCurrentScene: (skipAnimation?: boolean, explicitPreviousIndex?: number | null, forceTransition?: string) => void
   setIsPreviewingTransition: (val: boolean) => void
+  isPreviewingTransition: boolean // 전환 효과 미리보기 중인지 확인용
   isManualSceneSelectRef: MutableRefObject<boolean>
+  lastRenderedSceneIndexRef: MutableRefObject<number | null> // 전환 효과 미리보기용
   pixiReady: boolean
   appRef: MutableRefObject<PIXI.Application | null>
   containerRef: MutableRefObject<PIXI.Container | null>
@@ -31,7 +33,9 @@ export function useSceneHandlers({
   setCurrentSceneIndex,
   updateCurrentScene,
   setIsPreviewingTransition,
+  isPreviewingTransition,
   isManualSceneSelectRef,
+  lastRenderedSceneIndexRef,
   pixiReady,
   appRef,
   containerRef,
@@ -72,6 +76,13 @@ export function useSceneHandlers({
   const handleSceneTransitionChange = useCallback(
     (index: number, value: string) => {
       if (!timeline) return
+      
+      // 중복 호출 방지
+      const currentTransition = timeline.scenes[index]?.transition
+      if (currentTransition === value && isPreviewingTransition) {
+        return
+      }
+      
       isManualSceneSelectRef.current = true
       const nextTimeline: TimelineData = {
         ...timeline,
@@ -80,27 +91,45 @@ export function useSceneHandlers({
       setTimeline(nextTimeline)
 
       setIsPreviewingTransition(true)
+      
+      const previousIndex = lastRenderedSceneIndexRef.current !== null 
+        ? lastRenderedSceneIndexRef.current 
+        : currentSceneIndex
+      
+      if (index !== currentSceneIndex) {
+        setCurrentSceneIndex(index)
+      }
+      
       requestAnimationFrame(() => {
-        if (index !== currentSceneIndex) {
-          setCurrentSceneIndex(index)
-        }
-        updateCurrentScene(false)
-
-        const transitionDuration = timeline.scenes[index]?.transitionDuration || 0.5
         setTimeout(() => {
-          setIsPreviewingTransition(false)
-          isManualSceneSelectRef.current = false
-        }, transitionDuration * 1000 + 200)
+          if (previousIndex !== null && previousIndex !== index) {
+            updateCurrentScene(false, previousIndex, value)
+          } else if (previousIndex === index) {
+            updateCurrentScene(false, index, value)
+          } else {
+            updateCurrentScene(false, null, value)
+          }
+          
+          lastRenderedSceneIndexRef.current = index
+
+          const transitionDuration = nextTimeline.scenes[index]?.transitionDuration || 0.5
+          setTimeout(() => {
+            setIsPreviewingTransition(false)
+            isManualSceneSelectRef.current = false
+          }, transitionDuration * 1000 + 200)
+        }, 50)
       })
     },
     [
       currentSceneIndex,
       isManualSceneSelectRef,
+      lastRenderedSceneIndexRef,
       setCurrentSceneIndex,
       setIsPreviewingTransition,
       setTimeline,
       timeline,
       updateCurrentScene,
+      isPreviewingTransition,
     ],
   )
 

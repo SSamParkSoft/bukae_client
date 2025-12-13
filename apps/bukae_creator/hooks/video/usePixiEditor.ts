@@ -11,6 +11,7 @@ interface UsePixiEditorParams {
   editHandlesRef: React.MutableRefObject<Map<number, PIXI.Container>>
   textEditHandlesRef: React.MutableRefObject<Map<number, PIXI.Container>>
   isDraggingRef: React.MutableRefObject<boolean>
+  draggingElementRef: React.MutableRefObject<'image' | 'text' | null> // 현재 드래그 중인 요소 타입
   dragStartPosRef: React.MutableRefObject<{ x: number; y: number; boundsWidth?: number; boundsHeight?: number }>
   isResizingRef: React.MutableRefObject<boolean>
   resizeHandleRef: React.MutableRefObject<'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | null>
@@ -25,6 +26,7 @@ interface UsePixiEditorParams {
   
   // State
   editMode: 'none' | 'image' | 'text'
+  setEditMode: (mode: 'none' | 'image' | 'text') => void
   selectedElementIndex: number | null
   setSelectedElementIndex: (index: number | null) => void
   selectedElementType: 'image' | 'text' | null
@@ -42,6 +44,7 @@ export const usePixiEditor = ({
   editHandlesRef,
   textEditHandlesRef,
   isDraggingRef,
+  draggingElementRef,
   dragStartPosRef,
   isResizingRef,
   resizeHandleRef,
@@ -54,6 +57,7 @@ export const usePixiEditor = ({
   currentSceneIndexRef,
   isSavingTransformRef,
   editMode,
+  setEditMode,
   selectedElementIndex,
   setSelectedElementIndex,
   selectedElementType,
@@ -168,11 +172,18 @@ export const usePixiEditor = ({
       const handleGlobalUp = () => {
         if (isResizingRef.current && resizeHandleRef.current === handle.type) {
           isResizingRef.current = false
+          const currentHandleType = resizeHandleRef.current
           resizeHandleRef.current = null
           resizeStartPosRef.current = null
           isFirstResizeMoveRef.current = true
           document.removeEventListener('mousemove', handleGlobalMove)
           document.removeEventListener('mouseup', handleGlobalUp)
+          
+          // 리사이즈 완료 시 Transform 저장
+          const currentSprite = spritesRef.current.get(sceneIndex)
+          if (currentSprite && currentHandleType) {
+            saveImageTransform(sceneIndex, currentSprite)
+          }
         }
       }
 
@@ -195,8 +206,17 @@ export const usePixiEditor = ({
   }, [useFabricEditing, containerRef, editHandlesRef, spritesRef, appRef, isResizingRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, resizeStartPosRef, setSelectedElementIndex, setSelectedElementType])
 
   // Transform 데이터 저장 (단일 씬)
-  const saveImageTransform = useCallback((sceneIndex: number, sprite: PIXI.Sprite) => {
-    if (!timeline || !sprite) return
+  const saveImageTransform = useCallback((sceneIndex: number, sprite: PIXI.Sprite | null) => {
+    if (!timeline || !sprite) {
+      // console.log(`Step4: saveImageTransform - timeline: ${!!timeline}, sprite: ${!!sprite}`)
+      return
+    }
+
+    // 스프라이트가 파괴되었는지 확인
+    if (!sprite.parent) {
+      // console.log(`Step4: saveImageTransform - sprite ${sceneIndex} has no parent, skipping`)
+      return
+    }
 
     const transform = {
       x: sprite.x,
@@ -207,6 +227,9 @@ export const usePixiEditor = ({
       scaleY: sprite.scale.y,
       rotation: sprite.rotation,
     }
+
+    // Transform 저장 중 플래그 설정
+    isSavingTransformRef.current = true
 
     const nextTimeline: TimelineData = {
       ...timeline,
@@ -221,7 +244,12 @@ export const usePixiEditor = ({
       }),
     }
     setTimeline(nextTimeline)
-  }, [timeline, setTimeline])
+    
+    // Transform 저장 완료 후 플래그 해제 (loadAllScenes 재호출 방지)
+    setTimeout(() => {
+      isSavingTransformRef.current = false
+    }, 100)
+  }, [timeline, setTimeline, isSavingTransformRef])
   
   // 모든 Transform 데이터 일괄 저장
   const saveAllImageTransforms = useCallback((transforms: Map<number, { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }>) => {
@@ -382,20 +410,43 @@ export const usePixiEditor = ({
 
   // 스프라이트 드래그 핸들러
   const setupSpriteDrag = useCallback((sprite: PIXI.Sprite, sceneIndex: number) => {
-    if (!sprite) return
+    if (!sprite) {
+      // console.log(`Step4: setupSpriteDrag - sprite is null for scene ${sceneIndex}`)
+      return
+    }
+
+    // console.log(`Step4: setupSpriteDrag called for scene ${sceneIndex}, visible: ${sprite.visible}, alpha: ${sprite.alpha}`)
 
     sprite.off('pointerdown')
     sprite.off('pointermove')
     sprite.off('pointerup')
     sprite.off('pointerupoutside')
 
-    sprite.interactive = true
-    sprite.cursor = editMode === 'image' && !useFabricEditing ? 'move' : 'default'
+    // visible하지 않은 스프라이트는 interactive하지 않게 설정
+    if (!sprite.visible || sprite.alpha === 0) {
+      // console.log(`Step4: setupSpriteDrag - sprite ${sceneIndex} is not visible, skipping interactive setup`)
+      sprite.interactive = false
+      return
+    }
 
-    if (editMode === 'image' && !useFabricEditing) {
+    sprite.interactive = true
+    sprite.cursor = !useFabricEditing ? 'pointer' : 'default'
+    // console.log(`Step4: setupSpriteDrag - sprite ${sceneIndex} interactive set to true, cursor: ${sprite.cursor}`)
+
+    if (!useFabricEditing) {
       sprite.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
+        // console.log(`Step4: Sprite ${sceneIndex} clicked!`, e)
         e.stopPropagation()
+        
+        // 클릭 시 즉시 선택 및 핸들 표시
+        setSelectedElementIndex(sceneIndex)
+        setSelectedElementType('image')
+        setEditMode('image') // editMode 즉시 설정
+        drawEditHandles(sprite, sceneIndex, handleResize, saveImageTransform)
+        
+        // 드래그 시작
         isDraggingRef.current = true
+        draggingElementRef.current = 'image'
         const globalPos = e.global
         dragStartPosRef.current = {
           x: globalPos.x - sprite.x,
@@ -417,40 +468,81 @@ export const usePixiEditor = ({
             })
           }
         }
-        setSelectedElementIndex(sceneIndex)
-        setSelectedElementType('image')
-        drawEditHandles(sprite, sceneIndex, handleResize, saveImageTransform)
-      })
 
-      sprite.on('pointermove', (e: PIXI.FederatedPointerEvent) => {
-        if (isDraggingRef.current && !isResizingRef.current) {
-          const globalPos = e.global
-          sprite.x = globalPos.x - dragStartPosRef.current.x
-          sprite.y = globalPos.y - dragStartPosRef.current.y
-          if (appRef.current) {
-            appRef.current.render()
+        // 전역 마우스 이벤트 리스너 추가 (스프라이트 밖에서도 드래그 가능)
+        let hasMoved = false // 드래그가 실제로 발생했는지 추적
+        const handleGlobalMove = (e: MouseEvent) => {
+          if (isDraggingRef.current && draggingElementRef.current === 'image' && !isResizingRef.current && appRef.current) {
+            hasMoved = true // 드래그 발생
+            const currentSprite = spritesRef.current.get(sceneIndex)
+            if (!currentSprite) {
+              // console.log(`Step4: handleGlobalMove - sprite ${sceneIndex} not found, stopping drag`)
+              isDraggingRef.current = false
+              draggingElementRef.current = null
+              document.removeEventListener('mousemove', handleGlobalMove)
+              document.removeEventListener('mouseup', handleGlobalUp)
+              return
+            }
+            const canvas = appRef.current.canvas
+            const rect = canvas.getBoundingClientRect()
+            const scaleX = canvas.width / rect.width
+            const scaleY = canvas.height / rect.height
+            const globalPos = {
+              x: (e.clientX - rect.left) * scaleX,
+              y: (e.clientY - rect.top) * scaleY,
+            }
+            currentSprite.x = globalPos.x - dragStartPosRef.current.x
+            currentSprite.y = globalPos.y - dragStartPosRef.current.y
+            if (appRef.current) {
+              appRef.current.render()
+            }
+            drawEditHandles(currentSprite, sceneIndex, handleResize, saveImageTransform)
           }
-          drawEditHandles(sprite, sceneIndex, handleResize, saveImageTransform)
         }
+
+        const handleGlobalUp = () => {
+          if (isDraggingRef.current && draggingElementRef.current === 'image') {
+            isDraggingRef.current = false
+            draggingElementRef.current = null
+            const currentSprite = spritesRef.current.get(sceneIndex)
+            if (currentSprite) {
+              if (hasMoved) {
+                // 드래그가 발생한 경우에만 Transform 저장
+                saveImageTransform(sceneIndex, currentSprite)
+              }
+              // 클릭만 했거나 드래그를 했든 상관없이 핸들 유지
+              drawEditHandles(currentSprite, sceneIndex, handleResize, saveImageTransform)
+            }
+            document.removeEventListener('mousemove', handleGlobalMove)
+            document.removeEventListener('mouseup', handleGlobalUp)
+          }
+        }
+
+        document.addEventListener('mousemove', handleGlobalMove)
+        document.addEventListener('mouseup', handleGlobalUp)
       })
 
       sprite.on('pointerup', () => {
-        if (isDraggingRef.current) {
-          isDraggingRef.current = false
-        }
+        // pointerup은 handleGlobalUp에서 처리되므로 여기서는 아무것도 하지 않음
+        // 핸들은 handleGlobalUp에서 유지됨
       })
 
       sprite.on('pointerupoutside', () => {
-        if (isDraggingRef.current) {
-          isDraggingRef.current = false
-        }
+        // pointerupoutside도 handleGlobalUp에서 처리되므로 여기서는 아무것도 하지 않음
+        // 핸들은 handleGlobalUp에서 유지됨
       })
     }
-  }, [editMode, useFabricEditing, drawEditHandles, saveImageTransform, handleResize, timeline, isDraggingRef, dragStartPosRef, originalSpriteTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingRef, appRef])
+  }, [editMode, useFabricEditing, drawEditHandles, saveImageTransform, handleResize, timeline, isDraggingRef, dragStartPosRef, originalSpriteTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingRef, appRef, spritesRef, setEditMode, draggingElementRef])
 
   // Transform 데이터 적용
-  const applyImageTransform = useCallback((sprite: PIXI.Sprite, transform?: TimelineScene['imageTransform']) => {
+  const applyImageTransform = useCallback((sprite: PIXI.Sprite | null, transform?: TimelineScene['imageTransform']) => {
     if (!transform || !sprite) return
+
+    // 스프라이트가 파괴되었는지 확인
+    if (!sprite.parent) {
+      // console.log('Step4: applyImageTransform - sprite has no parent, skipping')
+      return
+    }
 
     sprite.x = transform.x
     sprite.y = transform.y
@@ -460,9 +552,22 @@ export const usePixiEditor = ({
   }, [])
 
   // 텍스트 Transform 데이터 저장
-  const saveTextTransform = useCallback((sceneIndex: number, text: PIXI.Text) => {
-    if (!timeline || !text) return
+  const saveTextTransform = useCallback((sceneIndex: number, text: PIXI.Text | null) => {
+    if (!timeline || !text) {
+      // console.log(`Step4: saveTextTransform - timeline: ${!!timeline}, text: ${!!text}`)
+      return
+    }
 
+    // 텍스트가 파괴되었는지 확인
+    if (!text.parent) {
+      // console.log(`Step4: saveTextTransform - text ${sceneIndex} has no parent, skipping`)
+      return
+    }
+
+    // 원본 크기 계산 (scale을 제거한 실제 텍스트 크기)
+    const baseWidth = text.width / (text.scale.x || 1)
+    const baseHeight = text.height / (text.scale.y || 1)
+    
     const transform = {
       x: text.x,
       y: text.y,
@@ -471,7 +576,12 @@ export const usePixiEditor = ({
       scaleX: text.scale.x,
       scaleY: text.scale.y,
       rotation: text.rotation,
+      baseWidth, // 원본 크기 저장
+      baseHeight, // 원본 크기 저장
     }
+
+    // Transform 저장 중 플래그 설정
+    isSavingTransformRef.current = true
 
     const nextTimeline: TimelineData = {
       ...timeline,
@@ -489,11 +599,22 @@ export const usePixiEditor = ({
       }),
     }
     setTimeline(nextTimeline)
-  }, [timeline, setTimeline])
+    
+    // Transform 저장 완료 후 플래그 해제 (loadAllScenes 재호출 방지)
+    setTimeout(() => {
+      isSavingTransformRef.current = false
+    }, 100)
+  }, [timeline, setTimeline, isSavingTransformRef])
 
   // Transform 데이터 적용
-  const applyTextTransform = useCallback((text: PIXI.Text, transform?: TimelineScene['text']['transform']) => {
+  const applyTextTransform = useCallback((text: PIXI.Text | null, transform?: TimelineScene['text']['transform']) => {
     if (!transform || !text) return
+
+    // 텍스트가 파괴되었는지 확인
+    if (!text.parent) {
+      // console.log('Step4: applyTextTransform - text has no parent, skipping')
+      return
+    }
 
     const scaleX = transform.scaleX ?? 1
     const scaleY = transform.scaleY ?? 1
@@ -678,8 +799,10 @@ export const usePixiEditor = ({
         const text = textsRef.current.get(sceneIndex)
         if (text && appRef.current) {
           const bounds = text.getBounds()
-          const baseWidth = bounds.width / (text.scale.x || 1)
-          const baseHeight = bounds.height / (text.scale.y || 1)
+          // 저장된 Transform에서 baseWidth/baseHeight 가져오기 (있으면)
+          const savedTransform = timeline?.scenes[sceneIndex]?.text?.transform
+          const baseWidth = savedTransform?.baseWidth || bounds.width / (text.scale.x || 1)
+          const baseHeight = savedTransform?.baseHeight || bounds.height / (text.scale.y || 1)
           
           originalTransformRef.current = {
             x: bounds.x,
@@ -731,11 +854,18 @@ export const usePixiEditor = ({
       const handleGlobalUp = () => {
         if (isResizingTextRef.current && resizeHandleRef.current === handle.type) {
           isResizingTextRef.current = false
+          const currentHandleType = resizeHandleRef.current
           resizeHandleRef.current = null
           resizeStartPosRef.current = null
           isFirstResizeMoveRef.current = true
           document.removeEventListener('mousemove', handleGlobalMove)
           document.removeEventListener('mouseup', handleGlobalUp)
+          
+          // 리사이즈 완료 시 Transform 저장
+          const currentText = textsRef.current.get(sceneIndex)
+          if (currentText && currentHandleType) {
+            saveTextTransform(sceneIndex, currentText)
+          }
         }
       }
 
@@ -755,31 +885,52 @@ export const usePixiEditor = ({
 
     containerRef.current.addChild(handlesContainer)
     textEditHandlesRef.current.set(sceneIndex, handlesContainer)
-  }, [useFabricEditing, containerRef, textEditHandlesRef, textsRef, appRef, isResizingTextRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, resizeStartPosRef, setSelectedElementIndex, setSelectedElementType, handleTextResize])
+  }, [useFabricEditing, containerRef, textEditHandlesRef, textsRef, appRef, isResizingTextRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, resizeStartPosRef, setSelectedElementIndex, setSelectedElementType, handleTextResize, saveTextTransform, timeline])
 
   // 텍스트 드래그 설정
   const setupTextDrag = useCallback((text: PIXI.Text, sceneIndex: number) => {
-    if (!text) return
+    if (!text) {
+      // console.log(`Step4: setupTextDrag - text is null for scene ${sceneIndex}`)
+      return
+    }
+
+    // console.log(`Step4: setupTextDrag called for scene ${sceneIndex}, visible: ${text.visible}, alpha: ${text.alpha}`)
 
     text.off('pointerdown')
     text.off('pointermove')
     text.off('pointerup')
     text.off('pointerupoutside')
 
-    text.interactive = true
-    text.cursor = editMode === 'text' && !useFabricEditing ? 'move' : 'default'
+    // visible하지 않은 텍스트는 interactive하지 않게 설정
+    if (!text.visible || text.alpha === 0) {
+      // console.log(`Step4: setupTextDrag - text ${sceneIndex} is not visible, skipping interactive setup`)
+      text.interactive = false
+      return
+    }
 
-    if (editMode === 'text' && !useFabricEditing) {
+    text.interactive = true
+    text.cursor = !useFabricEditing ? 'pointer' : 'default'
+    // console.log(`Step4: setupTextDrag - text ${sceneIndex} interactive set to true, cursor: ${text.cursor}`)
+
+    if (!useFabricEditing) {
       text.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
-        e.stopPropagation()
+        // console.log(`Step4: Text ${sceneIndex} clicked!`, e)
+        // e.stopPropagation()
+        
+        // 클릭 시 즉시 선택 및 핸들 표시
+        setSelectedElementIndex(sceneIndex)
+        setSelectedElementType('text')
+        setEditMode('text') // editMode 즉시 설정
+        drawTextEditHandles(text, sceneIndex, handleTextResize, saveTextTransform)
+        
+        // 드래그 시작 (텍스트는 앵커가 중앙이므로 중앙 좌표 기준으로 계산)
         isDraggingRef.current = true
+        draggingElementRef.current = 'text'
         const globalPos = e.global
-        const bounds = text.getBounds()
+        // 텍스트의 중앙 좌표를 기준으로 드래그 오프셋 계산
         dragStartPosRef.current = {
-          x: globalPos.x - bounds.x,
-          y: globalPos.y - bounds.y,
-          boundsWidth: bounds.width,
-          boundsHeight: bounds.height,
+          x: globalPos.x - text.x,
+          y: globalPos.y - text.y,
         }
         if (!originalTextTransformRef.current.has(sceneIndex)) {
           const scene = timeline?.scenes[sceneIndex]
@@ -802,40 +953,72 @@ export const usePixiEditor = ({
             })
           }
         }
-        setSelectedElementIndex(sceneIndex)
-        setSelectedElementType('text')
-        drawTextEditHandles(text, sceneIndex, handleTextResize, saveTextTransform)
-      })
 
-      text.on('pointermove', (e: PIXI.FederatedPointerEvent) => {
-        if (isDraggingRef.current && !isResizingTextRef.current) {
-          const globalPos = e.global
-          const newBoundsX = globalPos.x - dragStartPosRef.current.x
-          const newBoundsY = globalPos.y - dragStartPosRef.current.y
-          const centerX = newBoundsX + (dragStartPosRef.current.boundsWidth || 0) / 2
-          const centerY = newBoundsY + (dragStartPosRef.current.boundsHeight || 0) / 2
-          text.x = centerX
-          text.y = centerY
-          if (appRef.current) {
-            appRef.current.render()
+        // 전역 마우스 이벤트 리스너 추가 (텍스트 밖에서도 드래그 가능)
+        let hasMoved = false // 드래그가 실제로 발생했는지 추적
+        const handleGlobalMove = (e: MouseEvent) => {
+          if (isDraggingRef.current && draggingElementRef.current === 'text' && !isResizingTextRef.current && appRef.current) {
+            hasMoved = true // 드래그 발생
+            const currentText = textsRef.current.get(sceneIndex)
+            if (!currentText) {
+              // console.log(`Step4: handleGlobalMove - text ${sceneIndex} not found, stopping drag`)
+              isDraggingRef.current = false
+              draggingElementRef.current = null
+              document.removeEventListener('mousemove', handleGlobalMove)
+              document.removeEventListener('mouseup', handleGlobalUp)
+              return
+            }
+            const canvas = appRef.current.canvas
+            const rect = canvas.getBoundingClientRect()
+            const scaleX = canvas.width / rect.width
+            const scaleY = canvas.height / rect.height
+            const globalPos = {
+              x: (e.clientX - rect.left) * scaleX,
+              y: (e.clientY - rect.top) * scaleY,
+            }
+            // 텍스트는 앵커가 중앙(0.5, 0.5)이므로 중앙 좌표를 직접 설정
+            currentText.x = globalPos.x - dragStartPosRef.current.x
+            currentText.y = globalPos.y - dragStartPosRef.current.y
+            if (appRef.current) {
+              appRef.current.render()
+            }
+            drawTextEditHandles(currentText, sceneIndex, handleTextResize, saveTextTransform)
           }
-          drawTextEditHandles(text, sceneIndex, handleTextResize, saveTextTransform)
         }
+
+        const handleGlobalUp = () => {
+          if (isDraggingRef.current && draggingElementRef.current === 'text') {
+            isDraggingRef.current = false
+            draggingElementRef.current = null
+            const currentText = textsRef.current.get(sceneIndex)
+            if (currentText) {
+              if (hasMoved) {
+                // 드래그가 발생한 경우에만 Transform 저장
+                saveTextTransform(sceneIndex, currentText)
+              }
+              // 클릭만 했거나 드래그를 했든 상관없이 핸들 유지
+              drawTextEditHandles(currentText, sceneIndex, handleTextResize, saveTextTransform)
+            }
+            document.removeEventListener('mousemove', handleGlobalMove)
+            document.removeEventListener('mouseup', handleGlobalUp)
+          }
+        }
+
+        document.addEventListener('mousemove', handleGlobalMove)
+        document.addEventListener('mouseup', handleGlobalUp)
       })
 
       text.on('pointerup', () => {
-        if (isDraggingRef.current) {
-          isDraggingRef.current = false
-        }
+        // pointerup은 handleGlobalUp에서 처리되므로 여기서는 아무것도 하지 않음
+        // 핸들은 handleGlobalUp에서 유지됨
       })
 
       text.on('pointerupoutside', () => {
-        if (isDraggingRef.current) {
-          isDraggingRef.current = false
-        }
+        // pointerupoutside도 handleGlobalUp에서 처리되므로 여기서는 아무것도 하지 않음
+        // 핸들은 handleGlobalUp에서 유지됨
       })
     }
-  }, [editMode, useFabricEditing, drawTextEditHandles, saveTextTransform, handleTextResize, timeline, isDraggingRef, dragStartPosRef, originalTextTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingTextRef, appRef, textsRef])
+  }, [editMode, useFabricEditing, drawTextEditHandles, saveTextTransform, handleTextResize, timeline, isDraggingRef, dragStartPosRef, originalTextTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingTextRef, appRef, textsRef, setEditMode, draggingElementRef])
 
   return {
     drawEditHandles,
