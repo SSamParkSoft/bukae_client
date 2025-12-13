@@ -174,26 +174,19 @@ export function usePixiFabric({
           
           // Ticker에 기본 렌더링 콜백 추가
           // 전환 효과 중일 때는 GSAP ticker가 렌더링하므로 PixiJS ticker는 건너뜀
-          app.ticker.add(() => {
-            // activeAnimationsRef가 있고 활성 애니메이션이 있으면 확인
-            if (activeAnimationsRef && activeAnimationsRef.current.size > 0) {
-              // Timeline이 실제로 활성화되어 있는지 확인
-              // paused가 false이면 Timeline이 시작된 상태이므로 GSAP ticker가 렌더링
-              let hasActiveAnimation = false
-              activeAnimationsRef.current.forEach((tl) => {
-                // paused가 false이면 Timeline이 시작된 상태 (isActive가 false여도)
-                if (tl && !tl.paused()) {
-                  hasActiveAnimation = true
-                }
-              })
-              // Timeline이 시작된 상태이면 렌더링 건너뛰기 (GSAP ticker가 처리)
-              if (hasActiveAnimation) {
-                return
-              }
+          const tickerCallback = () => {
+            // appRef.current가 null이거나 destroy되었는지 확인
+            if (!appRef.current || !appRef.current.canvas) {
+              return
             }
-            // 전환 효과가 없거나 Timeline이 아직 시작되지 않았을 때는 PixiJS ticker가 렌더링
-            app.render()
-          })
+            
+            // 이전 코드처럼 항상 렌더링 (onUpdate에서도 렌더링하지만 중복은 성능에 큰 영향 없음)
+            // Timeline의 onUpdate가 호출되지 않을 경우를 대비하여 PixiJS ticker도 렌더링
+            if (appRef.current && appRef.current.canvas) {
+              appRef.current.render()
+            }
+          }
+          app.ticker.add(tickerCallback)
           console.log('usePixiFabric: Added default render callback to ticker (skips only when GSAP animations are active)')
           
           // Canvas 크기 상태 업데이트
@@ -213,8 +206,18 @@ export function usePixiFabric({
     const containerEl = pixiContainerRef.current
 
     return () => {
+      // cleanup 시 appRef.current를 확인하여 안전하게 정리
       if (appRef.current) {
-        appRef.current.destroy(true, { children: true, texture: true })
+        // ticker를 먼저 중지하여 콜백이 더 이상 실행되지 않도록 함
+        if (appRef.current.ticker) {
+          appRef.current.ticker.stop()
+        }
+        // app이 유효한지 확인 후 destroy
+        try {
+          appRef.current.destroy(true, { children: true, texture: true })
+        } catch (error) {
+          console.error('usePixiFabric: Error destroying app', error)
+        }
         appRef.current = null
         containerRef.current = null
       }

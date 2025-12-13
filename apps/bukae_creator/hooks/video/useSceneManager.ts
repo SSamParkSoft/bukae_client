@@ -36,7 +36,8 @@ interface UseSceneManagerParams {
     sceneIndex: number,
     applyAdvancedEffectsFn: (sprite: PIXI.Sprite, sceneIndex: number, effects?: TimelineScene['advancedEffects']) => void,
     forceTransition?: string, // 강제로 적용할 전환 효과 (timeline 값 무시)
-    onComplete?: () => void // Timeline 완료 콜백
+    onComplete?: () => void, // Timeline 완료 콜백
+    previousIndex?: number | null // 이전 씬 인덱스
   ) => void
   onLoadComplete?: (sceneIndex: number) => void // 로드 완료 후 콜백
 }
@@ -83,6 +84,12 @@ export const useSceneManager = ({
     const currentText = textsRef.current.get(sceneIndex)
     const previousSprite = previousIndex !== null ? spritesRef.current.get(previousIndex) : null
     const previousText = previousIndex !== null ? textsRef.current.get(previousIndex) : null
+    
+    // 스프라이트가 없으면 경고 로그 출력
+    if (!currentSprite) {
+      console.warn(`[updateCurrentScene] currentSprite가 없음 - sceneIndex: ${sceneIndex}, spritesRef.size: ${spritesRef.current.size}`)
+      console.warn(`[updateCurrentScene] 로드된 씬 인덱스:`, Array.from(spritesRef.current.keys()))
+    }
 
       // 애니메이션 스킵 시 즉시 표시
       if (skipAnimation) {
@@ -172,7 +179,7 @@ export const useSceneManager = ({
       const transitionDuration = currentScene.transitionDuration || 1.0
       const { width, height } = stageDimensions
 
-      console.log(`[updateCurrentScene] 전환 효과 적용 - sceneIndex: ${sceneIndex}, transition: ${transition}, duration: ${transitionDuration}`)
+      console.log(`[updateCurrentScene] 전환 효과 적용 - sceneIndex: ${sceneIndex}, transition: ${transition}, duration: ${transitionDuration}, previousIndex: ${previousIndex}`)
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:139',message:'전환 효과 적용',data:{sceneIndex,transition,transitionDuration,skipAnimation:false,previousIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
@@ -186,42 +193,76 @@ export const useSceneManager = ({
 
       // ===== 전환 효과 준비 =====
       
-      // 1. 현재 씬을 컨테이너에 추가
+      // 1. 현재 씬을 컨테이너에 추가 (반드시 컨테이너에 있어야 렌더링됨)
+      if (!containerRef.current) {
+        console.error(`[updateCurrentScene] containerRef.current가 null - sceneIndex: ${sceneIndex}`)
+        return
+      }
+      
       if (currentSprite.parent !== containerRef.current) {
         if (currentSprite.parent) {
           currentSprite.parent.removeChild(currentSprite)
         }
-        if (containerRef.current) {
-          containerRef.current.addChild(currentSprite)
-        }
+        containerRef.current.addChild(currentSprite)
+        console.log(`[updateCurrentScene] 스프라이트를 컨테이너에 추가 - sceneIndex: ${sceneIndex}`)
       }
       
       if (currentText && currentText.parent !== containerRef.current) {
         if (currentText.parent) {
           currentText.parent.removeChild(currentText)
         }
-        if (containerRef.current) {
-          containerRef.current.addChild(currentText)
-        }
+        containerRef.current.addChild(currentText)
+        console.log(`[updateCurrentScene] 텍스트를 컨테이너에 추가 - sceneIndex: ${sceneIndex}`)
       }
       
       // 2. 이전 씬 즉시 숨기기
-      if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
-        previousSprite.visible = false
-        previousSprite.alpha = 0
-      }
-      if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
-        previousText.visible = false
-        previousText.alpha = 0
+      // skipAnimation이 false일 때는 전환 효과가 진행되므로 이전 씬을 유지해야 함
+      if (skipAnimation) {
+        // skipAnimation이 true일 때만 이전 씬을 즉시 숨김
+        if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
+          previousSprite.visible = false
+          previousSprite.alpha = 0
+          console.log(`[updateCurrentScene] 이전 씬 숨김 - previousIndex: ${previousIndex}, visible: ${previousSprite.visible}, alpha: ${previousSprite.alpha}`)
+        }
+        if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
+          previousText.visible = false
+          previousText.alpha = 0
+        }
+      } else {
+        // skipAnimation이 false일 때는 전환 효과가 진행되므로 이전 씬을 유지
+        // 전환 효과가 완료되면 Timeline의 onComplete에서 이전 씬을 숨김
+        if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
+          // 이전 씬이 컨테이너에 있는지 확인하고 없으면 추가
+          if (!previousSprite.parent && containerRef.current) {
+            console.warn(`[updateCurrentScene] 이전 씬 스프라이트가 컨테이너에 없음 - previousIndex: ${previousIndex}, 강제 추가`)
+            containerRef.current.addChild(previousSprite)
+          }
+          // 이전 씬이 visible하고 alpha가 1인지 확인 (전환 효과를 위해)
+          if (!previousSprite.visible) {
+            previousSprite.visible = true
+          }
+          if (previousSprite.alpha === 0) {
+            previousSprite.alpha = 1
+          }
+          console.log(`[updateCurrentScene] 전환 효과 진행 중 - 이전 씬 유지 - previousIndex: ${previousIndex}, visible: ${previousSprite.visible}, alpha: ${previousSprite.alpha}, parent: ${previousSprite.parent !== null}`)
+        }
       }
       
-      // 3. 다른 씬들 숨기기 (previousIndex가 null일 때도 모든 다른 씬을 숨김)
+      // 3. 다른 씬들 숨기기 (previousIndex가 null이 아니고 idx가 previousIndex와 같으면 전환 효과를 위해 유지)
       spritesRef.current.forEach((sprite, idx) => {
         if (sprite && idx !== sceneIndex) {
           // previousIndex가 null이 아니고 idx가 previousIndex와 같으면 전환 효과를 위해 유지
           if (previousIndex !== null && idx === previousIndex) {
-            // 전환 효과 중이므로 유지
+            // 전환 효과 중이므로 유지 (skipAnimation이 false일 때)
+            if (!skipAnimation) {
+              // 전환 효과 중이므로 유지
+            } else {
+              // skipAnimation이 true일 때는 숨김
+              sprite.visible = false
+              sprite.alpha = 0
+            }
           } else {
+            // 다른 씬들은 숨김
             sprite.visible = false
             sprite.alpha = 0
           }
@@ -239,12 +280,14 @@ export const useSceneManager = ({
         }
       })
       
-      // 4. 현재 씬 visible 설정 (alpha와 위치는 applyEnterEffect에서 설정)
-      // applyEnterEffect에서 초기 상태를 설정하므로 여기서는 visible만 설정
-      // applyEnterEffect에서 alpha: 0으로 설정하고 애니메이션을 시작함
+      // 4. 현재 씬 visible 설정 및 alpha 초기화 (전환 효과를 위해 alpha를 0으로 설정)
+      // applyEnterEffect에서 alpha: 0으로 설정하고 애니메이션을 시작하지만,
+      // 이전에 alpha가 1로 설정되어 있을 수 있으므로 여기서도 명시적으로 0으로 설정
       currentSprite.visible = true
+      currentSprite.alpha = 0 // 전환 효과를 위해 alpha를 0으로 초기화
       if (currentText) {
         currentText.visible = true
+        currentText.alpha = 0 // 전환 효과를 위해 alpha를 0으로 초기화
       }
 
       // 고급 효과 적용
@@ -263,13 +306,19 @@ export const useSceneManager = ({
       }
 
       // 전환 효과 적용
-      console.log(`[updateCurrentScene] applyEnterEffect 호출 - sceneIndex: ${sceneIndex}`)
+      console.log(`[updateCurrentScene] applyEnterEffect 호출 - sceneIndex: ${sceneIndex}, sprite visible: ${currentSprite.visible}, sprite alpha: ${currentSprite.alpha}, sprite parent: ${currentSprite.parent !== null}`)
       // applyEnterEffect에서 초기 상태 설정 후 렌더링하므로 여기서는 렌더링하지 않음
       // onAnimationComplete가 전달되면 Timeline 완료 시 호출됨
       const wrappedOnComplete = onAnimationComplete ? () => {
         onAnimationComplete(sceneIndex)
       } : undefined
-      applyEnterEffect(currentSprite, currentText || null, transition, transitionDuration, width, height, sceneIndex, applyAdvancedEffects, forceTransition, wrappedOnComplete)
+      
+      // 전환 효과 적용 전에 한 번 렌더링하여 초기 상태 확인
+      if (appRef.current) {
+        appRef.current.render()
+      }
+      
+      applyEnterEffect(currentSprite, currentText || null, transition, transitionDuration, width, height, sceneIndex, applyAdvancedEffects, forceTransition, wrappedOnComplete, previousIndex)
     } else {
       console.warn(`[updateCurrentScene] currentSprite가 없음 - sceneIndex: ${sceneIndex}`)
       // 스프라이트가 없으면 즉시 표시
