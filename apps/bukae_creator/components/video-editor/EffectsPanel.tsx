@@ -226,14 +226,14 @@ export function EffectsPanel({
           </TabsContent>
 
           <TabsContent value="bgm" className="space-y-4">
-            <BgmSelector bgmTemplate={bgmTemplate} theme={theme} setBgmTemplate={setBgmTemplate} />
+            <BgmSelector bgmTemplate={bgmTemplate} theme={theme ?? 'light'} setBgmTemplate={setBgmTemplate} />
           </TabsContent>
 
           <TabsContent value="subtitle" className="space-y-4">
             <SubtitleSettings
               timeline={timeline}
               currentSceneIndex={currentSceneIndex}
-              theme={theme}
+              theme={theme ?? 'light'}
               setTimeline={setTimeline}
             />
           </TabsContent>
