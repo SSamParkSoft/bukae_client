@@ -156,101 +156,118 @@ export default function Step2Page() {
               </div>
             </section>
 
-            {/* 대본 스타일 선택 */}
-            <section className="space-y-6">
-              <div>
-                <h2 className={`text-2xl font-bold mb-2 ${
-                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                }`}>
-                  대본 및 스크립트 스타일 선택
-                </h2>
-                <p className={`mt-2 ${
-                  theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                  원하는 대본 및 스크립트 스타일과 말투를 선택해주세요
-                </p>
-              </div>
+            {/* 제작 방식을 선택한 뒤 노출 */}
+            {!creationMode && (
+              <Card className={theme === 'dark' ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}>
+                <CardContent className="py-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-xl">대본 및 스크립트 스타일 선택</CardTitle>
+                      <CardDescription className="mt-2">
+                        제작 방식을 먼저 선택하면 대본 및 스크립트 스타일을 고를 수 있어요.
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-              <div className="space-y-6">
-              {conceptOptions.map((conceptOption) => {
-                const tones = conceptTones[conceptOption.id]
-                const toneTiers = Array.from(new Set(tones.map((tone) => tone.tier)))
-                const isConceptSelected = selectedScriptStyle === conceptOption.id
-                const isDimmed = selectedScriptStyle !== null && !isConceptSelected
-                const selectedToneLabel =
-                  isConceptSelected
-                    ? tones.find((tone) => tone.id === selectedTone)?.label
-                    : null
-                const cardBaseClass =
-                  theme === 'dark'
-                    ? 'bg-gray-800 border-gray-700'
-                    : 'bg-white border-gray-200'
-                return (
-                  <Card
-                    key={conceptOption.id}
-                    aria-disabled={isDimmed || undefined}
-                    className={`transition-all ${
-                      cardBaseClass
-                    } ${isDimmed ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}
-                  >
-                    <CardHeader
-                      onClick={() => handleConceptToggle(conceptOption.id)}
-                      className="cursor-pointer"
+            {creationMode && (
+              <section className="space-y-6">
+                <div>
+                  <h2 className={`text-2xl font-bold mb-2 ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    대본 및 스크립트 스타일 선택
+                  </h2>
+                  <p className={`mt-2 ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    원하는 대본 및 스크립트 스타일과 말투를 선택해주세요
+                  </p>
+                </div>
+
+                <div className="space-y-6">
+                {conceptOptions.map((conceptOption) => {
+                  const tones = conceptTones[conceptOption.id]
+                  const toneTiers = Array.from(new Set(tones.map((tone) => tone.tier)))
+                  const isConceptSelected = selectedScriptStyle === conceptOption.id
+                  const isDimmed = selectedScriptStyle !== null && !isConceptSelected
+                  const selectedToneLabel =
+                    isConceptSelected
+                      ? tones.find((tone) => tone.id === selectedTone)?.label
+                      : null
+                  const cardBaseClass =
+                    theme === 'dark'
+                      ? 'bg-gray-800 border-gray-700'
+                      : 'bg-white border-gray-200'
+                  return (
+                    <Card
+                      key={conceptOption.id}
+                      aria-disabled={isDimmed || undefined}
+                      className={`transition-all ${
+                        cardBaseClass
+                      } ${isDimmed ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <CardTitle className="text-lg">{conceptOption.label}</CardTitle>
-                          <div className="flex gap-2 flex-wrap mt-2">
-                            {toneTiers.map((tier) => (
-                              <Badge
-                                key={tier}
-                                variant={tier === 'LIGHT' ? 'default' : 'secondary'}
+                      <CardHeader
+                        onClick={() => handleConceptToggle(conceptOption.id)}
+                        className="cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-lg">{conceptOption.label}</CardTitle>
+                            <div className="flex gap-2 flex-wrap mt-2">
+                              {toneTiers.map((tier) => (
+                                <Badge
+                                  key={tier}
+                                  variant={tier === 'LIGHT' ? 'default' : 'secondary'}
+                                >
+                                  {tier}
+                                </Badge>
+                              ))}
+                            </div>
+                            {selectedToneLabel && (
+                              <p className="mt-2 text-sm text-purple-500">
+                                선택된 스타일: {selectedToneLabel}
+                              </p>
+                            )}
+                          </div>
+                          <ChevronDown
+                            className={`w-5 h-5 transition-transform ${
+                              expandedConceptId === conceptOption.id ? 'rotate-180' : ''
+                            } ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}
+                          />
+                        </div>
+                      </CardHeader>
+                      {expandedConceptId === conceptOption.id && (
+                        <CardContent>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {tones.map((toneOption) => (
+                              <Button
+                                key={toneOption.id}
+                                variant="outline"
+                                onClick={() => handleScriptStyleSelect(conceptOption.id, toneOption.id)}
+                                className={`justify-start ${
+                                  selectedScriptStyle === conceptOption.id && selectedTone === toneOption.id
+                                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                                    : ''
+                                }`}
                               >
-                                {tier}
-                              </Badge>
+                                <span className="flex-1 text-left">{toneOption.label}</span>
+                                <Badge variant={toneOption.tier === 'LIGHT' ? 'default' : 'secondary'} className="ml-2">
+                                  {toneOption.tier}
+                                </Badge>
+                              </Button>
                             ))}
                           </div>
-                          {selectedToneLabel && (
-                            <p className="mt-2 text-sm text-purple-500">
-                              선택된 스타일: {selectedToneLabel}
-                            </p>
-                          )}
-                        </div>
-                        <ChevronDown
-                          className={`w-5 h-5 transition-transform ${
-                            expandedConceptId === conceptOption.id ? 'rotate-180' : ''
-                          } ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}
-                        />
-                      </div>
-                    </CardHeader>
-                    {expandedConceptId === conceptOption.id && (
-                      <CardContent>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {tones.map((toneOption) => (
-                            <Button
-                              key={toneOption.id}
-                              variant="outline"
-                              onClick={() => handleScriptStyleSelect(conceptOption.id, toneOption.id)}
-                              className={`justify-start ${
-                                selectedScriptStyle === conceptOption.id && selectedTone === toneOption.id
-                                  ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                                  : ''
-                              }`}
-                            >
-                              <span className="flex-1 text-left">{toneOption.label}</span>
-                              <Badge variant={toneOption.tier === 'LIGHT' ? 'default' : 'secondary'} className="ml-2">
-                                {toneOption.tier}
-                              </Badge>
-                            </Button>
-                          ))}
-                        </div>
-                      </CardContent>
-                    )}
-                  </Card>
-                )
-              })}
-              </div>
-            </section>
+                        </CardContent>
+                      )}
+                    </Card>
+                  )
+                })}
+                </div>
+              </section>
+            )}
 
             {selectedScriptStyle && selectedTone && (
               <motion.div
