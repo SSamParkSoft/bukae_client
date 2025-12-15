@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo, useRef } from 'react'
+import Image from 'next/image'
+import { useState, useMemo, useRef, DragEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { ArrowRight, GripVertical, X, Loader2, Sparkles } from 'lucide-react'
@@ -90,6 +91,7 @@ export default function Step3Page() {
   }, [productData, allImages, selectedProduct])
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
   const [generatingScenes, setGeneratingScenes] = useState<Set<number>>(new Set())
   const [sceneScripts, setSceneScripts] = useState<Map<number, SceneScript>>(new Map())
   const [isGeneratingAll, setIsGeneratingAll] = useState(false)
@@ -260,13 +262,29 @@ export default function Step3Page() {
     setDraggedIndex(index)
   }
 
+  // 드롭 위치 계산
+  const handleDragOver = (event: DragEvent<HTMLDivElement>, index: number) => {
+    event.preventDefault()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const offsetY = event.clientY - rect.top
+    const position: 'before' | 'after' = offsetY < rect.height / 2 ? 'before' : 'after'
+    setDragOver({ index, position })
+  }
+
   // 드롭
-  const handleDrop = (dropIndex: number) => {
-    if (draggedIndex === null) return
+  const handleDrop = (event?: DragEvent<HTMLDivElement>) => {
+    event?.preventDefault()
+    if (draggedIndex === null || !dragOver) return
 
     const newImages = [...selectedImages]
     const [removed] = newImages.splice(draggedIndex, 1)
-    newImages.splice(dropIndex, 0, removed)
+
+    let targetIndex = dragOver.position === 'after' ? dragOver.index + 1 : dragOver.index
+    if (draggedIndex < targetIndex) {
+      targetIndex -= 1
+    }
+
+    newImages.splice(targetIndex, 0, removed)
 
     setSelectedImages(newImages)
     
@@ -292,11 +310,13 @@ export default function Step3Page() {
     })
     
     setDraggedIndex(null)
+    setDragOver(null)
   }
 
   // 드래그 종료
   const handleDragEnd = () => {
     setDraggedIndex(null)
+    setDragOver(null)
   }
 
   // 대본 수정 (입력 값은 즉시 내부 상태에 반영)
@@ -329,17 +349,6 @@ export default function Step3Page() {
         })
       }
 
-      return newMap
-    })
-  }
-
-  // 대본 저장 (명시적으로 저장 버튼을 눌렀을 때 호출)
-  const handleScriptSave = (sceneIndex: number) => {
-    // 현재 구현에서는 입력 시점에 이미 sceneScripts에 반영되고 있으므로
-    // 여기서는 별도의 추가 로직 없이 편집 상태만 정리
-    setEditedScripts((prev) => {
-      const newMap = new Map(prev)
-      newMap.delete(sceneIndex)
       return newMap
     })
   }
@@ -396,22 +405,6 @@ export default function Step3Page() {
               </p>
             </div>
 
-            {/* AI 스크립트 일괄 생성 버튼 */}
-            {selectedImages.length > 0 && (
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  size="sm"
-                  className="gap-2"
-                  onClick={handleGenerateAllScripts}
-                  disabled={isGeneratingAll}
-                >
-                  <Sparkles className="w-4 h-4" />
-                  {isGeneratingAll ? 'AI 스크립트 생성 중...' : 'AI 스크립트 생성'}
-                </Button>
-              </div>
-            )}
-
             {/* 사용 가능한 이미지 목록 */}
             <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
               <CardHeader>
@@ -419,7 +412,7 @@ export default function Step3Page() {
                   이미지 추가 (5개 이상 선택 가능)
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="relative">
                 {availableImages.length === 0 ? (
                   <div className={`text-center py-8 ${
                     theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
@@ -427,14 +420,14 @@ export default function Step3Page() {
                     사용 가능한 이미지가 없습니다.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
                     {availableImages.map((imageUrl) => {
                       const isSelected = selectedImages.includes(imageUrl)
                       return (
                         <div
                           key={imageUrl}
                           onClick={() => handleImageSelect(imageUrl)}
-                          className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${
+                          className={`relative aspect-square w-full max-w-[200px] mx-auto rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${
                             isSelected
                               ? 'border-purple-500 ring-2 ring-purple-500'
                               : theme === 'dark'
@@ -442,12 +435,14 @@ export default function Step3Page() {
                                 : 'border-gray-200 hover:border-purple-500'
                           }`}
                         >
-                          <img
+                          <Image
                             src={imageUrl}
                             alt="Product image"
-                            className="w-full h-full object-cover"
+                            fill
+                            sizes="140px"
+                            className="object-cover"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200'
+                              e.currentTarget.src = 'https://via.placeholder.com/200'
                             }}
                           />
                           {isSelected && (
@@ -462,6 +457,20 @@ export default function Step3Page() {
                         </div>
                       )
                     })}
+                  </div>
+                )}
+                {selectedImages.length > 0 && (
+                  <div className="mt-4 text-right">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="gap-2"
+                      onClick={handleGenerateAllScripts}
+                      disabled={isGeneratingAll}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      {isGeneratingAll ? 'AI 스크립트 생성 중...' : 'AI 스크립트 생성'}
+                    </Button>
                   </div>
                 )}
               </CardContent>
@@ -486,106 +495,104 @@ export default function Step3Page() {
                       const editedScript = editedScripts.get(index) ?? script?.script ?? ''
                       
                       return (
-                        <div
-                          key={`${imageUrl}-${index}`}
-                          draggable
-                          onDragStart={() => handleDragStart(index)}
-                          onDragOver={(e) => {
-                            e.preventDefault()
-                          }}
-                          onDrop={() => handleDrop(index)}
-                          onDragEnd={handleDragEnd}
-                          className={`p-4 rounded-lg border transition-all ${
-                            draggedIndex === index
-                              ? 'opacity-50 border-purple-500'
-                              : theme === 'dark'
-                                ? 'bg-gray-900 border-gray-700 hover:border-purple-500'
-                                : 'bg-gray-50 border-gray-200 hover:border-purple-500'
-                          }`}
-                        >
-                          <div className="flex items-start gap-4">
-                            <GripVertical className={`w-5 h-5 mt-2 cursor-move ${
-                              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                            }`} />
-                            
-                            <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
-                              <img
-                                src={imageUrl}
-                                alt={`Image ${index + 1}`}
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = 'https://via.placeholder.com/200'
-                                }}
-                              />
-                            </div>
-                            
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <p className={`text-sm font-medium ${
-                                  theme === 'dark' ? 'text-white' : 'text-gray-900'
-                                }`}>
-                                  Scene {index + 1}
-                                </p>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setSelectedImages(selectedImages.filter((_, i) => i !== index))
-                                    setSceneScripts((prev) => {
-                                      const newMap = new Map(prev)
-                                      newMap.delete(index)
-                                      return newMap
-                                    })
+                        <div key={`${imageUrl}-${index}`} className="space-y-2">
+                          {dragOver && dragOver.index === index && dragOver.position === 'before' && (
+                            <div className="h-0.5 bg-blue-500 rounded-full" />
+                          )}
+                          <div
+                            draggable
+                            onDragStart={() => handleDragStart(index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDrop={handleDrop}
+                            onDragLeave={() => setDragOver(null)}
+                            onDragEnd={handleDragEnd}
+                            className={`p-4 rounded-lg border transition-all ${
+                              draggedIndex === index
+                                ? 'opacity-50 border-purple-500'
+                                : theme === 'dark'
+                                  ? 'bg-gray-900 border-gray-700 hover:border-purple-500'
+                                  : 'bg-gray-50 border-gray-200 hover:border-purple-500'
+                            }`}
+                          >
+                            <div className="flex items-start gap-4">
+                              <GripVertical className={`w-5 h-5 mt-2 cursor-move ${
+                                theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                              }`} />
+                              
+                              <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 shrink-0">
+                                <Image
+                                  src={imageUrl}
+                                  alt={`Image ${index + 1}`}
+                                  fill
+                                  sizes="80px"
+                                  className="object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.src = 'https://via.placeholder.com/200'
                                   }}
-                                >
-                                  <X className="w-4 h-4" />
-                                </Button>
+                                />
                               </div>
                               
-                              {isGenerating ? (
-                                <div className="flex items-center gap-2 py-2">
-                                  <Loader2 className={`w-4 h-4 animate-spin ${
-                                    theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                                  }`} />
-                                  <p className={`text-sm ${
-                                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <p className={`text-sm font-medium ${
+                                    theme === 'dark' ? 'text-white' : 'text-gray-900'
                                   }`}>
-                                    AI가 대본을 생성하고 있습니다...
+                                    Scene {index + 1}
                                   </p>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedImages(selectedImages.filter((_, i) => i !== index))
+                                      setSceneScripts((prev) => {
+                                        const newMap = new Map(prev)
+                                        newMap.delete(index)
+                                        return newMap
+                                      })
+                                    }}
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
                                 </div>
-                              ) : (
-                                <div className="space-y-2">
-                                  {script?.isAiGenerated && (
-                                    <div className="inline-flex items-center gap-2 rounded-full bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 dark:bg-purple-900/60 dark:text-purple-200">
-                                      <Sparkles className="w-3 h-3" />
-                                      AI 생성 스크립트
-                                    </div>
-                                  )}
-                                  <textarea
-                                    value={editedScript}
-                                    onChange={(e) => handleScriptEdit(index, e.target.value)}
-                                    rows={3}
-                                    className={`w-full p-2 rounded-lg border resize-none text-sm ${
-                                      theme === 'dark'
-                                        ? 'bg-gray-800 border-gray-700 text-white'
-                                        : 'bg-white border-gray-300 text-gray-900'
-                                    } focus:outline-none focus:ring-2 focus:ring-purple-500`}
-                                    placeholder="이 씬에서 말할 내용을 자유롭게 입력하거나, 상단의 AI 스크립트 생성 버튼을 눌러 자동으로 만들어보세요."
-                                  />
-                                  <div className="flex justify-end">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="gap-1"
-                                      onClick={() => handleScriptSave(index)}
-                                    >
-                                      저장
-                                    </Button>
+                                
+                                {isGenerating ? (
+                                  <div className="flex items-center gap-2 py-2">
+                                    <Loader2 className={`w-4 h-4 animate-spin ${
+                                      theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                                    }`} />
+                                    <p className={`text-sm ${
+                                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                                    }`}>
+                                      AI가 대본을 생성하고 있습니다...
+                                    </p>
                                   </div>
-                                </div>
-                              )}
+                                ) : (
+                                  <div className="space-y-2">
+                                    {script?.isAiGenerated && (
+                                      <div className="inline-flex items-center gap-2 rounded-full bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 dark:bg-purple-900/60 dark:text-purple-200">
+                                        <Sparkles className="w-3 h-3" />
+                                        AI 생성 스크립트
+                                      </div>
+                                    )}
+                                    <textarea
+                                      value={editedScript}
+                                      onChange={(e) => handleScriptEdit(index, e.target.value)}
+                                      rows={3}
+                                      className={`w-full p-2 rounded-lg border resize-none text-sm ${
+                                        theme === 'dark'
+                                          ? 'bg-gray-800 border-gray-700 text-white'
+                                          : 'bg-white border-gray-300 text-gray-900'
+                                      } focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                                    placeholder="이 씬에서 말할 내용을 자유롭게 입력하거나, 이미지 선택 영역 우측 하단의 AI 스크립트 생성 버튼을 눌러 자동으로 만들어보세요."
+                                    />
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
+                          {dragOver && dragOver.index === index && dragOver.position === 'after' && (
+                            <div className="h-0.5 bg-blue-500 rounded-full" />
+                          )}
                         </div>
                       )
                     })}
