@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
+import { studioTitleApi } from '@/lib/api/studio-title'
 
 export default function Step6Page() {
   const router = useRouter()
@@ -73,7 +74,7 @@ export default function Step6Page() {
     return Array.from(new Set(baseTags)).slice(0, 9)
   }, [product])
 
-  // 제목 후보 생성
+  // 제목/설명 AI 생성
   const handleGenerateTitles = async () => {
     if (!selectedProducts[0] || scenes.length === 0) {
       alert('상품과 대본 정보가 필요합니다.')
@@ -83,24 +84,23 @@ export default function Step6Page() {
     setIsGenerating(true)
 
     try {
-      // TODO: 실제 GPT API 호출
-      // 현재는 더미 데이터 생성
-      const productName = selectedProducts[0].name
-      
-      const dummyCandidates = [
-        `이거 쓰고 목 통증 사라짐? ${productName} 후기`,
-        `97% 만족! 이건 진짜 미쳤다 - ${productName}`,
-        `집에서 마사지샵 느낌 그대로 - ${productName} 사용기`,
-        `${productName} 이거 하나면 끝! 솔직 후기`,
-        `${productName} 진짜 꿀템인 이유 (직접 사용해봤어요)`,
-        `${productName} 이거 안 사면 후회합니다`,
-        `이거 하나로 모든 게 해결됐어요 - ${productName}`,
-        `${productName} 사용 후기 (솔직 리뷰)`,
-      ]
+      const product = selectedProducts[0]
+      const fullScript = scenes.map((scene) => scene.script).join('\n')
 
-      const picked = dummyCandidates[Math.floor(Math.random() * dummyCandidates.length)]
-      setVideoTitle(picked)
-      setVideoTitleCandidates([picked])
+      const response = await studioTitleApi.createTitle({
+        productDescription: product.description ?? '',
+        script: fullScript,
+      })
+
+      const { title, description } = response
+
+      setVideoTitle(title)
+      setVideoTitleCandidates([title])
+
+      // API에서 설명도 내려주는 경우 현재 설명이 비어 있으면 기본값으로 사용
+      if (!videoDescription && description) {
+        setVideoDescription(description)
+      }
     } catch (error) {
       console.error('제목 생성 오류:', error)
       alert('제목 생성 중 오류가 발생했습니다.')

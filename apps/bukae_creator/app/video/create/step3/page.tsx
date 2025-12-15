@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore, SceneScript } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
+import { studioScriptApi } from '@/lib/api/studio-script'
+import type { ScriptType } from '@/lib/types/api/studio-script'
 import { useProduct } from '@/lib/hooks/useProducts'
 import { useImages } from '@/lib/hooks/useImages'
 
@@ -98,8 +100,26 @@ export default function Step3Page() {
   const [editedScripts, setEditedScripts] = useState<Map<number, string>>(new Map())
   const selectedListRef = useRef<HTMLDivElement | null>(null)
 
+  // ConceptType -> ScriptType 매핑
+  const mapConceptToScriptType = (concept: typeof scriptStyle): ScriptType => {
+    switch (concept) {
+      case 'product-info':
+      case 'calm-explanation':
+        return 'INFORMATION'
+      case 'review':
+      case 'daily-review':
+        return 'EMPATHY'
+      case 'emotional':
+        return 'HEALING'
+      case 'viral':
+      case 'promotional':
+      default:
+        return 'ENTERTAINMENT'
+    }
+  }
+
   // 이미지별 대본 생성 (단일 이미지용 - 현재는 일괄 생성에서만 사용)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // TODO: 필요 시 단일 씬 재생성에도 studioScriptApi를 사용할 수 있도록 확장
   const generateScriptForImage = async (imageUrl: string, sceneIndex: number) => {
     if (!scriptStyle || !tone) {
       return
@@ -108,36 +128,27 @@ export default function Step3Page() {
     setGeneratingScenes((prev) => new Set(prev).add(sceneIndex))
 
     try {
-      const response = await fetch('/api/script/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          scriptStyle: scriptStyle,
-          tone: tone,
-          images: [imageUrl], // 단일 이미지에 대한 대본 생성
-          product: selectedProducts[0] ? {
-            name: selectedProducts[0].name,
-            price: selectedProducts[0].price,
-            description: selectedProducts[0].description,
-          } : null,
-        }),
+      const product = selectedProducts[0]
+      const scriptType = mapConceptToScriptType(scriptStyle)
+
+      const data = await studioScriptApi.generateScripts({
+        topic: product?.name || '상품',
+        description: product?.description || tone || '상품 리뷰 쇼츠 대본 생성',
+        type: scriptType,
+        imageUrls: [imageUrl],
       })
 
-      if (!response.ok) {
-        throw new Error('대본 생성에 실패했습니다.')
-      }
+      const items = Array.isArray(data) ? data : [data]
 
-      const data = await response.json()
-      if (data.scenes && data.scenes.length > 0) {
+      if (items.length > 0) {
+        const first = items[0]
         const sceneScript: SceneScript = {
           sceneId: sceneIndex + 1,
-          script: data.scenes[0].script,
-          imageUrl: imageUrl,
+          script: first.script,
+          imageUrl: first.imageUrl || imageUrl,
           isAiGenerated: true,
         }
-        
+
         setSceneScripts((prev) => {
           const newMap = new Map(prev)
           newMap.set(sceneIndex, sceneScript)
@@ -146,6 +157,7 @@ export default function Step3Page() {
       }
     } catch (error) {
       console.error('대본 생성 오류:', error)
+      alert('대본 생성 중 오류가 발생했습니다.')
     } finally {
       setGeneratingScenes((prev) => {
         const newSet = new Set(prev)
@@ -171,40 +183,26 @@ export default function Step3Page() {
     setGeneratingScenes(new Set(selectedImages.map((_, index) => index)))
 
     try {
-      const response = await fetch('/api/script/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          scriptStyle,
-          tone,
-          images: selectedImages,
-          product: selectedProducts[0]
-            ? {
-                name: selectedProducts[0].name,
-                price: selectedProducts[0].price,
-                description: selectedProducts[0].description,
-              }
-            : null,
-        }),
+      const product = selectedProducts[0]
+      const scriptType = mapConceptToScriptType(scriptStyle)
+
+      const data = await studioScriptApi.generateScripts({
+        topic: product?.name || '상품',
+        description: product?.description || tone || '상품 리뷰 쇼츠 대본 생성',
+        type: scriptType,
+        imageUrls: selectedImages,
       })
 
-      if (!response.ok) {
-        throw new Error('대본 생성에 실패했습니다.')
-      }
-
-      const data = await response.json()
-      const apiScenes: { sceneId?: number; script: string }[] = data.scenes || []
+      const items = Array.isArray(data) ? data : [data]
 
       setSceneScripts(() => {
         const newMap = new Map<number, SceneScript>()
         selectedImages.forEach((imageUrl, index) => {
-          const sceneData = apiScenes[index]
+          const sceneData = items.find((item) => item.imageUrl === imageUrl) || items[index]
           newMap.set(index, {
             sceneId: index + 1,
             script: sceneData?.script || '생성된 대본이 없습니다.',
-            imageUrl,
+            imageUrl: sceneData?.imageUrl || imageUrl,
             isAiGenerated: !!sceneData?.script,
           })
         })
