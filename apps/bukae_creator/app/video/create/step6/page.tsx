@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { ArrowRight, Loader2, CheckCircle2, Sparkles } from 'lucide-react'
@@ -27,6 +27,9 @@ export default function Step6Page() {
   const theme = useThemeStore((state) => state.theme)
   const [isGenerating, setIsGenerating] = useState(false)
   const product = selectedProducts[0]
+  const descriptionInitialized = useRef(false)
+  const hashtagsInitialized = useRef(false)
+  const initialHashtags = useRef(videoHashtags)
 
   const recommendedDescription = useMemo(() => {
     const productName = product?.name || '제품명'
@@ -115,16 +118,22 @@ export default function Step6Page() {
 
   // 기본 추천 상세 설명/해시태그 세팅
   useEffect(() => {
+    if (descriptionInitialized.current) return
+
     if (!videoDescription) {
       setVideoDescription(recommendedDescription)
     }
+    descriptionInitialized.current = true
   }, [videoDescription, recommendedDescription, setVideoDescription])
 
   useEffect(() => {
-    if (videoHashtags.length === 0) {
+    if (hashtagsInitialized.current) return
+
+    if (!initialHashtags.current || initialHashtags.current.length === 0) {
       setVideoHashtags(recommendedHashtags)
     }
-  }, [videoHashtags.length, recommendedHashtags, setVideoHashtags])
+    hashtagsInitialized.current = true
+  }, [recommendedHashtags, setVideoHashtags])
 
   // 제목 선택
   // 직접 입력
