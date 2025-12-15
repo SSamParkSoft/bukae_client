@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { ArrowRight, Loader2, CheckCircle2, Sparkles } from 'lucide-react'
@@ -17,12 +17,58 @@ export default function Step6Page() {
     scenes,
     videoTitle,
     videoTitleCandidates,
+    videoDescription,
+    videoHashtags,
     setVideoTitle,
     setVideoTitleCandidates,
+    setVideoDescription,
+    setVideoHashtags,
   } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [selectedTitleIndex, setSelectedTitleIndex] = useState<number | null>(null)
+  const product = selectedProducts[0]
+
+  const recommendedDescription = useMemo(() => {
+    const productName = product?.name || '제품명'
+    const productUrl = product?.url || 'https://link.coupang.com/'
+    const priceText = product?.price
+      ? `🔥특가 : ${product.price.toLocaleString()}원 (업로드 시점 기준)`
+      : '🔥특가 : 가격 정보는 업로드 시점 기준으로 변동될 수 있습니다.'
+
+    return [
+      '👉 이 영상은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.',
+      '👉 제품에 대하여 채널은 책임을 지지 않으며, 제품 관련은 쿠팡 고객센터로 연락 바랍니다.',
+      '',
+      '## 상품마다 내용이 달라지는 부분',
+      productName,
+      productUrl,
+      priceText,
+      '',
+      '👉 본 영상에는 채널의 주관적인 생각이 포함되어 있습니다.',
+      '👉 본 영상에 표시된 가격 정보는 영상 업로드일 당시 원화 기준이며, 가격은 수시로 변동 가능합니다.',
+    ].join('\n')
+  }, [product])
+
+  const recommendedHashtags = useMemo(() => {
+    const productName = product?.name?.replace(/\s+/g, '') || '제품명'
+    const platformTag = product?.platform
+      ? `#${product.platform === 'coupang' ? '쿠팡' : product.platform}`
+      : '#쇼핑'
+
+    const baseTags = [
+      '#쿠팡파트너스',
+      platformTag,
+      '#제품리뷰',
+      '#언박싱',
+      '#추천템',
+      '#가성비',
+      '#핫딜',
+      `#${productName}`,
+      '#쇼츠',
+    ]
+
+    return Array.from(new Set(baseTags)).slice(0, 9)
+  }, [product])
 
   // 제목 후보 생성
   const handleGenerateTitles = async () => {
@@ -49,7 +95,9 @@ export default function Step6Page() {
         `${productName} 사용 후기 (솔직 리뷰)`,
       ]
 
-      setVideoTitleCandidates(dummyCandidates)
+      const picked = dummyCandidates[Math.floor(Math.random() * dummyCandidates.length)]
+      setVideoTitle(picked)
+      setVideoTitleCandidates([picked])
     } catch (error) {
       console.error('제목 생성 오류:', error)
       alert('제목 생성 중 오류가 발생했습니다.')
@@ -65,16 +113,39 @@ export default function Step6Page() {
     }
   }, [])
 
-  // 제목 선택
-  const handleTitleSelect = (title: string, index: number) => {
-    setVideoTitle(title)
-    setSelectedTitleIndex(index)
-  }
+  // 기본 추천 상세 설명/해시태그 세팅
+  useEffect(() => {
+    if (!videoDescription) {
+      setVideoDescription(recommendedDescription)
+    }
+  }, [videoDescription, recommendedDescription, setVideoDescription])
 
+  useEffect(() => {
+    if (videoHashtags.length === 0) {
+      setVideoHashtags(recommendedHashtags)
+    }
+  }, [videoHashtags.length, recommendedHashtags, setVideoHashtags])
+
+  // 제목 선택
   // 직접 입력
   const handleCustomTitle = (title: string) => {
     setVideoTitle(title)
-    setSelectedTitleIndex(null)
+  }
+
+  const handleGenerateDescription = () => {
+    setVideoDescription(recommendedDescription)
+  }
+
+  const handleGenerateHashtags = () => {
+    setVideoHashtags(recommendedHashtags)
+  }
+
+  const handleHashtagChange = (value: string) => {
+    const normalized = value
+      .split(/[\s,]+/)
+      .filter(Boolean)
+      .map((tag) => (tag.startsWith('#') ? tag : `#${tag}`))
+    setVideoHashtags(normalized)
   }
 
   // 다음 단계로 이동 (업로드)
@@ -114,103 +185,81 @@ export default function Step6Page() {
               </p>
             </div>
 
-            {/* 제목 생성 버튼 */}
-            {videoTitleCandidates.length === 0 && !isGenerating && (
-              <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
-                <CardContent className="pt-6">
-                  <Button
-                    onClick={handleGenerateTitles}
-                    size="lg"
-                    className="w-full gap-2"
-                  >
-                    <Sparkles className="w-5 h-5" />
-                    AI 제목 추천 받기
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
+            {/* 제목 작성 및 AI 추천 */}
+            <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
+              <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                    영상 제목 작성/추천
+                  </CardTitle>
+                  <p className={`text-sm mt-1 ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    직접 작성하거나 AI 버튼으로 추천 제목을 받아보세요.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleGenerateTitles}
+                  size="sm"
+                  className="gap-2"
+                  disabled={isGenerating}
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      AI 생성 중...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      AI 제목 추천
+                    </>
+                  )}
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <textarea
+                    value={videoTitle}
+                    onChange={(e) => handleCustomTitle(e.target.value)}
+                    placeholder="영상 제목을 직접 입력하거나, AI 추천을 받아 수정해보세요."
+                    rows={3}
+                    className={`w-full p-3 rounded-lg border resize-none ${
+                      theme === 'dark'
+                        ? 'bg-gray-900 border-gray-700 text-white placeholder-gray-400'
+                        : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                    } focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                  />
+                  <p className={`text-sm ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    {videoTitle.length}자
+                  </p>
+                </div>
 
-            {/* 생성 중 */}
-            {isGenerating && (
-              <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
-                <CardContent className="pt-6">
-                  <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                    <Loader2 className={`w-12 h-12 animate-spin ${
-                      theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                    }`} />
-                    <p className={`text-lg font-medium ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
+                {isGenerating && (
+                  <div className="flex items-center gap-2 rounded-md px-3 py-2 border border-dashed border-purple-400/60 bg-purple-50 dark:bg-purple-900/20">
+                    <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                    <p className={`text-sm ${
+                      theme === 'dark' ? 'text-purple-200' : 'text-purple-800'
                     }`}>
                       AI가 제목을 생성하고 있습니다...
                     </p>
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                )}
 
-            {/* 추천 제목 목록 */}
-            {videoTitleCandidates.length > 0 && (
-              <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
-                <CardHeader>
-                  <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
-                    AI 추천 제목
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {videoTitleCandidates.map((title, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleTitleSelect(title, index)}
-                        className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                          selectedTitleIndex === index
-                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                            : theme === 'dark'
-                              ? 'border-gray-700 bg-gray-900 hover:border-purple-500'
-                              : 'border-gray-200 bg-white hover:border-purple-500'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`font-medium ${
-                            theme === 'dark' ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {title}
-                          </span>
-                          {selectedTitleIndex === index && (
-                            <CheckCircle2 className="w-5 h-5 text-purple-500" />
-                          )}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* 직접 입력 */}
-            <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
-              <CardHeader>
-                <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
-                  직접 입력하기
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <textarea
-                  value={selectedTitleIndex === null ? videoTitle : ''}
-                  onChange={(e) => handleCustomTitle(e.target.value)}
-                  placeholder="영상 제목을 직접 입력하세요..."
-                  rows={3}
-                  className={`w-full p-3 rounded-lg border resize-none ${
+                {videoTitleCandidates[0] && (
+                  <div className={`flex items-center gap-2 rounded-md px-3 py-2 border ${
                     theme === 'dark'
-                      ? 'bg-gray-900 border-gray-700 text-white placeholder-gray-400'
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                  } focus:outline-none focus:ring-2 focus:ring-purple-500`}
-                />
-                <p className={`text-sm mt-2 ${
-                  theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                  {selectedTitleIndex === null ? videoTitle.length : 0}자
-                </p>
+                      ? 'border-purple-700 bg-purple-900/20 text-purple-200'
+                      : 'border-purple-200 bg-purple-50 text-purple-800'
+                  }`}>
+                    <CheckCircle2 className="w-4 h-4 text-purple-500" />
+                    <p className="text-sm">
+                      AI 추천 제목: {videoTitleCandidates[0]}
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -231,6 +280,100 @@ export default function Step6Page() {
                 </CardContent>
               </Card>
             )}
+
+            {/* 영상 상세 설명 추천 */}
+            <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
+              <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                    영상 상세 설명 (AI 추천)
+                  </CardTitle>
+                  <p className={`text-sm mt-1 ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    쿠팡 파트너스 고지와 상품 정보를 포함한 설명을 자동으로 채워드립니다.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleGenerateDescription}
+                  size="sm"
+                  className="gap-2"
+                  variant="secondary"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  AI 상세 설명 추천
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <textarea
+                  value={videoDescription}
+                  onChange={(e) => setVideoDescription(e.target.value)}
+                  rows={10}
+                  className={`w-full p-3 rounded-lg border resize-none ${
+                    theme === 'dark'
+                      ? 'bg-gray-900 border-gray-700 text-white placeholder-gray-400'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                  } focus:outline-none focus:ring-2 focus:ring-purple-500 whitespace-pre-line`}
+                />
+              </CardContent>
+            </Card>
+
+            {/* 해시태그 추천 */}
+            <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
+              <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                    AI 추천 해시태그
+                  </CardTitle>
+                  <p className={`text-sm mt-1 ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    상품명과 플랫폼을 반영한 해시태그를 한 번에 받아보세요.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleGenerateHashtags}
+                  size="sm"
+                  className="gap-2"
+                  variant="secondary"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  AI 해시태그 추천
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {videoHashtags.map((tag) => (
+                    <span
+                      key={tag}
+                      className={`px-3 py-1 text-sm rounded-full border ${
+                        theme === 'dark'
+                          ? 'bg-gray-900 border-gray-700 text-gray-100'
+                          : 'bg-gray-50 border-gray-200 text-gray-800'
+                      }`}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <textarea
+                  value={videoHashtags.join(' ')}
+                  onChange={(e) => handleHashtagChange(e.target.value)}
+                  rows={3}
+                  className={`w-full p-3 rounded-lg border resize-none ${
+                    theme === 'dark'
+                      ? 'bg-gray-900 border-gray-700 text-white placeholder-gray-400'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
+                  } focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                  placeholder="#쿠팡파트너스 #제품리뷰 #핫딜 ..."
+                />
+                <p className={`text-xs ${
+                  theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
+                }`}>
+                  해시태그는 공백 또는 쉼표로 구분해 입력/수정할 수 있습니다.
+                </p>
+              </CardContent>
+            </Card>
 
             {/* 다음 단계 버튼 */}
             <div className="flex justify-end pt-4">

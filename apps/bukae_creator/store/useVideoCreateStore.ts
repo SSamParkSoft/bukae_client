@@ -157,6 +157,8 @@ interface VideoCreateState {
   timeline: TimelineData | null // 타임라인 데이터
   videoTitle: string // 유튜브 영상 제목
   videoTitleCandidates: string[] // AI 추천 제목 후보
+  videoDescription: string // 영상 상세 설명
+  videoHashtags: string[] // 영상 해시태그
   setCurrentStep: (step: number) => void
   addProduct: (product: Product) => void
   removeProduct: (productId: string) => void
@@ -192,6 +194,8 @@ interface VideoCreateState {
   setTimeline: (timeline: TimelineData | null) => void
   setVideoTitle: (title: string) => void
   setVideoTitleCandidates: (candidates: string[]) => void
+  setVideoDescription: (description: string) => void
+  setVideoHashtags: (hashtags: string[]) => void
   reset: () => void
 }
 
@@ -229,6 +233,8 @@ const initialState = {
   timeline: null,
   videoTitle: '',
   videoTitleCandidates: [],
+  videoDescription: '',
+  videoHashtags: [],
 }
 
 export const useVideoCreateStore = create<VideoCreateState>((set) => ({
@@ -312,6 +318,8 @@ export const useVideoCreateStore = create<VideoCreateState>((set) => ({
   setTimeline: (timeline) => set({ timeline }),
   setVideoTitle: (title) => set({ videoTitle: title }),
   setVideoTitleCandidates: (candidates) => set({ videoTitleCandidates: candidates }),
+  setVideoDescription: (description) => set({ videoDescription: description }),
+  setVideoHashtags: (hashtags) => set({ videoHashtags: hashtags }),
   reset: () => set(initialState),
 }))
 
