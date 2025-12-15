@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { MessageSquare } from 'lucide-react'
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -31,15 +31,6 @@ export default function ConceptToneDialog({ open, onOpenChange }: ConceptToneDia
     (concept as ConceptType) || 'viral'
   )
   const [selectedTone, setSelectedTone] = useState<string>(tone || '')
-
-  useEffect(() => {
-    if (concept) {
-      setSelectedConcept(concept)
-    }
-    if (tone) {
-      setSelectedTone(tone)
-    }
-  }, [concept, tone])
 
   const handleConceptChange = (newConcept: ConceptType) => {
     setSelectedConcept(newConcept)

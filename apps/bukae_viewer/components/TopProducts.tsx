@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 import { TopProduct } from '@/lib/types/viewer'
 import { Loader2, ShoppingCart } from 'lucide-react'
@@ -73,10 +74,12 @@ export default function TopProducts({ topProducts, isLoading, channelName = '쌈
               }
 
               return (
-                <img
+                <Image
                   src={product.thumbnailUrl}
                   alt={product.productName}
-                  className="w-full h-full object-cover"
+                  fill
+                  sizes="(min-width: 1024px) 15vw, 40vw"
+                  className="object-cover"
                   onError={() => setImageError(true)}
                 />
               )

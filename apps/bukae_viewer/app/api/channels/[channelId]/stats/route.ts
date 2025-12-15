@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { ChannelStats, TopProduct } from '@/lib/types/viewer'
 
 // 쿠팡 통계 더미 데이터 (bookae_creator의 구조 참고)
-const generateDummyStats = (channelId: string): ChannelStats => {
+const generateDummyStats = (): ChannelStats => {
   // 더미 주문 데이터 (새로운 30가지 제품 목록 기준)
   const dummyOrders = [
     {
@@ -113,10 +113,10 @@ export async function GET(
   { params }: { params: Promise<{ channelId: string }> }
 ) {
   try {
-    const { channelId } = await params
+    await params
 
     // 통계 데이터 생성 (추후 실제 API 연동)
-    const stats = generateDummyStats(channelId)
+    const stats = generateDummyStats()
 
     return NextResponse.json(stats, {
       headers: {

@@ -56,11 +56,13 @@ export default function Step4Page() {
       }
 
       const data = await response.json()
-      const sceneScripts: SceneScript[] = data.scenes.map((scene: any, index: number) => ({
+      const sceneScripts: SceneScript[] = data.scenes.map(
+        (scene: { sceneId?: number; script: string }, index: number) => ({
         sceneId: scene.sceneId || index + 1,
         script: scene.script,
         imageUrl: selectedImages[index] || undefined,
-      }))
+        })
+      )
 
       setGeneratedScenes(sceneScripts)
       setScenes(sceneScripts)
@@ -157,7 +159,7 @@ export default function Step4Page() {
             {/* 생성된 대본 목록 */}
             {generatedScenes.length > 0 && (
               <div className="space-y-4">
-                {generatedScenes.map((scene, index) => (
+                {generatedScenes.map((scene) => (
                   <Card
                     key={scene.sceneId}
                     className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}

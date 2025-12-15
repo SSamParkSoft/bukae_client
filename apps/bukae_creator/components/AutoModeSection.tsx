@@ -57,8 +57,10 @@ export default function AutoModeSection({
   useEffect(() => {
     timeoutRefs.current.forEach((id) => clearTimeout(id))
     timeoutRefs.current = []
-    setScenes([])
-    setSceneStatuses({})
+    setTimeout(() => {
+      setScenes([])
+      setSceneStatuses({})
+    }, 0)
   }, [conceptId, toneId])
 
   useEffect(() => {
@@ -66,17 +68,19 @@ export default function AutoModeSection({
     const presetScenes = presetAssets.map((asset, index) =>
       createSceneFromAsset(asset, conceptId, toneId, index),
     )
-    setScenes(presetScenes)
-    setSceneStatuses(
-      presetScenes.reduce<Record<string, SceneStatus>>((acc, scene) => {
-        acc[scene.id] = {
-          state: 'ready',
-          progress: 100,
-          stage: SCENE_LOADING_STEPS.length - 1,
-        }
-        return acc
-      }, {}),
-    )
+    setTimeout(() => {
+      setScenes(presetScenes)
+      setSceneStatuses(
+        presetScenes.reduce<Record<string, SceneStatus>>((acc, scene) => {
+          acc[scene.id] = {
+            state: 'ready',
+            progress: 100,
+            stage: SCENE_LOADING_STEPS.length - 1,
+          }
+          return acc
+        }, {}),
+      )
+    }, 0)
   }, [presetAssets, conceptId, toneId, scenes.length])
 
   useEffect(() => {
@@ -88,12 +92,12 @@ export default function AutoModeSection({
   useEffect(() => {
     if (!isSceneGenerating) return
     if (scenes.length === 0) {
-      setIsSceneGenerating(false)
+      queueMicrotask(() => setIsSceneGenerating(false))
       return
     }
     const allReady = scenes.every((scene) => sceneStatuses[scene.id]?.state === 'ready')
     if (allReady) {
-      setIsSceneGenerating(false)
+      queueMicrotask(() => setIsSceneGenerating(false))
     }
   }, [isSceneGenerating, scenes, sceneStatuses])
 
@@ -121,8 +125,9 @@ export default function AutoModeSection({
   const handleRemoveScene = (sceneId: string) => {
     setScenes((prev) => prev.filter((scene) => scene.id !== sceneId))
     setSceneStatuses((prev) => {
-      const { [sceneId]: _, ...rest } = prev
-      return rest
+      const next = { ...prev }
+      delete next[sceneId]
+      return next
     })
   }
 

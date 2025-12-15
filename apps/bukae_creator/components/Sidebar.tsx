@@ -25,7 +25,7 @@ export default function Sidebar() {
   const logout = useLogout()
   const [mounted, setMounted] = useState(false)
 
-  // 클라이언트에서만 마운트 상태 확인 (Hydration 오류 방지)
+  // 클라이언트에서만 마운트 상태 설정 (서버와 클라이언트 일치를 위해)
   useEffect(() => {
     setMounted(true)
     checkAuth()

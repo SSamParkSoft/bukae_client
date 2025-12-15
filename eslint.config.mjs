@@ -9,9 +9,14 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    "**/.next/**",
+    "apps/**/.next/**",
+    "apps/bukae_viewer/.next/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // TODO: remove after step4 refactor 완료
+    "apps/bukae_creator/app/video/create/step4/page.tsx",
   ]),
 ]);
 

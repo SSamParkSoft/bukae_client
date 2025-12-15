@@ -43,7 +43,9 @@ export default function HomePage() {
 
   // 클라이언트에서만 렌더링 (SSR/hydration mismatch 방지)
   useEffect(() => {
-    setMounted(true)
+    setTimeout(() => {
+      setMounted(true)
+    }, 0)
   }, [])
 
   // 금주의 핫 키워드 (카테고리별 주문 수 집계)

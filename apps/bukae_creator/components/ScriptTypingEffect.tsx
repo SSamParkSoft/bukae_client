@@ -17,6 +17,7 @@ export default function ScriptTypingEffect({ onComplete, scriptStyle, mode = 'ma
   const [sentences] = useState(() => generateDummyScript(mode))
 
   const fullScript = sentences.join('\n')
+  const typingDelay = scriptStyle === 'fast' ? 20 : 30
 
   useEffect(() => {
     if (isComplete) {
@@ -47,10 +48,10 @@ export default function ScriptTypingEffect({ onComplete, scriptStyle, mode = 'ma
           setCurrentSentenceIndex((prev) => prev + 1)
         }, 300) // 문장 간 대기 시간
       }
-    }, 30) // 타이핑 속도 (ms)
+    }, typingDelay) // 타이핑 속도 (ms)
 
     return () => clearInterval(typingInterval)
-  }, [currentSentenceIndex, isComplete, sentences, fullScript, onComplete])
+  }, [currentSentenceIndex, isComplete, sentences, fullScript, onComplete, typingDelay])
 
   return (
     <div className={`w-full p-6 rounded-lg border ${

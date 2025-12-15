@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useState } from 'react'
 import { Share2, Mail } from 'lucide-react'
 import { ChannelInfo } from '@/lib/types/viewer'
@@ -19,7 +20,7 @@ export default function ChannelProfile({ channel }: ChannelProfileProps) {
           text: `${channel.name}의 미니홈페이지`,
           url,
         })
-      } catch (error) {
+      } catch {
         // 사용자가 공유를 취소한 경우
         console.log('공유 취소됨')
       }
@@ -28,8 +29,8 @@ export default function ChannelProfile({ channel }: ChannelProfileProps) {
       try {
         await navigator.clipboard.writeText(url)
         alert('링크가 클립보드에 복사되었습니다!')
-      } catch (error) {
-        console.error('클립보드 복사 실패:', error)
+      } catch {
+        console.error('클립보드 복사 실패')
       }
     }
   }
@@ -54,17 +55,21 @@ export default function ChannelProfile({ channel }: ChannelProfileProps) {
         {/* 프로필 이미지 */}
         <div className="w-24 h-24 rounded-full overflow-hidden bg-purple-100 flex items-center justify-center ring-2 ring-purple-200">
           {channel.profileImage && !imageError ? (
-            <img
+            <Image
               src={channel.profileImage}
               alt={channel.name}
-              className="w-full h-full object-cover"
+              fill
+              sizes="96px"
+              className="object-cover"
               onError={() => setImageError(true)}
             />
           ) : (
-            <img
+            <Image
               src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(channel.name)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
               alt={channel.name}
-              className="w-full h-full object-cover"
+              fill
+              sizes="96px"
+              className="object-cover"
             />
           )}
         </div>

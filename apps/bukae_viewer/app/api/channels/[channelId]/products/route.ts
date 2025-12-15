@@ -2,9 +2,18 @@ import { NextResponse } from 'next/server'
 import { Product } from '@/lib/types/viewer'
 
 // 더미 제품 데이터 (bookae_creator 구조 참고)
-const generateDummyProducts = (channelId: string): Product[] => {
+type ProductTemplate = {
+  name: string
+  price: number
+  color: string
+  desc: string
+  text: string
+  isSpael?: boolean
+}
+
+const generateDummyProducts = (): Product[] => {
   // 30가지 제품 목록 (29개 음식 + 1개 스파알)
-  const productTemplates = [
+  const productTemplates: ProductTemplate[] = [
     { name: '일본 카레라이스 1인분', price: 7200, color: 'f59e0b', desc: '진짜 비주얼', text: '카레' },
     { name: '마파두부 1인분', price: 15200, color: 'ef4444', desc: '진은 상식당 염치는', text: '마파두부' },
     { name: '돈까스 정식 1인분', price: 16600, color: '10b981', desc: '진심 돈까스 맛집 정도로 맛있음', text: '돈까스' },
@@ -39,10 +48,8 @@ const generateDummyProducts = (channelId: string): Product[] => {
 
   // 제품 목록 생성
   const products: Product[] = productTemplates.map((template, index) => {
-    const order = index + 1
-    
     // 23번째 제품(인덱스 22)은 스파알 제품
-    if ((template as any).isSpael) {
+    if (template.isSpael) {
       return {
         id: 'spael-neck-massager',
         productId: 23,
@@ -80,12 +87,12 @@ export async function GET(
   { params }: { params: Promise<{ channelId: string }> }
 ) {
   try {
-    const { channelId } = await params
+    await params
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search') || ''
 
     // 제품 목록 생성 (추후 실제 API 연동)
-    let products = generateDummyProducts(channelId)
+    let products = generateDummyProducts()
 
     // 검색 필터링 (제목 또는 배지 번호로만 검색)
     if (search) {
