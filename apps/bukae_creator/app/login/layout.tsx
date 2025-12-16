@@ -5,15 +5,13 @@ import ThemeToggle from '../../components/ThemeToggle'
 
 export default function LoginLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko">
-      <body className="transition-colors">
-        <ThemeInitializer />
-        <Providers>
-          {children}
-          <ThemeToggle />
-        </Providers>
-      </body>
-    </html>
+    <>
+      <ThemeInitializer />
+      <Providers>
+        {children}
+        <ThemeToggle />
+      </Providers>
+    </>
   )
 }
 
