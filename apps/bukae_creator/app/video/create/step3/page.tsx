@@ -457,8 +457,20 @@ export default function Step3Page() {
                     })}
                   </div>
                 )}
-                {selectedImages.length > 0 && (
-                  <div className="mt-4 text-right">
+              </CardContent>
+            </Card>
+
+            {/* 선택된 이미지 목록 (드래그 앤 드롭) - 사용 가능한 이미지 아래로 이동 */}
+            {selectedImages.length > 0 && (
+              <Card
+                ref={selectedListRef}
+                className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
+              >
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                    선택된 이미지 및 대본 ({selectedImages.length}장)
+                  </CardTitle>
+                  {selectedImages.length > 0 && (
                     <Button
                       type="button"
                       size="sm"
@@ -469,21 +481,7 @@ export default function Step3Page() {
                       <Sparkles className="w-4 h-4" />
                       {isGeneratingAll ? 'AI 스크립트 생성 중...' : 'AI 스크립트 생성'}
                     </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* 선택된 이미지 목록 (드래그 앤 드롭) - 사용 가능한 이미지 아래로 이동 */}
-            {selectedImages.length > 0 && (
-              <Card
-                ref={selectedListRef}
-                className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
-              >
-                <CardHeader>
-                  <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
-                    선택된 이미지 및 대본 ({selectedImages.length}장)
-                  </CardTitle>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
