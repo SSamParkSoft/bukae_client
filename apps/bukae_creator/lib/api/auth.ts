@@ -2,6 +2,7 @@
 
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { authStorage } from './auth-storage'
+import { api } from './client'
 import type { SignUpRequest, LoginRequest, TokenResponse } from '@/lib/types/api/auth'
 
 const getEmailRedirectUrl = () => {
@@ -83,6 +84,53 @@ export const authApi = {
     const supabase = getSupabaseClient()
     await supabase.auth.signOut()
     authStorage.clearTokens()
+  },
+
+  /**
+   * Google OAuth 로그인 시작
+   * Supabase OAuth → /login/callback 으로 리다이렉트
+   */
+  loginWithGoogle: async (): Promise<void> => {
+    const supabase = getSupabaseClient()
+
+    let redirectTo: string | undefined
+    if (typeof window !== 'undefined' && window.location.origin) {
+      redirectTo = `${window.location.origin}/login/callback`
+    } else {
+      redirectTo = process.env.NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL
+    }
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+      },
+    })
+
+    if (error) {
+      throw new Error(mapErrorMessage(error.message))
+    }
+  },
+
+  /**
+   * 액세스 토큰 재발급
+   * POST /api/v1/auth/refresh
+   */
+  refreshToken: async (): Promise<TokenResponse> => {
+    const refreshToken = authStorage.getRefreshToken()
+    if (!refreshToken) {
+      throw new Error('리프레시 토큰이 없습니다. 다시 로그인해주세요.')
+    }
+
+    const response = await api.post<TokenResponse>(
+      '/api/v1/auth/refresh',
+      { refreshToken },
+      { skipAuth: true }
+    )
+
+    // 백엔드에서 반환한 토큰으로 갱신
+    authStorage.setTokens(response.accessToken, response.refreshToken)
+    return response
   },
 }
 
