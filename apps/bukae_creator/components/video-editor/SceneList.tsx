@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { GripVertical } from 'lucide-react'
+import { GripVertical, Copy, Trash2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import type { TimelineData, SceneScript } from '@/store/useVideoCreateStore'
 
 interface SceneListProps {
@@ -13,6 +14,9 @@ interface SceneListProps {
   onImageFitChange: (index: number, fit: 'cover' | 'contain' | 'fill') => void
   onReorder: (newOrder: number[]) => void
   transitionLabels: Record<string, string>
+  onSplitScene?: (index: number) => void
+  onDeleteScene?: (index: number) => void
+  onDuplicateScene?: (index: number) => void
 }
 
 export function SceneList({
@@ -26,6 +30,9 @@ export function SceneList({
   onImageFitChange,
   onReorder,
   transitionLabels,
+  onSplitScene,
+  onDeleteScene,
+  onDuplicateScene,
 }: SceneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
@@ -141,15 +148,67 @@ export function SceneList({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <GripVertical className={`w-5 h-5 cursor-move ${
-                      theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                    }`} />
+                    <GripVertical
+                      className={`w-5 h-5 cursor-move ${
+                        theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                      }`}
+                    />
                     <span
                       className="text-sm font-semibold"
                       style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
                     >
-                      씬 {index + 1}
+                      {scene.splitIndex
+                        ? `씬 ${scene.sceneId}-${scene.splitIndex}`
+                        : `씬 ${scene.sceneId}`}
                     </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {onSplitScene && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="text-[11px] px-2 py-0 h-6"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onSplitScene(index)
+                        }}
+                      >
+                        자막 씬 분할
+                      </Button>
+                    )}
+                    {onDuplicateScene && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="text-[11px] px-2 py-0 h-6"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDuplicateScene(index)
+                        }}
+                        title="씬 복사"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                    )}
+                    {onDeleteScene && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="text-[11px] px-2 py-0 h-6 text-red-500 hover:text-red-600 hover:border-red-500"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (confirm('이 씬을 삭제하시겠습니까?')) {
+                            onDeleteScene(index)
+                          }
+                        }}
+                        title="씬 삭제"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -179,7 +238,7 @@ export function SceneList({
                       color: theme === 'dark' ? '#9ca3af' : '#6b7280',
                     }}
                   >
-                    {transitionLabels[timeline?.scenes[index]?.transition || 'fade'] || '페이드'}
+                    {transitionLabels[timeline?.scenes[index]?.transition || 'none'] || '없음'}
                   </span>
                   <select
                     value={timeline?.scenes[index]?.imageFit || 'fill'}

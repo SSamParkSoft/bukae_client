@@ -97,13 +97,32 @@ export const authApi = {
   /**
    * Google OAuth 로그인 시작
    * 백엔드 OAuth2 엔드포인트로 리다이렉트
+   * 프론트엔드 콜백 URL을 redirect_uri로 전달
    */
   loginWithGoogle: async (): Promise<void> => {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
-    const oauthUrl = `${API_BASE_URL}/oauth2/authorization/google`
+    // API 서버 주소 (도메인 + 포트까지만, path 제외)
+    // 환경 변수가 없으면 기본값 사용
+    // 예: http://15.164.220.105.nip.io:8080
+    const API_BASE_URL =
+      process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
     
-    // 백엔드 OAuth2 엔드포인트로 리다이렉트
+    // 프론트엔드 콜백 URL 생성
+    // 환경 변수가 있으면 우선 사용, 없으면 현재 origin 사용
+    let redirectUri = ''
+    if (process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI) {
+      redirectUri = process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI
+    } else if (typeof window !== 'undefined' && window.location.origin) {
+      redirectUri = `${window.location.origin}/oauth/callback`
+    } else {
+      redirectUri = 'http://localhost:3000/oauth/callback'
+    }
+    
+    // 백엔드 OAuth2 엔드포인트로 리다이렉트 (redirect_uri 파라미터 포함)
+    const oauthUrl = `${API_BASE_URL}/oauth2/authorization/google?redirect_uri=${encodeURIComponent(redirectUri)}`
+    
     if (typeof window !== 'undefined') {
+      // 타임아웃 방지를 위해 새 창에서 열거나, 직접 리다이렉트
+      console.log('[OAuth] 리다이렉트 URL:', oauthUrl)
       window.location.href = oauthUrl
     } else {
       throw new Error('브라우저 환경에서만 사용할 수 있습니다.')

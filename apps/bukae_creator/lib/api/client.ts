@@ -2,7 +2,10 @@
 
 import { authStorage } from './auth-storage'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+// 백엔드 API 서버 기본 주소 (도메인 + 포트까지, path 제외)
+// 예: http://15.164.220.105.nip.io:8080
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
 
 export class ApiError extends Error {
   constructor(

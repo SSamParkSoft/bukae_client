@@ -88,9 +88,11 @@ export const usePixiEffects = ({
     applyAdvancedEffectsFn: (sprite: PIXI.Sprite, sceneIndex: number, effects?: TimelineScene['advancedEffects']) => void,
     forceTransition?: string,
     onComplete?: () => void,
-    previousIndex?: number | null // 추가
+    _previousIndex?: number | null // 추가 (현재 미사용, 향후 확장용)
   ) => {
-    const actualTransition = (forceTransition || transition || 'fade').trim().toLowerCase()
+    // 현재는 사용하지 않지만, 향후 이전 씬 정보 활용을 위해 자리 유지
+    void _previousIndex
+    const actualTransition = (forceTransition || transition || 'none').trim().toLowerCase()
     
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:89',message:'applyEnterEffect 시작',data:{sceneIndex,transition:actualTransition,toSpriteVisible:toSprite?.visible,toSpriteAlpha:toSprite?.alpha,toTextVisible:toText?.visible,toTextAlpha:toText?.alpha},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
@@ -98,6 +100,45 @@ export const usePixiEffects = ({
     
     if (!toSprite || !appRef.current || !containerRef.current) {
       console.error(`[전환효과] 필수 요소 없음`)
+      return
+    }
+    
+    // transition이 'none'이면 애니메이션 없이 즉시 표시
+    if (actualTransition === 'none') {
+      // 컨테이너에 추가
+      if (toSprite.parent !== containerRef.current) {
+        if (toSprite.parent) {
+          toSprite.parent.removeChild(toSprite)
+        }
+        containerRef.current.addChild(toSprite)
+      }
+      if (toText && toText.parent !== containerRef.current) {
+        if (toText.parent) {
+          toText.parent.removeChild(toText)
+        }
+        containerRef.current.addChild(toText)
+      }
+      
+      // 즉시 표시
+      toSprite.visible = true
+      toSprite.alpha = 1
+      if (toText) {
+        toText.visible = true
+        toText.alpha = 1
+      }
+      
+      if (appRef.current) {
+        appRef.current.render()
+      }
+      
+      // onComplete 콜백 호출
+      if (onComplete) {
+        onComplete()
+      }
+      if (onAnimationComplete) {
+        onAnimationComplete(sceneIndex)
+      }
+      
       return
     }
     

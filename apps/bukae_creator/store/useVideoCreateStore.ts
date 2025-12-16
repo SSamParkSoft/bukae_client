@@ -47,6 +47,8 @@ export interface SceneScript {
   imageUrl?: string
   // 이 스크립트가 마지막으로 AI에 의해 생성/갱신되었는지 여부
   isAiGenerated?: boolean
+  // 씬 분할 시 하위 번호 (1, 2, 3...)
+  splitIndex?: number
 }
 
 // Timeline 데이터 구조

@@ -173,9 +173,75 @@ export const useSceneManager = ({
     
     // 현재 씬 등장 효과 적용
     if (currentSprite) {
-      const transition = forceTransition || currentScene.transition || 'fade'
-      const transitionDuration = currentScene.transitionDuration || 1.0
+      const transition = forceTransition || currentScene.transition || 'none'
+      const transitionDuration =
+        transition === 'none'
+          ? 0
+          : currentScene.transitionDuration && currentScene.transitionDuration > 0
+            ? currentScene.transitionDuration
+            : 0.5
       const { width, height } = stageDimensions
+      
+      // transition이 'none'이면 애니메이션 없이 즉시 표시
+      if (transition === 'none') {
+        // 이전 씬 숨기기
+        if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
+          previousSprite.visible = false
+          previousSprite.alpha = 0
+        }
+        if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
+          previousText.visible = false
+          previousText.alpha = 0
+        }
+        
+        // 다른 씬들 숨기기
+        spritesRef.current.forEach((sprite, idx) => {
+          if (sprite && idx !== sceneIndex) {
+            sprite.visible = false
+            sprite.alpha = 0
+          }
+        })
+        textsRef.current.forEach((text, idx) => {
+          if (text && idx !== sceneIndex) {
+            text.visible = false
+            text.alpha = 0
+          }
+        })
+        
+        // 현재 씬 즉시 표시
+        if (currentSprite.parent !== containerRef.current) {
+          if (currentSprite.parent) {
+            currentSprite.parent.removeChild(currentSprite)
+          }
+          containerRef.current.addChild(currentSprite)
+        }
+        currentSprite.visible = true
+        currentSprite.alpha = 1
+        
+        if (currentText) {
+          if (currentText.parent !== containerRef.current) {
+            if (currentText.parent) {
+              currentText.parent.removeChild(currentText)
+            }
+            containerRef.current.addChild(currentText)
+          }
+          currentText.visible = true
+          currentText.alpha = 1
+        }
+        
+        if (appRef.current) {
+          appRef.current.render()
+        }
+        
+        previousSceneIndexRef.current = sceneIndex
+        
+        // onComplete 콜백 호출
+        if (onAnimationComplete) {
+          onAnimationComplete(sceneIndex)
+        }
+        
+        return
+      }
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:139',message:'전환 효과 적용',data:{sceneIndex,transition,transitionDuration,skipAnimation:false,previousIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
       // #endregion

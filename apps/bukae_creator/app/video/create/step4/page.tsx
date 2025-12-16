@@ -7,7 +7,7 @@ import { Play, Pause, Clock, Edit2, Type, Bold, Italic, Underline, AlignLeft, Al
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import StepIndicator from '@/components/StepIndicator'
-import { useVideoCreateStore, TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
+import { useVideoCreateStore, TimelineData, TimelineScene, SceneScript } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useSceneHandlers } from '@/hooks/video/useSceneHandlers'
 import { useTimelinePlayer } from '@/hooks/video/useTimelinePlayer'
@@ -19,6 +19,7 @@ import { SceneList } from '@/components/video-editor/SceneList'
 import { EffectsPanel } from '@/components/video-editor/EffectsPanel'
 import { loadPixiTexture, calculateSpriteParams } from '@/utils/pixi'
 import { formatTime, getSceneDuration } from '@/utils/timeline'
+import { splitSceneBySentences } from '@/lib/utils/scene-splitter'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import * as fabric from 'fabric'
@@ -123,7 +124,7 @@ export default function Step4Page() {
         return {
           sceneId: scene.sceneId,
           duration: existingScene?.duration || getSceneDuration(scene.script),
-          transition: existingScene?.transition || 'fade',
+          transition: existingScene?.transition || 'none',
           transitionDuration: existingScene?.transitionDuration || 0.5,
           image: scene.imageUrl || selectedImages[index] || '',
           imageFit: existingScene?.imageFit || 'fill', // 기본값을 fill로 변경하여 9:16 캔버스를 항상 채움
@@ -1044,6 +1045,146 @@ export default function Step4Page() {
     setPlaybackSpeed,
   })
 
+  // 씬 분할: 같은 이미지로 유지하면서 스크립트를 문장 단위로 나누어 여러 프레임으로 분리
+  const handleSceneSplit = useCallback(
+    (index: number) => {
+      if (!timeline || scenes.length === 0) return
+
+      const targetSceneScript = scenes[index]
+      const targetTimelineScene = timeline.scenes[index]
+
+      const { sceneScripts: splitScripts, timelineScenes: splitTimelineScenes } =
+        splitSceneBySentences({
+          sceneScript: targetSceneScript,
+          timelineScene: targetTimelineScene,
+        })
+
+      // 분할 불가(문장 1개 이하)이면 아무 것도 하지 않음
+      if (splitScripts.length <= 1) {
+        return
+      }
+
+      // scenes 배열 재구성 (기존 하나를 분할된 여러 개로 교체)
+      // 분할된 씬들은 원본 sceneId를 유지하고 splitIndex를 가지므로 sceneId 재할당 불필요
+      const newScenes = [
+        ...scenes.slice(0, index),
+        ...splitScripts,
+        ...scenes.slice(index + 1),
+      ]
+
+      // timeline.scenes 배열도 동일하게 분할/재구성
+      // 분할된 씬들은 원본 sceneId를 유지
+      const newTimelineScenes = [
+        ...timeline.scenes.slice(0, index),
+        ...splitTimelineScenes,
+        ...timeline.scenes.slice(index + 1),
+      ]
+
+      setScenes(newScenes)
+      setTimeline({
+        ...timeline,
+        scenes: newTimelineScenes,
+      })
+    },
+    [scenes, timeline, setScenes, setTimeline]
+  )
+
+  // 씬 삭제
+  const handleSceneDelete = useCallback(
+    (index: number) => {
+      if (!timeline || scenes.length <= 1) {
+        alert('최소 1개의 씬이 필요합니다.')
+        return
+      }
+
+      // scenes 배열에서 삭제
+      const newScenes = scenes
+        .filter((_, i) => i !== index)
+        .map((scene, i) => ({
+          ...scene,
+          sceneId: i + 1, // sceneId 재할당
+        }))
+
+      // timeline.scenes 배열에서도 삭제
+      const newTimelineScenes = timeline.scenes
+        .filter((_, i) => i !== index)
+        .map((scene, i) => ({
+          ...scene,
+          sceneId: i + 1,
+        }))
+
+      setScenes(newScenes)
+      setTimeline({
+        ...timeline,
+        scenes: newTimelineScenes,
+      })
+
+      // 현재 선택된 씬 인덱스 조정
+      if (currentSceneIndex >= newScenes.length) {
+        // 삭제된 씬이 마지막이었으면 이전 씬 선택
+        setCurrentSceneIndex(Math.max(0, newScenes.length - 1))
+        currentSceneIndexRef.current = Math.max(0, newScenes.length - 1)
+      } else if (currentSceneIndex === index) {
+        // 삭제된 씬이 현재 선택된 씬이면 다음 씬 선택 (없으면 이전 씬)
+        setCurrentSceneIndex(Math.min(index, newScenes.length - 1))
+        currentSceneIndexRef.current = Math.min(index, newScenes.length - 1)
+      }
+    },
+    [scenes, timeline, currentSceneIndex, setScenes, setTimeline, setCurrentSceneIndex]
+  )
+
+  // 씬 복사
+  const handleSceneDuplicate = useCallback(
+    (index: number) => {
+      if (!timeline || scenes.length === 0) return
+
+      const targetSceneScript = scenes[index]
+      const targetTimelineScene = timeline.scenes[index]
+
+      // 복제된 씬 생성 (index + 1 위치에 삽입)
+      const duplicatedSceneScript: SceneScript = {
+        ...targetSceneScript,
+        sceneId: index + 2, // 임시 ID (재할당 예정)
+      }
+
+      const duplicatedTimelineScene: TimelineScene = {
+        ...targetTimelineScene,
+        sceneId: index + 2, // 임시 ID (재할당 예정)
+      }
+
+      // scenes 배열에 삽입
+      const newScenes = [
+        ...scenes.slice(0, index + 1),
+        duplicatedSceneScript,
+        ...scenes.slice(index + 1),
+      ].map((scene, i) => ({
+        ...scene,
+        sceneId: i + 1, // sceneId 재할당
+      }))
+
+      // timeline.scenes 배열에도 삽입
+      const newTimelineScenes = [
+        ...timeline.scenes.slice(0, index + 1),
+        duplicatedTimelineScene,
+        ...timeline.scenes.slice(index + 1),
+      ].map((scene, i) => ({
+        ...scene,
+        sceneId: i + 1,
+      }))
+
+      setScenes(newScenes)
+      setTimeline({
+        ...timeline,
+        scenes: newTimelineScenes,
+      })
+
+      // 복제된 씬을 선택
+      setCurrentSceneIndex(index + 1)
+      currentSceneIndexRef.current = index + 1
+    },
+    [scenes, timeline, setScenes, setTimeline, setCurrentSceneIndex]
+  )
+
   // 전환 효과 변경 핸들러 래핑: currentSceneIndexRef를 먼저 설정
   const handleSceneTransitionChange = useCallback((index: number, value: string) => {
     // currentSceneIndexRef를 먼저 설정하여 updateCurrentScene이 올바른 씬 인덱스를 사용하도록 함
@@ -1547,6 +1688,7 @@ export default function Step4Page() {
 
   // 전환 효과 한글 매핑
   const transitionLabels: Record<string, string> = {
+    'none': '없음',
     'fade': '페이드',
     'slide-left': '슬라이드 좌',
     'slide-right': '슬라이드 우',
@@ -1563,6 +1705,7 @@ export default function Step4Page() {
 
   // 모든 전환 효과 옵션
   const allTransitions = [
+    { value: 'none', label: '없음' },
     { value: 'fade', label: '페이드' },
     { value: 'slide-left', label: '슬라이드 좌' },
     { value: 'slide-right', label: '슬라이드 우' },
@@ -2021,6 +2164,9 @@ export default function Step4Page() {
               onScriptChange={handleSceneScriptChange}
               onImageFitChange={handleSceneImageFitChange}
               onReorder={handleSceneReorder}
+              onSplitScene={handleSceneSplit}
+              onDeleteScene={handleSceneDelete}
+              onDuplicateScene={handleSceneDuplicate}
             />
           </div>
         </div>

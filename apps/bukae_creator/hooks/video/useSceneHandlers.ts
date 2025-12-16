@@ -86,7 +86,20 @@ export function useSceneHandlers({
       isManualSceneSelectRef.current = true
       const nextTimeline: TimelineData = {
         ...timeline,
-        scenes: timeline.scenes.map((scene, i) => (i === index ? { ...scene, transition: value } : scene)),
+        scenes: timeline.scenes.map((scene, i) => {
+          if (i !== index) return scene
+          const nextDuration =
+            value === 'none'
+              ? 0
+              : scene.transitionDuration && scene.transitionDuration > 0
+                ? scene.transitionDuration
+                : 0.5
+          return {
+            ...scene,
+            transition: value,
+            transitionDuration: nextDuration,
+          }
+        }),
       }
       setTimeline(nextTimeline)
 
@@ -109,7 +122,10 @@ export function useSceneHandlers({
           
           lastRenderedSceneIndexRef.current = targetSceneIndex
 
-          const transitionDuration = nextTimeline.scenes[targetSceneIndex]?.transitionDuration || 0.5
+          const transitionDuration =
+            nextTimeline.scenes[targetSceneIndex]?.transition === 'none'
+              ? 0
+              : nextTimeline.scenes[targetSceneIndex]?.transitionDuration || 0.5
           setTimeout(() => {
             setIsPreviewingTransition(false)
             isManualSceneSelectRef.current = false
