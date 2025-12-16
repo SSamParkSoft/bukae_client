@@ -7,10 +7,11 @@ import { authStorage } from '@/lib/api/auth-storage'
 import { useUserStore } from '@/store/useUserStore'
 import { authApi } from '@/lib/api/auth'
 
-export default function LoginCallbackPage() {
+export default function OAuthCallbackPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const setUser = useUserStore((state) => state.setUser)
+  const checkAuth = useUserStore((state) => state.checkAuth)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -29,22 +30,39 @@ export default function LoginCallbackPage() {
         // 토큰이 URL 파라미터로 전달된 경우
         if (accessToken && refreshToken) {
           authStorage.setTokens(accessToken, refreshToken)
+        } else if (accessToken) {
+          // accessToken만 있는 경우 (refreshToken은 나중에 받을 수 있음)
+          authStorage.setTokens(accessToken, accessToken) // 임시로 같은 값 사용
         } else {
           // 쿠키에서 토큰을 확인하거나, 백엔드가 다른 방식으로 전달할 수 있음
           // 여기서는 URL 파라미터를 우선으로 하고, 없으면 에러 처리
           throw new Error('토큰 정보를 찾을 수 없습니다. 다시 로그인해주세요.')
         }
 
+        // 토큰 저장 후 즉시 인증 상태 업데이트
+        checkAuth()
+
         // 백엔드 API로 사용자 정보 조회
-        const userInfo = await authApi.getCurrentUser()
-        setUser({
-          id: userInfo.id,
-          name: userInfo.name,
-          email: userInfo.email,
-          profileImage: userInfo.profileImage,
-          createdAt: userInfo.createdAt,
-          accountStatus: 'active',
-        })
+        try {
+          const userInfo = await authApi.getCurrentUser()
+          
+          setUser({
+            id: userInfo.id,
+            name: userInfo.name,
+            email: userInfo.email,
+            profileImage: userInfo.profileImage,
+            createdAt: userInfo.createdAt,
+            accountStatus: 'active',
+          })
+
+          // 사용자 정보 설정 후 다시 한 번 인증 상태 확인
+          checkAuth()
+        } catch (userInfoError) {
+          // 사용자 정보 조회 실패 시에도 토큰은 저장되어 있으므로 계속 진행
+          console.error('[OAuth Callback] 사용자 정보 조회 실패:', userInfoError)
+          // 토큰은 저장되어 있으므로 인증 상태만 업데이트하고 진행
+          checkAuth()
+        }
 
         // URL 파라미터 제거하고 홈으로 리다이렉트
         router.replace('/')
@@ -58,7 +76,7 @@ export default function LoginCallbackPage() {
     }
 
     void handleCallback()
-  }, [router, setUser, searchParams])
+  }, [router, setUser, checkAuth, searchParams])
 
   return (
     <div className="flex min-h-screen items-center justify-center">
@@ -88,5 +106,4 @@ export default function LoginCallbackPage() {
     </div>
   )
 }
-
 

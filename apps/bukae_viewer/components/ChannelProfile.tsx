@@ -22,7 +22,6 @@ export default function ChannelProfile({ channel }: ChannelProfileProps) {
         })
       } catch {
         // 사용자가 공유를 취소한 경우
-        console.log('공유 취소됨')
       }
     } else {
       // Web Share API를 지원하지 않는 경우 클립보드에 복사

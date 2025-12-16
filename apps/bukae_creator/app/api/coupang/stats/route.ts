@@ -90,7 +90,9 @@ export async function GET() {
         const commission = Math.floor((gmv * commissionRate) / 100)
         
         // 더미 썸네일 이미지 URL 생성 (placeholder.com 사용)
-        const thumbnailUrl = `https://via.placeholder.com/200x200/a78bfa/ffffff?text=${encodeURIComponent(productNames[productIndex].substring(0, 2))}`
+        // URL이 올바르게 생성되도록 전체 URL을 명시적으로 구성
+        const productText = productNames[productIndex].substring(0, 2)
+        const thumbnailUrl = `https://via.placeholder.com/200x200/a78bfa/ffffff?text=${encodeURIComponent(productText)}`
 
         dailyOrders.push({
           date: formatDate(date),

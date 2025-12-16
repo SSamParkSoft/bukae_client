@@ -87,8 +87,6 @@ export const useSceneManager = ({
     
     // 스프라이트가 없으면 경고 로그 출력
     if (!currentSprite) {
-      console.warn(`[updateCurrentScene] currentSprite가 없음 - sceneIndex: ${sceneIndex}, spritesRef.size: ${spritesRef.current.size}`)
-      console.warn(`[updateCurrentScene] 로드된 씬 인덱스:`, Array.from(spritesRef.current.keys()))
     }
 
       // 애니메이션 스킵 시 즉시 표시
@@ -178,8 +176,6 @@ export const useSceneManager = ({
       const transition = forceTransition || currentScene.transition || 'fade'
       const transitionDuration = currentScene.transitionDuration || 1.0
       const { width, height } = stageDimensions
-
-      console.log(`[updateCurrentScene] 전환 효과 적용 - sceneIndex: ${sceneIndex}, transition: ${transition}, duration: ${transitionDuration}, previousIndex: ${previousIndex}`)
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:139',message:'전환 효과 적용',data:{sceneIndex,transition,transitionDuration,skipAnimation:false,previousIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
@@ -204,7 +200,6 @@ export const useSceneManager = ({
           currentSprite.parent.removeChild(currentSprite)
         }
         containerRef.current.addChild(currentSprite)
-        console.log(`[updateCurrentScene] 스프라이트를 컨테이너에 추가 - sceneIndex: ${sceneIndex}`)
       }
       
       if (currentText && currentText.parent !== containerRef.current) {
@@ -212,7 +207,6 @@ export const useSceneManager = ({
           currentText.parent.removeChild(currentText)
         }
         containerRef.current.addChild(currentText)
-        console.log(`[updateCurrentScene] 텍스트를 컨테이너에 추가 - sceneIndex: ${sceneIndex}`)
       }
       
       // 2. 모든 다른 씬들 숨기기 (검은 캔버스에서 시작하기 위해)
@@ -252,16 +246,13 @@ export const useSceneManager = ({
       
       // 고급 효과 적용 후에도 스프라이트가 컨테이너에 있는지 확인
       if (!currentSprite.parent && containerRef.current) {
-        console.warn(`[updateCurrentScene] 고급 효과 적용 후 스프라이트가 컨테이너에 없음 - scene: ${sceneIndex}, 강제 추가`)
         containerRef.current.addChild(currentSprite)
       }
       if (currentText && !currentText.parent && containerRef.current) {
-        console.warn(`[updateCurrentScene] 고급 효과 적용 후 텍스트가 컨테이너에 없음 - scene: ${sceneIndex}, 강제 추가`)
         containerRef.current.addChild(currentText)
       }
 
       // 전환 효과 적용
-      console.log(`[updateCurrentScene] applyEnterEffect 호출 - sceneIndex: ${sceneIndex}, sprite visible: ${currentSprite.visible}, sprite alpha: ${currentSprite.alpha}, sprite parent: ${currentSprite.parent !== null}`)
       // applyEnterEffect에서 초기 상태 설정 후 렌더링하므로 여기서는 렌더링하지 않음
       // onAnimationComplete가 전달되면 Timeline 완료 시 호출됨
       const wrappedOnComplete = onAnimationComplete ? () => {
@@ -274,7 +265,6 @@ export const useSceneManager = ({
             prevSprite.visible = false
             prevSprite.alpha = 0
             // 컨테이너에서 제거하지 않음 (나중에 다시 사용할 수 있으므로)
-            console.log(`[updateCurrentScene] 전환 효과 완료 - 이전 씬 숨김 - previousIndex: ${previousIndex}`)
           }
           
           if (prevText) {
@@ -348,7 +338,6 @@ export const useSceneManager = ({
       
       applyEnterEffect(currentSprite, currentText || null, transition, transitionDuration, width, height, sceneIndex, applyAdvancedEffects, forceTransition, wrappedOnComplete, previousIndex)
     } else {
-      console.warn(`[updateCurrentScene] currentSprite가 없음 - sceneIndex: ${sceneIndex}`)
       // 스프라이트가 없으면 즉시 표시
       spritesRef.current.forEach((sprite, index) => {
         if (sprite?.parent) {

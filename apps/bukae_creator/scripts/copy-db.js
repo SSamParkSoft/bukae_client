@@ -20,7 +20,6 @@ const destPaths = [
 ];
 
 if (!fs.existsSync(src)) {
-  console.warn('⚠️  demo.db 파일을 찾을 수 없습니다:', src);
   process.exit(0);
 }
 
@@ -38,17 +37,12 @@ destPaths.forEach((destPath) => {
         fs.mkdirSync(destDir, { recursive: true });
       }
       fs.copyFileSync(src, destPath);
-      console.log(`✓ demo.db copied to: ${destPath}`);
       copiedCount++;
     } catch (error) {
-      console.warn(`⚠️  복사 실패 (무시): ${destPath}`, error.message);
     }
   }
 });
 
-if (copiedCount > 0) {
-  console.log(`✓ DB 파일 복사 완료 (${copiedCount}개 위치)`);
-} else {
-  console.warn('⚠️  DB 파일을 복사할 대상 위치를 찾을 수 없습니다. 빌드가 완료되지 않았을 수 있습니다.');
+if (copiedCount === 0) {
 }
 

@@ -27,7 +27,7 @@ export function useTimelinePlayer({
   const [isPreviewingTransition, setIsPreviewingTransition] = useState(false)
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
-  const [playbackSpeed, setPlaybackSpeed] = useState(1.0)
+  const [playbackSpeed, setPlaybackSpeed] = useState(timeline?.playbackSpeed ?? 1.0)
   const rafIdRef = useRef<number | null>(null)
   const lastTimestampRef = useRef<number | null>(null)
   const isManualSceneSelectRef = useRef(false)
@@ -80,24 +80,25 @@ export function useTimelinePlayer({
       }
       const deltaMs = timestamp - lastTimestampRef.current
       lastTimestampRef.current = timestamp
+      // 배속 적용: 2배속이면 1초에 2초씩 증가
       const deltaSec = (deltaMs / 1000) * (playbackSpeed || 1)
       
       // ref에서 최신 currentTime 값 가져오기
+      // currentTime은 배속이 적용된 시간으로 증가 (타임라인 바가 빠르게 채워지도록)
       const currentT = currentTimeRef.current
       const nextTime = currentT + deltaSec
       const clampedTime = Math.min(nextTime, totalDuration)
       
-      // 시간 업데이트
-      if (clampedTime !== currentT) {
-        setCurrentTime(clampedTime)
-        currentTimeRef.current = clampedTime
-      }
+      // 시간 업데이트 (항상 업데이트하여 부드러운 애니메이션)
+      setCurrentTime(clampedTime)
+      currentTimeRef.current = clampedTime
 
+      // 씬 계산은 currentTime 기준 (배속이 적용된 시간)
       const t = clampedTime
       
       // 현재 시간에 맞는 씬 찾기 (절대 시간 기준)
       let accumulated = 0
-      let targetSceneIndex = 0
+      let targetSceneIndex = timeline.scenes.length - 1 // 기본값: 마지막 씬
       
       for (let i = 0; i < timeline.scenes.length; i++) {
         const scene = timeline.scenes[i]
@@ -105,19 +106,25 @@ export function useTimelinePlayer({
         const sceneStart = accumulated
         const sceneEnd = accumulated + sceneDuration
         
+        // 현재 시간이 이 씬 범위 내에 있으면
         if (t >= sceneStart && t < sceneEnd) {
           targetSceneIndex = i
           break
         }
         
-        accumulated += sceneDuration
-        
-        // 마지막 씬을 넘어가면 재생 종료
+        // 마지막 씬이고 시간이 sceneEnd에 도달했거나 넘어갔으면
         if (i === timeline.scenes.length - 1 && t >= sceneEnd) {
-          setIsPlaying(false)
-          targetSceneIndex = i // 마지막 씬 유지
+          targetSceneIndex = i
           break
         }
+        
+        accumulated += sceneDuration
+      }
+      
+      // currentTime이 totalDuration에 도달했는지 확인
+      if (clampedTime >= totalDuration) {
+        setIsPlaying(false)
+        targetSceneIndex = timeline.scenes.length - 1
       }
       
       // 씬이 변경되었으면 업데이트
@@ -156,6 +163,20 @@ export function useTimelinePlayer({
     updateCurrentScene,
   ])
 
+  // timeline의 playbackSpeed와 동기화
+  useEffect(() => {
+    if (timeline?.playbackSpeed !== undefined && timeline.playbackSpeed !== playbackSpeed) {
+      setPlaybackSpeed(timeline.playbackSpeed)
+    }
+  }, [timeline?.playbackSpeed, playbackSpeed])
+
+  // 배속 변경 시 타임스탬프 리셋 (부드러운 업데이트를 위해)
+  useEffect(() => {
+    if (isPlaying) {
+      lastTimestampRef.current = null
+    }
+  }, [playbackSpeed, isPlaying])
+
   // 씬 인덱스 변경 시 전환 처리는 step4/page.tsx의 useEffect에서 처리
   // (previousSceneIndexRef를 공유하므로 중복 제거)
 
@@ -166,11 +187,14 @@ export function useTimelinePlayer({
       // currentTime은 현재 씬의 시작 시간으로 설정되어 있음
       playStartSceneIndexRef.current = currentSceneIndex
       playStartTimeRef.current = currentTime // 재생 시작 시 currentTime은 현재 씬의 시작 시간
-      console.log('Step4: Play started from scene:', currentSceneIndex, 'at time:', currentTime, 'playStartSceneIndex:', playStartSceneIndexRef.current, 'playStartTime:', playStartTimeRef.current)
     }
   }, [isPlaying, currentSceneIndex, currentTime])
 
   // 총 길이 기반 진행률
+  // currentTime은 배속이 적용된 시간으로 증가 (2배속이면 1초에 2초씩 증가)
+  // progressRatio = currentTime / totalDuration
+  // 예: 1배속에서 10초면 currentTime=10, progressRatio=1.0
+  //     2배속에서 5초면 currentTime=10, progressRatio=1.0 (타임라인 바가 2배 빠르게 채워짐)
   const progressRatio = useMemo(() => {
     if (totalDuration === 0) return 0
     return Math.min(1, currentTime / totalDuration)

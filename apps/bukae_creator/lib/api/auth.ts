@@ -78,37 +78,35 @@ export const authApi = {
   },
 
   /**
-   * Supabase 로그아웃
+   * 로그아웃
+   * 백엔드 API를 사용하거나, 토큰만 삭제
    */
   logout: async (): Promise<void> => {
-    const supabase = getSupabaseClient()
-    await supabase.auth.signOut()
-    authStorage.clearTokens()
+    try {
+      // 백엔드에 로그아웃 요청 (선택적)
+      // await api.post('/api/v1/auth/logout', {}, { skipAuth: false })
+    } catch (error) {
+      // 백엔드 로그아웃 실패해도 토큰은 삭제
+      console.error('로그아웃 API 호출 실패:', error)
+    } finally {
+      // 토큰 삭제
+      authStorage.clearTokens()
+    }
   },
 
   /**
    * Google OAuth 로그인 시작
-   * Supabase OAuth → /login/callback 으로 리다이렉트
+   * 백엔드 OAuth2 엔드포인트로 리다이렉트
    */
   loginWithGoogle: async (): Promise<void> => {
-    const supabase = getSupabaseClient()
-
-    let redirectTo: string | undefined
-    if (typeof window !== 'undefined' && window.location.origin) {
-      redirectTo = `${window.location.origin}/login/callback`
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+    const oauthUrl = `${API_BASE_URL}/oauth2/authorization/google`
+    
+    // 백엔드 OAuth2 엔드포인트로 리다이렉트
+    if (typeof window !== 'undefined') {
+      window.location.href = oauthUrl
     } else {
-      redirectTo = process.env.NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL
-    }
-
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-      },
-    })
-
-    if (error) {
-      throw new Error(mapErrorMessage(error.message))
+      throw new Error('브라우저 환경에서만 사용할 수 있습니다.')
     }
   },
 
@@ -131,6 +129,26 @@ export const authApi = {
     // 백엔드에서 반환한 토큰으로 갱신
     authStorage.setTokens(response.accessToken, response.refreshToken)
     return response
+  },
+
+  /**
+   * 현재 로그인한 사용자 정보 조회
+   * GET /api/v1/users/me
+   */
+  getCurrentUser: async (): Promise<{
+    id: string
+    name: string
+    email: string
+    profileImage?: string
+    createdAt: string
+  }> => {
+    return api.get<{
+      id: string
+      name: string
+      email: string
+      profileImage?: string
+      createdAt: string
+    }>('/api/v1/users/me')
   },
 }
 

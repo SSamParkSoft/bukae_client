@@ -118,6 +118,9 @@ export async function apiRequest<T>(
       throw error
     }
 
+    // 예상치 못한 에러 로깅
+    console.error('[API Client] 예상치 못한 에러:', error)
+    
     throw new ApiError(
       error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.',
       0,

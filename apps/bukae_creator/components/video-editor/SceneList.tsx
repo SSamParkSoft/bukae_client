@@ -111,13 +111,30 @@ export function SceneList({
             <div className="flex gap-3">
               {/* 썸네일 */}
               <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-200 shrink-0">
-                {sceneThumbnails[index] && (
-                  <img
-                    src={sceneThumbnails[index] as string}
-                    alt={`Scene ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                )}
+                {sceneThumbnails[index] && (() => {
+                  const thumbnailUrl = sceneThumbnails[index] as string
+                  // URL 검증 및 수정
+                  const validUrl = thumbnailUrl.startsWith('http://') || thumbnailUrl.startsWith('https://')
+                    ? thumbnailUrl
+                    : thumbnailUrl.startsWith('//')
+                    ? `https:${thumbnailUrl}`
+                    : thumbnailUrl.startsWith('/')
+                    ? thumbnailUrl
+                    : `https://via.placeholder.com/200x200/a78bfa/ffffff?text=Scene${index + 1}`
+                  
+                  return (
+                    <img
+                      src={validUrl}
+                      alt={`Scene ${index + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // 이미지 로드 실패 시 기본 placeholder 사용
+                        const target = e.target as HTMLImageElement
+                        target.src = `https://via.placeholder.com/200x200/a78bfa/ffffff?text=Scene${index + 1}`
+                      }}
+                    />
+                  )
+                })()}
               </div>
 
               {/* 씬 정보 */}

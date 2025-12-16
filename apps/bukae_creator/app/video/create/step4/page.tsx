@@ -291,7 +291,7 @@ export default function Step4Page() {
     }
   }, [setupSpriteDrag, setupTextDrag])
 
-  // PixiJS 효과 적용 hook
+  // PixiJS 효과 적용 hook (playbackSpeed는 timeline에서 가져옴)
   const { applyAdvancedEffects, applyEnterEffect } = usePixiEffects({
     appRef,
     containerRef,
@@ -299,6 +299,7 @@ export default function Step4Page() {
     activeAnimationsRef,
     stageDimensions,
     timeline,
+    playbackSpeed: timeline?.playbackSpeed ?? 1.0,
     onAnimationComplete: handleAnimationComplete,
   })
 
@@ -866,7 +867,6 @@ export default function Step4Page() {
       // 현재 씬의 스프라이트가 로드되었는지 확인
       const currentSprite = spritesRef.current.get(currentSceneIndex)
       if (!currentSprite) {
-        console.warn(`[handlePlayPause] 현재 씬의 스프라이트가 로드되지 않음 - sceneIndex: ${currentSceneIndex}, 로드된 씬: ${Array.from(spritesRef.current.keys())}`)
         // 스프라이트가 없으면 로드 시도
         if (pixiReady && appRef.current && containerRef.current && timeline) {
           loadAllScenes().then(() => {
@@ -918,12 +918,15 @@ export default function Step4Page() {
           // #region agent log
           fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:884',message:'전환 효과 완료 콜백 실행',data:{sceneIndex,currentIndex,isPlayingRef:isPlayingRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
           // #endregion
-          // 전환 효과 완료 후 씬 duration만큼 대기하고 다음 씬으로
+          // 전환 효과 완료 후 씬 duration만큼 대기하고 다음 씬으로 (배속 고려)
           const nextIndex = currentIndex + 1
+          const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
+          const waitTime = (sceneDuration * 1000) / speed // 배속이 빠를수록 대기 시간이 짧아짐
+          
           if (nextIndex < timeline.scenes.length) {
             // 다음 씬이 있으면 duration 후 다음 씬으로 이동
             // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:888',message:'다음 씬으로 넘어가기 위해 setTimeout 설정',data:{currentIndex,nextIndex,sceneDuration},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:888',message:'다음 씬으로 넘어가기 위해 setTimeout 설정',data:{currentIndex,nextIndex,sceneDuration,speed,waitTime},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
             // #endregion
           playTimeoutRef.current = setTimeout(() => {
               // #region agent log
@@ -933,13 +936,13 @@ export default function Step4Page() {
             if (isPlayingRef.current) {
               playNextScene()
             }
-          }, sceneDuration * 1000)
+          }, waitTime)
         } else {
           // 마지막 씬이 끝나면 재생 종료
           playTimeoutRef.current = setTimeout(() => {
             setIsPlaying(false)
             isPlayingRef.current = false
-          }, sceneDuration * 1000)
+          }, waitTime)
         }
         })
       }
@@ -999,7 +1002,6 @@ export default function Step4Page() {
       }
     })
     if (hasActiveAnimation) {
-      console.log(`[useEffect] 전환 효과 진행 중 - skipAnimation 호출 무시`)
       return
     }
     
@@ -1619,7 +1621,23 @@ export default function Step4Page() {
   }
 
   const sceneThumbnails = useMemo(
-    () => scenes.map((scene, index) => scene.imageUrl || selectedImages[index] || ''),
+    () => scenes.map((scene, index) => {
+      const url = scene.imageUrl || selectedImages[index] || ''
+      if (!url) return ''
+      
+      // URL 검증 및 수정
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url
+      }
+      if (url.startsWith('//')) {
+        return `https:${url}`
+      }
+      if (url.startsWith('/')) {
+        return url // 상대 경로는 그대로 사용
+      }
+      // 잘못된 URL인 경우 기본 placeholder 반환
+      return `https://via.placeholder.com/200x200/a78bfa/ffffff?text=Scene${index + 1}`
+    }),
     [scenes, selectedImages]
   )
 
