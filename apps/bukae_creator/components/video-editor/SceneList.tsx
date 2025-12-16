@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { GripVertical } from 'lucide-react'
 import type { TimelineData, SceneScript } from '@/store/useVideoCreateStore'
 
@@ -10,6 +11,7 @@ interface SceneListProps {
   onSelect: (index: number) => void
   onScriptChange: (index: number, value: string) => void
   onImageFitChange: (index: number, fit: 'cover' | 'contain' | 'fill') => void
+  onReorder: (newOrder: number[]) => void
   transitionLabels: Record<string, string>
 }
 
@@ -22,8 +24,52 @@ export function SceneList({
   onSelect,
   onScriptChange,
   onImageFitChange,
+  onReorder,
   transitionLabels,
 }: SceneListProps) {
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
+
+  // 드래그 시작
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index)
+  }
+
+  // 드롭 위치 계산
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>, index: number) => {
+    event.preventDefault()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const offsetY = event.clientY - rect.top
+    const position: 'before' | 'after' = offsetY < rect.height / 2 ? 'before' : 'after'
+    setDragOver({ index, position })
+  }
+
+  // 드롭
+  const handleDrop = (event?: React.DragEvent<HTMLDivElement>) => {
+    event?.preventDefault()
+    if (draggedIndex === null || !dragOver) return
+
+    const newOrder = scenes.map((_, idx) => idx)
+    const [removed] = newOrder.splice(draggedIndex, 1)
+
+    let targetIndex = dragOver.position === 'after' ? dragOver.index + 1 : dragOver.index
+    if (draggedIndex < targetIndex) {
+      targetIndex -= 1
+    }
+
+    newOrder.splice(targetIndex, 0, removed)
+    onReorder(newOrder)
+
+    setDraggedIndex(null)
+    setDragOver(null)
+  }
+
+  // 드래그 종료
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+    setDragOver(null)
+  }
+
   if (scenes.length === 0) {
     return (
       <div
@@ -37,28 +83,29 @@ export function SceneList({
 
   return (
     <div className="space-y-3">
-      {scenes.map((scene, index) => {
-        const isActive = currentSceneIndex === index
-        const sceneData = timeline?.scenes[index]
-
-        return (
+      {scenes.map((scene, index) => (
+        <div key={scene.sceneId ?? index}>
+          {dragOver && dragOver.index === index && dragOver.position === 'before' && (
+            <div className="h-0.5 bg-blue-500 rounded-full" />
+          )}
           <div
-            key={scene.sceneId ?? index}
-            className="rounded-lg border p-3 cursor-pointer transition-colors"
-            style={{
-              borderColor: isActive
-                ? '#8b5cf6'
-                : theme === 'dark'
-                  ? '#374151'
-                  : '#e5e7eb',
-              backgroundColor: isActive
-                ? theme === 'dark'
-                  ? '#3b1f5f'
-                  : '#f3e8ff'
-                : theme === 'dark'
-                  ? '#1f2937'
-                  : '#ffffff',
-            }}
+            draggable
+            onDragStart={() => handleDragStart(index)}
+            onDragOver={(e) => handleDragOver(e, index)}
+            onDrop={handleDrop}
+            onDragLeave={() => setDragOver(null)}
+            onDragEnd={handleDragEnd}
+            className={`rounded-lg border p-3 transition-all ${
+              draggedIndex === index
+                ? 'opacity-50 border-purple-500'
+                : currentSceneIndex === index
+                  ? theme === 'dark'
+                    ? 'border-purple-500 bg-purple-900/20'
+                    : 'border-purple-500 bg-purple-50'
+                  : theme === 'dark'
+                    ? 'border-gray-700 bg-gray-900 hover:border-purple-500'
+                    : 'border-gray-200 bg-white hover:border-purple-500'
+            }`}
             onClick={() => onSelect(index)}
           >
             <div className="flex gap-3">
@@ -77,10 +124,9 @@ export function SceneList({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <GripVertical
-                      className="w-4 h-4"
-                      style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}
-                    />
+                    <GripVertical className={`w-5 h-5 cursor-move ${
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                    }`} />
                     <span
                       className="text-sm font-semibold"
                       style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
@@ -95,6 +141,7 @@ export function SceneList({
                   rows={2}
                   value={scene.script}
                   onChange={(e) => onScriptChange(index, e.target.value)}
+                  onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
                   className="w-full text-sm rounded-md border px-2 py-1 resize-none mb-2"
                   style={{
@@ -115,11 +162,12 @@ export function SceneList({
                       color: theme === 'dark' ? '#9ca3af' : '#6b7280',
                     }}
                   >
-                    {transitionLabels[sceneData?.transition || 'fade'] || '페이드'}
+                    {transitionLabels[timeline?.scenes[index]?.transition || 'fade'] || '페이드'}
                   </span>
                   <select
-                    value={sceneData?.imageFit || 'fill'}
+                    value={timeline?.scenes[index]?.imageFit || 'fill'}
                     onChange={(e) => onImageFitChange(index, e.target.value as 'cover' | 'contain' | 'fill')}
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                     className="px-2 py-1 rounded border text-xs"
                     style={{
@@ -136,9 +184,13 @@ export function SceneList({
               </div>
             </div>
           </div>
-        )
-      })}
+          {dragOver && dragOver.index === index && dragOver.position === 'after' && (
+            <div className="h-0.5 bg-blue-500 rounded-full" />
+          )}
+        </div>
+      ))}
     </div>
   )
 }
+
 

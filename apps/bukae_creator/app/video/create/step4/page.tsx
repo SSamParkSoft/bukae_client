@@ -1049,6 +1049,29 @@ export default function Step4Page() {
     originalHandleSceneTransitionChange(index, value)
   }, [originalHandleSceneTransitionChange])
 
+  // 씬 순서 변경 핸들러
+  const handleSceneReorder = useCallback((newOrder: number[]) => {
+    if (!timeline) return
+
+    // scenes 배열 재정렬
+    const reorderedScenes = newOrder.map((oldIndex) => scenes[oldIndex])
+    setScenes(reorderedScenes)
+
+    // timeline의 scenes도 재정렬
+    const reorderedTimelineScenes = newOrder.map((oldIndex) => timeline.scenes[oldIndex])
+    setTimeline({
+      ...timeline,
+      scenes: reorderedTimelineScenes,
+    })
+
+    // 현재 선택된 씬 인덱스 업데이트
+    const currentOldIndex = newOrder.indexOf(currentSceneIndex)
+    if (currentOldIndex !== -1) {
+      setCurrentSceneIndex(currentOldIndex)
+      currentSceneIndexRef.current = currentOldIndex
+    }
+  }, [scenes, timeline, currentSceneIndex, setScenes, setTimeline, setCurrentSceneIndex])
+
   // PixiJS 컨테이너에 빈 공간 클릭 감지 추가
   useEffect(() => {
     if (!containerRef.current || !appRef.current || useFabricEditing || !pixiReady) return
@@ -1979,6 +2002,7 @@ export default function Step4Page() {
               onSelect={handleSceneSelect}
               onScriptChange={handleSceneScriptChange}
               onImageFitChange={handleSceneImageFitChange}
+              onReorder={handleSceneReorder}
             />
           </div>
         </div>
