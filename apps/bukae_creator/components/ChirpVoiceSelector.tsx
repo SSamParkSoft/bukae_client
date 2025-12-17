@@ -136,14 +136,16 @@ export default function ChirpVoiceSelector({
   }, [])
 
   const buildDemoUrls = useCallback((voiceName: string) => {
-    const exts = ['mp3', 'wav']
+    // 실제 public/voice-demos는 slug 기반 wav가 우선 존재하는 경우가 많아
+    // 불필요한 404(특히 HEAD) 노이즈를 줄이기 위해 slug + wav를 최우선으로 둔다.
+    const exts = ['wav', 'mp3']
     const encodedVoiceName = encodeURIComponent(voiceName)
     const slug = toDemoSlug(voiceName)
     const encodedSlug = encodeURIComponent(slug)
 
     return [
-      ...exts.map((ext) => `/voice-demos/${encodedVoiceName}.${ext}`),
       ...exts.map((ext) => `/voice-demos/${encodedSlug}.${ext}`),
+      ...exts.map((ext) => `/voice-demos/${encodedVoiceName}.${ext}`),
     ]
   }, [toDemoSlug])
 
@@ -162,23 +164,16 @@ export default function ChirpVoiceSelector({
         stop()
 
         const candidates = buildDemoUrls(voiceName)
-        let resolvedUrl: string | null = null
-
-        // 파일 존재 확인(없으면 즉시 안내)
+        // HEAD로 존재 확인을 하면(특히 dev 서버/브라우저 조합) 404 노이즈가 발생하거나
+        // 오히려 재생 타이밍이 늦어질 수 있어, <source>를 여러 개 붙여 브라우저가 자동 선택/폴백하도록 한다.
+        const audio = document.createElement('audio')
+        audio.preload = 'auto'
         for (const url of candidates) {
-          const head = await fetch(url, { method: 'HEAD', cache: 'no-store' }).catch(() => null)
-          if (head?.ok) {
-            resolvedUrl = url
-            break
-          }
+          const source = document.createElement('source')
+          source.src = url
+          source.type = url.endsWith('.mp3') ? 'audio/mpeg' : 'audio/wav'
+          audio.appendChild(source)
         }
-
-        if (!resolvedUrl) {
-          setError('준비되지 않았어요')
-          return
-        }
-
-        const audio = new Audio(resolvedUrl)
         audioRef.current = audio
         audio.onended = () => {
           setIsPlaying(false)
@@ -190,6 +185,7 @@ export default function ChirpVoiceSelector({
           setError('준비되지 않았어요')
         }
 
+        audio.load()
         await audio.play()
         setPlayingVoiceName(voiceName)
         setIsPlaying(true)
@@ -334,11 +330,22 @@ export default function ChirpVoiceSelector({
                     const isThisPlaying = isPlaying && playingVoiceName === v.name
                     const label = getShortName(v.name)
                     return (
-                      <button
+                      <div
                         key={v.name}
-                        type="button"
-                        onClick={() => openConfirm(v.name)}
-                        disabled={disabled}
+                        role="button"
+                        tabIndex={disabled ? -1 : 0}
+                        aria-disabled={disabled}
+                        onClick={() => {
+                          if (disabled) return
+                          openConfirm(v.name)
+                        }}
+                        onKeyDown={(e) => {
+                          if (disabled) return
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            openConfirm(v.name)
+                          }
+                        }}
                         className={[
                           'group relative text-left rounded-lg border p-4 transition-all',
                           'shadow-sm hover:shadow-md hover:-translate-y-0.5',
@@ -405,7 +412,7 @@ export default function ChirpVoiceSelector({
                             </Button>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     )
                   })}
                 </div>
@@ -421,11 +428,22 @@ export default function ChirpVoiceSelector({
                     const isThisPlaying = isPlaying && playingVoiceName === v.name
                     const label = getShortName(v.name)
                     return (
-                      <button
+                      <div
                         key={v.name}
-                        type="button"
-                        onClick={() => openConfirm(v.name)}
-                        disabled={disabled}
+                        role="button"
+                        tabIndex={disabled ? -1 : 0}
+                        aria-disabled={disabled}
+                        onClick={() => {
+                          if (disabled) return
+                          openConfirm(v.name)
+                        }}
+                        onKeyDown={(e) => {
+                          if (disabled) return
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            openConfirm(v.name)
+                          }
+                        }}
                         className={[
                           'group relative text-left rounded-lg border p-4 transition-all',
                           'shadow-sm hover:shadow-md hover:-translate-y-0.5',
@@ -492,7 +510,7 @@ export default function ChirpVoiceSelector({
                             </Button>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     )
                   })}
                 </div>
@@ -509,11 +527,22 @@ export default function ChirpVoiceSelector({
                       const isThisPlaying = isPlaying && playingVoiceName === v.name
                       const label = getShortName(v.name)
                       return (
-                        <button
+                        <div
                           key={v.name}
-                          type="button"
-                          onClick={() => openConfirm(v.name)}
-                          disabled={disabled}
+                          role="button"
+                          tabIndex={disabled ? -1 : 0}
+                          aria-disabled={disabled}
+                          onClick={() => {
+                            if (disabled) return
+                            openConfirm(v.name)
+                          }}
+                          onKeyDown={(e) => {
+                            if (disabled) return
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault()
+                              openConfirm(v.name)
+                            }
+                          }}
                           className={[
                             'group relative text-left rounded-lg border p-4 transition-all',
                             'shadow-sm hover:shadow-md hover:-translate-y-0.5',
@@ -580,7 +609,7 @@ export default function ChirpVoiceSelector({
                               </Button>
                             </div>
                           </div>
-                        </button>
+                        </div>
                       )
                     })}
                   </div>

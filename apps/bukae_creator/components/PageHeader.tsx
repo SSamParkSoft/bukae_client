@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useUserStore } from '../store/useUserStore'
 import { useLogout } from '@/lib/hooks/useAuth'
 import { useThemeStore } from '../store/useThemeStore'
-import { User, LogOut, LogIn } from 'lucide-react'
+import { User, LogOut } from 'lucide-react'
 import { Button } from './ui/button'
 
 interface PageHeaderProps {
@@ -68,17 +68,7 @@ export default function PageHeader({ title, description, children }: PageHeaderP
               <span>로그아웃</span>
             </Button>
           </>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push('/login')}
-            className="gap-2"
-          >
-            <LogIn className="w-4 h-4" />
-            <span>로그인</span>
-          </Button>
-        )}
+        ) : null}
       </div>
     </div>
   )
