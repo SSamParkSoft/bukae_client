@@ -69,7 +69,7 @@ const defaultNotificationSettings: NotificationSettings = {
 
 export const useUserStore = create<UserState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: defaultUser,
       connectedServices: defaultConnectedServices,
       notificationSettings: defaultNotificationSettings,
