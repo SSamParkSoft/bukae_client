@@ -1741,6 +1741,11 @@ export default function Step4Page() {
         },
       }
 
+      // JSON 바디 확인용 로그
+      console.log('=== 인코딩 요청 JSON 바디 ===')
+      console.log(JSON.stringify(exportData, null, 2))
+      console.log('===========================')
+
       // API 엔드포인트로 전송
       const response = await fetch('/api/videos/generate', {
         method: 'POST',

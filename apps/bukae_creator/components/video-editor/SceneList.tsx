@@ -91,7 +91,7 @@ export function SceneList({
   return (
     <div className="space-y-3">
       {scenes.map((scene, index) => (
-        <div key={scene.sceneId ?? index}>
+        <div key={scene.splitIndex ? `${scene.sceneId}-${scene.splitIndex}` : scene.sceneId ?? index}>
           {dragOver && dragOver.index === index && dragOver.position === 'before' && (
             <div className="h-0.5 bg-blue-500 rounded-full" />
           )}

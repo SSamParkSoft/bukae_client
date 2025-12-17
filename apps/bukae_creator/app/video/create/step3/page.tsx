@@ -12,7 +12,6 @@ import { useVideoCreateStore, SceneScript } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { studioScriptApi } from '@/lib/api/studio-script'
 import type { ScriptType } from '@/lib/types/api/studio-script'
-import { useProduct } from '@/lib/hooks/useProducts'
 import { useImages } from '@/lib/hooks/useImages'
 
 export default function Step3Page() {
@@ -29,19 +28,13 @@ export default function Step3Page() {
   const selectedProduct = selectedProducts[0]
   
   // 상품 이미지 가져오기
-  const { data: productData } = useProduct(selectedProduct?.id || null)
   const { data: allImages } = useImages()
   
   // 사용 가능한 이미지 목록
   const availableImages = useMemo(() => {
     const images: string[] = []
     
-    // 1. 선택된 상품의 이미지들
-    if (productData?.images) {
-      images.push(...productData.images.map((img) => img.url))
-    }
-    
-    // 2. 전체 이미지 목록에서 상품 이미지 추가
+    // 1. 전체 이미지 목록에서 상품 이미지 추가
     if (allImages) {
       const productImageUrls = allImages
         .filter((img) => img.product?.id === selectedProduct?.id)
@@ -49,7 +42,7 @@ export default function Step3Page() {
       images.push(...productImageUrls)
     }
     
-    // 3. 상품 기본 이미지
+    // 2. 상품 기본 이미지
     if (selectedProduct?.image) {
       images.push(selectedProduct.image)
     }
@@ -90,7 +83,7 @@ export default function Step3Page() {
 
     // 상품 이미지가 5개 이상일 때: 상품 이미지만 반환
     return uniqueImages
-  }, [productData, allImages, selectedProduct])
+  }, [allImages, selectedProduct])
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
@@ -115,55 +108,6 @@ export default function Step3Page() {
       case 'promotional':
       default:
         return 'ENTERTAINMENT'
-    }
-  }
-
-  // 이미지별 대본 생성 (단일 이미지용 - 현재는 일괄 생성에서만 사용)
-  // TODO: 필요 시 단일 씬 재생성에도 studioScriptApi를 사용할 수 있도록 확장
-  const generateScriptForImage = async (imageUrl: string, sceneIndex: number) => {
-    if (!scriptStyle || !tone) {
-      return
-    }
-
-    setGeneratingScenes((prev) => new Set(prev).add(sceneIndex))
-
-    try {
-      const product = selectedProducts[0]
-      const scriptType = mapConceptToScriptType(scriptStyle)
-
-      const data = await studioScriptApi.generateScripts({
-        topic: product?.name || '상품',
-        description: product?.description || tone || '상품 리뷰 쇼츠 대본 생성',
-        type: scriptType,
-        imageUrls: [imageUrl],
-      })
-
-      const items = Array.isArray(data) ? data : [data]
-
-      if (items.length > 0) {
-        const first = items[0]
-        const sceneScript: SceneScript = {
-          sceneId: sceneIndex + 1,
-          script: first.script,
-          imageUrl: first.imageUrl || imageUrl,
-          isAiGenerated: true,
-        }
-
-        setSceneScripts((prev) => {
-          const newMap = new Map(prev)
-          newMap.set(sceneIndex, sceneScript)
-          return newMap
-        })
-      }
-    } catch (error) {
-      console.error('대본 생성 오류:', error)
-      alert('대본 생성 중 오류가 발생했습니다.')
-    } finally {
-      setGeneratingScenes((prev) => {
-        const newSet = new Set(prev)
-        newSet.delete(sceneIndex)
-        return newSet
-      })
     }
   }
 
