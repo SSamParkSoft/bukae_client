@@ -86,14 +86,18 @@ export async function POST(request: Request) {
     }
 
     // google client는 Uint8Array(Buffer) 또는 base64 string을 반환할 수 있음
-    let bodyBytes: Uint8Array
-    if (typeof audioContent === 'string') {
-      bodyBytes = Buffer.from(audioContent, 'base64')
-    } else {
-      bodyBytes = audioContent as Uint8Array
-    }
+    // Response body 타입(BodyInit) 호환을 위해 ArrayBuffer로 정규화
+    const nodeBuf =
+      typeof audioContent === 'string'
+        ? Buffer.from(audioContent, 'base64')
+        : Buffer.from(audioContent as Uint8Array)
 
-    return new Response(bodyBytes, {
+    const bodyArrayBuffer = nodeBuf.buffer.slice(
+      nodeBuf.byteOffset,
+      nodeBuf.byteOffset + nodeBuf.byteLength
+    )
+
+    return new Response(bodyArrayBuffer, {
       headers: {
         'Content-Type': 'audio/mpeg',
         'Cache-Control': 'no-store',

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { Ratelimit } from '@upstash/ratelimit'
+import { Ratelimit, type Duration } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 import { getRequestIp } from '@/lib/api/route-guard'
 
@@ -12,9 +12,9 @@ type RateLimitResult = {
 
 type EndpointPolicy = {
   // user 기준
-  user: { limit: number; window: string }
+  user: { limit: number; window: Duration }
   // ip 기준(선택)
-  ip?: { limit: number; window: string }
+  ip?: { limit: number; window: Duration }
 }
 
 let redisSingleton: Redis | null = null
@@ -51,19 +51,30 @@ function strEnv(name: string, fallback: string): string {
   return raw?.trim() ? raw.trim() : fallback
 }
 
+function durationEnv(name: string, fallback: Duration): Duration {
+  const raw = process.env[name]?.trim()
+  if (!raw) return fallback
+
+  // @upstash/ratelimit Duration 포맷: "60 s" (숫자 + 단위 s/m/h/d)
+  const normalized = raw.replace(/\s+/g, ' ').trim()
+  const m = normalized.match(/^(\d+)\s*([smhd])$/)
+  if (!m) return fallback
+  return `${m[1]} ${m[2]}` as Duration
+}
+
 export function getEndpointPolicy(endpoint: string): EndpointPolicy {
   // 기본 윈도우는 "60 s" 형태(@upstash/ratelimit 규격)
-  const defaultWindow = strEnv('RATE_LIMIT_DEFAULT_WINDOW', '60 s')
+  const defaultWindow = durationEnv('RATE_LIMIT_DEFAULT_WINDOW', '60 s')
 
   if (endpoint === 'tts:voices') {
     return {
       user: {
         limit: intEnv('RATE_LIMIT_TTS_VOICES_LIMIT', 30),
-        window: strEnv('RATE_LIMIT_TTS_VOICES_WINDOW', defaultWindow),
+        window: durationEnv('RATE_LIMIT_TTS_VOICES_WINDOW', defaultWindow),
       },
       ip: {
         limit: intEnv('RATE_LIMIT_TTS_VOICES_IP_LIMIT', 60),
-        window: strEnv('RATE_LIMIT_TTS_VOICES_IP_WINDOW', defaultWindow),
+        window: durationEnv('RATE_LIMIT_TTS_VOICES_IP_WINDOW', defaultWindow),
       },
     }
   }
@@ -72,11 +83,11 @@ export function getEndpointPolicy(endpoint: string): EndpointPolicy {
     return {
       user: {
         limit: intEnv('RATE_LIMIT_TTS_SYNTHESIZE_LIMIT', 10),
-        window: strEnv('RATE_LIMIT_TTS_SYNTHESIZE_WINDOW', defaultWindow),
+        window: durationEnv('RATE_LIMIT_TTS_SYNTHESIZE_WINDOW', defaultWindow),
       },
       ip: {
         limit: intEnv('RATE_LIMIT_TTS_SYNTHESIZE_IP_LIMIT', 30),
-        window: strEnv('RATE_LIMIT_TTS_SYNTHESIZE_IP_WINDOW', defaultWindow),
+        window: durationEnv('RATE_LIMIT_TTS_SYNTHESIZE_IP_WINDOW', defaultWindow),
       },
     }
   }
@@ -85,11 +96,11 @@ export function getEndpointPolicy(endpoint: string): EndpointPolicy {
   return {
     user: {
       limit: intEnv('RATE_LIMIT_GENERIC_USER_LIMIT', 60),
-      window: strEnv('RATE_LIMIT_GENERIC_USER_WINDOW', defaultWindow),
+      window: durationEnv('RATE_LIMIT_GENERIC_USER_WINDOW', defaultWindow),
     },
     ip: {
       limit: intEnv('RATE_LIMIT_GENERIC_IP_LIMIT', 120),
-      window: strEnv('RATE_LIMIT_GENERIC_IP_WINDOW', defaultWindow),
+      window: durationEnv('RATE_LIMIT_GENERIC_IP_WINDOW', defaultWindow),
     },
   }
 }
@@ -209,7 +220,7 @@ const consumeQuotaLua = `
 async function consumeQuota(key: string, inc: number, max: number, ttlSeconds: number) {
   const redis = getRedis()
   // @upstash/redis는 eval을 지원(atomic 보장)
-  return redis.eval<number>(consumeQuotaLua, [key], [ttlSeconds, inc, max])
+  return redis.eval<[number, number, number], number>(consumeQuotaLua, [key], [ttlSeconds, inc, max])
 }
 
 export async function enforceTtsDailyQuota(
