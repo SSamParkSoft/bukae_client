@@ -12,7 +12,6 @@ import { useVideoCreateStore, SceneScript } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { studioScriptApi } from '@/lib/api/studio-script'
 import type { ScriptType } from '@/lib/types/api/studio-script'
-import { useImages } from '@/lib/hooks/useImages'
 
 export default function Step3Page() {
   const router = useRouter()
@@ -27,22 +26,11 @@ export default function Step3Page() {
   const theme = useThemeStore((state) => state.theme)
   const selectedProduct = selectedProducts[0]
   
-  // 상품 이미지 가져오기
-  const { data: allImages } = useImages()
-  
   // 사용 가능한 이미지 목록
   const availableImages = useMemo(() => {
     const images: string[] = []
     
-    // 1. 전체 이미지 목록에서 상품 이미지 추가
-    if (allImages) {
-      const productImageUrls = allImages
-        .filter((img) => img.product?.id === selectedProduct?.id)
-        .map((img) => img.url)
-      images.push(...productImageUrls)
-    }
-    
-    // 2. 상품 기본 이미지
+    // 1. 상품 기본 이미지
     if (selectedProduct?.image) {
       images.push(selectedProduct.image)
     }
@@ -83,7 +71,7 @@ export default function Step3Page() {
 
     // 상품 이미지가 5개 이상일 때: 상품 이미지만 반환
     return uniqueImages
-  }, [allImages, selectedProduct])
+  }, [selectedProduct])
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
