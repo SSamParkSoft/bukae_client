@@ -67,9 +67,6 @@ export const useSceneManager = ({
   // forceTransition: 강제로 적용할 전환 효과 (timeline 값 무시, 전환 효과 미리보기용)
   const updateCurrentScene = useCallback((skipAnimation: boolean = false, explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void) => {
     const sceneIndex = currentSceneIndexRef.current
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:65',message:'updateCurrentScene 시작',data:{sceneIndex,skipAnimation,explicitPreviousIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-    // #endregion
     try {
       if (!containerRef.current || !timeline || !appRef.current) {
         return
@@ -77,10 +74,6 @@ export const useSceneManager = ({
 
     const currentScene = timeline.scenes[sceneIndex]
     const previousIndex = explicitPreviousIndex !== undefined ? explicitPreviousIndex : previousSceneIndexRef.current
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:74',message:'previousIndex 계산',data:{previousIndex,explicitPreviousIndex,previousSceneIndexRef:previousSceneIndexRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-
     const currentSprite = spritesRef.current.get(sceneIndex)
     const currentText = textsRef.current.get(sceneIndex)
     const previousSprite = previousIndex !== null ? spritesRef.current.get(previousIndex) : null
@@ -92,9 +85,6 @@ export const useSceneManager = ({
 
       // 애니메이션 스킵 시 즉시 표시
       if (skipAnimation) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:82',message:'skipAnimation=true 분기',data:{sceneIndex,hasActiveAnimation:false,previousSceneIndexRef:previousSceneIndexRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
       // 전환 효과가 진행 중이면 무시 (전환 효과를 중단하지 않음)
       // activeAnimationsRef에 있는 모든 애니메이션 확인
       // Timeline이 생성되었지만 아직 시작되지 않았을 수도 있으므로, activeAnimationsRef에 있으면 무시
@@ -110,9 +100,6 @@ export const useSceneManager = ({
       }
       
       if (hasActiveAnimation) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:92',message:'skipAnimation=true: 전환 효과 진행 중이므로 리턴',data:{sceneIndex,hasActiveAnimation},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-        // #endregion
         return // 로그 제거하여 콘솔 스팸 방지
       }
       
@@ -122,9 +109,6 @@ export const useSceneManager = ({
         // 현재 씬이 이미 표시되어 있고, 스프라이트도 visible하고 alpha도 1이면 무시
         const currentSprite = spritesRef.current.get(sceneIndex)
         if (currentSprite && currentSprite.visible && currentSprite.alpha === 1) {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:100',message:'skipAnimation=true: 이미 같은 씬이 표시되어 있으므로 리턴',data:{sceneIndex,previousSceneIndexRef:previousSceneIndexRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
           return
         }
       }
@@ -243,10 +227,6 @@ export const useSceneManager = ({
         
         return
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:139',message:'전환 효과 적용',data:{sceneIndex,transition,transitionDuration,skipAnimation:false,previousIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-
       // 현재 씬의 이전 애니메이션만 kill (다른 씬의 애니메이션은 유지)
       const existingAnim = activeAnimationsRef.current.get(sceneIndex)
       if (existingAnim) {
