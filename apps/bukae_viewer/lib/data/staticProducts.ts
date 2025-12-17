@@ -7,6 +7,8 @@ const PRODUCT_URLS = {
     'https://www.coupang.com/vp/products/8325333573?itemId=24032870241&vendorItemId=90892428366&src=1139000&spec=10799999&addtag=400&ctag=8325333573&lptag=AF4647824&itime=20251120203344&pageType=PRODUCT&pageValue=8325333573&wPcid=17510469561163597660443&wRef=&wTime=20251120203344&redirect=landing&traceid=V0-181-cb173513b88dc145&mcid=5544124932b74523a4ce3bae3417cac7&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&subparam=',
   comet:
     'https://www.coupang.com/vp/products/8255333234?itemId=23773049706&vendorItemId=90797307191&src=1139000&spec=10799999&addtag=400&ctag=8255333234&lptag=AF4647824&itime=20251120203358&pageType=PRODUCT&pageValue=8255333234&wPcid=17510469561163597660443&wRef=&wTime=20251120203358&redirect=landing&traceid=V0-181-ceba89151785fca8&mcid=4579fed751d0403fb2bcc8f43bbec685&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&subparam=',
+  comet_shower_touchcase:
+    'https://www.coupang.com/vp/products/7414945883?itemId=19221027558&vendorItemId=86337800425&src=1139000&spec=10799999&addtag=400&ctag=7414945883&lptag=AF4647824&itime=20251217212316&pageType=PRODUCT&pageValue=7414945883&wPcid=17510469561163597660443&wRef=&wTime=20251217212316&redirect=landing&traceid=V0-181-ae6443d3fabd61ff&mcid=052eca0a60654d6ea9358f653e7e9d29&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&subparam=',
   milk:
     'https://www.coupang.com/vp/products/181699807?itemId=520561494&vendorItemId=85694345825&src=1139000&spec=10799999&addtag=400&ctag=181699807&lptag=AF4647824&itime=20251120203401&pageType=PRODUCT&pageValue=181699807&wPcid=17510469561163597660443&wRef=&wTime=20251120203401&redirect=landing&traceid=V0-181-81e5ee4cf0a4cd21&mcid=c4ce7403a3fc435581559ed6a8773c7e&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&subparam=',
   viper:
@@ -77,6 +79,26 @@ export const STATIC_PRODUCTS: Product[] = [
     url: PRODUCT_URLS.sleepandsleep,
   },
 ]
+
+const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
+  {
+    id: 'comet-shower-touchcase',
+    productId: 1007,
+    name: '코멧 김서림 방지 샤워 터치케이스',
+    price: 4270,
+    description: '욕실 부착 · 샤워 중 터치 가능 · 김서림 방지',
+    order: 7,
+    thumbnailUrl:
+      '/dummy/shower.png',
+    url: PRODUCT_URLS.comet_shower_touchcase,
+  },
+]
+
+export function getStaticProducts(channelId?: string): Product[] {
+  const products = channelId === 'ssambak' ? [...STATIC_PRODUCTS, ...SSAMBAK_EXTRA_PRODUCTS] : [...STATIC_PRODUCTS]
+  products.sort((a, b) => a.order - b.order)
+  return products
+}
 
 export const STATIC_TOP_PRODUCTS: TopProduct[] = [
   {
