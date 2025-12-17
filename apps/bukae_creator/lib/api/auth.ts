@@ -46,7 +46,9 @@ export const authApi = {
     }
 
     if (data.session) {
-      authStorage.setTokens(data.session.access_token, data.session.refresh_token)
+      authStorage.setTokens(data.session.access_token, data.session.refresh_token, {
+        source: 'supabase',
+      })
     }
   },
 
@@ -69,7 +71,9 @@ export const authApi = {
       throw new Error('세션 정보를 가져오지 못했습니다. 다시 시도해주세요.')
     }
 
-    authStorage.setTokens(session.access_token, session.refresh_token)
+    authStorage.setTokens(session.access_token, session.refresh_token, {
+      source: 'supabase',
+    })
 
     return {
       accessToken: session.access_token,

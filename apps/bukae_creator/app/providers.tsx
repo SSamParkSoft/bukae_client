@@ -3,43 +3,36 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactNode, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import { useRouter } from 'next/navigation'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { authStorage } from '@/lib/api/auth-storage'
 import { useUserStore } from '@/store/useUserStore'
 
 function SupabaseAuthSync() {
+  const router = useRouter()
   const setUser = useUserStore((state) => state.setUser)
   const resetUser = useUserStore((state) => state.reset)
   const checkAuth = useUserStore((state) => state.checkAuth)
 
   useEffect(() => {
-    // 백엔드 토큰이 있으면 Supabase 동기화 완전히 건너뛰기 (백엔드 OAuth2 사용)
-    // 주기적으로 체크하여 토큰이 있으면 인증 상태만 업데이트
-    const checkBackendAuth = () => {
-      if (authStorage.hasTokens()) {
-        checkAuth()
-        return true
-      }
-      return false
+    const handleAuthExpired = () => {
+      resetUser()
+      router.replace('/login')
     }
 
-    // 즉시 체크
-    if (checkBackendAuth()) {
-      return
-    }
+    window.addEventListener('auth:expired', handleAuthExpired)
 
-    // 백엔드 토큰이 없는 경우에만 Supabase 동기화 실행
     const supabase = getSupabaseClient()
 
     const syncSession = (session: Session | null) => {
-      // 백엔드 토큰이 있으면 Supabase 동기화 중단
-      if (authStorage.hasTokens()) {
+      // 백엔드 OAuth2 로그인(백엔드 토큰)인 경우: Supabase 세션 동기화로 덮어쓰지 않음
+      if (authStorage.getAuthSource() === 'backend' && authStorage.hasTokens()) {
         checkAuth()
         return
       }
 
       if (session?.access_token && session?.refresh_token) {
-        authStorage.setTokens(session.access_token, session.refresh_token)
+        authStorage.setTokens(session.access_token, session.refresh_token, { source: 'supabase' })
       } else {
         // Supabase 세션이 없고 백엔드 토큰도 없을 때만 clearTokens
         if (!authStorage.hasTokens()) {
@@ -69,25 +62,20 @@ function SupabaseAuthSync() {
     }
 
     supabase.auth.getSession().then(({ data }) => {
-      // 세션 조회 후에도 백엔드 토큰 체크
-      if (!checkBackendAuth()) {
-        syncSession(data.session)
-      }
+      syncSession(data.session)
     })
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      // 상태 변경 시에도 백엔드 토큰 체크
-      if (!checkBackendAuth()) {
-        syncSession(session)
-      }
+      syncSession(session)
     })
 
     return () => {
       subscription.unsubscribe()
+      window.removeEventListener('auth:expired', handleAuthExpired)
     }
-  }, [setUser, resetUser, checkAuth])
+  }, [router, setUser, resetUser, checkAuth])
 
   return null
 }

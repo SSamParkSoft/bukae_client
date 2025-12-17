@@ -29,10 +29,10 @@ export default function OAuthCallbackPage() {
 
         // 토큰이 URL 파라미터로 전달된 경우
         if (accessToken && refreshToken) {
-          authStorage.setTokens(accessToken, refreshToken)
+          authStorage.setTokens(accessToken, refreshToken, { source: 'backend' })
         } else if (accessToken) {
-          // accessToken만 있는 경우 (refreshToken은 나중에 받을 수 있음)
-          authStorage.setTokens(accessToken, accessToken) // 임시로 같은 값 사용
+          // accessToken만 있는 경우: refreshToken 없이 저장 (재발급 불가하므로 추후 만료 시 재로그인 필요)
+          authStorage.setTokens(accessToken, null, { source: 'backend' })
         } else {
           // 쿠키에서 토큰을 확인하거나, 백엔드가 다른 방식으로 전달할 수 있음
           // 여기서는 URL 파라미터를 우선으로 하고, 없으면 에러 처리

@@ -28,7 +28,7 @@ export default function LoginCallbackPage() {
 
         // 토큰이 URL 파라미터로 전달된 경우
         if (accessToken && refreshToken) {
-          authStorage.setTokens(accessToken, refreshToken)
+          authStorage.setTokens(accessToken, refreshToken, { source: 'backend' })
         } else {
           // 쿠키에서 토큰을 확인하거나, 백엔드가 다른 방식으로 전달할 수 있음
           // 여기서는 URL 파라미터를 우선으로 하고, 없으면 에러 처리
