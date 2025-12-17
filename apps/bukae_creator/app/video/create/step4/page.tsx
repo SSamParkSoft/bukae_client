@@ -701,9 +701,6 @@ export default function Step4Page() {
 
   // 씬 선택 (씬 클릭할 때와 재생 버튼 눌렀을 때 모두 사용)
   const handleSceneSelect = (index: number, skipStopPlaying: boolean = false, onTransitionComplete?: () => void) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:701',message:'handleSceneSelect 시작',data:{index,skipStopPlaying,isPlaying,currentSceneIndex,lastRenderedSceneIndexRef:lastRenderedSceneIndexRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     if (!timeline) return
     
     // 재생 중이 아니거나 skipStopPlaying이 false일 때만 재생 중지
@@ -724,10 +721,6 @@ export default function Step4Page() {
     // 씬 리스트에서 선택할 때: 현재 렌더링된 씬을 이전 씬으로 사용
     // 같은 씬을 다시 선택하는 경우: null로 설정하여 페이드 인 효과 적용
     let prevIndex: number | null = null
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:723',message:'prevIndex 계산 전 조건 확인',data:{skipStopPlaying,lastRenderedSceneIndexRef:lastRenderedSceneIndexRef.current,index,currentSceneIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    
     if (skipStopPlaying && lastRenderedSceneIndexRef.current === index && index === currentSceneIndex) {
       // 재생 시작 시 현재 씬을 다시 선택: 이전 씬으로 설정
       // 첫 씬일 때는 null로 설정하여 페이드 인 효과가 나타나도록 함
@@ -737,9 +730,6 @@ export default function Step4Page() {
         // 첫 씬일 때는 null로 설정하여 페이드 인 효과 적용
         prevIndex = null
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:725',message:'재생 시작 시 현재 씬 재선택 감지',data:{prevIndex,index},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
     } else {
       // 씬 리스트에서 선택할 때: 현재 렌더링된 씬을 이전 씬으로 사용
       // 같은 씬을 다시 선택하는 경우: null로 설정하여 페이드 인 효과 적용
@@ -754,18 +744,10 @@ export default function Step4Page() {
         prevIndex = index > 0 ? index - 1 : null
       }
     }
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:720',message:'prevIndex 계산',data:{prevIndex,lastRenderedSceneIndexRef:lastRenderedSceneIndexRef.current,index},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    
     // 씬 선택
     isManualSceneSelectRef.current = true
     currentSceneIndexRef.current = index
     setCurrentTime(timeUntilScene)
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:727',message:'플래그 설정',data:{isManualSceneSelectRef:isManualSceneSelectRef.current,isPreviewingTransition:true},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-    
     // 선택된 씬의 전환 효과 가져오기
     const selectedScene = timeline.scenes[index]
     const transition = selectedScene?.transition || 'fade'
@@ -777,15 +759,8 @@ export default function Step4Page() {
     }
     
     requestAnimationFrame(() => {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:730',message:'updateCurrentScene 호출 전',data:{index,prevIndex,transition,skipStopPlaying,isPlayingRef:isPlayingRef.current,hasOnTransitionComplete:!!onTransitionComplete},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-      
       // 씬 리스트에서 선택할 때와 재생 중일 때 모두 전환 효과 적용
       const transitionCompleteCallback = () => {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:763',message:'전환 효과 완료, 씬 렌더링 완료',data:{index,isPlayingRef:isPlayingRef.current,skipStopPlaying},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        // #endregion
         // 전환 효과 완료 후 lastRenderedSceneIndexRef 업데이트
       lastRenderedSceneIndexRef.current = index
       previousSceneIndexRef.current = index
@@ -1063,9 +1038,6 @@ export default function Step4Page() {
   }, [isPlaying])
   
   const handlePlayPause = () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:794',message:'handlePlayPause 시작',data:{isPlaying,currentSceneIndex,lastRenderedSceneIndexRef:lastRenderedSceneIndexRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     if (!isPlaying) {
       // 재생 시작: 현재 선택된 씬부터 마지막 씬까지 순차적으로 캔버스에 렌더링
       if (!timeline) return
@@ -1099,17 +1071,10 @@ export default function Step4Page() {
       // prevIndex를 이전 씬으로 계산하도록 함
       const prevLastRendered = lastRenderedSceneIndexRef.current
       lastRenderedSceneIndexRef.current = currentSceneIndex
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:847',message:'lastRenderedSceneIndexRef 설정',data:{currentSceneIndex,prevLastRendered,newLastRendered:lastRenderedSceneIndexRef.current,isPlayingRef:isPlayingRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      
       // 현재 선택된 씬부터 마지막 씬까지 순차적으로 렌더링하기 위한 인덱스
       let currentIndex = currentSceneIndex
       
       const playNextScene = () => {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:818',message:'playNextScene 호출',data:{isPlayingRef:isPlayingRef.current,currentIndex,isPlaying},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         if (!isPlayingRef.current || currentIndex >= timeline.scenes.length) {
           setIsPlaying(false)
           isPlayingRef.current = false
@@ -1122,13 +1087,7 @@ export default function Step4Page() {
         
         // 씬 선택 및 렌더링 (씬 클릭할 때와 똑같이 - skipStopPlaying: true로 재생 중지만 방지)
         // handleSceneSelect가 씬을 캔버스에 렌더링하고 전환 효과를 적용함
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:830',message:'handleSceneSelect 호출 전',data:{sceneIndex,isPlaying,lastRenderedSceneIndexRef:lastRenderedSceneIndexRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         handleSceneSelect(sceneIndex, true, () => {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:884',message:'전환 효과 완료 콜백 실행',data:{sceneIndex,currentIndex,isPlayingRef:isPlayingRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-          // #endregion
           const nextIndex = currentIndex + 1
           const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
 
@@ -1153,13 +1112,7 @@ export default function Step4Page() {
               const waitTime = (sceneDuration * 1000) / speed
 
               if (nextIndex < timeline.scenes.length) {
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:888',message:'다음 씬으로 넘어가기 위해 setTimeout 설정',data:{currentIndex,nextIndex,sceneDuration,speed,waitTime},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-                // #endregion
                 playTimeoutRef.current = setTimeout(() => {
-                  // #region agent log
-                  fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:891',message:'setTimeout 콜백 실행, playNextScene 재호출',data:{nextIndex,isPlayingRef:isPlayingRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-                  // #endregion
                   currentIndex = nextIndex
                   if (isPlayingRef.current) {
                     playNextScene()
@@ -1223,26 +1176,14 @@ export default function Step4Page() {
 
   // 재생 중이 아닐 때 씬 변경 처리 (씬 선택 로직은 handleSceneSelect에서 처리)
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:871',message:'useEffect 씬 변경 처리 실행',data:{isPlaying,isManualSceneSelectRef:isManualSceneSelectRef.current,isPreviewingTransition,currentSceneIndex,lastRenderedSceneIndexRef:lastRenderedSceneIndexRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     if (!timeline || timeline.scenes.length === 0) return
     if (isPlaying) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:873',message:'useEffect: 재생 중이므로 리턴',data:{isPlaying},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       return // 재생 중일 때는 handleSceneSelect가 처리하므로 여기서는 처리하지 않음
     }
     if (isManualSceneSelectRef.current) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:874',message:'useEffect: 수동 씬 선택 중이므로 리턴',data:{isManualSceneSelectRef:isManualSceneSelectRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       return // 수동 씬 선택 중일 때는 handleSceneSelect가 처리하므로 여기서는 처리하지 않음
     }
     if (isPreviewingTransition) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:875',message:'useEffect: 전환 효과 미리보기 중이므로 리턴',data:{isPreviewingTransition},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       return // 전환 효과 미리보기 중일 때는 handleSceneSelect가 처리하므로 여기서는 처리하지 않음
     }
     
@@ -1259,9 +1200,6 @@ export default function Step4Page() {
     
     const lastRenderedIndex = lastRenderedSceneIndexRef.current
     if (lastRenderedIndex !== currentSceneIndex) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:890',message:'useEffect: updateCurrentScene(true) 호출',data:{lastRenderedIndex,currentSceneIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       // 재생 중이 아닐 때는 즉시 표시
       currentSceneIndexRef.current = currentSceneIndex
       updateCurrentScene(true)

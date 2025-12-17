@@ -93,11 +93,6 @@ export const usePixiEffects = ({
     // 현재는 사용하지 않지만, 향후 이전 씬 정보 활용을 위해 자리 유지
     void _previousIndex
     const actualTransition = (forceTransition || transition || 'none').trim().toLowerCase()
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:89',message:'applyEnterEffect 시작',data:{sceneIndex,transition:actualTransition,toSpriteVisible:toSprite?.visible,toSpriteAlpha:toSprite?.alpha,toTextVisible:toText?.visible,toTextAlpha:toText?.alpha},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-    // #endregion
-    
     if (!toSprite || !appRef.current || !containerRef.current) {
       console.error(`[전환효과] 필수 요소 없음`)
       return
@@ -163,11 +158,6 @@ export const usePixiEffects = ({
       }
         containerRef.current.addChild(toText)
     }
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:116',message:'스프라이트 컨테이너 추가 확인',data:{sceneIndex,toSpriteParent:toSprite.parent !== null,toSpriteVisible:toSprite.visible,toSpriteAlpha:toSprite.alpha,containerHasSprite:containerRef.current?.children.includes(toSprite)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-    // #endregion
-
     // 원래 위치 계산
     let originalX = toSprite.x
     let originalY = toSprite.y
