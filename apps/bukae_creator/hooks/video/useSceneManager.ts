@@ -4,6 +4,7 @@ import * as fabric from 'fabric'
 import { gsap } from 'gsap'
 import { TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
 import { calculateSpriteParams } from '@/utils/pixi'
+import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 
 interface UseSceneManagerParams {
   // Refs
@@ -488,16 +489,18 @@ export const useSceneManager = ({
       const angleDeg = (transform?.rotation || 0) * (180 / Math.PI)
       const baseFontSize = scene.text.fontSize || 32
       const scaledFontSize = baseFontSize * scale
+      const fontFamily = resolveSubtitleFontFamily(scene.text.font)
+      const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
       
       const textObj = new fabric.Textbox(scene.text.content, {
         left: (transform?.x ?? width / 2) * scale,
         top: (transform?.y ?? height * 0.9) * scale,
         originX: 'center',
         originY: 'center',
-        fontFamily: scene.text.font || 'Arial',
+        fontFamily,
         fontSize: scaledFontSize,
         fill: scene.text.color || '#ffffff',
-        fontWeight: scene.text.style?.bold ? 'bold' : 'normal',
+        fontWeight,
         fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
         underline: scene.text.style?.underline || false,
         textAlign: scene.text.style?.align || 'center',
@@ -571,12 +574,14 @@ export const useSceneManager = ({
         spritesRef.current.set(sceneIndex, sprite)
 
         if (scene.text?.content) {
+          const fontFamily = resolveSubtitleFontFamily(scene.text.font)
+          const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
           const textStyle = new PIXI.TextStyle({
-            fontFamily: scene.text.font || 'Arial',
+            fontFamily,
             fontSize: scene.text.fontSize || 32,
             fill: scene.text.color || '#ffffff',
             align: scene.text.style?.align || 'center',
-            fontWeight: scene.text.style?.bold ? 'bold' : 'normal',
+            fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
             fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
             dropShadow: {
               color: '#000000',

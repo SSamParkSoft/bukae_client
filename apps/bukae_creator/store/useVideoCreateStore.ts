@@ -91,6 +91,7 @@ export interface TimelineScene {
   text: {
     content: string
     font: string
+    fontWeight?: number
     color: string
     position?: string
     fontSize?: number

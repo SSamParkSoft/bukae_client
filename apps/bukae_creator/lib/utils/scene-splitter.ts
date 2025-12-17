@@ -1,5 +1,6 @@
 import { SceneScript, TimelineScene } from '@/store/useVideoCreateStore'
 import { getSceneDuration } from '@/utils/timeline'
+import { SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
 
 /**
  * `!`, `.`, `?` 기준으로 문장을 분리한다.
@@ -113,7 +114,8 @@ export function splitSceneBySentences(params: {
           imageFit: 'fill',
           text: {
             content: sentence,
-            font: 'Pretendard-Bold',
+            font: SUBTITLE_DEFAULT_FONT_ID,
+            fontWeight: 700,
             color: '#ffffff',
             position: 'center',
             fontSize: 32,

@@ -21,6 +21,7 @@ import { loadPixiTexture, calculateSpriteParams } from '@/utils/pixi'
 import { formatTime, getSceneDuration } from '@/utils/timeline'
 import { splitSceneBySentences } from '@/lib/utils/scene-splitter'
 import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
+import { resolveSubtitleFontFamily, SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import * as fabric from 'fabric'
@@ -131,7 +132,8 @@ export default function Step4Page() {
           imageFit: existingScene?.imageFit || 'fill', // 기본값을 fill로 변경하여 9:16 캔버스를 항상 채움
           text: {
             content: scene.script,
-            font: subtitleFont || 'Pretendard-Bold',
+            font: existingScene?.text?.font ?? subtitleFont ?? SUBTITLE_DEFAULT_FONT_ID,
+            fontWeight: existingScene?.text?.fontWeight ?? 700,
             color: subtitleColor || '#ffffff',
             position: subtitlePosition || 'center',
             fontSize: existingScene?.text?.fontSize || 32,
@@ -385,7 +387,6 @@ export default function Step4Page() {
         const textScaleY = textbox.scaleY ?? 1
         // 실제 표시되는 폰트 크기 계산 후 좌표계 역변환
         const actualFontSize = baseFontSize * textScaleY * invScale
-        const fontFamily = textbox.fontFamily ?? 'Arial'
         const fill = textbox.fill ?? '#ffffff'
         const align = textbox.textAlign ?? 'center'
 
@@ -399,7 +400,6 @@ export default function Step4Page() {
                     ...scene.text,
                     content: textContent,
                     fontSize: actualFontSize,
-                    font: fontFamily,
                     color: typeof fill === 'string' ? fill : '#ffffff',
                     style: {
                       ...scene.text.style,
@@ -502,7 +502,6 @@ export default function Step4Page() {
       const baseFontSize = target.fontSize ?? 32
       const textScaleY = target.scaleY ?? 1
       const actualFontSize = baseFontSize * textScaleY * invScale
-      const fontFamily = target.fontFamily ?? 'Arial'
       const fill = target.fill ?? '#ffffff'
       const align = target.textAlign ?? 'center'
 
@@ -516,7 +515,6 @@ export default function Step4Page() {
                   ...scene.text,
                   content: textContent,
                   fontSize: actualFontSize,
-                  font: fontFamily,
                   color: typeof fill === 'string' ? fill : '#ffffff',
                   style: {
                     ...scene.text.style,
@@ -843,6 +841,38 @@ export default function Step4Page() {
   useEffect(() => {
     currentSceneIndexRef.current = currentSceneIndex
   }, [currentSceneIndex])
+
+  // 선택한 폰트가 Pixi(Canvas)에서 fallback으로 고정되지 않도록 선로딩 후 강제 리로드
+  const lastSubtitleFontKeyRef = useRef<string>('')
+  useEffect(() => {
+    if (!pixiReady || !timeline) return
+    if (isSavingTransformRef.current) return
+    const scene = timeline.scenes[currentSceneIndex]
+    if (!scene?.text) return
+
+    const fontFamily = resolveSubtitleFontFamily(scene.text.font)
+    const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
+    const key = `${fontFamily}:${fontWeight}`
+    if (lastSubtitleFontKeyRef.current === key) return
+    lastSubtitleFontKeyRef.current = key
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        // document.fonts가 없는 환경에서는 스킵
+        if (typeof document === 'undefined' || !(document as any).fonts?.load) return
+        await (document as any).fonts.load(`${fontWeight} 16px ${fontFamily}`)
+        if (cancelled) return
+        await loadAllScenes()
+      } catch {
+        // ignore (fallback font로라도 렌더)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [pixiReady, timeline, currentSceneIndex, loadAllScenes])
 
   // 재생/일시정지 (씬 선택 로직을 그대로 사용)
   const playTimeoutRef = useRef<NodeJS.Timeout | null>(null)
