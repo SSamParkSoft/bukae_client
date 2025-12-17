@@ -26,7 +26,7 @@ export default function Step2Page() {
   const [expandedConceptId, setExpandedConceptId] = useState<ConceptType | null>(null)
   const [selectedScriptStyle, setSelectedScriptStyle] = useState<ConceptType | null>(scriptStyle)
   const [selectedTone, setSelectedTone] = useState<string | null>(tone)
-  const [isStyleConfirmed, setIsStyleConfirmed] = useState(false)
+  const [isStyleConfirmed] = useState(false)
   const [expandedToneId, setExpandedToneId] = useState<string | null>(null)
 
   // 제작 방식 선택
@@ -69,19 +69,19 @@ export default function Step2Page() {
     setExpandedToneId((prev) => (prev === toneId ? null : toneId))
   }
 
-  const handleConfirmStyle = () => {
-    if (!selectedScriptStyle || !selectedTone) {
-      alert('대본 스타일과 말투를 선택해주세요.')
-      return
-    }
-    setIsStyleConfirmed(true)
-    setExpandedConceptId(null)
-  }
+  // const handleConfirmStyle = () => {
+  //   if (!selectedScriptStyle || !selectedTone) {
+  //     alert('대본 스타일과 말투를 선택해주세요.')
+  //     return
+  //   }
+  //   setIsStyleConfirmed(true)
+  //   setExpandedConceptId(null)
+  // }
 
-  const handleCancelConfirm = () => {
-    setIsStyleConfirmed(false)
-    setExpandedConceptId(selectedScriptStyle)
-  }
+  // const handleCancelConfirm = () => {
+  //   setIsStyleConfirmed(false)
+  //   setExpandedConceptId(selectedScriptStyle)
+  // }
 
   // 다음 단계로 이동
   const handleNext = () => {

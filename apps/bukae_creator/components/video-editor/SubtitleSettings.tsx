@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useState } from 'react'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -11,6 +11,7 @@ import {
   resolveSubtitleFontFamily,
   resolveSubtitleFontWeights,
 } from '@/lib/subtitle-fonts'
+import { SubtitleColorPalette } from '@/components/video-editor/SubtitleColorPalette'
 
 interface SubtitleSettingsProps {
   timeline: TimelineData | null
@@ -21,6 +22,7 @@ interface SubtitleSettingsProps {
 
 export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeline }: SubtitleSettingsProps) {
   const currentScene = useMemo(() => timeline?.scenes[currentSceneIndex], [timeline, currentSceneIndex])
+  const [isColorOpen, setIsColorOpen] = useState(false)
   const currentFontIdOrFamily = useMemo(() => {
     const raw = (currentScene?.text?.font || SUBTITLE_DEFAULT_FONT_ID).trim()
     if (raw === 'Pretendard-Bold' || raw === 'Pretendard') return 'pretendard'
@@ -48,12 +50,6 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
     if (availableWeights.includes(400)) return 400
     return availableWeights[0]
   }, [availableWeights, currentFontWeight])
-  const currentFontLabel = useMemo(() => {
-    if (isSubtitleFontId(currentFontIdOrFamily)) {
-      return SUBTITLE_FONT_OPTIONS.find((o) => o.id === currentFontIdOrFamily)?.label ?? currentFontIdOrFamily
-    }
-    return currentFontIdOrFamily
-  }, [currentFontIdOrFamily])
 
   const updateScene = useCallback(
     (updater: (scene: TimelineData['scenes'][number]) => TimelineData['scenes'][number]) => {
@@ -128,6 +124,205 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
         </p>
       </div>
 
+      <div
+        className="p-3 rounded-lg border"
+        style={{
+          backgroundColor: theme === 'dark' ? '#1f2937' : '#f9fafb',
+          borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+        }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-sm font-semibold" style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}>
+            기본 서식
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {/* Row 1: weight (left) + style buttons (right) */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <Select
+                value={String(normalizedFontWeight)}
+                onValueChange={(value) => {
+                  const nextWeight = parseInt(value, 10)
+                  if (Number.isNaN(nextWeight)) return
+                  updateScene((scene) => ({
+                    ...scene,
+                    text: {
+                      ...scene.text,
+                      fontWeight: nextWeight,
+                      style: { ...scene.text.style, bold: nextWeight >= 600 },
+                    },
+                  }))
+                }}
+              >
+                <SelectTrigger
+                  className="w-full h-9"
+                  style={{
+                    backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
+                    borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
+                    color: theme === 'dark' ? '#ffffff' : '#111827',
+                    fontFamily: currentFontFamily,
+                    fontWeight: normalizedFontWeight,
+                  }}
+                >
+                  <SelectValue placeholder="굵기 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableWeights.map((w) => (
+                    <SelectItem
+                      key={w}
+                      value={String(w)}
+                      style={{
+                        fontFamily: currentFontFamily,
+                        fontWeight: w,
+                      }}
+                    >
+                      {w}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  updateScene((scene) => {
+                    const weights = resolveSubtitleFontWeights(scene.text.font)
+                    const canBold = weights.includes(700)
+                    const normalCandidate =
+                      weights.includes(400) ? 400 : weights.includes(500) ? 500 : weights.includes(300) ? 300 : weights[0] ?? 400
+                    const nextWeight = canBold ? (normalizedFontWeight >= 600 ? normalCandidate : 700) : normalCandidate
+                    return {
+                      ...scene,
+                      text: {
+                        ...scene.text,
+                        fontWeight: nextWeight,
+                        style: { ...scene.text.style, bold: nextWeight >= 600 },
+                      },
+                    }
+                  })
+                }
+                className={`h-9 w-9 rounded border text-sm font-bold ${
+                  normalizedFontWeight >= 600 ? 'bg-purple-500 text-white border-purple-500' : ''
+                }`}
+                style={{
+                  borderColor: normalizedFontWeight >= 600 ? '#8b5cf6' : theme === 'dark' ? '#374151' : '#e5e7eb',
+                  color: normalizedFontWeight >= 600 ? '#ffffff' : theme === 'dark' ? '#d1d5db' : '#374151',
+                  backgroundColor: normalizedFontWeight >= 600 ? '#8b5cf6' : 'transparent',
+                  opacity: resolveSubtitleFontWeights(currentFontIdOrFamily).includes(700) ? 1 : 0.5,
+                }}
+                type="button"
+              >
+                B
+              </button>
+
+              <button
+                onClick={() =>
+                  updateScene((scene) => ({
+                    ...scene,
+                    text: {
+                      ...scene.text,
+                      style: { ...scene.text.style, italic: !(scene.text.style?.italic ?? false) },
+                    },
+                  }))
+                }
+                className={`h-9 w-9 rounded border text-sm italic ${
+                  currentScene.text?.style?.italic ? 'bg-purple-500 text-white border-purple-500' : ''
+                }`}
+                style={{
+                  borderColor: currentScene.text?.style?.italic ? '#8b5cf6' : theme === 'dark' ? '#374151' : '#e5e7eb',
+                  color: currentScene.text?.style?.italic ? '#ffffff' : theme === 'dark' ? '#d1d5db' : '#374151',
+                  backgroundColor: currentScene.text?.style?.italic ? '#8b5cf6' : 'transparent',
+                }}
+                type="button"
+              >
+                I
+              </button>
+
+              <button
+                onClick={() =>
+                  updateScene((scene) => ({
+                    ...scene,
+                    text: {
+                      ...scene.text,
+                      style: { ...scene.text.style, underline: !(scene.text.style?.underline ?? false) },
+                    },
+                  }))
+                }
+                className={`h-9 w-9 rounded border text-sm underline ${
+                  currentScene.text?.style?.underline ? 'bg-purple-500 text-white border-purple-500' : ''
+                }`}
+                style={{
+                  borderColor: currentScene.text?.style?.underline ? '#8b5cf6' : theme === 'dark' ? '#374151' : '#e5e7eb',
+                  color: currentScene.text?.style?.underline ? '#ffffff' : theme === 'dark' ? '#d1d5db' : '#374151',
+                  backgroundColor: currentScene.text?.style?.underline ? '#8b5cf6' : 'transparent',
+                }}
+                type="button"
+              >
+                U
+              </button>
+            </div>
+          </div>
+
+          {/* Row 2: color + toggle palette */}
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs" style={{ color: theme === 'dark' ? '#d1d5db' : '#374151' }}>
+                색
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsColorOpen((v) => !v)}
+                className="text-xs underline"
+                style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}
+              >
+                {isColorOpen ? '닫기' : '팔레트'}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsColorOpen(true)}
+              className="mt-2 flex items-center gap-2 w-full rounded border px-3 py-2"
+              style={{
+                backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
+                borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
+              }}
+              aria-label="색상 선택"
+            >
+              <span
+                className="h-5 w-5 rounded border"
+                style={{
+                  backgroundColor: currentScene.text?.color || '#ffffff',
+                  borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+                }}
+              />
+              <span className="text-sm" style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}>
+                {(currentScene.text?.color || '#ffffff').toUpperCase()}
+              </span>
+            </button>
+
+            {isColorOpen && (
+              <SubtitleColorPalette
+                theme={theme}
+                value={currentScene.text?.color || '#ffffff'}
+                onChange={(next) => {
+                  updateScene((scene) => ({
+                    ...scene,
+                    text: {
+                      ...scene.text,
+                      color: next,
+                    },
+                  }))
+                }}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
       <div>
         <label className="text-xs mb-1 block" style={{ color: theme === 'dark' ? '#d1d5db' : '#374151' }}>
           폰트
@@ -184,54 +379,6 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
 
       <div>
         <label className="text-xs mb-1 block" style={{ color: theme === 'dark' ? '#d1d5db' : '#374151' }}>
-          굵기
-        </label>
-        <Select
-          value={String(normalizedFontWeight)}
-          onValueChange={(value) => {
-            const nextWeight = parseInt(value, 10)
-            if (Number.isNaN(nextWeight)) return
-            updateScene((scene) => ({
-              ...scene,
-              text: {
-                ...scene.text,
-                fontWeight: nextWeight,
-                style: { ...scene.text.style, bold: nextWeight >= 600 },
-              },
-            }))
-          }}
-        >
-          <SelectTrigger
-            className="w-full"
-            style={{
-              backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-              borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-              color: theme === 'dark' ? '#ffffff' : '#111827',
-              fontFamily: currentFontFamily,
-              fontWeight: normalizedFontWeight,
-            }}
-          >
-            <SelectValue placeholder="굵기 선택" />
-          </SelectTrigger>
-          <SelectContent>
-            {availableWeights.map((w) => (
-              <SelectItem
-                key={w}
-                value={String(w)}
-                style={{
-                  fontFamily: currentFontFamily,
-                  fontWeight: w,
-                }}
-              >
-                {w}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div>
-        <label className="text-xs mb-1 block" style={{ color: theme === 'dark' ? '#d1d5db' : '#374151' }}>
           크기
         </label>
         <div className="flex items-center gap-2">
@@ -279,30 +426,6 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
 
       <div>
         <label className="text-xs mb-1 block" style={{ color: theme === 'dark' ? '#d1d5db' : '#374151' }}>
-          색상
-        </label>
-        <input
-          type="color"
-          value={currentScene.text?.color || '#ffffff'}
-          onChange={(e) =>
-            updateScene((scene) => ({
-              ...scene,
-              text: {
-                ...scene.text,
-                color: e.target.value,
-              },
-            }))
-          }
-          className="w-full h-10 rounded border"
-          style={{
-            backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-            borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-          }}
-        />
-      </div>
-
-      <div>
-        <label className="text-xs mb-1 block" style={{ color: theme === 'dark' ? '#d1d5db' : '#374151' }}>
           위치
         </label>
         <select
@@ -324,110 +447,6 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
           <option value="center">중앙</option>
           <option value="bottom">하단</option>
         </select>
-      </div>
-
-      <div>
-        <label className="text-xs mb-1 block" style={{ color: theme === 'dark' ? '#d1d5db' : '#374151' }}>
-          스타일
-        </label>
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() =>
-              updateScene((scene) => {
-                const weights = resolveSubtitleFontWeights(scene.text.font)
-                const canBold = weights.includes(700)
-                const nextWeight = canBold ? (normalizedFontWeight >= 600 ? 400 : 700) : (weights[0] ?? 400)
-                return {
-                  ...scene,
-                  text: {
-                    ...scene.text,
-                    fontWeight: nextWeight,
-                    style: { ...scene.text.style, bold: nextWeight >= 600 },
-                  },
-                }
-              })
-            }
-            className={`px-3 py-1.5 rounded border text-sm font-bold ${
-              normalizedFontWeight >= 600 ? 'bg-purple-500 text-white border-purple-500' : ''
-            }`}
-            style={{
-              borderColor: normalizedFontWeight >= 600 ? '#8b5cf6' : theme === 'dark' ? '#374151' : '#e5e7eb',
-              color: normalizedFontWeight >= 600 ? '#ffffff' : theme === 'dark' ? '#d1d5db' : '#374151',
-              backgroundColor: normalizedFontWeight >= 600 ? '#8b5cf6' : 'transparent',
-              opacity: resolveSubtitleFontWeights(currentFontIdOrFamily).includes(700) ? 1 : 0.5,
-            }}
-            type="button"
-          >
-            B
-          </button>
-          <button
-            onClick={() =>
-              updateScene((scene) => ({
-                ...scene,
-                text: {
-                  ...scene.text,
-                  style: { ...scene.text.style, italic: !(scene.text.style?.italic ?? false) },
-                },
-              }))
-            }
-            className={`px-3 py-1.5 rounded border text-sm italic ${
-              currentScene.text?.style?.italic ? 'bg-purple-500 text-white border-purple-500' : ''
-            }`}
-            style={{
-              borderColor: currentScene.text?.style?.italic ? '#8b5cf6' : theme === 'dark' ? '#374151' : '#e5e7eb',
-              color: currentScene.text?.style?.italic ? '#ffffff' : theme === 'dark' ? '#d1d5db' : '#374151',
-              backgroundColor: currentScene.text?.style?.italic ? '#8b5cf6' : 'transparent',
-            }}
-            type="button"
-          >
-            I
-          </button>
-          <button
-            onClick={() =>
-              updateScene((scene) => ({
-                ...scene,
-                text: {
-                  ...scene.text,
-                  style: { ...scene.text.style, underline: !(scene.text.style?.underline ?? false) },
-                },
-              }))
-            }
-            className={`px-3 py-1.5 rounded border text-sm underline ${
-              currentScene.text?.style?.underline ? 'bg-purple-500 text-white border-purple-500' : ''
-            }`}
-            style={{
-              borderColor: currentScene.text?.style?.underline ? '#8b5cf6' : theme === 'dark' ? '#374151' : '#e5e7eb',
-              color: currentScene.text?.style?.underline ? '#ffffff' : theme === 'dark' ? '#d1d5db' : '#374151',
-              backgroundColor: currentScene.text?.style?.underline ? '#8b5cf6' : 'transparent',
-            }}
-            type="button"
-          >
-            U
-          </button>
-          <select
-            value={currentScene.text?.style?.align || 'left'}
-            onChange={(e) =>
-              updateScene((scene) => ({
-                ...scene,
-                text: {
-                  ...scene.text,
-                  style: { ...scene.text.style, align: e.target.value as 'left' | 'center' | 'right' | 'justify' },
-                },
-              }))
-            }
-            className="px-3 py-2 rounded border text-sm"
-            style={{
-              backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-              borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-              color: theme === 'dark' ? '#ffffff' : '#111827',
-            }}
-          >
-            <option value="left">왼쪽 정렬</option>
-            <option value="center">가운데 정렬</option>
-            <option value="right">오른쪽 정렬</option>
-            <option value="justify">양쪽 정렬</option>
-          </select>
-        </div>
       </div>
 
       <div className="pt-2 border-t" style={{ borderColor: theme === 'dark' ? '#374151' : '#e5e7eb' }}>
