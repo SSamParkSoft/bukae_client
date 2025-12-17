@@ -16,7 +16,12 @@ const nextConfig: NextConfig = {
     ],
   },
   // better-sqlite3는 서버 사이드에서만 사용 (Turbopack 호환)
-  serverExternalPackages: ['better-sqlite3'],
+  serverExternalPackages: [
+    'better-sqlite3',
+    // Google Cloud SDKs는 서버 번들링 시 문제가 생길 수 있어 외부 패키지로 처리
+    '@google-cloud/text-to-speech',
+    'google-gax',
+  ],
   // 배포 시 data 폴더의 demo.db 파일을 포함시킴
   // Vercel 등 서버리스 환경에서 파일 추적에 포함
   // Next.js 16에서는 experimental에서 최상위로 이동

@@ -1,13 +1,14 @@
 'use client'
 
 import Image from 'next/image'
-import { useState, useMemo, useRef, DragEvent } from 'react'
+import { useState, useMemo, useRef, useEffect, DragEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { ArrowRight, GripVertical, X, Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import StepIndicator from '@/components/StepIndicator'
+import ChirpVoiceSelector from '@/components/ChirpVoiceSelector'
 import { useVideoCreateStore, SceneScript } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { studioScriptApi } from '@/lib/api/studio-script'
@@ -79,7 +80,26 @@ export default function Step3Page() {
   const [sceneScripts, setSceneScripts] = useState<Map<number, SceneScript>>(new Map())
   const [isGeneratingAll, setIsGeneratingAll] = useState(false)
   const [editedScripts, setEditedScripts] = useState<Map<number, string>>(new Map())
+  const [ttsPreviewSceneIndex, setTtsPreviewSceneIndex] = useState(0)
   const selectedListRef = useRef<HTMLDivElement | null>(null)
+
+  // 선택된 이미지 수가 바뀌면 TTS 미리듣기 씬 인덱스 보정
+  useEffect(() => {
+    if (selectedImages.length === 0) {
+      setTtsPreviewSceneIndex(0)
+      return
+    }
+    if (ttsPreviewSceneIndex >= selectedImages.length) {
+      setTtsPreviewSceneIndex(0)
+    }
+  }, [selectedImages.length, ttsPreviewSceneIndex])
+
+  const ttsPreviewText = useMemo(() => {
+    const idx = ttsPreviewSceneIndex
+    const script = sceneScripts.get(idx)
+    const edited = editedScripts.get(idx)
+    return (edited ?? script?.script ?? '').trim()
+  }, [editedScripts, sceneScripts, ttsPreviewSceneIndex])
 
   // ConceptType -> ScriptType 매핑
   const mapConceptToScriptType = (concept: typeof scriptStyle): ScriptType => {
@@ -416,6 +436,37 @@ export default function Step3Page() {
                   )}
                 </CardHeader>
                 <CardContent>
+                  {/* TTS 미리듣기 (Chirp/ko-KR) */}
+                  <div className="mb-4 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div
+                        className={`text-sm font-semibold ${
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        목소리 선택 & 미리듣기
+                      </div>
+                      <select
+                        value={ttsPreviewSceneIndex}
+                        onChange={(e) => setTtsPreviewSceneIndex(Number(e.target.value))}
+                        className="px-2 py-1 rounded border text-xs"
+                        style={{
+                          backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
+                          borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
+                          color: theme === 'dark' ? '#ffffff' : '#111827',
+                        }}
+                      >
+                        {selectedImages.map((_, idx) => (
+                          <option key={idx} value={idx}>
+                            Scene {idx + 1}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <ChirpVoiceSelector theme={theme} previewText={ttsPreviewText} />
+                  </div>
+
                   <div className="space-y-4">
                     {selectedImages.map((imageUrl, index) => {
                       const script = sceneScripts.get(index)
