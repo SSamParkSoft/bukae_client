@@ -25,6 +25,15 @@ Next.js 16 + TypeScript 기반으로, 상품 정보를 자동으로 크롤링하
 - **Data Fetching:** TanStack Query
 - **Package Manager:** pnpm (Workspace)
 
+## 🧠 Redis 사용 (Upstash)
+
+`apps/bukae_creator`에서는 **Upstash Redis**를 사용해 서버 API의 **레이트리밋**과 **일일 쿼터(TTS 문자수/요청수)** 를 관리합니다. (비용 발생/남용 방지 목적)
+
+- **사용 위치**: `apps/bukae_creator/lib/api/rate-limit.ts`
+- **프로덕션 필수 환경변수**
+  - `UPSTASH_REDIS_REST_URL`
+  - `UPSTASH_REDIS_REST_TOKEN`
+
 ## 🧩 실행 방법
 
 ### 의존성 설치

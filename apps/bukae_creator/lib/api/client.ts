@@ -3,11 +3,6 @@
 import { authStorage } from './auth-storage'
 import type { TokenResponse } from '@/lib/types/api/auth'
 
-// 백엔드 API 서버 기본 주소 (도메인 + 포트까지, path 제외)
-// 예: http://15.164.220.105.nip.io:8080
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
-
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -18,6 +13,35 @@ export class ApiError extends Error {
     super(message)
     this.name = 'ApiError'
   }
+}
+
+function isLocalhostUrl(url: string): boolean {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(url.trim())
+}
+
+function isRunningOnLocalhost(): boolean {
+  if (typeof window === 'undefined') return false
+  const host = window.location.hostname
+  return host === 'localhost' || host === '127.0.0.1'
+}
+
+function getApiBaseUrl(): string {
+  // 백엔드 API 서버 기본 주소 (도메인 + 포트까지, path 제외)
+  // 예: http://15.164.220.105.nip.io:8080
+  const base =
+    (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080').trim()
+
+  // 배포 환경에서 env가 localhost로 잘못 들어간 경우를 즉시 감지해서 안내
+  // (Next.js NEXT_PUBLIC_* 는 빌드 타임에 번들에 박히기 쉬워 실수가 잦음)
+  if (!isRunningOnLocalhost() && isLocalhostUrl(base)) {
+    throw new ApiError(
+      '배포 환경 설정 오류: NEXT_PUBLIC_API_BASE_URL이 localhost로 설정되어 있습니다. 배포 환경 변수 값을 실제 백엔드 주소로 변경 후 재배포해주세요.',
+      0,
+      'Config Error'
+    )
+  }
+
+  return base
 }
 
 interface RequestOptions extends RequestInit {
@@ -82,6 +106,7 @@ async function refreshAccessToken(): Promise<string | null> {
   if (refreshInFlight) return refreshInFlight
 
   refreshInFlight = (async () => {
+    const API_BASE_URL = getApiBaseUrl()
     const refreshToken = authStorage.getRefreshToken()
     if (!refreshToken) return null
 
@@ -118,6 +143,7 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const { skipAuth = false, autoRefresh = true, headers: initHeaders, ...fetchOptions } = options
 
+  const API_BASE_URL = getApiBaseUrl()
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`
 
   const headers = new Headers({

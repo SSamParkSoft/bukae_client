@@ -24,6 +24,16 @@ const mapErrorMessage = (message: string) => {
   return message
 }
 
+function isLocalhostUrl(url: string): boolean {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(url.trim())
+}
+
+function isRunningOnLocalhost(): boolean {
+  if (typeof window === 'undefined') return false
+  const host = window.location.hostname
+  return host === 'localhost' || host === '127.0.0.1'
+}
+
 export const authApi = {
   /**
    * Supabase 회원가입
@@ -108,13 +118,26 @@ export const authApi = {
     // 환경 변수가 없으면 기본값 사용
     // 예: http://15.164.220.105.nip.io:8080
     const API_BASE_URL =
-      process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+      (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080').trim()
+
+    // 배포 환경에서 env가 localhost로 잘못 들어간 경우를 즉시 감지해서 안내
+    if (!isRunningOnLocalhost() && isLocalhostUrl(API_BASE_URL)) {
+      throw new Error(
+        '배포 환경 설정 오류: NEXT_PUBLIC_API_BASE_URL이 localhost로 설정되어 있습니다. 배포 환경 변수 값을 실제 백엔드 주소로 변경 후 재배포해주세요.'
+      )
+    }
     
     // 프론트엔드 콜백 URL 생성
     // 환경 변수가 있으면 우선 사용, 없으면 현재 origin 사용
     let redirectUri = ''
-    if (process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI) {
-      redirectUri = process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI
+    const envRedirect = process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI?.trim()
+    if (envRedirect) {
+      // 배포에서 실수로 localhost가 박힌 경우는 현재 origin 기반으로 무시
+      if (!isRunningOnLocalhost() && isLocalhostUrl(envRedirect) && typeof window !== 'undefined') {
+        redirectUri = `${window.location.origin}/oauth/callback`
+      } else {
+        redirectUri = envRedirect
+      }
     } else if (typeof window !== 'undefined' && window.location.origin) {
       redirectUri = `${window.location.origin}/oauth/callback`
     } else {
