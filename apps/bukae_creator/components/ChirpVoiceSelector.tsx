@@ -11,7 +11,43 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { ChevronDown, ChevronUp, Headphones, Pause } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronUp, Headphones, Pause } from 'lucide-react'
+
+type GenderGroup = 'MALE' | 'FEMALE' | 'OTHER'
+
+// 사용자 제공 매핑(이름 기준)
+const GENDER_BY_SHORT_NAME: Record<string, GenderGroup> = {
+  achernar: 'FEMALE',
+  achird: 'MALE',
+  algenib: 'MALE',
+  algieba: 'MALE',
+  alnilam: 'MALE',
+  aoede: 'FEMALE',
+  autonoe: 'FEMALE',
+  callirrhoe: 'FEMALE',
+  charon: 'MALE',
+  despina: 'FEMALE',
+  enceladus: 'MALE',
+  erinome: 'FEMALE',
+  fenrir: 'MALE',
+  gacrux: 'FEMALE',
+  iapetus: 'MALE',
+  kore: 'FEMALE',
+  laomedeia: 'FEMALE',
+  leda: 'FEMALE',
+  orus: 'MALE',
+  pulcherrima: 'FEMALE',
+  puck: 'MALE',
+  rasalgethi: 'MALE',
+  sadachbia: 'MALE',
+  sadaltager: 'MALE',
+  schedar: 'MALE',
+  sulafat: 'FEMALE',
+  umbriel: 'MALE',
+  vindemiatrix: 'FEMALE',
+  zephyr: 'FEMALE',
+  zubenelgenubi: 'MALE',
+}
 
 type PublicVoiceInfo = {
   name: string
@@ -30,12 +66,14 @@ type ChirpVoiceSelectorProps = {
   theme?: string
   title?: string
   disabled?: boolean
+  layout?: 'page' | 'panel'
 }
 
 export default function ChirpVoiceSelector({
   theme,
   title = '목소리 선택',
   disabled = false,
+  layout = 'page',
 }: ChirpVoiceSelectorProps) {
   const { voiceTemplate, setVoiceTemplate } = useVideoCreateStore()
   const [voices, setVoices] = useState<PublicVoiceInfo[]>([])
@@ -180,10 +218,54 @@ export default function ChirpVoiceSelector({
   }, [pendingVoiceName, setVoiceTemplate])
 
   const isDark = theme === 'dark'
+  const isPanel = layout === 'panel'
+  const getShortName = useCallback((voiceName: string) => {
+    // 예: ko-KR-Chirp3-HD-Achernar -> Achernar
+    const cleaned = voiceName.replace(/^ko-KR[-_]/i, '')
+    const parts = cleaned.split(/[-_]/g).filter(Boolean)
+    return parts.length > 0 ? parts[parts.length - 1] : voiceName
+  }, [])
+
+  const getGenderGroup = useCallback(
+    (v: PublicVoiceInfo): GenderGroup => {
+      const short = getShortName(v.name).toLowerCase()
+      const mapped = GENDER_BY_SHORT_NAME[short]
+      if (mapped) return mapped
+
+      const g = (v.ssmlGender ?? '').toUpperCase()
+      if (g === 'MALE') return 'MALE'
+      if (g === 'FEMALE') return 'FEMALE'
+      return 'OTHER'
+    },
+    [getShortName]
+  )
+
+  const groupedVoices = useMemo(() => {
+    const female: PublicVoiceInfo[] = []
+    const male: PublicVoiceInfo[] = []
+    const other: PublicVoiceInfo[] = []
+
+    for (const v of voices) {
+      const group = getGenderGroup(v)
+      if (group === 'FEMALE') female.push(v)
+      else if (group === 'MALE') male.push(v)
+      else other.push(v)
+    }
+
+    const byShortName = (a: PublicVoiceInfo, b: PublicVoiceInfo) =>
+      getShortName(a.name).localeCompare(getShortName(b.name))
+
+    female.sort(byShortName)
+    male.sort(byShortName)
+    other.sort(byShortName)
+
+    return { female, male, other }
+  }, [getGenderGroup, getShortName, voices])
+
   const currentLabel = useMemo(() => {
     if (!voiceTemplate) return '선택된 목소리 없음'
-    return voiceTemplate
-  }, [voiceTemplate])
+    return getShortName(voiceTemplate)
+  }, [getShortName, voiceTemplate])
 
   return (
     <div
@@ -235,57 +317,275 @@ export default function ChirpVoiceSelector({
               사용 가능한 목소리가 없습니다.
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {voices.map((v) => {
-                const isSelected = voiceTemplate === v.name
-                const isThisPlaying = isPlaying && playingVoiceName === v.name
-                return (
-                  <button
-                    key={v.name}
-                    type="button"
-                    onClick={() => openConfirm(v.name)}
-                    disabled={disabled}
-                    className="text-left rounded-md border p-3 transition-colors"
-                    style={{
-                      borderColor: isSelected ? '#a855f7' : isDark ? '#374151' : '#d1d5db',
-                      backgroundColor: isSelected ? (isDark ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.10)') : isDark ? '#0b1220' : '#ffffff',
-                      color: isDark ? '#ffffff' : '#111827',
-                      opacity: disabled ? 0.6 : 1,
-                    }}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold truncate">{v.name}</div>
-                        <div className="mt-1 text-xs" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
-                          {v.languageCodes?.join(', ') || 'ko-KR'}
-                        </div>
-                      </div>
+            <div
+              className={
+                isPanel
+                  ? 'grid grid-cols-2 gap-4'
+                  : 'grid grid-cols-1 lg:grid-cols-2 gap-4'
+              }
+            >
+              <div className="space-y-2 p-2 ">
+                <div className="text-lg font-semibold" style={{ color: isDark ? '#ffffff' : '#111827' }}>
+                  여자 목소리
+                </div>
+                <div className={isPanel ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 lg:grid-cols-2 gap-3'}>
+                  {groupedVoices.female.map((v) => {
+                    const isSelected = voiceTemplate === v.name
+                    const isThisPlaying = isPlaying && playingVoiceName === v.name
+                    const label = getShortName(v.name)
+                    return (
+                      <button
+                        key={v.name}
+                        type="button"
+                        onClick={() => openConfirm(v.name)}
+                        disabled={disabled}
+                        className={[
+                          'group relative text-left rounded-lg border p-4 transition-all',
+                          'shadow-sm hover:shadow-md hover:-translate-y-0.5',
+                          'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2',
+                          isDark ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white',
+                        ].join(' ')}
+                        style={{
+                          borderColor: isSelected
+                            ? '#a855f7'
+                            : isThisPlaying
+                              ? isDark
+                                ? '#4b5563'
+                                : '#9ca3af'
+                              : isDark
+                                ? '#374151'
+                                : '#d1d5db',
+                          backgroundColor: isSelected
+                            ? isDark
+                              ? 'rgba(168,85,247,0.12)'
+                              : 'rgba(168,85,247,0.08)'
+                            : isThisPlaying
+                              ? isDark
+                                ? '#111827'
+                                : '#f3f4f6'
+                              : isDark
+                                ? '#0b1220'
+                                : '#ffffff',
+                          color: isDark ? '#ffffff' : '#111827',
+                          opacity: disabled ? 0.6 : 1,
+                        }}
+                      >
+                        {isSelected && (
+                          <div className="absolute right-3 top-3 flex items-center gap-1 text-xs font-semibold">
+                            <CheckCircle2 className="w-4 h-4 text-purple-400" />
+                            <span className={isDark ? 'text-purple-200' : 'text-purple-700'}>선택됨</span>
+                          </div>
+                        )}
 
-                      <div className="shrink-0 flex items-center gap-1">
-                        <Button
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold truncate whitespace-nowrap">{label}</div>
+                          </div>
+
+                          <div className="shrink-0 flex items-center">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                playDemo(v.name)
+                              }}
+                              disabled={disabled}
+                              aria-label="미리듣기"
+                              title="미리듣기"
+                              className="opacity-80 group-hover:opacity-100 h-8 w-8 sm:h-9 sm:w-9"
+                            >
+                              {isThisPlaying ? (
+                                <Pause className="w-4 h-4" />
+                              ) : (
+                                <Headphones className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-2 p-2">
+                <div className="text-lg font-semibold" style={{ color: isDark ? '#ffffff' : '#111827' }}>
+                  남자 목소리
+                </div>
+                <div className={isPanel ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 lg:grid-cols-2 gap-3'}>
+                  {groupedVoices.male.map((v) => {
+                    const isSelected = voiceTemplate === v.name
+                    const isThisPlaying = isPlaying && playingVoiceName === v.name
+                    const label = getShortName(v.name)
+                    return (
+                      <button
+                        key={v.name}
+                        type="button"
+                        onClick={() => openConfirm(v.name)}
+                        disabled={disabled}
+                        className={[
+                          'group relative text-left rounded-lg border p-4 transition-all',
+                          'shadow-sm hover:shadow-md hover:-translate-y-0.5',
+                          'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2',
+                          isDark ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white',
+                        ].join(' ')}
+                        style={{
+                          borderColor: isSelected
+                            ? '#a855f7'
+                            : isThisPlaying
+                              ? isDark
+                                ? '#4b5563'
+                                : '#9ca3af'
+                              : isDark
+                                ? '#374151'
+                                : '#d1d5db',
+                          backgroundColor: isSelected
+                            ? isDark
+                              ? 'rgba(168,85,247,0.12)'
+                              : 'rgba(168,85,247,0.08)'
+                            : isThisPlaying
+                              ? isDark
+                                ? '#111827'
+                                : '#f3f4f6'
+                              : isDark
+                                ? '#0b1220'
+                                : '#ffffff',
+                          color: isDark ? '#ffffff' : '#111827',
+                          opacity: disabled ? 0.6 : 1,
+                        }}
+                      >
+                        {isSelected && (
+                          <div className="absolute right-3 top-3 flex items-center gap-1 text-xs font-semibold">
+                            <CheckCircle2 className="w-4 h-4 text-purple-400" />
+                            <span className={isDark ? 'text-purple-200' : 'text-purple-700'}>선택됨</span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold truncate whitespace-nowrap">{label}</div>
+                          </div>
+
+                          <div className="shrink-0 flex items-center">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                playDemo(v.name)
+                              }}
+                              disabled={disabled}
+                              aria-label="미리듣기"
+                              title="미리듣기"
+                              className="opacity-80 group-hover:opacity-100 h-8 w-8 sm:h-9 sm:w-9"
+                            >
+                              {isThisPlaying ? (
+                                <Pause className="w-4 h-4" />
+                              ) : (
+                                <Headphones className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {groupedVoices.other.length > 0 && (
+                <div className={isPanel ? 'space-y-2 col-span-2' : 'space-y-2 lg:col-span-2'}>
+                  <div className="text-sm font-semibold" style={{ color: isDark ? '#ffffff' : '#111827' }}>
+                    기타
+                  </div>
+                  <div className={isPanel ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 lg:grid-cols-2 gap-3'}>
+                    {groupedVoices.other.map((v) => {
+                      const isSelected = voiceTemplate === v.name
+                      const isThisPlaying = isPlaying && playingVoiceName === v.name
+                      const label = getShortName(v.name)
+                      return (
+                        <button
+                          key={v.name}
                           type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            playDemo(v.name)
-                          }}
+                          onClick={() => openConfirm(v.name)}
                           disabled={disabled}
-                          aria-label="미리듣기"
-                          title="미리듣기"
+                          className={[
+                            'group relative text-left rounded-lg border p-4 transition-all',
+                            'shadow-sm hover:shadow-md hover:-translate-y-0.5',
+                            'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2',
+                            isDark ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white',
+                          ].join(' ')}
+                          style={{
+                            borderColor: isSelected
+                              ? '#a855f7'
+                              : isThisPlaying
+                                ? isDark
+                                  ? '#4b5563'
+                                  : '#9ca3af'
+                                : isDark
+                                  ? '#374151'
+                                  : '#d1d5db',
+                            backgroundColor: isSelected
+                              ? isDark
+                                ? 'rgba(168,85,247,0.12)'
+                                : 'rgba(168,85,247,0.08)'
+                              : isThisPlaying
+                                ? isDark
+                                  ? '#111827'
+                                  : '#f3f4f6'
+                                : isDark
+                                  ? '#0b1220'
+                                  : '#ffffff',
+                            color: isDark ? '#ffffff' : '#111827',
+                            opacity: disabled ? 0.6 : 1,
+                          }}
                         >
-                          {isThisPlaying ? (
-                            <Pause className="w-4 h-4" />
-                          ) : (
-                            <Headphones className="w-4 h-4" />
+                          {isSelected && (
+                            <div className="absolute right-3 top-3 flex items-center gap-1 text-xs font-semibold">
+                              <CheckCircle2 className="w-4 h-4 text-purple-400" />
+                              <span className={isDark ? 'text-purple-200' : 'text-purple-700'}>선택됨</span>
+                            </div>
                           )}
-                        </Button>
-                      </div>
-                    </div>
-                  </button>
-                )
-              })}
+
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold truncate whitespace-nowrap">{label}</div>
+                            </div>
+
+                            <div className="shrink-0 flex items-center">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  playDemo(v.name)
+                                }}
+                                disabled={disabled}
+                                aria-label="미리듣기"
+                                title="미리듣기"
+                                className="opacity-80 group-hover:opacity-100 h-8 w-8 sm:h-9 sm:w-9"
+                              >
+                                {isThisPlaying ? (
+                                  <Pause className="w-4 h-4" />
+                                ) : (
+                                  <Headphones className="w-4 h-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -306,7 +606,7 @@ export default function ChirpVoiceSelector({
 
           {pendingVoiceName && (
             <div className="rounded-md border p-3 text-sm" style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}>
-              {pendingVoiceName}
+              {getShortName(pendingVoiceName)}
             </div>
           )}
 

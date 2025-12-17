@@ -418,7 +418,7 @@ export default function Step3Page() {
                 </CardHeader>
                 <CardContent>
                   <div className="mb-4 space-y-2">
-                    <ChirpVoiceSelector theme={theme} title="목소리 선택 (데모)" />
+                    <ChirpVoiceSelector theme={theme} title="목소리 선택" />
                   </div>
 
                   <div className="space-y-4">

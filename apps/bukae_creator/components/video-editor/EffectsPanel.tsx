@@ -243,8 +243,9 @@ export function EffectsPanel({
           <TabsContent value="voice" className="space-y-4">
             <ChirpVoiceSelector
               theme={theme ?? 'light'}
-              title="목소리 선택 (데모)"
+              title="목소리 선택"
               disabled={!timeline || currentSceneIndex < 0}
+              layout="panel"
             />
           </TabsContent>
         </Tabs>
