@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
+import { authStorage } from '@/lib/api/auth-storage'
 import {
   Dialog,
   DialogContent,
@@ -100,7 +101,15 @@ export default function ChirpVoiceSelector({
     setIsLoadingVoices(true)
     setError(null)
     try {
-      const res = await fetch('/api/tts/voices', { cache: 'no-store' })
+      const accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        throw new Error('로그인이 필요합니다.')
+      }
+
+      const res = await fetch('/api/tts/voices', {
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
       const data = (await res.json()) as VoicesResponse
       if (!res.ok) {
         throw new Error(data?.error || '목소리 목록을 불러오지 못했습니다.')

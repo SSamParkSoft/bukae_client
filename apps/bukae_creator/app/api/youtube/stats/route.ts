@@ -1,10 +1,21 @@
 import { NextResponse } from 'next/server'
 import { YouTubeStats } from '@/lib/types/statistics'
+import { requireUser } from '@/lib/api/route-guard'
+import { enforceRateLimit } from '@/lib/api/rate-limit'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 // TODO: 실제 유튜브 애널리틱스 API 연동
 // 현재는 더미 데이터 반환
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const auth = await requireUser(request)
+    if (auth instanceof NextResponse) return auth
+
+    const rl = await enforceRateLimit(request, { endpoint: 'youtube:stats', userId: auth.userId })
+    if (rl instanceof NextResponse) return rl
+
     // 더미 데이터 생성 (전체 통계)
     const dummyData: YouTubeStats = {
       // 수익 관련 (우선 표시)
@@ -36,7 +47,7 @@ export async function GET() {
     // const data = await response.json()
     // return NextResponse.json(data)
 
-    return NextResponse.json(dummyData)
+    return NextResponse.json(dummyData, { headers: { ...(rl.headers ?? {}) } })
   } catch (error) {
     console.error('유튜브 통계 API 오류:', error)
     return NextResponse.json(

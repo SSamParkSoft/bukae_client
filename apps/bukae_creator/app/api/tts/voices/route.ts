@@ -1,11 +1,20 @@
 import { NextResponse } from 'next/server'
 import { filterChirpKoreanVoices, getTextToSpeechClient, toPublicVoiceInfo, TTS_LANGUAGE_CODE } from '@/lib/tts/google-tts'
+import { requireUser } from '@/lib/api/route-guard'
+import { enforceRateLimit } from '@/lib/api/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // 로그인 사용자만 허용 + 레이트리밋 (voices도 외부 API 호출이므로 보호)
+    const auth = await requireUser(request)
+    if (auth instanceof NextResponse) return auth
+
+    const rl = await enforceRateLimit(request, { endpoint: 'tts:voices', userId: auth.userId })
+    if (rl instanceof NextResponse) return rl
+
     const client = getTextToSpeechClient()
     const [result] = await client.listVoices({ languageCode: TTS_LANGUAGE_CODE })
 
@@ -22,6 +31,7 @@ export async function GET() {
       {
         headers: {
           'Cache-Control': 'no-store',
+          ...(rl.headers ?? {}),
         },
       }
     )

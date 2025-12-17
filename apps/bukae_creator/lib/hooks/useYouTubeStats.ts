@@ -1,8 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import { YouTubeStats } from '@/lib/types/statistics'
+import { authStorage } from '@/lib/api/auth-storage'
 
 const fetchYouTubeStats = async (): Promise<YouTubeStats> => {
-  const response = await fetch('/api/youtube/stats')
+  const accessToken = authStorage.getAccessToken()
+  if (!accessToken) {
+    throw new Error('로그인이 필요합니다.')
+  }
+
+  const response = await fetch('/api/youtube/stats', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
   if (!response.ok) {
     throw new Error('유튜브 통계 데이터를 가져오는데 실패했습니다.')
   }

@@ -19,7 +19,7 @@ interface UsePixiFabricParams {
   editMode?: string
   mounted?: boolean
   setCanvasSize?: (size: { width: string; height: string }) => void
-  activeAnimationsRef?: MutableRefObject<Map<number, any>> // 전환 효과 중인지 확인용
+  activeAnimationsRef?: MutableRefObject<Map<number, unknown>> // 전환 효과 중인지 확인용
 }
 
 export function usePixiFabric({

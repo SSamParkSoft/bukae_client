@@ -22,6 +22,7 @@ import { formatTime, getSceneDuration } from '@/utils/timeline'
 import { splitSceneBySentences } from '@/lib/utils/scene-splitter'
 import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
 import { resolveSubtitleFontFamily, SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
+import { authStorage } from '@/lib/api/auth-storage'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import * as fabric from 'fabric'
@@ -989,9 +990,14 @@ export default function Step4Page() {
       if (inflight) return await inflight
 
       const p = (async () => {
+        const accessToken = authStorage.getAccessToken()
+        if (!accessToken) {
+          throw new Error('로그인이 필요합니다.')
+        }
+
         const res = await fetch('/api/tts/synthesize', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
           signal,
           body: JSON.stringify({
             voiceName: voiceTemplate,
@@ -1992,9 +1998,14 @@ export default function Step4Page() {
       console.log('===========================')
 
       // API 엔드포인트로 전송
+      const accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        throw new Error('로그인이 필요합니다.')
+      }
+
       const response = await fetch('/api/videos/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify(exportData),
       })
 

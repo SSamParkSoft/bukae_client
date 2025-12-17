@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getTextToSpeechClient, TTS_LANGUAGE_CODE } from '@/lib/tts/google-tts'
+import { requireUser } from '@/lib/api/route-guard'
+import { enforceRateLimit, enforceTtsDailyQuota } from '@/lib/api/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,6 +19,13 @@ const MAX_PREVIEW_CHARS = 4500
 
 export async function POST(request: Request) {
   try {
+    // 로그인 사용자만 허용 + 레이트리밋
+    const auth = await requireUser(request)
+    if (auth instanceof NextResponse) return auth
+
+    const rl = await enforceRateLimit(request, { endpoint: 'tts:synthesize', userId: auth.userId })
+    if (rl instanceof NextResponse) return rl
+
     const body = (await request.json()) as Partial<SynthesizeRequest>
 
     const voiceName = String(body.voiceName ?? '').trim()
@@ -45,6 +54,13 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+
+    // 일일 쿼터(문자수/요청수) 소비: 실제 외부 호출 전에 차단
+    const quotaBlocked = await enforceTtsDailyQuota({
+      userId: auth.userId,
+      charCount: inputText.length,
+    })
+    if (quotaBlocked) return quotaBlocked
 
     const speakingRate =
       typeof body.speakingRate === 'number' ? body.speakingRate : undefined
@@ -81,6 +97,7 @@ export async function POST(request: Request) {
       headers: {
         'Content-Type': 'audio/mpeg',
         'Cache-Control': 'no-store',
+        ...(rl.headers ?? {}),
       },
     })
   } catch (error) {

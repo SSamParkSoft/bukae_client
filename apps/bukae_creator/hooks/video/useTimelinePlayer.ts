@@ -166,6 +166,7 @@ export function useTimelinePlayer({
   // timeline의 playbackSpeed와 동기화
   useEffect(() => {
     if (timeline?.playbackSpeed !== undefined && timeline.playbackSpeed !== playbackSpeed) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPlaybackSpeed(timeline.playbackSpeed)
     }
   }, [timeline?.playbackSpeed, playbackSpeed])

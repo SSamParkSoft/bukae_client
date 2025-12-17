@@ -1,8 +1,19 @@
 import { NextResponse } from 'next/server'
 import type { TimelineData } from '@/store/useVideoCreateStore'
+import { requireUser } from '@/lib/api/route-guard'
+import { enforceRateLimit } from '@/lib/api/rate-limit'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireUser(request)
+    if (auth instanceof NextResponse) return auth
+
+    const rl = await enforceRateLimit(request, { endpoint: 'videos:generate', userId: auth.userId })
+    if (rl instanceof NextResponse) return rl
+
     const body = await request.json()
     
     // 타임라인 데이터 검증
@@ -27,11 +38,14 @@ export async function POST(request: Request) {
     console.log('==================')
 
     // 임시 응답 (실제 구현 시 작업 ID 반환)
-    return NextResponse.json({
+    return NextResponse.json(
+      {
       success: true,
       message: '영상 생성이 시작되었습니다.',
       // videoId: 'temp-video-id', // 실제 구현 시 작업 ID
-    })
+      },
+      { headers: { ...(rl.headers ?? {}) } }
+    )
   } catch (error) {
     console.error('영상 생성 API 오류:', error)
     return NextResponse.json(
