@@ -1,8 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import { CoupangStats } from '@/lib/types/statistics'
+import { authStorage } from '@/lib/api/auth-storage'
 
 const fetchCoupangStats = async (): Promise<CoupangStats> => {
-  const response = await fetch('/api/coupang/stats')
+  const accessToken = authStorage.getAccessToken()
+  if (!accessToken) {
+    throw new Error('로그인이 필요합니다.')
+  }
+
+  const response = await fetch('/api/coupang/stats', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
   if (!response.ok) {
     throw new Error('쿠팡 통계 데이터를 가져오는데 실패했습니다.')
   }

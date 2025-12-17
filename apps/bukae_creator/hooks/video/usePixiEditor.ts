@@ -208,13 +208,11 @@ export const usePixiEditor = ({
   // Transform 데이터 저장 (단일 씬)
   const saveImageTransform = useCallback((sceneIndex: number, sprite: PIXI.Sprite | null) => {
     if (!timeline || !sprite) {
-      // console.log(`Step4: saveImageTransform - timeline: ${!!timeline}, sprite: ${!!sprite}`)
       return
     }
 
     // 스프라이트가 파괴되었는지 확인
     if (!sprite.parent) {
-      // console.log(`Step4: saveImageTransform - sprite ${sceneIndex} has no parent, skipping`)
       return
     }
 
@@ -411,11 +409,8 @@ export const usePixiEditor = ({
   // 스프라이트 드래그 핸들러
   const setupSpriteDrag = useCallback((sprite: PIXI.Sprite, sceneIndex: number) => {
     if (!sprite) {
-      // console.log(`Step4: setupSpriteDrag - sprite is null for scene ${sceneIndex}`)
       return
     }
-
-    // console.log(`Step4: setupSpriteDrag called for scene ${sceneIndex}, visible: ${sprite.visible}, alpha: ${sprite.alpha}`)
 
     sprite.off('pointerdown')
     sprite.off('pointermove')
@@ -424,18 +419,15 @@ export const usePixiEditor = ({
 
     // visible하지 않은 스프라이트는 interactive하지 않게 설정
     if (!sprite.visible || sprite.alpha === 0) {
-      // console.log(`Step4: setupSpriteDrag - sprite ${sceneIndex} is not visible, skipping interactive setup`)
       sprite.interactive = false
       return
     }
 
     sprite.interactive = true
     sprite.cursor = !useFabricEditing ? 'pointer' : 'default'
-    // console.log(`Step4: setupSpriteDrag - sprite ${sceneIndex} interactive set to true, cursor: ${sprite.cursor}`)
 
     if (!useFabricEditing) {
       sprite.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
-        // console.log(`Step4: Sprite ${sceneIndex} clicked!`, e)
         e.stopPropagation()
         
         // 클릭 시 즉시 선택 및 핸들 표시
@@ -476,7 +468,6 @@ export const usePixiEditor = ({
             hasMoved = true // 드래그 발생
             const currentSprite = spritesRef.current.get(sceneIndex)
             if (!currentSprite) {
-              // console.log(`Step4: handleGlobalMove - sprite ${sceneIndex} not found, stopping drag`)
               isDraggingRef.current = false
               draggingElementRef.current = null
               document.removeEventListener('mousemove', handleGlobalMove)
@@ -540,7 +531,6 @@ export const usePixiEditor = ({
 
     // 스프라이트가 파괴되었는지 확인
     if (!sprite.parent) {
-      // console.log('Step4: applyImageTransform - sprite has no parent, skipping')
       return
     }
 
@@ -554,13 +544,11 @@ export const usePixiEditor = ({
   // 텍스트 Transform 데이터 저장
   const saveTextTransform = useCallback((sceneIndex: number, text: PIXI.Text | null) => {
     if (!timeline || !text) {
-      // console.log(`Step4: saveTextTransform - timeline: ${!!timeline}, text: ${!!text}`)
       return
     }
 
     // 텍스트가 파괴되었는지 확인
     if (!text.parent) {
-      // console.log(`Step4: saveTextTransform - text ${sceneIndex} has no parent, skipping`)
       return
     }
 
@@ -612,7 +600,6 @@ export const usePixiEditor = ({
 
     // 텍스트가 파괴되었는지 확인
     if (!text.parent) {
-      // console.log('Step4: applyTextTransform - text has no parent, skipping')
       return
     }
 
@@ -890,11 +877,8 @@ export const usePixiEditor = ({
   // 텍스트 드래그 설정
   const setupTextDrag = useCallback((text: PIXI.Text, sceneIndex: number) => {
     if (!text) {
-      // console.log(`Step4: setupTextDrag - text is null for scene ${sceneIndex}`)
       return
     }
-
-    // console.log(`Step4: setupTextDrag called for scene ${sceneIndex}, visible: ${text.visible}, alpha: ${text.alpha}`)
 
     text.off('pointerdown')
     text.off('pointermove')
@@ -903,18 +887,15 @@ export const usePixiEditor = ({
 
     // visible하지 않은 텍스트는 interactive하지 않게 설정
     if (!text.visible || text.alpha === 0) {
-      // console.log(`Step4: setupTextDrag - text ${sceneIndex} is not visible, skipping interactive setup`)
       text.interactive = false
       return
     }
 
     text.interactive = true
     text.cursor = !useFabricEditing ? 'pointer' : 'default'
-    // console.log(`Step4: setupTextDrag - text ${sceneIndex} interactive set to true, cursor: ${text.cursor}`)
 
     if (!useFabricEditing) {
       text.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
-        // console.log(`Step4: Text ${sceneIndex} clicked!`, e)
         // e.stopPropagation()
         
         // 클릭 시 즉시 선택 및 핸들 표시
@@ -961,7 +942,6 @@ export const usePixiEditor = ({
             hasMoved = true // 드래그 발생
             const currentText = textsRef.current.get(sceneIndex)
             if (!currentText) {
-              // console.log(`Step4: handleGlobalMove - text ${sceneIndex} not found, stopping drag`)
               isDraggingRef.current = false
               draggingElementRef.current = null
               document.removeEventListener('mousemove', handleGlobalMove)

@@ -12,7 +12,6 @@ const outputPath = path.join(__dirname, '..', 'lib', 'data', 'mediaAssets.genera
 
 // 이미 생성된 파일이 있으면 스킵 (Vercel 빌드 환경에서 better-sqlite3가 없을 때)
 if (fs.existsSync(outputPath)) {
-  console.log('✓ Media assets file already exists, skipping generation')
   process.exit(0)
 }
 
@@ -39,12 +38,10 @@ export const mediaAssets: MediaAsset[] = ${JSON.stringify(assets, null, 2)} as c
 `
 
     fs.writeFileSync(outputPath, output, 'utf-8')
-    console.log(`✓ Media assets generated: ${assets.length} items`)
   } catch (error: unknown) {
     // better-sqlite3가 없거나 DB 파일이 없으면 경고만 출력하고 계속 진행
     const message = error instanceof Error ? error.message : ''
     if (message.includes('bindings') || message.includes('Could not locate')) {
-      console.warn('⚠️  better-sqlite3 not available, using existing mediaAssets.generated.ts if present')
       if (!fs.existsSync(outputPath)) {
         console.error('❌ mediaAssets.generated.ts not found and cannot generate. Please commit this file to Git.')
         process.exit(1)

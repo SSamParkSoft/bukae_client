@@ -19,7 +19,7 @@ interface UsePixiFabricParams {
   editMode?: string
   mounted?: boolean
   setCanvasSize?: (size: { width: string; height: string }) => void
-  activeAnimationsRef?: MutableRefObject<Map<number, any>> // 전환 효과 중인지 확인용
+  activeAnimationsRef?: MutableRefObject<Map<number, unknown>> // 전환 효과 중인지 확인용
 }
 
 export function usePixiFabric({
@@ -41,12 +41,10 @@ export function usePixiFabric({
   // PixiJS 초기화
   useEffect(() => {
     if (!mounted) {
-      console.log('usePixiFabric: Not mounted yet')
       return
     }
     
     if (!pixiContainerRef.current) {
-      console.log('usePixiFabric: pixiContainerRef.current is null, retrying...')
       // ref가 아직 설정되지 않았으면 다음 프레임에 다시 시도
       const timeoutId = setTimeout(() => {
         if (pixiContainerRef.current) {
@@ -59,7 +57,6 @@ export function usePixiFabric({
 
     const container = pixiContainerRef.current
     const { width, height } = stageDimensions
-    console.log('usePixiFabric: Initializing PixiJS', { width, height, containerExists: !!container })
 
     if (appRef.current) {
       const existingCanvas = container.querySelector('canvas')
@@ -82,8 +79,6 @@ export function usePixiFabric({
         autoStart: true,
       })
       .then(() => {
-        console.log('usePixiFabric: PixiJS init success', { app: !!app, canvas: !!app?.canvas, container: !!container })
-        
         appRef.current = app
 
         const mainContainer = new PIXI.Container()
@@ -113,7 +108,6 @@ export function usePixiFabric({
           
           // appRef가 여전히 같은 app을 가리키는지 확인
           if (currentApp !== app) {
-            console.log('usePixiFabric: appRef changed, skipping canvas setup')
             return
           }
           
@@ -121,8 +115,6 @@ export function usePixiFabric({
           const containerWidth = containerRect.width || container.clientWidth
           const containerHeight = containerRect.height || container.clientHeight
           const targetRatio = 9 / 16
-          
-          console.log('usePixiFabric: Container dimensions', { containerWidth, containerHeight })
           
           let displayWidth: number
           let displayHeight: number
@@ -160,23 +152,12 @@ export function usePixiFabric({
           currentApp.canvas.style.transform = 'translate(-50%, -50%)'
           container.appendChild(currentApp.canvas)
           
-          console.log('usePixiFabric: Canvas appended to container', { 
-            canvasInContainer: currentApp && currentApp.canvas ? container.contains(currentApp.canvas) : false,
-            canvasWidth: currentApp?.canvas?.width,
-            canvasHeight: currentApp?.canvas?.height,
-            displayWidth,
-            displayHeight,
-            containerWidth: container.clientWidth,
-            containerHeight: container.clientHeight,
-          })
-          
           // 초기 렌더링 강제
           currentApp.render()
           
           // Ticker가 자동으로 실행되도록 확인 (재생 중 전환 효과를 위해)
           // autoStart: true로 설정되어 있지만, 명시적으로 확인
           if (!currentApp.ticker.started) {
-            console.log('usePixiFabric: Starting PixiJS ticker')
             currentApp.ticker.start()
           }
           
@@ -195,7 +176,6 @@ export function usePixiFabric({
             }
           }
           app.ticker.add(tickerCallback)
-          console.log('usePixiFabric: Added default render callback to ticker (skips only when GSAP animations are active)')
           
           // Canvas 크기 상태 업데이트
           if (setCanvasSize) {
@@ -203,7 +183,6 @@ export function usePixiFabric({
           }
           
           // pixiReady 설정
-          console.log('usePixiFabric: Setting pixiReady to true, ticker started:', app.ticker.started)
           setPixiReady(true)
         })
       })

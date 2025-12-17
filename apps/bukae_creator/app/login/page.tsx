@@ -3,139 +3,133 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { useLogin } from '@/lib/hooks/useAuth'
-import { useUserStore } from '@/store/useUserStore'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { useThemeStore } from '@/store/useThemeStore'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Loader2, AlertCircle, ArrowRight } from 'lucide-react'
+import { authApi } from '@/lib/api/auth'
 
 export default function LoginPage() {
   const router = useRouter()
-  const theme = useThemeStore((state) => state.theme)
-  const { checkAuth } = useUserStore()
-  const loginMutation = useLogin()
-
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleGoogleLogin = async () => {
     setError(null)
-
-    if (!email || !password) {
-      setError('이메일과 비밀번호를 입력해주세요.')
-      return
-    }
-
+    setIsLoading(true)
     try {
-      await loginMutation.mutateAsync({ email, password })
-      // 로그인 성공 시 인증 상태 업데이트
-      checkAuth()
-      // 홈으로 리다이렉트
-      router.push('/')
+      await authApi.loginWithGoogle()
+      // 실제 리다이렉트는 Supabase가 처리
     } catch (err: unknown) {
       const message =
-        err instanceof Error
-          ? err.message
-          : '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.'
+        err instanceof Error ? err.message : '구글 로그인 시작 중 오류가 발생했습니다.'
       setError(message)
+      setIsLoading(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div 
+      className="flex min-h-screen flex-col items-center justify-center p-4 relative overflow-hidden"
+      style={{
+        background: 'linear-gradient(180deg, #a78bfa 0%, #c4b5fd 50%, #ddd6fe 100%)'
+      }}
+    >
+      {/* 상단 브랜딩 영역 */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="flex flex-col items-center mb-8 mt-16"
+      >
+        <h1 className="text-5xl font-bold text-white mb-3 tracking-tight">
+          부캐
+        </h1>
+        <p className="text-white/90 text-lg mb-6">
+          AI 기반 영상 제작 스튜디오
+        </p>
+        
+        {/* 소개 버튼 */}
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className="flex items-center gap-2 px-6 py-3 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 text-white text-sm font-medium hover:bg-white/30 transition-all"
+          onClick={() => router.push('/')}
+        >
+          <span>부캐를 소개합니다</span>
+          <ArrowRight className="w-4 h-4" />
+        </motion.button>
+      </motion.div>
+
+      {/* 중앙 인디케이터 */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3, duration: 0.6 }}
+        className="mb-12"
+      >
+        <div className="w-2 h-2 rounded-full bg-white border-2 border-purple-300" />
+      </motion.div>
+
+      {/* 로그인 버튼 영역 */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md"
+        transition={{ delay: 0.4, duration: 0.6 }}
+        className="w-full max-w-sm space-y-4"
       >
-        <Card className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
-          <CardHeader className="space-y-1">
-            <CardTitle className={`text-2xl font-bold text-center ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
-              로그인
-            </CardTitle>
-            <CardDescription className="text-center">
-              Bookae 계정으로 로그인하세요
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className={`rounded-lg border p-3 flex items-center gap-2 ${
-                  theme === 'dark'
-                    ? 'bg-red-900/20 border-red-700 text-red-300'
-                    : 'bg-red-50 border-red-200 text-red-800'
-                }`}>
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm">{error}</span>
-                </div>
+        {error && (
+          <div className="flex items-center justify-center gap-2 text-red-100 text-sm bg-red-500/20 backdrop-blur-sm rounded-lg p-3 border border-red-300/30">
+            <AlertCircle className="w-4 h-4" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* 구글 로그인 버튼 */}
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          className="gsi-material-button mx-auto flex items-center justify-center"
+          disabled={isLoading}
+        >
+          <div className="gsi-material-button-state" />
+          <div className="gsi-material-button-content-wrapper">
+            <div className="gsi-material-button-icon">
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 48 48"
+                >
+                  <path
+                    fill="#EA4335"
+                    d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+                  />
+                  <path
+                    fill="#4285F4"
+                    d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+                  />
+                  <path fill="none" d="M0 0h48v48H0z" />
+                </svg>
               )}
-
-              <div className="space-y-2">
-                <Label htmlFor="email">이메일</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="your@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={loginMutation.isPending}
-                  required
-                  className={theme === 'dark' ? 'bg-gray-900 border-gray-700' : ''}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">비밀번호</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={loginMutation.isPending}
-                  required
-                  className={theme === 'dark' ? 'bg-gray-900 border-gray-700' : ''}
-                />
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={loginMutation.isPending}
-              >
-                {loginMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    로그인 중...
-                  </>
-                ) : (
-                  '로그인'
-                )}
-              </Button>
-            </form>
-
-            <div className={`mt-6 text-center text-sm ${
-              theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-            }`}>
-              계정이 없으신가요?{' '}
-              <button
-                onClick={() => router.push('/signup')}
-                className={`font-medium hover:underline ${
-                  theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                }`}
-              >
-                회원가입
-              </button>
             </div>
-          </CardContent>
-        </Card>
+            <span className="gsi-material-button-contents">
+              {isLoading ? '구글로 이동 중...' : 'Sign in with Google'}
+            </span>
+            <span style={{ display: 'none' }}>Sign in with Google</span>
+          </div>
+        </button>
+
+        {/* 약관 동의 텍스트 */}
+        <p className="text-white/80 text-xs text-center px-4">
+          로그인 시 서비스 이용약관 및 개인정보 처리방침에 동의하게 됩니다.
+        </p>
       </motion.div>
     </div>
   )

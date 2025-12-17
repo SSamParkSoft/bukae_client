@@ -1,8 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import { YouTubeVideo } from '@/lib/types/statistics'
+import { authStorage } from '@/lib/api/auth-storage'
 
 const fetchYouTubeVideos = async (): Promise<YouTubeVideo[]> => {
-  const response = await fetch('/api/youtube/videos')
+  const accessToken = authStorage.getAccessToken()
+  if (!accessToken) {
+    throw new Error('로그인이 필요합니다.')
+  }
+
+  const response = await fetch('/api/youtube/videos', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
   if (!response.ok) {
     throw new Error('유튜브 동영상 목록을 가져오는데 실패했습니다.')
   }

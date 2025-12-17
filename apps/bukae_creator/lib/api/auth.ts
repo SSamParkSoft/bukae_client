@@ -2,6 +2,7 @@
 
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { authStorage } from './auth-storage'
+import { api } from './client'
 import type { SignUpRequest, LoginRequest, TokenResponse } from '@/lib/types/api/auth'
 
 const getEmailRedirectUrl = () => {
@@ -45,7 +46,9 @@ export const authApi = {
     }
 
     if (data.session) {
-      authStorage.setTokens(data.session.access_token, data.session.refresh_token)
+      authStorage.setTokens(data.session.access_token, data.session.refresh_token, {
+        source: 'supabase',
+      })
     }
   },
 
@@ -68,7 +71,9 @@ export const authApi = {
       throw new Error('세션 정보를 가져오지 못했습니다. 다시 시도해주세요.')
     }
 
-    authStorage.setTokens(session.access_token, session.refresh_token)
+    authStorage.setTokens(session.access_token, session.refresh_token, {
+      source: 'supabase',
+    })
 
     return {
       accessToken: session.access_token,
@@ -77,12 +82,96 @@ export const authApi = {
   },
 
   /**
-   * Supabase 로그아웃
+   * 로그아웃
+   * 백엔드 API를 사용하거나, 토큰만 삭제
    */
   logout: async (): Promise<void> => {
-    const supabase = getSupabaseClient()
-    await supabase.auth.signOut()
-    authStorage.clearTokens()
+    try {
+      // 백엔드에 로그아웃 요청 (선택적)
+      // await api.post('/api/v1/auth/logout', {}, { skipAuth: false })
+    } catch (error) {
+      // 백엔드 로그아웃 실패해도 토큰은 삭제
+      console.error('로그아웃 API 호출 실패:', error)
+    } finally {
+      // 토큰 삭제
+      authStorage.clearTokens()
+    }
+  },
+
+  /**
+   * Google OAuth 로그인 시작
+   * 백엔드 OAuth2 엔드포인트로 리다이렉트
+   * 프론트엔드 콜백 URL을 redirect_uri로 전달
+   */
+  loginWithGoogle: async (): Promise<void> => {
+    // API 서버 주소 (도메인 + 포트까지만, path 제외)
+    // 환경 변수가 없으면 기본값 사용
+    // 예: http://15.164.220.105.nip.io:8080
+    const API_BASE_URL =
+      process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+    
+    // 프론트엔드 콜백 URL 생성
+    // 환경 변수가 있으면 우선 사용, 없으면 현재 origin 사용
+    let redirectUri = ''
+    if (process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI) {
+      redirectUri = process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI
+    } else if (typeof window !== 'undefined' && window.location.origin) {
+      redirectUri = `${window.location.origin}/oauth/callback`
+    } else {
+      redirectUri = 'http://localhost:3000/oauth/callback'
+    }
+    
+    // 백엔드 OAuth2 엔드포인트로 리다이렉트 (redirect_uri 파라미터 포함)
+    const oauthUrl = `${API_BASE_URL}/oauth2/authorization/google?redirect_uri=${encodeURIComponent(redirectUri)}`
+    
+    if (typeof window !== 'undefined') {
+      // 타임아웃 방지를 위해 새 창에서 열거나, 직접 리다이렉트
+      console.log('[OAuth] 리다이렉트 URL:', oauthUrl)
+      window.location.href = oauthUrl
+    } else {
+      throw new Error('브라우저 환경에서만 사용할 수 있습니다.')
+    }
+  },
+
+  /**
+   * 액세스 토큰 재발급
+   * POST /api/v1/auth/refresh
+   */
+  refreshToken: async (): Promise<TokenResponse> => {
+    const refreshToken = authStorage.getRefreshToken()
+    if (!refreshToken) {
+      throw new Error('리프레시 토큰이 없습니다. 다시 로그인해주세요.')
+    }
+
+    const response = await api.post<TokenResponse>(
+      '/api/v1/auth/refresh',
+      { refreshToken },
+      { skipAuth: true }
+    )
+
+    // 백엔드에서 반환한 토큰으로 갱신
+    authStorage.setTokens(response.accessToken, response.refreshToken)
+    return response
+  },
+
+  /**
+   * 현재 로그인한 사용자 정보 조회
+   * GET /api/v1/users/me
+   */
+  getCurrentUser: async (): Promise<{
+    id: string
+    name: string
+    email: string
+    profileImage?: string
+    createdAt: string
+  }> => {
+    return api.get<{
+      id: string
+      name: string
+      email: string
+      profileImage?: string
+      createdAt: string
+    }>('/api/v1/users/me')
   },
 }
 

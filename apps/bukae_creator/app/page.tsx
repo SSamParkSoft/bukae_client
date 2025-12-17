@@ -443,7 +443,13 @@ export default function HomePage() {
                               <div className="w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
                                 {product.thumbnailUrl ? (
                                   <img
-                                    src={product.thumbnailUrl}
+                                    src={
+                                      product.thumbnailUrl.startsWith('http://') || product.thumbnailUrl.startsWith('https://')
+                                        ? product.thumbnailUrl
+                                        : product.thumbnailUrl.startsWith('//')
+                                        ? `https:${product.thumbnailUrl}`
+                                        : `https://via.placeholder.com/200x200/a78bfa/ffffff?text=${encodeURIComponent(product.name.substring(0, 2))}`
+                                    }
                                     alt={product.name}
                                     className="w-full h-full object-cover"
                                     onError={(e) => {

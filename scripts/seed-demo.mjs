@@ -91,5 +91,3 @@ if (result.status !== 0) {
   throw new Error('Failed to seed SQLite database.')
 }
 
-console.log(`Seed completed: ${demoAssets.length} media assets written to ${dbPath}`)
-

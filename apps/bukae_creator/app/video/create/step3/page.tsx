@@ -8,10 +8,11 @@ import { ArrowRight, GripVertical, X, Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import StepIndicator from '@/components/StepIndicator'
+import ChirpVoiceSelector from '@/components/ChirpVoiceSelector'
 import { useVideoCreateStore, SceneScript } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
-import { useProduct } from '@/lib/hooks/useProducts'
-import { useImages } from '@/lib/hooks/useImages'
+import { studioScriptApi } from '@/lib/api/studio-script'
+import type { ScriptType } from '@/lib/types/api/studio-script'
 
 export default function Step3Page() {
   const router = useRouter()
@@ -26,28 +27,11 @@ export default function Step3Page() {
   const theme = useThemeStore((state) => state.theme)
   const selectedProduct = selectedProducts[0]
   
-  // 상품 이미지 가져오기
-  const { data: productData } = useProduct(selectedProduct?.id || null)
-  const { data: allImages } = useImages()
-  
   // 사용 가능한 이미지 목록
   const availableImages = useMemo(() => {
     const images: string[] = []
     
-    // 1. 선택된 상품의 이미지들
-    if (productData?.images) {
-      images.push(...productData.images.map((img) => img.url))
-    }
-    
-    // 2. 전체 이미지 목록에서 상품 이미지 추가
-    if (allImages) {
-      const productImageUrls = allImages
-        .filter((img) => img.product?.id === selectedProduct?.id)
-        .map((img) => img.url)
-      images.push(...productImageUrls)
-    }
-    
-    // 3. 상품 기본 이미지
+    // 1. 상품 기본 이미지
     if (selectedProduct?.image) {
       images.push(selectedProduct.image)
     }
@@ -88,7 +72,7 @@ export default function Step3Page() {
 
     // 상품 이미지가 5개 이상일 때: 상품 이미지만 반환
     return uniqueImages
-  }, [productData, allImages, selectedProduct])
+  }, [selectedProduct])
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
@@ -98,60 +82,21 @@ export default function Step3Page() {
   const [editedScripts, setEditedScripts] = useState<Map<number, string>>(new Map())
   const selectedListRef = useRef<HTMLDivElement | null>(null)
 
-  // 이미지별 대본 생성 (단일 이미지용 - 현재는 일괄 생성에서만 사용)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const generateScriptForImage = async (imageUrl: string, sceneIndex: number) => {
-    if (!scriptStyle || !tone) {
-      return
-    }
-
-    setGeneratingScenes((prev) => new Set(prev).add(sceneIndex))
-
-    try {
-      const response = await fetch('/api/script/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          scriptStyle: scriptStyle,
-          tone: tone,
-          images: [imageUrl], // 단일 이미지에 대한 대본 생성
-          product: selectedProducts[0] ? {
-            name: selectedProducts[0].name,
-            price: selectedProducts[0].price,
-            description: selectedProducts[0].description,
-          } : null,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('대본 생성에 실패했습니다.')
-      }
-
-      const data = await response.json()
-      if (data.scenes && data.scenes.length > 0) {
-        const sceneScript: SceneScript = {
-          sceneId: sceneIndex + 1,
-          script: data.scenes[0].script,
-          imageUrl: imageUrl,
-          isAiGenerated: true,
-        }
-        
-        setSceneScripts((prev) => {
-          const newMap = new Map(prev)
-          newMap.set(sceneIndex, sceneScript)
-          return newMap
-        })
-      }
-    } catch (error) {
-      console.error('대본 생성 오류:', error)
-    } finally {
-      setGeneratingScenes((prev) => {
-        const newSet = new Set(prev)
-        newSet.delete(sceneIndex)
-        return newSet
-      })
+  // ConceptType -> ScriptType 매핑
+  const mapConceptToScriptType = (concept: typeof scriptStyle): ScriptType => {
+    switch (concept) {
+      case 'product-info':
+      case 'calm-explanation':
+        return 'INFORMATION'
+      case 'review':
+      case 'daily-review':
+        return 'EMPATHY'
+      case 'emotional':
+        return 'HEALING'
+      case 'viral':
+      case 'promotional':
+      default:
+        return 'ENTERTAINMENT'
     }
   }
 
@@ -171,40 +116,26 @@ export default function Step3Page() {
     setGeneratingScenes(new Set(selectedImages.map((_, index) => index)))
 
     try {
-      const response = await fetch('/api/script/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          scriptStyle,
-          tone,
-          images: selectedImages,
-          product: selectedProducts[0]
-            ? {
-                name: selectedProducts[0].name,
-                price: selectedProducts[0].price,
-                description: selectedProducts[0].description,
-              }
-            : null,
-        }),
+      const product = selectedProducts[0]
+      const scriptType = mapConceptToScriptType(scriptStyle)
+
+      const data = await studioScriptApi.generateScripts({
+        topic: product?.name || '상품',
+        description: product?.description || tone || '상품 리뷰 쇼츠 대본 생성',
+        type: scriptType,
+        imageUrls: selectedImages,
       })
 
-      if (!response.ok) {
-        throw new Error('대본 생성에 실패했습니다.')
-      }
-
-      const data = await response.json()
-      const apiScenes: { sceneId?: number; script: string }[] = data.scenes || []
+      const items = Array.isArray(data) ? data : [data]
 
       setSceneScripts(() => {
         const newMap = new Map<number, SceneScript>()
         selectedImages.forEach((imageUrl, index) => {
-          const sceneData = apiScenes[index]
+          const sceneData = items.find((item) => item.imageUrl === imageUrl) || items[index]
           newMap.set(index, {
             sceneId: index + 1,
             script: sceneData?.script || '생성된 대본이 없습니다.',
-            imageUrl,
+            imageUrl: sceneData?.imageUrl || imageUrl,
             isAiGenerated: !!sceneData?.script,
           })
         })
@@ -459,8 +390,20 @@ export default function Step3Page() {
                     })}
                   </div>
                 )}
-                {selectedImages.length > 0 && (
-                  <div className="mt-4 text-right">
+              </CardContent>
+            </Card>
+
+            {/* 선택된 이미지 목록 (드래그 앤 드롭) - 사용 가능한 이미지 아래로 이동 */}
+            {selectedImages.length > 0 && (
+              <Card
+                ref={selectedListRef}
+                className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
+              >
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+                    선택된 이미지 및 대본 ({selectedImages.length}장)
+                  </CardTitle>
+                  {selectedImages.length > 0 && (
                     <Button
                       type="button"
                       size="sm"
@@ -471,23 +414,13 @@ export default function Step3Page() {
                       <Sparkles className="w-4 h-4" />
                       {isGeneratingAll ? 'AI 스크립트 생성 중...' : 'AI 스크립트 생성'}
                     </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* 선택된 이미지 목록 (드래그 앤 드롭) - 사용 가능한 이미지 아래로 이동 */}
-            {selectedImages.length > 0 && (
-              <Card
-                ref={selectedListRef}
-                className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}
-              >
-                <CardHeader>
-                  <CardTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
-                    선택된 이미지 및 대본 ({selectedImages.length}장)
-                  </CardTitle>
+                  )}
                 </CardHeader>
                 <CardContent>
+                  <div className="mb-4 space-y-2">
+                    <ChirpVoiceSelector theme={theme} title="목소리 선택" />
+                  </div>
+
                   <div className="space-y-4">
                     {selectedImages.map((imageUrl, index) => {
                       const script = sceneScripts.get(index)

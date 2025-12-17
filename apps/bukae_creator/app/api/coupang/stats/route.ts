@@ -6,6 +6,11 @@ import {
   CoupangDailyCancellation,
   CoupangDailyRevenue,
 } from '@/lib/types/statistics'
+import { requireUser } from '@/lib/api/route-guard'
+import { enforceRateLimit } from '@/lib/api/rate-limit'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 // 날짜를 YYYYMMDD 형식으로 변환
 const formatDate = (date: Date): string => {
@@ -49,8 +54,14 @@ const categories = [
 
 // TODO: 실제 쿠팡파트너스 API 연동
 // 현재는 더미 데이터 반환 (실제 API 응답 구조와 동일)
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const auth = await requireUser(request)
+    if (auth instanceof NextResponse) return auth
+
+    const rl = await enforceRateLimit(request, { endpoint: 'coupang:stats', userId: auth.userId })
+    if (rl instanceof NextResponse) return rl
+
     // 더미 데이터 생성 (최근 7일)
     const today = new Date()
     const trackingCode = 'AF1234567'
@@ -90,7 +101,9 @@ export async function GET() {
         const commission = Math.floor((gmv * commissionRate) / 100)
         
         // 더미 썸네일 이미지 URL 생성 (placeholder.com 사용)
-        const thumbnailUrl = `https://via.placeholder.com/200x200/a78bfa/ffffff?text=${encodeURIComponent(productNames[productIndex].substring(0, 2))}`
+        // URL이 올바르게 생성되도록 전체 URL을 명시적으로 구성
+        const productText = productNames[productIndex].substring(0, 2)
+        const thumbnailUrl = `https://via.placeholder.com/200x200/a78bfa/ffffff?text=${encodeURIComponent(productText)}`
 
         dailyOrders.push({
           date: formatDate(date),
@@ -217,7 +230,7 @@ export async function GET() {
     //   dailyRevenue: revenueData.data,
     // }
 
-    return NextResponse.json(statsData)
+    return NextResponse.json(statsData, { headers: { ...(rl.headers ?? {}) } })
   } catch (error) {
     console.error('쿠팡 통계 API 오류:', error)
     return NextResponse.json(

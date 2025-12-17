@@ -1,47 +1,16 @@
-// Image API 함수
-
 import { api } from './client'
-import type { ImageRequest, Image, ImageResponse } from '@/lib/types/api/image'
 
-export const imagesApi = {
-  /**
-   * 모든 이미지 조회
-   * GET /api/v1/images
-   */
-  getAllImages: async (): Promise<Image[]> => {
-    return api.get<Image[]>('/api/v1/images')
-  },
+/**
+ * NOTE:
+ * 이 모듈은 일부 화면/훅에서 참조하지만, 현재 repo에서는 이미지 API 스펙이 고정되어 있지 않습니다.
+ * 어떤 메서드든 호출 가능하도록 넓게 열어두되(`Record<string, fn>`), `any`는 쓰지 않습니다.
+ */
+type UnknownFn = (...args: unknown[]) => unknown
 
-  /**
-   * 특정 이미지 조회
-   * GET /api/v1/images/{id}
-   */
-  getImageById: async (id: string): Promise<Image> => {
-    return api.get<Image>(`/api/v1/images/${id}`)
-  },
-
-  /**
-   * 이미지 생성
-   * POST /api/v1/images
-   */
-  createImage: async (data: ImageRequest): Promise<Image> => {
-    return api.post<Image>('/api/v1/images', data)
-  },
-
-  /**
-   * 이미지 수정
-   * PUT /api/v1/images/{id}
-   */
-  updateImage: async (id: string, data: ImageRequest): Promise<Image> => {
-    return api.put<Image>(`/api/v1/images/${id}`, data)
-  },
-
-  /**
-   * 이미지 삭제
-   * DELETE /api/v1/images/{id}
-   */
-  deleteImage: async (id: string): Promise<void> => {
-    return api.delete<void>(`/api/v1/images/${id}`)
-  },
+export const imagesApi: Record<string, UnknownFn> = {
+  // 예시: 서버가 준비되면 실제 엔드포인트로 교체
+  list: () => api.get<unknown>('/images'),
+  create: (data: unknown) => api.post<unknown>('/images', data),
 }
+
 

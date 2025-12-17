@@ -27,6 +27,7 @@ export default function Sidebar() {
 
   // 클라이언트에서만 마운트 상태 설정 (서버와 클라이언트 일치를 위해)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
     checkAuth()
   }, [checkAuth])

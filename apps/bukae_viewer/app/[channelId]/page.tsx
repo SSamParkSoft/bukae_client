@@ -9,28 +9,30 @@ import ProductSearch from '@/components/ProductSearch'
 import ProductGrid from '@/components/ProductGrid'
 import { useChannelInfo } from '@/lib/hooks/useChannelInfo'
 import { Loader2 } from 'lucide-react'
-import { STATIC_PRODUCTS, STATIC_TOP_PRODUCTS } from '@/lib/data/staticProducts'
+import { getStaticProducts, STATIC_TOP_PRODUCTS } from '@/lib/data/staticProducts'
 
 function ChannelPageContent({ channelId }: { channelId: string }) {
   const [searchQuery, setSearchQuery] = React.useState('')
 
   const { data: channelInfo, isLoading: channelLoading } = useChannelInfo(channelId)
 
+  const productsForChannel = React.useMemo(() => getStaticProducts(channelId), [channelId])
+
   const filteredProducts = React.useMemo(() => {
     if (!searchQuery.trim()) {
-      return STATIC_PRODUCTS
+      return productsForChannel
     }
 
     const searchLower = searchQuery.toLowerCase()
     const searchNumber = parseInt(searchQuery, 10)
     const isNumericSearch = !isNaN(searchNumber) && searchQuery.trim() !== ''
 
-    return STATIC_PRODUCTS.filter(
+    return productsForChannel.filter(
       (product) =>
         product.name.toLowerCase().includes(searchLower) ||
         (isNumericSearch && product.order === searchNumber),
     )
-  }, [searchQuery])
+  }, [productsForChannel, searchQuery])
 
   if (channelLoading) {
     return (

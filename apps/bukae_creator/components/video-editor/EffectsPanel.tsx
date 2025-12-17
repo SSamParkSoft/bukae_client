@@ -1,6 +1,7 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BgmSelector } from '@/components/video-editor/BgmSelector'
 import { SubtitleSettings } from '@/components/video-editor/SubtitleSettings'
+import ChirpVoiceSelector from '@/components/ChirpVoiceSelector'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 
 type AdvancedEffectKey = 'glow' | 'glitch' | 'particles'
@@ -83,10 +84,11 @@ export function EffectsPanel({
 
       <div className="flex-1 overflow-y-auto min-h-0">
         <Tabs value={rightPanelTab} onValueChange={setRightPanelTab} className="p-4">
-          <TabsList className="grid w-full grid-cols-3 mb-4">
+          <TabsList className="grid w-full grid-cols-4 mb-4">
             <TabsTrigger value="animation">애니메이션</TabsTrigger>
             <TabsTrigger value="bgm">배경음악</TabsTrigger>
             <TabsTrigger value="subtitle">자막</TabsTrigger>
+            <TabsTrigger value="voice">음성</TabsTrigger>
           </TabsList>
 
           <TabsContent value="animation" className="space-y-4">
@@ -235,6 +237,15 @@ export function EffectsPanel({
               currentSceneIndex={currentSceneIndex}
               theme={theme ?? 'light'}
               setTimeline={setTimeline}
+            />
+          </TabsContent>
+
+          <TabsContent value="voice" className="space-y-4">
+            <ChirpVoiceSelector
+              theme={theme ?? 'light'}
+              title="목소리 선택"
+              disabled={!timeline || currentSceneIndex < 0}
+              layout="panel"
             />
           </TabsContent>
         </Tabs>

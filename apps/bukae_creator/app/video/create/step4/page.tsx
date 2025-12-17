@@ -7,7 +7,7 @@ import { Play, Pause, Clock, Edit2, Type, Bold, Italic, Underline, AlignLeft, Al
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import StepIndicator from '@/components/StepIndicator'
-import { useVideoCreateStore, TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
+import { useVideoCreateStore, TimelineData, TimelineScene, SceneScript } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useSceneHandlers } from '@/hooks/video/useSceneHandlers'
 import { useTimelinePlayer } from '@/hooks/video/useTimelinePlayer'
@@ -19,6 +19,10 @@ import { SceneList } from '@/components/video-editor/SceneList'
 import { EffectsPanel } from '@/components/video-editor/EffectsPanel'
 import { loadPixiTexture, calculateSpriteParams } from '@/utils/pixi'
 import { formatTime, getSceneDuration } from '@/utils/timeline'
+import { splitSceneBySentences } from '@/lib/utils/scene-splitter'
+import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
+import { resolveSubtitleFontFamily, SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
+import { authStorage } from '@/lib/api/auth-storage'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import * as fabric from 'fabric'
@@ -123,13 +127,14 @@ export default function Step4Page() {
         return {
           sceneId: scene.sceneId,
           duration: existingScene?.duration || getSceneDuration(scene.script),
-          transition: existingScene?.transition || 'fade',
+          transition: existingScene?.transition || 'none',
           transitionDuration: existingScene?.transitionDuration || 0.5,
           image: scene.imageUrl || selectedImages[index] || '',
           imageFit: existingScene?.imageFit || 'fill', // 기본값을 fill로 변경하여 9:16 캔버스를 항상 채움
           text: {
             content: scene.script,
-            font: subtitleFont || 'Pretendard-Bold',
+            font: existingScene?.text?.font ?? subtitleFont ?? SUBTITLE_DEFAULT_FONT_ID,
+            fontWeight: existingScene?.text?.fontWeight ?? 700,
             color: subtitleColor || '#ffffff',
             position: subtitlePosition || 'center',
             fontSize: existingScene?.text?.fontSize || 32,
@@ -291,7 +296,7 @@ export default function Step4Page() {
     }
   }, [setupSpriteDrag, setupTextDrag])
 
-  // PixiJS 효과 적용 hook
+  // PixiJS 효과 적용 hook (playbackSpeed는 timeline에서 가져옴)
   const { applyAdvancedEffects, applyEnterEffect } = usePixiEffects({
     appRef,
     containerRef,
@@ -299,6 +304,7 @@ export default function Step4Page() {
     activeAnimationsRef,
     stageDimensions,
     timeline,
+    playbackSpeed: timeline?.playbackSpeed ?? 1.0,
     onAnimationComplete: handleAnimationComplete,
   })
 
@@ -382,7 +388,6 @@ export default function Step4Page() {
         const textScaleY = textbox.scaleY ?? 1
         // 실제 표시되는 폰트 크기 계산 후 좌표계 역변환
         const actualFontSize = baseFontSize * textScaleY * invScale
-        const fontFamily = textbox.fontFamily ?? 'Arial'
         const fill = textbox.fill ?? '#ffffff'
         const align = textbox.textAlign ?? 'center'
 
@@ -396,7 +401,6 @@ export default function Step4Page() {
                     ...scene.text,
                     content: textContent,
                     fontSize: actualFontSize,
-                    font: fontFamily,
                     color: typeof fill === 'string' ? fill : '#ffffff',
                     style: {
                       ...scene.text.style,
@@ -499,7 +503,6 @@ export default function Step4Page() {
       const baseFontSize = target.fontSize ?? 32
       const textScaleY = target.scaleY ?? 1
       const actualFontSize = baseFontSize * textScaleY * invScale
-      const fontFamily = target.fontFamily ?? 'Arial'
       const fill = target.fill ?? '#ffffff'
       const align = target.textAlign ?? 'center'
 
@@ -513,7 +516,6 @@ export default function Step4Page() {
                   ...scene.text,
                   content: textContent,
                   fontSize: actualFontSize,
-                  font: fontFamily,
                   color: typeof fill === 'string' ? fill : '#ffffff',
                   style: {
                     ...scene.text.style,
@@ -707,6 +709,7 @@ export default function Step4Page() {
     // 재생 중이 아니거나 skipStopPlaying이 false일 때만 재생 중지
     if (isPlaying && !skipStopPlaying) {
       setIsPlaying(false)
+      resetTtsSession()
     }
     
     let timeUntilScene = 0
@@ -840,10 +843,219 @@ export default function Step4Page() {
     currentSceneIndexRef.current = currentSceneIndex
   }, [currentSceneIndex])
 
+  // 선택한 폰트가 Pixi(Canvas)에서 fallback으로 고정되지 않도록 선로딩 후 강제 리로드
+  const lastSubtitleFontKeyRef = useRef<string>('')
+  useEffect(() => {
+    if (!pixiReady || !timeline) return
+    if (isSavingTransformRef.current) return
+    const scene = timeline.scenes[currentSceneIndex]
+    if (!scene?.text) return
+
+    const fontFamily = resolveSubtitleFontFamily(scene.text.font)
+    const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
+    const key = `${fontFamily}:${fontWeight}`
+    if (lastSubtitleFontKeyRef.current === key) return
+    lastSubtitleFontKeyRef.current = key
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        // document.fonts가 없는 환경에서는 스킵
+        if (typeof document === 'undefined' || !(document as any).fonts?.load) return
+        await (document as any).fonts.load(`${fontWeight} 16px ${fontFamily}`)
+        if (cancelled) return
+        await loadAllScenes()
+      } catch {
+        // ignore (fallback font로라도 렌더)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [pixiReady, timeline, currentSceneIndex, loadAllScenes])
+
   // 재생/일시정지 (씬 선택 로직을 그대로 사용)
   const playTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isPlayingRef = useRef(false)
   const currentPlayIndexRef = useRef<number>(0)
+
+  // -----------------------------
+  // TTS 재생/프리페치/캐시 (Chirp3 HD: speakingRate + markup pause 지원)
+  // -----------------------------
+  const ttsCacheRef = useRef(
+    new Map<string, { blob: Blob; durationSec: number; markup: string }>()
+  )
+  const ttsInFlightRef = useRef(
+    new Map<string, Promise<{ blob: Blob; durationSec: number; markup: string }>>()
+  )
+  const ttsAbortRef = useRef<AbortController | null>(null)
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
+  const ttsAudioUrlRef = useRef<string | null>(null)
+
+  const stopTtsAudio = useCallback(() => {
+    const a = ttsAudioRef.current
+    if (a) {
+      try {
+        a.pause()
+        a.currentTime = 0
+      } catch {
+        // ignore
+      }
+    }
+    ttsAudioRef.current = null
+    if (ttsAudioUrlRef.current) {
+      URL.revokeObjectURL(ttsAudioUrlRef.current)
+      ttsAudioUrlRef.current = null
+    }
+  }, [])
+
+  const resetTtsSession = useCallback(() => {
+    stopTtsAudio()
+    ttsAbortRef.current?.abort()
+    ttsAbortRef.current = null
+    ttsInFlightRef.current.clear()
+    ttsCacheRef.current.clear()
+  }, [stopTtsAudio])
+
+  // voice/speakingRate/pausePreset이 바뀌면 합성 결과가 바뀌므로 캐시를 초기화
+  useEffect(() => {
+    resetTtsSession()
+  }, [voiceTemplate, resetTtsSession])
+
+  const buildSceneMarkup = useCallback(
+    (sceneIndex: number) => {
+      if (!timeline) return ''
+      const base = (timeline.scenes[sceneIndex]?.text?.content ?? '').trim()
+      if (!base) return ''
+      const isLast = sceneIndex >= timeline.scenes.length - 1
+      // 사용자에게는 보이지 않게, 합성 요청 직전에만 자동 숨을 markup에 삽입
+      return makeMarkupFromPlainText(base, { addSceneTransitionPause: !isLast })
+    },
+    [timeline]
+  )
+
+  const makeTtsKey = useCallback(
+    (voiceName: string, markup: string) =>
+      `${voiceName}::${markup}`,
+    []
+  )
+
+  const getMp3DurationSec = useCallback(async (blob: Blob) => {
+    const url = URL.createObjectURL(blob)
+    try {
+      const audio = document.createElement('audio')
+      audio.src = url
+      await new Promise<void>((resolve, reject) => {
+        audio.onloadedmetadata = () => resolve()
+        audio.onerror = () => reject(new Error('오디오 메타데이터 로드 실패'))
+      })
+      const d = Number.isFinite(audio.duration) ? audio.duration : 0
+      return d > 0 ? d : 0
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  }, [])
+
+  const setSceneDurationFromAudio = useCallback(
+    (sceneIndex: number, durationSec: number) => {
+      if (!timeline) return
+      if (!Number.isFinite(durationSec) || durationSec <= 0) return
+      const prev = timeline.scenes[sceneIndex]?.duration ?? 0
+      if (Math.abs(prev - durationSec) <= 0.05) return
+
+      const clamped = Math.max(0.5, Math.min(120, durationSec))
+      setTimeline({
+        ...timeline,
+        scenes: timeline.scenes.map((s, i) => (i === sceneIndex ? { ...s, duration: clamped } : s)),
+      })
+    },
+    [setTimeline, timeline]
+  )
+
+  const ensureSceneTts = useCallback(
+    async (sceneIndex: number, signal?: AbortSignal) => {
+      if (!timeline) throw new Error('timeline이 없습니다.')
+      if (!voiceTemplate) throw new Error('목소리를 먼저 선택해주세요.')
+
+      const markup = buildSceneMarkup(sceneIndex)
+      if (!markup) throw new Error('씬 대본이 비어있습니다.')
+
+      const key = makeTtsKey(voiceTemplate, markup)
+
+      const cached = ttsCacheRef.current.get(key)
+      if (cached) return cached
+
+      const inflight = ttsInFlightRef.current.get(key)
+      if (inflight) return await inflight
+
+      const p = (async () => {
+        const accessToken = authStorage.getAccessToken()
+        if (!accessToken) {
+          throw new Error('로그인이 필요합니다.')
+        }
+
+        const res = await fetch('/api/tts/synthesize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          signal,
+          body: JSON.stringify({
+            voiceName: voiceTemplate,
+            mode: 'markup',
+            markup,
+          }),
+        })
+
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string }
+          throw new Error(data?.error || 'TTS 합성 실패')
+        }
+
+        const blob = await res.blob()
+        const durationSec = await getMp3DurationSec(blob)
+
+        setSceneDurationFromAudio(sceneIndex, durationSec)
+
+        const entry = { blob, durationSec, markup }
+        ttsCacheRef.current.set(key, entry)
+        return entry
+      })().finally(() => {
+        ttsInFlightRef.current.delete(key)
+      })
+
+      ttsInFlightRef.current.set(key, p)
+      return await p
+    },
+    [
+      timeline,
+      voiceTemplate,
+      buildSceneMarkup,
+      makeTtsKey,
+      getMp3DurationSec,
+      setSceneDurationFromAudio,
+    ]
+  )
+
+  const prefetchWindow = useCallback(
+    (baseIndex: number) => {
+      if (!timeline) return
+      if (!voiceTemplate) return
+
+      ttsAbortRef.current?.abort()
+      const controller = new AbortController()
+      ttsAbortRef.current = controller
+
+      const candidates = [baseIndex + 1, baseIndex + 2].filter(
+        (i) => i >= 0 && i < timeline.scenes.length
+      )
+
+      // 간단 동시성 제한: 2개까지만 (현재 창 +2)
+      candidates.forEach((i) => {
+        ensureSceneTts(i, controller.signal).catch(() => {})
+      })
+    },
+    [timeline, voiceTemplate, ensureSceneTts]
+  )
   
   // isPlaying 상태와 ref 동기화
   useEffect(() => {
@@ -866,7 +1078,6 @@ export default function Step4Page() {
       // 현재 씬의 스프라이트가 로드되었는지 확인
       const currentSprite = spritesRef.current.get(currentSceneIndex)
       if (!currentSprite) {
-        console.warn(`[handlePlayPause] 현재 씬의 스프라이트가 로드되지 않음 - sceneIndex: ${currentSceneIndex}, 로드된 씬: ${Array.from(spritesRef.current.keys())}`)
         // 스프라이트가 없으면 로드 시도
         if (pixiReady && appRef.current && containerRef.current && timeline) {
           loadAllScenes().then(() => {
@@ -907,7 +1118,7 @@ export default function Step4Page() {
         
         const sceneIndex = currentIndex
         const scene = timeline.scenes[sceneIndex]
-        const sceneDuration = scene.duration
+        const fallbackSceneDuration = scene.duration
         
         // 씬 선택 및 렌더링 (씬 클릭할 때와 똑같이 - skipStopPlaying: true로 재생 중지만 방지)
         // handleSceneSelect가 씬을 캔버스에 렌더링하고 전환 효과를 적용함
@@ -918,29 +1129,72 @@ export default function Step4Page() {
           // #region agent log
           fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:884',message:'전환 효과 완료 콜백 실행',data:{sceneIndex,currentIndex,isPlayingRef:isPlayingRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
           // #endregion
-          // 전환 효과 완료 후 씬 duration만큼 대기하고 다음 씬으로
           const nextIndex = currentIndex + 1
-          if (nextIndex < timeline.scenes.length) {
-            // 다음 씬이 있으면 duration 후 다음 씬으로 이동
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:888',message:'다음 씬으로 넘어가기 위해 setTimeout 설정',data:{currentIndex,nextIndex,sceneDuration},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-            // #endregion
-          playTimeoutRef.current = setTimeout(() => {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:891',message:'setTimeout 콜백 실행, playNextScene 재호출',data:{nextIndex,isPlayingRef:isPlayingRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-              // #endregion
-              currentIndex = nextIndex
-            if (isPlayingRef.current) {
-              playNextScene()
-            }
-          }, sceneDuration * 1000)
-        } else {
-          // 마지막 씬이 끝나면 재생 종료
-          playTimeoutRef.current = setTimeout(() => {
-            setIsPlaying(false)
-            isPlayingRef.current = false
-          }, sceneDuration * 1000)
-        }
+          const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
+
+          // TTS: 현재 씬 오디오를 재생하고, 오디오 길이에 맞춰 다음 씬 타이밍을 결정
+          // (프리페치가 되어 있으면 즉시 재생/즉시 길이 확보)
+          ensureSceneTts(sceneIndex)
+            .then(({ blob, durationSec }) => {
+              // 오디오 재생
+              stopTtsAudio()
+              const url = URL.createObjectURL(blob)
+              ttsAudioUrlRef.current = url
+              const audio = new Audio(url)
+              audio.playbackRate = speed
+              ttsAudioRef.current = audio
+              audio.onended = () => stopTtsAudio()
+              audio.play().catch(() => {})
+
+              // 다음 2개 씬 프리페치(+2)
+              prefetchWindow(sceneIndex)
+
+              const sceneDuration = durationSec > 0 ? durationSec : fallbackSceneDuration
+              const waitTime = (sceneDuration * 1000) / speed
+
+              if (nextIndex < timeline.scenes.length) {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:888',message:'다음 씬으로 넘어가기 위해 setTimeout 설정',data:{currentIndex,nextIndex,sceneDuration,speed,waitTime},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                // #endregion
+                playTimeoutRef.current = setTimeout(() => {
+                  // #region agent log
+                  fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'step4/page.tsx:891',message:'setTimeout 콜백 실행, playNextScene 재호출',data:{nextIndex,isPlayingRef:isPlayingRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                  // #endregion
+                  currentIndex = nextIndex
+                  if (isPlayingRef.current) {
+                    playNextScene()
+                  }
+                }, waitTime)
+              } else {
+                // 마지막 씬이 끝나면 재생 종료
+                playTimeoutRef.current = setTimeout(() => {
+                  setIsPlaying(false)
+                  isPlayingRef.current = false
+                  resetTtsSession()
+                }, waitTime)
+              }
+            })
+            .catch(() => {
+              // TTS 실패 시에도 기존 duration으로 재생 흐름은 유지
+              prefetchWindow(sceneIndex)
+              const sceneDuration = fallbackSceneDuration
+              const waitTime = (sceneDuration * 1000) / speed
+
+              if (nextIndex < timeline.scenes.length) {
+                playTimeoutRef.current = setTimeout(() => {
+                  currentIndex = nextIndex
+                  if (isPlayingRef.current) {
+                    playNextScene()
+                  }
+                }, waitTime)
+              } else {
+                playTimeoutRef.current = setTimeout(() => {
+                  setIsPlaying(false)
+                  isPlayingRef.current = false
+                  resetTtsSession()
+                }, waitTime)
+              }
+            })
         })
       }
       
@@ -955,6 +1209,7 @@ export default function Step4Page() {
       }
       setIsPlaying(false)
       isPlayingRef.current = false
+      resetTtsSession()
     }
   }
   
@@ -999,7 +1254,6 @@ export default function Step4Page() {
       }
     })
     if (hasActiveAnimation) {
-      console.log(`[useEffect] 전환 효과 진행 중 - skipAnimation 호출 무시`)
       return
     }
     
@@ -1042,12 +1296,175 @@ export default function Step4Page() {
     setPlaybackSpeed,
   })
 
+  // 씬 분할: 같은 이미지로 유지하면서 스크립트를 문장 단위로 나누어 여러 프레임으로 분리
+  const handleSceneSplit = useCallback(
+    (index: number) => {
+      if (!timeline || scenes.length === 0) return
+
+      const targetSceneScript = scenes[index]
+      const targetTimelineScene = timeline.scenes[index]
+
+      const { sceneScripts: splitScripts, timelineScenes: splitTimelineScenes } =
+        splitSceneBySentences({
+          sceneScript: targetSceneScript,
+          timelineScene: targetTimelineScene,
+        })
+
+      // 분할 불가(문장 1개 이하)이면 아무 것도 하지 않음
+      if (splitScripts.length <= 1) {
+        return
+      }
+
+      // scenes 배열 재구성 (기존 하나를 분할된 여러 개로 교체)
+      // 분할된 씬들은 원본 sceneId를 유지하고 splitIndex를 가지므로 sceneId 재할당 불필요
+      const newScenes = [
+        ...scenes.slice(0, index),
+        ...splitScripts,
+        ...scenes.slice(index + 1),
+      ]
+
+      // timeline.scenes 배열도 동일하게 분할/재구성
+      // 분할된 씬들은 원본 sceneId를 유지
+      const newTimelineScenes = [
+        ...timeline.scenes.slice(0, index),
+        ...splitTimelineScenes,
+        ...timeline.scenes.slice(index + 1),
+      ]
+
+      setScenes(newScenes)
+      setTimeline({
+        ...timeline,
+        scenes: newTimelineScenes,
+      })
+    },
+    [scenes, timeline, setScenes, setTimeline]
+  )
+
+  // 씬 삭제
+  const handleSceneDelete = useCallback(
+    (index: number) => {
+      if (!timeline || scenes.length <= 1) {
+        alert('최소 1개의 씬이 필요합니다.')
+        return
+      }
+
+      // scenes 배열에서 삭제
+      const newScenes = scenes
+        .filter((_, i) => i !== index)
+        .map((scene, i) => ({
+          ...scene,
+          sceneId: i + 1, // sceneId 재할당
+        }))
+
+      // timeline.scenes 배열에서도 삭제
+      const newTimelineScenes = timeline.scenes
+        .filter((_, i) => i !== index)
+        .map((scene, i) => ({
+          ...scene,
+          sceneId: i + 1,
+        }))
+
+      setScenes(newScenes)
+      setTimeline({
+        ...timeline,
+        scenes: newTimelineScenes,
+      })
+
+      // 현재 선택된 씬 인덱스 조정
+      if (currentSceneIndex >= newScenes.length) {
+        // 삭제된 씬이 마지막이었으면 이전 씬 선택
+        setCurrentSceneIndex(Math.max(0, newScenes.length - 1))
+        currentSceneIndexRef.current = Math.max(0, newScenes.length - 1)
+      } else if (currentSceneIndex === index) {
+        // 삭제된 씬이 현재 선택된 씬이면 다음 씬 선택 (없으면 이전 씬)
+        setCurrentSceneIndex(Math.min(index, newScenes.length - 1))
+        currentSceneIndexRef.current = Math.min(index, newScenes.length - 1)
+      }
+    },
+    [scenes, timeline, currentSceneIndex, setScenes, setTimeline, setCurrentSceneIndex]
+  )
+
+  // 씬 복사
+  const handleSceneDuplicate = useCallback(
+    (index: number) => {
+      if (!timeline || scenes.length === 0) return
+
+      const targetSceneScript = scenes[index]
+      const targetTimelineScene = timeline.scenes[index]
+
+      // 복제된 씬 생성 (index + 1 위치에 삽입)
+      const duplicatedSceneScript: SceneScript = {
+        ...targetSceneScript,
+        sceneId: index + 2, // 임시 ID (재할당 예정)
+      }
+
+      const duplicatedTimelineScene: TimelineScene = {
+        ...targetTimelineScene,
+        sceneId: index + 2, // 임시 ID (재할당 예정)
+      }
+
+      // scenes 배열에 삽입
+      const newScenes = [
+        ...scenes.slice(0, index + 1),
+        duplicatedSceneScript,
+        ...scenes.slice(index + 1),
+      ].map((scene, i) => ({
+        ...scene,
+        sceneId: i + 1, // sceneId 재할당
+      }))
+
+      // timeline.scenes 배열에도 삽입
+      const newTimelineScenes = [
+        ...timeline.scenes.slice(0, index + 1),
+        duplicatedTimelineScene,
+        ...timeline.scenes.slice(index + 1),
+      ].map((scene, i) => ({
+        ...scene,
+        sceneId: i + 1,
+      }))
+
+      setScenes(newScenes)
+      setTimeline({
+        ...timeline,
+        scenes: newTimelineScenes,
+      })
+
+      // 복제된 씬을 선택
+      setCurrentSceneIndex(index + 1)
+      currentSceneIndexRef.current = index + 1
+    },
+    [scenes, timeline, setScenes, setTimeline, setCurrentSceneIndex]
+  )
+
   // 전환 효과 변경 핸들러 래핑: currentSceneIndexRef를 먼저 설정
   const handleSceneTransitionChange = useCallback((index: number, value: string) => {
     // currentSceneIndexRef를 먼저 설정하여 updateCurrentScene이 올바른 씬 인덱스를 사용하도록 함
     currentSceneIndexRef.current = index
     originalHandleSceneTransitionChange(index, value)
   }, [originalHandleSceneTransitionChange])
+
+  // 씬 순서 변경 핸들러
+  const handleSceneReorder = useCallback((newOrder: number[]) => {
+    if (!timeline) return
+
+    // scenes 배열 재정렬
+    const reorderedScenes = newOrder.map((oldIndex) => scenes[oldIndex])
+    setScenes(reorderedScenes)
+
+    // timeline의 scenes도 재정렬
+    const reorderedTimelineScenes = newOrder.map((oldIndex) => timeline.scenes[oldIndex])
+    setTimeline({
+      ...timeline,
+      scenes: reorderedTimelineScenes,
+    })
+
+    // 현재 선택된 씬 인덱스 업데이트
+    const currentOldIndex = newOrder.indexOf(currentSceneIndex)
+    if (currentOldIndex !== -1) {
+      setCurrentSceneIndex(currentOldIndex)
+      currentSceneIndexRef.current = currentOldIndex
+    }
+  }, [scenes, timeline, currentSceneIndex, setScenes, setTimeline, setCurrentSceneIndex])
 
   // PixiJS 컨테이너에 빈 공간 클릭 감지 추가
   useEffect(() => {
@@ -1522,6 +1939,7 @@ export default function Step4Page() {
 
   // 전환 효과 한글 매핑
   const transitionLabels: Record<string, string> = {
+    'none': '없음',
     'fade': '페이드',
     'slide-left': '슬라이드 좌',
     'slide-right': '슬라이드 우',
@@ -1538,6 +1956,7 @@ export default function Step4Page() {
 
   // 모든 전환 효과 옵션
   const allTransitions = [
+    { value: 'none', label: '없음' },
     { value: 'fade', label: '페이드' },
     { value: 'slide-left', label: '슬라이드 좌' },
     { value: 'slide-right', label: '슬라이드 우' },
@@ -1573,10 +1992,20 @@ export default function Step4Page() {
         },
       }
 
+      // JSON 바디 확인용 로그
+      console.log('=== 인코딩 요청 JSON 바디 ===')
+      console.log(JSON.stringify(exportData, null, 2))
+      console.log('===========================')
+
       // API 엔드포인트로 전송
+      const accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        throw new Error('로그인이 필요합니다.')
+      }
+
       const response = await fetch('/api/videos/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify(exportData),
       })
 
@@ -1596,7 +2025,23 @@ export default function Step4Page() {
   }
 
   const sceneThumbnails = useMemo(
-    () => scenes.map((scene, index) => scene.imageUrl || selectedImages[index] || ''),
+    () => scenes.map((scene, index) => {
+      const url = scene.imageUrl || selectedImages[index] || ''
+      if (!url) return ''
+      
+      // URL 검증 및 수정
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        return url
+      }
+      if (url.startsWith('//')) {
+        return `https:${url}`
+      }
+      if (url.startsWith('/')) {
+        return url // 상대 경로는 그대로 사용
+      }
+      // 잘못된 URL인 경우 기본 placeholder 반환
+      return `https://via.placeholder.com/200x200/a78bfa/ffffff?text=Scene${index + 1}`
+    }),
     [scenes, selectedImages]
   )
 
@@ -1979,6 +2424,10 @@ export default function Step4Page() {
               onSelect={handleSceneSelect}
               onScriptChange={handleSceneScriptChange}
               onImageFitChange={handleSceneImageFitChange}
+              onReorder={handleSceneReorder}
+              onSplitScene={handleSceneSplit}
+              onDeleteScene={handleSceneDelete}
+              onDuplicateScene={handleSceneDuplicate}
             />
           </div>
         </div>

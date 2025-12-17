@@ -4,6 +4,7 @@ import * as fabric from 'fabric'
 import { gsap } from 'gsap'
 import { TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
 import { calculateSpriteParams } from '@/utils/pixi'
+import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 
 interface UseSceneManagerParams {
   // Refs
@@ -87,8 +88,6 @@ export const useSceneManager = ({
     
     // 스프라이트가 없으면 경고 로그 출력
     if (!currentSprite) {
-      console.warn(`[updateCurrentScene] currentSprite가 없음 - sceneIndex: ${sceneIndex}, spritesRef.size: ${spritesRef.current.size}`)
-      console.warn(`[updateCurrentScene] 로드된 씬 인덱스:`, Array.from(spritesRef.current.keys()))
     }
 
       // 애니메이션 스킵 시 즉시 표시
@@ -175,11 +174,75 @@ export const useSceneManager = ({
     
     // 현재 씬 등장 효과 적용
     if (currentSprite) {
-      const transition = forceTransition || currentScene.transition || 'fade'
-      const transitionDuration = currentScene.transitionDuration || 1.0
+      const transition = forceTransition || currentScene.transition || 'none'
+      const transitionDuration =
+        transition === 'none'
+          ? 0
+          : currentScene.transitionDuration && currentScene.transitionDuration > 0
+            ? currentScene.transitionDuration
+            : 0.5
       const { width, height } = stageDimensions
-
-      console.log(`[updateCurrentScene] 전환 효과 적용 - sceneIndex: ${sceneIndex}, transition: ${transition}, duration: ${transitionDuration}, previousIndex: ${previousIndex}`)
+      
+      // transition이 'none'이면 애니메이션 없이 즉시 표시
+      if (transition === 'none') {
+        // 이전 씬 숨기기
+        if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
+          previousSprite.visible = false
+          previousSprite.alpha = 0
+        }
+        if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
+          previousText.visible = false
+          previousText.alpha = 0
+        }
+        
+        // 다른 씬들 숨기기
+        spritesRef.current.forEach((sprite, idx) => {
+          if (sprite && idx !== sceneIndex) {
+            sprite.visible = false
+            sprite.alpha = 0
+          }
+        })
+        textsRef.current.forEach((text, idx) => {
+          if (text && idx !== sceneIndex) {
+            text.visible = false
+            text.alpha = 0
+          }
+        })
+        
+        // 현재 씬 즉시 표시
+        if (currentSprite.parent !== containerRef.current) {
+          if (currentSprite.parent) {
+            currentSprite.parent.removeChild(currentSprite)
+          }
+          containerRef.current.addChild(currentSprite)
+        }
+        currentSprite.visible = true
+        currentSprite.alpha = 1
+        
+        if (currentText) {
+          if (currentText.parent !== containerRef.current) {
+            if (currentText.parent) {
+              currentText.parent.removeChild(currentText)
+            }
+            containerRef.current.addChild(currentText)
+          }
+          currentText.visible = true
+          currentText.alpha = 1
+        }
+        
+        if (appRef.current) {
+          appRef.current.render()
+        }
+        
+        previousSceneIndexRef.current = sceneIndex
+        
+        // onComplete 콜백 호출
+        if (onAnimationComplete) {
+          onAnimationComplete(sceneIndex)
+        }
+        
+        return
+      }
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:139',message:'전환 효과 적용',data:{sceneIndex,transition,transitionDuration,skipAnimation:false,previousIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
@@ -204,7 +267,6 @@ export const useSceneManager = ({
           currentSprite.parent.removeChild(currentSprite)
         }
         containerRef.current.addChild(currentSprite)
-        console.log(`[updateCurrentScene] 스프라이트를 컨테이너에 추가 - sceneIndex: ${sceneIndex}`)
       }
       
       if (currentText && currentText.parent !== containerRef.current) {
@@ -212,7 +274,6 @@ export const useSceneManager = ({
           currentText.parent.removeChild(currentText)
         }
         containerRef.current.addChild(currentText)
-        console.log(`[updateCurrentScene] 텍스트를 컨테이너에 추가 - sceneIndex: ${sceneIndex}`)
       }
       
       // 2. 모든 다른 씬들 숨기기 (검은 캔버스에서 시작하기 위해)
@@ -252,16 +313,13 @@ export const useSceneManager = ({
       
       // 고급 효과 적용 후에도 스프라이트가 컨테이너에 있는지 확인
       if (!currentSprite.parent && containerRef.current) {
-        console.warn(`[updateCurrentScene] 고급 효과 적용 후 스프라이트가 컨테이너에 없음 - scene: ${sceneIndex}, 강제 추가`)
         containerRef.current.addChild(currentSprite)
       }
       if (currentText && !currentText.parent && containerRef.current) {
-        console.warn(`[updateCurrentScene] 고급 효과 적용 후 텍스트가 컨테이너에 없음 - scene: ${sceneIndex}, 강제 추가`)
         containerRef.current.addChild(currentText)
       }
 
       // 전환 효과 적용
-      console.log(`[updateCurrentScene] applyEnterEffect 호출 - sceneIndex: ${sceneIndex}, sprite visible: ${currentSprite.visible}, sprite alpha: ${currentSprite.alpha}, sprite parent: ${currentSprite.parent !== null}`)
       // applyEnterEffect에서 초기 상태 설정 후 렌더링하므로 여기서는 렌더링하지 않음
       // onAnimationComplete가 전달되면 Timeline 완료 시 호출됨
       const wrappedOnComplete = onAnimationComplete ? () => {
@@ -274,7 +332,6 @@ export const useSceneManager = ({
             prevSprite.visible = false
             prevSprite.alpha = 0
             // 컨테이너에서 제거하지 않음 (나중에 다시 사용할 수 있으므로)
-            console.log(`[updateCurrentScene] 전환 효과 완료 - 이전 씬 숨김 - previousIndex: ${previousIndex}`)
           }
           
           if (prevText) {
@@ -348,7 +405,6 @@ export const useSceneManager = ({
       
       applyEnterEffect(currentSprite, currentText || null, transition, transitionDuration, width, height, sceneIndex, applyAdvancedEffects, forceTransition, wrappedOnComplete, previousIndex)
     } else {
-      console.warn(`[updateCurrentScene] currentSprite가 없음 - sceneIndex: ${sceneIndex}`)
       // 스프라이트가 없으면 즉시 표시
       spritesRef.current.forEach((sprite, index) => {
         if (sprite?.parent) {
@@ -433,16 +489,18 @@ export const useSceneManager = ({
       const angleDeg = (transform?.rotation || 0) * (180 / Math.PI)
       const baseFontSize = scene.text.fontSize || 32
       const scaledFontSize = baseFontSize * scale
+      const fontFamily = resolveSubtitleFontFamily(scene.text.font)
+      const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
       
       const textObj = new fabric.Textbox(scene.text.content, {
         left: (transform?.x ?? width / 2) * scale,
         top: (transform?.y ?? height * 0.9) * scale,
         originX: 'center',
         originY: 'center',
-        fontFamily: scene.text.font || 'Arial',
+        fontFamily,
         fontSize: scaledFontSize,
         fill: scene.text.color || '#ffffff',
-        fontWeight: scene.text.style?.bold ? 'bold' : 'normal',
+        fontWeight,
         fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
         underline: scene.text.style?.underline || false,
         textAlign: scene.text.style?.align || 'center',
@@ -516,12 +574,14 @@ export const useSceneManager = ({
         spritesRef.current.set(sceneIndex, sprite)
 
         if (scene.text?.content) {
+          const fontFamily = resolveSubtitleFontFamily(scene.text.font)
+          const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
           const textStyle = new PIXI.TextStyle({
-            fontFamily: scene.text.font || 'Arial',
+            fontFamily,
             fontSize: scene.text.fontSize || 32,
             fill: scene.text.color || '#ffffff',
             align: scene.text.style?.align || 'center',
-            fontWeight: scene.text.style?.bold ? 'bold' : 'normal',
+            fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
             fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
             dropShadow: {
               color: '#000000',

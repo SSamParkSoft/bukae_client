@@ -1,4 +1,6 @@
-import { GripVertical } from 'lucide-react'
+import { useState } from 'react'
+import { GripVertical, Copy, Trash2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import type { TimelineData, SceneScript } from '@/store/useVideoCreateStore'
 
 interface SceneListProps {
@@ -10,7 +12,11 @@ interface SceneListProps {
   onSelect: (index: number) => void
   onScriptChange: (index: number, value: string) => void
   onImageFitChange: (index: number, fit: 'cover' | 'contain' | 'fill') => void
+  onReorder: (newOrder: number[]) => void
   transitionLabels: Record<string, string>
+  onSplitScene?: (index: number) => void
+  onDeleteScene?: (index: number) => void
+  onDuplicateScene?: (index: number) => void
 }
 
 export function SceneList({
@@ -22,8 +28,55 @@ export function SceneList({
   onSelect,
   onScriptChange,
   onImageFitChange,
+  onReorder,
   transitionLabels,
+  onSplitScene,
+  onDeleteScene,
+  onDuplicateScene,
 }: SceneListProps) {
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
+
+  // 드래그 시작
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index)
+  }
+
+  // 드롭 위치 계산
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>, index: number) => {
+    event.preventDefault()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const offsetY = event.clientY - rect.top
+    const position: 'before' | 'after' = offsetY < rect.height / 2 ? 'before' : 'after'
+    setDragOver({ index, position })
+  }
+
+  // 드롭
+  const handleDrop = (event?: React.DragEvent<HTMLDivElement>) => {
+    event?.preventDefault()
+    if (draggedIndex === null || !dragOver) return
+
+    const newOrder = scenes.map((_, idx) => idx)
+    const [removed] = newOrder.splice(draggedIndex, 1)
+
+    let targetIndex = dragOver.position === 'after' ? dragOver.index + 1 : dragOver.index
+    if (draggedIndex < targetIndex) {
+      targetIndex -= 1
+    }
+
+    newOrder.splice(targetIndex, 0, removed)
+    onReorder(newOrder)
+
+    setDraggedIndex(null)
+    setDragOver(null)
+  }
+
+  // 드래그 종료
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+    setDragOver(null)
+  }
+
   if (scenes.length === 0) {
     return (
       <div
@@ -37,40 +90,58 @@ export function SceneList({
 
   return (
     <div className="space-y-3">
-      {scenes.map((scene, index) => {
-        const isActive = currentSceneIndex === index
-        const sceneData = timeline?.scenes[index]
-
-        return (
+      {scenes.map((scene, index) => (
+        <div key={scene.splitIndex ? `${scene.sceneId}-${scene.splitIndex}` : scene.sceneId ?? index}>
+          {dragOver && dragOver.index === index && dragOver.position === 'before' && (
+            <div className="h-0.5 bg-blue-500 rounded-full" />
+          )}
           <div
-            key={scene.sceneId ?? index}
-            className="rounded-lg border p-3 cursor-pointer transition-colors"
-            style={{
-              borderColor: isActive
-                ? '#8b5cf6'
-                : theme === 'dark'
-                  ? '#374151'
-                  : '#e5e7eb',
-              backgroundColor: isActive
-                ? theme === 'dark'
-                  ? '#3b1f5f'
-                  : '#f3e8ff'
-                : theme === 'dark'
-                  ? '#1f2937'
-                  : '#ffffff',
-            }}
+            draggable
+            onDragStart={() => handleDragStart(index)}
+            onDragOver={(e) => handleDragOver(e, index)}
+            onDrop={handleDrop}
+            onDragLeave={() => setDragOver(null)}
+            onDragEnd={handleDragEnd}
+            className={`rounded-lg border p-3 transition-all ${
+              draggedIndex === index
+                ? 'opacity-50 border-purple-500'
+                : currentSceneIndex === index
+                  ? theme === 'dark'
+                    ? 'border-purple-500 bg-purple-900/20'
+                    : 'border-purple-500 bg-purple-50'
+                  : theme === 'dark'
+                    ? 'border-gray-700 bg-gray-900 hover:border-purple-500'
+                    : 'border-gray-200 bg-white hover:border-purple-500'
+            }`}
             onClick={() => onSelect(index)}
           >
             <div className="flex gap-3">
               {/* 썸네일 */}
               <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-200 shrink-0">
-                {sceneThumbnails[index] && (
-                  <img
-                    src={sceneThumbnails[index] as string}
-                    alt={`Scene ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                )}
+                {sceneThumbnails[index] && (() => {
+                  const thumbnailUrl = sceneThumbnails[index] as string
+                  // URL 검증 및 수정
+                  const validUrl = thumbnailUrl.startsWith('http://') || thumbnailUrl.startsWith('https://')
+                    ? thumbnailUrl
+                    : thumbnailUrl.startsWith('//')
+                    ? `https:${thumbnailUrl}`
+                    : thumbnailUrl.startsWith('/')
+                    ? thumbnailUrl
+                    : `https://via.placeholder.com/200x200/a78bfa/ffffff?text=Scene${index + 1}`
+                  
+                  return (
+                    <img
+                      src={validUrl}
+                      alt={`Scene ${index + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // 이미지 로드 실패 시 기본 placeholder 사용
+                        const target = e.target as HTMLImageElement
+                        target.src = `https://via.placeholder.com/200x200/a78bfa/ffffff?text=Scene${index + 1}`
+                      }}
+                    />
+                  )
+                })()}
               </div>
 
               {/* 씬 정보 */}
@@ -78,15 +149,66 @@ export function SceneList({
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <GripVertical
-                      className="w-4 h-4"
-                      style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}
+                      className={`w-5 h-5 cursor-move ${
+                        theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                      }`}
                     />
                     <span
                       className="text-sm font-semibold"
                       style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
                     >
-                      씬 {index + 1}
+                      {scene.splitIndex
+                        ? `씬 ${scene.sceneId}-${scene.splitIndex}`
+                        : `씬 ${scene.sceneId}`}
                     </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {onSplitScene && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="text-[11px] px-2 py-0 h-6"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onSplitScene(index)
+                        }}
+                      >
+                        자막 씬 분할
+                      </Button>
+                    )}
+                    {onDuplicateScene && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="text-[11px] px-2 py-0 h-6"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDuplicateScene(index)
+                        }}
+                        title="씬 복사"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                    )}
+                    {onDeleteScene && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="text-[11px] px-2 py-0 h-6 text-red-500 hover:text-red-600 hover:border-red-500"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (confirm('이 씬을 삭제하시겠습니까?')) {
+                            onDeleteScene(index)
+                          }
+                        }}
+                        title="씬 삭제"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -95,6 +217,7 @@ export function SceneList({
                   rows={2}
                   value={scene.script}
                   onChange={(e) => onScriptChange(index, e.target.value)}
+                  onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
                   className="w-full text-sm rounded-md border px-2 py-1 resize-none mb-2"
                   style={{
@@ -115,11 +238,12 @@ export function SceneList({
                       color: theme === 'dark' ? '#9ca3af' : '#6b7280',
                     }}
                   >
-                    {transitionLabels[sceneData?.transition || 'fade'] || '페이드'}
+                    {transitionLabels[timeline?.scenes[index]?.transition || 'none'] || '없음'}
                   </span>
                   <select
-                    value={sceneData?.imageFit || 'fill'}
+                    value={timeline?.scenes[index]?.imageFit || 'fill'}
                     onChange={(e) => onImageFitChange(index, e.target.value as 'cover' | 'contain' | 'fill')}
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                     className="px-2 py-1 rounded border text-xs"
                     style={{
@@ -136,9 +260,13 @@ export function SceneList({
               </div>
             </div>
           </div>
-        )
-      })}
+          {dragOver && dragOver.index === index && dragOver.position === 'after' && (
+            <div className="h-0.5 bg-blue-500 rounded-full" />
+          )}
+        </div>
+      ))}
     </div>
   )
 }
+
 

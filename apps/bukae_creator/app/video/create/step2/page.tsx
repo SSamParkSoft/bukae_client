@@ -3,14 +3,14 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowRight, ChevronDown, Camera, Bot } from 'lucide-react'
+import { ArrowRight, ChevronDown, Camera, Bot, MessageSquare, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore, type CreationMode } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
-import { conceptOptions, conceptTones, type ConceptType } from '@/lib/data/templates'
+import { conceptOptions, conceptTones, toneExamples, type ConceptType } from '@/lib/data/templates'
 
 export default function Step2Page() {
   const router = useRouter()
@@ -26,6 +26,8 @@ export default function Step2Page() {
   const [expandedConceptId, setExpandedConceptId] = useState<ConceptType | null>(null)
   const [selectedScriptStyle, setSelectedScriptStyle] = useState<ConceptType | null>(scriptStyle)
   const [selectedTone, setSelectedTone] = useState<string | null>(tone)
+  const [isStyleConfirmed] = useState(false)
+  const [expandedToneId, setExpandedToneId] = useState<string | null>(null)
 
   // 제작 방식 선택
   const handleModeSelect = (mode: CreationMode) => {
@@ -34,6 +36,8 @@ export default function Step2Page() {
 
   // 대본 스타일 선택
   const handleScriptStyleSelect = (concept: ConceptType, toneId: string) => {
+    if (isStyleConfirmed) return
+
     const isSameSelection = selectedScriptStyle === concept && selectedTone === toneId
 
     if (isSameSelection) {
@@ -55,8 +59,29 @@ export default function Step2Page() {
 
   // 토글 열기
   const handleConceptToggle = (conceptId: ConceptType) => {
+    if (isStyleConfirmed) return
     setExpandedConceptId((prev) => (prev === conceptId ? null : conceptId))
   }
+
+  // 톤 예시 토글
+  const handleToneExampleToggle = (e: React.MouseEvent, toneId: string) => {
+    e.stopPropagation()
+    setExpandedToneId((prev) => (prev === toneId ? null : toneId))
+  }
+
+  // const handleConfirmStyle = () => {
+  //   if (!selectedScriptStyle || !selectedTone) {
+  //     alert('대본 스타일과 말투를 선택해주세요.')
+  //     return
+  //   }
+  //   setIsStyleConfirmed(true)
+  //   setExpandedConceptId(null)
+  // }
+
+  // const handleCancelConfirm = () => {
+  //   setIsStyleConfirmed(false)
+  //   setExpandedConceptId(selectedScriptStyle)
+  // }
 
   // 다음 단계로 이동
   const handleNext = () => {
@@ -204,14 +229,13 @@ export default function Step2Page() {
                   return (
                     <Card
                       key={conceptOption.id}
-                      aria-disabled={isDimmed || undefined}
                       className={`transition-all ${
                         cardBaseClass
-                      } ${isDimmed ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}
+                      } ${isDimmed ? 'opacity-40' : ''}`}
                     >
                       <CardHeader
                         onClick={() => handleConceptToggle(conceptOption.id)}
-                        className="cursor-pointer"
+                      className={`cursor-pointer ${isStyleConfirmed ? 'pointer-events-none' : ''}`}
                       >
                         <div className="flex items-center justify-between">
                           <div>
@@ -242,23 +266,79 @@ export default function Step2Page() {
                       {expandedConceptId === conceptOption.id && (
                         <CardContent>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            {tones.map((toneOption) => (
-                              <Button
-                                key={toneOption.id}
-                                variant="outline"
-                                onClick={() => handleScriptStyleSelect(conceptOption.id, toneOption.id)}
-                                className={`justify-start ${
-                                  selectedScriptStyle === conceptOption.id && selectedTone === toneOption.id
-                                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                                    : ''
-                                }`}
-                              >
-                                <span className="flex-1 text-left">{toneOption.label}</span>
-                                <Badge variant={toneOption.tier === 'LIGHT' ? 'default' : 'secondary'} className="ml-2">
-                                  {toneOption.tier}
-                                </Badge>
-                              </Button>
-                            ))}
+                            {tones.map((toneOption) => {
+                              const isToneSelected = selectedScriptStyle === conceptOption.id && selectedTone === toneOption.id
+                              const isExampleExpanded = expandedToneId === toneOption.id
+                              const exampleText = toneExamples[toneOption.id] || '예시 텍스트가 준비 중입니다.'
+                              return (
+                                <div key={toneOption.id} className="space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleToneExampleToggle(e, toneOption.id)}
+                                      className={`p-1.5 rounded transition-colors ${
+                                        isExampleExpanded
+                                          ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                                          : theme === 'dark'
+                                            ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-900/20'
+                                            : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50'
+                                      }`}
+                                      disabled={isStyleConfirmed}
+                                    >
+                                      <MessageSquare className="w-4 h-4" />
+                                    </button>
+                                    <Button
+                                      variant="outline"
+                                      disabled={isStyleConfirmed}
+                                      onClick={() => handleScriptStyleSelect(conceptOption.id, toneOption.id)}
+                                      className={`flex-1 justify-start ${
+                                        isToneSelected
+                                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                                          : ''
+                                      }`}
+                                    >
+                                      <span className="flex-1 text-left">{toneOption.label}</span>
+                                      <Badge variant={toneOption.tier === 'LIGHT' ? 'default' : 'secondary'} className="ml-2">
+                                        {toneOption.tier}
+                                      </Badge>
+                                    </Button>
+                                  </div>
+                                  {isExampleExpanded && (
+                                    <motion.div
+                                      initial={{ opacity: 0, height: 0 }}
+                                      animate={{ opacity: 1, height: 'auto' }}
+                                      exit={{ opacity: 0, height: 0 }}
+                                      className={`rounded-lg border p-4 ${
+                                        theme === 'dark'
+                                          ? 'bg-gray-800 border-gray-700'
+                                          : 'bg-blue-50 border-blue-200'
+                                      }`}
+                                    >
+                                      <div className="flex items-start justify-between mb-2">
+                                        <span className={`text-sm font-semibold ${
+                                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                        }`}>
+                                          {conceptOption.label}
+                                        </span>
+                                        <button
+                                          onClick={(e) => handleToneExampleToggle(e, toneOption.id)}
+                                          className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 ${
+                                            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                          }`}
+                                        >
+                                          <X className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                      <p className={`text-sm whitespace-pre-line ${
+                                        theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                                      }`}>
+                                        {exampleText}
+                                      </p>
+                                    </motion.div>
+                                  )}
+                                </div>
+                              )
+                            })}
                           </div>
                         </CardContent>
                       )}
@@ -273,8 +353,9 @@ export default function Step2Page() {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="flex justify-end pt-4"
+                className="flex items-center justify-end pt-4 gap-3 flex-wrap"
               >
+
                 <Button
                   onClick={handleNext}
                   size="lg"

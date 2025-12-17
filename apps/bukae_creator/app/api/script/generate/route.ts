@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 import type { ConceptType } from '@/lib/data/templates'
+import { requireUser } from '@/lib/api/route-guard'
+import { enforceRateLimit } from '@/lib/api/rate-limit'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export interface GenerateScriptRequest {
   scriptStyle: ConceptType
@@ -98,6 +103,12 @@ function generateDummyScenes(
 
 export async function POST(request: Request) {
   try {
+    const auth = await requireUser(request)
+    if (auth instanceof NextResponse) return auth
+
+    const rl = await enforceRateLimit(request, { endpoint: 'script:generate', userId: auth.userId })
+    if (rl instanceof NextResponse) return rl
+
     const body: GenerateScriptRequest = await request.json()
 
     const { scriptStyle, tone, images, product } = body
@@ -122,7 +133,7 @@ export async function POST(request: Request) {
       scenes,
     }
 
-    return NextResponse.json(response)
+    return NextResponse.json(response, { headers: { ...(rl.headers ?? {}) } })
   } catch (error) {
     console.error('대본 생성 오류:', error)
     return NextResponse.json(

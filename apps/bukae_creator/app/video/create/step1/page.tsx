@@ -9,8 +9,6 @@ import { useThemeStore } from '../../../../store/useThemeStore'
 import StepIndicator from '../../../../components/StepIndicator'
 import SelectedProductsPanel from '../../../../components/SelectedProductsPanel'
 import { SPAEL_PRODUCT, isSpaelProduct } from '@/lib/data/spaelProduct'
-import { useProducts } from '@/lib/hooks/useProducts'
-import { transformProductResponseToProduct } from '@/lib/utils/product-transform'
 
 type ThemeMode = 'light' | 'dark'
 
@@ -229,18 +227,6 @@ export default function Step1Page() {
     clearProducts()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // API에서 상품 목록 가져오기
-  const { data: apiProducts, isLoading: isLoadingApi, error: apiError } = useProducts()
-  
-  // API 데이터를 Product 타입으로 변환
-  const apiProductsTransformed = useMemo(() => {
-    if (!apiProducts) return []
-    return apiProducts.map((p) => transformProductResponseToProduct(p, 'coupang'))
-  }, [apiProducts])
-
-  // 서버 미실행 시 더미 데이터 사용 (fallback)
-  const useDummyData = apiError !== null && apiError !== undefined
-
   const handleDragStart = (e: React.DragEvent, product: Product) => {
     e.dataTransfer.setData('application/json', JSON.stringify(product))
     e.dataTransfer.effectAllowed = 'move'
@@ -275,12 +261,11 @@ export default function Step1Page() {
   }
 
   const filteredProducts = useMemo(() => {
-    // API 데이터 사용 또는 더미 데이터 fallback
-    let products: Product[] = useDummyData
-      ? (selectedPlatform === 'all'
-          ? shuffleProducts(Object.values(dummyProducts).flat())
-          : dummyProducts[selectedPlatform])
-      : apiProductsTransformed
+    // 현재는 더미 데이터만 사용 (products API 제거)
+    let products: Product[] =
+      selectedPlatform === 'all'
+        ? shuffleProducts(Object.values(dummyProducts).flat())
+        : dummyProducts[selectedPlatform]
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
@@ -318,7 +303,7 @@ export default function Step1Page() {
     }
 
     return products
-  }, [selectedPlatform, searchQuery, useDummyData, apiProductsTransformed])
+  }, [selectedPlatform, searchQuery])
 
   const displayedProducts = useMemo(() => {
     return filteredProducts.slice(0, displayCount)
@@ -457,31 +442,6 @@ export default function Step1Page() {
           {/* 인기 제품 순위 - 모바일 뷰 */}
           <PopularProductsCard theme={theme} className="mb-8 lg:hidden" />
 
-          {/* 서버 연결 오류 알림 */}
-          {useDummyData && (
-            <div className={`mb-4 rounded-lg border p-4 flex items-center gap-3 ${
-              theme === 'dark'
-                ? 'bg-yellow-900/20 border-yellow-700'
-                : 'bg-yellow-50 border-yellow-200'
-            }`}>
-              <AlertCircle className={`w-5 h-5 ${
-                theme === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
-              }`} />
-              <div className="flex-1">
-                <p className={`text-sm font-medium ${
-                  theme === 'dark' ? 'text-yellow-300' : 'text-yellow-800'
-                }`}>
-                  서버에 연결할 수 없습니다
-                </p>
-                <p className={`text-xs mt-1 ${
-                  theme === 'dark' ? 'text-yellow-400' : 'text-yellow-700'
-                }`}>
-                  더미 데이터를 표시합니다. 백엔드 서버가 실행 중인지 확인해주세요.
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* 상품 그리드 */}
           <div className={`mb-8 rounded-lg shadow-sm border p-6 ${
             theme === 'dark'
@@ -494,12 +454,6 @@ export default function Step1Page() {
               }`}>
                 상품 목록 ({filteredProducts.length}개)
               </h2>
-              {isLoadingApi && (
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>로딩 중...</span>
-                </div>
-              )}
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {displayedProducts.map((product) => {

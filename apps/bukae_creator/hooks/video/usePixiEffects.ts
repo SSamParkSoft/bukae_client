@@ -11,6 +11,7 @@ interface UsePixiEffectsParams {
   activeAnimationsRef: React.MutableRefObject<Map<number, gsap.core.Timeline>>
   stageDimensions: { width: number; height: number }
   timeline: TimelineData | null
+  playbackSpeed?: number
   onAnimationComplete?: (sceneIndex: number) => void
 }
 
@@ -21,6 +22,7 @@ export const usePixiEffects = ({
   activeAnimationsRef,
   stageDimensions,
   timeline,
+  playbackSpeed = 1.0,
   onAnimationComplete,
 }: UsePixiEffectsParams) => {
   // 고급 효과 적용
@@ -86,9 +88,11 @@ export const usePixiEffects = ({
     applyAdvancedEffectsFn: (sprite: PIXI.Sprite, sceneIndex: number, effects?: TimelineScene['advancedEffects']) => void,
     forceTransition?: string,
     onComplete?: () => void,
-    previousIndex?: number | null // 추가
+    _previousIndex?: number | null // 추가 (현재 미사용, 향후 확장용)
   ) => {
-    const actualTransition = (forceTransition || transition || 'fade').trim().toLowerCase()
+    // 현재는 사용하지 않지만, 향후 이전 씬 정보 활용을 위해 자리 유지
+    void _previousIndex
+    const actualTransition = (forceTransition || transition || 'none').trim().toLowerCase()
     
     // #region agent log
     fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:89',message:'applyEnterEffect 시작',data:{sceneIndex,transition:actualTransition,toSpriteVisible:toSprite?.visible,toSpriteAlpha:toSprite?.alpha,toTextVisible:toText?.visible,toTextAlpha:toText?.alpha},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
@@ -96,6 +100,45 @@ export const usePixiEffects = ({
     
     if (!toSprite || !appRef.current || !containerRef.current) {
       console.error(`[전환효과] 필수 요소 없음`)
+      return
+    }
+    
+    // transition이 'none'이면 애니메이션 없이 즉시 표시
+    if (actualTransition === 'none') {
+      // 컨테이너에 추가
+      if (toSprite.parent !== containerRef.current) {
+        if (toSprite.parent) {
+          toSprite.parent.removeChild(toSprite)
+        }
+        containerRef.current.addChild(toSprite)
+      }
+      if (toText && toText.parent !== containerRef.current) {
+        if (toText.parent) {
+          toText.parent.removeChild(toText)
+        }
+        containerRef.current.addChild(toText)
+      }
+      
+      // 즉시 표시
+      toSprite.visible = true
+      toSprite.alpha = 1
+      if (toText) {
+        toText.visible = true
+        toText.alpha = 1
+      }
+      
+      if (appRef.current) {
+        appRef.current.render()
+      }
+      
+      // onComplete 콜백 호출
+      if (onComplete) {
+        onComplete()
+      }
+      if (onAnimationComplete) {
+        onAnimationComplete(sceneIndex)
+      }
+      
       return
     }
     
@@ -135,7 +178,6 @@ export const usePixiEffects = ({
       originalY = transform.y
     }
 
-    console.log(`[전환효과] 시작 - scene: ${sceneIndex}, transition: ${actualTransition}, duration: ${duration}`)
 
     // 스프라이트 초기 상태 설정 (visible: true, alpha: 0)
     // 이렇게 하면 검은 화면이 아닌 투명한 상태로 시작하여 전환 효과가 부드럽게 시작됨
@@ -153,11 +195,10 @@ export const usePixiEffects = ({
 
     // Timeline 생성 (이전 코드처럼 자동 재생되도록 - paused 옵션 없음)
     const tl = gsap.timeline({
+      timeScale: playbackSpeed, // 배속에 맞게 애니메이션 속도 조정
       onStart: () => {
-        console.log(`[전환효과] GSAP animation started for scene ${sceneIndex}`)
       },
       onComplete: () => {
-        console.log(`[전환효과] GSAP animation completed for scene ${sceneIndex}`)
         
         // 전환 효과 완료 후 이전 씬 숨기기
         // 이전 씬 인덱스는 updateCurrentScene에서 전달받아야 함
@@ -233,16 +274,12 @@ export const usePixiEffects = ({
             alpha: 1, 
             duration, 
             onUpdate: function() {
-              // 로그 간소화 (매 프레임마다 출력하지 않음)
-              // console.log(`[전환효과] onUpdate 호출 - scene: ${sceneIndex}, alpha: ${fadeObj.alpha}`)
-              
               // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
               if (toSprite && containerRef.current) {
                 // parent가 null이거나 containerRef.current가 아니면 추가
                 if (!toSprite.parent || toSprite.parent !== containerRef.current) {
                   // 경고는 한 번만 출력
                   if (!hasWarnedAboutParent) {
-                    console.warn(`[전환효과] onUpdate에서 스프라이트가 컨테이너에 없음 - scene: ${sceneIndex}, 강제 추가`)
                     hasWarnedAboutParent = true
                   }
                   if (toSprite.parent) {
@@ -252,11 +289,6 @@ export const usePixiEffects = ({
                 }
                 
                 toSprite.alpha = fadeObj.alpha
-                
-                // 디버깅 로그도 간소화 (10프레임마다만 출력)
-                // if (Math.floor(fadeObj.alpha * 100) % 10 === 0) {
-                //   console.log(`[전환효과] 스프라이트 상태 - visible: ${toSprite.visible}, alpha: ${toSprite.alpha}, parent: ${toSprite.parent !== null}`)
-                // }
               }
               
               if (toText && containerRef.current) {
@@ -272,11 +304,9 @@ export const usePixiEffects = ({
               // PixiJS 렌더링 강제 실행
               if (appRef.current) {
                 appRef.current.render()
-                // console.log(`[전환효과] 렌더링 완료 - scene: ${sceneIndex}`) // 로그 간소화
               }
             },
             onComplete: function() {
-              console.log(`[전환효과] Fade complete for scene ${sceneIndex}, final alpha:`, toSprite?.alpha)
               // 최종 렌더링
               if (appRef.current) {
                 appRef.current.render()
@@ -868,7 +898,6 @@ export const usePixiEffects = ({
     requestAnimationFrame(() => {
       // Timeline이 실제로 시작되었는지 확인하고, 시작되지 않았으면 시작
       if (tl && tl.paused()) {
-        console.log(`[전환효과] Timeline이 일시정지 상태 - scene: ${sceneIndex}, 강제 시작`)
         tl.play()
       }
       
@@ -876,11 +905,8 @@ export const usePixiEffects = ({
       if (appRef.current) {
         appRef.current.render()
       }
-      
-      // Timeline이 제대로 시작되었는지 확인
-      console.log(`[전환효과] Timeline 상태 확인 - scene: ${sceneIndex}, paused: ${tl.paused()}, isActive: ${tl.isActive()}, progress: ${tl.progress()}`)
     })
-  }, [appRef, containerRef, activeAnimationsRef, timeline, onAnimationComplete])
+  }, [appRef, containerRef, activeAnimationsRef, timeline, playbackSpeed, onAnimationComplete])
 
   return {
     applyAdvancedEffects,

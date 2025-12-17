@@ -69,12 +69,20 @@ const defaultNotificationSettings: NotificationSettings = {
 
 export const useUserStore = create<UserState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: defaultUser,
       connectedServices: defaultConnectedServices,
       notificationSettings: defaultNotificationSettings,
-      isAuthenticated: authStorage.hasTokens(),
-      setUser: (user) => set({ user, isAuthenticated: authStorage.hasTokens() }),
+      isAuthenticated: typeof window !== 'undefined' ? authStorage.hasTokens() : false,
+      setUser: (user) => {
+        if (typeof window === 'undefined') {
+          set({ user, isAuthenticated: false })
+          return
+        }
+        // 토큰이 있는지 확인하고 인증 상태 업데이트
+        const hasTokens = authStorage.hasTokens()
+        set({ user, isAuthenticated: hasTokens })
+      },
       updateUser: (updates) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...updates } : null,
@@ -101,6 +109,7 @@ export const useUserStore = create<UserState>()(
           },
         })),
       checkAuth: () => {
+        if (typeof window === 'undefined') return false
         const hasTokens = authStorage.hasTokens()
         set({ isAuthenticated: hasTokens })
         return hasTokens
@@ -118,6 +127,17 @@ export const useUserStore = create<UserState>()(
     {
       name: 'bookae-user-storage',
       storage: createJSONStorage(() => localStorage),
+      // persist된 상태가 복원된 후 인증 상태 동기화
+      onRehydrateStorage: () => (state) => {
+        if (state && typeof window !== 'undefined') {
+          const hasTokens = authStorage.hasTokens()
+          state.isAuthenticated = hasTokens
+          // 토큰이 있으면 사용자 정보도 유지
+          if (hasTokens && !state.user) {
+            // 사용자 정보가 없으면 기본값 유지 (나중에 API로 조회)
+          }
+        }
+      },
     }
   )
 )

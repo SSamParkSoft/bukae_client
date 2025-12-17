@@ -1,8 +1,12 @@
 // 공통 API 클라이언트
 
 import { authStorage } from './auth-storage'
+import type { TokenResponse } from '@/lib/types/api/auth'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
+// 백엔드 API 서버 기본 주소 (도메인 + 포트까지, path 제외)
+// 예: http://15.164.220.105.nip.io:8080
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
 
 export class ApiError extends Error {
   constructor(
@@ -18,6 +22,7 @@ export class ApiError extends Error {
 
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean
+  autoRefresh?: boolean
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -71,11 +76,47 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return response.text() as T
 }
 
+let refreshInFlight: Promise<string | null> | null = null
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight
+
+  refreshInFlight = (async () => {
+    const refreshToken = authStorage.getRefreshToken()
+    if (!refreshToken) return null
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken }),
+      })
+
+      if (!response.ok) return null
+
+      const data = (await response.json()) as Partial<TokenResponse> | null
+      if (!data?.accessToken) return null
+
+      // refreshToken이 없으면 기존 refreshToken 유지 (백엔드가 rotation을 안 할 수도 있음)
+      authStorage.setTokens(data.accessToken, data.refreshToken ?? refreshToken)
+      return data.accessToken
+    } catch {
+      return null
+    } finally {
+      refreshInFlight = null
+    }
+  })()
+
+  return refreshInFlight
+}
+
 export async function apiRequest<T>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { skipAuth = false, headers: initHeaders, ...fetchOptions } = options
+  const { skipAuth = false, autoRefresh = true, headers: initHeaders, ...fetchOptions } = options
 
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`
 
@@ -103,6 +144,26 @@ export async function apiRequest<T>(
       headers,
     })
 
+    // 토큰 만료(401) 시 1회 자동 재발급 후 재시도
+    if (response.status === 401 && !skipAuth && autoRefresh) {
+      const newAccessToken = await refreshAccessToken()
+
+      if (newAccessToken) {
+        headers.set('Authorization', `Bearer ${newAccessToken}`)
+        const retryResponse = await fetch(url, {
+          ...fetchOptions,
+          headers,
+        })
+        return handleResponse<T>(retryResponse)
+      }
+
+      // 재발급 실패: 토큰 정리 + 전역 이벤트로 로그인 유도
+      authStorage.clearTokens()
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:expired'))
+      }
+    }
+
     return handleResponse<T>(response)
   } catch (error) {
     // 네트워크 에러 처리
@@ -118,6 +179,9 @@ export async function apiRequest<T>(
       throw error
     }
 
+    // 예상치 못한 에러 로깅
+    console.error('[API Client] 예상치 못한 에러:', error)
+    
     throw new ApiError(
       error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.',
       0,

@@ -24,14 +24,6 @@ function VideoIdExtractor({
 
     const result = extractVideoId(searchParams, currentUrl, currentReferer)
 
-    // 디버깅용 (개발 환경에서만)
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Current URL:', currentUrl)
-      console.log('Referer:', currentReferer)
-      console.log('Extracted videoID:', result.videoId)
-      console.log('Source:', result.source)
-    }
-
     return {
       videoId: result.videoId,
       referer: currentReferer,
