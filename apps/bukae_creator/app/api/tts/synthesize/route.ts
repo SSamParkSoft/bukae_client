@@ -5,8 +5,10 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type SynthesizeRequest = {
-  text: string
   voiceName: string
+  mode?: 'text' | 'markup'
+  text?: string
+  markup?: string
   speakingRate?: number
   pitch?: number
 }
@@ -17,12 +19,11 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Partial<SynthesizeRequest>
 
-    const text = String(body.text ?? '').trim()
     const voiceName = String(body.voiceName ?? '').trim()
+    const mode = body.mode === 'markup' ? 'markup' : 'text'
+    const text = String(body.text ?? '').trim()
+    const markup = String(body.markup ?? '').trim()
 
-    if (!text) {
-      return NextResponse.json({ error: 'text가 필요합니다.' }, { status: 400 })
-    }
     if (!voiceName) {
       return NextResponse.json({ error: 'voiceName이 필요합니다.' }, { status: 400 })
     }
@@ -30,7 +31,15 @@ export async function POST(request: Request) {
     if (!voiceName.includes(TTS_LANGUAGE_CODE)) {
       return NextResponse.json({ error: '한국어(ko-KR) 목소리만 허용됩니다.' }, { status: 400 })
     }
-    if (text.length > MAX_PREVIEW_CHARS) {
+
+    const inputText = mode === 'markup' ? markup : text
+    if (!inputText) {
+      return NextResponse.json(
+        { error: mode === 'markup' ? 'markup이 필요합니다.' : 'text가 필요합니다.' },
+        { status: 400 }
+      )
+    }
+    if (inputText.length > MAX_PREVIEW_CHARS) {
       return NextResponse.json(
         { error: `미리듣기 텍스트는 최대 ${MAX_PREVIEW_CHARS}자까지 지원합니다.` },
         { status: 400 }
@@ -43,7 +52,7 @@ export async function POST(request: Request) {
 
     const client = getTextToSpeechClient()
     const [result] = await client.synthesizeSpeech({
-      input: { text },
+      input: mode === 'markup' ? { markup: inputText } : { text: inputText },
       voice: {
         languageCode: TTS_LANGUAGE_CODE,
         name: voiceName,

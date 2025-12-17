@@ -13,6 +13,10 @@ export type PublicVoiceInfo = {
 
 let clientSingleton: TextToSpeechClient | null = null
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
 function getServiceAccountFromEnv(): {
   projectId?: string
   client_email: string
@@ -23,11 +27,15 @@ function getServiceAccountFromEnv(): {
     throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON 환경 변수가 설정되어 있지 않습니다.')
   }
 
-  let parsed: any
+  let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch {
     throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON이 올바른 JSON 형식이 아닙니다.')
+  }
+
+  if (!isRecord(parsed)) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON이 객체(JSON) 형식이 아닙니다.')
   }
 
   const client_email = String(parsed.client_email ?? '')

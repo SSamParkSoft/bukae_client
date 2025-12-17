@@ -63,7 +63,8 @@ export function useSceneHandlers({
   const handleSceneDurationChange = useCallback(
     (index: number, value: number) => {
       if (!timeline) return
-      const clampedValue = Math.max(0.5, Math.min(10, value))
+      // TTS 오디오 길이 기반으로 duration을 맞추기 위해 상한을 넉넉히 둠
+      const clampedValue = Math.max(0.5, Math.min(120, value))
       const nextTimeline: TimelineData = {
         ...timeline,
         scenes: timeline.scenes.map((scene, i) => (i === index ? { ...scene, duration: clampedValue } : scene)),

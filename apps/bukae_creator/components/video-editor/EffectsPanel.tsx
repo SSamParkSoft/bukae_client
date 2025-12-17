@@ -246,6 +246,7 @@ export function EffectsPanel({
               previewText={timeline?.scenes[currentSceneIndex]?.text?.content ?? ''}
               title="TTS 미리듣기 (ko-KR, 현재 씬)"
               disabled={!timeline || currentSceneIndex < 0}
+              playbackRate={timeline?.playbackSpeed ?? 1.0}
             />
           </TabsContent>
         </Tabs>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
+import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
 
 type PublicVoiceInfo = {
   name: string
@@ -21,6 +22,7 @@ type ChirpVoiceSelectorProps = {
   previewText: string
   title?: string
   disabled?: boolean
+  playbackRate?: number
 }
 
 export default function ChirpVoiceSelector({
@@ -28,6 +30,7 @@ export default function ChirpVoiceSelector({
   previewText,
   title = 'TTS 미리듣기 (ko-KR)',
   disabled = false,
+  playbackRate = 1.0,
 }: ChirpVoiceSelectorProps) {
   const { voiceTemplate, setVoiceTemplate } = useVideoCreateStore()
   const [voices, setVoices] = useState<PublicVoiceInfo[]>([])
@@ -101,11 +104,14 @@ export default function ChirpVoiceSelector({
       stop()
       setIsSynthesizing(true)
 
+      const markup = makeMarkupFromPlainText(text, { addSceneTransitionPause: false })
+
       const res = await fetch('/api/tts/synthesize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text,
+          mode: 'markup',
+          markup,
           voiceName: voiceTemplate,
         }),
       })
@@ -121,6 +127,7 @@ export default function ChirpVoiceSelector({
 
       const audio = new Audio(url)
       audioRef.current = audio
+      audio.playbackRate = playbackRate
 
       audio.onended = () => {
         setIsPlaying(false)
@@ -142,7 +149,7 @@ export default function ChirpVoiceSelector({
     } finally {
       setIsSynthesizing(false)
     }
-  }, [disabled, previewText, stop, voiceTemplate])
+  }, [disabled, previewText, stop, voiceTemplate, playbackRate])
 
   const onTogglePlay = useCallback(() => {
     if (isPlaying) {

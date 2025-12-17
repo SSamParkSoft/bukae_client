@@ -464,7 +464,7 @@ export default function Step3Page() {
                       </select>
                     </div>
 
-                    <ChirpVoiceSelector theme={theme} previewText={ttsPreviewText} />
+                    <ChirpVoiceSelector theme={theme} previewText={ttsPreviewText} playbackRate={1.0} />
                   </div>
 
                   <div className="space-y-4">
