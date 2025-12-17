@@ -243,10 +243,8 @@ export function EffectsPanel({
           <TabsContent value="voice" className="space-y-4">
             <ChirpVoiceSelector
               theme={theme ?? 'light'}
-              previewText={timeline?.scenes[currentSceneIndex]?.text?.content ?? ''}
-              title="TTS 미리듣기 (ko-KR, 현재 씬)"
+              title="목소리 선택 (데모)"
               disabled={!timeline || currentSceneIndex < 0}
-              playbackRate={timeline?.playbackSpeed ?? 1.0}
             />
           </TabsContent>
         </Tabs>
