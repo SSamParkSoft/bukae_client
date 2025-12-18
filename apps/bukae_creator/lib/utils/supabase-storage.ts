@@ -10,20 +10,20 @@ export function getSupabaseStorageUrl(bucketName: string, filePath: string): str
   try {
     const supabase = getSupabaseClient()
     const { data } = supabase.storage.from(bucketName).getPublicUrl(filePath)
+    
     return data.publicUrl
-  } catch (error) {
-    console.error(`Supabase Storage URL 가져오기 실패 (${bucketName}/${filePath}):`, error)
+  } catch {
     return null
   }
 }
 
 /**
  * BGM 파일의 Supabase Storage URL을 가져옵니다.
- * @param fileName - BGM 파일 이름 (예: 'bgm1.mp3')
+ * @param fileName - BGM 파일 이름 (예: 'bgm1.mp3' 또는 'bgm1/bgm1.mp3')
  * @returns 공개 URL 또는 null
  */
 export function getBgmStorageUrl(fileName: string): string | null {
-  return getSupabaseStorageUrl('bgm', fileName)
+  return getSupabaseStorageUrl('bgms', fileName)
 }
 
 /**
