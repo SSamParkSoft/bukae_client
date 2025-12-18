@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Play, Pause, Clock, Edit2, Type, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, AlignJustify, Sparkles, Grid3x3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -29,7 +29,6 @@ import * as fabric from 'fabric'
 
 export default function Step4Page() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { 
     scenes,
     selectedImages,
@@ -103,50 +102,11 @@ export default function Step4Page() {
   const [canvasSize, setCanvasSize] = useState<{ width: string; height: string }>({ width: '100%', height: '100%' }) // Canvas 크기 상태
   const [isTtsBootstrapping, setIsTtsBootstrapping] = useState(false) // 첫 씬 TTS 로딩 상태
   const isTtsBootstrappingRef = useRef(false) // 클로저에서 최신 값 참조용
-  const [ttsPauseProfile, setTtsPauseProfile] = useState<'v1' | 'v2'>('v2') // TTS pause 프로필
 
   // 클라이언트에서만 렌더링 (SSR/Hydration mismatch 방지)
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  // URL 쿼리 또는 localStorage에서 pause 프로필 읽기
-  useEffect(() => {
-    if (!mounted) return
-    
-    // Next.js useSearchParams로 쿼리 파라미터 읽기
-    const queryProfile = searchParams.get('ttsPause')
-    
-    // 디버그 로깅
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[TTS Pause Profile] URL 쿼리:', queryProfile, '전체 searchParams:', searchParams.toString())
-    }
-    
-    if (queryProfile === 'v1' || queryProfile === 'v2') {
-      setTtsPauseProfile(queryProfile)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('ttsPauseProfile', queryProfile)
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[TTS Pause Profile] 쿼리에서 읽음:', queryProfile)
-        }
-      }
-    } else {
-      // 쿼리 파라미터가 없으면 localStorage에서 읽기
-      if (typeof window !== 'undefined') {
-        const storedProfile = localStorage.getItem('ttsPauseProfile')
-        if (storedProfile === 'v1' || storedProfile === 'v2') {
-          setTtsPauseProfile(storedProfile)
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[TTS Pause Profile] localStorage에서 읽음:', storedProfile)
-          }
-        } else {
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[TTS Pause Profile] 기본값 사용: v2')
-          }
-        }
-      }
-    }
-  }, [mounted, searchParams])
 
   // 스테이지 크기 계산 (9:16 고정)
   const stageDimensions = useMemo(() => {
@@ -947,17 +907,11 @@ export default function Step4Page() {
       if (!base) return ''
       const isLast = sceneIndex >= timeline.scenes.length - 1
       // 사용자에게는 보이지 않게, 합성 요청 직전에만 자동 숨을 markup에 삽입
-      const markup = makeMarkupFromPlainText(base, { 
-        addSceneTransitionPause: !isLast,
-        profile: ttsPauseProfile
+      return makeMarkupFromPlainText(base, { 
+        addSceneTransitionPause: !isLast
       })
-      // 디버그 로깅 (개발 환경에서만)
-      if (process.env.NODE_ENV === 'development' && sceneIndex === 0) {
-        console.log('[TTS] pause 프로필:', ttsPauseProfile, 'markup:', markup.substring(0, 100))
-      }
-      return markup
     },
-    [timeline, ttsPauseProfile]
+    [timeline]
   )
 
   const makeTtsKey = useCallback(
