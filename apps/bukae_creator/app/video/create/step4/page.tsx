@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Play, Pause, Clock, Edit2, Type, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, AlignJustify, Sparkles, Grid3x3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,7 @@ import * as fabric from 'fabric'
 
 export default function Step4Page() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { 
     scenes,
     selectedImages,
@@ -101,27 +102,51 @@ export default function Step4Page() {
   const [mounted, setMounted] = useState(false)
   const [canvasSize, setCanvasSize] = useState<{ width: string; height: string }>({ width: '100%', height: '100%' }) // Canvas 크기 상태
   const [isTtsBootstrapping, setIsTtsBootstrapping] = useState(false) // 첫 씬 TTS 로딩 상태
+  const isTtsBootstrappingRef = useRef(false) // 클로저에서 최신 값 참조용
   const [ttsPauseProfile, setTtsPauseProfile] = useState<'v1' | 'v2'>('v2') // TTS pause 프로필
 
   // 클라이언트에서만 렌더링 (SSR/Hydration mismatch 방지)
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  // URL 쿼리 또는 localStorage에서 pause 프로필 읽기
+  useEffect(() => {
+    if (!mounted) return
     
-    // URL 쿼리 또는 localStorage에서 pause 프로필 읽기
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const queryProfile = params.get('ttsPause')
-      if (queryProfile === 'v1' || queryProfile === 'v2') {
-        setTtsPauseProfile(queryProfile)
+    // Next.js useSearchParams로 쿼리 파라미터 읽기
+    const queryProfile = searchParams.get('ttsPause')
+    
+    // 디버그 로깅
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[TTS Pause Profile] URL 쿼리:', queryProfile, '전체 searchParams:', searchParams.toString())
+    }
+    
+    if (queryProfile === 'v1' || queryProfile === 'v2') {
+      setTtsPauseProfile(queryProfile)
+      if (typeof window !== 'undefined') {
         localStorage.setItem('ttsPauseProfile', queryProfile)
-      } else {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[TTS Pause Profile] 쿼리에서 읽음:', queryProfile)
+        }
+      }
+    } else {
+      // 쿼리 파라미터가 없으면 localStorage에서 읽기
+      if (typeof window !== 'undefined') {
         const storedProfile = localStorage.getItem('ttsPauseProfile')
         if (storedProfile === 'v1' || storedProfile === 'v2') {
           setTtsPauseProfile(storedProfile)
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[TTS Pause Profile] localStorage에서 읽음:', storedProfile)
+          }
+        } else {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[TTS Pause Profile] 기본값 사용: v2')
+          }
         }
       }
     }
-  }, [])
+  }, [mounted, searchParams])
 
   // 스테이지 크기 계산 (9:16 고정)
   const stageDimensions = useMemo(() => {
@@ -1101,17 +1126,24 @@ export default function Step4Page() {
       // 첫 씬 TTS를 전환 완료 전에 미리 시작하여 초기 지연 완화
       let firstSceneTtsPromise: Promise<{ blob: Blob; durationSec: number; markup: string }> | null = null
       if (needsTtsBootstrap) {
+        isTtsBootstrappingRef.current = true
         setIsTtsBootstrapping(true)
         firstSceneTtsPromise = ensureSceneTts(currentSceneIndex).catch((err) => {
           console.error('[TTS] 첫 씬 합성 실패:', err)
+          isTtsBootstrappingRef.current = false
           setIsTtsBootstrapping(false)
           throw err
         })
       }
       
-      // isPlayingRef를 먼저 설정하여 handleSceneSelect에서 올바르게 인식되도록 함
-      isPlayingRef.current = true
-      setIsPlaying(true)
+      // 로딩 중이 아닐 때만 isPlaying 설정 (로딩 중에는 버튼이 "로딩중..."으로 표시되도록)
+      if (!needsTtsBootstrap) {
+        isPlayingRef.current = true
+        setIsPlaying(true)
+      } else {
+        // 로딩 중에는 isPlaying을 false로 유지하여 "로딩중..." 표시
+        // TTS 준비 완료 후 playNextScene에서 isPlaying을 true로 설정
+      }
       
       // 재생 시작 시 현재 씬을 다시 선택하기 위해 lastRenderedSceneIndexRef를 현재 씬으로 설정
       // handleSceneSelect에서 재생 중이고 현재 씬을 다시 선택하는 경우를 감지하여
@@ -1122,9 +1154,17 @@ export default function Step4Page() {
       let currentIndex = currentSceneIndex
       
       const playNextScene = () => {
+        // 로딩 중이었다면 이제 재생 시작
+        if (isTtsBootstrappingRef.current) {
+          isPlayingRef.current = true
+          setIsPlaying(true)
+        }
+        
         if (!isPlayingRef.current || currentIndex >= timeline.scenes.length) {
           setIsPlaying(false)
           isPlayingRef.current = false
+          isTtsBootstrappingRef.current = false
+          setIsTtsBootstrapping(false)
           return
         }
         
@@ -1158,8 +1198,9 @@ export default function Step4Page() {
               audio.onended = () => stopTtsAudio()
               
               // 첫 오디오가 실제로 시작될 때 로딩 상태 해제
-              if (isFirstScene && isTtsBootstrapping) {
+              if (isFirstScene && isTtsBootstrappingRef.current) {
                 audio.onplaying = () => {
+                  isTtsBootstrappingRef.current = false
                   setIsTtsBootstrapping(false)
                 }
               }
@@ -1191,7 +1232,8 @@ export default function Step4Page() {
             .catch(() => {
               // TTS 실패 시에도 기존 duration으로 재생 흐름은 유지
               // 첫 씬 실패 시 로딩 상태 해제
-              if (isFirstScene && isTtsBootstrapping) {
+              if (isFirstScene && isTtsBootstrappingRef.current) {
+                isTtsBootstrappingRef.current = false
                 setIsTtsBootstrapping(false)
               }
               prefetchWindow(sceneIndex)
@@ -1218,7 +1260,24 @@ export default function Step4Page() {
       
       // 현재 선택된 씬부터 시작하여 마지막 씬까지 순차적으로 렌더링
       // playNextScene이 재귀적으로 호출되며 각 씬을 캔버스에 렌더링함
-      playNextScene()
+      // 로딩 중이면 playNextScene에서 TTS 준비 후 재생 시작, 아니면 즉시 재생
+      if (needsTtsBootstrap && firstSceneTtsPromise) {
+        // TTS 준비를 기다린 후 재생 시작
+        firstSceneTtsPromise
+          .then(() => {
+            playNextScene()
+          })
+          .catch(() => {
+            // 실패해도 재생은 시작 (fallback duration 사용)
+            isTtsBootstrappingRef.current = false
+            setIsTtsBootstrapping(false)
+            isPlayingRef.current = true
+            setIsPlaying(true)
+            playNextScene()
+          })
+      } else {
+        playNextScene()
+      }
     } else {
       // 재생 중지
       if (playTimeoutRef.current) {
@@ -1227,6 +1286,8 @@ export default function Step4Page() {
       }
       setIsPlaying(false)
       isPlayingRef.current = false
+      isTtsBootstrappingRef.current = false
+      setIsTtsBootstrapping(false) // 재생 중지 시 로딩 상태도 해제
       resetTtsSession()
     }
   }
@@ -2201,16 +2262,17 @@ export default function Step4Page() {
                           variant="outline"
                           size="sm"
                   className="flex-1"
+                          disabled={isTtsBootstrapping}
                         >
-                          {isPlaying ? (
-                            <>
-                      <Pause className="w-4 h-4 mr-2" />
-                              일시정지
-                            </>
-                          ) : isTtsBootstrapping ? (
+                          {isTtsBootstrapping ? (
                             <>
                       <Clock className="w-4 h-4 mr-2" />
                               로딩중…
+                            </>
+                          ) : isPlaying ? (
+                            <>
+                      <Pause className="w-4 h-4 mr-2" />
+                              일시정지
                             </>
                           ) : (
                             <>
