@@ -1,9 +1,8 @@
 import './globals.css'
-// Step4 자막 폰트(로컬) @font-face 주입을 위해 전역에서 한 번만 import
-import '@/lib/subtitle-fonts'
 import Providers from './providers'
 import AppShell from '../components/AppShell'
 import ThemeInitializer from '../components/ThemeInitializer'
+import SubtitleFontInitializer from '../components/SubtitleFontInitializer'
 
 export const metadata = {
   title: 'Bukae Dashboard',
@@ -18,6 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ko">
       <body className="transition-colors">
         <ThemeInitializer />
+        <SubtitleFontInitializer />
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

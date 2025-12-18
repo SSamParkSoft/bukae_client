@@ -1,5 +1,9 @@
 const USER_PAUSE_TAG_RE = /\[pause(?:\s+short|\s+long)?\]/gi
 
+// Pause 규칙 상수
+const PUNCT_PAUSE_SKIP_CHARS = 7 // 문장부호 pause를 스킵할 최대 문장 길이
+const SCENE_TRANSITION_PAUSE_TAG = '[pause short]' // 씬 전환 pause 태그
+
 export type AutoPauseOptions = {
   /**
    * 씬 전환용 pause를 붙일지 여부
@@ -17,8 +21,8 @@ export function stripUserPauseTags(text: string): string {
 
 /**
  * 순수 텍스트를 Chirp3 markup으로 변환합니다.
- * - `! . ?` 뒤에 다음 문장이 이어질 때 짧은 pause 삽입
- * - 씬 전환 시(마지막 씬 제외) 긴 pause 삽입
+ * - `! . ?` 뒤에 다음 문장이 이어질 때 짧은 pause 삽입 (문장 길이 > 7자일 때만)
+ * - 씬 전환 시(마지막 씬 제외) short pause 삽입
  *
  * NOTE: 반환된 markup은 합성 요청에만 사용하고, 사용자에게는 표시하지 않습니다.
  */
@@ -27,16 +31,44 @@ export function makeMarkupFromPlainText(input: string, opts: AutoPauseOptions): 
   if (!cleaned) return ''
 
   // 문장부호 뒤에 텍스트가 이어지는 경우에만 pause 삽입
-  // 예: "좋아! 지금" -> "좋아! [pause] 지금"
-  // 공백 유무와 무관하게 다음에 글자가 있으면 삽입
-  const withPunctPauses = cleaned.replace(/([!.?])(\s*)(?=\S)/g, '$1 [pause] ')
+  // 직전 문장 길이 > 7자일 때만 pause 삽입
+  let result = ''
+  let lastIndex = 0
+  const punctRegex = /([!.?])(\s*)(?=\S)/g
+  let match: RegExpExecArray | null
+
+  while ((match = punctRegex.exec(cleaned)) !== null) {
+    const punctIndex = match.index
+    const punctChar = match[1]
+    const spaces = match[2]
+    const nextCharIndex = match.index + match[0].length
+
+    // 이전 문장부호 이후부터 현재 문장부호까지의 텍스트 길이 계산
+    const prevSegment = cleaned.slice(lastIndex, punctIndex).trim()
+    const segmentLength = prevSegment.length
+
+    // 결과에 이전 세그먼트와 문장부호 추가
+    result += cleaned.slice(lastIndex, punctIndex + punctChar.length)
+
+    // 문장 길이 > 7자일 때만 pause 삽입
+    if (segmentLength > PUNCT_PAUSE_SKIP_CHARS) {
+      result += ` [pause] `
+    } else {
+      result += spaces
+    }
+
+    lastIndex = nextCharIndex
+  }
+
+  // 마지막 부분 추가
+  const withPunctPauses = result + cleaned.slice(lastIndex)
 
   if (!opts.addSceneTransitionPause) {
     return withPunctPauses.trim()
   }
 
   // 씬 전환용 pause (마지막 씬 제외)
-  return `${withPunctPauses.trim()} [pause long]`
+  return `${withPunctPauses.trim()} ${SCENE_TRANSITION_PAUSE_TAG}`
 }
 
 

@@ -52,7 +52,7 @@ export default function ChannelProfile({ channel }: ChannelProfileProps) {
         </button>
 
         {/* 프로필 이미지 */}
-        <div className="w-24 h-24 rounded-full overflow-hidden bg-purple-100 flex items-center justify-center ring-2 ring-purple-200">
+        <div className="w-24 h-24 rounded-full overflow-hidden bg-purple-100 flex items-center justify-center ring-2 ring-purple-200 relative">
           {channel.profileImage && !imageError ? (
             <Image
               src={channel.profileImage}
@@ -63,12 +63,10 @@ export default function ChannelProfile({ channel }: ChannelProfileProps) {
               onError={() => setImageError(true)}
             />
           ) : (
-            <Image
+            <img
               src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(channel.name)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
               alt={channel.name}
-              fill
-              sizes="96px"
-              className="object-cover"
+              className="w-full h-full object-cover"
             />
           )}
         </div>

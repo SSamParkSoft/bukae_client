@@ -40,15 +40,18 @@ export default function Sidebar() {
 
   // 마운트 전에는 항상 로그인 링크를 표시 (서버와 클라이언트 일치)
   const showAuthenticated = mounted && isAuthenticated
+  
+  // 마운트 전에는 항상 light 테마로 렌더링 (서버와 클라이언트 일치)
+  const displayTheme = mounted ? theme : 'light'
 
   return (
     <aside className={`fixed left-0 top-0 h-full w-56 border-r flex flex-col transition-colors ${
-      theme === 'dark' 
+      displayTheme === 'dark' 
         ? 'bg-gray-900 border-gray-800' 
         : 'bg-white border-gray-200'
     }`}>
       <div className={`p-4 border-b ${
-        theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
+        displayTheme === 'dark' ? 'border-gray-800' : 'border-gray-200'
       }`}>
         <Link href="/" className="block">
           <div className="flex items-center ">
@@ -59,7 +62,7 @@ export default function Sidebar() {
             />
           </div>
           <p className={`text-sm ml-3 mt-2 ${
-            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+            displayTheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
           }`}>부업 자동화 서비스</p>
         </Link>
       </div>
@@ -79,10 +82,10 @@ export default function Sidebar() {
               className={classNames(
                 'group relative flex items-center gap-3 px-4 py-3 rounded-lg overflow-hidden transition-colors duration-200',
                 isActive
-                  ? theme === 'dark'
+                  ? displayTheme === 'dark'
                     ? 'text-purple-200 font-medium'
                     : 'text-purple-700 font-medium'
-                  : theme === 'dark'
+                  : displayTheme === 'dark'
                     ? 'text-gray-300 hover:bg-gray-800/80'
                     : 'text-gray-700 hover:bg-gray-100'
               )}
@@ -93,7 +96,7 @@ export default function Sidebar() {
                     layoutId="sidebar-active-indicator"
                     className={classNames(
                       'absolute inset-0 rounded-lg pointer-events-none',
-                      theme === 'dark'
+                      displayTheme === 'dark'
                         ? 'bg-purple-900/40'
                         : 'bg-purple-100'
                     )}
@@ -113,10 +116,10 @@ export default function Sidebar() {
                   className={classNames(
                     'w-5 h-5 transition-colors duration-200',
                     isActive
-                      ? theme === 'dark'
+                      ? displayTheme === 'dark'
                         ? 'text-purple-100'
                         : 'text-purple-600'
-                      : theme === 'dark'
+                      : displayTheme === 'dark'
                         ? 'text-gray-400 group-hover:text-gray-200'
                         : 'text-gray-500 group-hover:text-gray-800'
                   )}
@@ -130,14 +133,14 @@ export default function Sidebar() {
 
       {/* 로그인/로그아웃 버튼 */}
       <div className={`p-4 border-t ${
-        theme === 'dark' ? 'border-gray-800' : 'border-gray-200'
+        displayTheme === 'dark' ? 'border-gray-800' : 'border-gray-200'
       }`}>
         {showAuthenticated ? (
           <button
             onClick={handleLogout}
             className={classNames(
               'w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors',
-              theme === 'dark'
+              displayTheme === 'dark'
                 ? 'text-gray-300 hover:bg-gray-800/80'
                 : 'text-gray-700 hover:bg-gray-100'
             )}
@@ -150,7 +153,7 @@ export default function Sidebar() {
             href="/login"
             className={classNames(
               'w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors',
-              theme === 'dark'
+              displayTheme === 'dark'
                 ? 'text-gray-300 hover:bg-gray-800/80'
                 : 'text-gray-700 hover:bg-gray-100'
             )}

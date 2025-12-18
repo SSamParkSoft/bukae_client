@@ -174,17 +174,153 @@ export interface BgmTemplate {
   id: string
   name: string
   description: string
-  preview: string
+  preview: string // Supabase Storage 파일 이름 (예: 'bgm1.mp3') 또는 로컬 경로
   tier: 'LIGHT' | 'PRO'
+  // Supabase Storage 사용 여부 (true면 preview를 파일명으로 사용, false면 로컬 경로로 사용)
+  useSupabaseStorage?: boolean
 }
 
 export const bgmTemplates: BgmTemplate[] = [
-  { id: 'bgm-1', name: '밝은 배경음악', description: '경쾌하고 밝은 느낌', preview: '/bgm/bgm1.mp3', tier: 'LIGHT' },
-  { id: 'bgm-2', name: '차분한 배경음악', description: '편안하고 차분한 느낌', preview: '/bgm/bgm2.mp3', tier: 'LIGHT' },
-  { id: 'bgm-3', name: '에너지 넘치는 배경음악', description: '역동적이고 활기찬 느낌', preview: '/bgm/bgm3.mp3', tier: 'PRO' },
-  { id: 'bgm-4', name: '감성적인 배경음악', description: '부드럽고 감성적인 느낌', preview: '/bgm/bgm4.mp3', tier: 'PRO' },
-  { id: 'bgm-5', name: '트렌디한 배경음악', description: '모던하고 세련된 느낌', preview: '/bgm/bgm5.mp3', tier: 'PRO' },
+  { 
+    id: 'bgm-1', 
+    name: '밝은 배경음악', 
+    description: '경쾌하고 밝은 느낌', 
+    preview: 'bgm1/bgm1.mp3', 
+    tier: 'LIGHT',
+    useSupabaseStorage: true,
+  },
+  { 
+    id: 'bgm-2', 
+    name: '차분한 배경음악', 
+    description: '편안하고 차분한 느낌', 
+    preview: 'bgm2/bgm2.mp3', 
+    tier: 'LIGHT',
+    useSupabaseStorage: true,
+  },
+  { 
+    id: 'bgm-3', 
+    name: '에너지 넘치는 배경음악', 
+    description: '역동적이고 활기찬 느낌', 
+    preview: 'bgm3/bgm3.mp3', 
+    tier: 'PRO',
+    useSupabaseStorage: true,
+  },
+  { 
+    id: 'bgm-4', 
+    name: '감성적인 배경음악', 
+    description: '부드럽고 감성적인 느낌', 
+    preview: 'bgm4/bgm4.mp3', 
+    tier: 'PRO',
+    useSupabaseStorage: true,
+  },
+  { 
+    id: 'bgm-5', 
+    name: '트렌디한 배경음악', 
+    description: '모던하고 세련된 느낌', 
+    preview: 'bgm5/bgm5.mp3', 
+    tier: 'PRO',
+    useSupabaseStorage: true,
+  },
+  { 
+    id: 'bgm-6', 
+    name: '신나는 배경음악', 
+    description: '밝고 신나는 느낌', 
+    preview: 'bgm6/bgm6.mp3', 
+    tier: 'LIGHT',
+    useSupabaseStorage: true,
+  },
+  { 
+    id: 'bgm-7', 
+    name: '로맨틱한 배경음악', 
+    description: '로맨틱하고 따뜻한 느낌', 
+    preview: 'bgm7/bgm7.mp3', 
+    tier: 'PRO',
+    useSupabaseStorage: true,
+  },
+  { 
+    id: 'bgm-8', 
+    name: '집중력 높이는 배경음악', 
+    description: '집중하기 좋은 차분한 느낌', 
+    preview: 'bgm8/bgm8.mp3', 
+    tier: 'PRO',
+    useSupabaseStorage: true,
+  },
+  { 
+    id: 'bgm-9', 
+    name: '활기찬 배경음악', 
+    description: '생동감 넘치는 느낌', 
+    preview: 'bgm9/bgm9.mp3', 
+    tier: 'LIGHT',
+    useSupabaseStorage: true,
+  },
+  { 
+    id: 'bgm-10', 
+    name: '몽환적인 배경음악', 
+    description: '몽환적이고 신비로운 느낌', 
+    preview: 'bgm10/bgm10.mp3', 
+    tier: 'PRO',
+    useSupabaseStorage: true,
+  },
+  { 
+    id: 'bgm-11', 
+    name: '웅장한 배경음악', 
+    description: '웅장하고 장엄한 느낌', 
+    preview: 'bgm11/bgm11.mp3', 
+    tier: 'PRO',
+    useSupabaseStorage: true,
+  },
 ]
+
+/**
+ * BGM 템플릿의 실제 URL을 가져옵니다 (동기 버전).
+ * Supabase Storage를 사용하는 경우 Storage URL을 반환하고,
+ * 그렇지 않은 경우 로컬 경로를 반환합니다.
+ * 
+ * 주의: 이 함수는 클라이언트 사이드에서만 동작합니다.
+ * 서버 사이드에서는 로컬 경로를 반환합니다.
+ */
+export function getBgmTemplateUrlSync(template: BgmTemplate): string {
+  if (template.useSupabaseStorage && typeof window !== 'undefined') {
+    try {
+      // 동적 import를 사용하되, 이미 로드된 경우를 위해 try-catch 사용
+      const { getBgmStorageUrl } = require('@/lib/utils/supabase-storage')
+      // preview 경로를 그대로 사용 (예: 'bgm1/bgm1.mp3')
+      const storageUrl = getBgmStorageUrl(template.preview)
+      if (storageUrl) {
+        return storageUrl
+      }
+    } catch (error) {
+      // 모듈이 아직 로드되지 않았거나 에러 발생 시 기본 경로 반환
+    }
+    // Storage URL을 가져오지 못한 경우, 기본 경로 반환
+    return `/bgm/${template.preview}`
+  }
+  // 서버 사이드이거나 Supabase Storage를 사용하지 않는 경우
+  return template.preview.startsWith('/') ? template.preview : `/bgm/${template.preview}`
+}
+
+/**
+ * BGM 템플릿의 실제 URL을 가져옵니다 (비동기 버전).
+ * Supabase Storage를 사용하는 경우 Storage URL을 반환하고,
+ * 그렇지 않은 경우 로컬 경로를 반환합니다.
+ */
+export async function getBgmTemplateUrl(template: BgmTemplate): Promise<string> {
+  if (template.useSupabaseStorage && typeof window !== 'undefined') {
+    try {
+      const { getBgmStorageUrl } = await import('@/lib/utils/supabase-storage')
+      const storageUrl = getBgmStorageUrl(template.preview)
+      if (storageUrl) {
+        return storageUrl
+      }
+    } catch (error) {
+      console.error('BGM Storage URL 가져오기 실패:', error)
+    }
+    // Storage URL을 가져오지 못한 경우, 기본 경로 반환
+    return `/bgm/${template.preview}`
+  }
+  // 서버 사이드이거나 Supabase Storage를 사용하지 않는 경우
+  return template.preview.startsWith('/') ? template.preview : `/bgm/${template.preview}`
+}
 
 // 전환효과 템플릿
 export interface TransitionTemplate {
