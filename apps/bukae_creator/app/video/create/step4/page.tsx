@@ -1340,12 +1340,12 @@ export default function Step4Page() {
             const key = markup ? makeTtsKey(voiceTemplate!, markup) : null
             const cached = key ? ttsCacheRef.current.get(key) : null
             
-            if (!cached) {
-              console.warn(`[TTS] 씬 ${sceneIndex} 캐시 미스 - 키: ${key}`)
-              console.log('[TTS] 현재 캐시 키 목록:', Array.from(ttsCacheRef.current.keys()))
-            } else {
-              console.log(`[TTS] 씬 ${sceneIndex} 캐시 히트 - 재생 시작`)
-            }
+            // if (!cached) {
+            //   console.warn(`[TTS] 씬 ${sceneIndex} 캐시 미스 - 키: ${key}`)
+            //   console.log('[TTS] 현재 캐시 키 목록:', Array.from(ttsCacheRef.current.keys()))
+            // } else {
+            //   console.log(`[TTS] 씬 ${sceneIndex} 캐시 히트 - 재생 시작`)
+            // }
             
             if (cached) {
               const { blob, durationSec } = cached
@@ -1429,8 +1429,8 @@ export default function Step4Page() {
       
       // 현재 씬부터 마지막 씬까지 모든 TTS 배치 합성 (동시성 제한 + 딜레이)
       // 이미 캐시된 씬은 스킵하여 rate limit 절약
-      const batchSize = 1 // 1개씩 처리하여 rate limit 안전하게 준수
-      const batchDelay = 7000 // 7초 딜레이 (60초/10개 = 6초, 여유를 두고 7초)
+      const batchSize = 3 // 3개씩 처리
+      const batchDelay = 3000 // 3초 딜레이
       const ttsPromises = []
 
       // 먼저 캐시 확인하여 이미 합성된 씬은 스킵
@@ -1443,31 +1443,40 @@ export default function Step4Page() {
         if (!cached) {
           scenesToSynthesize.push(i)
         } else {
-          console.log(`[TTS] 씬 ${i} 이미 캐시됨 - 스킵`)
+          // console.log(`[TTS] 씬 ${i} 이미 캐시됨 - 스킵`)
         }
       }
 
-      console.log(`[TTS] 합성 필요: ${scenesToSynthesize.length}개 씬 (${scenesToSynthesize.join(', ')})`)
+      // console.log(`[TTS] 합성 필요: ${scenesToSynthesize.length}개 씬 (${scenesToSynthesize.join(', ')})`)
 
-      // 캐시되지 않은 씬만 순차 처리 (rate limit 준수)
-      for (let i = 0; i < scenesToSynthesize.length; i++) {
-        const sceneIndex = scenesToSynthesize[i]
-        try {
-          const result = await ensureSceneTts(sceneIndex)
-          if (!result) {
-            console.warn(`[TTS] 씬 ${sceneIndex} 합성 결과가 null입니다.`)
-          } else {
-            console.log(`[TTS] 씬 ${sceneIndex} 합성 완료 및 캐시 저장 (${i + 1}/${scenesToSynthesize.length})`)
-          }
-          ttsPromises.push(result)
-        } catch (err) {
-          console.error(`[TTS] 씬 ${sceneIndex} 합성 실패:`, err)
-          ttsPromises.push(null)
+      // 캐시되지 않은 씬만 배치 처리
+      for (let i = 0; i < scenesToSynthesize.length; i += batchSize) {
+        const batch = []
+        for (let j = 0; j < batchSize && i + j < scenesToSynthesize.length; j++) {
+          const sceneIndex = scenesToSynthesize[i + j]
+          batch.push(
+            ensureSceneTts(sceneIndex)
+              .then((result) => {
+                // if (!result) {
+                //   console.warn(`[TTS] 씬 ${sceneIndex} 합성 결과가 null입니다.`)
+                // } else {
+                //   console.log(`[TTS] 씬 ${sceneIndex} 합성 완료 및 캐시 저장 (${i + j + 1}/${scenesToSynthesize.length})`)
+                // }
+                return result
+              })
+              .catch((err) => {
+                console.error(`[TTS] 씬 ${sceneIndex} 합성 실패:`, err)
+                return null
+              })
+          )
         }
+        // 각 배치를 순차적으로 처리
+        const batchResult = await Promise.allSettled(batch)
+        ttsPromises.push(...batchResult.map(r => r.status === 'fulfilled' ? r.value : null))
         
-        // 마지막 요청이 아니면 딜레이 추가
-        if (i < scenesToSynthesize.length - 1) {
-          console.log(`[TTS] ${batchDelay}ms 대기 후 다음 씬 합성 시작...`)
+        // 마지막 배치가 아니면 딜레이 추가
+        if (i + batchSize < scenesToSynthesize.length) {
+          // console.log(`[TTS] 배치 완료, ${batchDelay}ms 대기 후 다음 배치 시작...`)
           await new Promise(resolve => setTimeout(resolve, batchDelay))
         }
       }
