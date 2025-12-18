@@ -43,6 +43,8 @@ interface EffectsPanelProps {
   ) => void
   bgmTemplate: string | null
   setBgmTemplate: (value: string | null) => void
+  confirmedBgmTemplate: string | null
+  onBgmConfirm: (templateId: string | null) => void
   setTimeline: (value: TimelineData) => void
 }
 
@@ -57,6 +59,8 @@ export function EffectsPanel({
   onAdvancedEffectChange,
   bgmTemplate,
   setBgmTemplate,
+  confirmedBgmTemplate,
+  onBgmConfirm,
   setTimeline,
 }: EffectsPanelProps) {
   return (
@@ -228,7 +232,13 @@ export function EffectsPanel({
           </TabsContent>
 
           <TabsContent value="bgm" className="space-y-4">
-            <BgmSelector bgmTemplate={bgmTemplate} theme={theme ?? 'light'} setBgmTemplate={setBgmTemplate} />
+            <BgmSelector 
+              bgmTemplate={bgmTemplate} 
+              theme={theme ?? 'light'} 
+              setBgmTemplate={setBgmTemplate}
+              confirmedBgmTemplate={confirmedBgmTemplate}
+              onBgmConfirm={onBgmConfirm}
+            />
           </TabsContent>
 
           <TabsContent value="subtitle" className="space-y-4">

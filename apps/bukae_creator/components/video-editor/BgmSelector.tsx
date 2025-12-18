@@ -4,17 +4,29 @@ import { useState, useRef } from 'react'
 import { Volume2, Play, Pause } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { bgmTemplates, getBgmTemplateUrlSync, type BgmTemplate } from '@/lib/data/templates'
 
 interface BgmSelectorProps {
   bgmTemplate: string | null
   theme: string
   setBgmTemplate: (template: string | null) => void
+  confirmedBgmTemplate: string | null
+  onBgmConfirm: (templateId: string | null) => void
 }
 
-export function BgmSelector({ bgmTemplate, theme, setBgmTemplate }: BgmSelectorProps) {
+export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTemplate, onBgmConfirm }: BgmSelectorProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [playingTemplateId, setPlayingTemplateId] = useState<string | null>(null)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null)
 
   const handlePreview = async (template: BgmTemplate, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -78,6 +90,25 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate }: BgmSelectorP
     }
   }
 
+  const handleCardClick = (templateId: string) => {
+    setPendingTemplateId(templateId)
+    setShowConfirmDialog(true)
+  }
+
+  const handleConfirm = () => {
+    if (pendingTemplateId !== null) {
+      onBgmConfirm(pendingTemplateId)
+      setBgmTemplate(pendingTemplateId)
+    }
+    setShowConfirmDialog(false)
+    setPendingTemplateId(null)
+  }
+
+  const handleCancel = () => {
+    setShowConfirmDialog(false)
+    setPendingTemplateId(null)
+  }
+
   return (
     <div>
       <h3
@@ -88,28 +119,51 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate }: BgmSelectorP
       >
         배경음악 선택
       </h3>
-      <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+      <div 
+        className="space-y-2 max-h-[60vh] overflow-y-auto border rounded-lg p-2"
+        style={{
+          borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+          boxShadow: theme === 'dark' 
+            ? 'inset 0 2px 4px rgba(0, 0, 0, 0.3)' 
+            : 'inset 0 2px 4px rgba(0, 0, 0, 0.05)',
+        }}
+      >
         {bgmTemplates.map((template) => {
           const isSelected = bgmTemplate === template.id
           const isPlaying = playingTemplateId === template.id
+          const isConfirmed = confirmedBgmTemplate === template.id
 
           return (
             <div
               key={template.id}
-              onClick={() => setBgmTemplate(template.id)}
-              className={`p-3 rounded-lg border cursor-pointer transition-all ${
+              onClick={() => handleCardClick(template.id)}
+              className={`p-3 rounded-lg border cursor-pointer transition-all hover:scale-105 ${
                 isSelected
                   ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500'
-                  : theme === 'dark'
-                    ? 'border-gray-700 bg-gray-900 hover:border-gray-600'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
+                  : isPlaying
+                    ? theme === 'dark'
+                      ? 'bg-gray-800 border-gray-600'
+                      : 'bg-gray-300 border-gray-400'
+                    : theme === 'dark'
+                      ? 'border-gray-700 bg-gray-900 hover:border-gray-600'
+                      : 'border-gray-200 bg-white hover:border-gray-300'
               }`}
               style={{
                 borderColor: isSelected
                   ? '#8b5cf6'
-                  : theme === 'dark'
-                    ? '#374151'
-                    : '#e5e7eb',
+                  : isPlaying
+                    ? theme === 'dark'
+                      ? '#4b5563'
+                      : '#9ca3af'
+                    : theme === 'dark'
+                      ? '#374151'
+                      : '#e5e7eb',
+                backgroundColor: isPlaying
+                  ? theme === 'dark'
+                    ? '#1f2937'
+                    : '#d1d5db'
+                  : undefined,
+                transform: 'scale(1)',
               }}
             >
               <div className="flex items-start justify-between gap-2">
@@ -181,6 +235,48 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate }: BgmSelectorP
           배경음악 없음
         </button>
       </div>
+
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle
+              style={{
+                color: theme === 'dark' ? '#ffffff' : '#111827',
+              }}
+            >
+              배경음악 확정
+            </DialogTitle>
+            <DialogDescription
+              style={{
+                color: theme === 'dark' ? '#d1d5db' : '#6b7280',
+              }}
+            >
+              배경음악을 확정하시겠어요?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleCancel}
+              style={{
+                borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+                color: theme === 'dark' ? '#d1d5db' : '#374151',
+              }}
+            >
+              아니요
+            </Button>
+            <Button
+              onClick={handleConfirm}
+              style={{
+                backgroundColor: '#8b5cf6',
+                color: '#ffffff',
+              }}
+            >
+              확정
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
