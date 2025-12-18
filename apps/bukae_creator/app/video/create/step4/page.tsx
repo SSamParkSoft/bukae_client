@@ -100,10 +100,27 @@ export default function Step4Page() {
   const fabricScaleRatioRef = useRef<number>(1) // Fabric.js 좌표 스케일 비율
   const [mounted, setMounted] = useState(false)
   const [canvasSize, setCanvasSize] = useState<{ width: string; height: string }>({ width: '100%', height: '100%' }) // Canvas 크기 상태
+  const [isTtsBootstrapping, setIsTtsBootstrapping] = useState(false) // 첫 씬 TTS 로딩 상태
+  const [ttsPauseProfile, setTtsPauseProfile] = useState<'v1' | 'v2'>('v2') // TTS pause 프로필
 
   // 클라이언트에서만 렌더링 (SSR/Hydration mismatch 방지)
   useEffect(() => {
     setMounted(true)
+    
+    // URL 쿼리 또는 localStorage에서 pause 프로필 읽기
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const queryProfile = params.get('ttsPause')
+      if (queryProfile === 'v1' || queryProfile === 'v2') {
+        setTtsPauseProfile(queryProfile)
+        localStorage.setItem('ttsPauseProfile', queryProfile)
+      } else {
+        const storedProfile = localStorage.getItem('ttsPauseProfile')
+        if (storedProfile === 'v1' || storedProfile === 'v2') {
+          setTtsPauseProfile(storedProfile)
+        }
+      }
+    }
   }, [])
 
   // 스테이지 크기 계산 (9:16 고정)
@@ -905,9 +922,17 @@ export default function Step4Page() {
       if (!base) return ''
       const isLast = sceneIndex >= timeline.scenes.length - 1
       // 사용자에게는 보이지 않게, 합성 요청 직전에만 자동 숨을 markup에 삽입
-      return makeMarkupFromPlainText(base, { addSceneTransitionPause: !isLast })
+      const markup = makeMarkupFromPlainText(base, { 
+        addSceneTransitionPause: !isLast,
+        profile: ttsPauseProfile
+      })
+      // 디버그 로깅 (개발 환경에서만)
+      if (process.env.NODE_ENV === 'development' && sceneIndex === 0) {
+        console.log('[TTS] pause 프로필:', ttsPauseProfile, 'markup:', markup.substring(0, 100))
+      }
+      return markup
     },
-    [timeline]
+    [timeline, ttsPauseProfile]
   )
 
   const makeTtsKey = useCallback(
@@ -1042,6 +1067,12 @@ export default function Step4Page() {
       // 재생 시작: 현재 선택된 씬부터 마지막 씬까지 순차적으로 캔버스에 렌더링
       if (!timeline) return
       
+      // voiceTemplate 미선택 가드
+      if (!voiceTemplate) {
+        alert('목소리를 선택해주세요.')
+        return
+      }
+      
       if (!pixiReady || spritesRef.current.size === 0) {
         setIsPlaying(true)
         return
@@ -1060,6 +1091,22 @@ export default function Step4Page() {
           })
         }
         return
+      }
+      
+      // 첫 씬 TTS 캐시 미스 감지 및 미리 시작
+      const firstSceneMarkup = buildSceneMarkup(currentSceneIndex)
+      const firstSceneKey = firstSceneMarkup ? makeTtsKey(voiceTemplate, firstSceneMarkup) : null
+      const needsTtsBootstrap = firstSceneKey && !ttsCacheRef.current.has(firstSceneKey)
+      
+      // 첫 씬 TTS를 전환 완료 전에 미리 시작하여 초기 지연 완화
+      let firstSceneTtsPromise: Promise<{ blob: Blob; durationSec: number; markup: string }> | null = null
+      if (needsTtsBootstrap) {
+        setIsTtsBootstrapping(true)
+        firstSceneTtsPromise = ensureSceneTts(currentSceneIndex).catch((err) => {
+          console.error('[TTS] 첫 씬 합성 실패:', err)
+          setIsTtsBootstrapping(false)
+          throw err
+        })
       }
       
       // isPlayingRef를 먼저 설정하여 handleSceneSelect에서 올바르게 인식되도록 함
@@ -1093,7 +1140,13 @@ export default function Step4Page() {
 
           // TTS: 현재 씬 오디오를 재생하고, 오디오 길이에 맞춰 다음 씬 타이밍을 결정
           // (프리페치가 되어 있으면 즉시 재생/즉시 길이 확보)
-          ensureSceneTts(sceneIndex)
+          // 첫 씬이면 미리 시작한 Promise 사용, 아니면 새로 시작
+          const isFirstScene = sceneIndex === currentSceneIndex
+          const ttsPromise = isFirstScene && firstSceneTtsPromise
+            ? firstSceneTtsPromise
+            : ensureSceneTts(sceneIndex)
+          
+          ttsPromise
             .then(({ blob, durationSec }) => {
               // 오디오 재생
               stopTtsAudio()
@@ -1103,6 +1156,14 @@ export default function Step4Page() {
               audio.playbackRate = speed
               ttsAudioRef.current = audio
               audio.onended = () => stopTtsAudio()
+              
+              // 첫 오디오가 실제로 시작될 때 로딩 상태 해제
+              if (isFirstScene && isTtsBootstrapping) {
+                audio.onplaying = () => {
+                  setIsTtsBootstrapping(false)
+                }
+              }
+              
               audio.play().catch(() => {})
 
               // 다음 2개 씬 프리페치(+2)
@@ -1129,6 +1190,10 @@ export default function Step4Page() {
             })
             .catch(() => {
               // TTS 실패 시에도 기존 duration으로 재생 흐름은 유지
+              // 첫 씬 실패 시 로딩 상태 해제
+              if (isFirstScene && isTtsBootstrapping) {
+                setIsTtsBootstrapping(false)
+              }
               prefetchWindow(sceneIndex)
               const sceneDuration = fallbackSceneDuration
               const waitTime = (sceneDuration * 1000) / speed
@@ -2141,6 +2206,11 @@ export default function Step4Page() {
                             <>
                       <Pause className="w-4 h-4 mr-2" />
                               일시정지
+                            </>
+                          ) : isTtsBootstrapping ? (
+                            <>
+                      <Clock className="w-4 h-4 mr-2" />
+                              로딩중…
                             </>
                           ) : (
                             <>
