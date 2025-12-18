@@ -21,7 +21,7 @@ import { loadPixiTexture, calculateSpriteParams } from '@/utils/pixi'
 import { formatTime, getSceneDuration } from '@/utils/timeline'
 import { splitSceneBySentences } from '@/lib/utils/scene-splitter'
 import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
-import { resolveSubtitleFontFamily, SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
+import { resolveSubtitleFontFamily, SUBTITLE_DEFAULT_FONT_ID, loadSubtitleFont, isSubtitleFontId } from '@/lib/subtitle-fonts'
 import { authStorage } from '@/lib/api/auth-storage'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
@@ -837,6 +837,12 @@ export default function Step4Page() {
     let cancelled = false
     ;(async () => {
       try {
+        // Supabase Storage에서 폰트 로드
+        const fontId = scene.text.font?.trim()
+        if (fontId && isSubtitleFontId(fontId)) {
+          await loadSubtitleFont(fontId)
+        }
+
         // document.fonts가 없는 환경에서는 스킵
         if (typeof document === 'undefined' || !(document as any).fonts?.load) return
         await (document as any).fonts.load(`${fontWeight} 16px ${fontFamily}`)

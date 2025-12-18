@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
-import { bgmTemplates } from '@/lib/data/templates'
+import { bgmTemplates, getBgmTemplateUrl, getBgmTemplateUrlSync, type BgmTemplate } from '@/lib/data/templates'
 
 interface BgmSelectionDialogProps {
   children: React.ReactNode
@@ -26,6 +26,8 @@ export default function BgmSelectionDialog({ children }: BgmSelectionDialogProps
   const theme = useThemeStore((state) => state.theme)
   const { bgmTemplate, setBgmTemplate } = useVideoCreateStore()
   const [open, setOpen] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [playingTemplateId, setPlayingTemplateId] = useState<string | null>(null)
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -82,12 +84,49 @@ export default function BgmSelectionDialog({ children }: BgmSelectionDialogProps
                       variant="ghost"
                       size="sm"
                       className="self-start"
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.preventDefault()
-                        // TODO: 음악 미리듣기 기능
+                        const isCurrentlyPlaying = playingTemplateId === template.id
+                        
+                        // 현재 재생 중인 오디오 정지
+                        if (audioRef.current) {
+                          audioRef.current.pause()
+                          audioRef.current.currentTime = 0
+                          audioRef.current = null
+                        }
+                        
+                        if (isCurrentlyPlaying) {
+                          setPlayingTemplateId(null)
+                          return
+                        }
+                        
+                        // 새 오디오 재생
+                        try {
+                          // 동기 버전 사용 (이미 클라이언트 사이드이므로)
+                          const url = getBgmTemplateUrlSync(template)
+                          const audio = new Audio(url)
+                          audioRef.current = audio
+                          setPlayingTemplateId(template.id)
+                          
+                          audio.addEventListener('ended', () => {
+                            setPlayingTemplateId(null)
+                            audioRef.current = null
+                          })
+                          
+                          audio.addEventListener('error', () => {
+                            console.error('BGM 재생 실패:', template.id)
+                            setPlayingTemplateId(null)
+                            audioRef.current = null
+                          })
+                          
+                          await audio.play()
+                        } catch (error) {
+                          console.error('BGM 미리듣기 실패:', error)
+                          setPlayingTemplateId(null)
+                        }
                       }}
                     >
-                      미리듣기
+                      {playingTemplateId === template.id ? '정지' : '미리듣기'}
                     </Button>
                   </Label>
                 </div>
