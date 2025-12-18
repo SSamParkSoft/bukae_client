@@ -106,6 +106,8 @@ export default function Step4Page() {
   const [confirmedBgmTemplate, setConfirmedBgmTemplate] = useState<string | null>(bgmTemplate) // 확정된 BGM
   const [isBgmBootstrapping, setIsBgmBootstrapping] = useState(false) // BGM 로딩 상태
   const isBgmBootstrappingRef = useRef(false) // 클로저에서 최신 값 참조용
+  const [showReadyMessage, setShowReadyMessage] = useState(false) // "재생이 가능해요!" 메시지 표시 여부
+  const [isPreparing, setIsPreparing] = useState(false) // 모든 TTS 합성 준비 중인지 여부
 
   // 클라이언트에서만 렌더링 (SSR/Hydration mismatch 방지)
   useEffect(() => {
@@ -889,6 +891,8 @@ export default function Step4Page() {
   const ttsAbortRef = useRef<AbortController | null>(null)
   const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
   const ttsAudioUrlRef = useRef<string | null>(null)
+  const scenePreviewAudioRef = useRef<HTMLAudioElement | null>(null)
+  const scenePreviewAudioUrlRef = useRef<string | null>(null)
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null)
   const bgmAudioUrlRef = useRef<string | null>(null)
 
@@ -909,13 +913,31 @@ export default function Step4Page() {
     }
   }, [])
 
+  const stopScenePreviewAudio = useCallback(() => {
+    const a = scenePreviewAudioRef.current
+    if (a) {
+      try {
+        a.pause()
+        a.currentTime = 0
+      } catch {
+        // ignore
+      }
+    }
+    scenePreviewAudioRef.current = null
+    if (scenePreviewAudioUrlRef.current) {
+      URL.revokeObjectURL(scenePreviewAudioUrlRef.current)
+      scenePreviewAudioUrlRef.current = null
+    }
+  }, [])
+
   const resetTtsSession = useCallback(() => {
     stopTtsAudio()
+    stopScenePreviewAudio()
     ttsAbortRef.current?.abort()
     ttsAbortRef.current = null
     ttsInFlightRef.current.clear()
     ttsCacheRef.current.clear()
-  }, [stopTtsAudio])
+  }, [stopTtsAudio, stopScenePreviewAudio])
 
   const stopBgmAudio = useCallback(() => {
     const a = bgmAudioRef.current
@@ -934,7 +956,7 @@ export default function Step4Page() {
     }
   }, [])
 
-  const startBgmAudio = useCallback(async (templateId: string | null, playbackSpeed: number): Promise<void> => {
+  const startBgmAudio = useCallback(async (templateId: string | null, playbackSpeed: number, shouldPlay: boolean = false): Promise<void> => {
     if (!templateId) {
       stopBgmAudio()
       return
@@ -979,59 +1001,56 @@ export default function Step4Page() {
       audio.playbackRate = playbackSpeed
       bgmAudioRef.current = audio
       
-      // BGM이 실제로 재생될 때까지 기다리는 Promise
-      const playingPromise = new Promise<void>((resolve, reject) => {
-        let resolved = false
-        
-        const handlePlaying = () => {
-          if (!resolved) {
-            resolved = true
-            // BGM 재생 시작 시점 기록
-            bgmStartTimeRef.current = Date.now()
-            isBgmBootstrappingRef.current = false
-            setIsBgmBootstrapping(false)
-            audio.removeEventListener('playing', handlePlaying)
-            audio.removeEventListener('error', handleError)
-            // TTS도 준비되었는지 확인하고 재생 시작
-            // TTS가 준비되지 않았으면 TTS의 onplaying에서 재생 시작됨
-            if (!isTtsBootstrappingRef.current) {
-              isPlayingRef.current = true
-              setIsPlaying(true)
+      // 재생해야 하는 경우에만 재생
+      if (shouldPlay) {
+        // BGM이 실제로 재생될 때까지 기다리는 Promise
+        const playingPromise = new Promise<void>((resolve, reject) => {
+          let resolved = false
+          
+          const handlePlaying = () => {
+            if (!resolved) {
+              resolved = true
+              // BGM 재생 시작 시점 기록
+              bgmStartTimeRef.current = Date.now()
+              audio.removeEventListener('playing', handlePlaying)
+              audio.removeEventListener('error', handleError)
+              resolve()
             }
-            resolve()
           }
-        }
-        
-        const handleError = () => {
-          if (!resolved) {
-            resolved = true
-            isBgmBootstrappingRef.current = false
-            setIsBgmBootstrapping(false)
-            audio.removeEventListener('playing', handlePlaying)
-            audio.removeEventListener('error', handleError)
-            stopBgmAudio()
-            reject(new Error('BGM 재생 실패'))
+          
+          const handleError = () => {
+            if (!resolved) {
+              resolved = true
+              audio.removeEventListener('playing', handlePlaying)
+              audio.removeEventListener('error', handleError)
+              stopBgmAudio()
+              reject(new Error('BGM 재생 실패'))
+            }
           }
-        }
-        
-        audio.addEventListener('playing', handlePlaying)
-        audio.addEventListener('error', handleError)
-        
-        // play() 호출
-        audio.play().catch((err) => {
-          if (!resolved) {
-            resolved = true
-            audio.removeEventListener('playing', handlePlaying)
-            audio.removeEventListener('error', handleError)
-            reject(err)
-          }
+          
+          audio.addEventListener('playing', handlePlaying)
+          audio.addEventListener('error', handleError)
+          
+          // play() 호출
+          audio.play().catch((err) => {
+            if (!resolved) {
+              resolved = true
+              audio.removeEventListener('playing', handlePlaying)
+              audio.removeEventListener('error', handleError)
+              reject(err)
+            }
+          })
         })
-      })
-      
-      // 실제 재생이 시작될 때까지 기다림
-      await playingPromise
+        
+        // 실제 재생이 시작될 때까지 기다림
+        await playingPromise
+      } else {
+        // 로드만 하고 재생은 하지 않음
+        // audio.load()를 호출하여 메타데이터 로드
+        audio.load()
+      }
     } catch (error) {
-      console.error('BGM 재생 실패:', error)
+      console.error('BGM 로드 실패:', error)
       stopBgmAudio()
     }
   }, [stopBgmAudio])
@@ -1180,15 +1199,197 @@ export default function Step4Page() {
     },
     [timeline, voiceTemplate, ensureSceneTts]
   )
+
+  const handleSceneTtsPreview = useCallback(
+    async (sceneIndex: number) => {
+      if (!timeline) return
+      if (!voiceTemplate) {
+        alert('목소리를 선택해주세요.')
+        return
+      }
+
+      try {
+        // 기존 미리듣기 오디오 정지
+        stopScenePreviewAudio()
+
+        // TTS 합성 (캐시되어 있으면 즉시 반환)
+        const { blob } = await ensureSceneTts(sceneIndex)
+
+        // 오디오 재생
+        const url = URL.createObjectURL(blob)
+        scenePreviewAudioUrlRef.current = url
+        const audio = new Audio(url)
+        scenePreviewAudioRef.current = audio
+
+        audio.onended = () => {
+          stopScenePreviewAudio()
+        }
+
+        audio.onerror = () => {
+          stopScenePreviewAudio()
+        }
+
+        await audio.play()
+      } catch (error) {
+        console.error('[TTS 미리듣기] 실패:', error)
+        stopScenePreviewAudio()
+        alert(error instanceof Error ? error.message : 'TTS 미리듣기 실패')
+      }
+    },
+    [timeline, voiceTemplate, ensureSceneTts, stopScenePreviewAudio]
+  )
   
   // isPlaying 상태와 ref 동기화
   useEffect(() => {
     isPlayingRef.current = isPlaying
   }, [isPlaying])
   
-  const handlePlayPause = () => {
+  const handlePlayPause = async () => {
     if (!isPlaying) {
-      // 재생 시작: 현재 선택된 씬부터 마지막 씬까지 순차적으로 캔버스에 렌더링
+      // "재생이 가능해요!" 메시지가 표시되어 있으면 실제 재생 시작
+      if (showReadyMessage) {
+        setShowReadyMessage(false)
+        setIsPlaying(true)
+        isPlayingRef.current = true
+        
+        // TTS 전체 길이 계산 및 BGM 페이드 아웃 설정
+        const calculateTotalTtsDuration = (): number => {
+          let totalDuration = 0
+          for (let i = currentSceneIndex; i < timeline!.scenes.length; i++) {
+            const markup = buildSceneMarkup(i)
+            const key = markup ? makeTtsKey(voiceTemplate!, markup) : null
+            const cached = key ? ttsCacheRef.current.get(key) : null
+            if (cached) {
+              totalDuration += cached.durationSec
+            } else {
+              totalDuration += timeline!.scenes[i]?.duration || 3
+            }
+          }
+          return totalDuration
+        }
+        
+        // BGM 페이드 아웃 설정
+        const setupBgmFadeOut = () => {
+          if (!confirmedBgmTemplate || !bgmAudioRef.current) return
+          
+          const totalTtsDuration = calculateTotalTtsDuration()
+          const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
+          const totalTimeMs = (totalTtsDuration * 1000) / speed
+          const fadeDuration = 1000 // 1초 페이드
+          const fadeStartTime = Math.max(0, totalTimeMs - fadeDuration)
+          
+          if (fadeStartTime > 0) {
+            setTimeout(() => {
+              if (!bgmAudioRef.current) return
+              
+              const audio = bgmAudioRef.current
+              const startVolume = audio.volume
+              const fadeInterval = 50 // 50ms마다 volume 조절
+              const volumeStep = startVolume / (fadeDuration / fadeInterval)
+              
+              const fadeTimer = setInterval(() => {
+                if (!bgmAudioRef.current) {
+                  clearInterval(fadeTimer)
+                  return
+                }
+                
+                bgmAudioRef.current.volume = Math.max(0, bgmAudioRef.current.volume - volumeStep)
+                
+                if (bgmAudioRef.current.volume <= 0) {
+                  clearInterval(fadeTimer)
+                  stopBgmAudio()
+                }
+              }, fadeInterval)
+            }, fadeStartTime)
+          } else {
+            // 페이드 시간이 없으면 즉시 정지
+            setTimeout(() => {
+              stopBgmAudio()
+            }, totalTimeMs)
+          }
+        }
+        
+        // BGM 재생 시작 (이미 로드되어 있음)
+        if (confirmedBgmTemplate && bgmAudioRef.current) {
+          const audio = bgmAudioRef.current
+          bgmStartTimeRef.current = Date.now()
+          audio.play().catch((err) => {
+            console.error('[BGM] 재생 실패:', err)
+          })
+        }
+        
+        // BGM 페이드 아웃 시작
+        setupBgmFadeOut()
+        
+        // 실제 재생 시작 로직은 playNextScene에서 처리
+        const playNextScene = (currentIndex: number) => {
+          if (currentIndex >= timeline!.scenes.length) {
+            setIsPlaying(false)
+            isPlayingRef.current = false
+            stopBgmAudio()
+            return
+          }
+          
+          const sceneIndex = currentIndex
+          const scene = timeline!.scenes[sceneIndex]
+          const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
+          
+          handleSceneSelect(sceneIndex, true, () => {
+            // 캐시된 TTS 사용
+            const markup = buildSceneMarkup(sceneIndex)
+            const key = markup ? makeTtsKey(voiceTemplate!, markup) : null
+            const cached = key ? ttsCacheRef.current.get(key) : null
+            
+            if (!cached) {
+              console.warn(`[TTS] 씬 ${sceneIndex} 캐시 미스 - 키: ${key}`)
+              console.log('[TTS] 현재 캐시 키 목록:', Array.from(ttsCacheRef.current.keys()))
+            } else {
+              console.log(`[TTS] 씬 ${sceneIndex} 캐시 히트 - 재생 시작`)
+            }
+            
+            if (cached) {
+              const { blob, durationSec } = cached
+              stopTtsAudio()
+              const url = URL.createObjectURL(blob)
+              ttsAudioUrlRef.current = url
+              const audio = new Audio(url)
+              audio.playbackRate = speed
+              ttsAudioRef.current = audio
+              audio.onended = () => stopTtsAudio()
+              audio.play().catch(() => {})
+              
+              const sceneDuration = durationSec > 0 ? durationSec : scene.duration
+              const waitTime = (sceneDuration * 1000) / speed
+              
+              playTimeoutRef.current = setTimeout(() => {
+                if (isPlayingRef.current) {
+                  playNextScene(currentIndex + 1)
+                }
+              }, waitTime)
+            } else {
+              // 캐시에 없으면 fallback duration 사용
+              const fallbackDuration = scene.duration
+              const waitTime = (fallbackDuration * 1000) / speed
+              
+              playTimeoutRef.current = setTimeout(() => {
+                if (isPlayingRef.current) {
+                  playNextScene(currentIndex + 1)
+                }
+              }, waitTime)
+            }
+          })
+        }
+        
+        playNextScene(currentSceneIndex)
+        return
+      }
+      
+      // 준비 중이면 아무것도 하지 않음
+      if (isPreparing) {
+        return
+      }
+      
+      // 재생 시작: 모든 씬의 TTS 합성 및 BGM 로드
       if (!timeline) return
       
       // voiceTemplate 미선택 가드
@@ -1198,7 +1399,6 @@ export default function Step4Page() {
       }
       
       if (!pixiReady || spritesRef.current.size === 0) {
-        setIsPlaying(true)
         return
       }
       
@@ -1217,306 +1417,93 @@ export default function Step4Page() {
         return
       }
       
-      // 첫 씬 TTS 캐시 미스 감지 및 미리 시작
-      const firstSceneMarkup = buildSceneMarkup(currentSceneIndex)
-      const firstSceneKey = firstSceneMarkup ? makeTtsKey(voiceTemplate, firstSceneMarkup) : null
-      const needsTtsBootstrap = firstSceneKey && !ttsCacheRef.current.has(firstSceneKey)
+      // 모든 씬의 TTS 합성 시작
+      setIsPreparing(true)
+      setIsTtsBootstrapping(true)
+      isTtsBootstrappingRef.current = true
       
-      // BGM 로딩 필요 여부 확인
-      const needsBgmBootstrap = confirmedBgmTemplate !== null
-      
-      // 첫 씬 TTS를 전환 완료 전에 미리 시작하여 초기 지연 완화
-      let firstSceneTtsPromise: Promise<{ blob: Blob; durationSec: number; markup: string }> | null = null
-      if (needsTtsBootstrap) {
-        isTtsBootstrappingRef.current = true
-        setIsTtsBootstrapping(true)
-        firstSceneTtsPromise = ensureSceneTts(currentSceneIndex).catch((err) => {
-          console.error('[TTS] 첫 씬 합성 실패:', err)
-          isTtsBootstrappingRef.current = false
-          setIsTtsBootstrapping(false)
-          throw err
-        })
-      }
-
-      // BGM 로드 시작
-      let bgmPromise: Promise<void> | null = null
-      if (needsBgmBootstrap) {
-        isBgmBootstrappingRef.current = true
+      if (confirmedBgmTemplate) {
         setIsBgmBootstrapping(true)
-        const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
-        bgmPromise = startBgmAudio(confirmedBgmTemplate, speed).catch((err) => {
-          console.error('[BGM] 로드 실패:', err)
-          isBgmBootstrappingRef.current = false
-          setIsBgmBootstrapping(false)
-        })
+        isBgmBootstrappingRef.current = true
       }
       
-      // 로딩 중이 아닐 때만 isPlaying 설정 (로딩 중에는 버튼이 "로딩중..."으로 표시되도록)
-      const needsBootstrap = needsTtsBootstrap || needsBgmBootstrap
-      if (!needsBootstrap) {
-        isPlayingRef.current = true
-        setIsPlaying(true)
-      } else {
-        // 로딩 중에는 isPlaying을 false로 유지하여 "로딩중..." 표시
-        // TTS와 BGM 준비 완료 후 playNextScene에서 isPlaying을 true로 설정
-      }
-      
-      // 재생 시작 시 현재 씬을 다시 선택하기 위해 lastRenderedSceneIndexRef를 현재 씬으로 설정
-      // handleSceneSelect에서 재생 중이고 현재 씬을 다시 선택하는 경우를 감지하여
-      // prevIndex를 이전 씬으로 계산하도록 함
-      const prevLastRendered = lastRenderedSceneIndexRef.current
-      lastRenderedSceneIndexRef.current = currentSceneIndex
-      // 현재 선택된 씬부터 마지막 씬까지 순차적으로 렌더링하기 위한 인덱스
-      let currentIndex = currentSceneIndex
-      
-      // 모든 씬의 TTS 길이 합계 계산 (BGM 정지 시간 결정용)
-      // BGM 재생 시작 시점에 타이머를 설정하기 위해 미리 계산
-      const calculateTotalTtsDuration = async (): Promise<number> => {
-        let totalDuration = 0
-        
-        // 현재 씬부터 마지막 씬까지 모든 TTS duration 계산
-        for (let i = currentSceneIndex; i < timeline.scenes.length; i++) {
-          try {
-            const ttsResult = await ensureSceneTts(i)
-            totalDuration += ttsResult.durationSec
-          } catch (error) {
-            // TTS 계산 실패 시 fallback duration 사용
-            const fallbackDuration = timeline.scenes[i]?.duration || 3
-            totalDuration += fallbackDuration
-          }
-        }
-        
-        return totalDuration
-      }
-      
-      // BGM 정지 타이머를 설정할 함수 (BGM 재생 시작 시 호출)
-      // BGM 재생 시작 시점(bgmStartTimeRef)부터 전체 TTS 길이에 맞춰 정지
-      const setupBgmStopTimer = async () => {
-        if (!confirmedBgmTemplate) return
-        
-        // BGM이 아직 재생 시작되지 않았으면 대기
-        if (bgmStartTimeRef.current === null) {
-          console.warn('BGM 재생 시작 시간이 기록되지 않았습니다.')
-          return
-        }
-        
-        try {
-          const totalDuration = await calculateTotalTtsDuration()
-          const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
-          const totalTimeMs = (totalDuration * 1000) / speed
-          
-          // 기존 타이머 정리
-          if (bgmStopTimeoutRef.current) {
-            clearTimeout(bgmStopTimeoutRef.current)
-            bgmStopTimeoutRef.current = null
-          }
-          
-          // BGM 재생 시작 시간부터 경과한 시간 계산
-          const elapsed = Date.now() - bgmStartTimeRef.current
-          const remainingTime = Math.max(0, totalTimeMs - elapsed)
-          
-          // 남은 시간에 맞춰 BGM 정지
-          bgmStopTimeoutRef.current = setTimeout(() => {
-            stopBgmAudio()
-            bgmStopTimeoutRef.current = null
-            bgmStartTimeRef.current = null
-          }, remainingTime)
-        } catch (error) {
-          console.error('전체 TTS 길이 계산 실패:', error)
-        }
-      }
-      
-      const playNextScene = () => {
-        // 로딩 중이었다면 이제 재생 시작
-        if (isTtsBootstrappingRef.current || isBgmBootstrappingRef.current) {
-          // TTS와 BGM 모두 준비되었는지 확인
-          if (!isTtsBootstrappingRef.current && !isBgmBootstrappingRef.current) {
-            isPlayingRef.current = true
-            setIsPlaying(true)
-          } else {
-            // 아직 로딩 중이면 재생 시작하지 않음
-            return
-          }
-        }
-        
-        // 재생이 시작되지 않았으면 시작
-        if (!isPlayingRef.current) {
-          isPlayingRef.current = true
-          setIsPlaying(true)
-        }
-        
-        // 씬이 끝났는지 확인
-        if (currentIndex >= timeline.scenes.length) {
-          setIsPlaying(false)
-          isPlayingRef.current = false
-          isTtsBootstrappingRef.current = false
-          setIsTtsBootstrapping(false)
-          isBgmBootstrappingRef.current = false
-          setIsBgmBootstrapping(false)
-          stopBgmAudio()
-          return
-        }
-        
-        const sceneIndex = currentIndex
-        const scene = timeline.scenes[sceneIndex]
-        const fallbackSceneDuration = scene.duration
-        
-        // 씬 선택 및 렌더링 (씬 클릭할 때와 똑같이 - skipStopPlaying: true로 재생 중지만 방지)
-        // handleSceneSelect가 씬을 캔버스에 렌더링하고 전환 효과를 적용함
-        handleSceneSelect(sceneIndex, true, () => {
-          const nextIndex = currentIndex + 1
-          const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
+      // 현재 씬부터 마지막 씬까지 모든 TTS 배치 합성 (동시성 제한 + 딜레이)
+      // 이미 캐시된 씬은 스킵하여 rate limit 절약
+      const batchSize = 1 // 1개씩 처리하여 rate limit 안전하게 준수
+      const batchDelay = 7000 // 7초 딜레이 (60초/10개 = 6초, 여유를 두고 7초)
+      const ttsPromises = []
 
-          // TTS: 현재 씬 오디오를 재생하고, 오디오 길이에 맞춰 다음 씬 타이밍을 결정
-          // (프리페치가 되어 있으면 즉시 재생/즉시 길이 확보)
-          // 첫 씬이면 미리 시작한 Promise 사용, 아니면 새로 시작
-          const isFirstScene = sceneIndex === currentSceneIndex
-          const ttsPromise = isFirstScene && firstSceneTtsPromise
-            ? firstSceneTtsPromise
-            : ensureSceneTts(sceneIndex)
-          
-          ttsPromise
-            .then(({ blob, durationSec }) => {
-              // 오디오 재생
-              stopTtsAudio()
-              const url = URL.createObjectURL(blob)
-              ttsAudioUrlRef.current = url
-              const audio = new Audio(url)
-              audio.playbackRate = speed
-              ttsAudioRef.current = audio
-              audio.onended = () => stopTtsAudio()
-              
-              // 첫 오디오가 실제로 시작될 때 로딩 상태 해제
-              if (isFirstScene && isTtsBootstrappingRef.current) {
-                audio.onplaying = () => {
-                  isTtsBootstrappingRef.current = false
-                  setIsTtsBootstrapping(false)
-                  // BGM도 준비되었는지 확인하고 재생 시작
-                  if (!isBgmBootstrappingRef.current) {
-                    isPlayingRef.current = true
-                    setIsPlaying(true)
-                    // 재생이 시작되었으므로 playNextScene이 정상 작동함
-                  }
-                }
-              }
-              
-              audio.play().catch(() => {})
-
-              // 다음 2개 씬 프리페치(+2)
-              prefetchWindow(sceneIndex)
-
-              const sceneDuration = durationSec > 0 ? durationSec : fallbackSceneDuration
-              const waitTime = (sceneDuration * 1000) / speed
-
-              if (nextIndex < timeline.scenes.length) {
-                playTimeoutRef.current = setTimeout(() => {
-                  currentIndex = nextIndex
-                  if (isPlayingRef.current) {
-                    playNextScene()
-                  }
-                }, waitTime)
-              } else {
-                // 마지막 씬이 끝나면 재생 종료
-                playTimeoutRef.current = setTimeout(() => {
-                  setIsPlaying(false)
-                  isPlayingRef.current = false
-                  resetTtsSession()
-                  // BGM은 bgmStopTimeoutRef에서 정지되므로 여기서는 정지하지 않음
-                  // 하지만 타이머가 아직 실행 중이면 정지
-                  if (bgmStopTimeoutRef.current) {
-                    clearTimeout(bgmStopTimeoutRef.current)
-                    bgmStopTimeoutRef.current = null
-                    stopBgmAudio()
-                  }
-                }, waitTime)
-              }
-            })
-            .catch(() => {
-              // TTS 실패 시에도 기존 duration으로 재생 흐름은 유지
-              // 첫 씬 실패 시 로딩 상태 해제
-              if (isFirstScene && isTtsBootstrappingRef.current) {
-                isTtsBootstrappingRef.current = false
-                setIsTtsBootstrapping(false)
-              }
-              prefetchWindow(sceneIndex)
-              const sceneDuration = fallbackSceneDuration
-              const waitTime = (sceneDuration * 1000) / speed
-
-              if (nextIndex < timeline.scenes.length) {
-                playTimeoutRef.current = setTimeout(() => {
-                  currentIndex = nextIndex
-                  if (isPlayingRef.current) {
-                    playNextScene()
-                  }
-                }, waitTime)
-              } else {
-                playTimeoutRef.current = setTimeout(() => {
-                  setIsPlaying(false)
-                  isPlayingRef.current = false
-                  resetTtsSession()
-                  // BGM은 bgmStopTimeoutRef에서 정지되므로 여기서는 정지하지 않음
-                  // 하지만 타이머가 아직 실행 중이면 정지
-                  if (bgmStopTimeoutRef.current) {
-                    clearTimeout(bgmStopTimeoutRef.current)
-                    bgmStopTimeoutRef.current = null
-                    stopBgmAudio()
-                  }
-                }, waitTime)
-              }
-            })
-          })
-        }
+      // 먼저 캐시 확인하여 이미 합성된 씬은 스킵
+      const scenesToSynthesize = []
+      for (let i = currentSceneIndex; i < timeline.scenes.length; i++) {
+        const markup = buildSceneMarkup(i)
+        const key = markup ? makeTtsKey(voiceTemplate!, markup) : null
+        const cached = key ? ttsCacheRef.current.get(key) : null
         
-        // 현재 선택된 씬부터 시작하여 마지막 씬까지 순차적으로 렌더링
-        // playNextScene이 재귀적으로 호출되며 각 씬을 캔버스에 렌더링함
-        // 로딩 중이면 playNextScene에서 TTS와 BGM 준비 후 재생 시작, 아니면 즉시 재생
-        const allPromises: Promise<any>[] = []
-        if (needsTtsBootstrap && firstSceneTtsPromise) {
-          allPromises.push(firstSceneTtsPromise)
-        }
-        if (needsBgmBootstrap && bgmPromise) {
-          allPromises.push(bgmPromise)
-        }
-
-        if (allPromises.length > 0) {
-          // TTS와 BGM 모두 준비를 기다린 후 재생 시작
-          Promise.all(allPromises)
-            .then(() => {
-              // Promise.all이 완료되었다는 것은 TTS와 BGM Promise가 resolve되었다는 의미
-              // BGM Promise는 onplaying 이벤트를 기다리므로 실제 재생이 시작된 후 resolve됨
-              // TTS Promise도 첫 씬의 경우 onplaying을 기다림
-              // 따라서 Promise.all이 완료되면 실제 재생이 시작된 상태임
-              // 로딩 상태를 해제하고 재생 시작
-              isTtsBootstrappingRef.current = false
-              setIsTtsBootstrapping(false)
-              isBgmBootstrappingRef.current = false
-              setIsBgmBootstrapping(false)
-              isPlayingRef.current = true
-              setIsPlaying(true)
-              
-              // BGM이 재생 시작되었으므로(bgmStartTimeRef가 설정됨) 전체 TTS 길이에 맞춰 정지 타이머 설정
-              if (needsBgmBootstrap && confirmedBgmTemplate && bgmStartTimeRef.current !== null) {
-                setupBgmStopTimer()
-              }
-              
-              playNextScene()
-            })
-            .catch(() => {
-              // 실패해도 재생은 시작 (fallback duration 사용)
-              isTtsBootstrappingRef.current = false
-              setIsTtsBootstrapping(false)
-              isBgmBootstrappingRef.current = false
-              setIsBgmBootstrapping(false)
-              isPlayingRef.current = true
-              setIsPlaying(true)
-              playNextScene()
-            })
+        if (!cached) {
+          scenesToSynthesize.push(i)
         } else {
-          // 로딩이 필요 없으면 즉시 재생 시작
-          isPlayingRef.current = true
-          setIsPlaying(true)
-          playNextScene()
+          console.log(`[TTS] 씬 ${i} 이미 캐시됨 - 스킵`)
         }
+      }
+
+      console.log(`[TTS] 합성 필요: ${scenesToSynthesize.length}개 씬 (${scenesToSynthesize.join(', ')})`)
+
+      // 캐시되지 않은 씬만 순차 처리 (rate limit 준수)
+      for (let i = 0; i < scenesToSynthesize.length; i++) {
+        const sceneIndex = scenesToSynthesize[i]
+        try {
+          const result = await ensureSceneTts(sceneIndex)
+          if (!result) {
+            console.warn(`[TTS] 씬 ${sceneIndex} 합성 결과가 null입니다.`)
+          } else {
+            console.log(`[TTS] 씬 ${sceneIndex} 합성 완료 및 캐시 저장 (${i + 1}/${scenesToSynthesize.length})`)
+          }
+          ttsPromises.push(result)
+        } catch (err) {
+          console.error(`[TTS] 씬 ${sceneIndex} 합성 실패:`, err)
+          ttsPromises.push(null)
+        }
+        
+        // 마지막 요청이 아니면 딜레이 추가
+        if (i < scenesToSynthesize.length - 1) {
+          console.log(`[TTS] ${batchDelay}ms 대기 후 다음 씬 합성 시작...`)
+          await new Promise(resolve => setTimeout(resolve, batchDelay))
+        }
+      }
+      
+      // BGM 로드 (재생은 하지 않음)
+      const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
+      const bgmPromise = confirmedBgmTemplate
+        ? startBgmAudio(confirmedBgmTemplate, speed, false).catch((err) => {
+            console.error('[BGM] 로드 실패:', err)
+            isBgmBootstrappingRef.current = false
+            setIsBgmBootstrapping(false)
+            return null
+          })
+        : Promise.resolve(null)
+      
+      // 모든 준비 완료 대기
+      Promise.all([...ttsPromises, bgmPromise])
+        .then(() => {
+          setIsPreparing(false)
+          setIsTtsBootstrapping(false)
+          isTtsBootstrappingRef.current = false
+          setIsBgmBootstrapping(false)
+          isBgmBootstrappingRef.current = false
+          
+          // "재생이 가능해요!" 메시지 표시
+          setShowReadyMessage(true)
+        })
+        .catch((error) => {
+          console.error('[재생 준비] 실패:', error)
+          setIsPreparing(false)
+          setIsTtsBootstrapping(false)
+          isTtsBootstrappingRef.current = false
+          setIsBgmBootstrapping(false)
+          isBgmBootstrappingRef.current = false
+          alert('재생 준비 중 오류가 발생했습니다.')
+        })
     } else {
       // 재생 중지
       if (playTimeoutRef.current) {
@@ -2503,15 +2490,21 @@ export default function Step4Page() {
                 />
                         </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 relative">
+                        {showReadyMessage && (
+                          <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs px-3 py-2 rounded-lg shadow-lg whitespace-nowrap z-50 animate-bounce">
+                            재생이 가능해요!
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-purple-600"></div>
+                          </div>
+                        )}
                         <Button
                           onClick={handlePlayPause}
                           variant="outline"
                           size="sm"
                   className="flex-1"
-                          disabled={isTtsBootstrapping || isBgmBootstrapping}
+                          disabled={isTtsBootstrapping || isBgmBootstrapping || isPreparing}
                         >
-                          {isTtsBootstrapping || isBgmBootstrapping ? (
+                          {isTtsBootstrapping || isBgmBootstrapping || isPreparing ? (
                             <>
                       <Clock className="w-4 h-4 mr-2" />
                               로딩중…
@@ -2745,6 +2738,7 @@ export default function Step4Page() {
               onSplitScene={handleSceneSplit}
               onDeleteScene={handleSceneDelete}
               onDuplicateScene={handleSceneDuplicate}
+              onTtsPreview={handleSceneTtsPreview}
             />
           </div>
         </div>

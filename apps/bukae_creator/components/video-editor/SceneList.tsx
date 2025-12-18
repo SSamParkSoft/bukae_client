@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { GripVertical, Copy, Trash2 } from 'lucide-react'
+import { GripVertical, Copy, Trash2, Play, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { TimelineData, SceneScript } from '@/store/useVideoCreateStore'
 
@@ -17,6 +17,7 @@ interface SceneListProps {
   onSplitScene?: (index: number) => void
   onDeleteScene?: (index: number) => void
   onDuplicateScene?: (index: number) => void
+  onTtsPreview?: (sceneIndex: number) => Promise<void>
 }
 
 export function SceneList({
@@ -33,9 +34,11 @@ export function SceneList({
   onSplitScene,
   onDeleteScene,
   onDuplicateScene,
+  onTtsPreview,
 }: SceneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
+  const [previewingSceneIndex, setPreviewingSceneIndex] = useState<number | null>(null)
 
   // 드래그 시작
   const handleDragStart = (index: number) => {
@@ -213,20 +216,54 @@ export function SceneList({
                 </div>
 
                 {/* 텍스트 입력 */}
-                <textarea
-                  rows={2}
-                  value={scene.script}
-                  onChange={(e) => onScriptChange(index, e.target.value)}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-full text-sm rounded-md border px-2 py-1 resize-none mb-2"
-                  style={{
-                    backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-                    borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                    color: theme === 'dark' ? '#ffffff' : '#111827',
-                  }}
-                  placeholder="씬 텍스트 입력..."
-                />
+                <div className="flex items-start gap-2 mb-2">
+                  <textarea
+                    rows={2}
+                    value={scene.script}
+                    onChange={(e) => onScriptChange(index, e.target.value)}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 text-sm rounded-md border px-2 py-1 resize-none"
+                    style={{
+                      backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
+                      borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
+                      color: theme === 'dark' ? '#ffffff' : '#111827',
+                    }}
+                    placeholder="씬 텍스트 입력..."
+                  />
+                  {onTtsPreview && scene.script.trim() && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      className="shrink-0 h-auto py-1 px-2"
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        if (previewingSceneIndex === index) {
+                          // 재생 중이면 정지 (추후 구현)
+                          setPreviewingSceneIndex(null)
+                        } else {
+                          setPreviewingSceneIndex(index)
+                          try {
+                            await onTtsPreview(index)
+                          } catch (error) {
+                            console.error('TTS 미리듣기 실패:', error)
+                          } finally {
+                            setPreviewingSceneIndex(null)
+                          }
+                        }
+                      }}
+                      disabled={previewingSceneIndex === index}
+                      title="TTS 미리듣기"
+                    >
+                      {previewingSceneIndex === index ? (
+                        <Pause className="w-3 h-3" />
+                      ) : (
+                        <Play className="w-3 h-3" />
+                      )}
+                    </Button>
+                  )}
+                </div>
 
                 {/* 설정 */}
                 <div className="flex items-center gap-2 text-xs flex-wrap">

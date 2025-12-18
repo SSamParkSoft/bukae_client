@@ -14,7 +14,9 @@ const PRODUCT_URLS = {
   viper:
     'https://www.coupang.com/vp/products/8609316210?itemId=24969131250&vendorItemId=91974737006&src=1139000&spec=10799999&addtag=400&ctag=8609316210&lptag=AF4647824&itime=20251120203404&pageType=PRODUCT&pageValue=8609316210&wPcid=17510469561163597660443&wRef=&wTime=20251120203404&redirect=landing&traceid=V0-181-d7f087c23b2393b7&mcid=4cf9c0d3d7e545fbb186eeab9760568a&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&subparam=',
   sleepandsleep:
-    'https://www.coupang.com/vp/products/8529253500?itemId=24694860335&vendorItemId=89625752062&src=1139000&spec=10799999&addtag=400&ctag=8529253500&lptag=AF4647824&itime=20251127202722&pageType=PRODUCT&pageValue=8529253500&wPcid=17510469561163597660443&wRef=&wTime=20251127202722&redirect=landing&traceid=V0-181-fbce8af0ad776348&mcid=2071b6f7292149e082d6af96b6d3d4e8&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&subparam='
+    'https://www.coupang.com/vp/products/8529253500?itemId=24694860335&vendorItemId=89625752062&src=1139000&spec=10799999&addtag=400&ctag=8529253500&lptag=AF4647824&itime=20251127202722&pageType=PRODUCT&pageValue=8529253500&wPcid=17510469561163597660443&wRef=&wTime=20251127202722&redirect=landing&traceid=V0-181-fbce8af0ad776348&mcid=2071b6f7292149e082d6af96b6d3d4e8&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&subparam=',
+  dashu_nipple_band:
+    'https://www.coupang.com/vp/products/7335670569?itemId=781216890&vendorItemId=4977555248&src=1139000&spec=10799999&addtag=400&ctag=7335670569&lptag=AF4647824&itime=20251218171509&pageType=PRODUCT&pageValue=7335670569&wPcid=17510469561163597660443&wRef=&wTime=20251218171509&redirect=landing&traceid=V0-181-fd475d0924b6aa71&mcid=21fcaa0e65ec40f8908a6147f0f34d53&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam='
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -91,6 +93,16 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     thumbnailUrl:
       '/dummy/shower.png',
     url: PRODUCT_URLS.comet_shower_touchcase,
+  },
+  {
+    id: 'dashu-nipple-band',
+    productId: 1008,
+    name: '다슈 매직 커버 니플밴드 52매, 2개',
+    price: 11900,
+    description: '매직 커버 · 52매 · 2개 구성',
+    order: 8,
+    thumbnailUrl: '/dummy/dashu_band.png',
+    url: PRODUCT_URLS.dashu_nipple_band,
   },
 ]
 
