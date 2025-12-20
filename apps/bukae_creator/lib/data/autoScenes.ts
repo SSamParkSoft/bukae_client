@@ -1,6 +1,7 @@
 import type { ConceptType } from './templates'
 import { conceptOptions, conceptTones } from './templates'
 import type { AutoScene, SceneLayout } from '@/lib/types/video'
+import { convertMediaPathToStorageUrl } from '@/lib/utils/supabase-storage'
 
 export interface CrawledImageAsset {
   id: string
@@ -13,43 +14,43 @@ export interface CrawledImageAsset {
 export const crawledImagePool: CrawledImageAsset[] = [
   {
     id: 'prod-1',
-    url: '/media/air-filter-set.png',
+    url: convertMediaPathToStorageUrl('/media/air-filter-set.png'),
     label: '제품 사진 1',
     description: '제품 전체 모습을 가장 잘 보여주는 대표 컷',
   },
   {
     id: 'prod-2',
-    url: '/media/bluetooth-speaker.png',
+    url: convertMediaPathToStorageUrl('/media/bluetooth-speaker.png'),
     label: '제품 사진 2',
     description: '라벨과 텍스트를 가까이에서 보여주는 디테일 컷',
   },
   {
     id: 'prod-3',
-    url: '/media/led-strip-light.png',
+    url: convertMediaPathToStorageUrl('/media/led-strip-light.png'),
     label: '제품 사진 3',
     description: '제품 사용 장면을 담아 활용도를 보여주는 컷',
   },
   {
     id: 'prod-4',
-    url: '/media/num1.png',
+    url: convertMediaPathToStorageUrl('/media/num1.png'),
     label: '제품 사진 4',
     description: '텍스처와 질감을 강조한 클로즈업 컷',
   },
   {
     id: 'prod-5',
-    url: '/media/num2.png',
+    url: convertMediaPathToStorageUrl('/media/num2.png'),
     label: '제품 사진 5',
     description: '피부나 손 등 실제 사용감을 보여주는 장면',
   },
   {
     id: 'prod-6',
-    url: '/media/num3.png',
+    url: convertMediaPathToStorageUrl('/media/num3.png'),
     label: '제품 사진 6',
     description: '전후 느낌을 비교할 수 있는 분위기 컷',
   },
   {
     id: 'prod-7',
-    url: '/media/num1.png',
+    url: convertMediaPathToStorageUrl('/media/num1.png'),
     label: '스파알 목어깨 마사지기',
     description: '스마트폰 · 컴퓨터로 뭉친 목과 어깨를 6개의 손맛 헤드로 풀어주는 제품',
     scriptOverride:
@@ -57,19 +58,19 @@ export const crawledImagePool: CrawledImageAsset[] = [
   },
   {
     id: 'prod-8',
-    url: '/media/num4.png',
+    url: convertMediaPathToStorageUrl('/media/num4.png'),
     label: '제품 사진 8',
     description: '주요 특징을 설명하는 문구와 함께 촬영된 컷',
   },
   {
     id: 'prod-9',
-    url: '/media/num5.png',
+    url: convertMediaPathToStorageUrl('/media/num5.png'),
     label: '제품 사진 9',
     description: '소품과 함께 연출해 감성을 더한 이미지',
   },
   {
     id: 'prod-10',
-    url: '/media/num6.png',
+    url: convertMediaPathToStorageUrl('/media/num6.png'),
     label: '제품 사진 10',
     description: '제품 정보가 한눈에 보이도록 구성한 컷',
   },

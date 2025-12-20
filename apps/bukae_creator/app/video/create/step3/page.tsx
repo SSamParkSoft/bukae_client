@@ -13,6 +13,7 @@ import { useVideoCreateStore, SceneScript } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { studioScriptApi } from '@/lib/api/studio-script'
 import type { ScriptType } from '@/lib/types/api/studio-script'
+import { convertMediaPathToStorageUrl } from '@/lib/utils/supabase-storage'
 
 export default function Step3Page() {
   const router = useRouter()
@@ -39,18 +40,18 @@ export default function Step3Page() {
     // 중복 제거
     const uniqueImages = Array.from(new Set(images))
 
-    // 더미 이미지 목록 (public/media 폴더의 이미지들)
+    // 더미 이미지 목록 (Supabase Storage images 버킷에서 가져오기)
     const dummyImages = [
-      '/media/spael-massager.png',
-      '/media/air-filter-set.png',
-      '/media/bluetooth-speaker.png',
-      '/media/led-strip-light.png',
-      '/media/num1.png',
-      '/media/num2.png',
-      '/media/num3.png',
-      '/media/num4.png',
-      '/media/num5.png',
-      '/media/num6.png',
+      convertMediaPathToStorageUrl('/media/spael-massager.png'),
+      convertMediaPathToStorageUrl('/media/air-filter-set.png'),
+      convertMediaPathToStorageUrl('/media/bluetooth-speaker.png'),
+      convertMediaPathToStorageUrl('/media/led-strip-light.png'),
+      convertMediaPathToStorageUrl('/media/num1.png'),
+      convertMediaPathToStorageUrl('/media/num2.png'),
+      convertMediaPathToStorageUrl('/media/num3.png'),
+      convertMediaPathToStorageUrl('/media/num4.png'),
+      convertMediaPathToStorageUrl('/media/num5.png'),
+      convertMediaPathToStorageUrl('/media/num6.png'),
     ]
 
     // 상품 이미지가 없을 때: 더미 이미지만 반환

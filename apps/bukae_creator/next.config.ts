@@ -1,5 +1,20 @@
 import type { NextConfig } from "next";
 
+// Supabase Storage 도메인 추출
+const getSupabaseHostname = (): string | null => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) return null;
+  
+  try {
+    const url = new URL(supabaseUrl);
+    return url.hostname;
+  } catch {
+    return null;
+  }
+};
+
+const supabaseHostname = getSupabaseHostname();
+
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
@@ -13,6 +28,15 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'placehold.co',
       },
+      // Supabase Storage 도메인 추가
+      ...(supabaseHostname
+        ? [
+            {
+              protocol: 'https' as const,
+              hostname: supabaseHostname,
+            },
+          ]
+        : []),
     ],
   },
   // better-sqlite3는 서버 사이드에서만 사용 (Turbopack 호환)

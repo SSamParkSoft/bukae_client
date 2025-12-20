@@ -9,6 +9,7 @@ import { useThemeStore } from '../../../../store/useThemeStore'
 import StepIndicator from '../../../../components/StepIndicator'
 import SelectedProductsPanel from '../../../../components/SelectedProductsPanel'
 import { SPAEL_PRODUCT, isSpaelProduct } from '@/lib/data/spaelProduct'
+import { convertMediaPathToStorageUrl } from '@/lib/utils/supabase-storage'
 
 type ThemeMode = 'light' | 'dark'
 
@@ -159,12 +160,12 @@ const generateProducts = (platform: Platform, count: number): Product[] => {
   const template = productTemplates[platform]
   const products: Product[] = []
 
-  // 각 플랫폼의 첫 번째 제품 이미지 매핑
+  // 각 플랫폼의 첫 번째 제품 이미지 매핑 (Supabase Storage images 버킷에서 가져오기)
   const firstProductImages: Record<Platform, string> = {
-    coupang: '/media/spael-massager.png', // 스파알 제품 (이미 SPAEL_PRODUCT로 교체됨)
-    naver: '/media/air-filter-set.png', // 에어컨 필터 세트
-    aliexpress: '/media/led-strip-light.png', // LED 스트립 라이트
-    amazon: '/media/bluetooth-speaker.png', // Bluetooth Speaker
+    coupang: convertMediaPathToStorageUrl('/media/spael-massager.png'), // 스파알 제품 (이미 SPAEL_PRODUCT로 교체됨)
+    naver: convertMediaPathToStorageUrl('/media/air-filter-set.png'), // 에어컨 필터 세트
+    aliexpress: convertMediaPathToStorageUrl('/media/led-strip-light.png'), // LED 스트립 라이트
+    amazon: convertMediaPathToStorageUrl('/media/bluetooth-speaker.png'), // Bluetooth Speaker
   }
 
   for (let i = 1; i <= count; i++) {
