@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Play, Pause, Clock, Edit2, Type, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, AlignJustify, Sparkles, Grid3x3 } from 'lucide-react'
+import { Play, Pause, Clock, Edit2, Type, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, AlignJustify, Sparkles, Grid3x3, Loader2, CheckCircle2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import StepIndicator from '@/components/StepIndicator'
@@ -48,6 +48,9 @@ export default function Step4Page() {
     setBgmTemplate,
     setTransitionTemplate,
     setVoiceTemplate,
+    selectedProducts,
+    videoTitle,
+    videoDescription,
   } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   
@@ -108,6 +111,36 @@ export default function Step4Page() {
   const isBgmBootstrappingRef = useRef(false) // 클로저에서 최신 값 참조용
   const [showReadyMessage, setShowReadyMessage] = useState(false) // "재생이 가능해요!" 메시지 표시 여부
   const [isPreparing, setIsPreparing] = useState(false) // 모든 TTS 합성 준비 중인지 여부
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null) // 현재 진행 중인 작업 ID
+  const [jobStatus, setJobStatus] = useState<'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | null>(null) // 작업 상태
+  const [jobProgress, setJobProgress] = useState<string>('') // 작업 진행 상황
+  const [jobProgressPercent, setJobProgressPercent] = useState<number>(0) // 작업 진행률 (0-100)
+  const [jobStartTime, setJobStartTime] = useState<number | null>(null) // 작업 시작 시간
+  const [resultVideoUrl, setResultVideoUrl] = useState<string | null>(null) // 완료된 영상 URL
+  const [isExporting, setIsExporting] = useState(false) // 내보내기 진행 중 여부
+  const jobStatusCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null) // 상태 확인 timeout ID
+
+  // 작업 상태 확인 취소 함수
+  const cancelJobStatusCheck = useCallback(() => {
+    if (jobStatusCheckTimeoutRef.current) {
+      clearTimeout(jobStatusCheckTimeoutRef.current)
+      jobStatusCheckTimeoutRef.current = null
+      console.log('작업 상태 확인이 취소되었습니다.')
+    }
+    setCurrentJobId(null)
+    setJobStatus(null)
+    setJobProgress('')
+    setJobProgressPercent(0)
+  }, [])
+
+  // 컴포넌트 언마운트 시 상태 확인 중단
+  useEffect(() => {
+    return () => {
+      if (jobStatusCheckTimeoutRef.current) {
+        clearTimeout(jobStatusCheckTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // 클라이언트에서만 렌더링 (SSR/Hydration mismatch 방지)
   useEffect(() => {
@@ -1150,8 +1183,14 @@ export default function Step4Page() {
         })
 
         if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string }
-          throw new Error(data?.error || 'TTS 합성 실패')
+          const data = (await res.json().catch(() => ({}))) as { error?: string; message?: string }
+          const errorMessage = data?.error || data?.message || 'TTS 합성 실패'
+          const error = new Error(errorMessage)
+          // 레이트 리밋 에러인지 확인하기 위해 원본 응답 상태 저장
+          if (res.status === 429) {
+            (error as any).isRateLimit = true
+          }
+          throw error
         }
 
         const blob = await res.blob()
@@ -2280,36 +2319,407 @@ export default function Step4Page() {
 
   // 서버 전송
   const handleExport = async () => {
+    // 이미 진행 중이면 중복 실행 방지
+    if (isExporting || currentJobId) {
+      return
+    }
+
     if (!timeline) {
       alert('타임라인 데이터가 없습니다.')
       return
     }
 
+    if (!voiceTemplate) {
+      alert('목소리를 먼저 선택해주세요.')
+      return
+    }
+
+    // 내보내기 시작 - UI 즉시 변경
+    setIsExporting(true)
+    setJobStatus('PENDING')
+    setJobProgress('영상 제작을 시작합니다...')
+    setJobProgressPercent(0)
+    setResultVideoUrl(null)
+
     try {
-      // TimelineData를 JSON으로 직렬화
-      const exportData = {
-        ...timeline,
-        globalSettings: {
-          bgmTemplate,
-          transitionTemplate,
-          voiceTemplate,
-          subtitlePosition,
-          subtitleFont,
-          subtitleColor,
+      const accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        throw new Error('로그인이 필요합니다.')
+      }
+
+      // 1. 모든 씬의 TTS Blob을 가져와서 서버에 업로드
+      // 캐시된 것과 합성이 필요한 것을 분리하여 레이트 리밋 방지
+      const ttsResults: Array<{ sceneIndex: number; blob: Blob; durationSec: number } | null> = []
+
+      // 먼저 캐시된 것만 수집
+      for (let index = 0; index < timeline.scenes.length; index++) {
+        const markup = buildSceneMarkup(index)
+        if (!markup) {
+          ttsResults.push(null)
+          continue
+        }
+
+        const key = makeTtsKey(voiceTemplate, markup)
+        const cached = ttsCacheRef.current.get(key)
+        
+        if (cached && cached.blob) {
+          // 캐시된 것 사용 (durationSec 포함)
+          ttsResults.push({ 
+            sceneIndex: index, 
+            blob: cached.blob,
+            durationSec: cached.durationSec || timeline.scenes[index]?.duration || 2.5
+          })
+        } else {
+          // 합성이 필요한 것들은 나중에 순차 처리
+          ttsResults.push(null)
+        }
+      }
+
+      // 합성이 필요한 씬들만 순차적으로 처리 (레이트 리밋 방지)
+      const scenesToSynthesize: number[] = []
+      for (let index = 0; index < timeline.scenes.length; index++) {
+        if (ttsResults[index] === null) {
+          scenesToSynthesize.push(index)
+        }
+      }
+
+      // 순차적으로 합성 (배치 처리 + 딜레이)
+      const batchSize = 2 // 한 번에 2개씩
+      const batchDelay = 2000 // 배치 간 2초 딜레이
+
+      for (let i = 0; i < scenesToSynthesize.length; i += batchSize) {
+        const batch = scenesToSynthesize.slice(i, i + batchSize)
+        
+        // 배치 내에서는 병렬 처리
+        const batchPromises = batch.map(async (sceneIndex) => {
+          try {
+            await ensureSceneTts(sceneIndex)
+            const markup = buildSceneMarkup(sceneIndex)
+            if (!markup) return
+            
+            const key = makeTtsKey(voiceTemplate, markup)
+            const cached = ttsCacheRef.current.get(key)
+            
+            if (cached && cached.blob) {
+              ttsResults[sceneIndex] = { 
+                sceneIndex, 
+                blob: cached.blob,
+                durationSec: cached.durationSec || timeline.scenes[sceneIndex]?.duration || 2.5
+              }
+            }
+          } catch (error) {
+            console.error(`씬 ${sceneIndex + 1} TTS 합성 실패:`, error)
+            // 레이트 리밋 에러인 경우 재시도
+            const isRateLimit = (error instanceof Error && (
+              error.message.includes('요청이 너무 많습니다') ||
+              error.message.includes('Too many requests') ||
+              (error as any).isRateLimit
+            ))
+            
+            if (isRateLimit) {
+              // 5초 후 재시도
+              console.log(`씬 ${sceneIndex + 1} 레이트 리밋 에러, 5초 후 재시도...`)
+              await new Promise(resolve => setTimeout(resolve, 5000))
+              try {
+                await ensureSceneTts(sceneIndex)
+                const markup = buildSceneMarkup(sceneIndex)
+                if (!markup) return
+                
+                const key = makeTtsKey(voiceTemplate, markup)
+                const cached = ttsCacheRef.current.get(key)
+                if (cached && cached.blob) {
+                  ttsResults[sceneIndex] = { 
+                    sceneIndex, 
+                    blob: cached.blob,
+                    durationSec: cached.durationSec || timeline.scenes[sceneIndex]?.duration || 2.5
+                  }
+                  console.log(`씬 ${sceneIndex + 1} TTS 재시도 성공`)
+                }
+              } catch (retryError) {
+                console.error(`씬 ${sceneIndex + 1} TTS 재시도 실패:`, retryError)
+              }
+            }
+          }
+        })
+        
+        await Promise.allSettled(batchPromises)
+        
+        // 마지막 배치가 아니면 딜레이
+        if (i + batchSize < scenesToSynthesize.length) {
+          await new Promise(resolve => setTimeout(resolve, batchDelay))
+        }
+      }
+      
+      // 2. 각 TTS Blob을 서버에 업로드하고 URL 받기
+      const ttsUrlPromises = ttsResults.map(async (result, index) => {
+        if (!result || !result.blob) return null
+
+        const formData = new FormData()
+        formData.append('file', result.blob, `scene_${index}_voice.mp3`)
+        formData.append('sceneIndex', String(index))
+
+        // TTS 파일 업로드 API 호출
+        const uploadRes = await fetch('/api/media/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: formData,
+        })
+
+        if (!uploadRes.ok) {
+          const errorData = await uploadRes.json().catch(() => ({}))
+          throw new Error(`씬 ${index + 1}의 음성 파일 업로드 실패: ${errorData.error || '알 수 없는 오류'}`)
+        }
+
+        const uploadData = await uploadRes.json()
+        return uploadData.url // 서버에서 반환하는 URL
+      })
+
+      const ttsUrls = await Promise.all(ttsUrlPromises)
+
+      // 디버깅: TTS URL 확인 및 검증
+      console.log('=== TTS 업로드 결과 ===')
+      console.log('ttsResults:', ttsResults.map((r, i) => ({ 
+        index: i, 
+        hasBlob: !!r?.blob, 
+        durationSec: r?.durationSec 
+      })))
+      console.log('ttsUrls:', ttsUrls.map((url, i) => ({ index: i, url })))
+      
+      // TTS URL이 없는 씬 확인
+      const missingTts = ttsUrls.map((url, index) => ({ index, url, hasTts: !!url }))
+        .filter(item => !item.hasTts)
+      if (missingTts.length > 0) {
+        console.warn('⚠️ TTS URL이 없는 씬:', missingTts)
+      }
+      console.log('==================')
+
+      // 3. resolution 파싱 (예: "1080x1920" -> {width: 1080, height: 1920})
+      const [width, height] = timeline.resolution.split('x').map(Number)
+      
+      // 4. 첫 번째 상품 정보 가져오기 (metadata용)
+      const firstProduct = selectedProducts[0]
+      
+      // 5. BGM 템플릿 URL 가져오기
+      const bgmTemplateObj = bgmTemplate ? bgmTemplates.find(t => t.id === bgmTemplate) : null
+      const bgmUrl = bgmTemplateObj ? getBgmTemplateUrlSync(bgmTemplateObj) : null
+      
+      // 6. API 문서 형태로 변환
+      const encodingRequest = {
+        videoId: crypto.randomUUID(),
+        videoTitle: videoTitle || '제목 없음',
+        description: videoDescription || '',
+        sequence: 1,
+        renderSettings: {
+          resolution: {
+            width,
+            height,
+          },
+          fps: timeline.fps,
+          playbackSpeed: timeline.playbackSpeed || 1,
+          outputFormat: 'mp4',
+          codec: 'libx264',
+          bitrate: '8M',
+          backgroundColor: '#000000',
         },
+        audio: {
+          bgm: {
+            enabled: !!bgmTemplate,
+            templateId: bgmTemplate || null,
+            url: bgmUrl || null,
+            volume: 0.5,
+            fadeIn: 2,
+            fadeOut: 2,
+          },
+          voice: {
+            enabled: !!voiceTemplate,
+            templateId: voiceTemplate || null,
+            volume: 1,
+          },
+        },
+        scenes: timeline.scenes.map((scene, index) => {
+          // transition 파싱
+          const transitionType = scene.transition || 'none'
+          const transitionMap: Record<string, any> = {
+            fade: { type: 'fade', duration: scene.transitionDuration || 0.5, direction: 'left', easing: 'easeInOut' },
+            slide: { type: 'slide', duration: scene.transitionDuration || 0.5, direction: 'left', easing: 'easeInOut' },
+            zoom: { type: 'zoom', duration: scene.transitionDuration || 0.5, scale: 1.2, easing: 'easeInOut' },
+            none: { type: 'none', duration: 0 },
+          }
+          
+          // 폰트 정보 파싱
+          const fontFamily = subtitleFont || 'Pretendard'
+          const fontSize = scene.text.fontSize || 32
+          
+          // TTS URL 가져오기
+          const voiceUrl = ttsUrls[index] || null
+          const voiceText = scene.text.content
+          
+          // TTS 오디오 길이를 우선 사용 (실제 오디오 길이가 더 정확함)
+          const ttsResult = ttsResults[index]
+          const sceneDuration = ttsResult?.durationSec || scene.duration || 2.5
+
+          // 디버깅: 각 씬의 정보 확인 (처음 5개 씬만 로그)
+          if (index < 5) {
+            console.log(`씬 ${index + 1}:`, {
+              voiceUrl: voiceUrl || '없음',
+              duration: sceneDuration,
+              ttsResult: ttsResult ? { hasBlob: true, durationSec: ttsResult.durationSec } : null,
+              sceneDuration: scene.duration,
+              voiceEnabled: !!voiceUrl
+            })
+          }
+
+          return {
+            sceneId: scene.sceneId + 1, // API는 1부터 시작
+            order: index,
+            duration: sceneDuration,
+            transition: transitionMap[transitionType] || transitionMap.none,
+            image: {
+              url: scene.image,
+              fit: scene.imageFit || 'fill',
+              transform: scene.imageTransform ? {
+                ...scene.imageTransform,
+                anchor: {
+                  x: 0.5,
+                  y: 0.5,
+                },
+              } : {
+                x: width / 2,
+                y: height / 2,
+                width: width,
+                height: height,
+                scaleX: 1,
+                scaleY: 1,
+                rotation: 0,
+                anchor: { x: 0.5, y: 0.5 },
+              },
+            },
+            text: {
+              content: scene.text.content,
+              visible: true,
+              font: {
+                family: fontFamily,
+                size: fontSize,
+                weight: String(scene.text.fontWeight || 700),
+                style: scene.text.style?.italic ? 'italic' : 'normal',
+              },
+              color: scene.text.color || '#FFFFFF',
+              stroke: {
+                enabled: true,
+                color: scene.text.color || '#FFFFFF',
+                width: 3,
+              },
+              shadow: {
+                enabled: true,
+                color: '#000000',
+                blur: 10,
+                offsetX: 5,
+                offsetY: 5,
+              },
+              decoration: {
+                underline: scene.text.style?.underline || false,
+                italic: scene.text.style?.italic || false,
+              },
+              alignment: scene.text.position || 'center',
+              transform: scene.text.transform ? {
+                ...scene.text.transform,
+                anchor: {
+                  x: 0.5,
+                  y: 0.5,
+                },
+              } : {
+                x: width / 2,
+                y: height / 2,
+                width: width * 0.9,
+                height: 100,
+                scaleX: 1,
+                scaleY: 1,
+                rotation: 0,
+                anchor: { x: 0.5, y: 0.5 },
+              },
+            },
+            voice: {
+              enabled: !!voiceUrl,
+              text: voiceText,
+              startTime: 0.5,
+              url: voiceUrl, // 업로드된 TTS MP3 파일 URL
+            },
+            effects: {
+              glow: {
+                enabled: scene.advancedEffects?.glow?.enabled || false,
+                color: scene.advancedEffects?.glow?.color 
+                  ? `#${scene.advancedEffects.glow.color.toString(16).padStart(6, '0')}` 
+                  : '#FFFF00',
+                strength: scene.advancedEffects?.glow?.outerStrength || 10,
+                distance: scene.advancedEffects?.glow?.distance || 20,
+              },
+              particles: {
+                enabled: scene.advancedEffects?.particles?.enabled || false,
+                type: scene.advancedEffects?.particles?.type || 'sparkle',
+                count: scene.advancedEffects?.particles?.count || 50,
+              },
+            },
+          }
+        }),
+        metadata: firstProduct ? {
+          originalUrl: firstProduct.url,
+          partnersLink: firstProduct.url, // 쿠팡 파트너스 링크로 변환 필요할 수도 있음
+          mallType: firstProduct.platform.toUpperCase() as 'COUPANG' | 'NAVER' | 'ALIEXPRESS' | 'AMAZON',
+        } : {
+          // 상품이 없을 때 기본값 (백엔드 유효성 검사를 통과하기 위한 필수 값)
+          originalUrl: 'https://www.coupang.com',
+          partnersLink: 'https://www.coupang.com',
+          mallType: 'COUPANG',
+        },
+      }
+
+      const exportData = {
+        jobType: 'AUTO_CREATE_VIDEO_FROM_DATA',
+        encodingRequest,
       }
 
       // JSON 바디 확인용 로그
       console.log('=== 인코딩 요청 JSON 바디 ===')
       console.log(JSON.stringify(exportData, null, 2))
       console.log('===========================')
-
-      // API 엔드포인트로 전송
-      const accessToken = authStorage.getAccessToken()
-      if (!accessToken) {
-        throw new Error('로그인이 필요합니다.')
+      
+      // 각 씬의 TTS URL 및 Duration 확인
+      console.log('=== 씬별 상세 정보 확인 ===')
+      let totalDuration = 0
+      encodingRequest.scenes.forEach((scene: any, index: number) => {
+        totalDuration += scene.duration
+        console.log(`씬 ${index + 1}:`, {
+          sceneId: scene.sceneId,
+          duration: scene.duration,
+          voiceUrl: scene.voice?.url || '없음',
+          voiceEnabled: scene.voice?.enabled,
+          voiceText: scene.voice?.text || '없음',
+          imageUrl: scene.image?.url || '없음',
+        })
+      })
+      console.log(`총 예상 길이: ${totalDuration.toFixed(2)}초`)
+      console.log('========================')
+      
+      // Duration과 TTS URL 검증
+      const missingTtsScenes = encodingRequest.scenes
+        .map((scene: any, index: number) => ({ index: index + 1, scene, hasTts: !!scene.voice?.url }))
+        .filter(item => !item.hasTts)
+      
+      if (missingTtsScenes.length > 0) {
+        console.error('❌ TTS URL이 없는 씬:', missingTtsScenes)
+      } else {
+        console.log('✅ 모든 씬에 TTS URL이 있습니다.')
+      }
+      
+      const shortDurationScenes = encodingRequest.scenes
+        .map((scene: any, index: number) => ({ index: index + 1, duration: scene.duration }))
+        .filter(item => item.duration < 1.5)
+      
+      if (shortDurationScenes.length > 0) {
+        console.warn('⚠️ Duration이 1.5초 미만인 씬:', shortDurationScenes)
       }
 
+      // 7. 최종 인코딩 요청 전송
       const response = await fetch('/api/videos/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
@@ -2322,10 +2732,182 @@ export default function Step4Page() {
       }
 
       const result = await response.json()
-      alert('영상 생성이 시작되었습니다. 완료되면 알림을 받으실 수 있습니다.')
       
-      // 성공 시 다음 단계로 이동하거나 결과 페이지로 이동
-      // router.push(`/video/create/result?id=${result.videoId}`)
+      // jobId 저장 및 상태 확인 시작
+      if (result.jobId) {
+        setCurrentJobId(result.jobId)
+        setJobStatus(result.status || 'PENDING')
+        setJobProgress(result.message || '영상 생성이 시작되었습니다.')
+        setJobProgressPercent(0)
+        const startTime = Date.now() // 작업 시작 시간 기록
+        setJobStartTime(startTime)
+        
+        // 최대 대기 시간 (30분)
+        const MAX_WAIT_TIME = 30 * 60 * 1000 // 30분
+        let checkCount = 0
+        
+        // 작업 상태 주기적으로 확인 (5초마다)
+        const checkJobStatus = async () => {
+          checkCount++
+          
+          // 경과 시간 확인
+          const elapsed = Date.now() - startTime
+          if (elapsed > MAX_WAIT_TIME) {
+            alert(`영상 생성이 30분을 초과했습니다. 백엔드 서버에 문제가 있을 수 있습니다.\n\n작업 ID: ${result.jobId}\n\n나중에 다시 확인해주세요.`)
+            setCurrentJobId(null)
+            setJobStatus(null)
+            return
+          }
+          try {
+            // 백엔드 API URL 직접 사용
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+            const statusResponse = await fetch(`${API_BASE_URL}/api/v1/studio/jobs/${result.jobId}`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            })
+            
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json()
+              setJobStatus(statusData.status)
+              
+              // 디버깅: 전체 응답 데이터 로그
+              console.log('=== 작업 상태 응답 ===')
+              console.log('Status:', statusData.status)
+              console.log('Full Response:', JSON.stringify(statusData, null, 2))
+              console.log('==================')
+              
+              // progressDetail이 객체인 경우 처리
+              let progressText = ''
+              let progressPercent = 0
+              
+              if (statusData.progressDetail) {
+                if (typeof statusData.progressDetail === 'string') {
+                  progressText = statusData.progressDetail
+                } else if (typeof statusData.progressDetail === 'object') {
+                  // 객체인 경우 msg나 message 필드 추출
+                  progressText = statusData.progressDetail.msg || 
+                                statusData.progressDetail.message || 
+                                statusData.progressDetail.progress ||
+                                JSON.stringify(statusData.progressDetail)
+                  // progress 필드가 숫자면 진행률로 사용
+                  if (typeof statusData.progressDetail.progress === 'number') {
+                    progressPercent = statusData.progressDetail.progress
+                  }
+                }
+              } else if (statusData.message) {
+                progressText = typeof statusData.message === 'string' 
+                  ? statusData.message 
+                  : JSON.stringify(statusData.message)
+              }
+              
+              // 경과 시간 계산 및 표시
+              const elapsed = Math.floor((Date.now() - startTime) / 1000) // 초 단위
+              const minutes = Math.floor(elapsed / 60)
+              const seconds = elapsed % 60
+              const timeText = `${minutes}분 ${seconds}초 경과`
+              
+              if (progressPercent > 0) {
+                progressText = `${progressText} (${progressPercent}% - ${timeText})`
+              } else {
+                progressText = `${progressText} (${timeText})`
+              }
+              
+              setJobProgress(progressText)
+              setJobProgressPercent(progressPercent)
+              
+              if (statusData.status === 'COMPLETED') {
+                const videoUrl = statusData.resultVideoUrl || null
+                setResultVideoUrl(videoUrl)
+                setJobProgress('영상 생성이 완료되었습니다!')
+                setJobProgressPercent(100)
+                setIsExporting(false) // 내보내기 완료
+                
+                // 상태 확인 중단
+                if (jobStatusCheckTimeoutRef.current) {
+                  clearTimeout(jobStatusCheckTimeoutRef.current)
+                  jobStatusCheckTimeoutRef.current = null
+                }
+                setCurrentJobId(null)
+              } else if (statusData.status === 'FAILED') {
+                // 에러 메시지 수집
+                let errorMessages = [
+                  statusData.errorMessage,
+                  statusData.error?.message,
+                  statusData.error,
+                ].filter(Boolean)
+                
+                // progressDetail에서 에러 메시지 추출
+                if (statusData.progressDetail) {
+                  if (typeof statusData.progressDetail === 'string') {
+                    errorMessages.push(statusData.progressDetail)
+                  } else if (typeof statusData.progressDetail === 'object') {
+                    const detailMsg = statusData.progressDetail.msg || 
+                                    statusData.progressDetail.message ||
+                                    statusData.progressDetail.error
+                    if (detailMsg) errorMessages.push(detailMsg)
+                  }
+                }
+                
+                const errorText = errorMessages.length > 0 
+                  ? errorMessages.join('\n\n') 
+                  : '알 수 없는 오류'
+                
+                // ffmpeg 관련 에러인지 확인
+                const isFfmpegError = errorText.includes('ffmpeg') || 
+                                     errorText.includes('Composition Failed') ||
+                                     errorText.includes('frame=')
+                
+                console.error('=== 영상 생성 실패 상세 ===')
+                console.error('Error Message:', statusData.errorMessage)
+                console.error('Error Object:', statusData.error)
+                console.error('Progress Detail:', statusData.progressDetail)
+                console.error('Full Status Data:', JSON.stringify(statusData, null, 2))
+                console.error('========================')
+                
+                // 사용자 친화적인 에러 메시지
+                let userMessage = '영상 생성이 실패했습니다.\n\n'
+                if (isFfmpegError) {
+                  userMessage += '비디오 인코딩 과정에서 오류가 발생했습니다.\n'
+                  userMessage += '백엔드 서버의 ffmpeg 처리 중 문제가 발생한 것으로 보입니다.\n\n'
+                  userMessage += '가능한 원인:\n'
+                  userMessage += '- 서버 리소스 부족\n'
+                  userMessage += '- 비디오 파일 형식 문제\n'
+                  userMessage += '- ffmpeg 설정 오류\n\n'
+                  userMessage += '잠시 후 다시 시도해주시거나, 백엔드 관리자에게 문의해주세요.\n\n'
+                }
+                userMessage += `에러 상세:\n${errorText.substring(0, 500)}${errorText.length > 500 ? '...' : ''}\n\n`
+                userMessage += '자세한 내용은 브라우저 콘솔(F12)을 확인해주세요.'
+                
+                alert(userMessage)
+                setCurrentJobId(null)
+                setJobStatus(null)
+                setJobProgress('')
+                setJobProgressPercent(0)
+              } else {
+                // 아직 진행 중이면 5초 후 다시 확인
+                jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+              }
+            } else {
+              // HTTP 에러 응답 처리
+              const errorText = await statusResponse.text().catch(() => '')
+              console.error('작업 상태 확인 HTTP 에러:', statusResponse.status, errorText)
+              setJobProgress(`상태 확인 실패 (${statusResponse.status})`)
+              // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
+              jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+            }
+          } catch (error) {
+            console.error('작업 상태 확인 실패:', error)
+            // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
+            jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+          }
+        }
+        
+        // 첫 확인은 5초 후
+        jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+        
+        alert('영상 생성이 시작되었습니다. 진행 상황을 확인하고 있습니다...')
+      } else {
+        alert('영상 생성이 시작되었습니다. 완료되면 알림을 받으실 수 있습니다.')
+      }
     } catch (error) {
       alert(`영상 생성 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
     }
@@ -2387,6 +2969,11 @@ export default function Step4Page() {
             {/* PixiJS 미리보기 - 9:16 비율 고정 (1080x1920) */}
             <div 
               className="flex-1 flex items-center justify-center rounded-lg overflow-hidden min-h-0"
+              style={{
+                filter: jobStatus === 'COMPLETED' ? 'blur(4px)' : 'none',
+                pointerEvents: jobStatus === 'COMPLETED' ? 'none' : 'auto',
+                transition: 'filter 0.3s ease'
+              }}
             >
               <div
                 ref={pixiContainerRef}
@@ -2462,9 +3049,15 @@ export default function Step4Page() {
 
             {/* 재생 컨트롤 */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs" style={{
-                color: theme === 'dark' ? '#9ca3af' : '#6b7280'
-              }}>
+              <div 
+                className="flex items-center justify-between text-xs" 
+                style={{
+                  color: theme === 'dark' ? '#9ca3af' : '#6b7280',
+                  filter: jobStatus === 'COMPLETED' ? 'blur(4px)' : 'none',
+                  pointerEvents: jobStatus === 'COMPLETED' ? 'none' : 'auto',
+                  transition: 'filter 0.3s ease'
+                }}
+              >
                 <span>
                   {(() => {
                     const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
@@ -2485,9 +3078,12 @@ export default function Step4Page() {
                           ref={timelineBarRef}
                 className="w-full h-2 rounded-full cursor-pointer relative"
                 style={{
-                  backgroundColor: theme === 'dark' ? '#374151' : '#e5e7eb'
+                  backgroundColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+                  filter: jobStatus === 'COMPLETED' ? 'blur(4px)' : 'none',
+                  pointerEvents: jobStatus === 'COMPLETED' ? 'none' : 'auto',
+                  transition: 'filter 0.3s ease'
                 }}
-                          onMouseDown={handleTimelineMouseDown}
+                          onMouseDown={jobStatus === 'COMPLETED' ? undefined : handleTimelineMouseDown}
                         >
                           <div
                   className="h-full rounded-full"
@@ -2499,7 +3095,14 @@ export default function Step4Page() {
                 />
                         </div>
 
-              <div className="flex items-center gap-2 relative">
+              <div 
+                className="flex items-center gap-2 relative"
+                style={{
+                  filter: jobStatus === 'COMPLETED' ? 'blur(4px)' : 'none',
+                  pointerEvents: jobStatus === 'COMPLETED' ? 'none' : 'auto',
+                  transition: 'filter 0.3s ease'
+                }}
+              >
                         {showReadyMessage && (
                           <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs px-3 py-2 rounded-lg shadow-lg whitespace-nowrap z-50 animate-bounce">
                             재생이 가능해요!
@@ -2511,7 +3114,7 @@ export default function Step4Page() {
                           variant="outline"
                           size="sm"
                   className="flex-1"
-                          disabled={isTtsBootstrapping || isBgmBootstrapping || isPreparing}
+                          disabled={isTtsBootstrapping || isBgmBootstrapping || isPreparing || jobStatus === 'COMPLETED'}
                         >
                           {isTtsBootstrapping || isBgmBootstrapping || isPreparing ? (
                             <>
@@ -2531,13 +3134,232 @@ export default function Step4Page() {
                           )}
                         </Button>
                         <Button
-                  onClick={handleExport}
+                          onClick={handleExport}
+                          disabled={isExporting || !!currentJobId || jobStatus === 'COMPLETED'}
                           size="sm"
-                  className="flex-1"
+                          className="flex-1"
                         >
-                  내보내기
+                          {isExporting || currentJobId ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              {isExporting ? '제작 시작 중...' : '생성 중...'}
+                            </>
+                          ) : (
+                            '내보내기'
+                          )}
                         </Button>
                       </div>
+                      
+                      {/* 작업 상태 표시 */}
+                      {(isExporting || currentJobId || jobStatus) && (
+                        <div className="mt-2 p-3 rounded-lg border" style={{
+                          backgroundColor: theme === 'dark' ? '#1f2937' : '#f9fafb',
+                          borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
+                        }}>
+                          <div className="flex items-center gap-2 mb-2">
+                            {(!jobStatus || jobStatus === 'PENDING') && isExporting && (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" style={{
+                                  color: theme === 'dark' ? '#60a5fa' : '#2563eb'
+                                }} />
+                                <span className="text-sm font-medium" style={{
+                                  color: theme === 'dark' ? '#ffffff' : '#111827'
+                                }}>
+                                  영상 제작을 시작합니다...
+                                </span>
+                              </>
+                            )}
+                            {jobStatus === 'PENDING' && !isExporting && (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" style={{
+                                  color: theme === 'dark' ? '#a78bfa' : '#9333ea'
+                                }} />
+                                <span className="text-sm font-medium" style={{
+                                  color: theme === 'dark' ? '#ffffff' : '#111827'
+                                }}>
+                                  작업 대기 중...
+                                </span>
+                              </>
+                            )}
+                            {jobStatus === 'PROCESSING' && (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" style={{
+                                  color: theme === 'dark' ? '#60a5fa' : '#2563eb'
+                                }} />
+                                <span className="text-sm font-medium" style={{
+                                  color: theme === 'dark' ? '#ffffff' : '#111827'
+                                }}>
+                                  영상 생성 중...
+                                </span>
+                              </>
+                            )}
+                            {jobStatus === 'COMPLETED' && (
+                              <>
+                                <CheckCircle2 className="w-4 h-4" style={{
+                                  color: theme === 'dark' ? '#34d399' : '#10b981'
+                                }} />
+                                <span className="text-sm font-medium" style={{
+                                  color: theme === 'dark' ? '#34d399' : '#10b981'
+                                }}>
+                                  생성 완료!
+                                </span>
+                              </>
+                            )}
+                            {jobStatus === 'FAILED' && (
+                              <>
+                                <XCircle className="w-4 h-4" style={{
+                                  color: theme === 'dark' ? '#f87171' : '#ef4444'
+                                }} />
+                                <span className="text-sm font-medium" style={{
+                                  color: theme === 'dark' ? '#f87171' : '#ef4444'
+                                }}>
+                                  생성 실패
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          {jobProgress && (
+                            <div className="mt-2 space-y-1">
+                              <p className="text-xs" style={{
+                                color: theme === 'dark' ? '#9ca3af' : '#6b7280'
+                              }}>
+                                {typeof jobProgress === 'string' ? jobProgress : JSON.stringify(jobProgress)}
+                              </p>
+                              {jobProgressPercent > 0 && (
+                                <div className="w-full h-2 rounded-full overflow-hidden" style={{
+                                  backgroundColor: theme === 'dark' ? '#374151' : '#e5e7eb'
+                                }}>
+                                  <div 
+                                    className="h-full rounded-full transition-all duration-300"
+                                    style={{
+                                      width: `${jobProgressPercent}%`,
+                                      backgroundColor: theme === 'dark' ? '#a855f7' : '#9333ea'
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {jobStatus === 'COMPLETED' && resultVideoUrl && (
+                            <div className="mt-4 p-4 rounded-lg border-2" style={{
+                              backgroundColor: theme === 'dark' ? '#1f2937' : '#f9fafb',
+                              borderColor: theme === 'dark' ? '#10b981' : '#10b981',
+                              borderWidth: '2px'
+                            }}>
+                              <div className="flex items-center gap-2 mb-3">
+                                <CheckCircle2 className="w-5 h-5" style={{
+                                  color: theme === 'dark' ? '#34d399' : '#10b981'
+                                }} />
+                                <div className="text-sm font-bold" style={{
+                                  color: theme === 'dark' ? '#34d399' : '#10b981'
+                                }}>
+                                  영상 생성 완료!
+                                </div>
+                              </div>
+                              
+                              {/* URL 입력 및 버튼 */}
+                              <div className="space-y-3">
+                                <div>
+                                  <div className="text-xs font-semibold mb-2" style={{
+                                    color: theme === 'dark' ? '#d1d5db' : '#374151'
+                                  }}>
+                                    영상 URL
+                                  </div>
+                                  <input
+                                    type="text"
+                                    readOnly
+                                    value={resultVideoUrl}
+                                    className="w-full px-3 py-2 text-sm rounded border"
+                                    style={{
+                                      backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
+                                      borderColor: theme === 'dark' ? '#4b5563' : '#d1d5db',
+                                      color: theme === 'dark' ? '#d1d5db' : '#111827'
+                                    }}
+                                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                                  />
+                                </div>
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(resultVideoUrl)
+                                      alert('URL이 클립보드에 복사되었습니다!')
+                                    }}
+                                    className="flex-1 px-4 py-2 text-sm rounded border transition-colors font-medium"
+                                    style={{
+                                      backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
+                                      borderColor: theme === 'dark' ? '#4b5563' : '#d1d5db',
+                                      color: theme === 'dark' ? '#d1d5db' : '#374151'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.backgroundColor = theme === 'dark' ? '#4b5563' : '#e5e7eb'
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.backgroundColor = theme === 'dark' ? '#374151' : '#f3f4f6'
+                                    }}
+                                  >
+                                    복사
+                                  </button>
+                                  <a
+                                    href={resultVideoUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    download
+                                    className="flex-1 px-4 py-2 text-sm rounded border transition-colors font-medium text-center"
+                                    style={{
+                                      backgroundColor: 'hsl(var(--primary))',
+                                      borderColor: 'hsl(var(--primary))',
+                                      color: 'hsl(var(--primary-foreground))',
+                                      textDecoration: 'none',
+                                      display: 'inline-block'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.currentTarget.style.opacity = '0.9'
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.opacity = '1'
+                                    }}
+                                  >
+                                    다운로드
+                                  </a>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          {(jobStatus === 'PENDING' || jobStatus === 'PROCESSING') && (
+                            <button
+                              onClick={cancelJobStatusCheck}
+                              className="mt-2 px-3 py-1.5 text-xs rounded border transition-colors"
+                              style={{
+                                backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
+                                borderColor: theme === 'dark' ? '#4b5563' : '#d1d5db',
+                                color: theme === 'dark' ? '#f87171' : '#ef4444'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = theme === 'dark' ? '#4b5563' : '#e5e7eb'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = theme === 'dark' ? '#374151' : '#f3f4f6'
+                              }}
+                            >
+                              상태 확인 중단
+                            </button>
+                          )}
+                          {(jobStatus === 'PENDING' || jobStatus === 'PROCESSING') && jobProgressPercent === 0 && (
+                            <div className="mt-2 w-full h-1.5 rounded-full overflow-hidden" style={{
+                              backgroundColor: theme === 'dark' ? '#374151' : '#e5e7eb'
+                            }}>
+                              <div 
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{
+                                  width: jobStatus === 'PENDING' ? '30%' : '70%',
+                                  backgroundColor: theme === 'dark' ? '#a78bfa' : '#9333ea',
+                                  animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
               
               {/* 배속 선택 */}
               <div className="flex items-center gap-2">

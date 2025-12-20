@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server'
-import type { TimelineData } from '@/store/useVideoCreateStore'
 import { requireUser } from '@/lib/api/route-guard'
 import { enforceRateLimit } from '@/lib/api/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+function getApiBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080').trim()
+}
 
 export async function POST(request: Request) {
   try {
@@ -16,35 +19,61 @@ export async function POST(request: Request) {
 
     const body = await request.json()
     
-    // 타임라인 데이터 검증
-    if (!body.scenes || !Array.isArray(body.scenes) || body.scenes.length === 0) {
+    // 새로운 API 문서 형태 검증
+    if (!body.jobType || body.jobType !== 'AUTO_CREATE_VIDEO_FROM_DATA') {
+      return NextResponse.json(
+        { error: 'jobType이 필요합니다. (AUTO_CREATE_VIDEO_FROM_DATA)' },
+        { status: 400 }
+      )
+    }
+
+    if (!body.encodingRequest) {
+      return NextResponse.json(
+        { error: 'encodingRequest가 필요합니다.' },
+        { status: 400 }
+      )
+    }
+
+    // 씬 데이터 검증
+    if (!body.encodingRequest.scenes || !Array.isArray(body.encodingRequest.scenes) || body.encodingRequest.scenes.length === 0) {
       return NextResponse.json(
         { error: '씬 데이터가 필요합니다.' },
         { status: 400 }
       )
     }
 
-    // TODO: 실제 영상 생성 로직 구현
-    // 1. 타임라인 데이터를 영상 인코딩 서버로 전송
-    // 2. 비동기 작업으로 큐에 추가
-    // 3. 작업 ID 반환
+    // 백엔드 API로 프록시 요청
+    const API_BASE_URL = getApiBaseUrl()
+    const accessToken = request.headers.get('Authorization') || ''
     
-    console.log('=== 영상 생성 요청 ===')
-    console.log('FPS:', body.fps)
-    console.log('Resolution:', body.resolution)
-    console.log('Playback Speed:', body.playbackSpeed)
-    console.log('Scenes Count:', body.scenes.length)
-    console.log('Global Settings:', body.globalSettings)
+    console.log('=== 영상 생성 요청 (백엔드로 프록시) ===')
+    console.log('Job Type:', body.jobType)
+    console.log('Video ID:', body.encodingRequest.videoId)
+    console.log('Scenes Count:', body.encodingRequest.scenes.length)
+    console.log('Backend URL:', `${API_BASE_URL}/api/v1/studio/jobs`)
     console.log('==================')
 
-    // 임시 응답 (실제 구현 시 작업 ID 반환)
-    return NextResponse.json(
-      {
-      success: true,
-      message: '영상 생성이 시작되었습니다.',
-      // videoId: 'temp-video-id', // 실제 구현 시 작업 ID
+    const backendResponse = await fetch(`${API_BASE_URL}/api/v1/studio/jobs`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': accessToken,
       },
-      { headers: { ...(rl.headers ?? {}) } }
+      body: JSON.stringify(body),
+    })
+
+    // 백엔드 응답을 그대로 전달
+    const responseData = await backendResponse.json().catch(() => ({}))
+    
+    return NextResponse.json(
+      responseData,
+      { 
+        status: backendResponse.status,
+        headers: { 
+          ...(rl.headers ?? {}),
+          'Content-Type': 'application/json',
+        }
+      }
     )
   } catch (error) {
     console.error('영상 생성 API 오류:', error)
