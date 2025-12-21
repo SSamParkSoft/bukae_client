@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowRight, ChevronDown, Camera, Bot, MessageSquare, X } from 'lucide-react'
+import { ArrowRight, ChevronDown, Camera, Bot, MessageSquare, X, Clock, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -127,27 +127,69 @@ export default function Step2Page() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* 직접 촬영하기 */}
+                {/* 직접 촬영하기 - 준비 중 */}
                 <Card
-                  onClick={() => handleModeSelect('manual')}
-                  className={`cursor-pointer transition-all ${
-                    creationMode === 'manual'
-                      ? 'border-2 border-teal-500 bg-teal-50 dark:bg-teal-900/20'
-                      : theme === 'dark'
-                        ? 'border-gray-700 bg-gray-900 hover:border-teal-500'
-                        : 'border-gray-200 bg-white hover:border-teal-500'
+                  className={`relative transition-all overflow-hidden ${
+                    theme === 'dark'
+                      ? 'border-gray-700 bg-gray-900'
+                      : 'border-gray-200 bg-white'
                   }`}
                 >
+                  {/* 준비 중 오버레이 */}
+                  <div className={`absolute inset-0 backdrop-blur-md z-10 flex flex-col items-center justify-center p-6 ${
+                    theme === 'dark'
+                      ? 'bg-gradient-to-br from-gray-950/1 via-gray-900/30 to-gray-950/30'
+                      : 'bg-gradient-to-br from-white/1 via-gray-50/40 to-white/40'
+                  }`}>
+                    <div className="flex flex-col items-center gap-4 text-center">
+                      <div className="relative">
+                        <div className={`absolute inset-0 rounded-full blur-md animate-pulse ${
+                          theme === 'dark' ? 'bg-purple-500/20' : 'bg-purple-400/30'
+                        }`} />
+                        <div className={`relative p-4 rounded-full ${
+                          theme === 'dark' 
+                            ? 'bg-purple-900/50' 
+                            : 'bg-purple-100 border-2 border-purple-200'
+                        }`}>
+                          <Clock className={`w-8 h-8 ${
+                            theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                          }`} />
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-center">
+                        <div className={`flex items-center justify-center gap-2 mb-2 ${
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          <Sparkles className={`w-5 h-5 ${
+                            theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                          }`} />
+                          <span className="text-lg font-semibold">준비 중</span>
+                        </div>
+                        <p className={`text-sm text-center ${
+                          theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                        }`}>
+                          출시 시 준비될 예정입니다
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <CardHeader>
                     <div className="flex items-center gap-3 mb-2">
                       <Camera className={`h-6 w-6 ${
-                        theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                        theme === 'dark' ? 'text-gray-500' : 'text-gray-300'
                       }`} />
-                      <CardTitle className="text-xl">직접 촬영하기</CardTitle>
+                      <CardTitle className={`text-xl ${
+                        theme === 'dark' ? 'text-gray-500' : 'text-gray-300'
+                      }`}>
+                        직접 촬영하기
+                      </CardTitle>
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <CardDescription className="text-base">
+                    <CardDescription className={`text-base ${
+                      theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
+                    }`}>
                       AI가 대본을 만들어 주고, 사용자가 직접 촬영한 영상을 업로드하여 제작합니다.
                     </CardDescription>
                   </CardContent>
