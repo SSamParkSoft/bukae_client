@@ -70,10 +70,10 @@ const defaultNotificationSettings: NotificationSettings = {
 export const useUserStore = create<UserState>()(
   persist(
     (set) => ({
-      user: defaultUser,
+      user: null,
       connectedServices: defaultConnectedServices,
       notificationSettings: defaultNotificationSettings,
-      isAuthenticated: typeof window !== 'undefined' ? authStorage.hasTokens() : false,
+      isAuthenticated: false,
       setUser: (user) => {
         if (typeof window === 'undefined') {
           set({ user, isAuthenticated: false })
@@ -117,7 +117,7 @@ export const useUserStore = create<UserState>()(
       reset: () => {
         authStorage.clearTokens()
         set({
-          user: defaultUser,
+          user: null,
           connectedServices: defaultConnectedServices,
           notificationSettings: defaultNotificationSettings,
           isAuthenticated: false,
@@ -127,15 +127,12 @@ export const useUserStore = create<UserState>()(
     {
       name: 'bookae-user-storage',
       storage: createJSONStorage(() => localStorage),
-      // persist된 상태가 복원된 후 인증 상태 동기화
+      // persist된 상태가 복원된 후에도 초기에는 로그인 안된 상태로 시작
       onRehydrateStorage: () => (state) => {
         if (state && typeof window !== 'undefined') {
-          const hasTokens = authStorage.hasTokens()
-          state.isAuthenticated = hasTokens
-          // 토큰이 있으면 사용자 정보도 유지
-          if (hasTokens && !state.user) {
-            // 사용자 정보가 없으면 기본값 유지 (나중에 API로 조회)
-          }
+          // 초기 로드 시 항상 로그인 안된 상태로 시작
+          state.isAuthenticated = false
+          state.user = null
         }
       },
     }

@@ -24,10 +24,8 @@ function AuthSync() {
     // 토큰 만료 이벤트 리스너 등록
     window.addEventListener('auth:expired', handleAuthExpired)
 
-    // 초기 인증 상태 확인 (백엔드 토큰이 있으면 사용자 정보 조회)
-    if (authStorage.hasTokens()) {
-      checkAuth()
-    }
+    // 초기 로드 시 자동 인증 확인하지 않음 (로그인 안된 상태로 시작)
+    // 사용자가 명시적으로 로그인할 때만 인증 상태가 활성화됨
 
     return () => {
       window.removeEventListener('auth:expired', handleAuthExpired)

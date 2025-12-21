@@ -43,33 +43,31 @@ export default function PageHeader({ title, description, children }: PageHeaderP
         {children}
       </div>
       
-      <div className="flex items-center gap-3 ml-4">
-        {isAuthenticated ? (
-          <>
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
-              theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'
+      {isAuthenticated && user ? (
+        <div className="flex items-center gap-3 ml-4">
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
+            theme === 'dark' ? 'bg-gray-800' : 'bg-gray-50'
+          }`}>
+            <User className={`w-4 h-4 ${
+              theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+            }`} />
+            <span className={`text-sm font-medium ${
+              theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
             }`}>
-              <User className={`w-4 h-4 ${
-                theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-              }`} />
-              <span className={`text-sm font-medium ${
-                theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-              }`}>
-                {user?.name || user?.email || '사용자'}
-              </span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLogout}
-              className="gap-2"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>로그아웃</span>
-            </Button>
-          </>
-        ) : null}
-      </div>
+              {user.name || user.email || '사용자'}
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLogout}
+            className="gap-2"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>로그아웃</span>
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }
