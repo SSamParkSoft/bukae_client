@@ -4,13 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { authStorage } from '@/lib/api/auth-storage'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { CheckCircle2, ChevronDown, ChevronUp, Headphones, Pause } from 'lucide-react'
 
@@ -338,90 +335,166 @@ export default function ChirpVoiceSelector({
                     const isSelected = voiceTemplate === v.name
                     const isThisPlaying = isPlaying && playingVoiceName === v.name
                     const label = getShortName(v.name)
+                    const isThisConfirmOpen = confirmOpen && pendingVoiceName === v.name
                     return (
-                      <div
-                        key={v.name}
-                        role="button"
-                        tabIndex={disabled ? -1 : 0}
-                        aria-disabled={disabled}
-                        onClick={() => {
-                          if (disabled) return
+                      <Popover key={v.name} open={isThisConfirmOpen} onOpenChange={(open) => {
+                        if (open) {
                           openConfirm(v.name)
-                        }}
-                        onKeyDown={(e) => {
-                          if (disabled) return
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            openConfirm(v.name)
-                          }
-                        }}
-                        className={[
-                          'group relative text-left rounded-lg border p-4 transition-all',
-                          'shadow-sm hover:shadow-md hover:-translate-y-0.5',
-                          'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2',
-                          isDark ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white',
-                        ].join(' ')}
-                        style={{
-                          borderColor: isSelected
-                            ? '#a855f7'
-                            : isThisPlaying
-                              ? isDark
-                                ? '#4b5563'
-                                : '#9ca3af'
-                              : isDark
-                                ? '#374151'
-                                : '#d1d5db',
-                          backgroundColor: isSelected
-                            ? isDark
-                              ? 'rgba(168,85,247,0.12)'
-                              : 'rgba(168,85,247,0.08)'
-                            : isThisPlaying
-                              ? isDark
-                                ? '#111827'
-                                : '#f3f4f6'
-                              : isDark
-                                ? '#0b1220'
-                                : '#ffffff',
-                          color: isDark ? '#ffffff' : '#111827',
-                          opacity: disabled ? 0.6 : 1,
-                        }}
-                      >
-                        {isSelected && (
-                          <div className="absolute right-3 top-3 flex items-center gap-1 text-xs font-semibold">
-                            <CheckCircle2 className="w-4 h-4 text-purple-400" />
-                            <span className={isDark ? 'text-purple-200' : 'text-purple-700'}>선택됨</span>
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-semibold truncate whitespace-nowrap">{label}</div>
-                          </div>
-
-                          <div className="shrink-0 flex items-center">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
+                        } else {
+                          setConfirmOpen(false)
+                        }
+                      }}>
+                        <PopoverTrigger asChild>
+                          <div
+                            role="button"
+                            tabIndex={disabled ? -1 : 0}
+                            aria-disabled={disabled}
+                            onClick={() => {
+                              if (disabled) return
+                              openConfirm(v.name)
+                            }}
+                            onKeyDown={(e) => {
+                              if (disabled) return
+                              if (e.key === 'Enter' || e.key === ' ') {
                                 e.preventDefault()
-                                e.stopPropagation()
-                                playDemo(v.name)
-                              }}
-                              disabled={disabled}
-                              aria-label="미리듣기"
-                              title="미리듣기"
-                              className="opacity-80 group-hover:opacity-100 h-8 w-8 sm:h-9 sm:w-9"
-                            >
-                              {isThisPlaying ? (
-                                <Pause className="w-4 h-4" />
-                              ) : (
-                                <Headphones className="w-4 h-4" />
-                              )}
-                            </Button>
+                                openConfirm(v.name)
+                              }
+                            }}
+                            className={[
+                              'group relative text-left rounded-lg border p-4 transition-all',
+                              'shadow-sm hover:shadow-md hover:-translate-y-0.5',
+                              'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2',
+                              isDark ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white',
+                            ].join(' ')}
+                            style={{
+                              borderColor: isSelected
+                                ? '#a855f7'
+                                : isThisPlaying
+                                  ? isDark
+                                    ? '#4b5563'
+                                    : '#9ca3af'
+                                  : isDark
+                                    ? '#374151'
+                                    : '#d1d5db',
+                              backgroundColor: isSelected
+                                ? isDark
+                                  ? 'rgba(168,85,247,0.12)'
+                                  : 'rgba(168,85,247,0.08)'
+                                : isThisPlaying
+                                  ? isDark
+                                    ? '#111827'
+                                    : '#f3f4f6'
+                                  : isDark
+                                    ? '#0b1220'
+                                    : '#ffffff',
+                              color: isDark ? '#ffffff' : '#111827',
+                              opacity: disabled ? 0.6 : 1,
+                            }}
+                          >
+                            {isSelected && (
+                              <div className="absolute right-3 top-3 flex items-center gap-1 text-xs font-semibold">
+                                <CheckCircle2 className="w-4 h-4 text-purple-400" />
+                                <span className={isDark ? 'text-purple-200' : 'text-purple-700'}>선택됨</span>
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-semibold truncate whitespace-nowrap">{label}</div>
+                              </div>
+
+                              <div className="shrink-0 flex items-center">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    playDemo(v.name)
+                                  }}
+                                  disabled={disabled}
+                                  aria-label="미리듣기"
+                                  title="미리듣기"
+                                  className="opacity-80 group-hover:opacity-100 h-8 w-8 sm:h-9 sm:w-9"
+                                >
+                                  {isThisPlaying ? (
+                                    <Pause className="w-4 h-4" />
+                                  ) : (
+                                    <Headphones className="w-4 h-4" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
+                        </PopoverTrigger>
+                        
+                        {/* 말풍선 Popover */}
+                        <PopoverContent
+                          side="top"
+                          align="center"
+                          sideOffset={12}
+                          className={`w-80 p-4 relative ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+                        >
+                          <div className="space-y-3">
+                            <div>
+                              <div className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                이 목소리로 확정하시겠어요?
+                              </div>
+                              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                다음 단계에서 수정도 가능해요!
+                              </div>
+                            </div>
+
+                            <div className={`rounded-md border p-3 text-sm ${isDark ? 'border-gray-700 bg-gray-900 text-gray-200' : 'border-gray-200 bg-gray-50 text-gray-900'}`}>
+                              {label}
+                            </div>
+
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setConfirmOpen(false)}
+                                className={isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : ''}
+                              >
+                                다시 선택하기
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={confirmSelection}
+                                style={{
+                                  backgroundColor: '#8b5cf6',
+                                  color: '#ffffff',
+                                }}
+                              >
+                                확정하기
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {/* 말풍선 화살표 */}
+                          <div
+                            className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
+                            style={{
+                              bottom: '-8px',
+                              borderLeft: '8px solid transparent',
+                              borderRight: '8px solid transparent',
+                              borderTop: `8px solid ${isDark ? '#1f2937' : '#ffffff'}`,
+                            }}
+                          />
+                          <div
+                            className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
+                            style={{
+                              bottom: '-9px',
+                              borderLeft: '9px solid transparent',
+                              borderRight: '9px solid transparent',
+                              borderTop: `9px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
                     )
                   })}
                 </div>
@@ -436,90 +509,166 @@ export default function ChirpVoiceSelector({
                     const isSelected = voiceTemplate === v.name
                     const isThisPlaying = isPlaying && playingVoiceName === v.name
                     const label = getShortName(v.name)
+                    const isThisConfirmOpen = confirmOpen && pendingVoiceName === v.name
                     return (
-                      <div
-                        key={v.name}
-                        role="button"
-                        tabIndex={disabled ? -1 : 0}
-                        aria-disabled={disabled}
-                        onClick={() => {
-                          if (disabled) return
+                      <Popover key={v.name} open={isThisConfirmOpen} onOpenChange={(open) => {
+                        if (open) {
                           openConfirm(v.name)
-                        }}
-                        onKeyDown={(e) => {
-                          if (disabled) return
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            openConfirm(v.name)
-                          }
-                        }}
-                        className={[
-                          'group relative text-left rounded-lg border p-4 transition-all',
-                          'shadow-sm hover:shadow-md hover:-translate-y-0.5',
-                          'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2',
-                          isDark ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white',
-                        ].join(' ')}
-                        style={{
-                          borderColor: isSelected
-                            ? '#a855f7'
-                            : isThisPlaying
-                              ? isDark
-                                ? '#4b5563'
-                                : '#9ca3af'
-                              : isDark
-                                ? '#374151'
-                                : '#d1d5db',
-                          backgroundColor: isSelected
-                            ? isDark
-                              ? 'rgba(168,85,247,0.12)'
-                              : 'rgba(168,85,247,0.08)'
-                            : isThisPlaying
-                              ? isDark
-                                ? '#111827'
-                                : '#f3f4f6'
-                              : isDark
-                                ? '#0b1220'
-                                : '#ffffff',
-                          color: isDark ? '#ffffff' : '#111827',
-                          opacity: disabled ? 0.6 : 1,
-                        }}
-                      >
-                        {isSelected && (
-                          <div className="absolute right-3 top-3 flex items-center gap-1 text-xs font-semibold">
-                            <CheckCircle2 className="w-4 h-4 text-purple-400" />
-                            <span className={isDark ? 'text-purple-200' : 'text-purple-700'}>선택됨</span>
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-semibold truncate whitespace-nowrap">{label}</div>
-                          </div>
-
-                          <div className="shrink-0 flex items-center">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
+                        } else {
+                          setConfirmOpen(false)
+                        }
+                      }}>
+                        <PopoverTrigger asChild>
+                          <div
+                            role="button"
+                            tabIndex={disabled ? -1 : 0}
+                            aria-disabled={disabled}
+                            onClick={() => {
+                              if (disabled) return
+                              openConfirm(v.name)
+                            }}
+                            onKeyDown={(e) => {
+                              if (disabled) return
+                              if (e.key === 'Enter' || e.key === ' ') {
                                 e.preventDefault()
-                                e.stopPropagation()
-                                playDemo(v.name)
-                              }}
-                              disabled={disabled}
-                              aria-label="미리듣기"
-                              title="미리듣기"
-                              className="opacity-80 group-hover:opacity-100 h-8 w-8 sm:h-9 sm:w-9"
-                            >
-                              {isThisPlaying ? (
-                                <Pause className="w-4 h-4" />
-                              ) : (
-                                <Headphones className="w-4 h-4" />
-                              )}
-                            </Button>
+                                openConfirm(v.name)
+                              }
+                            }}
+                            className={[
+                              'group relative text-left rounded-lg border p-4 transition-all',
+                              'shadow-sm hover:shadow-md hover:-translate-y-0.5',
+                              'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2',
+                              isDark ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white',
+                            ].join(' ')}
+                            style={{
+                              borderColor: isSelected
+                                ? '#a855f7'
+                                : isThisPlaying
+                                  ? isDark
+                                    ? '#4b5563'
+                                    : '#9ca3af'
+                                  : isDark
+                                    ? '#374151'
+                                    : '#d1d5db',
+                              backgroundColor: isSelected
+                                ? isDark
+                                  ? 'rgba(168,85,247,0.12)'
+                                  : 'rgba(168,85,247,0.08)'
+                                : isThisPlaying
+                                  ? isDark
+                                    ? '#111827'
+                                    : '#f3f4f6'
+                                  : isDark
+                                    ? '#0b1220'
+                                    : '#ffffff',
+                              color: isDark ? '#ffffff' : '#111827',
+                              opacity: disabled ? 0.6 : 1,
+                            }}
+                          >
+                            {isSelected && (
+                              <div className="absolute right-3 top-3 flex items-center gap-1 text-xs font-semibold">
+                                <CheckCircle2 className="w-4 h-4 text-purple-400" />
+                                <span className={isDark ? 'text-purple-200' : 'text-purple-700'}>선택됨</span>
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-semibold truncate whitespace-nowrap">{label}</div>
+                              </div>
+
+                              <div className="shrink-0 flex items-center">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    e.stopPropagation()
+                                    playDemo(v.name)
+                                  }}
+                                  disabled={disabled}
+                                  aria-label="미리듣기"
+                                  title="미리듣기"
+                                  className="opacity-80 group-hover:opacity-100 h-8 w-8 sm:h-9 sm:w-9"
+                                >
+                                  {isThisPlaying ? (
+                                    <Pause className="w-4 h-4" />
+                                  ) : (
+                                    <Headphones className="w-4 h-4" />
+                                  )}
+                                </Button>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
+                        </PopoverTrigger>
+                        
+                        {/* 말풍선 Popover */}
+                        <PopoverContent
+                          side="top"
+                          align="center"
+                          sideOffset={12}
+                          className={`w-80 p-4 relative ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+                        >
+                          <div className="space-y-3">
+                            <div>
+                              <div className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                이 목소리로 확정하시겠어요?
+                              </div>
+                              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                다음 단계에서 수정도 가능해요!
+                              </div>
+                            </div>
+
+                            <div className={`rounded-md border p-3 text-sm ${isDark ? 'border-gray-700 bg-gray-900 text-gray-200' : 'border-gray-200 bg-gray-50 text-gray-900'}`}>
+                              {label}
+                            </div>
+
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setConfirmOpen(false)}
+                                className={isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : ''}
+                              >
+                                다시 선택하기
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={confirmSelection}
+                                style={{
+                                  backgroundColor: '#8b5cf6',
+                                  color: '#ffffff',
+                                }}
+                              >
+                                확정하기
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {/* 말풍선 화살표 */}
+                          <div
+                            className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
+                            style={{
+                              bottom: '-8px',
+                              borderLeft: '8px solid transparent',
+                              borderRight: '8px solid transparent',
+                              borderTop: `8px solid ${isDark ? '#1f2937' : '#ffffff'}`,
+                            }}
+                          />
+                          <div
+                            className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
+                            style={{
+                              bottom: '-9px',
+                              borderLeft: '9px solid transparent',
+                              borderRight: '9px solid transparent',
+                              borderTop: `9px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
                     )
                   })}
                 </div>
@@ -535,23 +684,31 @@ export default function ChirpVoiceSelector({
                       const isSelected = voiceTemplate === v.name
                       const isThisPlaying = isPlaying && playingVoiceName === v.name
                       const label = getShortName(v.name)
+                      const isThisConfirmOpen = confirmOpen && pendingVoiceName === v.name
                       return (
-                        <div
-                          key={v.name}
-                          role="button"
-                          tabIndex={disabled ? -1 : 0}
-                          aria-disabled={disabled}
-                          onClick={() => {
-                            if (disabled) return
+                        <Popover key={v.name} open={isThisConfirmOpen} onOpenChange={(open) => {
+                          if (open) {
                             openConfirm(v.name)
-                          }}
-                          onKeyDown={(e) => {
-                            if (disabled) return
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.preventDefault()
-                              openConfirm(v.name)
-                            }
-                          }}
+                          } else {
+                            setConfirmOpen(false)
+                          }
+                        }}>
+                          <PopoverTrigger asChild>
+                            <div
+                              role="button"
+                              tabIndex={disabled ? -1 : 0}
+                              aria-disabled={disabled}
+                              onClick={() => {
+                                if (disabled) return
+                                openConfirm(v.name)
+                              }}
+                              onKeyDown={(e) => {
+                                if (disabled) return
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  openConfirm(v.name)
+                                }
+                              }}
                           className={[
                             'group relative text-left rounded-lg border p-4 transition-all',
                             'shadow-sm hover:shadow-md hover:-translate-y-0.5',
@@ -619,6 +776,74 @@ export default function ChirpVoiceSelector({
                             </div>
                           </div>
                         </div>
+                          </PopoverTrigger>
+                          
+                          {/* 말풍선 Popover */}
+                          <PopoverContent
+                            side="top"
+                            align="center"
+                            sideOffset={12}
+                            className={`w-80 p-4 relative ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+                          >
+                            <div className="space-y-3">
+                              <div>
+                                <div className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                                  이 목소리로 확정하시겠어요?
+                                </div>
+                                <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                                  다음 단계에서 수정도 가능해요!
+                                </div>
+                              </div>
+
+                              <div className={`rounded-md border p-3 text-sm ${isDark ? 'border-gray-700 bg-gray-900 text-gray-200' : 'border-gray-200 bg-gray-50 text-gray-900'}`}>
+                                {label}
+                              </div>
+
+                              <div className="flex gap-2 justify-end">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setConfirmOpen(false)}
+                                  className={isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : ''}
+                                >
+                                  다시 선택하기
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={confirmSelection}
+                                  style={{
+                                    backgroundColor: '#8b5cf6',
+                                    color: '#ffffff',
+                                  }}
+                                >
+                                  확정하기
+                                </Button>
+                              </div>
+                            </div>
+                            
+                            {/* 말풍선 화살표 */}
+                            <div
+                              className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
+                              style={{
+                                bottom: '-8px',
+                                borderLeft: '8px solid transparent',
+                                borderRight: '8px solid transparent',
+                                borderTop: `8px solid ${isDark ? '#1f2937' : '#ffffff'}`,
+                              }}
+                            />
+                            <div
+                              className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
+                              style={{
+                                bottom: '-9px',
+                                borderLeft: '9px solid transparent',
+                                borderRight: '9px solid transparent',
+                                borderTop: `9px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+                              }}
+                            />
+                          </PopoverContent>
+                        </Popover>
                       )
                     })}
                   </div>
@@ -635,37 +860,6 @@ export default function ChirpVoiceSelector({
         </div>
       )}
 
-      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className={isDark ? 'bg-gray-800' : 'bg-white'}>
-          <DialogHeader>
-            <DialogTitle>이 목소리로 확정하시겠어요?</DialogTitle>
-            <DialogDescription>다음 단계에서 수정도 가능해요!</DialogDescription>
-          </DialogHeader>
-
-          {pendingVoiceName && (
-            <div className="rounded-md border p-3 text-sm" style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}>
-              {getShortName(pendingVoiceName)}
-            </div>
-          )}
-
-          <DialogFooter className="gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setConfirmOpen(false)}
-            >
-              다시 선택하기
-            </Button>
-            <Button
-              type="button"
-              onClick={confirmSelection}
-              disabled={!pendingVoiceName}
-            >
-              확정하기
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
