@@ -180,10 +180,38 @@ export async function apiRequest<T>(
           ...fetchOptions,
           headers,
         })
+        
+        // 재시도 후에도 401이면 토큰 만료로 처리
+        if (retryResponse.status === 401) {
+          authStorage.clearTokens()
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('auth:expired'))
+          }
+          throw new ApiError(
+            '인증이 만료되었습니다. 다시 로그인해주세요.',
+            401,
+            'Unauthorized'
+          )
+        }
+        
         return handleResponse<T>(retryResponse)
       }
 
       // 재발급 실패: 토큰 정리 + 전역 이벤트로 로그인 유도
+      authStorage.clearTokens()
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:expired'))
+      }
+      
+      throw new ApiError(
+        '인증이 만료되었습니다. 다시 로그인해주세요.',
+        401,
+        'Unauthorized'
+      )
+    }
+
+    // 401 에러인데 재발급을 시도하지 않은 경우 (skipAuth=true 또는 autoRefresh=false)
+    if (response.status === 401 && !skipAuth) {
       authStorage.clearTokens()
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('auth:expired'))
