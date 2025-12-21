@@ -109,14 +109,14 @@ export default function ChirpVoiceSelector({
       })
       const data = (await res.json()) as VoicesResponse
       if (!res.ok) {
-        throw new Error(data?.error || '목소리 목록을 불러오지 못했습니다.')
+        throw new Error(data?.error || '목소리 목록을 불러오지 못했어요.')
       }
 
       const nextVoices = Array.isArray(data.voices) ? data.voices : []
       setVoices(nextVoices)
     } catch (e) {
       setVoices([])
-      setError(e instanceof Error ? e.message : '목소리 목록을 불러오는 중 오류가 발생했습니다.')
+      setError(e instanceof Error ? e.message : '목소리 목록을 불러오는 중 오류가 발생했어요.')
     } finally {
       setIsLoadingVoices(false)
     }
@@ -316,7 +316,7 @@ export default function ChirpVoiceSelector({
         <div className="space-y-2">
           {voices.length === 0 && !isLoadingVoices ? (
             <div className="text-sm" style={{ color: isDark ? '#d1d5db' : '#374151' }}>
-              사용 가능한 목소리가 없습니다.
+              사용 가능한 목소리가 없어요.
             </div>
           ) : (
             <div

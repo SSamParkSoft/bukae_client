@@ -46,7 +46,7 @@ export async function GET(
 
     if (!channel) {
       return NextResponse.json(
-        { error: '채널을 찾을 수 없습니다.' },
+        { error: '채널을 찾을 수 없어요.' },
         { status: 404 }
       )
     }

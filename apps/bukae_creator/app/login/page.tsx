@@ -19,7 +19,7 @@ export default function LoginPage() {
       // 실제 리다이렉트는 Supabase가 처리
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : '구글 로그인 시작 중 오류가 발생했습니다.'
+        err instanceof Error ? err.message : '구글 로그인 시작 중 오류가 발생했어요.'
       setError(message)
       setIsLoading(false)
     }

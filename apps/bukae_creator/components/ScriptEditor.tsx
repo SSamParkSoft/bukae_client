@@ -28,7 +28,7 @@ export default function ScriptEditor() {
           대본 편집
         </CardTitle>
         <CardDescription>
-          AI가 생성한 대본을 확인하고 수정할 수 있습니다. (약 400자 내외)
+          AI가 생성한 대본을 확인하고 수정할 수 있어요. (약 400자 내외)
         </CardDescription>
       </CardHeader>
       <CardContent>

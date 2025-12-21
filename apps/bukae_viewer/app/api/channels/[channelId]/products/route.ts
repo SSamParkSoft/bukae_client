@@ -120,7 +120,7 @@ export async function GET(
   } catch (error) {
     console.error('제품 목록 API 오류:', error)
     return NextResponse.json(
-      { error: '제품 목록을 가져오는 중 오류가 발생했습니다.' },
+      { error: '제품 목록을 가져오는 중 오류가 발생했어요.' },
       { status: 500 }
     )
   }

@@ -28,7 +28,7 @@ export default function ProductGrid({ products, isLoading }: ProductGridProps) {
   if (products.length === 0) {
     return (
       <div className="px-4 py-6 bg-white">
-        <p className="text-gray-500 text-center py-12">제품이 없습니다.</p>
+        <p className="text-gray-500 text-center py-12">제품이 없어요.</p>
       </div>
     )
   }

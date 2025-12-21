@@ -234,7 +234,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('쿠팡 통계 API 오류:', error)
     return NextResponse.json(
-      { error: '통계 데이터를 가져오는 중 오류가 발생했습니다.' },
+      { error: '통계 데이터를 가져오는 중 오류가 발생했어요.' },
       { status: 500 }
     )
   }

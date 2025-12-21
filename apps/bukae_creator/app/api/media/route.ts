@@ -25,7 +25,7 @@ export function GET() {
     
     return NextResponse.json(
       { 
-        message: '미디어 데이터를 불러오지 못했습니다.',
+        message: '미디어 데이터를 불러오지 못했어요.',
         error: errorMessage,
         errorName,
         ...(isDev && errorStack ? { stack: errorStack } : {}),

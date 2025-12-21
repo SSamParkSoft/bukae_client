@@ -1550,7 +1550,7 @@ export default function Step4Page() {
           isTtsBootstrappingRef.current = false
           setIsBgmBootstrapping(false)
           isBgmBootstrappingRef.current = false
-          alert('재생 준비 중 오류가 발생했습니다.')
+          alert('재생 준비 중 오류가 발생했어요.')
         })
     } else {
       // 재생 중지
@@ -2325,7 +2325,7 @@ export default function Step4Page() {
     }
 
     if (!timeline) {
-      alert('타임라인 데이터가 없습니다.')
+      alert('타임라인 데이터가 없어요.')
       return
     }
 
@@ -2737,7 +2737,7 @@ export default function Step4Page() {
       if (result.jobId) {
         setCurrentJobId(result.jobId)
         setJobStatus(result.status || 'PENDING')
-        setJobProgress(result.message || '영상 생성이 시작되었습니다.')
+        setJobProgress(result.message || '영상 생성이 시작되었어요.')
         setJobProgressPercent(0)
         const startTime = Date.now() // 작업 시작 시간 기록
         setJobStartTime(startTime)
@@ -2817,7 +2817,7 @@ export default function Step4Page() {
               if (statusData.status === 'COMPLETED') {
                 const videoUrl = statusData.resultVideoUrl || null
                 setResultVideoUrl(videoUrl)
-                setJobProgress('영상 생성이 완료되었습니다!')
+                setJobProgress('영상 생성이 완료되었어요!')
                 setJobProgressPercent(100)
                 setIsExporting(false) // 내보내기 완료
                 
@@ -2864,9 +2864,9 @@ export default function Step4Page() {
                 console.error('========================')
                 
                 // 사용자 친화적인 에러 메시지
-                let userMessage = '영상 생성이 실패했습니다.\n\n'
+                let userMessage = '영상 생성이 실패했어요.\n\n'
                 if (isFfmpegError) {
-                  userMessage += '비디오 인코딩 과정에서 오류가 발생했습니다.\n'
+                  userMessage += '비디오 인코딩 과정에서 오류가 발생했어요.\n'
                   userMessage += '백엔드 서버의 ffmpeg 처리 중 문제가 발생한 것으로 보입니다.\n\n'
                   userMessage += '가능한 원인:\n'
                   userMessage += '- 서버 리소스 부족\n'
@@ -2904,12 +2904,12 @@ export default function Step4Page() {
         // 첫 확인은 5초 후
         jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
         
-        alert('영상 생성이 시작되었습니다. 진행 상황을 확인하고 있습니다...')
+        alert('영상 생성이 시작되었어요. 진행 상황을 확인하고 있어요...')
       } else {
-        alert('영상 생성이 시작되었습니다. 완료되면 알림을 받으실 수 있습니다.')
+        alert('영상 생성이 시작되었어요. 완료되면 알림을 받으실 수 있어요.')
       }
     } catch (error) {
-      alert(`영상 생성 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
+      alert(`영상 생성 중 오류가 발생했어요: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
     }
   }
 
@@ -3282,7 +3282,7 @@ export default function Step4Page() {
                                   <button
                                     onClick={() => {
                                       navigator.clipboard.writeText(resultVideoUrl)
-                                      alert('URL이 클립보드에 복사되었습니다!')
+                                      alert('URL이 클립보드에 복사되었어요!')
                                     }}
                                     className="flex-1 px-4 py-2 text-sm rounded border transition-colors font-medium"
                                     style={{

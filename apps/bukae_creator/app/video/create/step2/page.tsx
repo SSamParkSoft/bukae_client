@@ -122,7 +122,7 @@ export default function Step2Page() {
                 <p className={`mt-2 ${
                   theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
                 }`}>
-                  직접 촬영하거나, AI에게 모두 맡겨 자동 제작할 수 있습니다.
+                  직접 촬영하거나, AI에게 모두 맡겨 자동 제작할 수 있어요.
                 </p>
               </div>
 
@@ -168,7 +168,7 @@ export default function Step2Page() {
                         <p className={`text-sm text-center ${
                           theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
                         }`}>
-                          출시 시 준비될 예정입니다
+                          열심히 제작중이에요!
                         </p>
                       </div>
                     </div>
@@ -211,12 +211,12 @@ export default function Step2Page() {
                       <Bot className={`h-6 w-6 ${
                         theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
                       }`} />
-                      <CardTitle className="text-xl">AI에게 모두 맡기기</CardTitle>
+                      <CardTitle className="text-xl">3분안에 영상 제작하기</CardTitle>
                     </div>
                   </CardHeader>
                   <CardContent>
                     <CardDescription className="text-base">
-                      AI가 대본과 장면을 구성하고, 이미지 기반으로 자동으로 영상을 제작합니다.
+                      AI가 대본과 장면을 구성하고, 이미지 기반 자동으로 영상을 제작합니다.
                     </CardDescription>
                   </CardContent>
                 </Card>

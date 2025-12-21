@@ -59,11 +59,11 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
         const response = await fetch(url, { method: 'HEAD' })
         
         if (!response.ok) {
-          alert(`BGM 파일을 불러올 수 없습니다.\n상태: ${response.status} ${response.statusText}\n파일이 Supabase Storage에 업로드되어 있는지 확인해주세요.`)
+          alert(`BGM 파일을 불러올 수 없어요.\n상태: ${response.status} ${response.statusText}\n파일이 Supabase Storage에 업로드되어 있는지 확인해주세요.`)
           return
         }
       } catch (fetchError) {
-        alert(`BGM 파일에 접근할 수 없습니다.\n파일이 Supabase Storage에 업로드되어 있는지 확인해주세요.`)
+        alert(`BGM 파일에 접근할 수 없어요.\n파일이 Supabase Storage에 업로드되어 있는지 확인해주세요.`)
         return
       }
 

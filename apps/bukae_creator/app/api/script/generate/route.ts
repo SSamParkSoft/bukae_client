@@ -115,7 +115,7 @@ export async function POST(request: Request) {
 
     if (!scriptStyle || !tone || !images || images.length === 0) {
       return NextResponse.json(
-        { error: '필수 파라미터가 누락되었습니다.' },
+        { error: '필수 파라미터가 누락되었어요.' },
         { status: 400 }
       )
     }
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('대본 생성 오류:', error)
     return NextResponse.json(
-      { error: '대본 생성 중 오류가 발생했습니다.' },
+      { error: '대본 생성 중 오류가 발생했어요.' },
       { status: 500 }
     )
   }

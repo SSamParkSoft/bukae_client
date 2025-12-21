@@ -42,7 +42,7 @@ export async function GET(request: Request) {
         error:
           error instanceof Error
             ? error.message
-            : 'TTS 목소리 목록 조회 중 오류가 발생했습니다.',
+            : 'TTS 목소리 목록 조회 중 오류가 발생했어요.',
       },
       { status: 500 }
     )

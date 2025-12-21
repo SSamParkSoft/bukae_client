@@ -168,7 +168,7 @@ export async function enforceRateLimit(
       ...rateLimitHeaders(userRes),
       'Retry-After': retryAfterSeconds(userRes.reset),
     }
-    return NextResponse.json({ error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' }, { status: 429, headers })
+    return NextResponse.json({ error: '요청이 너무 많아요. 잠시 후 다시 시도해주세요.' }, { status: 429, headers })
   }
 
   const ip = getRequestIp(request)
@@ -181,7 +181,7 @@ export async function enforceRateLimit(
         'Retry-After': retryAfterSeconds(ipRes.reset),
       }
       return NextResponse.json(
-        { error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
+        { error: '요청이 너무 많아요. 잠시 후 다시 시도해주세요.' },
         { status: 429, headers }
       )
     }
@@ -248,13 +248,13 @@ export async function enforceTtsDailyQuota(
 
   if (nextChars === -1) {
     return NextResponse.json(
-      { error: '오늘의 TTS 사용량(문자수) 한도를 초과했습니다.' },
+      { error: '오늘의 TTS 사용량(문자수) 한도를 초과했어요.' },
       { status: 429 }
     )
   }
   if (nextReq === -1) {
     return NextResponse.json(
-      { error: '오늘의 TTS 사용량(요청수) 한도를 초과했습니다.' },
+      { error: '오늘의 TTS 사용량(요청수) 한도를 초과했어요.' },
       { status: 429 }
     )
   }

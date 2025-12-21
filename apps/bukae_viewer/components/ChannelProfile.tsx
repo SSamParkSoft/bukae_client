@@ -27,7 +27,7 @@ export default function ChannelProfile({ channel }: ChannelProfileProps) {
       // Web Share API를 지원하지 않는 경우 클립보드에 복사
       try {
         await navigator.clipboard.writeText(url)
-        alert('링크가 클립보드에 복사되었습니다!')
+        alert('링크가 클립보드에 복사되었어요!')
       } catch {
         console.error('클립보드 복사 실패')
       }

@@ -24,7 +24,7 @@ export default function OAuthCallbackClient() {
 
         // 에러가 있는 경우
         if (errorParam) {
-          throw new Error(errorParam || '로그인 중 오류가 발생했습니다.')
+          throw new Error(errorParam || '로그인 중 오류가 발생했어요.')
         }
 
         // 토큰이 URL 파라미터로 전달된 경우
@@ -36,7 +36,7 @@ export default function OAuthCallbackClient() {
         } else {
           // 쿠키에서 토큰을 확인하거나, 백엔드가 다른 방식으로 전달할 수 있음
           // 여기서는 URL 파라미터를 우선으로 하고, 없으면 에러 처리
-          throw new Error('토큰 정보를 찾을 수 없습니다. 다시 로그인해주세요.')
+          throw new Error('토큰 정보를 찾을 수 없어요. 다시 로그인해주세요.')
         }
 
         // 토큰 저장 후 즉시 인증 상태 업데이트
@@ -70,7 +70,7 @@ export default function OAuthCallbackClient() {
         const message =
           err instanceof Error
             ? err.message
-            : '로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.'
+            : '로그인 처리 중 오류가 발생했어요. 다시 시도해주세요.'
         setError(message)
       }
     }
