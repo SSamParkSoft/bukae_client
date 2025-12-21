@@ -83,7 +83,7 @@ export default function SceneScriptBoard({
           </h3>
           <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
             선택한 스타일 · 말투를 기준으로 이미지마다 적합한 대본이 자동 생성돼요. 카드를 드래그하면 순서를 바꿀 수
-            있습니다.
+            있어요.
           </p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs md:text-sm">
             <Badge variant="secondary">{conceptLabel}</Badge>

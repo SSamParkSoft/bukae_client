@@ -12,7 +12,7 @@ const fetchCoupangStats = async (): Promise<CoupangStats> => {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!response.ok) {
-    throw new Error('쿠팡 통계 데이터를 가져오는데 실패했습니다.')
+    throw new Error('쿠팡 통계 데이터를 가져오는데 실패했어요.')
   }
   return response.json()
 }
@@ -25,4 +25,3 @@ export const useCoupangStats = () => {
     staleTime: 30 * 60 * 1000, // 30분간 캐시 유지
   })
 }
-

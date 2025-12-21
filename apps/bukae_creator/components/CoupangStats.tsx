@@ -41,7 +41,7 @@ export default function CoupangStats() {
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-        <p className="text-red-600">데이터를 불러오는 중 오류가 발생했습니다.</p>
+        <p className="text-red-600">데이터를 불러오는 중 오류가 발생했어요.</p>
       </div>
     )
   }

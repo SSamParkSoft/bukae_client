@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowUpRight, User, ExternalLink } from 'lucide-react'
+import { ArrowUpRight, User, ExternalLink, LogIn } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useUserStore } from '@/store/useUserStore'
@@ -10,13 +10,15 @@ const PERSONAL_HOME_URL = 'https://bookae-client-bookae-viewer.vercel.app/ssamba
 
 export default function HomeShortcut() {
   const theme = useThemeStore((state) => state.theme)
-  const { user } = useUserStore()
+  const { user, isAuthenticated } = useUserStore()
+
+  const isLoggedIn = isAuthenticated && user
 
   return (
     <Link
-      href={PERSONAL_HOME_URL}
-      target="_blank"
-      rel="noopener noreferrer"
+      href={isLoggedIn ? PERSONAL_HOME_URL : '/login'}
+      target={isLoggedIn ? '_blank' : undefined}
+      rel={isLoggedIn ? 'noopener noreferrer' : undefined}
       className="block"
     >
       <Card
@@ -31,16 +33,22 @@ export default function HomeShortcut() {
           <div className={`relative w-[72px] h-[72px] rounded-full flex items-center justify-center shrink-0 ${
             theme === 'dark' ? 'bg-purple-900/40' : 'bg-purple-100'
           }`}>
-            {user?.profileImage ? (
+            {isLoggedIn && user?.profileImage ? (
               <img
                 src={user.profileImage}
                 alt={user.name}
                 className="w-full h-full rounded-full object-cover"
               />
             ) : (
-              <User className={`w-9 h-9 ${
-                theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-              }`} />
+              isLoggedIn ? (
+                <User className={`w-9 h-9 ${
+                  theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                }`} />
+              ) : (
+                <LogIn className={`w-9 h-9 ${
+                  theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                }`} />
+              )
             )}
           </div>
 
@@ -50,16 +58,21 @@ export default function HomeShortcut() {
               <h3 className={`font-bold text-2xl ${
                 theme === 'dark' ? 'text-purple-200' : 'text-purple-700'
               }`}>
-                내 프로필 보기
+                {isLoggedIn ? '내 프로필 보기' : '로그인하기'}
               </h3>
-              <ExternalLink className={`w-6 h-6 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 ${
-                theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-              }`} />
+              {isLoggedIn && (
+                <ExternalLink className={`w-6 h-6 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 ${
+                  theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                }`} />
+              )}
             </div>
             <p className={`text-lg font-semibold truncate ${
               theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
             }`}>
-              {user?.name || '사용자'}님의 공개 프로필 페이지로 이동
+              {isLoggedIn 
+                ? `${user?.name || '사용자'}님의 공개 프로필 페이지로 이동`
+                : '로그인하여 서비스를 이용하세요'
+              }
             </p>
           </div>
 

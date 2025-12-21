@@ -79,9 +79,9 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
     // 네트워크 에러 또는 서버 미실행 시 사용자 친화적 메시지
     if (response.status === 0 || response.type === 'opaque') {
-      errorMessage = '서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요.'
+      errorMessage = '서버에 연결할 수 없어요. 백엔드 서버가 실행 중인지 확인해주세요.'
     } else if (response.status >= 500) {
-      errorMessage = '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
+      errorMessage = '서버 오류가 발생했어요. 잠시 후 다시 시도해주세요.'
     }
 
     throw new ApiError(errorMessage, response.status, response.statusText, errorData)
@@ -180,10 +180,38 @@ export async function apiRequest<T>(
           ...fetchOptions,
           headers,
         })
+        
+        // 재시도 후에도 401이면 토큰 만료로 처리
+        if (retryResponse.status === 401) {
+          authStorage.clearTokens()
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('auth:expired'))
+          }
+          throw new ApiError(
+            '인증이 만료되었어요. 다시 로그인해주세요.',
+            401,
+            'Unauthorized'
+          )
+        }
+        
         return handleResponse<T>(retryResponse)
       }
 
       // 재발급 실패: 토큰 정리 + 전역 이벤트로 로그인 유도
+      authStorage.clearTokens()
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:expired'))
+      }
+      
+      throw new ApiError(
+        '인증이 만료되었습니다. 다시 로그인해주세요.',
+        401,
+        'Unauthorized'
+      )
+    }
+
+    // 401 에러인데 재발급을 시도하지 않은 경우 (skipAuth=true 또는 autoRefresh=false)
+    if (response.status === 401 && !skipAuth) {
       authStorage.clearTokens()
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('auth:expired'))
@@ -195,7 +223,7 @@ export async function apiRequest<T>(
     // 네트워크 에러 처리
     if (error instanceof TypeError && error.message.includes('fetch')) {
       throw new ApiError(
-        '서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요.',
+        '서버에 연결할 수 없어요. 백엔드 서버가 실행 중인지 확인해주세요.',
         0,
         'Network Error'
       )
@@ -209,7 +237,7 @@ export async function apiRequest<T>(
     console.error('[API Client] 예상치 못한 에러:', error)
     
     throw new ApiError(
-      error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.',
+      error instanceof Error ? error.message : '알 수 없는 오류가 발생했어요.',
       0,
       'Unknown Error'
     )

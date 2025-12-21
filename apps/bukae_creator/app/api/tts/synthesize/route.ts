@@ -82,7 +82,7 @@ export async function POST(request: Request) {
 
     const audioContent = result.audioContent
     if (!audioContent) {
-      return NextResponse.json({ error: 'TTS 변환 결과가 비어있습니다.' }, { status: 500 })
+      return NextResponse.json({ error: 'TTS 변환 결과가 비어있어요.' }, { status: 500 })
     }
 
     // google client는 Uint8Array(Buffer) 또는 base64 string을 반환할 수 있음
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : 'TTS 합성 중 오류가 발생했습니다.',
+          error instanceof Error ? error.message : 'TTS 합성 중 오류가 발생했어요.',
       },
       { status: 500 }
     )

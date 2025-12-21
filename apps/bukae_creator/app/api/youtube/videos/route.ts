@@ -75,7 +75,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('유튜브 동영상 목록 API 오류:', error)
     return NextResponse.json(
-      { error: '동영상 목록을 가져오는 중 오류가 발생했습니다.' },
+      { error: '동영상 목록을 가져오는 중 오류가 발생했어요.' },
       { status: 500 }
     )
   }

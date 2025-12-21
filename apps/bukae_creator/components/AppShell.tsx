@@ -17,12 +17,8 @@ export default function AppShell({ children }: AppShellProps) {
   const isPublicRoute = PUBLIC_PATHS.includes(pathname)
   const checkAuth = useUserStore((state) => state.checkAuth)
 
-  // 페이지 로드 시 인증 상태 확인
-  useEffect(() => {
-    if (!isPublicRoute) {
-      checkAuth()
-    }
-  }, [isPublicRoute, checkAuth])
+  // 초기 로드 시 자동 인증 확인하지 않음 (로그인 안된 상태로 시작)
+  // 사용자가 명시적으로 로그인할 때만 인증 상태가 활성화됨
 
   if (isPublicRoute) {
     return <>{children}</>

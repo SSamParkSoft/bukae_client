@@ -16,7 +16,7 @@ const getEmailRedirectUrl = () => {
 
 const mapErrorMessage = (message: string) => {
   if (message.includes('Invalid login credentials')) {
-    return '이메일 또는 비밀번호가 올바르지 않습니다.'
+    return '이메일 또는 비밀번호가 올바르지 않아요.'
   }
   if (message.includes('User already registered')) {
     return '이미 가입된 이메일입니다.'

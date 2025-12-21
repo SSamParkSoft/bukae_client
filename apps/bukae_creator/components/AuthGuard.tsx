@@ -14,12 +14,12 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   const { isAuthenticated, checkAuth } = useUserStore()
 
   useEffect(() => {
-    const hasAuth = checkAuth()
-
-    if (!hasAuth) {
+    // 초기 로드 시 자동 인증 확인하지 않음
+    // 인증이 필요한 페이지는 명시적으로 로그인 상태를 확인해야 함
+    if (!isAuthenticated) {
       router.replace('/login')
     }
-  }, [router, checkAuth])
+  }, [router, isAuthenticated])
 
   if (!isAuthenticated) {
     return (

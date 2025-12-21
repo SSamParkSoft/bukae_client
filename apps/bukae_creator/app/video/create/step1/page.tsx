@@ -531,7 +531,7 @@ export default function Step1Page() {
               <div className={`text-center py-4 text-sm ${
                 theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
               }`}>
-                모든 상품을 불러왔습니다
+                모든 상품을 불러왔어요
               </div>
             )}
           </div>

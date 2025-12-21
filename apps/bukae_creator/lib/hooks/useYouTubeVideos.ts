@@ -12,7 +12,7 @@ const fetchYouTubeVideos = async (): Promise<YouTubeVideo[]> => {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!response.ok) {
-    throw new Error('유튜브 동영상 목록을 가져오는데 실패했습니다.')
+    throw new Error('유튜브 동영상 목록을 가져오는데 실패했어요.')
   }
   return response.json()
 }

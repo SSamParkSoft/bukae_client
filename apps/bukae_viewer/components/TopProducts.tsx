@@ -39,7 +39,7 @@ export default function TopProducts({ topProducts, isLoading, channelName = '쌈
             {channelName} Top 6 추천 제품!
           </h2>
         </div>
-        <p className="text-gray-500 text-center py-8">추천 제품이 없습니다.</p>
+        <p className="text-gray-500 text-center py-8">추천 제품이 없어요.</p>
       </div>
     )
   }

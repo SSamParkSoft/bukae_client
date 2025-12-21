@@ -405,7 +405,7 @@ export default function HomePage() {
                   <p className={`text-sm ${
                     theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
                   }`}>
-                    데이터가 없습니다
+                    데이터가 없어요
                   </p>
                 )}
               </CardContent>
@@ -545,7 +545,7 @@ export default function HomePage() {
                   <p className={`text-sm ${
                     theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
                   }`}>
-                    데이터가 없습니다
+                    데이터가 없어요
                   </p>
                 )}
               </CardContent>
@@ -632,7 +632,7 @@ export default function HomePage() {
                   <p className={`text-sm ${
                     theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
                   }`}>
-                    데이터가 없습니다
+                    데이터가 없어요
                   </p>
                 )}
               </CardContent>

@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     console.error('영상 생성 API 오류:', error)
     return NextResponse.json(
       { 
-        error: '영상 생성 중 오류가 발생했습니다.',
+        error: '영상 생성 중 오류가 발생했어요.',
         message: error instanceof Error ? error.message : '알 수 없는 오류'
       },
       { status: 500 }

@@ -29,8 +29,8 @@ export default function Sidebar() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true)
-    checkAuth()
-  }, [checkAuth])
+    // 초기 로드 시 자동 인증 확인하지 않음 (로그인 안된 상태로 시작)
+  }, [])
 
   const handleLogout = async () => {
     await logout()

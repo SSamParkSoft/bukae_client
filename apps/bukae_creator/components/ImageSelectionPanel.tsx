@@ -197,7 +197,7 @@ export default function ImageSelectionPanel({
               <p className={`text-xs mt-1 ${
                 theme === 'dark' ? 'text-green-400' : 'text-green-600'
               }`}>
-                ✓ 최소 선택 개수를 충족했습니다
+                ✓ 최소 선택 개수를 충족했어요
               </p>
             )}
           </div>

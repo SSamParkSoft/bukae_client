@@ -161,6 +161,9 @@ export const usePixiEffects = ({
     // 원래 위치 계산
     let originalX = toSprite.x
     let originalY = toSprite.y
+    const originalScaleX = toSprite.scale.x
+    const originalScaleY = toSprite.scale.y
+    const originalScale = Math.min(originalScaleX, originalScaleY) // 현재 스케일 값 저장
     
     if (timeline?.scenes[sceneIndex]?.imageTransform) {
       const transform = timeline.scenes[sceneIndex].imageTransform!
@@ -484,19 +487,17 @@ export const usePixiEffects = ({
 
       case 'zoom-in':
         {
-          // 이전 코드 패턴: 확대 (작은 크기에서 확대) - 이미지만 적용
-          const toZoomObj = { scale: 0.5, alpha: 0 }
-          toSprite.scale.set(0.5, 0.5)
-          toSprite.x = originalX + (toSprite.width * 0.25)
-          toSprite.y = originalY + (toSprite.height * 0.25)
+          // 확대: 현재 크기에서 점점 커지게
+          const toZoomObj = { scale: originalScale, alpha: 0 }
+          // 현재 스케일 유지
+          toSprite.scale.set(originalScaleX, originalScaleY)
           // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
           
+          // 먼저 페이드 인
           tl.to(toZoomObj, { 
-            scale: 1, 
             alpha: 1, 
-            duration, 
+            duration: duration * 0.3, 
             onUpdate: function() {
-              // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
               if (toSprite && containerRef.current) {
                 if (!toSprite.parent || toSprite.parent !== containerRef.current) {
                   if (toSprite.parent) {
@@ -504,25 +505,38 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toSprite)
                 }
-                const scaleFactor = toZoomObj.scale
-                toSprite.scale.set(scaleFactor, scaleFactor)
-                toSprite.x = originalX + (toSprite.width * (1 - scaleFactor) / 2)
-                toSprite.y = originalY + (toSprite.height * (1 - scaleFactor) / 2)
                 toSprite.alpha = toZoomObj.alpha
-              }
-              if (toText && containerRef.current) {
-                if (!toText.parent || toText.parent !== containerRef.current) {
-                  if (toText.parent) {
-                    toText.parent.removeChild(toText)
-                  }
-                  containerRef.current.addChild(toText)
-                }
               }
               if (appRef.current) {
                 appRef.current.render()
               }
             }
           }, 0)
+          
+          // 그 다음 확대 애니메이션 (현재 크기에서 시작해서 계속 커짐)
+          // 중심점 계산 (스프라이트의 현재 중심)
+          const centerX = originalX + (toSprite.texture.width * originalScale) / 2
+          const centerY = originalY + (toSprite.texture.height * originalScale) / 2
+          
+          tl.to(toZoomObj, { 
+            scale: originalScale * 1.2, 
+            duration: duration * 0.7, 
+            ease: 'power2.out',
+            onUpdate: function() {
+              if (toSprite && containerRef.current) {
+                const scaleFactor = toZoomObj.scale
+                toSprite.scale.set(scaleFactor, scaleFactor)
+                // 중심점 기준으로 위치 조정 (중심점 유지)
+                const newWidth = toSprite.texture.width * scaleFactor
+                const newHeight = toSprite.texture.height * scaleFactor
+                toSprite.x = centerX - newWidth / 2
+                toSprite.y = centerY - newHeight / 2
+              }
+              if (appRef.current) {
+                appRef.current.render()
+              }
+            }
+          }, duration * 0.3)
           
           // 텍스트는 항상 페이드
           applyTextFade()
@@ -531,19 +545,17 @@ export const usePixiEffects = ({
 
       case 'zoom-out':
         {
-          // 이전 코드 패턴: 축소 (큰 크기에서 축소) - 이미지만 적용
-          const toZoomOutObj = { scale: 1.5, alpha: 0 }
-          toSprite.scale.set(1.5, 1.5)
-          toSprite.x = originalX - (toSprite.width * 0.25)
-          toSprite.y = originalY - (toSprite.height * 0.25)
+          // 축소: 현재 크기에서 점점 작아지게
+          const toZoomOutObj = { scale: originalScale, alpha: 0 }
+          // 현재 스케일 유지
+          toSprite.scale.set(originalScaleX, originalScaleY)
           // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
           
+          // 먼저 페이드 인
           tl.to(toZoomOutObj, { 
-            scale: 1, 
             alpha: 1, 
-            duration, 
+            duration: duration * 0.3, 
             onUpdate: function() {
-              // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
               if (toSprite && containerRef.current) {
                 if (!toSprite.parent || toSprite.parent !== containerRef.current) {
                   if (toSprite.parent) {
@@ -551,25 +563,38 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toSprite)
                 }
-                const scaleFactor = toZoomOutObj.scale
-                toSprite.scale.set(scaleFactor, scaleFactor)
-                toSprite.x = originalX - (toSprite.width * (scaleFactor - 1) / 2)
-                toSprite.y = originalY - (toSprite.height * (scaleFactor - 1) / 2)
                 toSprite.alpha = toZoomOutObj.alpha
-              }
-              if (toText && containerRef.current) {
-                if (!toText.parent || toText.parent !== containerRef.current) {
-                  if (toText.parent) {
-                    toText.parent.removeChild(toText)
-                  }
-                  containerRef.current.addChild(toText)
-                }
               }
               if (appRef.current) {
                 appRef.current.render()
               }
             }
           }, 0)
+          
+          // 그 다음 축소 애니메이션 (현재 크기에서 시작해서 계속 작아짐)
+          // 중심점 계산 (스프라이트의 현재 중심)
+          const centerX = originalX + (toSprite.texture.width * originalScale) / 2
+          const centerY = originalY + (toSprite.texture.height * originalScale) / 2
+          
+          tl.to(toZoomOutObj, { 
+            scale: originalScale * 0.8, 
+            duration: duration * 0.7, 
+            ease: 'power2.out',
+            onUpdate: function() {
+              if (toSprite && containerRef.current) {
+                const scaleFactor = toZoomOutObj.scale
+                toSprite.scale.set(scaleFactor, scaleFactor)
+                // 중심점 기준으로 위치 조정 (중심점 유지)
+                const newWidth = toSprite.texture.width * scaleFactor
+                const newHeight = toSprite.texture.height * scaleFactor
+                toSprite.x = centerX - newWidth / 2
+                toSprite.y = centerY - newHeight / 2
+              }
+              if (appRef.current) {
+                appRef.current.render()
+              }
+            }
+          }, duration * 0.3)
           
           // 텍스트는 항상 페이드
           applyTextFade()
@@ -723,19 +748,17 @@ export const usePixiEffects = ({
 
       case 'ripple':
         {
-          // 이전 코드 패턴: 물결 효과 (작은 크기에서 확장) - 이미지만 적용
-          const toRippleObj = { scale: 0.8, alpha: 0 }
-          toSprite.scale.set(0.8, 0.8)
-          toSprite.x = originalX + (toSprite.width * 0.1)
-          toSprite.y = originalY + (toSprite.height * 0.1)
+          // 물결 효과: 물결 파동이 퍼지는 효과
+          const toRippleObj = { scale: originalScale, alpha: 0, wavePhase: 0 }
+          // 현재 스케일 유지
+          toSprite.scale.set(originalScaleX, originalScaleY)
           // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
           
+          // 먼저 페이드 인
           tl.to(toRippleObj, { 
-            scale: 1, 
             alpha: 1, 
-            duration, 
+            duration: duration * 0.2, 
             onUpdate: function() {
-              // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
               if (toSprite && containerRef.current) {
                 if (!toSprite.parent || toSprite.parent !== containerRef.current) {
                   if (toSprite.parent) {
@@ -743,25 +766,78 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toSprite)
                 }
-                const scaleFactor = toRippleObj.scale
-                toSprite.scale.set(scaleFactor, scaleFactor)
-                toSprite.x = originalX + (toSprite.width * (1 - scaleFactor) / 2)
-                toSprite.y = originalY + (toSprite.height * (1 - scaleFactor) / 2)
                 toSprite.alpha = toRippleObj.alpha
-              }
-              if (toText && containerRef.current) {
-                if (!toText.parent || toText.parent !== containerRef.current) {
-                  if (toText.parent) {
-                    toText.parent.removeChild(toText)
-                  }
-                  containerRef.current.addChild(toText)
-                }
               }
               if (appRef.current) {
                 appRef.current.render()
               }
             }
           }, 0)
+          
+          // 물결 효과: 여러 파동이 연속적으로 퍼지는 효과
+          // 중심점 계산 (스프라이트의 현재 중심)
+          const centerX = originalX + (toSprite.texture.width * originalScale) / 2
+          const centerY = originalY + (toSprite.texture.height * originalScale) / 2
+          
+          const waveCount = 3 // 물결 파동 개수
+          const waveDuration = duration * 0.8 / waveCount
+          
+          for (let i = 0; i < waveCount; i++) {
+            const waveStartTime = duration * 0.2 + (waveDuration * i)
+            const waveObj = { scale: originalScale, waveIntensity: 0 }
+            
+            // 각 파동이 시작될 때 (현재 스케일로 리셋)
+            tl.set(waveObj, { scale: originalScale, waveIntensity: 0 }, waveStartTime)
+            
+            // 파동이 퍼지는 애니메이션
+            tl.to(waveObj, {
+              scale: originalScale * 1.1,
+              waveIntensity: 1,
+              duration: waveDuration * 0.6,
+              ease: 'power2.out',
+              onUpdate: function() {
+                if (toSprite && containerRef.current) {
+                  // 물결 효과를 위한 스케일 변동 (파동처럼)
+                  const baseScale = originalScale + (waveObj.scale - originalScale) * waveObj.waveIntensity
+                  const waveScale = baseScale + (waveObj.waveIntensity * originalScale * 0.05 * Math.sin(waveObj.waveIntensity * Math.PI * 2))
+                  toSprite.scale.set(waveScale, waveScale)
+                  
+                  // 중심점 기준으로 위치 조정 (중심점 유지)
+                  const newWidth = toSprite.texture.width * waveScale
+                  const newHeight = toSprite.texture.height * waveScale
+                  toSprite.x = centerX - newWidth / 2
+                  toSprite.y = centerY - newHeight / 2
+                }
+                if (appRef.current) {
+                  appRef.current.render()
+                }
+              }
+            }, waveStartTime)
+            
+            // 파동이 사라지는 애니메이션
+            tl.to(waveObj, {
+              scale: originalScale,
+              waveIntensity: 0,
+              duration: waveDuration * 0.4,
+              ease: 'power2.in',
+              onUpdate: function() {
+                if (toSprite && containerRef.current) {
+                  const baseScale = originalScale + (waveObj.scale - originalScale) * waveObj.waveIntensity
+                  const waveScale = baseScale + (waveObj.waveIntensity * originalScale * 0.05 * Math.sin(waveObj.waveIntensity * Math.PI * 2))
+                  toSprite.scale.set(waveScale, waveScale)
+                  
+                  // 중심점 기준으로 위치 조정 (중심점 유지)
+                  const newWidth = toSprite.texture.width * waveScale
+                  const newHeight = toSprite.texture.height * waveScale
+                  toSprite.x = centerX - newWidth / 2
+                  toSprite.y = centerY - newHeight / 2
+                }
+                if (appRef.current) {
+                  appRef.current.render()
+                }
+              }
+            }, waveStartTime + waveDuration * 0.6)
+          }
           
           // 텍스트는 항상 페이드
           applyTextFade()

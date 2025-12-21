@@ -46,7 +46,7 @@ function ChannelPageContent({ channelId }: { channelId: string }) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">채널을 찾을 수 없습니다</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">채널을 찾을 수 없어요</h1>
           <p className="text-gray-600">존재하지 않는 채널 ID입니다.</p>
         </div>
       </div>

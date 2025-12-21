@@ -33,7 +33,17 @@ function strEnv(name: string, fallback: string): string {
   return raw?.trim() ? raw.trim() : fallback
 }
 
+// 토큰 기반 캐시 (같은 요청 내에서 중복 호출 방지)
+// 짧은 시간(1초) 동안 같은 토큰에 대한 결과를 캐싱
+const tokenCache = new Map<string, { userId: string | null; timestamp: number }>()
+
 async function getBackendUserIdFromAccessToken(accessToken: string): Promise<string | null> {
+  // 캐시 확인 (1초 이내의 결과 재사용)
+  const cached = tokenCache.get(accessToken)
+  if (cached && Date.now() - cached.timestamp < 1000) {
+    return cached.userId
+  }
+
   // 프론트에서 쓰는 base url과 동일 규칙 사용(없으면 기존 기본값 유지)
   const API_BASE_URL =
     strEnv('NEXT_PUBLIC_API_BASE_URL', 'http://15.164.220.105.nip.io:8080')
@@ -47,12 +57,42 @@ async function getBackendUserIdFromAccessToken(accessToken: string): Promise<str
       },
       cache: 'no-store',
     })
-    if (!res.ok) return null
+    if (!res.ok) {
+      // 실패한 경우도 캐시에 저장하여 짧은 시간 동안 재시도 방지
+      tokenCache.set(accessToken, { userId: null, timestamp: Date.now() })
+      return null
+    }
     const data = (await res.json().catch(() => null)) as { id?: unknown } | null
     const id = typeof data?.id === 'string' ? data.id : null
-    return id && id.trim() ? id.trim() : null
+    const userId = id && id.trim() ? id.trim() : null
+    
+    // 캐시에 저장
+    tokenCache.set(accessToken, { userId, timestamp: Date.now() })
+    
+    return userId
   } catch {
+    // 에러 발생 시에도 캐시에 저장하여 짧은 시간 동안 재시도 방지
+    tokenCache.set(accessToken, { userId: null, timestamp: Date.now() })
     return null
+  }
+}
+
+// 주기적으로 오래된 캐시 항목 정리 (메모리 누수 방지)
+if (typeof globalThis !== 'undefined') {
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now()
+    for (const [token, value] of tokenCache.entries()) {
+      if (now - value.timestamp > 5000) {
+        // 5초 이상 된 캐시 항목 삭제
+        tokenCache.delete(token)
+      }
+    }
+  }, 10000) // 10초마다 정리
+
+  // Node.js 환경에서만 clearInterval 사용 가능
+  if (typeof process !== 'undefined' && process.on) {
+    process.on('SIGTERM', () => clearInterval(cleanupInterval))
+    process.on('SIGINT', () => clearInterval(cleanupInterval))
   }
 }
 

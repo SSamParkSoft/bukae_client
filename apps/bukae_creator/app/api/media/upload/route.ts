@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(filePath)
 
     if (!publicUrlData.publicUrl) {
-      return NextResponse.json({ error: '업로드된 파일의 공개 URL을 가져올 수 없습니다.' }, { status: 500 })
+      return NextResponse.json({ error: '업로드된 파일의 공개 URL을 가져올 수 없어요.' }, { status: 500 })
     }
 
     return NextResponse.json(
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     console.error('미디어 업로드 API 오류:', error)
     return NextResponse.json(
       {
-        error: '파일 업로드 중 오류가 발생했습니다.',
+        error: '파일 업로드 중 오류가 발생했어요.',
         message: error instanceof Error ? error.message : '알 수 없는 오류',
       },
       { status: 500 }

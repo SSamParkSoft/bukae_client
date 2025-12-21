@@ -37,10 +37,10 @@ export default function Step6Page() {
     const productUrl = product?.url || 'https://link.coupang.com/'
     const priceText = product?.price
       ? `🔥특가 : ${product.price.toLocaleString()}원 (업로드 시점 기준)`
-      : '🔥특가 : 가격 정보는 업로드 시점 기준으로 변동될 수 있습니다.'
+      : '🔥특가 : 가격 정보는 업로드 시점 기준으로 변동될 수 있어요.'
 
     return [
-      '👉 이 영상은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.',
+      '👉 이 영상은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받아요.',
       '👉 제품에 대하여 채널은 책임을 지지 않으며, 제품 관련은 쿠팡 고객센터로 연락 바랍니다.',
       '',
       '## 상품마다 내용이 달라지는 부분',
@@ -48,7 +48,7 @@ export default function Step6Page() {
       productUrl,
       priceText,
       '',
-      '👉 본 영상에는 채널의 주관적인 생각이 포함되어 있습니다.',
+      '👉 본 영상에는 채널의 주관적인 생각이 포함되어 있어요.',
       '👉 본 영상에 표시된 가격 정보는 영상 업로드일 당시 원화 기준이며, 가격은 수시로 변동 가능합니다.',
     ].join('\n')
   }, [product])
@@ -103,7 +103,7 @@ export default function Step6Page() {
       }
     } catch (error) {
       console.error('제목 생성 오류:', error)
-      alert('제목 생성 중 오류가 발생했습니다.')
+      alert('제목 생성 중 오류가 발생했어요.')
     } finally {
       setIsGenerating(false)
     }
@@ -252,7 +252,7 @@ export default function Step6Page() {
                     <p className={`text-sm ${
                       theme === 'dark' ? 'text-purple-200' : 'text-purple-800'
                     }`}>
-                      AI가 제목을 생성하고 있습니다...
+                      AI가 제목을 생성하고 있어요...
                     </p>
                   </div>
                 )}
@@ -379,7 +379,7 @@ export default function Step6Page() {
                 <p className={`text-xs ${
                   theme === 'dark' ? 'text-gray-500' : 'text-gray-500'
                 }`}>
-                  해시태그는 공백 또는 쉼표로 구분해 입력/수정할 수 있습니다.
+                  해시태그는 공백 또는 쉼표로 구분해 입력/수정할 수 있어요.
                 </p>
               </CardContent>
             </Card>

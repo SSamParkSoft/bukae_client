@@ -44,18 +44,18 @@ export default function SignUpPage() {
     }
 
     if (password !== confirmPassword) {
-      setError('비밀번호가 일치하지 않습니다.')
+      setError('비밀번호가 일치하지 않아요.')
       return
     }
 
     try {
       await signUpMutation.mutateAsync({ email, name, password })
-      setSuccess('회원가입이 완료되었습니다. 이메일로 전송된 확인 링크를 눌러주세요.')
+      setSuccess('회원가입이 완료되었어요. 이메일로 전송된 확인 링크를 눌러주세요.')
       setTimeout(() => {
         router.push('/login')
       }, 2500)
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '회원가입에 실패했습니다.'
+      const message = err instanceof Error ? err.message : '회원가입에 실패했어요.'
       setError(message)
     }
   }

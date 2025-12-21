@@ -6,7 +6,7 @@ const fetchMediaAssets = async (): Promise<MediaAsset[]> => {
   const response = await fetch('/api/media')
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    const errorMessage = errorData.error || errorData.message || '미디어 데이터를 불러오지 못했습니다.'
+    const errorMessage = errorData.error || errorData.message || '미디어 데이터를 불러오지 못했어요.'
     console.error('[useMediaAssets] API 에러 상세:', {
       status: response.status,
       statusText: response.statusText,

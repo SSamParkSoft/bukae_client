@@ -473,7 +473,7 @@ export default function ProfilePage() {
                     <div className={`text-center py-8 ${
                       theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
                     }`}>
-                      제작한 영상이 없습니다
+                      제작한 영상이 없어요
                     </div>
                   )}
                 </CardContent>
@@ -505,7 +505,7 @@ export default function ProfilePage() {
                       <div className={`text-sm ${
                         theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
                       }`}>
-                        영상 제작이 완료되면 알림을 받습니다
+                        영상 제작이 완료되면 알림을 받아요
                       </div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -531,7 +531,7 @@ export default function ProfilePage() {
                       <div className={`text-sm ${
                         theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
                       }`}>
-                        수익이 발생하면 알림을 받습니다
+                        수익이 발생하면 알림을 받아요
                       </div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -557,7 +557,7 @@ export default function ProfilePage() {
                       <div className={`text-sm ${
                         theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
                       }`}>
-                        매주 성과 리포트를 이메일로 받습니다
+                        매주 성과 리포트를 이메일로 받아요
                       </div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -735,7 +735,7 @@ export default function ProfilePage() {
           <DialogHeader>
             <DialogTitle>계정 삭제</DialogTitle>
             <DialogDescription>
-              계정을 삭제하면 모든 데이터가 영구적으로 삭제됩니다. 이 작업은 취소할 수 없습니다.
+              계정을 삭제하면 모든 데이터가 영구적으로 삭제돼요. 이 작업은 취소할 수 없어요.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

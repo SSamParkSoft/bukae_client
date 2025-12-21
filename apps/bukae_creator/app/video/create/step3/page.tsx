@@ -135,7 +135,7 @@ export default function Step3Page() {
           const sceneData = items.find((item) => item.imageUrl === imageUrl) || items[index]
           newMap.set(index, {
             sceneId: index + 1,
-            script: sceneData?.script || '생성된 대본이 없습니다.',
+            script: sceneData?.script || '생성된 대본이 없어요.',
             imageUrl: sceneData?.imageUrl || imageUrl,
             isAiGenerated: !!sceneData?.script,
           })
@@ -151,7 +151,7 @@ export default function Step3Page() {
       }, 100)
     } catch (error) {
       console.error('대본 일괄 생성 오류:', error)
-      alert('대본 일괄 생성 중 오류가 발생했습니다.')
+      alert('대본 일괄 생성 중 오류가 발생했어요.')
     } finally {
       setIsGeneratingAll(false)
       setGeneratingScenes(new Set())
@@ -333,7 +333,7 @@ export default function Step3Page() {
               <p className={`mt-2 ${
                 theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
               }`}>
-                영상에 사용할 이미지를 선택한 뒤, 상단의 AI 스크립트 버튼을 눌러 전체 흐름에 맞는 씬별 대본을 한 번에 생성하고 수정할 수 있습니다. (최소 5장 이상 권장)
+                영상에 사용할 이미지를 선택한 뒤, 상단의 AI 스크립트 버튼을 눌러 전체 흐름에 맞는 씬별 대본을 한 번에 생성하고 수정할 수 있어요. (최소 5장 이상 권장)
               </p>
             </div>
 
@@ -349,7 +349,7 @@ export default function Step3Page() {
                   <div className={`text-center py-8 ${
                     theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
                   }`}>
-                    사용 가능한 이미지가 없습니다.
+                    사용 가능한 이미지가 없어요.
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
@@ -497,7 +497,7 @@ export default function Step3Page() {
                                     <p className={`text-sm ${
                                       theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
                                     }`}>
-                                      AI가 대본을 생성하고 있습니다...
+                                      AI가 대본을 생성하고 있어요...
                                     </p>
                                   </div>
                                 ) : (
