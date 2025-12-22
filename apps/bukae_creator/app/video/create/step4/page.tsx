@@ -2800,6 +2800,7 @@ export default function Step4Page() {
           setJobProgressPercent(progressPercent)
           
           if (statusData.status === 'COMPLETED') {
+            console.log('[영상 제작] 완료 상태 수신:', statusData)
             const videoUrl = statusData.resultVideoUrl || null
             setResultVideoUrl(videoUrl)
             setJobProgress('영상 생성이 완료되었어요!')
@@ -2816,6 +2817,7 @@ export default function Step4Page() {
               websocketRef.current = null
             }
             setCurrentJobId(null)
+            console.log('[영상 제작] 상태 초기화 완료 - isExporting: false, currentJobId: null')
           } else if (statusData.status === 'FAILED') {
             // 에러 메시지 수집
             let errorMessages = [
@@ -2878,12 +2880,29 @@ export default function Step4Page() {
           }
         }
         
-        // HTTP 폴링 함수 (폴백용)
+        // HTTP 폴링 함수 (WebSocket 폴백용)
         const startHttpPolling = (jobId: string, startTime: number) => {
+          // 이미 HTTP 폴링이 실행 중이면 중복 시작 방지
+          if (jobStatusCheckTimeoutRef.current) {
+            console.log('[HTTP 폴링] 이미 실행 중입니다.')
+            return
+          }
+          
+          console.log('[HTTP 폴링] 시작 - WebSocket 대신 HTTP 폴링으로 상태 확인')
           const MAX_WAIT_TIME = 30 * 60 * 1000 // 30분
           let checkCount = 0
           
           const checkJobStatus = async () => {
+            // WebSocket이 다시 연결되었으면 HTTP 폴링 중단
+            if (websocketRef.current?.isConnected()) {
+              console.log('[HTTP 폴링] WebSocket이 재연결되어 HTTP 폴링을 중단합니다.')
+              if (jobStatusCheckTimeoutRef.current) {
+                clearTimeout(jobStatusCheckTimeoutRef.current)
+                jobStatusCheckTimeoutRef.current = null
+              }
+              return
+            }
+            
             checkCount++
             
             // 경과 시간 확인
@@ -2892,6 +2911,10 @@ export default function Step4Page() {
               alert(`영상 생성이 30분을 초과했습니다. 백엔드 서버에 문제가 있을 수 있습니다.\n\n작업 ID: ${jobId}\n\n나중에 다시 확인해주세요.`)
               setCurrentJobId(null)
               setJobStatus(null)
+              if (jobStatusCheckTimeoutRef.current) {
+                clearTimeout(jobStatusCheckTimeoutRef.current)
+                jobStatusCheckTimeoutRef.current = null
+              }
               return
             }
             
@@ -2907,10 +2930,9 @@ export default function Step4Page() {
                 
                 // 디버깅: 전체 응답 데이터 로그
                 if (process.env.NODE_ENV === 'development') {
-                  console.log('=== 작업 상태 응답 (HTTP 폴링) ===')
+                  console.log(`[HTTP 폴링] #${checkCount} - 작업 상태 응답:`)
                   console.log('Status:', statusData.status)
                   console.log('Full Response:', JSON.stringify(statusData, null, 2))
-                  console.log('==================')
                 }
                 
                 handleStatusUpdate(statusData)
@@ -2918,17 +2940,21 @@ export default function Step4Page() {
                 // 완료/실패가 아니면 계속 폴링
                 if (statusData.status !== 'COMPLETED' && statusData.status !== 'FAILED') {
                   jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+                } else {
+                  // 완료/실패 시 폴링 중단
+                  console.log(`[HTTP 폴링] 작업 완료 (${statusData.status}), 폴링 중단`)
+                  jobStatusCheckTimeoutRef.current = null
                 }
               } else {
                 // HTTP 에러 응답 처리
                 const errorText = await statusResponse.text().catch(() => '')
-                console.error('작업 상태 확인 HTTP 에러:', statusResponse.status, errorText)
+                console.error(`[HTTP 폴링] #${checkCount} - HTTP 에러:`, statusResponse.status, errorText)
                 setJobProgress(`상태 확인 실패 (${statusResponse.status})`)
                 // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
                 jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
               }
             } catch (error) {
-              console.error('작업 상태 확인 실패:', error)
+              console.error(`[HTTP 폴링] #${checkCount} - 작업 상태 확인 실패:`, error)
               // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
               jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
             }
@@ -2938,36 +2964,56 @@ export default function Step4Page() {
           jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
         }
         
-        // WebSocket 연결 시도
-        try {
-          const ws = new StudioJobWebSocket(
-            result.jobId,
-            (update: StudioJobUpdate) => {
-              // WebSocket에서 받은 업데이트 처리
-              if (process.env.NODE_ENV === 'development') {
-                console.log('[WebSocket] Received update:', update)
+        // HTTP 폴링을 먼저 시작 (WebSocket 연결 실패 시에도 상태 확인 가능)
+        startHttpPolling(result.jobId, startTime)
+        
+        // WebSocket 연결 시도 (실시간 UI 업데이트용) - 비동기로 처리
+        // 연결이 완료되면 HTTP 폴링이 자동으로 중단됨
+        const connectWebSocket = async () => {
+          try {
+            const ws = new StudioJobWebSocket(
+              result.jobId,
+              (update: StudioJobUpdate) => {
+                // WebSocket에서 받은 실시간 업데이트 처리
+                console.log('[WebSocket] ✅ 실시간 업데이트 수신:', {
+                  status: update.status,
+                  progressDetail: update.progressDetail,
+                  resultVideoUrl: update.resultVideoUrl
+                })
+                handleStatusUpdate(update)
+              },
+              (error) => {
+                // WebSocket 연결 에러 시 HTTP 폴링 계속 사용
+                console.warn('[WebSocket] ⚠️ 연결 에러:', error.message)
+                console.log('[WebSocket] HTTP 폴링을 계속 사용합니다.')
+                // HTTP 폴링은 이미 시작되어 있으므로 추가 작업 불필요
+              },
+              () => {
+                // WebSocket 연결이 끊어졌을 때 HTTP 폴링으로 폴백
+                console.log('[WebSocket] 연결이 끊어졌습니다. HTTP 폴링을 계속 사용합니다.')
+                // 완료/실패 상태가 아니면 HTTP 폴링 시작 (이미 시작되어 있을 수 있음)
+                if (jobStatus !== 'COMPLETED' && jobStatus !== 'FAILED') {
+                  startHttpPolling(result.jobId, startTime)
+                }
               }
-              handleStatusUpdate(update)
-            },
-            (error) => {
-              console.error('[WebSocket] Connection error:', error)
-              // WebSocket 실패 시 HTTP 폴링으로 폴백
-              console.log('[WebSocket] Falling back to HTTP polling')
-              startHttpPolling(result.jobId, startTime)
-            }
-          )
-          
-          websocketRef.current = ws
-          await ws.connect()
-          console.log('[WebSocket] Connected and subscribed successfully')
-          alert('영상 생성이 시작되었어요. 진행 상황을 실시간으로 확인하고 있어요...')
-        } catch (error) {
-          console.error('[WebSocket] Failed to connect:', error)
-          // WebSocket 실패 시 HTTP 폴링으로 폴백
-          console.log('[WebSocket] Falling back to HTTP polling')
-          startHttpPolling(result.jobId, startTime)
-          alert('영상 생성이 시작되었어요. 진행 상황을 확인하고 있어요...')
+            )
+            
+            websocketRef.current = ws
+            await ws.connect()
+            console.log('[WebSocket] ✅ 연결 성공 및 구독 완료 - 실시간 업데이트 활성화')
+            // HTTP 폴링은 WebSocket이 연결되면 자동으로 중단됨 (startHttpPolling 내부 로직)
+          } catch (error) {
+            // WebSocket 연결 실패 시 HTTP 폴링 계속 사용
+            console.warn('[WebSocket] ⚠️ 연결 실패:', error instanceof Error ? error.message : '알 수 없는 오류')
+            console.log('[WebSocket] HTTP 폴링을 계속 사용합니다.')
+            // HTTP 폴링은 이미 시작되어 있으므로 추가 작업 불필요
+          }
         }
+        
+        // WebSocket 연결을 비동기로 시도 (블로킹하지 않음)
+        connectWebSocket()
+        
+        alert('영상 생성이 시작되었어요. 진행 상황을 확인하고 있어요...')
       } else {
         alert('영상 생성이 시작되었어요. 완료되면 알림을 받으실 수 있어요.')
       }
@@ -3202,7 +3248,9 @@ export default function Step4Page() {
                           size="sm"
                           className="flex-1"
                         >
-                          {isExporting || currentJobId ? (
+                          {jobStatus === 'COMPLETED' ? (
+                            '내보내기'
+                          ) : isExporting || currentJobId ? (
                             <>
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                               {isExporting ? '제작 시작 중...' : '생성 중...'}
@@ -3387,25 +3435,6 @@ export default function Step4Page() {
                                 </div>
                               </div>
                             </div>
-                          )}
-                          {(jobStatus === 'PENDING' || jobStatus === 'PROCESSING') && (
-                            <button
-                              onClick={cancelJobStatusCheck}
-                              className="mt-2 px-3 py-1.5 text-xs rounded border transition-colors"
-                              style={{
-                                backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
-                                borderColor: theme === 'dark' ? '#4b5563' : '#d1d5db',
-                                color: theme === 'dark' ? '#f87171' : '#ef4444'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = theme === 'dark' ? '#4b5563' : '#e5e7eb'
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = theme === 'dark' ? '#374151' : '#f3f4f6'
-                              }}
-                            >
-                              상태 확인 중단
-                            </button>
                           )}
                           {(jobStatus === 'PENDING' || jobStatus === 'PROCESSING') && jobProgressPercent === 0 && (
                             <div className="mt-2 w-full h-1.5 rounded-full overflow-hidden" style={{
