@@ -6,9 +6,8 @@ import { Client, IMessage } from '@stomp/stompjs'
 
 function getWebSocketUrl(): string {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
-  // HTTP를 WS로 변환
-  const wsUrl = API_BASE_URL.replace(/^http/, 'ws')
-  return `${wsUrl}/ws`
+  // SockJS는 http:// 또는 https:// URL을 받아야 함 (ws:// 또는 wss://는 사용 불가)
+  return `${API_BASE_URL}/ws`
 }
 
 export interface StudioJobUpdate {
