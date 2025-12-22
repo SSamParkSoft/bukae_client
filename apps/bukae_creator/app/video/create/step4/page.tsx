@@ -24,6 +24,7 @@ import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
 import { resolveSubtitleFontFamily, SUBTITLE_DEFAULT_FONT_ID, loadSubtitleFont, isSubtitleFontId } from '@/lib/subtitle-fonts'
 import { authStorage } from '@/lib/api/auth-storage'
 import { bgmTemplates, getBgmTemplateUrlSync, type BgmTemplate } from '@/lib/data/templates'
+import { StudioJobWebSocket, type StudioJobUpdate } from '@/lib/api/websocket'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import * as fabric from 'fabric'
@@ -119,6 +120,7 @@ export default function Step4Page() {
   const [resultVideoUrl, setResultVideoUrl] = useState<string | null>(null) // 완료된 영상 URL
   const [isExporting, setIsExporting] = useState(false) // 내보내기 진행 중 여부
   const jobStatusCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null) // 상태 확인 timeout ID
+  const websocketRef = useRef<StudioJobWebSocket | null>(null) // WebSocket 연결 ref
 
   // 작업 상태 확인 취소 함수
   const cancelJobStatusCheck = useCallback(() => {
@@ -126,6 +128,11 @@ export default function Step4Page() {
       clearTimeout(jobStatusCheckTimeoutRef.current)
       jobStatusCheckTimeoutRef.current = null
       console.log('작업 상태 확인이 취소되었습니다.')
+    }
+    if (websocketRef.current) {
+      websocketRef.current.disconnect()
+      websocketRef.current = null
+      console.log('WebSocket 연결이 해제되었습니다.')
     }
     setCurrentJobId(null)
     setJobStatus(null)
@@ -138,6 +145,10 @@ export default function Step4Page() {
     return () => {
       if (jobStatusCheckTimeoutRef.current) {
         clearTimeout(jobStatusCheckTimeoutRef.current)
+      }
+      if (websocketRef.current) {
+        websocketRef.current.disconnect()
+        websocketRef.current = null
       }
     }
   }, [])
@@ -2742,169 +2753,221 @@ export default function Step4Page() {
         const startTime = Date.now() // 작업 시작 시간 기록
         setJobStartTime(startTime)
         
-        // 최대 대기 시간 (30분)
-        const MAX_WAIT_TIME = 30 * 60 * 1000 // 30분
-        let checkCount = 0
-        
-        // 작업 상태 주기적으로 확인 (5초마다)
-        const checkJobStatus = async () => {
-          checkCount++
+        // 상태 업데이트 처리 함수 (공통 로직)
+        const handleStatusUpdate = (statusData: any) => {
+          setJobStatus(statusData.status)
           
-          // 경과 시간 확인
-          const elapsed = Date.now() - startTime
-          if (elapsed > MAX_WAIT_TIME) {
-            alert(`영상 생성이 30분을 초과했습니다. 백엔드 서버에 문제가 있을 수 있습니다.\n\n작업 ID: ${result.jobId}\n\n나중에 다시 확인해주세요.`)
+          // progressDetail이 객체인 경우 처리
+          let progressText = ''
+          let progressPercent = 0
+          
+          if (statusData.progressDetail) {
+            if (typeof statusData.progressDetail === 'string') {
+              progressText = statusData.progressDetail
+            } else if (typeof statusData.progressDetail === 'object') {
+              // 객체인 경우 msg나 message 필드 추출
+              progressText = statusData.progressDetail.msg || 
+                            statusData.progressDetail.message || 
+                            statusData.progressDetail.step ||
+                            statusData.progressDetail.progress ||
+                            JSON.stringify(statusData.progressDetail)
+              // progress 필드가 숫자면 진행률로 사용
+              if (typeof statusData.progressDetail.progress === 'number') {
+                progressPercent = statusData.progressDetail.progress
+              } else if (typeof statusData.progressDetail.percent === 'number') {
+                progressPercent = statusData.progressDetail.percent
+              }
+            }
+          } else if (statusData.message) {
+            progressText = typeof statusData.message === 'string' 
+              ? statusData.message 
+              : JSON.stringify(statusData.message)
+          }
+          
+          // 경과 시간 계산 및 표시
+          const elapsed = Math.floor((Date.now() - startTime) / 1000) // 초 단위
+          const minutes = Math.floor(elapsed / 60)
+          const seconds = elapsed % 60
+          const timeText = `${minutes}분 ${seconds}초 경과`
+          
+          if (progressPercent > 0) {
+            progressText = `${progressText} (${progressPercent}% - ${timeText})`
+          } else {
+            progressText = `${progressText} (${timeText})`
+          }
+          
+          setJobProgress(progressText)
+          setJobProgressPercent(progressPercent)
+          
+          if (statusData.status === 'COMPLETED') {
+            const videoUrl = statusData.resultVideoUrl || null
+            setResultVideoUrl(videoUrl)
+            setJobProgress('영상 생성이 완료되었어요!')
+            setJobProgressPercent(100)
+            setIsExporting(false) // 내보내기 완료
+            
+            // 상태 확인 중단
+            if (jobStatusCheckTimeoutRef.current) {
+              clearTimeout(jobStatusCheckTimeoutRef.current)
+              jobStatusCheckTimeoutRef.current = null
+            }
+            if (websocketRef.current) {
+              websocketRef.current.disconnect()
+              websocketRef.current = null
+            }
+            setCurrentJobId(null)
+          } else if (statusData.status === 'FAILED') {
+            // 에러 메시지 수집
+            let errorMessages = [
+              statusData.errorMessage,
+              statusData.error?.message,
+              statusData.error,
+            ].filter(Boolean)
+            
+            // progressDetail에서 에러 메시지 추출
+            if (statusData.progressDetail) {
+              if (typeof statusData.progressDetail === 'string') {
+                errorMessages.push(statusData.progressDetail)
+              } else if (typeof statusData.progressDetail === 'object') {
+                const detailMsg = statusData.progressDetail.msg || 
+                                statusData.progressDetail.message ||
+                                statusData.progressDetail.error
+                if (detailMsg) errorMessages.push(detailMsg)
+              }
+            }
+            
+            const errorText = errorMessages.length > 0 
+              ? errorMessages.join('\n\n') 
+              : '알 수 없는 오류'
+            
+            // ffmpeg 관련 에러인지 확인
+            const isFfmpegError = errorText.includes('ffmpeg') || 
+                                 errorText.includes('Composition Failed') ||
+                                 errorText.includes('frame=')
+            
+            console.error('=== 영상 생성 실패 상세 ===')
+            console.error('Error Message:', statusData.errorMessage)
+            console.error('Error Object:', statusData.error)
+            console.error('Progress Detail:', statusData.progressDetail)
+            console.error('Full Status Data:', JSON.stringify(statusData, null, 2))
+            console.error('========================')
+            
+            // 사용자 친화적인 에러 메시지
+            let userMessage = '영상 생성이 실패했어요.\n\n'
+            if (isFfmpegError) {
+              userMessage += '비디오 인코딩 과정에서 오류가 발생했어요.\n'
+              userMessage += '백엔드 서버의 ffmpeg 처리 중 문제가 발생한 것으로 보입니다.\n\n'
+              userMessage += '가능한 원인:\n'
+              userMessage += '- 서버 리소스 부족\n'
+              userMessage += '- 비디오 파일 형식 문제\n'
+              userMessage += '- ffmpeg 설정 오류\n\n'
+              userMessage += '잠시 후 다시 시도해주시거나, 백엔드 관리자에게 문의해주세요.\n\n'
+            }
+            userMessage += `에러 상세:\n${errorText.substring(0, 500)}${errorText.length > 500 ? '...' : ''}\n\n`
+            userMessage += '자세한 내용은 브라우저 콘솔(F12)을 확인해주세요.'
+            
+            alert(userMessage)
+            if (websocketRef.current) {
+              websocketRef.current.disconnect()
+              websocketRef.current = null
+            }
             setCurrentJobId(null)
             setJobStatus(null)
-            return
-          }
-          try {
-            // 백엔드 API URL 직접 사용
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
-            const statusResponse = await fetch(`${API_BASE_URL}/api/v1/studio/jobs/${result.jobId}`, {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            })
-            
-            if (statusResponse.ok) {
-              const statusData = await statusResponse.json()
-              setJobStatus(statusData.status)
-              
-              // 디버깅: 전체 응답 데이터 로그
-              console.log('=== 작업 상태 응답 ===')
-              console.log('Status:', statusData.status)
-              console.log('Full Response:', JSON.stringify(statusData, null, 2))
-              console.log('==================')
-              
-              // progressDetail이 객체인 경우 처리
-              let progressText = ''
-              let progressPercent = 0
-              
-              if (statusData.progressDetail) {
-                if (typeof statusData.progressDetail === 'string') {
-                  progressText = statusData.progressDetail
-                } else if (typeof statusData.progressDetail === 'object') {
-                  // 객체인 경우 msg나 message 필드 추출
-                  progressText = statusData.progressDetail.msg || 
-                                statusData.progressDetail.message || 
-                                statusData.progressDetail.progress ||
-                                JSON.stringify(statusData.progressDetail)
-                  // progress 필드가 숫자면 진행률로 사용
-                  if (typeof statusData.progressDetail.progress === 'number') {
-                    progressPercent = statusData.progressDetail.progress
-                  }
-                }
-              } else if (statusData.message) {
-                progressText = typeof statusData.message === 'string' 
-                  ? statusData.message 
-                  : JSON.stringify(statusData.message)
-              }
-              
-              // 경과 시간 계산 및 표시
-              const elapsed = Math.floor((Date.now() - startTime) / 1000) // 초 단위
-              const minutes = Math.floor(elapsed / 60)
-              const seconds = elapsed % 60
-              const timeText = `${minutes}분 ${seconds}초 경과`
-              
-              if (progressPercent > 0) {
-                progressText = `${progressText} (${progressPercent}% - ${timeText})`
-              } else {
-                progressText = `${progressText} (${timeText})`
-              }
-              
-              setJobProgress(progressText)
-              setJobProgressPercent(progressPercent)
-              
-              if (statusData.status === 'COMPLETED') {
-                const videoUrl = statusData.resultVideoUrl || null
-                setResultVideoUrl(videoUrl)
-                setJobProgress('영상 생성이 완료되었어요!')
-                setJobProgressPercent(100)
-                setIsExporting(false) // 내보내기 완료
-                
-                // 상태 확인 중단
-                if (jobStatusCheckTimeoutRef.current) {
-                  clearTimeout(jobStatusCheckTimeoutRef.current)
-                  jobStatusCheckTimeoutRef.current = null
-                }
-                setCurrentJobId(null)
-              } else if (statusData.status === 'FAILED') {
-                // 에러 메시지 수집
-                let errorMessages = [
-                  statusData.errorMessage,
-                  statusData.error?.message,
-                  statusData.error,
-                ].filter(Boolean)
-                
-                // progressDetail에서 에러 메시지 추출
-                if (statusData.progressDetail) {
-                  if (typeof statusData.progressDetail === 'string') {
-                    errorMessages.push(statusData.progressDetail)
-                  } else if (typeof statusData.progressDetail === 'object') {
-                    const detailMsg = statusData.progressDetail.msg || 
-                                    statusData.progressDetail.message ||
-                                    statusData.progressDetail.error
-                    if (detailMsg) errorMessages.push(detailMsg)
-                  }
-                }
-                
-                const errorText = errorMessages.length > 0 
-                  ? errorMessages.join('\n\n') 
-                  : '알 수 없는 오류'
-                
-                // ffmpeg 관련 에러인지 확인
-                const isFfmpegError = errorText.includes('ffmpeg') || 
-                                     errorText.includes('Composition Failed') ||
-                                     errorText.includes('frame=')
-                
-                console.error('=== 영상 생성 실패 상세 ===')
-                console.error('Error Message:', statusData.errorMessage)
-                console.error('Error Object:', statusData.error)
-                console.error('Progress Detail:', statusData.progressDetail)
-                console.error('Full Status Data:', JSON.stringify(statusData, null, 2))
-                console.error('========================')
-                
-                // 사용자 친화적인 에러 메시지
-                let userMessage = '영상 생성이 실패했어요.\n\n'
-                if (isFfmpegError) {
-                  userMessage += '비디오 인코딩 과정에서 오류가 발생했어요.\n'
-                  userMessage += '백엔드 서버의 ffmpeg 처리 중 문제가 발생한 것으로 보입니다.\n\n'
-                  userMessage += '가능한 원인:\n'
-                  userMessage += '- 서버 리소스 부족\n'
-                  userMessage += '- 비디오 파일 형식 문제\n'
-                  userMessage += '- ffmpeg 설정 오류\n\n'
-                  userMessage += '잠시 후 다시 시도해주시거나, 백엔드 관리자에게 문의해주세요.\n\n'
-                }
-                userMessage += `에러 상세:\n${errorText.substring(0, 500)}${errorText.length > 500 ? '...' : ''}\n\n`
-                userMessage += '자세한 내용은 브라우저 콘솔(F12)을 확인해주세요.'
-                
-                alert(userMessage)
-                setCurrentJobId(null)
-                setJobStatus(null)
-                setJobProgress('')
-                setJobProgressPercent(0)
-              } else {
-                // 아직 진행 중이면 5초 후 다시 확인
-                jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
-              }
-            } else {
-              // HTTP 에러 응답 처리
-              const errorText = await statusResponse.text().catch(() => '')
-              console.error('작업 상태 확인 HTTP 에러:', statusResponse.status, errorText)
-              setJobProgress(`상태 확인 실패 (${statusResponse.status})`)
-              // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
-              jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
-            }
-          } catch (error) {
-            console.error('작업 상태 확인 실패:', error)
-            // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
-            jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+            setJobProgress('')
+            setJobProgressPercent(0)
           }
         }
         
-        // 첫 확인은 5초 후
-        jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+        // HTTP 폴링 함수 (폴백용)
+        const startHttpPolling = (jobId: string, startTime: number) => {
+          const MAX_WAIT_TIME = 30 * 60 * 1000 // 30분
+          let checkCount = 0
+          
+          const checkJobStatus = async () => {
+            checkCount++
+            
+            // 경과 시간 확인
+            const elapsed = Date.now() - startTime
+            if (elapsed > MAX_WAIT_TIME) {
+              alert(`영상 생성이 30분을 초과했습니다. 백엔드 서버에 문제가 있을 수 있습니다.\n\n작업 ID: ${jobId}\n\n나중에 다시 확인해주세요.`)
+              setCurrentJobId(null)
+              setJobStatus(null)
+              return
+            }
+            
+            try {
+              // 백엔드 API URL 직접 사용
+              const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+              const statusResponse = await fetch(`${API_BASE_URL}/api/v1/studio/jobs/${jobId}`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              })
+              
+              if (statusResponse.ok) {
+                const statusData = await statusResponse.json()
+                
+                // 디버깅: 전체 응답 데이터 로그
+                if (process.env.NODE_ENV === 'development') {
+                  console.log('=== 작업 상태 응답 (HTTP 폴링) ===')
+                  console.log('Status:', statusData.status)
+                  console.log('Full Response:', JSON.stringify(statusData, null, 2))
+                  console.log('==================')
+                }
+                
+                handleStatusUpdate(statusData)
+                
+                // 완료/실패가 아니면 계속 폴링
+                if (statusData.status !== 'COMPLETED' && statusData.status !== 'FAILED') {
+                  jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+                }
+              } else {
+                // HTTP 에러 응답 처리
+                const errorText = await statusResponse.text().catch(() => '')
+                console.error('작업 상태 확인 HTTP 에러:', statusResponse.status, errorText)
+                setJobProgress(`상태 확인 실패 (${statusResponse.status})`)
+                // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
+                jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+              }
+            } catch (error) {
+              console.error('작업 상태 확인 실패:', error)
+              // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
+              jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+            }
+          }
+          
+          // 첫 확인은 5초 후
+          jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+        }
         
-        alert('영상 생성이 시작되었어요. 진행 상황을 확인하고 있어요...')
+        // WebSocket 연결 시도
+        try {
+          const ws = new StudioJobWebSocket(
+            result.jobId,
+            (update: StudioJobUpdate) => {
+              // WebSocket에서 받은 업데이트 처리
+              if (process.env.NODE_ENV === 'development') {
+                console.log('[WebSocket] Received update:', update)
+              }
+              handleStatusUpdate(update)
+            },
+            (error) => {
+              console.error('[WebSocket] Connection error:', error)
+              // WebSocket 실패 시 HTTP 폴링으로 폴백
+              console.log('[WebSocket] Falling back to HTTP polling')
+              startHttpPolling(result.jobId, startTime)
+            }
+          )
+          
+          websocketRef.current = ws
+          await ws.connect()
+          console.log('[WebSocket] Connected and subscribed successfully')
+          alert('영상 생성이 시작되었어요. 진행 상황을 실시간으로 확인하고 있어요...')
+        } catch (error) {
+          console.error('[WebSocket] Failed to connect:', error)
+          // WebSocket 실패 시 HTTP 폴링으로 폴백
+          console.log('[WebSocket] Falling back to HTTP polling')
+          startHttpPolling(result.jobId, startTime)
+          alert('영상 생성이 시작되었어요. 진행 상황을 확인하고 있어요...')
+        }
       } else {
         alert('영상 생성이 시작되었어요. 완료되면 알림을 받으실 수 있어요.')
       }
