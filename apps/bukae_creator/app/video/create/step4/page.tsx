@@ -127,12 +127,10 @@ export default function Step4Page() {
     if (jobStatusCheckTimeoutRef.current) {
       clearTimeout(jobStatusCheckTimeoutRef.current)
       jobStatusCheckTimeoutRef.current = null
-      console.log('작업 상태 확인이 취소되었습니다.')
     }
     if (websocketRef.current) {
       websocketRef.current.disconnect()
       websocketRef.current = null
-      console.log('WebSocket 연결이 해제되었습니다.')
     }
     setCurrentJobId(null)
     setJobStatus(null)
@@ -1029,12 +1027,10 @@ export default function Step4Page() {
       try {
         const response = await fetch(url, { method: 'HEAD' })
         if (!response.ok) {
-          console.error('BGM 파일을 불러올 수 없습니다:', response.status)
           stopBgmAudio()
           return
         }
       } catch (fetchError) {
-        console.error('BGM 파일에 접근할 수 없습니다:', fetchError)
         stopBgmAudio()
         return
       }
@@ -1094,7 +1090,6 @@ export default function Step4Page() {
         audio.load()
       }
     } catch (error) {
-      console.error('BGM 로드 실패:', error)
       stopBgmAudio()
     }
   }, [stopBgmAudio])
@@ -1281,7 +1276,6 @@ export default function Step4Page() {
 
         await audio.play()
       } catch (error) {
-        console.error('[TTS 미리듣기] 실패:', error)
         stopScenePreviewAudio()
         alert(error instanceof Error ? error.message : 'TTS 미리듣기 실패')
       }
@@ -1363,9 +1357,7 @@ export default function Step4Page() {
         if (confirmedBgmTemplate && bgmAudioRef.current) {
           const audio = bgmAudioRef.current
           bgmStartTimeRef.current = Date.now()
-          audio.play().catch((err) => {
-            console.error('[BGM] 재생 실패:', err)
-          })
+          audio.play().catch(() => {})
         }
         
         // BGM 페이드 아웃 시작
@@ -1514,8 +1506,7 @@ export default function Step4Page() {
                 // }
                 return result
               })
-              .catch((err) => {
-                console.error(`[TTS] 씬 ${sceneIndex} 합성 실패:`, err)
+              .catch(() => {
                 return null
               })
           )
@@ -1534,8 +1525,7 @@ export default function Step4Page() {
       // BGM 로드 (재생은 하지 않음)
       const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
       const bgmPromise = confirmedBgmTemplate
-        ? startBgmAudio(confirmedBgmTemplate, speed, false).catch((err) => {
-            console.error('[BGM] 로드 실패:', err)
+        ? startBgmAudio(confirmedBgmTemplate, speed, false).catch(() => {
             isBgmBootstrappingRef.current = false
             setIsBgmBootstrapping(false)
             return null
@@ -1554,8 +1544,7 @@ export default function Step4Page() {
           // "재생이 가능해요!" 메시지 표시
           setShowReadyMessage(true)
         })
-        .catch((error) => {
-          console.error('[재생 준비] 실패:', error)
+        .catch(() => {
           setIsPreparing(false)
           setIsTtsBootstrapping(false)
           isTtsBootstrappingRef.current = false
@@ -2419,7 +2408,6 @@ export default function Step4Page() {
               }
             }
           } catch (error) {
-            console.error(`씬 ${sceneIndex + 1} TTS 합성 실패:`, error)
             // 레이트 리밋 에러인 경우 재시도
             const isRateLimit = (error instanceof Error && (
               error.message.includes('요청이 너무 많습니다') ||
@@ -2429,7 +2417,6 @@ export default function Step4Page() {
             
             if (isRateLimit) {
               // 5초 후 재시도
-              console.log(`씬 ${sceneIndex + 1} 레이트 리밋 에러, 5초 후 재시도...`)
               await new Promise(resolve => setTimeout(resolve, 5000))
               try {
                 await ensureSceneTts(sceneIndex)
@@ -2444,10 +2431,9 @@ export default function Step4Page() {
                     blob: cached.blob,
                     durationSec: cached.durationSec || timeline.scenes[sceneIndex]?.duration || 2.5
                   }
-                  console.log(`씬 ${sceneIndex + 1} TTS 재시도 성공`)
                 }
               } catch (retryError) {
-                console.error(`씬 ${sceneIndex + 1} TTS 재시도 실패:`, retryError)
+                // 재시도 실패 시 무시
               }
             }
           }
@@ -2486,23 +2472,6 @@ export default function Step4Page() {
       })
 
       const ttsUrls = await Promise.all(ttsUrlPromises)
-
-      // 디버깅: TTS URL 확인 및 검증
-      console.log('=== TTS 업로드 결과 ===')
-      console.log('ttsResults:', ttsResults.map((r, i) => ({ 
-        index: i, 
-        hasBlob: !!r?.blob, 
-        durationSec: r?.durationSec 
-      })))
-      console.log('ttsUrls:', ttsUrls.map((url, i) => ({ index: i, url })))
-      
-      // TTS URL이 없는 씬 확인
-      const missingTts = ttsUrls.map((url, index) => ({ index, url, hasTts: !!url }))
-        .filter(item => !item.hasTts)
-      if (missingTts.length > 0) {
-        console.warn('⚠️ TTS URL이 없는 씬:', missingTts)
-      }
-      console.log('==================')
 
       // 3. resolution 파싱 (예: "1080x1920" -> {width: 1080, height: 1920})
       const [width, height] = timeline.resolution.split('x').map(Number)
@@ -2569,16 +2538,6 @@ export default function Step4Page() {
           const ttsResult = ttsResults[index]
           const sceneDuration = ttsResult?.durationSec || scene.duration || 2.5
 
-          // 디버깅: 각 씬의 정보 확인 (처음 5개 씬만 로그)
-          if (index < 5) {
-            console.log(`씬 ${index + 1}:`, {
-              voiceUrl: voiceUrl || '없음',
-              duration: sceneDuration,
-              ttsResult: ttsResult ? { hasBlob: true, durationSec: ttsResult.durationSec } : null,
-              sceneDuration: scene.duration,
-              voiceEnabled: !!voiceUrl
-            })
-          }
 
           return {
             sceneId: scene.sceneId + 1, // API는 1부터 시작
@@ -2689,47 +2648,6 @@ export default function Step4Page() {
         encodingRequest,
       }
 
-      // JSON 바디 확인용 로그
-      console.log('=== 인코딩 요청 JSON 바디 ===')
-      console.log(JSON.stringify(exportData, null, 2))
-      console.log('===========================')
-      
-      // 각 씬의 TTS URL 및 Duration 확인
-      console.log('=== 씬별 상세 정보 확인 ===')
-      let totalDuration = 0
-      encodingRequest.scenes.forEach((scene: any, index: number) => {
-        totalDuration += scene.duration
-        console.log(`씬 ${index + 1}:`, {
-          sceneId: scene.sceneId,
-          duration: scene.duration,
-          voiceUrl: scene.voice?.url || '없음',
-          voiceEnabled: scene.voice?.enabled,
-          voiceText: scene.voice?.text || '없음',
-          imageUrl: scene.image?.url || '없음',
-        })
-      })
-      console.log(`총 예상 길이: ${totalDuration.toFixed(2)}초`)
-      console.log('========================')
-      
-      // Duration과 TTS URL 검증
-      const missingTtsScenes = encodingRequest.scenes
-        .map((scene: any, index: number) => ({ index: index + 1, scene, hasTts: !!scene.voice?.url }))
-        .filter(item => !item.hasTts)
-      
-      if (missingTtsScenes.length > 0) {
-        console.error('❌ TTS URL이 없는 씬:', missingTtsScenes)
-      } else {
-        console.log('✅ 모든 씬에 TTS URL이 있습니다.')
-      }
-      
-      const shortDurationScenes = encodingRequest.scenes
-        .map((scene: any, index: number) => ({ index: index + 1, duration: scene.duration }))
-        .filter(item => item.duration < 1.5)
-      
-      if (shortDurationScenes.length > 0) {
-        console.warn('⚠️ Duration이 1.5초 미만인 씬:', shortDurationScenes)
-      }
-
       // 7. 최종 인코딩 요청 전송
       const response = await fetch('/api/videos/generate', {
         method: 'POST',
@@ -2752,6 +2670,10 @@ export default function Step4Page() {
         setJobProgressPercent(0)
         const startTime = Date.now() // 작업 시작 시간 기록
         setJobStartTime(startTime)
+        
+        // 진행률 추적을 위한 변수 (두 함수에서 공유)
+        let lastProgressPercent = 0
+        let lastProgressUpdateTime = Date.now()
         
         // 상태 업데이트 처리 함수 (공통 로직)
         const handleStatusUpdate = (statusData: any) => {
@@ -2784,6 +2706,23 @@ export default function Step4Page() {
               : JSON.stringify(statusData.message)
           }
           
+          // 진행률 역행 감지 (50% 이상에서 감소하면 에러 가능성)
+          if (progressPercent < lastProgressPercent && lastProgressPercent >= 50) {
+            progressText = `${progressText} ⚠️ 진행률이 감소했습니다. 서버 상태를 확인 중...`
+          }
+          
+          // 진행률 정지 감지 (30초 이상 변하지 않으면 에러 가능성)
+          const timeSinceLastUpdate = Date.now() - lastProgressUpdateTime
+          if (progressPercent === lastProgressPercent && progressPercent > 0 && timeSinceLastUpdate > 30000) {
+            progressText = `${progressText} ⚠️ 진행이 멈춘 것 같습니다. 서버 상태를 확인 중...`
+          }
+          
+          // 진행률이 업데이트되면 시간 갱신
+          if (progressPercent !== lastProgressPercent) {
+            lastProgressUpdateTime = Date.now()
+            lastProgressPercent = progressPercent
+          }
+          
           // 경과 시간 계산 및 표시
           const elapsed = Math.floor((Date.now() - startTime) / 1000) // 초 단위
           const minutes = Math.floor(elapsed / 60)
@@ -2797,10 +2736,16 @@ export default function Step4Page() {
           }
           
           setJobProgress(progressText)
-          setJobProgressPercent(progressPercent)
+          // 진행률은 증가하는 방향으로만 업데이트 (하향 업데이트 방지)
+          setJobProgressPercent((prev) => {
+            // 완료 상태가 아니고 진행률이 감소하면 이전 값 유지
+            if (statusData.status !== 'COMPLETED' && progressPercent < prev && prev >= 50) {
+              return prev
+            }
+            return progressPercent > prev ? progressPercent : (progressPercent > 0 ? progressPercent : prev)
+          })
           
           if (statusData.status === 'COMPLETED') {
-            console.log('[영상 제작] 완료 상태 수신:', statusData)
             const videoUrl = statusData.resultVideoUrl || null
             setResultVideoUrl(videoUrl)
             setJobProgress('영상 생성이 완료되었어요!')
@@ -2817,7 +2762,6 @@ export default function Step4Page() {
               websocketRef.current = null
             }
             setCurrentJobId(null)
-            console.log('[영상 제작] 상태 초기화 완료 - isExporting: false, currentJobId: null')
           } else if (statusData.status === 'FAILED') {
             // 에러 메시지 수집
             let errorMessages = [
@@ -2846,13 +2790,6 @@ export default function Step4Page() {
             const isFfmpegError = errorText.includes('ffmpeg') || 
                                  errorText.includes('Composition Failed') ||
                                  errorText.includes('frame=')
-            
-            console.error('=== 영상 생성 실패 상세 ===')
-            console.error('Error Message:', statusData.errorMessage)
-            console.error('Error Object:', statusData.error)
-            console.error('Progress Detail:', statusData.progressDetail)
-            console.error('Full Status Data:', JSON.stringify(statusData, null, 2))
-            console.error('========================')
             
             // 사용자 친화적인 에러 메시지
             let userMessage = '영상 생성이 실패했어요.\n\n'
@@ -2884,18 +2821,15 @@ export default function Step4Page() {
         const startHttpPolling = (jobId: string, startTime: number) => {
           // 이미 HTTP 폴링이 실행 중이면 중복 시작 방지
           if (jobStatusCheckTimeoutRef.current) {
-            console.log('[HTTP 폴링] 이미 실행 중입니다.')
             return
           }
           
-          console.log('[HTTP 폴링] 시작 - WebSocket 대신 HTTP 폴링으로 상태 확인')
           const MAX_WAIT_TIME = 30 * 60 * 1000 // 30분
           let checkCount = 0
           
           const checkJobStatus = async () => {
             // WebSocket이 다시 연결되었으면 HTTP 폴링 중단
             if (websocketRef.current?.isConnected()) {
-              console.log('[HTTP 폴링] WebSocket이 재연결되어 HTTP 폴링을 중단합니다.')
               if (jobStatusCheckTimeoutRef.current) {
                 clearTimeout(jobStatusCheckTimeoutRef.current)
                 jobStatusCheckTimeoutRef.current = null
@@ -2928,40 +2862,64 @@ export default function Step4Page() {
               if (statusResponse.ok) {
                 const statusData = await statusResponse.json()
                 
-                // 디버깅: 전체 응답 데이터 로그
-                if (process.env.NODE_ENV === 'development') {
-                  console.log(`[HTTP 폴링] #${checkCount} - 작업 상태 응답:`)
-                  console.log('Status:', statusData.status)
-                  console.log('Full Response:', JSON.stringify(statusData, null, 2))
+                // progressDetail에 에러 정보가 있으면 즉시 FAILED로 처리
+                if (statusData.progressDetail?.error || statusData.progressDetail?.errorMessage) {
+                  const errorMsg = statusData.progressDetail.error || statusData.progressDetail.errorMessage
+                  handleStatusUpdate({
+                    ...statusData,
+                    status: 'FAILED',
+                    errorMessage: errorMsg
+                  })
+                  jobStatusCheckTimeoutRef.current = null
+                  return
+                }
+                
+                // 진행률 추적
+                let currentProgress = 0
+                if (statusData.progressDetail) {
+                  if (typeof statusData.progressDetail === 'object') {
+                    currentProgress = statusData.progressDetail.progress || statusData.progressDetail.percent || 0
+                  }
+                }
+                
+                // 진행률이 업데이트되면 시간 갱신
+                if (currentProgress !== lastProgressPercent) {
+                  lastProgressUpdateTime = Date.now()
+                  lastProgressPercent = currentProgress
                 }
                 
                 handleStatusUpdate(statusData)
                 
                 // 완료/실패가 아니면 계속 폴링
                 if (statusData.status !== 'COMPLETED' && statusData.status !== 'FAILED') {
-                  jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+                  // 진행률이 정지되었거나 에러 가능성이 있으면 폴링 간격 단축
+                  const timeSinceLastUpdate = Date.now() - lastProgressUpdateTime
+                  const isProgressStalled = currentProgress > 0 && currentProgress === lastProgressPercent && timeSinceLastUpdate > 30000
+                  const isErrorPossible = (currentProgress === 0 && checkCount > 3) || isProgressStalled
+                  
+                  const pollingInterval = isErrorPossible ? 2000 : 5000
+                  jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, pollingInterval)
                 } else {
                   // 완료/실패 시 폴링 중단
-                  console.log(`[HTTP 폴링] 작업 완료 (${statusData.status}), 폴링 중단`)
                   jobStatusCheckTimeoutRef.current = null
                 }
               } else {
                 // HTTP 에러 응답 처리
                 const errorText = await statusResponse.text().catch(() => '')
-                console.error(`[HTTP 폴링] #${checkCount} - HTTP 에러:`, statusResponse.status, errorText)
                 setJobProgress(`상태 확인 실패 (${statusResponse.status})`)
                 // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
-                jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+                // 에러 시에는 더 빠르게 재시도
+                jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 2000)
               }
             } catch (error) {
-              console.error(`[HTTP 폴링] #${checkCount} - 작업 상태 확인 실패:`, error)
               // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
-              jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+              // 네트워크 에러 시에는 더 빠르게 재시도
+              jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 2000)
             }
           }
           
-          // 첫 확인은 5초 후
-          jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 5000)
+          // 첫 확인은 1초 후 (빠른 에러 감지)
+          jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 1000)
         }
         
         // HTTP 폴링을 먼저 시작 (WebSocket 연결 실패 시에도 상태 확인 가능)
@@ -2975,22 +2933,14 @@ export default function Step4Page() {
               result.jobId,
               (update: StudioJobUpdate) => {
                 // WebSocket에서 받은 실시간 업데이트 처리
-                console.log('[WebSocket] ✅ 실시간 업데이트 수신:', {
-                  status: update.status,
-                  progressDetail: update.progressDetail,
-                  resultVideoUrl: update.resultVideoUrl
-                })
                 handleStatusUpdate(update)
               },
               (error) => {
                 // WebSocket 연결 에러 시 HTTP 폴링 계속 사용
-                console.warn('[WebSocket] ⚠️ 연결 에러:', error.message)
-                console.log('[WebSocket] HTTP 폴링을 계속 사용합니다.')
                 // HTTP 폴링은 이미 시작되어 있으므로 추가 작업 불필요
               },
               () => {
                 // WebSocket 연결이 끊어졌을 때 HTTP 폴링으로 폴백
-                console.log('[WebSocket] 연결이 끊어졌습니다. HTTP 폴링을 계속 사용합니다.')
                 // 완료/실패 상태가 아니면 HTTP 폴링 시작 (이미 시작되어 있을 수 있음)
                 if (jobStatus !== 'COMPLETED' && jobStatus !== 'FAILED') {
                   startHttpPolling(result.jobId, startTime)
@@ -3000,12 +2950,9 @@ export default function Step4Page() {
             
             websocketRef.current = ws
             await ws.connect()
-            console.log('[WebSocket] ✅ 연결 성공 및 구독 완료 - 실시간 업데이트 활성화')
             // HTTP 폴링은 WebSocket이 연결되면 자동으로 중단됨 (startHttpPolling 내부 로직)
           } catch (error) {
             // WebSocket 연결 실패 시 HTTP 폴링 계속 사용
-            console.warn('[WebSocket] ⚠️ 연결 실패:', error instanceof Error ? error.message : '알 수 없는 오류')
-            console.log('[WebSocket] HTTP 폴링을 계속 사용합니다.')
             // HTTP 폴링은 이미 시작되어 있으므로 추가 작업 불필요
           }
         }

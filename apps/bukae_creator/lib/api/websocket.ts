@@ -48,10 +48,6 @@ export class StudioJobWebSocket {
     return new Promise((resolve, reject) => {
       const wsUrl = getWebSocketUrl()
       
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[WebSocket] Connecting to:', wsUrl)
-      }
-      
       this.isResolved = false
       this.isConnecting = true
       
@@ -64,7 +60,6 @@ export class StudioJobWebSocket {
         
         // 연결 시도 중이고 아직 완료되지 않았으면 타임아웃 처리
         if (this.isConnecting && !this.isResolved) {
-          console.warn('[WebSocket] Connection timeout after 30 seconds - falling back to HTTP polling')
           this.isConnecting = false
           if (this.connectionTimeout) {
             clearTimeout(this.connectionTimeout)
@@ -86,7 +81,6 @@ export class StudioJobWebSocket {
             return
           }
           
-          console.error('[WebSocket] SockJS connection error:', error)
           this.isConnecting = false
           if (this.connectionTimeout) {
             clearTimeout(this.connectionTimeout)
@@ -99,23 +93,14 @@ export class StudioJobWebSocket {
         
         // SockJS 연결 성공 이벤트 (연결이 시작되었음을 알림)
         this.socket.onopen = () => {
-          console.log('[WebSocket] ✅ SockJS connection opened - waiting for STOMP handshake...')
           // SockJS 연결이 열렸지만 아직 STOMP 핸드셰이크가 완료되지 않았으므로
           // isResolved는 onConnect에서 설정됨
         }
         
         // SockJS 연결 종료 이벤트
         this.socket.onclose = (event: any) => {
-          console.log('[WebSocket] ⚠️ SockJS connection closed:', {
-            code: event.code,
-            reason: event.reason,
-            wasClean: event.wasClean,
-            isResolved: this.isResolved
-          })
-          
           // 연결이 완료되기 전에 끊어졌으면 에러 처리
           if (!this.isResolved && this.isConnecting) {
-            console.error('[WebSocket] ❌ 연결이 완료되기 전에 끊어졌습니다.')
             this.isConnecting = false
             if (this.connectionTimeout) {
               clearTimeout(this.connectionTimeout)
@@ -132,15 +117,7 @@ export class StudioJobWebSocket {
           reconnectDelay: 5000,
           heartbeatIncoming: 4000,
           heartbeatOutgoing: 4000,
-          // 디버그 모드 활성화 (개발 환경에서만)
-          debug: (str: string) => {
-            if (process.env.NODE_ENV === 'development') {
-              console.log('[WebSocket] STOMP Debug:', str)
-            }
-          },
           onConnect: () => {
-            console.log('[WebSocket] Connected and STOMP handshake completed')
-            
             // 타임아웃 클리어 및 연결 완료 표시
             this.isConnecting = false
             this.isResolved = true
@@ -151,28 +128,19 @@ export class StudioJobWebSocket {
             this.reconnectAttempts = 0
             
             const topic = `/topic/studio.jobs.${this.jobId}`
-            console.log(`[WebSocket] 구독 중: ${topic}`)
             
             this.subscription = this.client!.subscribe(topic, (message: IMessage) => {
               try {
                 const payload: StudioJobUpdate = JSON.parse(message.body)
-                console.log('[WebSocket] ✅ 실시간 메시지 수신:', {
-                  jobId: payload.jobId,
-                  status: payload.status,
-                  progressDetail: payload.progressDetail,
-                  timestamp: new Date().toISOString()
-                })
                 this.onUpdate(payload)
               } catch (error) {
-                console.error('[WebSocket] ❌ 메시지 파싱 실패:', error, 'Raw message:', message.body)
+                // 메시지 파싱 실패 시 무시
               }
             })
             
-            console.log(`[WebSocket] ✅ 구독 완료: ${topic} - 실시간 업데이트 대기 중...`)
             resolve()
           },
           onStompError: (frame) => {
-            console.error('[WebSocket] STOMP error:', frame)
             this.isConnecting = false
             if (this.connectionTimeout) {
               clearTimeout(this.connectionTimeout)
@@ -183,26 +151,15 @@ export class StudioJobWebSocket {
             reject(error)
           },
           onWebSocketClose: (event: CloseEvent) => {
-            console.log('[WebSocket] ⚠️ STOMP WebSocket closed:', {
-              code: event.code,
-              reason: event.reason,
-              wasClean: event.wasClean,
-              isResolved: this.isResolved,
-              isConnected: this.client?.connected
-            })
             this.subscription = null
             
             // 연결이 완료된 후에 끊어진 경우에만 onClose 콜백 호출
             // (의도적으로 끊은 경우가 아니고, 연결이 완료된 상태에서 끊어진 경우)
             if (this.isResolved && this.client) {
-              console.log('[WebSocket] 연결이 완료된 후 끊어짐 - HTTP 폴링으로 전환')
               this.onClose?.()
-            } else if (!this.isResolved) {
-              console.warn('[WebSocket] 연결 완료 전에 끊어짐 - 이미 SockJS onclose에서 처리됨')
             }
           },
           onDisconnect: () => {
-            console.log('[WebSocket] Disconnected')
             this.subscription = null
           },
         })
@@ -214,7 +171,6 @@ export class StudioJobWebSocket {
           clearTimeout(this.connectionTimeout)
           this.connectionTimeout = null
         }
-        console.error('[WebSocket] Failed to create connection:', error)
         const err = error instanceof Error ? error : new Error('Failed to create WebSocket connection')
         this.onError?.(err)
         reject(err)
@@ -242,8 +198,6 @@ export class StudioJobWebSocket {
       this.socket.close()
       this.socket = null
     }
-    
-    console.log('[WebSocket] Disconnected')
   }
 
   isConnected(): boolean {
