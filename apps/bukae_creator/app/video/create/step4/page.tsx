@@ -21,7 +21,7 @@ import { loadPixiTexture, calculateSpriteParams } from '@/utils/pixi'
 import { formatTime, getSceneDuration } from '@/utils/timeline'
 import { splitSceneBySentences } from '@/lib/utils/scene-splitter'
 import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
-import { resolveSubtitleFontFamily, SUBTITLE_DEFAULT_FONT_ID, loadSubtitleFont, isSubtitleFontId } from '@/lib/subtitle-fonts'
+import { resolveSubtitleFontFamily, SUBTITLE_DEFAULT_FONT_ID, loadSubtitleFont, isSubtitleFontId, getFontFileName } from '@/lib/subtitle-fonts'
 import { authStorage } from '@/lib/api/auth-storage'
 import { bgmTemplates, getBgmTemplateUrlSync, type BgmTemplate } from '@/lib/data/templates'
 import { StudioJobWebSocket, type StudioJobUpdate } from '@/lib/api/websocket'
@@ -115,12 +115,19 @@ export default function Step4Page() {
   const [currentJobId, setCurrentJobId] = useState<string | null>(null) // 현재 진행 중인 작업 ID
   const [jobStatus, setJobStatus] = useState<'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | null>(null) // 작업 상태
   const [jobProgress, setJobProgress] = useState<string>('') // 작업 진행 상황
-  const [jobProgressPercent, setJobProgressPercent] = useState<number>(0) // 작업 진행률 (0-100)
   const [jobStartTime, setJobStartTime] = useState<number | null>(null) // 작업 시작 시간
+  const [elapsedSeconds, setElapsedSeconds] = useState(0) // 경과 시간(초)
+  const [encodingSceneIndex, setEncodingSceneIndex] = useState<number | null>(null) // 현재 인코딩 중인 씬 인덱스
   const [resultVideoUrl, setResultVideoUrl] = useState<string | null>(null) // 완료된 영상 URL
   const [isExporting, setIsExporting] = useState(false) // 내보내기 진행 중 여부
   const jobStatusCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null) // 상태 확인 timeout ID
   const websocketRef = useRef<StudioJobWebSocket | null>(null) // WebSocket 연결 ref
+
+  const formatElapsed = useCallback((seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}분 ${secs.toString().padStart(2, '0')}초`
+  }, [])
 
   // 작업 상태 확인 취소 함수
   const cancelJobStatusCheck = useCallback(() => {
@@ -135,7 +142,7 @@ export default function Step4Page() {
     setCurrentJobId(null)
     setJobStatus(null)
     setJobProgress('')
-    setJobProgressPercent(0)
+    setEncodingSceneIndex(null)
   }, [])
 
   // 컴포넌트 언마운트 시 상태 확인 중단
@@ -226,6 +233,22 @@ export default function Step4Page() {
       setPlaybackSpeed(timeline.playbackSpeed)
     }
   }, [timeline?.playbackSpeed])
+
+  // 인코딩 진행 시간 갱신
+  useEffect(() => {
+    // 완료/실패 시 타이머 정리
+    if (!jobStartTime || jobStatus === 'COMPLETED' || jobStatus === 'FAILED') {
+      setElapsedSeconds(0)
+      return
+    }
+
+    const timer = setInterval(() => {
+      const elapsed = Math.max(0, Math.floor((Date.now() - jobStartTime) / 1000))
+      setElapsedSeconds(elapsed)
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [jobStartTime, jobStatus])
 
   // 진행 중인 애니메이션 추적 (usePixiFabric보다 먼저 선언)
   const activeAnimationsRef = useRef<Map<number, gsap.core.Timeline>>(new Map())
@@ -1472,7 +1495,7 @@ export default function Step4Page() {
       // 현재 씬부터 마지막 씬까지 모든 TTS 배치 합성 (동시성 제한 + 딜레이)
       // 이미 캐시된 씬은 스킵하여 rate limit 절약
       const batchSize = 3 // 3개씩 처리
-      const batchDelay = 3000 // 3초 딜레이
+      const batchDelay = 1000 // 1초 딜레이
       const ttsPromises = []
 
       // 먼저 캐시 확인하여 이미 합성된 씬은 스킵
@@ -2338,7 +2361,7 @@ export default function Step4Page() {
     setIsExporting(true)
     setJobStatus('PENDING')
     setJobProgress('영상 제작을 시작합니다...')
-    setJobProgressPercent(0)
+    setEncodingSceneIndex(null)
     setResultVideoUrl(null)
 
     try {
@@ -2385,7 +2408,7 @@ export default function Step4Page() {
 
       // 순차적으로 합성 (배치 처리 + 딜레이)
       const batchSize = 2 // 한 번에 2개씩
-      const batchDelay = 2000 // 배치 간 2초 딜레이
+      const batchDelay = 1000 // 배치 간 1초 딜레이
 
       for (let i = 0; i < scenesToSynthesize.length; i += batchSize) {
         const batch = scenesToSynthesize.slice(i, i + batchSize)
@@ -2416,8 +2439,8 @@ export default function Step4Page() {
             ))
             
             if (isRateLimit) {
-              // 5초 후 재시도
-              await new Promise(resolve => setTimeout(resolve, 5000))
+              // 1초 후 재시도
+              await new Promise(resolve => setTimeout(resolve, 1000))
               try {
                 await ensureSceneTts(sceneIndex)
                 const markup = buildSceneMarkup(sceneIndex)
@@ -2527,8 +2550,13 @@ export default function Step4Page() {
           }
           
           // 폰트 정보 파싱
-          const fontFamily = subtitleFont || 'Pretendard'
+          // 씬별 폰트 ID 또는 전역 선택 폰트 사용
+          const sceneFontId = scene.text.font || subtitleFont || SUBTITLE_DEFAULT_FONT_ID
+          const sceneFontWeight = scene.text.fontWeight || 700
           const fontSize = scene.text.fontSize || 32
+          
+          // 폰트 파일명 가져오기 (인코딩 요청용)
+          const fontFileName = getFontFileName(sceneFontId, sceneFontWeight) || 'NanumGothic-Regular'
           
           // TTS URL 가져오기
           const voiceUrl = ttsUrls[index] || null
@@ -2568,9 +2596,9 @@ export default function Step4Page() {
               content: scene.text.content,
               visible: true,
               font: {
-                family: fontFamily,
+                family: fontFileName,
                 size: fontSize,
-                weight: String(scene.text.fontWeight || 700),
+                weight: String(sceneFontWeight),
                 style: scene.text.style?.italic ? 'italic' : 'normal',
               },
               color: scene.text.color || '#FFFFFF',
@@ -2648,6 +2676,11 @@ export default function Step4Page() {
         encodingRequest,
       }
 
+      // 서버로 전송하는 JSON 바디 로그 출력
+      console.log('=== 인코딩 요청 JSON 바디 ===')
+      console.log(JSON.stringify(exportData, null, 2))
+      console.log('===========================')
+
       // 7. 최종 인코딩 요청 전송
       const response = await fetch('/api/videos/generate', {
         method: 'POST',
@@ -2667,21 +2700,51 @@ export default function Step4Page() {
         setCurrentJobId(result.jobId)
         setJobStatus(result.status || 'PENDING')
         setJobProgress(result.message || '영상 생성이 시작되었어요.')
-        setJobProgressPercent(0)
+        setEncodingSceneIndex(null)
         const startTime = Date.now() // 작업 시작 시간 기록
         setJobStartTime(startTime)
         
-        // 진행률 추적을 위한 변수 (두 함수에서 공유)
-        let lastProgressPercent = 0
-        let lastProgressUpdateTime = Date.now()
-        
         // 상태 업데이트 처리 함수 (공통 로직)
         const handleStatusUpdate = (statusData: any) => {
-          setJobStatus(statusData.status)
+          console.log('[handleStatusUpdate] 상태 업데이트 받음:', statusData)
           
+          const newStatus = statusData.status
+          
+          // 이미 완료/실패 처리된 경우 추가 업데이트 무시 (현재 상태 확인)
+          setJobStatus((prevStatus) => {
+            if (prevStatus === 'COMPLETED' || prevStatus === 'FAILED') {
+              console.log('[handleStatusUpdate] 이미 완료/실패 상태라 무시:', prevStatus)
+              return prevStatus
+            }
+            console.log('[handleStatusUpdate] 상태 업데이트:', prevStatus, '->', newStatus)
+            return newStatus
+          })
+
+          // progressDetail에 에러 정보가 있으면 즉시 실패 처리
+          const detailError =
+            typeof statusData.progressDetail === 'object'
+              ? statusData.progressDetail?.error || statusData.progressDetail?.errorMessage
+              : typeof statusData.progressDetail === 'string'
+                ? statusData.progressDetail
+                : ''
+          if ((newStatus === 'FAILED' || detailError) && newStatus !== 'COMPLETED') {
+            const errorText = detailError || statusData.errorMessage || '알 수 없는 오류가 발생했습니다.'
+            console.log('[handleStatusUpdate] 실패 처리:', errorText)
+            alert(`영상 생성이 실패했어요.\n\n${errorText}`)
+            if (websocketRef.current) {
+              websocketRef.current.disconnect()
+              websocketRef.current = null
+            }
+            setCurrentJobId(null)
+            setJobStatus('FAILED')
+            setJobProgress('')
+            setEncodingSceneIndex(null)
+            return
+          }
+
           // progressDetail이 객체인 경우 처리
           let progressText = ''
-          let progressPercent = 0
+          let sceneIndex: number | null = null
           
           if (statusData.progressDetail) {
             if (typeof statusData.progressDetail === 'string') {
@@ -2693,11 +2756,14 @@ export default function Step4Page() {
                             statusData.progressDetail.step ||
                             statusData.progressDetail.progress ||
                             JSON.stringify(statusData.progressDetail)
-              // progress 필드가 숫자면 진행률로 사용
-              if (typeof statusData.progressDetail.progress === 'number') {
-                progressPercent = statusData.progressDetail.progress
-              } else if (typeof statusData.progressDetail.percent === 'number') {
-                progressPercent = statusData.progressDetail.percent
+              // 현재 씬 인덱스 추출 (다양한 필드명 시도)
+              sceneIndex = statusData.progressDetail.currentScene ?? 
+                          statusData.progressDetail.sceneIndex ?? 
+                          statusData.progressDetail.currentSceneIndex ??
+                          statusData.progressDetail.scene ??
+                          null
+              if (typeof sceneIndex === 'number') {
+                setEncodingSceneIndex(sceneIndex)
               }
             }
           } else if (statusData.message) {
@@ -2706,50 +2772,36 @@ export default function Step4Page() {
               : JSON.stringify(statusData.message)
           }
           
-          // 진행률 역행 감지 (50% 이상에서 감소하면 에러 가능성)
-          if (progressPercent < lastProgressPercent && lastProgressPercent >= 50) {
-            progressText = `${progressText} ⚠️ 진행률이 감소했습니다. 서버 상태를 확인 중...`
-          }
-          
-          // 진행률 정지 감지 (30초 이상 변하지 않으면 에러 가능성)
-          const timeSinceLastUpdate = Date.now() - lastProgressUpdateTime
-          if (progressPercent === lastProgressPercent && progressPercent > 0 && timeSinceLastUpdate > 30000) {
-            progressText = `${progressText} ⚠️ 진행이 멈춘 것 같습니다. 서버 상태를 확인 중...`
-          }
-          
-          // 진행률이 업데이트되면 시간 갱신
-          if (progressPercent !== lastProgressPercent) {
-            lastProgressUpdateTime = Date.now()
-            lastProgressPercent = progressPercent
+          // progressText에서 씬 인덱스 파싱 (예: "장면 생성 중 (2/12)", "Scene 2/12" 등)
+          if (sceneIndex === null && progressText && timeline) {
+            // 패턴: "(숫자/총개수)" 또는 "숫자/총개수" 형식 찾기
+            const sceneMatch = progressText.match(/\((\d+)\/(\d+)\)|(\d+)\/(\d+)/)
+            if (sceneMatch) {
+              // 첫 번째 매칭 그룹 또는 세 번째 매칭 그룹이 현재 씬 번호
+              const currentSceneNum = parseInt(sceneMatch[1] || sceneMatch[3] || '0', 10)
+              // 씬 번호는 1부터 시작하므로 인덱스로 변환 (0부터 시작)
+              sceneIndex = currentSceneNum > 0 ? currentSceneNum - 1 : null
+              if (typeof sceneIndex === 'number' && sceneIndex >= 0) {
+                console.log('[handleStatusUpdate] progressText에서 씬 인덱스 파싱:', sceneIndex, 'from:', progressText)
+                setEncodingSceneIndex(sceneIndex)
+              }
+            }
           }
           
           // 경과 시간 계산 및 표시
-          const elapsed = Math.floor((Date.now() - startTime) / 1000) // 초 단위
-          const minutes = Math.floor(elapsed / 60)
-          const seconds = elapsed % 60
-          const timeText = `${minutes}분 ${seconds}초 경과`
-          
-          if (progressPercent > 0) {
-            progressText = `${progressText} (${progressPercent}% - ${timeText})`
-          } else {
-            progressText = `${progressText} (${timeText})`
-          }
+          const elapsedMs = Date.now() - startTime
+          const elapsed = Math.floor(elapsedMs / 1000) // 초 단위
+          setElapsedSeconds(elapsed)
           
           setJobProgress(progressText)
-          // 진행률은 증가하는 방향으로만 업데이트 (하향 업데이트 방지)
-          setJobProgressPercent((prev) => {
-            // 완료 상태가 아니고 진행률이 감소하면 이전 값 유지
-            if (statusData.status !== 'COMPLETED' && progressPercent < prev && prev >= 50) {
-              return prev
-            }
-            return progressPercent > prev ? progressPercent : (progressPercent > 0 ? progressPercent : prev)
-          })
           
-          if (statusData.status === 'COMPLETED') {
+          if (newStatus === 'COMPLETED') {
+            console.log('[handleStatusUpdate] 완료 처리 시작')
             const videoUrl = statusData.resultVideoUrl || null
+            console.log('[handleStatusUpdate] 비디오 URL:', videoUrl)
             setResultVideoUrl(videoUrl)
             setJobProgress('영상 생성이 완료되었어요!')
-            setJobProgressPercent(100)
+            setEncodingSceneIndex(null)
             setIsExporting(false) // 내보내기 완료
             
             // 상태 확인 중단
@@ -2761,8 +2813,9 @@ export default function Step4Page() {
               websocketRef.current.disconnect()
               websocketRef.current = null
             }
-            setCurrentJobId(null)
-          } else if (statusData.status === 'FAILED') {
+            // COMPLETED 상태는 currentJobId를 유지하여 UI에 완료 상태 표시
+            console.log('[handleStatusUpdate] 완료 처리 완료, jobStatus:', newStatus)
+          } else if (newStatus === 'FAILED') {
             // 에러 메시지 수집
             let errorMessages = [
               statusData.errorMessage,
@@ -2813,7 +2866,7 @@ export default function Step4Page() {
             setCurrentJobId(null)
             setJobStatus(null)
             setJobProgress('')
-            setJobProgressPercent(0)
+            setEncodingSceneIndex(null)
           }
         }
         
@@ -2826,10 +2879,35 @@ export default function Step4Page() {
           
           const MAX_WAIT_TIME = 30 * 60 * 1000 // 30분
           let checkCount = 0
+          let lastStatusUpdateTime = startTime // 마지막 상태 업데이트 시간 추적
+          let lastStatus = 'PENDING' // 마지막 상태 저장
+          
+          // Supabase Storage에서 파일 존재 여부 확인 함수
+          const checkVideoFileExists = async (jobId: string): Promise<string | null> => {
+            try {
+              const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+              if (!supabaseUrl) return null
+              
+              // Supabase Storage 공개 URL로 파일 존재 확인
+              const videoUrl = `${supabaseUrl}/storage/v1/object/public/videos/${jobId}/result.mp4`
+              
+              // HEAD 요청으로 파일 존재 여부 확인
+              const headResponse = await fetch(videoUrl, { method: 'HEAD' })
+              if (headResponse.ok) {
+                console.log('[HTTP Polling] Supabase Storage에서 비디오 파일 발견:', videoUrl)
+                return videoUrl
+              }
+              return null
+            } catch (error) {
+              console.warn('[HTTP Polling] 비디오 파일 확인 실패:', error)
+              return null
+            }
+          }
           
           const checkJobStatus = async () => {
             // WebSocket이 다시 연결되었으면 HTTP 폴링 중단
             if (websocketRef.current?.isConnected()) {
+              console.log('[HTTP Polling] WebSocket 연결됨, 폴링 중단')
               if (jobStatusCheckTimeoutRef.current) {
                 clearTimeout(jobStatusCheckTimeoutRef.current)
                 jobStatusCheckTimeoutRef.current = null
@@ -2838,6 +2916,7 @@ export default function Step4Page() {
             }
             
             checkCount++
+            console.log(`[HTTP Polling] 상태 확인 시도 #${checkCount}, jobId: ${jobId}`)
             
             // 경과 시간 확인
             const elapsed = Date.now() - startTime
@@ -2855,16 +2934,23 @@ export default function Step4Page() {
             try {
               // 백엔드 API URL 직접 사용
               const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
-              const statusResponse = await fetch(`${API_BASE_URL}/api/v1/studio/jobs/${jobId}`, {
+              const statusUrl = `${API_BASE_URL}/api/v1/studio/jobs/${jobId}`
+              console.log('[HTTP Polling] 요청 URL:', statusUrl)
+              
+              const statusResponse = await fetch(statusUrl, {
                 headers: { Authorization: `Bearer ${accessToken}` },
               })
               
+              console.log('[HTTP Polling] 응답 상태:', statusResponse.status)
+              
               if (statusResponse.ok) {
                 const statusData = await statusResponse.json()
+                console.log('[HTTP Polling] 상태 데이터:', statusData)
                 
                 // progressDetail에 에러 정보가 있으면 즉시 FAILED로 처리
                 if (statusData.progressDetail?.error || statusData.progressDetail?.errorMessage) {
                   const errorMsg = statusData.progressDetail.error || statusData.progressDetail.errorMessage
+                  console.log('[HTTP Polling] 에러 감지:', errorMsg)
                   handleStatusUpdate({
                     ...statusData,
                     status: 'FAILED',
@@ -2874,38 +2960,60 @@ export default function Step4Page() {
                   return
                 }
                 
-                // 진행률 추적
-                let currentProgress = 0
-                if (statusData.progressDetail) {
-                  if (typeof statusData.progressDetail === 'object') {
-                    currentProgress = statusData.progressDetail.progress || statusData.progressDetail.percent || 0
+                // 상태가 변경되었는지 확인
+                const currentStatus = statusData.status || 'PENDING'
+                if (currentStatus !== lastStatus) {
+                  lastStatusUpdateTime = Date.now()
+                  lastStatus = currentStatus
+                }
+                
+                // PROCESSING 상태가 30초 이상 유지되고 업데이트가 없으면 파일 존재 여부 확인
+                const timeSinceLastUpdate = Date.now() - lastStatusUpdateTime
+                const STALE_PROCESSING_THRESHOLD = 30000 // 30초
+                
+                if (
+                  currentStatus === 'PROCESSING' && 
+                  timeSinceLastUpdate > STALE_PROCESSING_THRESHOLD &&
+                  checkCount >= 6 // 최소 6번 이상 확인 후 (약 30초 후)
+                ) {
+                  console.log('[HTTP Polling] PROCESSING 상태가 오래 지속됨, 파일 존재 여부 확인 시도')
+                  const videoUrl = await checkVideoFileExists(jobId)
+                  
+                  if (videoUrl) {
+                    // 파일이 존재하면 완료로 처리
+                    console.log('[HTTP Polling] 파일 발견, 완료 상태로 처리')
+                    handleStatusUpdate({
+                      ...statusData,
+                      status: 'COMPLETED',
+                      resultVideoUrl: videoUrl
+                    })
+                    jobStatusCheckTimeoutRef.current = null
+                    return
                   }
                 }
                 
-                // 진행률이 업데이트되면 시간 갱신
-                if (currentProgress !== lastProgressPercent) {
-                  lastProgressUpdateTime = Date.now()
-                  lastProgressPercent = currentProgress
-                }
-                
+                console.log('[HTTP Polling] handleStatusUpdate 호출 전, status:', statusData.status)
                 handleStatusUpdate(statusData)
+                console.log('[HTTP Polling] handleStatusUpdate 호출 후')
                 
                 // 완료/실패가 아니면 계속 폴링
                 if (statusData.status !== 'COMPLETED' && statusData.status !== 'FAILED') {
-                  // 진행률이 정지되었거나 에러 가능성이 있으면 폴링 간격 단축
-                  const timeSinceLastUpdate = Date.now() - lastProgressUpdateTime
-                  const isProgressStalled = currentProgress > 0 && currentProgress === lastProgressPercent && timeSinceLastUpdate > 30000
-                  const isErrorPossible = (currentProgress === 0 && checkCount > 3) || isProgressStalled
-                  
-                  const pollingInterval = isErrorPossible ? 2000 : 5000
+                  // 기본 폴링 간격: 5초
+                  const pollingInterval = 5000
+                  console.log(`[HTTP Polling] 다음 확인까지 ${pollingInterval}ms 대기 (현재 상태: ${statusData.status})`)
                   jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, pollingInterval)
                 } else {
                   // 완료/실패 시 폴링 중단
-                  jobStatusCheckTimeoutRef.current = null
+                  console.log('[HTTP Polling] 완료/실패 상태 도달, 폴링 중단. status:', statusData.status)
+                  if (jobStatusCheckTimeoutRef.current) {
+                    clearTimeout(jobStatusCheckTimeoutRef.current)
+                    jobStatusCheckTimeoutRef.current = null
+                  }
                 }
               } else {
                 // HTTP 에러 응답 처리
                 const errorText = await statusResponse.text().catch(() => '')
+                console.error('[HTTP Polling] HTTP 에러:', statusResponse.status, errorText)
                 setJobProgress(`상태 확인 실패 (${statusResponse.status})`)
                 // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
                 // 에러 시에는 더 빠르게 재시도
@@ -2913,6 +3021,7 @@ export default function Step4Page() {
               }
             } catch (error) {
               // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
+              console.error('[HTTP Polling] 네트워크 에러:', error)
               // 네트워크 에러 시에는 더 빠르게 재시도
               jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 2000)
             }
@@ -2923,36 +3032,46 @@ export default function Step4Page() {
         }
         
         // HTTP 폴링을 먼저 시작 (WebSocket 연결 실패 시에도 상태 확인 가능)
+        console.log('[Main] HTTP 폴링 시작')
         startHttpPolling(result.jobId, startTime)
         
         // WebSocket 연결 시도 (실시간 UI 업데이트용) - 비동기로 처리
         // 연결이 완료되면 HTTP 폴링이 자동으로 중단됨
         const connectWebSocket = async () => {
           try {
+            console.log('[WebSocket] 연결 시도 시작, jobId:', result.jobId)
             const ws = new StudioJobWebSocket(
               result.jobId,
               (update: StudioJobUpdate) => {
                 // WebSocket에서 받은 실시간 업데이트 처리
+                console.log('[WebSocket] 메시지 수신:', update)
                 handleStatusUpdate(update)
               },
               (error) => {
                 // WebSocket 연결 에러 시 HTTP 폴링 계속 사용
+                console.warn('[WebSocket] 연결 에러 (HTTP 폴링 계속 사용):', error.message)
                 // HTTP 폴링은 이미 시작되어 있으므로 추가 작업 불필요
               },
               () => {
                 // WebSocket 연결이 끊어졌을 때 HTTP 폴링으로 폴백
+                console.log('[WebSocket] 연결 끊어짐, HTTP 폴링으로 폴백')
                 // 완료/실패 상태가 아니면 HTTP 폴링 시작 (이미 시작되어 있을 수 있음)
-                if (jobStatus !== 'COMPLETED' && jobStatus !== 'FAILED') {
-                  startHttpPolling(result.jobId, startTime)
-                }
+                setJobStatus((currentStatus) => {
+                  if (currentStatus !== 'COMPLETED' && currentStatus !== 'FAILED') {
+                    startHttpPolling(result.jobId, startTime)
+                  }
+                  return currentStatus
+                })
               }
             )
             
             websocketRef.current = ws
             await ws.connect()
+            console.log('[WebSocket] 연결 성공')
             // HTTP 폴링은 WebSocket이 연결되면 자동으로 중단됨 (startHttpPolling 내부 로직)
           } catch (error) {
             // WebSocket 연결 실패 시 HTTP 폴링 계속 사용
+            console.warn('[WebSocket] 연결 실패 (HTTP 폴링 계속 사용):', error instanceof Error ? error.message : error)
             // HTTP 폴링은 이미 시작되어 있으므로 추가 작업 불필요
           }
         }
@@ -3283,22 +3402,20 @@ export default function Step4Page() {
                               }}>
                                 {typeof jobProgress === 'string' ? jobProgress : JSON.stringify(jobProgress)}
                               </p>
-                              {jobProgressPercent > 0 && (
-                                <div className="w-full h-2 rounded-full overflow-hidden" style={{
-                                  backgroundColor: theme === 'dark' ? '#374151' : '#e5e7eb'
+                              {/* 씬 진행 상황 표시 */}
+                              {(jobStatus === 'PROCESSING' || jobStatus === 'PENDING') && timeline && (
+                                <p className="text-xs" style={{
+                                  color: theme === 'dark' ? '#9ca3af' : '#6b7280'
                                 }}>
-                                  <div 
-                                    className="h-full rounded-full transition-all duration-300"
-                                    style={{
-                                      width: `${jobProgressPercent}%`,
-                                      backgroundColor: theme === 'dark' ? '#a855f7' : '#9333ea'
-                                    }}
-                                  />
-                                </div>
+                                  {encodingSceneIndex !== null && encodingSceneIndex >= 0
+                                    ? `(${encodingSceneIndex + 1}/${timeline.scenes.length})`
+                                    : `(0/${timeline.scenes.length})`
+                                  } · 경과 {formatElapsed(elapsedSeconds)}
+                                </p>
                               )}
                             </div>
                           )}
-                          {jobStatus === 'COMPLETED' && resultVideoUrl && (
+                          {jobStatus === 'COMPLETED' && (
                             <div className="mt-4 p-4 rounded-lg border-2" style={{
                               backgroundColor: theme === 'dark' ? '#1f2937' : '#f9fafb',
                               borderColor: theme === 'dark' ? '#10b981' : '#10b981',
@@ -3315,8 +3432,9 @@ export default function Step4Page() {
                                 </div>
                               </div>
                               
-                              {/* URL 입력 및 버튼 */}
-                              <div className="space-y-3">
+                              {resultVideoUrl ? (
+                                /* URL 입력 및 버튼 */
+                                <div className="space-y-3">
                                 <div>
                                   <div className="text-xs font-semibold mb-2" style={{
                                     color: theme === 'dark' ? '#d1d5db' : '#374151'
@@ -3381,20 +3499,13 @@ export default function Step4Page() {
                                   </a>
                                 </div>
                               </div>
-                            </div>
-                          )}
-                          {(jobStatus === 'PENDING' || jobStatus === 'PROCESSING') && jobProgressPercent === 0 && (
-                            <div className="mt-2 w-full h-1.5 rounded-full overflow-hidden" style={{
-                              backgroundColor: theme === 'dark' ? '#374151' : '#e5e7eb'
-                            }}>
-                              <div 
-                                className="h-full rounded-full transition-all duration-500"
-                                style={{
-                                  width: jobStatus === 'PENDING' ? '30%' : '70%',
-                                  backgroundColor: theme === 'dark' ? '#a78bfa' : '#9333ea',
-                                  animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
-                                }}
-                              />
+                              ) : (
+                                <p className="text-sm" style={{
+                                  color: theme === 'dark' ? '#9ca3af' : '#6b7280'
+                                }}>
+                                  영상이 생성되었습니다. 잠시 후 URL이 표시됩니다.
+                                </p>
+                              )}
                             </div>
                           )}
                         </div>

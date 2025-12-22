@@ -51,7 +51,7 @@ export class StudioJobWebSocket {
       this.isResolved = false
       this.isConnecting = true
       
-      // 연결 타임아웃 설정 (30초 - SockJS 연결은 시간이 걸릴 수 있음)
+        // 연결 타임아웃 설정 (10초 - 빠른 실패로 HTTP 폴링 사용)
       this.connectionTimeout = setTimeout(() => {
         // 이미 연결이 완료되었으면 타임아웃 무시
         if (this.isResolved) {
@@ -65,11 +65,14 @@ export class StudioJobWebSocket {
             clearTimeout(this.connectionTimeout)
             this.connectionTimeout = null
           }
+          // 타임아웃은 조용히 처리 (HTTP 폴링으로 폴백)
           const error = new Error('WebSocket connection timeout')
+          // 에러 콜백만 호출하고 reject는 하지 않음 (HTTP 폴링 계속 사용)
           this.onError?.(error)
-          reject(error)
+          // resolve를 호출하여 Promise가 완료되도록 함 (에러로 처리하지 않음)
+          resolve()
         }
-      }, 30000) // 30초로 증가
+      }, 10000) // 10초로 단축 (빠른 실패)
       
       try {
         this.socket = new SockJS(wsUrl)

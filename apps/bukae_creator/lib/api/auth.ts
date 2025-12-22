@@ -149,7 +149,7 @@ export const authApi = {
     
     if (typeof window !== 'undefined') {
       // 타임아웃 방지를 위해 새 창에서 열거나, 직접 리다이렉트
-      console.log('[OAuth] 리다이렉트 URL:', oauthUrl)
+      // console.log('[OAuth] 리다이렉트 URL:', oauthUrl)
       window.location.href = oauthUrl
     } else {
       throw new Error('브라우저 환경에서만 사용할 수 있습니다.')

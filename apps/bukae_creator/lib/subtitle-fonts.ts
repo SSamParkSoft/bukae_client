@@ -96,7 +96,7 @@ function getFontFamilyName(fontId: SubtitleFontId): string {
   return `Subtitle-${fontId.split('_').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join('')}`
 }
 
-export const SUBTITLE_DEFAULT_FONT_ID: SubtitleFontId = 'pretendard'
+export const SUBTITLE_DEFAULT_FONT_ID: SubtitleFontId = 'nanum_gothic'
 export const SUBTITLE_DEFAULT_WEIGHTS = [400, 700] as const
 
 export const SUBTITLE_FONT_OPTIONS: SubtitleFontOption[] = [
@@ -246,4 +246,68 @@ export function resolveSubtitleFontWeights(idOrCssFamily: string | undefined | n
 
 export function getSubtitleFontOption(id: SubtitleFontId): SubtitleFontOption {
   return OPTION_BY_ID.get(id)!
+}
+
+/**
+ * 폰트 ID와 fontWeight를 받아서 실제 파일명(확장자 제외)을 반환합니다.
+ * 인코딩 요청 시 서버에 전달할 폰트 파일명을 생성합니다.
+ * @param fontId - 폰트 ID (SubtitleFontId 또는 문자열)
+ * @param fontWeight - 폰트 굵기 (기본값: 400)
+ * @returns 폰트 파일명 (확장자 제외) 또는 null
+ */
+export function getFontFileName(fontId: string | undefined | null, fontWeight: number = 400): string | null {
+  if (!fontId) {
+    // 기본값: 나눔고딕 Regular
+    return fontWeight >= 600 ? 'NanumGothic-Bold' : 'NanumGothic-Regular'
+  }
+
+  const normalized = fontId.trim()
+  
+  // SubtitleFontId인지 확인
+  if (!isSubtitleFontId(normalized)) {
+    // 인식할 수 없는 폰트 ID인 경우 null 반환 (기존 문자열 유지)
+    return null
+  }
+
+  const mapping = FONT_FILE_MAPPINGS.find((m) => m.fontId === normalized)
+  if (!mapping) {
+    return null
+  }
+
+  // Variable 폰트인 경우 (pretendard, noto_sans_kr, noto_serif_kr)
+  const variableFonts = ['pretendard', 'noto_sans_kr', 'noto_serif_kr']
+  if (variableFonts.includes(normalized)) {
+    const file = mapping.files[0]
+    if (file) {
+      // 경로에서 파일명만 추출 (확장자 제외)
+      const fileName = file.path.split('/').pop() || ''
+      return fileName.replace(/\.(woff2|ttf)$/, '')
+    }
+    return null
+  }
+
+  // Regular/Bold가 있는 폰트인 경우 fontWeight에 따라 선택
+  const isBold = fontWeight >= 600
+  const targetWeight = isBold ? 700 : 400
+  
+  // fontWeight에 가장 가까운 파일 찾기
+  let selectedFile = mapping.files.find((f) => {
+    if (typeof f.weight === 'number') {
+      return f.weight === targetWeight
+    }
+    return false
+  })
+
+  // 정확히 일치하는 것이 없으면 Regular 또는 첫 번째 파일 사용
+  if (!selectedFile) {
+    selectedFile = mapping.files.find((f) => typeof f.weight === 'number' && f.weight === 400) || mapping.files[0]
+  }
+
+  if (!selectedFile) {
+    return null
+  }
+
+  // 경로에서 파일명만 추출 (확장자 제외)
+  const fileName = selectedFile.path.split('/').pop() || ''
+  return fileName.replace(/\.(woff2|ttf)$/, '')
 }
