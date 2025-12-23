@@ -15,15 +15,13 @@ import { useThemeStore } from '@/store/useThemeStore'
 import { useYouTubeVideos } from '@/lib/hooks/useYouTubeVideos'
 import { authApi } from '@/lib/api/auth'
 import PageHeader from '@/components/PageHeader'
+import ComingSoonBanner from '@/components/ComingSoonBanner'
 import {
   User,
   Mail,
   Calendar,
   Settings,
-  Link2,
-  Link2Off,
   Youtube,
-  ShoppingCart,
   Bell,
   Eye,
   Edit2,
@@ -31,7 +29,6 @@ import {
   Download,
   Trash2,
   CheckCircle2,
-  XCircle,
   Loader2,
 } from 'lucide-react'
 
@@ -61,7 +58,6 @@ export default function ProfilePage() {
     connectedServices,
     notificationSettings,
     updateUser,
-    setConnectedService,
     updateNotificationSettings,
     isAuthenticated,
     setUser,
@@ -126,31 +122,8 @@ export default function ProfilePage() {
   const profileDisplayName = mergedProfile?.name || '사용자'
   const profileEmail = mergedProfile?.email || 'user@example.com'
   const profileImage = mergedProfile?.profileImage
-  const profileCreatedAt = mergedProfile?.createdAt
   const profileLoading = isAuthenticated && userLoading && !user
   const shouldRenderProfileCard = Boolean(mergedProfile)
-  const coupangService = connectedServices.find((s) => s.platform === 'coupang')
-  const youtubeService = connectedServices.find((s) => s.platform === 'youtube')
-
-  const handleConnectService = (platform: 'coupang' | 'youtube') => {
-    const service = connectedServices.find((s) => s.platform === platform)
-    if (service?.isConnected) {
-      setConnectedService({
-        platform,
-        isConnected: false,
-      })
-    } else {
-      setConnectedService({
-        platform,
-        isConnected: true,
-        connectedAt: new Date().toISOString(),
-        ...(platform === 'youtube' && {
-          channelName: '내 YouTube 채널',
-          subscriberCount: 1000,
-        }),
-      })
-    }
-  }
 
   return (
     <motion.div
@@ -333,155 +306,7 @@ export default function ProfilePage() {
 
           {/* 연동 서비스 탭 */}
           <TabsContent value="services">
-            <div className="space-y-6">
-              {/* 쿠팡파트너스 연동 */}
-              <Card className="border border-gray-200">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <ShoppingCart className={`w-6 h-6 ${
-                        theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                      }`} />
-                      <CardTitle>쿠팡파트너스</CardTitle>
-                    </div>
-                    {coupangService?.isConnected ? (
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-5 h-5 text-green-500" />
-                        <span className={`text-sm ${
-                          theme === 'dark' ? 'text-green-400' : 'text-green-600'
-                        }`}>
-                          연동됨
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <XCircle className="w-5 h-5 text-gray-400" />
-                        <span className={`text-sm ${
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                        }`}>
-                          미연동
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {coupangService?.isConnected && coupangService.connectedAt && (
-                      <div>
-                        <p className={`text-sm ${
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                        }`}>
-                          연동일: {formatDate(coupangService.connectedAt)}
-                        </p>
-                      </div>
-                    )}
-                    <Button
-                      variant={coupangService?.isConnected ? 'outline' : 'default'}
-                      onClick={() => handleConnectService('coupang')}
-                      className="w-full"
-                    >
-                      {coupangService?.isConnected ? (
-                        <>
-                          <Link2Off className="w-4 h-4 mr-2" />
-                          연동 해제
-                        </>
-                      ) : (
-                        <>
-                          <Link2 className="w-4 h-4 mr-2" />
-                          연동하기
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* YouTube 연동 */}
-              <Card className="border border-gray-200">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Youtube className={`w-6 h-6 ${
-                        theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                      }`} />
-                      <CardTitle>YouTube</CardTitle>
-                    </div>
-                    {youtubeService?.isConnected ? (
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-5 h-5 text-green-500" />
-                        <span className={`text-sm ${
-                          theme === 'dark' ? 'text-green-400' : 'text-green-600'
-                        }`}>
-                          연동됨
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <XCircle className="w-5 h-5 text-gray-400" />
-                        <span className={`text-sm ${
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                        }`}>
-                          미연동
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {youtubeService?.isConnected && (
-                      <>
-                        {youtubeService.channelName && (
-                          <div>
-                            <p className={`text-sm ${
-                              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                            }`}>
-                              채널명: {youtubeService.channelName}
-                            </p>
-                          </div>
-                        )}
-                        {youtubeService.subscriberCount && (
-                          <div>
-                            <p className={`text-sm ${
-                              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                            }`}>
-                              구독자: {formatNumber(youtubeService.subscriberCount)}명
-                            </p>
-                          </div>
-                        )}
-                        {youtubeService.connectedAt && (
-                          <div>
-                            <p className={`text-sm ${
-                              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                            }`}>
-                              연동일: {formatDate(youtubeService.connectedAt)}
-                            </p>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    <Button
-                      variant={youtubeService?.isConnected ? 'outline' : 'default'}
-                      onClick={() => handleConnectService('youtube')}
-                      className="w-full"
-                    >
-                      {youtubeService?.isConnected ? (
-                        <>
-                          <Link2Off className="w-4 h-4 mr-2" />
-                          연동 해제
-                        </>
-                      ) : (
-                        <>
-                          <Link2 className="w-4 h-4 mr-2" />
-                          연동하기
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <ComingSoonBanner />
           </TabsContent>
 
           {/* 활동 내역 탭 */}

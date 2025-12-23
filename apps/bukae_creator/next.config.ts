@@ -28,6 +28,11 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'placehold.co',
       },
+      // YouTube 썸네일
+      {
+        protocol: 'https',
+        hostname: 'i.ytimg.com',
+      },
       // Google profile 이미지
       {
         protocol: 'https',
