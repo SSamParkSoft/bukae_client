@@ -86,56 +86,57 @@ export function EffectsPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto min-h-0">
-        <Tabs value={rightPanelTab} onValueChange={setRightPanelTab} className="p-4">
-          <TabsList className="grid w-full grid-cols-4 mb-4">
+      <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
+        <Tabs value={rightPanelTab} onValueChange={setRightPanelTab} className="p-4 h-full flex flex-col">
+          <TabsList className="grid w-full grid-cols-4 mb-4 shrink-0">
             <TabsTrigger value="animation">애니메이션</TabsTrigger>
             <TabsTrigger value="bgm">배경음악</TabsTrigger>
             <TabsTrigger value="subtitle">자막</TabsTrigger>
             <TabsTrigger value="voice">음성</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="animation" className="space-y-4">
-            <div>
-              <h3
-                className="text-sm font-semibold mb-2"
-                style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
-              >
-                전환 효과
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {allTransitions.map((transition) => {
-                  const isSelected = timeline?.scenes[currentSceneIndex]?.transition === transition.value
-                  return (
-                    <button
-                      key={transition.value}
-                      onClick={() => {
-                        if (timeline && currentSceneIndex >= 0) {
-                          onTransitionChange(currentSceneIndex, transition.value)
-                        }
-                      }}
-                      className={`p-3 rounded-lg border text-sm transition-colors ${
-                        isSelected
-                          ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500'
-                          : 'hover:bg-purple-50 dark:hover:bg-purple-900/20'
-                      }`}
-                      style={{
-                        borderColor: isSelected
-                          ? '#8b5cf6'
-                          : theme === 'dark'
-                            ? '#374151'
-                            : '#e5e7eb',
-                        color: theme === 'dark' ? '#d1d5db' : '#374151',
-                      }}
-                    >
-                      {transition.label}
-                    </button>
-                  )
-                })}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <TabsContent value="animation" className="space-y-4 h-full">
+              <div>
+                <h3
+                  className="text-sm font-semibold mb-2"
+                  style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
+                >
+                  전환 효과
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {allTransitions.map((transition) => {
+                    const isSelected = timeline?.scenes[currentSceneIndex]?.transition === transition.value
+                    return (
+                      <button
+                        key={transition.value}
+                        onClick={() => {
+                          if (timeline && currentSceneIndex >= 0) {
+                            onTransitionChange(currentSceneIndex, transition.value)
+                          }
+                        }}
+                        className={`p-3 rounded-lg border text-sm transition-colors ${
+                          isSelected
+                            ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500'
+                            : 'hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                        }`}
+                        style={{
+                          borderColor: isSelected
+                            ? '#8b5cf6'
+                            : theme === 'dark'
+                              ? '#374151'
+                              : '#e5e7eb',
+                          color: theme === 'dark' ? '#d1d5db' : '#374151',
+                        }}
+                      >
+                        {transition.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
 
-            <div>
+              <div>
               <h3
                 className="text-sm font-semibold mb-2"
                 style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
@@ -231,33 +232,34 @@ export function EffectsPanel({
             </div>
           </TabsContent>
 
-          <TabsContent value="bgm" className="space-y-4">
-            <BgmSelector 
-              bgmTemplate={bgmTemplate} 
-              theme={theme ?? 'light'} 
-              setBgmTemplate={setBgmTemplate}
-              confirmedBgmTemplate={confirmedBgmTemplate}
-              onBgmConfirm={onBgmConfirm}
-            />
-          </TabsContent>
+          <TabsContent value="bgm" className="h-full">
+              <BgmSelector 
+                bgmTemplate={bgmTemplate} 
+                theme={theme ?? 'light'} 
+                setBgmTemplate={setBgmTemplate}
+                confirmedBgmTemplate={confirmedBgmTemplate}
+                onBgmConfirm={onBgmConfirm}
+              />
+            </TabsContent>
 
-          <TabsContent value="subtitle" className="space-y-4">
-            <SubtitleSettings
-              timeline={timeline}
-              currentSceneIndex={currentSceneIndex}
-              theme={theme ?? 'light'}
-              setTimeline={setTimeline}
-            />
-          </TabsContent>
+            <TabsContent value="subtitle" className="space-y-4 h-full">
+              <SubtitleSettings
+                timeline={timeline}
+                currentSceneIndex={currentSceneIndex}
+                theme={theme ?? 'light'}
+                setTimeline={setTimeline}
+              />
+            </TabsContent>
 
-          <TabsContent value="voice" className="space-y-4">
-            <ChirpVoiceSelector
-              theme={theme ?? 'light'}
-              title="목소리 선택"
-              disabled={!timeline || currentSceneIndex < 0}
-              layout="panel"
-            />
-          </TabsContent>
+            <TabsContent value="voice" className="space-y-4 h-full">
+              <ChirpVoiceSelector
+                theme={theme ?? 'light'}
+                title="목소리 선택"
+                disabled={!timeline || currentSceneIndex < 0}
+                layout="panel"
+              />
+            </TabsContent>
+          </div>
         </Tabs>
       </div>
     </div>

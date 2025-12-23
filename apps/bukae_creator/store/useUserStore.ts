@@ -127,12 +127,18 @@ export const useUserStore = create<UserState>()(
     {
       name: 'bookae-user-storage',
       storage: createJSONStorage(() => localStorage),
-      // persist된 상태가 복원된 후에도 초기에는 로그인 안된 상태로 시작
+      // persist된 상태가 복원된 후 토큰이 있으면 인증 상태 복원
       onRehydrateStorage: () => (state) => {
         if (state && typeof window !== 'undefined') {
-          // 초기 로드 시 항상 로그인 안된 상태로 시작
-          state.isAuthenticated = false
-          state.user = null
+          // 토큰이 있으면 인증 상태 확인
+          const hasTokens = authStorage.hasTokens()
+          if (hasTokens) {
+            state.isAuthenticated = true
+          } else {
+            // 토큰이 없으면 인증 상태 초기화
+            state.isAuthenticated = false
+            state.user = null
+          }
         }
       },
     }
