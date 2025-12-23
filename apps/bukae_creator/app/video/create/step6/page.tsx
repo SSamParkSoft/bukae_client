@@ -6,6 +6,14 @@ import { motion } from 'framer-motion'
 import { ArrowRight, Loader2, CheckCircle2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
@@ -24,9 +32,11 @@ export default function Step6Page() {
     setVideoTitleCandidates,
     setVideoDescription,
     setVideoHashtags,
+    reset,
   } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false)
   const product = selectedProducts[0]
   const descriptionInitialized = useRef(false)
   const hashtagsInitialized = useRef(false)
@@ -157,16 +167,25 @@ export default function Step6Page() {
     setVideoHashtags(normalized)
   }
 
-  // 다음 단계로 이동 (업로드)
+  // 완료 및 업로드 버튼 클릭
   const handleNext = () => {
     if (!videoTitle) {
       alert('영상 제목을 선택하거나 입력해주세요.')
       return
     }
 
-    // 업로드 페이지로 이동 (기존 step4 - 업로드 페이지)
-    // TODO: 새로운 업로드 페이지로 변경 필요 시 수정
-    router.push('/video/create/step4')
+    // 팝업 표시
+    setIsCompleteDialogOpen(true)
+  }
+
+  // 완료하기 버튼 클릭
+  const handleComplete = () => {
+    // 모든 데이터 초기화
+    reset()
+    // 팝업 닫기
+    setIsCompleteDialogOpen(false)
+    // 홈으로 이동
+    router.push('/')
   }
 
   return (
@@ -399,6 +418,33 @@ export default function Step6Page() {
           </div>
         </div>
       </div>
+
+      {/* 완료 확인 팝업 */}
+      <Dialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
+        <DialogContent className={theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
+          <DialogHeader>
+            <DialogTitle className={theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+              영상제작을 완료하시겠어요?
+            </DialogTitle>
+            <DialogDescription className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+              업로드 기능은 추가 예정이에요.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsCompleteDialogOpen(false)}
+              className={theme === 'dark' ? 'border-gray-700' : 'border-gray-300'}
+            >
+              취소
+            </Button>
+            <Button onClick={handleComplete} className="gap-2">
+              완료하기
+              <CheckCircle2 className="w-4 h-4" />
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.div>
   )
 }
