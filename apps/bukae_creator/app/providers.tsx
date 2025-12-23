@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { authStorage } from '@/lib/api/auth-storage'
 import { useUserStore } from '@/store/useUserStore'
 import { authApi } from '@/lib/api/auth'
+import { ApiError } from '@/lib/api/client'
 
 function AuthSync() {
   const router = useRouter()
@@ -43,7 +44,15 @@ function AuthSync() {
             accountStatus: 'active',
           })
         } catch (error) {
-          // 사용자 정보 가져오기 실패 시 토큰이 만료되었을 수 있음
+          // 사용자 정보 가져오기 실패 시 처리
+          if (error instanceof ApiError && error.status === 401) {
+            // 401 에러인 경우: apiRequest에서 이미 auth:expired 이벤트를 발생시켰으므로
+            // handleAuthExpired가 자동으로 처리함 (토큰 정리 + 로그인 페이지 리다이렉트)
+            // 여기서는 조용히 처리
+            return
+          }
+          
+          // 401이 아닌 다른 에러인 경우에만 로그 출력 및 상태 초기화
           console.error('사용자 정보 복원 실패:', error)
           resetUser()
         }

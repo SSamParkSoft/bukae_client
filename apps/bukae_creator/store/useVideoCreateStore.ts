@@ -163,6 +163,7 @@ interface VideoCreateState {
   videoTitleCandidates: string[] // AI 추천 제목 후보
   videoDescription: string // 영상 상세 설명
   videoHashtags: string[] // 영상 해시태그
+  isStepIndicatorCollapsed: boolean // 단계 표시기 접기/펼치기 상태
   setCurrentStep: (step: number) => void
   addProduct: (product: Product) => void
   removeProduct: (productId: string) => void
@@ -200,6 +201,7 @@ interface VideoCreateState {
   setVideoTitleCandidates: (candidates: string[]) => void
   setVideoDescription: (description: string) => void
   setVideoHashtags: (hashtags: string[]) => void
+  setIsStepIndicatorCollapsed: (collapsed: boolean) => void
   reset: () => void
 }
 
@@ -239,6 +241,7 @@ const initialState = {
   videoTitleCandidates: [],
   videoDescription: '',
   videoHashtags: [],
+  isStepIndicatorCollapsed: false,
 }
 
 export const useVideoCreateStore = create<VideoCreateState>()(
@@ -326,6 +329,7 @@ export const useVideoCreateStore = create<VideoCreateState>()(
       setVideoTitleCandidates: (candidates) => set({ videoTitleCandidates: candidates }),
       setVideoDescription: (description) => set({ videoDescription: description }),
       setVideoHashtags: (hashtags) => set({ videoHashtags: hashtags }),
+      setIsStepIndicatorCollapsed: (collapsed) => set({ isStepIndicatorCollapsed: collapsed }),
       reset: () => set(initialState),
     }),
     {

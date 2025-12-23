@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useThemeStore } from '../store/useThemeStore'
+import { useVideoCreateStore } from '../store/useVideoCreateStore'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const steps = [
@@ -17,10 +17,11 @@ const steps = [
 ]
 
 export default function StepIndicator() {
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const theme = useThemeStore((state) => state.theme)
+  const isCollapsed = useVideoCreateStore((state) => state.isStepIndicatorCollapsed)
+  const setIsCollapsed = useVideoCreateStore((state) => state.setIsStepIndicatorCollapsed)
 
   const getCurrentStep = () => {
     if (pathname.includes('/step6')) return 5
