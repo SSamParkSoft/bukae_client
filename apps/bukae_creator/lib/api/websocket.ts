@@ -120,6 +120,9 @@ export class StudioJobWebSocket {
           reconnectDelay: 5000,
           heartbeatIncoming: 4000,
           heartbeatOutgoing: 4000,
+          // 브라우저 탭이 백그라운드에 있어도 연결 유지
+          // 연결이 끊어지면 자동으로 재연결 시도
+          connectionTimeout: 0, // 타임아웃 없음 (백그라운드에서도 유지)
           onConnect: () => {
             // 타임아웃 클리어 및 연결 완료 표시
             this.isConnecting = false
@@ -205,6 +208,10 @@ export class StudioJobWebSocket {
 
   isConnected(): boolean {
     return this.client?.connected ?? false
+  }
+
+  getCurrentJobId(): string {
+    return this.jobId
   }
 }
 

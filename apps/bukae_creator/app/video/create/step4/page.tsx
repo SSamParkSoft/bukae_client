@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Play, Pause, Clock, Edit2, Type, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, AlignJustify, Sparkles, Grid3x3, Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { Play, Pause, Clock, Edit2, Type, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, AlignJustify, Sparkles, Grid3x3, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import StepIndicator from '@/components/StepIndicator'
@@ -24,7 +24,6 @@ import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
 import { resolveSubtitleFontFamily, SUBTITLE_DEFAULT_FONT_ID, loadSubtitleFont, isSubtitleFontId, getFontFileName } from '@/lib/subtitle-fonts'
 import { authStorage } from '@/lib/api/auth-storage'
 import { bgmTemplates, getBgmTemplateUrlSync, type BgmTemplate } from '@/lib/data/templates'
-import { StudioJobWebSocket, type StudioJobUpdate } from '@/lib/api/websocket'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import * as fabric from 'fabric'
@@ -113,51 +112,8 @@ export default function Step4Page() {
   const isBgmBootstrappingRef = useRef(false) // 클로저에서 최신 값 참조용
   const [showReadyMessage, setShowReadyMessage] = useState(false) // "재생이 가능해요!" 메시지 표시 여부
   const [isPreparing, setIsPreparing] = useState(false) // 모든 TTS 합성 준비 중인지 여부
-  const [currentJobId, setCurrentJobId] = useState<string | null>(null) // 현재 진행 중인 작업 ID
-  const [jobStatus, setJobStatus] = useState<'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | null>(null) // 작업 상태
-  const [jobProgress, setJobProgress] = useState<string>('') // 작업 진행 상황
-  const [jobStartTime, setJobStartTime] = useState<number | null>(null) // 작업 시작 시간
-  const [elapsedSeconds, setElapsedSeconds] = useState(0) // 경과 시간(초)
-  const [encodingSceneIndex, setEncodingSceneIndex] = useState<number | null>(null) // 현재 인코딩 중인 씬 인덱스
-  const [resultVideoUrl, setResultVideoUrl] = useState<string | null>(null) // 완료된 영상 URL
   const [isExporting, setIsExporting] = useState(false) // 내보내기 진행 중 여부
-  const jobStatusCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null) // 상태 확인 timeout ID
-  const websocketRef = useRef<StudioJobWebSocket | null>(null) // WebSocket 연결 ref
 
-  const formatElapsed = useCallback((seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins}분 ${secs.toString().padStart(2, '0')}초`
-  }, [])
-
-  // 작업 상태 확인 취소 함수
-  const cancelJobStatusCheck = useCallback(() => {
-    if (jobStatusCheckTimeoutRef.current) {
-      clearTimeout(jobStatusCheckTimeoutRef.current)
-      jobStatusCheckTimeoutRef.current = null
-    }
-    if (websocketRef.current) {
-      websocketRef.current.disconnect()
-      websocketRef.current = null
-    }
-    setCurrentJobId(null)
-    setJobStatus(null)
-    setJobProgress('')
-    setEncodingSceneIndex(null)
-  }, [])
-
-  // 컴포넌트 언마운트 시 상태 확인 중단
-  useEffect(() => {
-    return () => {
-      if (jobStatusCheckTimeoutRef.current) {
-        clearTimeout(jobStatusCheckTimeoutRef.current)
-      }
-      if (websocketRef.current) {
-        websocketRef.current.disconnect()
-        websocketRef.current = null
-      }
-    }
-  }, [])
 
   // 클라이언트에서만 렌더링 (SSR/Hydration mismatch 방지)
   useEffect(() => {
@@ -235,21 +191,6 @@ export default function Step4Page() {
     }
   }, [timeline?.playbackSpeed])
 
-  // 인코딩 진행 시간 갱신
-  useEffect(() => {
-    // 완료/실패 시 타이머 정리
-    if (!jobStartTime || jobStatus === 'COMPLETED' || jobStatus === 'FAILED') {
-      setElapsedSeconds(0)
-      return
-    }
-
-    const timer = setInterval(() => {
-      const elapsed = Math.max(0, Math.floor((Date.now() - jobStartTime) / 1000))
-      setElapsedSeconds(elapsed)
-    }, 1000)
-
-    return () => clearInterval(timer)
-  }, [jobStartTime, jobStatus])
 
   // 진행 중인 애니메이션 추적 (usePixiFabric보다 먼저 선언)
   const activeAnimationsRef = useRef<Map<number, gsap.core.Timeline>>(new Map())
@@ -2356,7 +2297,7 @@ export default function Step4Page() {
   // 서버 전송
   const handleExport = async () => {
     // 이미 진행 중이면 중복 실행 방지
-    if (isExporting || currentJobId) {
+    if (isExporting) {
       return
     }
 
@@ -2370,12 +2311,8 @@ export default function Step4Page() {
       return
     }
 
-    // 내보내기 시작 - UI 즉시 변경
+    // 내보내기 시작
     setIsExporting(true)
-    setJobStatus('PENDING')
-    setJobProgress('영상 제작을 시작합니다...')
-    setEncodingSceneIndex(null)
-    setResultVideoUrl(null)
 
     try {
       const accessToken = authStorage.getAccessToken()
@@ -2708,392 +2645,12 @@ export default function Step4Page() {
 
       const result = await response.json()
       
-      // jobId 저장 및 상태 확인 시작
+      // jobId를 받아서 step5로 이동
       if (result.jobId) {
-        setCurrentJobId(result.jobId)
-        setJobStatus(result.status || 'PENDING')
-        setJobProgress(result.message || '영상 생성이 시작되었어요.')
-        setEncodingSceneIndex(null)
-        const startTime = Date.now() // 작업 시작 시간 기록
-        setJobStartTime(startTime)
-        
-        // 상태 업데이트 처리 함수 (공통 로직)
-        const handleStatusUpdate = (statusData: any) => {
-          console.log('[handleStatusUpdate] 상태 업데이트 받음:', statusData)
-          
-          const newStatus = statusData.status
-          
-          // 이미 완료/실패 처리된 경우 추가 업데이트 무시 (현재 상태 확인)
-          setJobStatus((prevStatus) => {
-            if (prevStatus === 'COMPLETED' || prevStatus === 'FAILED') {
-              console.log('[handleStatusUpdate] 이미 완료/실패 상태라 무시:', prevStatus)
-              return prevStatus
-            }
-            console.log('[handleStatusUpdate] 상태 업데이트:', prevStatus, '->', newStatus)
-            return newStatus
-          })
-
-          // progressDetail에 에러 정보가 있으면 즉시 실패 처리
-          const detailError =
-            typeof statusData.progressDetail === 'object'
-              ? statusData.progressDetail?.error || statusData.progressDetail?.errorMessage
-              : typeof statusData.progressDetail === 'string'
-                ? statusData.progressDetail
-                : ''
-          if ((newStatus === 'FAILED' || detailError) && newStatus !== 'COMPLETED') {
-            const errorText = detailError || statusData.errorMessage || '알 수 없는 오류가 발생했습니다.'
-            console.log('[handleStatusUpdate] 실패 처리:', errorText)
-            alert(`영상 생성이 실패했어요.\n\n${errorText}`)
-            if (websocketRef.current) {
-              websocketRef.current.disconnect()
-              websocketRef.current = null
-            }
-            setCurrentJobId(null)
-            setJobStatus('FAILED')
-            setJobProgress('')
-            setEncodingSceneIndex(null)
-            return
-          }
-
-          // progressDetail이 객체인 경우 처리
-          let progressText = ''
-          let sceneIndex: number | null = null
-          
-          if (statusData.progressDetail) {
-            if (typeof statusData.progressDetail === 'string') {
-              progressText = statusData.progressDetail
-            } else if (typeof statusData.progressDetail === 'object') {
-              // 객체인 경우 msg나 message 필드 추출
-              progressText = statusData.progressDetail.msg || 
-                            statusData.progressDetail.message || 
-                            statusData.progressDetail.step ||
-                            statusData.progressDetail.progress ||
-                            JSON.stringify(statusData.progressDetail)
-              // 현재 씬 인덱스 추출 (다양한 필드명 시도)
-              sceneIndex = statusData.progressDetail.currentScene ?? 
-                          statusData.progressDetail.sceneIndex ?? 
-                          statusData.progressDetail.currentSceneIndex ??
-                          statusData.progressDetail.scene ??
-                          null
-              if (typeof sceneIndex === 'number') {
-                setEncodingSceneIndex(sceneIndex)
-              }
-            }
-          } else if (statusData.message) {
-            progressText = typeof statusData.message === 'string' 
-              ? statusData.message 
-              : JSON.stringify(statusData.message)
-          }
-          
-          // progressText에서 씬 인덱스 파싱 (예: "장면 생성 중 (2/12)", "Scene 2/12" 등)
-          if (sceneIndex === null && progressText && timeline) {
-            // 패턴: "(숫자/총개수)" 또는 "숫자/총개수" 형식 찾기
-            const sceneMatch = progressText.match(/\((\d+)\/(\d+)\)|(\d+)\/(\d+)/)
-            if (sceneMatch) {
-              // 첫 번째 매칭 그룹 또는 세 번째 매칭 그룹이 현재 씬 번호
-              const currentSceneNum = parseInt(sceneMatch[1] || sceneMatch[3] || '0', 10)
-              // 씬 번호는 1부터 시작하므로 인덱스로 변환 (0부터 시작)
-              sceneIndex = currentSceneNum > 0 ? currentSceneNum - 1 : null
-              if (typeof sceneIndex === 'number' && sceneIndex >= 0) {
-                console.log('[handleStatusUpdate] progressText에서 씬 인덱스 파싱:', sceneIndex, 'from:', progressText)
-                setEncodingSceneIndex(sceneIndex)
-              }
-            }
-          }
-          
-          // 경과 시간 계산 및 표시
-          const elapsedMs = Date.now() - startTime
-          const elapsed = Math.floor(elapsedMs / 1000) // 초 단위
-          setElapsedSeconds(elapsed)
-          
-          setJobProgress(progressText)
-          
-          if (newStatus === 'COMPLETED') {
-            console.log('[handleStatusUpdate] 완료 처리 시작')
-            const videoUrl = statusData.resultVideoUrl || null
-            console.log('[handleStatusUpdate] 비디오 URL:', videoUrl)
-            setResultVideoUrl(videoUrl)
-            setJobProgress('영상 생성이 완료되었어요!')
-            setEncodingSceneIndex(null)
-            setIsExporting(false) // 내보내기 완료
-            
-            // 상태 확인 중단
-            if (jobStatusCheckTimeoutRef.current) {
-              clearTimeout(jobStatusCheckTimeoutRef.current)
-              jobStatusCheckTimeoutRef.current = null
-            }
-            if (websocketRef.current) {
-              websocketRef.current.disconnect()
-              websocketRef.current = null
-            }
-            // COMPLETED 상태는 currentJobId를 유지하여 UI에 완료 상태 표시
-            console.log('[handleStatusUpdate] 완료 처리 완료, jobStatus:', newStatus)
-          } else if (newStatus === 'FAILED') {
-            // 에러 메시지 수집
-            let errorMessages = [
-              statusData.errorMessage,
-              statusData.error?.message,
-              statusData.error,
-            ].filter(Boolean)
-            
-            // progressDetail에서 에러 메시지 추출
-            if (statusData.progressDetail) {
-              if (typeof statusData.progressDetail === 'string') {
-                errorMessages.push(statusData.progressDetail)
-              } else if (typeof statusData.progressDetail === 'object') {
-                const detailMsg = statusData.progressDetail.msg || 
-                                statusData.progressDetail.message ||
-                                statusData.progressDetail.error
-                if (detailMsg) errorMessages.push(detailMsg)
-              }
-            }
-            
-            const errorText = errorMessages.length > 0 
-              ? errorMessages.join('\n\n') 
-              : '알 수 없는 오류'
-            
-            // ffmpeg 관련 에러인지 확인
-            const isFfmpegError = errorText.includes('ffmpeg') || 
-                                 errorText.includes('Composition Failed') ||
-                                 errorText.includes('frame=')
-            
-            // 사용자 친화적인 에러 메시지
-            let userMessage = '영상 생성이 실패했어요.\n\n'
-            if (isFfmpegError) {
-              userMessage += '비디오 인코딩 과정에서 오류가 발생했어요.\n'
-              userMessage += '백엔드 서버의 ffmpeg 처리 중 문제가 발생한 것으로 보입니다.\n\n'
-              userMessage += '가능한 원인:\n'
-              userMessage += '- 서버 리소스 부족\n'
-              userMessage += '- 비디오 파일 형식 문제\n'
-              userMessage += '- ffmpeg 설정 오류\n\n'
-              userMessage += '잠시 후 다시 시도해주시거나, 백엔드 관리자에게 문의해주세요.\n\n'
-            }
-            userMessage += `에러 상세:\n${errorText.substring(0, 500)}${errorText.length > 500 ? '...' : ''}\n\n`
-            userMessage += '자세한 내용은 브라우저 콘솔(F12)을 확인해주세요.'
-            
-            alert(userMessage)
-            if (websocketRef.current) {
-              websocketRef.current.disconnect()
-              websocketRef.current = null
-            }
-            setCurrentJobId(null)
-            setJobStatus(null)
-            setJobProgress('')
-            setEncodingSceneIndex(null)
-          }
-        }
-        
-        // HTTP 폴링 함수 (WebSocket 폴백용)
-        const startHttpPolling = (jobId: string, startTime: number) => {
-          // 이미 HTTP 폴링이 실행 중이면 중복 시작 방지
-          if (jobStatusCheckTimeoutRef.current) {
-            return
-          }
-          
-          const MAX_WAIT_TIME = 30 * 60 * 1000 // 30분
-          let checkCount = 0
-          let lastStatusUpdateTime = startTime // 마지막 상태 업데이트 시간 추적
-          let lastStatus = 'PENDING' // 마지막 상태 저장
-          
-          // Supabase Storage에서 파일 존재 여부 확인 함수
-          const checkVideoFileExists = async (jobId: string): Promise<string | null> => {
-            try {
-              const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-              if (!supabaseUrl) return null
-              
-              // Supabase Storage 공개 URL로 파일 존재 확인
-              const videoUrl = `${supabaseUrl}/storage/v1/object/public/videos/${jobId}/result.mp4`
-              
-              // HEAD 요청으로 파일 존재 여부 확인
-              const headResponse = await fetch(videoUrl, { method: 'HEAD' })
-              if (headResponse.ok) {
-                console.log('[HTTP Polling] Supabase Storage에서 비디오 파일 발견:', videoUrl)
-                return videoUrl
-              }
-              return null
-            } catch (error) {
-              console.warn('[HTTP Polling] 비디오 파일 확인 실패:', error)
-              return null
-            }
-          }
-          
-          const checkJobStatus = async () => {
-            // WebSocket이 다시 연결되었으면 HTTP 폴링 중단
-            if (websocketRef.current?.isConnected()) {
-              console.log('[HTTP Polling] WebSocket 연결됨, 폴링 중단')
-              if (jobStatusCheckTimeoutRef.current) {
-                clearTimeout(jobStatusCheckTimeoutRef.current)
-                jobStatusCheckTimeoutRef.current = null
-              }
-              return
-            }
-            
-            checkCount++
-            console.log(`[HTTP Polling] 상태 확인 시도 #${checkCount}, jobId: ${jobId}`)
-            
-            // 경과 시간 확인
-            const elapsed = Date.now() - startTime
-            if (elapsed > MAX_WAIT_TIME) {
-              alert(`영상 생성이 30분을 초과했습니다. 백엔드 서버에 문제가 있을 수 있습니다.\n\n작업 ID: ${jobId}\n\n나중에 다시 확인해주세요.`)
-              setCurrentJobId(null)
-              setJobStatus(null)
-              if (jobStatusCheckTimeoutRef.current) {
-                clearTimeout(jobStatusCheckTimeoutRef.current)
-                jobStatusCheckTimeoutRef.current = null
-              }
-              return
-            }
-            
-            try {
-              // 백엔드 API URL 직접 사용
-              const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
-              const statusUrl = `${API_BASE_URL}/api/v1/studio/jobs/${jobId}`
-              console.log('[HTTP Polling] 요청 URL:', statusUrl)
-              
-              const statusResponse = await fetch(statusUrl, {
-                headers: { Authorization: `Bearer ${accessToken}` },
-              })
-              
-              console.log('[HTTP Polling] 응답 상태:', statusResponse.status)
-              
-              if (statusResponse.ok) {
-                const statusData = await statusResponse.json()
-                console.log('[HTTP Polling] 상태 데이터:', statusData)
-                
-                // progressDetail에 에러 정보가 있으면 즉시 FAILED로 처리
-                if (statusData.progressDetail?.error || statusData.progressDetail?.errorMessage) {
-                  const errorMsg = statusData.progressDetail.error || statusData.progressDetail.errorMessage
-                  console.log('[HTTP Polling] 에러 감지:', errorMsg)
-                  handleStatusUpdate({
-                    ...statusData,
-                    status: 'FAILED',
-                    errorMessage: errorMsg
-                  })
-                  jobStatusCheckTimeoutRef.current = null
-                  return
-                }
-                
-                // 상태가 변경되었는지 확인
-                const currentStatus = statusData.status || 'PENDING'
-                if (currentStatus !== lastStatus) {
-                  lastStatusUpdateTime = Date.now()
-                  lastStatus = currentStatus
-                }
-                
-                // PROCESSING 상태가 30초 이상 유지되고 업데이트가 없으면 파일 존재 여부 확인
-                const timeSinceLastUpdate = Date.now() - lastStatusUpdateTime
-                const STALE_PROCESSING_THRESHOLD = 30000 // 30초
-                
-                if (
-                  currentStatus === 'PROCESSING' && 
-                  timeSinceLastUpdate > STALE_PROCESSING_THRESHOLD &&
-                  checkCount >= 6 // 최소 6번 이상 확인 후 (약 30초 후)
-                ) {
-                  console.log('[HTTP Polling] PROCESSING 상태가 오래 지속됨, 파일 존재 여부 확인 시도')
-                  const videoUrl = await checkVideoFileExists(jobId)
-                  
-                  if (videoUrl) {
-                    // 파일이 존재하면 완료로 처리
-                    console.log('[HTTP Polling] 파일 발견, 완료 상태로 처리')
-                    handleStatusUpdate({
-                      ...statusData,
-                      status: 'COMPLETED',
-                      resultVideoUrl: videoUrl
-                    })
-                    jobStatusCheckTimeoutRef.current = null
-                    return
-                  }
-                }
-                
-                console.log('[HTTP Polling] handleStatusUpdate 호출 전, status:', statusData.status)
-                handleStatusUpdate(statusData)
-                console.log('[HTTP Polling] handleStatusUpdate 호출 후')
-                
-                // 완료/실패가 아니면 계속 폴링
-                if (statusData.status !== 'COMPLETED' && statusData.status !== 'FAILED') {
-                  // 기본 폴링 간격: 5초
-                  const pollingInterval = 5000
-                  console.log(`[HTTP Polling] 다음 확인까지 ${pollingInterval}ms 대기 (현재 상태: ${statusData.status})`)
-                  jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, pollingInterval)
-                } else {
-                  // 완료/실패 시 폴링 중단
-                  console.log('[HTTP Polling] 완료/실패 상태 도달, 폴링 중단. status:', statusData.status)
-                  if (jobStatusCheckTimeoutRef.current) {
-                    clearTimeout(jobStatusCheckTimeoutRef.current)
-                    jobStatusCheckTimeoutRef.current = null
-                  }
-                }
-              } else {
-                // HTTP 에러 응답 처리
-                const errorText = await statusResponse.text().catch(() => '')
-                console.error('[HTTP Polling] HTTP 에러:', statusResponse.status, errorText)
-                setJobProgress(`상태 확인 실패 (${statusResponse.status})`)
-                // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
-                // 에러 시에는 더 빠르게 재시도
-                jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 2000)
-              }
-            } catch (error) {
-              // 에러가 나도 계속 확인 시도 (사용자가 취소하기 전까지)
-              console.error('[HTTP Polling] 네트워크 에러:', error)
-              // 네트워크 에러 시에는 더 빠르게 재시도
-              jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 2000)
-            }
-          }
-          
-          // 첫 확인은 1초 후 (빠른 에러 감지)
-          jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 1000)
-        }
-        
-        // HTTP 폴링을 먼저 시작 (WebSocket 연결 실패 시에도 상태 확인 가능)
-        console.log('[Main] HTTP 폴링 시작')
-        startHttpPolling(result.jobId, startTime)
-        
-        // WebSocket 연결 시도 (실시간 UI 업데이트용) - 비동기로 처리
-        // 연결이 완료되면 HTTP 폴링이 자동으로 중단됨
-        const connectWebSocket = async () => {
-          try {
-            console.log('[WebSocket] 연결 시도 시작, jobId:', result.jobId)
-            const ws = new StudioJobWebSocket(
-              result.jobId,
-              (update: StudioJobUpdate) => {
-                // WebSocket에서 받은 실시간 업데이트 처리
-                console.log('[WebSocket] 메시지 수신:', update)
-                handleStatusUpdate(update)
-              },
-              (error) => {
-                // WebSocket 연결 에러 시 HTTP 폴링 계속 사용
-                console.warn('[WebSocket] 연결 에러 (HTTP 폴링 계속 사용):', error.message)
-                // HTTP 폴링은 이미 시작되어 있으므로 추가 작업 불필요
-              },
-              () => {
-                // WebSocket 연결이 끊어졌을 때 HTTP 폴링으로 폴백
-                console.log('[WebSocket] 연결 끊어짐, HTTP 폴링으로 폴백')
-                // 완료/실패 상태가 아니면 HTTP 폴링 시작 (이미 시작되어 있을 수 있음)
-                setJobStatus((currentStatus) => {
-                  if (currentStatus !== 'COMPLETED' && currentStatus !== 'FAILED') {
-                    startHttpPolling(result.jobId, startTime)
-                  }
-                  return currentStatus
-                })
-              }
-            )
-            
-            websocketRef.current = ws
-            await ws.connect()
-            console.log('[WebSocket] 연결 성공')
-            // HTTP 폴링은 WebSocket이 연결되면 자동으로 중단됨 (startHttpPolling 내부 로직)
-          } catch (error) {
-            // WebSocket 연결 실패 시 HTTP 폴링 계속 사용
-            console.warn('[WebSocket] 연결 실패 (HTTP 폴링 계속 사용):', error instanceof Error ? error.message : error)
-            // HTTP 폴링은 이미 시작되어 있으므로 추가 작업 불필요
-          }
-        }
-        
-        // WebSocket 연결을 비동기로 시도 (블로킹하지 않음)
-        connectWebSocket()
-        
-        alert('영상 생성이 시작되었어요. 진행 상황을 확인하고 있어요...')
+        setIsExporting(false)
+        router.push(`/video/create/step5?jobId=${result.jobId}`)
       } else {
+        setIsExporting(false)
         alert('영상 생성이 시작되었어요. 완료되면 알림을 받으실 수 있어요.')
       }
     } catch (error) {
@@ -3157,11 +2714,7 @@ export default function Step4Page() {
             {/* PixiJS 미리보기 - 9:16 비율 고정 (1080x1920) */}
             <div 
               className="flex-1 flex items-center justify-center rounded-lg overflow-hidden min-h-0"
-              style={{
-                filter: jobStatus === 'COMPLETED' ? 'blur(4px)' : 'none',
-                pointerEvents: jobStatus === 'COMPLETED' ? 'none' : 'auto',
-                transition: 'filter 0.3s ease'
-              }}
+              style={{}}
             >
               <div
                 ref={pixiContainerRef}
@@ -3239,11 +2792,8 @@ export default function Step4Page() {
             <div className="space-y-2">
               <div 
                 className="flex items-center justify-between text-xs" 
-                style={{
-                  color: theme === 'dark' ? '#9ca3af' : '#6b7280',
-                  filter: jobStatus === 'COMPLETED' ? 'blur(4px)' : 'none',
-                  pointerEvents: jobStatus === 'COMPLETED' ? 'none' : 'auto',
-                  transition: 'filter 0.3s ease'
+              style={{
+                color: theme === 'dark' ? '#9ca3af' : '#6b7280'
                 }}
               >
                 <span>
@@ -3266,12 +2816,9 @@ export default function Step4Page() {
                           ref={timelineBarRef}
                 className="w-full h-2 rounded-full cursor-pointer relative"
                 style={{
-                  backgroundColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-                  filter: jobStatus === 'COMPLETED' ? 'blur(4px)' : 'none',
-                  pointerEvents: jobStatus === 'COMPLETED' ? 'none' : 'auto',
-                  transition: 'filter 0.3s ease'
+                  backgroundColor: theme === 'dark' ? '#374151' : '#e5e7eb'
                 }}
-                          onMouseDown={jobStatus === 'COMPLETED' ? undefined : handleTimelineMouseDown}
+                          onMouseDown={handleTimelineMouseDown}
                         >
                           <div
                   className="h-full rounded-full"
@@ -3285,11 +2832,6 @@ export default function Step4Page() {
 
               <div 
                 className="flex items-center gap-2 relative"
-                style={{
-                  filter: jobStatus === 'COMPLETED' ? 'blur(4px)' : 'none',
-                  pointerEvents: jobStatus === 'COMPLETED' ? 'none' : 'auto',
-                  transition: 'filter 0.3s ease'
-                }}
               >
                         {showReadyMessage && (
                           <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs px-3 py-2 rounded-lg shadow-lg whitespace-nowrap z-50 animate-bounce">
@@ -3302,7 +2844,7 @@ export default function Step4Page() {
                           variant="outline"
                           size="sm"
                   className="flex-1"
-                          disabled={isTtsBootstrapping || isBgmBootstrapping || isPreparing || jobStatus === 'COMPLETED'}
+                          disabled={isTtsBootstrapping || isBgmBootstrapping || isPreparing}
                         >
                           {isTtsBootstrapping || isBgmBootstrapping || isPreparing ? (
                             <>
@@ -3323,206 +2865,20 @@ export default function Step4Page() {
                         </Button>
                         <Button
                           onClick={handleExport}
-                          disabled={isExporting || !!currentJobId || jobStatus === 'COMPLETED'}
+                          disabled={isExporting}
                           size="sm"
                           className="flex-1"
                         >
-                          {jobStatus === 'COMPLETED' ? (
-                            '내보내기'
-                          ) : isExporting || currentJobId ? (
+                          {isExporting ? (
                             <>
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              {isExporting ? '제작 시작 중...' : '생성 중...'}
+                              제작 시작 중...
                             </>
                           ) : (
                             '내보내기'
                           )}
                         </Button>
                       </div>
-                      
-                      {/* 작업 상태 표시 */}
-                      {(isExporting || currentJobId || jobStatus) && (
-                        <div className="mt-2 p-3 rounded-lg border" style={{
-                          backgroundColor: theme === 'dark' ? '#1f2937' : '#f9fafb',
-                          borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-                        }}>
-                          <div className="flex items-center gap-2 mb-2">
-                            {(!jobStatus || jobStatus === 'PENDING') && isExporting && (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" style={{
-                                  color: theme === 'dark' ? '#60a5fa' : '#2563eb'
-                                }} />
-                                <span className="text-sm font-medium" style={{
-                                  color: theme === 'dark' ? '#ffffff' : '#111827'
-                                }}>
-                                  영상 제작을 시작합니다...
-                                </span>
-                              </>
-                            )}
-                            {jobStatus === 'PENDING' && !isExporting && (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" style={{
-                                  color: theme === 'dark' ? '#a78bfa' : '#9333ea'
-                                }} />
-                                <span className="text-sm font-medium" style={{
-                                  color: theme === 'dark' ? '#ffffff' : '#111827'
-                                }}>
-                                  작업 대기 중...
-                                </span>
-                              </>
-                            )}
-                            {jobStatus === 'PROCESSING' && (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" style={{
-                                  color: theme === 'dark' ? '#60a5fa' : '#2563eb'
-                                }} />
-                                <span className="text-sm font-medium" style={{
-                                  color: theme === 'dark' ? '#ffffff' : '#111827'
-                                }}>
-                                  영상 생성 중...
-                                </span>
-                              </>
-                            )}
-                            {jobStatus === 'COMPLETED' && (
-                              <>
-                                <CheckCircle2 className="w-4 h-4" style={{
-                                  color: theme === 'dark' ? '#34d399' : '#10b981'
-                                }} />
-                                <span className="text-sm font-medium" style={{
-                                  color: theme === 'dark' ? '#34d399' : '#10b981'
-                                }}>
-                                  생성 완료!
-                                </span>
-                              </>
-                            )}
-                            {jobStatus === 'FAILED' && (
-                              <>
-                                <XCircle className="w-4 h-4" style={{
-                                  color: theme === 'dark' ? '#f87171' : '#ef4444'
-                                }} />
-                                <span className="text-sm font-medium" style={{
-                                  color: theme === 'dark' ? '#f87171' : '#ef4444'
-                                }}>
-                                  생성 실패
-                                </span>
-                              </>
-                            )}
-                          </div>
-                          {jobProgress && (
-                            <div className="mt-2 space-y-1">
-                              <p className="text-xs" style={{
-                                color: theme === 'dark' ? '#9ca3af' : '#6b7280'
-                              }}>
-                                {typeof jobProgress === 'string' ? jobProgress : JSON.stringify(jobProgress)}
-                              </p>
-                              {/* 씬 진행 상황 표시 */}
-                              {(jobStatus === 'PROCESSING' || jobStatus === 'PENDING') && timeline && (
-                                <p className="text-xs" style={{
-                                  color: theme === 'dark' ? '#9ca3af' : '#6b7280'
-                                }}>
-                                  {encodingSceneIndex !== null && encodingSceneIndex >= 0
-                                    ? `(${encodingSceneIndex + 1}/${timeline.scenes.length})`
-                                    : `(0/${timeline.scenes.length})`
-                                  } · 경과 {formatElapsed(elapsedSeconds)}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                          {jobStatus === 'COMPLETED' && (
-                            <div className="mt-4 p-4 rounded-lg border-2" style={{
-                              backgroundColor: theme === 'dark' ? '#1f2937' : '#f9fafb',
-                              borderColor: theme === 'dark' ? '#10b981' : '#10b981',
-                              borderWidth: '2px'
-                            }}>
-                              <div className="flex items-center gap-2 mb-3">
-                                <CheckCircle2 className="w-5 h-5" style={{
-                                  color: theme === 'dark' ? '#34d399' : '#10b981'
-                                }} />
-                                <div className="text-sm font-bold" style={{
-                                  color: theme === 'dark' ? '#34d399' : '#10b981'
-                                }}>
-                                  영상 생성 완료!
-                                </div>
-                              </div>
-                              
-                              {resultVideoUrl ? (
-                                /* URL 입력 및 버튼 */
-                                <div className="space-y-3">
-                                <div>
-                                  <div className="text-xs font-semibold mb-2" style={{
-                                    color: theme === 'dark' ? '#d1d5db' : '#374151'
-                                  }}>
-                                    영상 URL
-                                  </div>
-                                  <input
-                                    type="text"
-                                    readOnly
-                                    value={resultVideoUrl}
-                                    className="w-full px-3 py-2 text-sm rounded border"
-                                    style={{
-                                      backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-                                      borderColor: theme === 'dark' ? '#4b5563' : '#d1d5db',
-                                      color: theme === 'dark' ? '#d1d5db' : '#111827'
-                                    }}
-                                    onClick={(e) => (e.target as HTMLInputElement).select()}
-                                  />
-                                </div>
-                                <div className="flex flex-col sm:flex-row gap-2">
-                                  <button
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(resultVideoUrl)
-                                      alert('URL이 클립보드에 복사되었어요!')
-                                    }}
-                                    className="flex-1 px-4 py-2 text-sm rounded border transition-colors font-medium"
-                                    style={{
-                                      backgroundColor: theme === 'dark' ? '#374151' : '#f3f4f6',
-                                      borderColor: theme === 'dark' ? '#4b5563' : '#d1d5db',
-                                      color: theme === 'dark' ? '#d1d5db' : '#374151'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.backgroundColor = theme === 'dark' ? '#4b5563' : '#e5e7eb'
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.backgroundColor = theme === 'dark' ? '#374151' : '#f3f4f6'
-                                    }}
-                                  >
-                                    복사
-                                  </button>
-                                  <a
-                                    href={resultVideoUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    download
-                                    className="flex-1 px-4 py-2 text-sm rounded border transition-colors font-medium text-center"
-                                    style={{
-                                      backgroundColor: 'hsl(var(--primary))',
-                                      borderColor: 'hsl(var(--primary))',
-                                      color: 'hsl(var(--primary-foreground))',
-                                      textDecoration: 'none',
-                                      display: 'inline-block'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.opacity = '0.9'
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.opacity = '1'
-                                    }}
-                                  >
-                                    다운로드
-                                  </a>
-                                </div>
-                              </div>
-                              ) : (
-                                <p className="text-sm" style={{
-                                  color: theme === 'dark' ? '#9ca3af' : '#6b7280'
-                                }}>
-                                  영상이 생성되었습니다. 잠시 후 URL이 표시됩니다.
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
               
               {/* 배속 선택 */}
               <div className="flex items-center gap-2">
