@@ -47,27 +47,39 @@ function Step5PageContent() {
   const theme = useThemeStore((state) => state.theme)
   
   // 영상 렌더링 관련 상태
-  // localStorage에서 복원하거나 URL에서 가져오기
-  const [currentJobId, setCurrentJobId] = useState<string | null>(() => {
-    if (urlJobId) return urlJobId
-    if (typeof window !== 'undefined') {
+  // Hydration 오류 방지를 위해 초기값은 null로 설정하고, useEffect에서 클라이언트에서만 설정
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
+  const [isMounted, setIsMounted] = useState(false)
+  
+  // 클라이언트 마운트 후 localStorage에서 복원
+  useEffect(() => {
+    setIsMounted(true)
+    if (urlJobId) {
+      setCurrentJobId(urlJobId)
+    } else if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('currentVideoJobId')
-      if (saved) return saved
+      if (saved) {
+        setCurrentJobId(saved)
+      } else if (jobIdFromUrl) {
+        setCurrentJobId(jobIdFromUrl)
+      }
     }
-    return jobIdFromUrl
-  })
+  }, [urlJobId, jobIdFromUrl])
   
   // currentJobId가 변경될 때 localStorage에 저장
   useEffect(() => {
-    if (currentJobId && typeof window !== 'undefined') {
-      localStorage.setItem('currentVideoJobId', currentJobId)
-    } else if (!currentJobId && typeof window !== 'undefined') {
-      localStorage.removeItem('currentVideoJobId')
+    if (isMounted && typeof window !== 'undefined') {
+      if (currentJobId) {
+        localStorage.setItem('currentVideoJobId', currentJobId)
+      } else {
+        localStorage.removeItem('currentVideoJobId')
+      }
     }
-  }, [currentJobId])
+  }, [currentJobId, isMounted])
   
   // UI 렌더링용 jobId (urlJobId가 없으면 currentJobId 사용)
-  const jobId = urlJobId || currentJobId
+  // Hydration 오류 방지를 위해 isMounted가 true일 때만 렌더링
+  const jobId = isMounted ? (urlJobId || currentJobId) : urlJobId
   const [jobStatus, setJobStatus] = useState<'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | null>(null)
   const [jobProgress, setJobProgress] = useState<string>('')
   const jobStartTimeRef = useRef<number | null>(null)
@@ -836,6 +848,30 @@ function Step5PageContent() {
   }
 
   const handleComplete = () => {
+    // localStorage에서 jobId 제거
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('currentVideoJobId')
+    }
+    
+    // 상태 초기화
+    setCurrentJobId(null)
+    setJobStatus(null)
+    setJobProgress('')
+    setResultVideoUrl(null)
+    
+    // 웹소켓 연결 정리
+    if (currentJobId && websocketCallbacksRef.current) {
+      const { onUpdate, onError, onClose } = websocketCallbacksRef.current
+      websocketManager.disconnect(currentJobId, onUpdate, onError, onClose)
+      websocketCallbacksRef.current = {}
+    }
+    
+    // HTTP 폴링 정리
+    if (jobStatusCheckTimeoutRef.current) {
+      clearTimeout(jobStatusCheckTimeoutRef.current)
+      jobStatusCheckTimeoutRef.current = null
+    }
+    
     reset()
     setIsCompleteDialogOpen(false)
     router.push('/')
