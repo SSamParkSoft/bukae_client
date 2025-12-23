@@ -29,8 +29,10 @@ function AuthSync() {
       resetVideoCreate()
       // 앱 store 초기화
       setProductUrl('')
-      // 로그인 페이지로 리다이렉트
-      router.replace('/login')
+      // 즉시 로그인 페이지로 리다이렉트 (현재 경로와 다를 때만)
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        router.replace('/login')
+      }
     }
 
     // 토큰 만료 이벤트 리스너 등록

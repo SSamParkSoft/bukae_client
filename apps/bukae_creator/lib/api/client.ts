@@ -77,6 +77,14 @@ async function handleResponse<T>(response: Response): Promise<T> {
       // 응답 파싱 실패 시 기본 메시지 사용
     }
 
+    // 401 에러인 경우 즉시 로그아웃 처리
+    if (response.status === 401) {
+      authStorage.clearTokens()
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:expired'))
+      }
+    }
+
     // 네트워크 에러 또는 서버 미실행 시 사용자 친화적 메시지
     if (response.status === 0 || response.type === 'opaque') {
       errorMessage = '서버에 연결할 수 없어요. 백엔드 서버가 실행 중인지 확인해주세요.'
@@ -211,15 +219,14 @@ export async function apiRequest<T>(
     }
 
     // 401 에러인데 재발급을 시도하지 않은 경우 (skipAuth=true 또는 autoRefresh=false)
-    if (response.status === 401 && !skipAuth) {
-      authStorage.clearTokens()
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('auth:expired'))
-      }
-    }
-
+    // handleResponse에서 처리하므로 여기서는 바로 넘김
     return handleResponse<T>(response)
   } catch (error) {
+    // ApiError가 이미 발생한 경우 (401 포함) 그대로 throw
+    if (error instanceof ApiError) {
+      throw error
+    }
+
     // 네트워크 에러 처리
     if (error instanceof TypeError && error.message.includes('fetch')) {
       throw new ApiError(
@@ -227,10 +234,6 @@ export async function apiRequest<T>(
         0,
         'Network Error'
       )
-    }
-
-    if (error instanceof ApiError) {
-      throw error
     }
 
     // 예상치 못한 에러 로깅
