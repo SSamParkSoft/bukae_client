@@ -27,6 +27,9 @@ function Step5PageContent() {
   const searchParams = useSearchParams()
   const jobIdFromUrl = searchParams.get('jobId')
   
+  // URL에서 jobId 가져오기 (의존성 배열을 위해 메모이제이션) - 먼저 선언
+  const urlJobId = useMemo(() => searchParams.get('jobId'), [searchParams])
+  
   const { 
     selectedProducts,
     scenes,
@@ -44,10 +47,24 @@ function Step5PageContent() {
   const theme = useThemeStore((state) => state.theme)
   
   // 영상 렌더링 관련 상태
-  const [currentJobId, setCurrentJobId] = useState<string | null>(jobIdFromUrl)
+  // localStorage에서 복원하거나 URL에서 가져오기
+  const [currentJobId, setCurrentJobId] = useState<string | null>(() => {
+    if (urlJobId) return urlJobId
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('currentVideoJobId')
+      if (saved) return saved
+    }
+    return jobIdFromUrl
+  })
   
-  // URL에서 jobId 가져오기 (의존성 배열을 위해 메모이제이션)
-  const urlJobId = useMemo(() => searchParams.get('jobId'), [searchParams])
+  // currentJobId가 변경될 때 localStorage에 저장
+  useEffect(() => {
+    if (currentJobId && typeof window !== 'undefined') {
+      localStorage.setItem('currentVideoJobId', currentJobId)
+    } else if (!currentJobId && typeof window !== 'undefined') {
+      localStorage.removeItem('currentVideoJobId')
+    }
+  }, [currentJobId])
   
   // UI 렌더링용 jobId (urlJobId가 없으면 currentJobId 사용)
   const jobId = urlJobId || currentJobId
@@ -561,8 +578,8 @@ function Step5PageContent() {
       setResultVideoUrl(null)
     }
     
-    // 중복 실행 방지: 같은 jobId이고 이미 초기화 중이면 제외
-    // 하지만 페이지를 떠났다가 돌아온 경우는 항상 상태 확인 필요
+    // 중복 실행 방지: 이미 초기화 중이면 제외
+    // 다른 step으로 이동했다가 돌아온 경우는 항상 상태 확인 필요
     if (isInitializing) {
       return
     }
@@ -624,9 +641,10 @@ function Step5PageContent() {
             }
             
             // 웹소켓 연결 확인 및 재연결
+            // 다른 step으로 이동했다가 돌아온 경우, 웹소켓이 끊어졌을 수 있으므로 항상 확인
             const existingConnection = websocketManager.getConnection(targetJobId)
             if (!existingConnection || !existingConnection.isConnected()) {
-              console.log('[Main] 웹소켓 연결 시작')
+              console.log('[Main] 웹소켓 연결 시작 (다른 step에서 돌아옴)')
               startHttpPolling(targetJobId, startTime)
               connectWebSocket(targetJobId, startTime)
             } else {
@@ -655,11 +673,12 @@ function Step5PageContent() {
     checkInitialStatus()
     
     return () => {
-      // HTTP 폴링만 중단 (웹소켓은 전역 매니저에서 관리)
+      // HTTP 폴링만 중단 (웹소켓은 전역 매니저에서 관리되므로 다른 step으로 가도 유지됨)
       if (jobStatusCheckTimeoutRef.current) {
         clearTimeout(jobStatusCheckTimeoutRef.current)
         jobStatusCheckTimeoutRef.current = null
       }
+      // 웹소켓 연결은 유지 - 다른 step으로 이동해도 백그라운드에서 계속 제작 진행
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlJobId, currentJobId])
