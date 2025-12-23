@@ -12,7 +12,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useUserStore } from '@/store/useUserStore'
 import { useThemeStore } from '@/store/useThemeStore'
-import { useYouTubeVideos } from '@/lib/hooks/useYouTubeVideos'
 import { authApi } from '@/lib/api/auth'
 import PageHeader from '@/components/PageHeader'
 import ComingSoonBanner from '@/components/ComingSoonBanner'
@@ -21,15 +20,12 @@ import {
   Mail,
   Calendar,
   Settings,
-  Youtube,
   Bell,
-  Eye,
   Edit2,
   Upload,
   Download,
   Trash2,
   CheckCircle2,
-  Loader2,
 } from 'lucide-react'
 
 const formatDate = (dateString: string) => {
@@ -39,16 +35,6 @@ const formatDate = (dateString: string) => {
     month: 'long',
     day: 'numeric',
   })
-}
-
-const formatNumber = (num: number): string => {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M'
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K'
-  }
-  return num.toString()
 }
 
 export default function ProfilePage() {
@@ -62,7 +48,6 @@ export default function ProfilePage() {
     isAuthenticated,
     setUser,
   } = useUserStore()
-  const { data: youtubeVideos, isLoading: youtubeLoading } = useYouTubeVideos()
   const {
     data: currentUser,
     isLoading: userLoading,
@@ -82,9 +67,6 @@ export default function ProfilePage() {
     name: user?.name || '',
     email: user?.email || '',
   })
-
-  // 최근 영상 목록 (최대 5개)
-  const recentVideos = youtubeVideos?.slice(0, 5) || []
 
   const handleSaveProfile = () => {
     if (user) {
@@ -326,79 +308,11 @@ export default function ProfilePage() {
                 </CardContent>
               </Card>
               {/* 최근 제작한 영상 */}
-              <Card className="border border-gray-200">
-                <CardHeader>
-                  <CardTitle>최근 제작한 영상</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {youtubeLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
-                    </div>
-                  ) : recentVideos.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {recentVideos.map((video) => (
-                        <motion.div
-                          key={video.videoId}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                        className={`p-4 rounded-lg border border-gray-200 cursor-pointer transition-colors ${
-                          theme === 'dark'
-                            ? 'hover:bg-purple-900/20'
-                            : 'hover:bg-purple-50'
-                        }`}
-                        >
-                          <div className="relative aspect-video rounded-lg overflow-hidden mb-3">
-                            {video.thumbnailUrl ? (
-                            <Image
-                              src={video.thumbnailUrl}
-                              alt={video.title}
-                              fill
-                              className="object-cover"
-                              sizes="320px"
-                            />
-                            ) : (
-                              <div className={`w-full h-full flex items-center justify-center ${
-                                theme === 'dark' ? 'bg-purple-900/30' : 'bg-purple-50'
-                              }`}>
-                                <Youtube className={`w-12 h-12 ${
-                                  theme === 'dark' ? 'text-purple-500' : 'text-purple-400'
-                                }`} />
-                              </div>
-                            )}
-                          </div>
-                          <h3 className={`font-semibold mb-2 line-clamp-2 ${
-                            theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
-                          }`}>
-                            {video.title}
-                          </h3>
-                          <div className="flex items-center gap-4 text-sm">
-                            <div className="flex items-center gap-1">
-                              <Eye className={`w-4 h-4 ${
-                                theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                              }`} />
-                              <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                                {formatNumber(video.views || 0)}
-                              </span>
-                            </div>
-                            {video.publishedAt && (
-                              <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                                {formatDate(video.publishedAt)}
-                              </span>
-                            )}
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className={`text-center py-8 ${
-                      theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                    }`}>
-                      제작한 영상이 없어요
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <ComingSoonBanner
+                title="최근 제작한 영상"
+                description="보다 나은 서비스 제공을 위해 준비 중입니다."
+                description2="빠른 시일 내에 준비하여 찾아뵙겠습니다."
+              />
             </div>
           </TabsContent>
 
