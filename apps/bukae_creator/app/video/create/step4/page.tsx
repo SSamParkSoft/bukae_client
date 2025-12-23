@@ -1817,8 +1817,11 @@ export default function Step4Page() {
   const handleSceneReorder = useCallback((newOrder: number[]) => {
     if (!timeline) return
 
-    // scenes 배열 재정렬
-    const reorderedScenes = newOrder.map((oldIndex) => scenes[oldIndex])
+    // scenes 배열 재정렬 및 sceneId 업데이트 (1부터 시작)
+    const reorderedScenes = newOrder.map((oldIndex, newIndex) => ({
+      ...scenes[oldIndex],
+      sceneId: newIndex + 1, // 새로운 순서에 맞게 sceneId 업데이트
+    }))
     setScenes(reorderedScenes)
 
     // selectedImages도 같은 순서로 재정렬
@@ -1827,8 +1830,11 @@ export default function Step4Page() {
       setSelectedImages(reorderedImages)
     }
 
-    // timeline의 scenes도 재정렬
-    const reorderedTimelineScenes = newOrder.map((oldIndex) => timeline.scenes[oldIndex])
+    // timeline의 scenes도 재정렬 및 sceneId 업데이트
+    const reorderedTimelineScenes = newOrder.map((oldIndex, newIndex) => ({
+      ...timeline.scenes[oldIndex],
+      sceneId: newIndex + 1, // 새로운 순서에 맞게 sceneId 업데이트
+    }))
     setTimeline({
       ...timeline,
       scenes: reorderedTimelineScenes,
