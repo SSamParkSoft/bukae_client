@@ -21,6 +21,7 @@ import { studioTitleApi } from '@/lib/api/studio-title'
 import { StudioJobWebSocket, type StudioJobUpdate } from '@/lib/api/websocket'
 import { websocketManager } from '@/lib/api/websocket-manager'
 import { authStorage } from '@/lib/api/auth-storage'
+import { getSupabaseClient } from '@/lib/supabase/client'
 
 function Step5PageContent() {
   const router = useRouter()
@@ -889,7 +890,22 @@ function Step5PageContent() {
 
     // TTS 정리 시도 (실패해도 나머지 플로우는 진행)
     try {
-      const res = await fetch('/api/media/tts/cleanup', { method: 'POST' })
+      let accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        const supabase = getSupabaseClient()
+        const { data } = await supabase.auth.getSession()
+        accessToken = data.session?.access_token ?? null
+      }
+
+      const headers: Record<string, string> = {}
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`
+      }
+
+      const res = await fetch('/api/media/tts/cleanup', {
+        method: 'POST',
+        headers,
+      })
       if (!res.ok) {
         console.warn('[handleComplete] TTS cleanup failed', res.status)
       }

@@ -93,6 +93,14 @@ export default function Step3Page() {
       const script = sceneScripts.get(i)
       if (script) {
         scenesArray.push(script)
+      } else {
+        // 대본이 없더라도 선택한 이미지 순서를 유지하기 위해 빈 씬을 포함
+        scenesArray.push({
+          sceneId: i + 1,
+          script: '',
+          imageUrl: selectedImages[i],
+          isAiGenerated: false,
+        })
       }
     }
     return JSON.stringify(scenesArray)

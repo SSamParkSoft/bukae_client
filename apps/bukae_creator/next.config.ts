@@ -28,6 +28,11 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'placehold.co',
       },
+      // Google profile 이미지
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
       // Supabase Storage 도메인 추가
       ...(supabaseHostname
         ? [

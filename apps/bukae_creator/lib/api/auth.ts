@@ -183,16 +183,22 @@ export const authApi = {
    */
   getCurrentUser: async (): Promise<{
     id: string
-    name: string
+    name?: string
+    nickname?: string
     email: string
     profileImage?: string
+    profileImageUrl?: string
+    role?: string
     createdAt: string
   }> => {
     return api.get<{
       id: string
-      name: string
+      name?: string
+      nickname?: string
       email: string
       profileImage?: string
+      profileImageUrl?: string
+      role?: string
       createdAt: string
     }>('/api/v1/users/me')
   },

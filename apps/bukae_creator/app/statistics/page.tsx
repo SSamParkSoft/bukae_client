@@ -2,9 +2,9 @@
 
 import { motion } from 'framer-motion'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import PageHeader from '@/components/PageHeader'
 import CoupangStats from '@/components/CoupangStats'
 import YouTubeStats from '@/components/YouTubeStats'
-import PageHeader from '@/components/PageHeader'
 
 export default function StatisticsPage() {
   return (
