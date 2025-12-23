@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image'
-import { useState, useMemo, useRef, DragEvent } from 'react'
+import { useState, useEffect, useMemo, useRef, DragEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { ArrowRight, GripVertical, X, Loader2, Sparkles } from 'lucide-react'
@@ -24,6 +24,7 @@ export default function Step3Page() {
     scriptStyle,
     tone,
     setScenes,
+    scenes,
   } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const selectedProduct = selectedProducts[0]
@@ -82,6 +83,70 @@ export default function Step3Page() {
   const [isGeneratingAll, setIsGeneratingAll] = useState(false)
   const [editedScripts, setEditedScripts] = useState<Map<number, string>>(new Map())
   const selectedListRef = useRef<HTMLDivElement | null>(null)
+  const prevSceneScriptsRef = useRef<string>('')
+
+  // sceneScripts를 직렬화하여 안정적인 dependency 생성
+  const sceneScriptsSerialized = useMemo(() => {
+    if (sceneScripts.size === 0) return ''
+    const scenesArray: SceneScript[] = []
+    for (let i = 0; i < selectedImages.length; i++) {
+      const script = sceneScripts.get(i)
+      if (script) {
+        scenesArray.push(script)
+      } else {
+        // 대본이 없더라도 선택한 이미지 순서를 유지하기 위해 빈 씬을 포함
+        scenesArray.push({
+          sceneId: i + 1,
+          script: '',
+          imageUrl: selectedImages[i],
+          isAiGenerated: false,
+        })
+      }
+    }
+    return JSON.stringify(scenesArray)
+  }, [sceneScripts, selectedImages.length])
+
+  // store의 scenes와 selectedImages가 복원되면 로컬 state 동기화
+  useEffect(() => {
+    if (scenes.length > 0) {
+      // scenes의 순서에 맞춰 selectedImages도 업데이트 (Step4에서 순서 변경 시 동기화)
+      const reorderedImages = scenes.map((scene) => scene.imageUrl || '').filter(Boolean)
+      const currentImagesString = JSON.stringify(selectedImages)
+      const reorderedImagesString = JSON.stringify(reorderedImages)
+      
+      // 실제로 순서가 다를 때만 업데이트 (무한 루프 방지)
+      if (reorderedImages.length > 0 && currentImagesString !== reorderedImagesString) {
+        setSelectedImages(reorderedImages)
+      }
+
+      // sceneScripts 복원 (초기 로드 시에만)
+      if (sceneScripts.size === 0 && (selectedImages.length > 0 || reorderedImages.length > 0)) {
+        const imagesToUse = reorderedImages.length > 0 ? reorderedImages : selectedImages
+        const restoredSceneScripts = new Map<number, SceneScript>()
+        scenes.forEach((scene, index) => {
+          if (index < imagesToUse.length) {
+            // scenes의 imageUrl을 우선 사용 (Step4에서 변경된 순서 반영)
+            const imageUrl = scene.imageUrl || imagesToUse[index]
+            restoredSceneScripts.set(index, {
+              ...scene,
+              imageUrl,
+              sceneId: index + 1,
+            })
+          }
+        })
+        setSceneScripts(restoredSceneScripts)
+      }
+    }
+  }, [scenes.length]) // scenes.length만 dependency로 사용하여 무한 루프 방지
+
+  // sceneScripts가 변경될 때마다 store에 저장 (렌더링 중 업데이트 방지)
+  useEffect(() => {
+    if (sceneScriptsSerialized && sceneScriptsSerialized !== prevSceneScriptsRef.current) {
+      const updatedScenes: SceneScript[] = JSON.parse(sceneScriptsSerialized)
+      prevSceneScriptsRef.current = sceneScriptsSerialized
+      setScenes(updatedScenes)
+    }
+  }, [sceneScriptsSerialized, setScenes])
 
   // ConceptType -> ScriptType 매핑
   const mapConceptToScriptType = (concept: typeof scriptStyle): ScriptType => {
@@ -129,19 +194,23 @@ export default function Step3Page() {
 
       const items = Array.isArray(data) ? data : [data]
 
-      setSceneScripts(() => {
-        const newMap = new Map<number, SceneScript>()
-        selectedImages.forEach((imageUrl, index) => {
-          const sceneData = items.find((item) => item.imageUrl === imageUrl) || items[index]
-          newMap.set(index, {
-            sceneId: index + 1,
-            script: sceneData?.script || '생성된 대본이 없어요.',
-            imageUrl: sceneData?.imageUrl || imageUrl,
-            isAiGenerated: !!sceneData?.script,
-          })
-        })
-        return newMap
+      const newSceneScripts: SceneScript[] = []
+      const newMap = new Map<number, SceneScript>()
+      
+      selectedImages.forEach((imageUrl, index) => {
+        const sceneData = items.find((item) => item.imageUrl === imageUrl) || items[index]
+        const sceneScript: SceneScript = {
+          sceneId: index + 1,
+          script: sceneData?.script || '생성된 대본이 없어요.',
+          imageUrl: sceneData?.imageUrl || imageUrl,
+          isAiGenerated: !!sceneData?.script,
+        }
+        newMap.set(index, sceneScript)
+        newSceneScripts.push(sceneScript)
       })
+
+      setSceneScripts(newMap)
+      // store는 useEffect를 통해 자동으로 업데이트됨
 
       // 생성된 스크립트 섹션으로 스크롤
       setTimeout(() => {
@@ -163,7 +232,8 @@ export default function Step3Page() {
     if (selectedImages.includes(imageUrl)) {
       // 이미 선택된 이미지는 제거
       const index = selectedImages.indexOf(imageUrl)
-      setSelectedImages(selectedImages.filter(url => url !== imageUrl))
+      const newSelectedImages = selectedImages.filter(url => url !== imageUrl)
+      setSelectedImages(newSelectedImages)
       
       // 해당 씬 스크립트도 제거
       setSceneScripts((prev) => {
@@ -180,6 +250,7 @@ export default function Step3Page() {
             newIndex++
           }
         })
+        // store는 useEffect를 통해 자동으로 업데이트됨
         return reorderedMap
       })
     } else {
@@ -223,6 +294,7 @@ export default function Step3Page() {
     // 스크립트도 재정렬
     setSceneScripts((prev) => {
       const newMap = new Map<number, SceneScript>()
+      
       newImages.forEach((imageUrl, newIndex) => {
         // 기존 스크립트 찾기
         let foundScript: SceneScript | undefined
@@ -238,6 +310,8 @@ export default function Step3Page() {
           newMap.set(newIndex, foundScript)
         }
       })
+      
+      // store는 useEffect를 통해 자동으로 업데이트됨
       return newMap
     })
     
@@ -259,7 +333,7 @@ export default function Step3Page() {
       return newMap
     })
 
-    // sceneScripts에도 바로 반영하여 handleNext 시 반영되도록
+      // sceneScripts에도 바로 반영하여 handleNext 시 반영되도록
     setSceneScripts((prev) => {
       const newMap = new Map(prev)
       const existing = newMap.get(sceneIndex)
@@ -281,6 +355,7 @@ export default function Step3Page() {
         })
       }
 
+      // store는 useEffect를 통해 자동으로 업데이트됨
       return newMap
     })
   }

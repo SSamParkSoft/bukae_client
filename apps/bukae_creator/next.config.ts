@@ -28,6 +28,16 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'placehold.co',
       },
+      // YouTube 썸네일
+      {
+        protocol: 'https',
+        hostname: 'i.ytimg.com',
+      },
+      // Google profile 이미지
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+      },
       // Supabase Storage 도메인 추가
       ...(supabaseHostname
         ? [
@@ -46,15 +56,6 @@ const nextConfig: NextConfig = {
     '@google-cloud/text-to-speech',
     'google-gax',
   ],
-  // 배포 시 data 폴더의 demo.db 파일을 포함시킴
-  // Vercel 등 서버리스 환경에서 파일 추적에 포함
-  // Next.js 16에서는 experimental에서 최상위로 이동
-  outputFileTracingIncludes: {
-    '/api/**': [
-      './data/**/*',
-      '../data/**/*',
-    ],
-  },
 };
 
 export default nextConfig;

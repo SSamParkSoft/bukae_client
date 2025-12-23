@@ -439,7 +439,7 @@ export const useSceneManager = ({
           top = transform.y * scale
         } else {
           // 초기 contain/cover 계산과 동일하게 배치
-          const params = calculateSpriteParams(img.width, img.height, width, height, scene.imageFit || 'fill')
+          const params = calculateSpriteParams(img.width, img.height, width, height, scene.imageFit || 'contain')
           imgScaleX = (params.width / img.width) * scale
           imgScaleY = (params.height / img.height) * scale
           left = params.x * scale
@@ -524,7 +524,7 @@ export const useSceneManager = ({
       try {
         const texture = await loadPixiTextureWithCache(scene.image)
         const sprite = new PIXI.Sprite(texture)
-        const imageFit = scene.imageFit || 'fill'
+        const imageFit = scene.imageFit || 'contain'
         const params = calculateSpriteParams(
           texture.width,
           texture.height,

@@ -1,7 +1,9 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import Image from 'next/image'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,26 +12,20 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useUserStore } from '@/store/useUserStore'
 import { useThemeStore } from '@/store/useThemeStore'
-import { useYouTubeVideos } from '@/lib/hooks/useYouTubeVideos'
+import { authApi } from '@/lib/api/auth'
 import PageHeader from '@/components/PageHeader'
+import ComingSoonBanner from '@/components/ComingSoonBanner'
 import {
   User,
   Mail,
   Calendar,
   Settings,
-  Link2,
-  Link2Off,
-  Youtube,
-  ShoppingCart,
   Bell,
-  Eye,
   Edit2,
   Upload,
   Download,
   Trash2,
   CheckCircle2,
-  XCircle,
-  Loader2,
 } from 'lucide-react'
 
 const formatDate = (dateString: string) => {
@@ -41,20 +37,28 @@ const formatDate = (dateString: string) => {
   })
 }
 
-const formatNumber = (num: number): string => {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M'
-  }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K'
-  }
-  return num.toString()
-}
-
 export default function ProfilePage() {
   const theme = useThemeStore((state) => state.theme)
-  const { user, connectedServices, notificationSettings, updateUser, setConnectedService, updateNotificationSettings } = useUserStore()
-  const { data: youtubeVideos, isLoading: youtubeLoading } = useYouTubeVideos()
+  const {
+    user,
+    connectedServices,
+    notificationSettings,
+    updateUser,
+    updateNotificationSettings,
+    isAuthenticated,
+    setUser,
+  } = useUserStore()
+  const {
+    data: currentUser,
+    isLoading: userLoading,
+    error: userError,
+  } = useQuery({
+    queryKey: ['current-user'],
+    queryFn: authApi.getCurrentUser,
+    enabled: isAuthenticated,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  })
 
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
@@ -63,9 +67,6 @@ export default function ProfilePage() {
     name: user?.name || '',
     email: user?.email || '',
   })
-
-  // 최근 영상 목록 (최대 5개)
-  const recentVideos = youtubeVideos?.slice(0, 5) || []
 
   const handleSaveProfile = () => {
     if (user) {
@@ -77,30 +78,34 @@ export default function ProfilePage() {
     }
   }
 
-  const handleConnectService = (platform: 'coupang' | 'youtube') => {
-    const service = connectedServices.find((s) => s.platform === platform)
-    if (service?.isConnected) {
-      // 연동 해제
-      setConnectedService({
-        platform,
-        isConnected: false,
-      })
-    } else {
-      // 연동 (실제로는 OAuth 플로우 필요)
-      setConnectedService({
-        platform,
-        isConnected: true,
-        connectedAt: new Date().toISOString(),
-        ...(platform === 'youtube' && {
-          channelName: '내 YouTube 채널',
-          subscriberCount: 1000,
-        }),
+  useEffect(() => {
+    if (currentUser) {
+      setUser({
+        id: String(currentUser.id),
+        name: currentUser.name || currentUser.nickname || '사용자',
+        email: currentUser.email || '',
+        profileImage: currentUser.profileImage || currentUser.profileImageUrl || undefined,
+        createdAt: currentUser.createdAt,
+        accountStatus: 'active',
       })
     }
-  }
+  }, [currentUser, setUser])
 
-  const coupangService = connectedServices.find((s) => s.platform === 'coupang')
-  const youtubeService = connectedServices.find((s) => s.platform === 'youtube')
+  const mergedProfile = useMemo(() => {
+    if (!user && !currentUser) return null
+    return {
+      name: user?.name || currentUser?.name || currentUser?.nickname || '사용자',
+      email: user?.email || currentUser?.email || 'user@example.com',
+      profileImage: user?.profileImage || currentUser?.profileImage || currentUser?.profileImageUrl,
+      createdAt: user?.createdAt || currentUser?.createdAt,
+    }
+  }, [currentUser, user])
+
+  const profileDisplayName = mergedProfile?.name || '사용자'
+  const profileEmail = mergedProfile?.email || 'user@example.com'
+  const profileImage = mergedProfile?.profileImage
+  const profileLoading = isAuthenticated && userLoading && !user
+  const shouldRenderProfileCard = Boolean(mergedProfile)
 
   return (
     <motion.div
@@ -130,354 +135,184 @@ export default function ProfilePage() {
           <TabsContent value="profile">
             <div className="space-y-6">
               {/* 프로필 정보 카드 */}
-              <Card className="border border-gray-200">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle>프로필 정보</CardTitle>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setEditForm({
-                          name: user?.name || '',
-                          email: user?.email || '',
-                        })
-                        setIsEditDialogOpen(true)
-                      }}
-                    >
-                      <Edit2 className="w-4 h-4 mr-2" />
-                      수정
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-6 mb-6">
-                    <div className={`relative w-24 h-24 rounded-full flex items-center justify-center ${
-                      theme === 'dark' ? 'bg-purple-900/40' : 'bg-purple-100'
-                    }`}>
-                      {user?.profileImage ? (
-                        <img
-                          src={user.profileImage}
-                          alt={user.name}
-                          className="w-full h-full rounded-full object-cover"
-                        />
-                      ) : (
-                        <User className={`w-12 h-12 ${
-                          theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                        }`} />
-                      )}
-                      <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center hover:bg-purple-700 transition-colors">
-                        <Upload className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div>
-                      <h2 className={`text-2xl font-bold mb-1 ${
-                        theme === 'dark' ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {user?.name || '사용자'}
-                      </h2>
-                      <p className={`${
-                        theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                      }`}>
-                        {user?.email || 'user@example.com'}
-                      </p>
-                    </div>
-                  </div>
+              {!isAuthenticated && (
+                <div className={`p-6 rounded-xl border text-center ${
+                  theme === 'dark' ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'
+                }`}>
+                  로그인이 필요합니다. 로그인 후 내 프로필 정보를 불러올게요.
+                </div>
+              )}
 
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <Mail className={`w-5 h-5 ${
-                        theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                      }`} />
-                      <div>
-                        <div className={`text-sm ${
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                        }`}>
-                          이메일
-                        </div>
-                        <div className={`font-medium ${
-                          theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
-                        }`}>
-                          {user?.email || 'user@example.com'}
-                        </div>
+              {userError && !shouldRenderProfileCard && (
+                <div className="p-6 rounded-xl border border-red-200 bg-red-50 text-red-700">
+                  프로필 정보를 불러오지 못했어요. 잠시 후 다시 시도해주세요.
+                </div>
+              )}
+
+              {profileLoading && !shouldRenderProfileCard && (
+                <Card className="border border-gray-200">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-6 mb-6">
+                      <div className="relative w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-800 animate-pulse" />
+                      <div className="space-y-3 flex-1">
+                        <div className="h-5 w-40 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
+                        <div className="h-4 w-64 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <Calendar className={`w-5 h-5 ${
-                        theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                      }`} />
-                      <div>
-                        <div className={`text-sm ${
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                        }`}>
-                          가입일
-                        </div>
-                        <div className={`font-medium ${
-                          theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
-                        }`}>
-                          {user?.createdAt ? formatDate(user.createdAt) : '2024년 1월 1일'}
-                        </div>
-                      </div>
+                    <div className="space-y-3">
+                      <div className="h-4 w-full bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
+                      <div className="h-4 w-4/5 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
+                      <div className="h-4 w-3/5 bg-gray-100 dark:bg-gray-800 rounded animate-pulse" />
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                        user?.accountStatus === 'active'
-                          ? 'bg-green-500'
-                          : 'bg-gray-400'
+                  </CardContent>
+                </Card>
+              )}
+
+              {shouldRenderProfileCard && (
+                <Card className="border border-gray-200">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>프로필 정보</CardTitle>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditForm({
+                            name: profileDisplayName || '',
+                            email: profileEmail || '',
+                          })
+                          setIsEditDialogOpen(true)
+                        }}
+                      >
+                        <Edit2 className="w-4 h-4 mr-2" />
+                        수정
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-6 mb-6">
+                      <div className={`relative w-24 h-24 rounded-full flex items-center justify-center ${
+                        theme === 'dark' ? 'bg-purple-900/40' : 'bg-purple-100'
                       }`}>
-                        {user?.accountStatus === 'active' ? (
-                          <CheckCircle2 className="w-4 h-4 text-white" />
+                        {profileImage ? (
+                          <Image
+                            src={profileImage}
+                            alt={profileDisplayName}
+                            fill
+                            className="rounded-full object-cover"
+                            sizes="96px"
+                          />
                         ) : (
-                          <XCircle className="w-4 h-4 text-white" />
+                          <User className={`w-12 h-12 ${
+                            theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                          }`} />
                         )}
+                        <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center hover:bg-purple-700 transition-colors">
+                          <Upload className="w-4 h-4" />
+                        </button>
                       </div>
                       <div>
-                        <div className={`text-sm ${
+                        <h2 className={`text-2xl font-bold mb-1 ${
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {profileDisplayName}
+                        </h2>
+                        <p className={`${
                           theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
                         }`}>
-                          계정 상태
+                          {profileEmail}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        <Mail className={`w-5 h-5 ${
+                          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                        }`} />
+                        <div>
+                          <div className={`text-sm ${
+                            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            이메일
+                          </div>
+                          <div className={`font-medium ${
+                            theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
+                          }`}>
+                            {profileEmail}
+                          </div>
                         </div>
-                        <div className={`font-medium ${
-                          theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <Calendar className={`w-5 h-5 ${
+                          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                        }`} />
+                        <div>
+                          <div className={`text-sm ${
+                            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            가입일
+                          </div>
+                          <div className={`font-medium ${
+                            theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
+                          }`}>
+                            {user?.createdAt ? formatDate(user?.createdAt) : '없음'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                          'bg-green-500'
                         }`}>
-                          {user?.accountStatus === 'active' ? '활성' : '비활성'}
+                          <CheckCircle2 className="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                          <div className={`text-sm ${
+                            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
+                            계정 상태
+                          </div>
+                          <div className={`font-medium ${
+                            theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
+                          }`}>
+                            활성
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </TabsContent>
 
           {/* 연동 서비스 탭 */}
           <TabsContent value="services">
-            <div className="space-y-6">
-              {/* 쿠팡파트너스 연동 */}
-              <Card className="border border-gray-200">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <ShoppingCart className={`w-6 h-6 ${
-                        theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                      }`} />
-                      <CardTitle>쿠팡파트너스</CardTitle>
-                    </div>
-                    {coupangService?.isConnected ? (
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-5 h-5 text-green-500" />
-                        <span className={`text-sm ${
-                          theme === 'dark' ? 'text-green-400' : 'text-green-600'
-                        }`}>
-                          연동됨
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <XCircle className="w-5 h-5 text-gray-400" />
-                        <span className={`text-sm ${
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                        }`}>
-                          미연동
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {coupangService?.isConnected && coupangService.connectedAt && (
-                      <div>
-                        <p className={`text-sm ${
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                        }`}>
-                          연동일: {formatDate(coupangService.connectedAt)}
-                        </p>
-                      </div>
-                    )}
-                    <Button
-                      variant={coupangService?.isConnected ? 'outline' : 'default'}
-                      onClick={() => handleConnectService('coupang')}
-                      className="w-full"
-                    >
-                      {coupangService?.isConnected ? (
-                        <>
-                          <Link2Off className="w-4 h-4 mr-2" />
-                          연동 해제
-                        </>
-                      ) : (
-                        <>
-                          <Link2 className="w-4 h-4 mr-2" />
-                          연동하기
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* YouTube 연동 */}
-              <Card className="border border-gray-200">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Youtube className={`w-6 h-6 ${
-                        theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                      }`} />
-                      <CardTitle>YouTube</CardTitle>
-                    </div>
-                    {youtubeService?.isConnected ? (
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="w-5 h-5 text-green-500" />
-                        <span className={`text-sm ${
-                          theme === 'dark' ? 'text-green-400' : 'text-green-600'
-                        }`}>
-                          연동됨
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <XCircle className="w-5 h-5 text-gray-400" />
-                        <span className={`text-sm ${
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                        }`}>
-                          미연동
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {youtubeService?.isConnected && (
-                      <>
-                        {youtubeService.channelName && (
-                          <div>
-                            <p className={`text-sm ${
-                              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                            }`}>
-                              채널명: {youtubeService.channelName}
-                            </p>
-                          </div>
-                        )}
-                        {youtubeService.subscriberCount && (
-                          <div>
-                            <p className={`text-sm ${
-                              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                            }`}>
-                              구독자: {formatNumber(youtubeService.subscriberCount)}명
-                            </p>
-                          </div>
-                        )}
-                        {youtubeService.connectedAt && (
-                          <div>
-                            <p className={`text-sm ${
-                              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                            }`}>
-                              연동일: {formatDate(youtubeService.connectedAt)}
-                            </p>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    <Button
-                      variant={youtubeService?.isConnected ? 'outline' : 'default'}
-                      onClick={() => handleConnectService('youtube')}
-                      className="w-full"
-                    >
-                      {youtubeService?.isConnected ? (
-                        <>
-                          <Link2Off className="w-4 h-4 mr-2" />
-                          연동 해제
-                        </>
-                      ) : (
-                        <>
-                          <Link2 className="w-4 h-4 mr-2" />
-                          연동하기
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <ComingSoonBanner />
           </TabsContent>
 
           {/* 활동 내역 탭 */}
           <TabsContent value="activity">
             <div className="space-y-6">
-              {/* 최근 제작한 영상 */}
-              <Card className="border border-gray-200">
+              <Card className={`border ${
+                theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-purple-200 bg-purple-50'
+              }`}>
                 <CardHeader>
-                  <CardTitle>최근 제작한 영상</CardTitle>
+                  <CardTitle className={theme === 'dark' ? 'text-white' : 'text-purple-900'}>
+                    제작된 영상 보관 안내
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  {youtubeLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
-                    </div>
-                  ) : recentVideos.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {recentVideos.map((video) => (
-                        <motion.div
-                          key={video.videoId}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                        className={`p-4 rounded-lg border border-gray-200 cursor-pointer transition-colors ${
-                          theme === 'dark'
-                            ? 'hover:bg-purple-900/20'
-                            : 'hover:bg-purple-50'
-                        }`}
-                        >
-                          <div className="relative aspect-video rounded-lg overflow-hidden mb-3">
-                            {video.thumbnailUrl ? (
-                              <img
-                                src={video.thumbnailUrl}
-                                alt={video.title}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className={`w-full h-full flex items-center justify-center ${
-                                theme === 'dark' ? 'bg-purple-900/30' : 'bg-purple-50'
-                              }`}>
-                                <Youtube className={`w-12 h-12 ${
-                                  theme === 'dark' ? 'text-purple-500' : 'text-purple-400'
-                                }`} />
-                              </div>
-                            )}
-                          </div>
-                          <h3 className={`font-semibold mb-2 line-clamp-2 ${
-                            theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
-                          }`}>
-                            {video.title}
-                          </h3>
-                          <div className="flex items-center gap-4 text-sm">
-                            <div className="flex items-center gap-1">
-                              <Eye className={`w-4 h-4 ${
-                                theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                              }`} />
-                              <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                                {formatNumber(video.views || 0)}
-                              </span>
-                            </div>
-                            {video.publishedAt && (
-                              <span className={theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}>
-                                {formatDate(video.publishedAt)}
-                              </span>
-                            )}
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className={`text-center py-8 ${
-                      theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                    }`}>
-                      제작한 영상이 없어요
-                    </div>
-                  )}
+                <CardContent className={theme === 'dark' ? 'text-gray-100' : 'text-purple-900'}>
+                  제작된 영상과 업로드된 음성/자막 파일은 30일간 보관된 뒤 자동 삭제됩니다.
+                  보관 기간 내 필요한 파일은 다운로드해 주세요.
                 </CardContent>
               </Card>
+              {/* 최근 제작한 영상 */}
+              <ComingSoonBanner
+                title="최근 제작한 영상"
+                description="보다 나은 서비스 제공을 위해 준비 중입니다."
+                description2="빠른 시일 내에 준비하여 찾아뵙겠습니다."
+              />
             </div>
           </TabsContent>
 

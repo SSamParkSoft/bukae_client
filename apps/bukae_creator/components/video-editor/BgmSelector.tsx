@@ -107,9 +107,9 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
   }
 
   return (
-    <div>
+    <div className="flex flex-col h-full">
       <h3
-        className="text-sm font-semibold mb-3"
+        className="text-sm font-semibold mb-3 shrink-0"
         style={{
           color: theme === 'dark' ? '#ffffff' : '#111827',
         }}
@@ -117,7 +117,7 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
         배경음악 선택
       </h3>
       <div 
-        className="space-y-2 max-h-[60vh] overflow-y-auto border rounded-lg p-2"
+        className="flex-1 overflow-y-auto space-y-2 border rounded-lg min-h-0"
         style={{
           borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
           boxShadow: theme === 'dark' 
@@ -142,7 +142,7 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
               <PopoverTrigger asChild>
                 <div
                   onClick={() => handleCardClick(template.id)}
-                  className={`p-3 rounded-lg border cursor-pointer transition-all hover:scale-105 ${
+                  className={`p-1 m-2 rounded-lg border cursor-pointer transition-all hover:scale-105 ${
                     isSelected
                       ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500'
                       : isPlaying

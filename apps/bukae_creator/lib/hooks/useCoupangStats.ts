@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { CoupangStats } from '@/lib/types/statistics'
 import { authStorage } from '@/lib/api/auth-storage'
+import { useUserStore } from '@/store/useUserStore'
 
 const fetchCoupangStats = async (): Promise<CoupangStats> => {
   const accessToken = authStorage.getAccessToken()
@@ -18,10 +19,13 @@ const fetchCoupangStats = async (): Promise<CoupangStats> => {
 }
 
 export const useCoupangStats = () => {
+  const isAuthenticated = useUserStore((state) => state.isAuthenticated)
+  
   return useQuery({
     queryKey: ['coupang-stats'],
     queryFn: fetchCoupangStats,
-    refetchInterval: 60 * 60 * 1000, // 1시간마다 갱신 (추후 15:00 체크 로직 추가 가능)
+    enabled: isAuthenticated, // 로그인 상태일 때만 쿼리 실행
+    refetchInterval: isAuthenticated ? 60 * 60 * 1000 : false, // 로그인 상태일 때만 1시간마다 갱신
     staleTime: 30 * 60 * 1000, // 30분간 캐시 유지
   })
 }

@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { ArrowRight, ChevronDown, Camera, Bot, MessageSquare, X, Clock, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore, type CreationMode } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
@@ -27,7 +28,16 @@ export default function Step2Page() {
   const [selectedScriptStyle, setSelectedScriptStyle] = useState<ConceptType | null>(scriptStyle)
   const [selectedTone, setSelectedTone] = useState<string | null>(tone)
   const [isStyleConfirmed] = useState(false)
-  const [expandedToneId, setExpandedToneId] = useState<string | null>(null)
+  const [openToneExampleId, setOpenToneExampleId] = useState<string | null>(null)
+
+  // store의 값이 복원되면 로컬 state 동기화
+  useEffect(() => {
+    setSelectedScriptStyle(scriptStyle)
+    setSelectedTone(tone)
+    if (scriptStyle) {
+      setExpandedConceptId(scriptStyle)
+    }
+  }, [scriptStyle, tone])
 
   // 제작 방식 선택
   const handleModeSelect = (mode: CreationMode) => {
@@ -64,9 +74,8 @@ export default function Step2Page() {
   }
 
   // 톤 예시 토글
-  const handleToneExampleToggle = (e: React.MouseEvent, toneId: string) => {
-    e.stopPropagation()
-    setExpandedToneId((prev) => (prev === toneId ? null : toneId))
+  const handleToneExampleToggle = (toneId: string, open: boolean) => {
+    setOpenToneExampleId(open ? toneId : null)
   }
 
   // const handleConfirmStyle = () => {
@@ -310,74 +319,101 @@ export default function Step2Page() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {tones.map((toneOption) => {
                               const isToneSelected = selectedScriptStyle === conceptOption.id && selectedTone === toneOption.id
-                              const isExampleExpanded = expandedToneId === toneOption.id
+                              const isExampleOpen = openToneExampleId === toneOption.id
                               const exampleText = toneExamples[toneOption.id] || '예시 텍스트가 준비 중입니다.'
                               return (
-                                <div key={toneOption.id} className="space-y-2">
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => handleToneExampleToggle(e, toneOption.id)}
-                                      className={`p-1.5 rounded transition-colors ${
-                                        isExampleExpanded
-                                          ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
-                                          : theme === 'dark'
-                                            ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-900/20'
-                                            : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50'
-                                      }`}
-                                      disabled={isStyleConfirmed}
+                                <div key={toneOption.id} className="flex items-center gap-2">
+                                  <Popover 
+                                    open={isExampleOpen} 
+                                    onOpenChange={(open) => handleToneExampleToggle(toneOption.id, open)}
+                                  >
+                                    <PopoverTrigger asChild>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className={`p-1.5 rounded transition-colors ${
+                                          isExampleOpen
+                                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                                            : theme === 'dark'
+                                              ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-900/20'
+                                              : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50'
+                                        }`}
+                                        disabled={isStyleConfirmed}
+                                      >
+                                        <MessageSquare className="w-4 h-4" />
+                                      </button>
+                                    </PopoverTrigger>
+                                    
+                                    {/* 말풍선 Popover */}
+                                    <PopoverContent
+                                      side="bottom"
+                                      align="start"
+                                      sideOffset={12}
+                                      className={`w-80 p-4 relative ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+                                      onClick={(e) => e.stopPropagation()}
                                     >
-                                      <MessageSquare className="w-4 h-4" />
-                                    </button>
-                                    <Button
-                                      variant="outline"
-                                      disabled={isStyleConfirmed}
-                                      onClick={() => handleScriptStyleSelect(conceptOption.id, toneOption.id)}
-                                      className={`flex-1 justify-start ${
-                                        isToneSelected
-                                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                                          : ''
-                                      }`}
-                                    >
-                                      <span className="flex-1 text-left">{toneOption.label}</span>
-                                      <Badge variant={toneOption.tier === 'LIGHT' ? 'default' : 'secondary'} className="ml-2">
-                                        {toneOption.tier}
-                                      </Badge>
-                                    </Button>
-                                  </div>
-                                  {isExampleExpanded && (
-                                    <motion.div
-                                      initial={{ opacity: 0, height: 0 }}
-                                      animate={{ opacity: 1, height: 'auto' }}
-                                      exit={{ opacity: 0, height: 0 }}
-                                      className={`rounded-lg border p-4 ${
-                                        theme === 'dark'
-                                          ? 'bg-gray-800 border-gray-700'
-                                          : 'bg-blue-50 border-blue-200'
-                                      }`}
-                                    >
-                                      <div className="flex items-start justify-between mb-2">
-                                        <span className={`text-sm font-semibold ${
-                                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                      <div className="space-y-3">
+                                        <div className="flex items-start justify-between">
+                                          <span className={`text-sm font-semibold ${
+                                            theme === 'dark' ? 'text-white' : 'text-gray-900'
+                                          }`}>
+                                            {conceptOption.label}
+                                          </span>
+                                          <button
+                                            onClick={() => setOpenToneExampleId(null)}
+                                            className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 ${
+                                              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                            }`}
+                                          >
+                                            <X className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                        <div className={`rounded-md border p-3 text-sm whitespace-pre-line ${
+                                          theme === 'dark' 
+                                            ? 'border-gray-700 bg-gray-900 text-gray-200' 
+                                            : 'border-gray-200 bg-gray-50 text-gray-900'
                                         }`}>
-                                          {conceptOption.label}
-                                        </span>
-                                        <button
-                                          onClick={(e) => handleToneExampleToggle(e, toneOption.id)}
-                                          className={`p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 ${
-                                            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                                          }`}
-                                        >
-                                          <X className="w-4 h-4" />
-                                        </button>
+                                          {exampleText}
+                                        </div>
                                       </div>
-                                      <p className={`text-sm whitespace-pre-line ${
-                                        theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                                      }`}>
-                                        {exampleText}
-                                      </p>
-                                    </motion.div>
-                                  )}
+                                      
+                                      {/* 말풍선 화살표 */}
+                                      <div
+                                        className="absolute left-4 -translate-x-0 w-0 h-0"
+                                        style={{
+                                          top: '-8px',
+                                          borderLeft: '8px solid transparent',
+                                          borderRight: '8px solid transparent',
+                                          borderBottom: `8px solid ${theme === 'dark' ? '#1f2937' : '#ffffff'}`,
+                                        }}
+                                      />
+                                      <div
+                                        className="absolute left-4 -translate-x-0 w-0 h-0"
+                                        style={{
+                                          top: '-9px',
+                                          borderLeft: '9px solid transparent',
+                                          borderRight: '9px solid transparent',
+                                          borderBottom: `9px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`,
+                                        }}
+                                      />
+                                    </PopoverContent>
+                                  </Popover>
+                                  
+                                  <Button
+                                    variant="outline"
+                                    disabled={isStyleConfirmed}
+                                    onClick={() => handleScriptStyleSelect(conceptOption.id, toneOption.id)}
+                                    className={`flex-1 justify-start ${
+                                      isToneSelected
+                                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                                        : ''
+                                    }`}
+                                  >
+                                    <span className="flex-1 text-left">{toneOption.label}</span>
+                                    <Badge variant={toneOption.tier === 'LIGHT' ? 'default' : 'secondary'} className="ml-2">
+                                      {toneOption.tier}
+                                    </Badge>
+                                  </Button>
                                 </div>
                               )
                             })}

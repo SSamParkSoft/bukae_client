@@ -1,10 +1,8 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import CoupangStats from '@/components/CoupangStats'
-import YouTubeStats from '@/components/YouTubeStats'
 import PageHeader from '@/components/PageHeader'
+import ComingSoonBanner from '@/components/ComingSoonBanner'
 
 export default function StatisticsPage() {
   return (
@@ -21,18 +19,7 @@ export default function StatisticsPage() {
           description="영상 제작 및 성과 통계를 확인하세요"
         />
 
-        <Tabs defaultValue="coupang" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
-            <TabsTrigger value="coupang">쿠팡파트너스</TabsTrigger>
-            <TabsTrigger value="youtube">유튜브 애널리틱스</TabsTrigger>
-          </TabsList>
-          <TabsContent value="coupang" className="mt-6">
-            <CoupangStats />
-          </TabsContent>
-          <TabsContent value="youtube" className="mt-6">
-            <YouTubeStats />
-          </TabsContent>
-        </Tabs>
+        <ComingSoonBanner />
       </div>
     </motion.div>
   )

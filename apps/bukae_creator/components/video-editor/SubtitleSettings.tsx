@@ -89,9 +89,9 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
   if (!timeline || !currentScene) return null
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
       <div
-        className="p-3 rounded-lg border"
+        className="p-3 rounded-lg border w-full"
         style={{
           backgroundColor: theme === 'dark' ? '#1f2937' : '#f9fafb',
           borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
@@ -99,7 +99,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
       >
         <div className="flex items-center justify-between mb-2">
           <h3
-            className="text-sm font-semibold"
+            className="text-sm font-semibold break-words min-w-0"
             style={{
               color: theme === 'dark' ? '#ffffff' : '#111827',
             }}
@@ -109,7 +109,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
         </div>
 
         <p
-          className="text-sm mb-2 p-2 rounded truncate"
+          className="text-sm mb-2 p-2 rounded break-words"
           style={{
             fontFamily: currentFontFamily,
             fontSize: Math.min(currentScene.text?.fontSize || 32, 20),
@@ -118,6 +118,8 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
             fontStyle: currentScene.text?.style?.italic ? 'italic' : 'normal',
             textDecoration: currentScene.text?.style?.underline ? 'underline' : 'none',
             backgroundColor: theme === 'dark' ? '#111827' : '#374151',
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
           }}
         >
           {currentScene.text?.content || '(자막 없음)'}
@@ -125,7 +127,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
       </div>
 
       <div
-        className="p-3 rounded-lg border"
+        className="p-3 rounded-lg border w-full"
         style={{
           backgroundColor: theme === 'dark' ? '#1f2937' : '#f9fafb',
           borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
@@ -140,7 +142,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
         <div className="space-y-3">
           {/* Row 1: weight (left) + style buttons (right) */}
           <div className="flex items-center gap-2">
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <Select
                 value={String(normalizedFontWeight)}
                 onValueChange={(value) => {
@@ -157,7 +159,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                 }}
               >
                 <SelectTrigger
-                  className="w-full h-9"
+                  className="w-full h-10 text-sm"
                   style={{
                     backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
                     borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
@@ -185,7 +187,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
               </Select>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() =>
                   updateScene((scene) => {
@@ -204,7 +206,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                     }
                   })
                 }
-                className={`h-9 w-9 rounded border text-sm font-bold ${
+                className={`h-10 w-10 rounded border text-sm font-bold ${
                   normalizedFontWeight >= 600 ? 'bg-purple-500 text-white border-purple-500' : ''
                 }`}
                 style={{
@@ -228,7 +230,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                     },
                   }))
                 }
-                className={`h-9 w-9 rounded border text-sm italic ${
+                className={`h-10 w-10 rounded border text-sm italic ${
                   currentScene.text?.style?.italic ? 'bg-purple-500 text-white border-purple-500' : ''
                 }`}
                 style={{
@@ -251,7 +253,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                     },
                   }))
                 }
-                className={`h-9 w-9 rounded border text-sm underline ${
+                className={`h-10 w-10 rounded border text-sm underline ${
                   currentScene.text?.style?.underline ? 'bg-purple-500 text-white border-purple-500' : ''
                 }`}
                 style={{
@@ -268,14 +270,14 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
 
           {/* Row 2: color + toggle palette */}
           <div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-2">
               <label className="text-xs" style={{ color: theme === 'dark' ? '#d1d5db' : '#374151' }}>
                 색
               </label>
               <button
                 type="button"
                 onClick={() => setIsColorOpen((v) => !v)}
-                className="text-xs underline"
+                className="text-xs underline shrink-0"
                 style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}
               >
                 {isColorOpen ? '닫기' : '팔레트'}
@@ -293,31 +295,33 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
               aria-label="색상 선택"
             >
               <span
-                className="h-5 w-5 rounded border"
+                className="h-5 w-5 rounded border shrink-0"
                 style={{
                   backgroundColor: currentScene.text?.color || '#ffffff',
                   borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
                 }}
               />
-              <span className="text-sm" style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}>
+              <span className="text-sm truncate min-w-0 flex-1" style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}>
                 {(currentScene.text?.color || '#ffffff').toUpperCase()}
               </span>
             </button>
 
             {isColorOpen && (
-              <SubtitleColorPalette
-                theme={theme}
-                value={currentScene.text?.color || '#ffffff'}
-                onChange={(next) => {
-                  updateScene((scene) => ({
-                    ...scene,
-                    text: {
-                      ...scene.text,
-                      color: next,
-                    },
-                  }))
-                }}
-              />
+              <div className="mt-2">
+                <SubtitleColorPalette
+                  theme={theme}
+                  value={currentScene.text?.color || '#ffffff'}
+                  onChange={(next) => {
+                    updateScene((scene) => ({
+                      ...scene,
+                      text: {
+                        ...scene.text,
+                        color: next,
+                      },
+                    }))
+                  }}
+                />
+              </div>
             )}
           </div>
         </div>
@@ -349,7 +353,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
           }}
         >
           <SelectTrigger
-            className="w-full"
+            className="w-full h-10 text-sm"
             style={{
               backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
               borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
@@ -415,10 +419,10 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                 text: { ...scene.text, fontSize },
               }))
             }}
-            className="flex-1"
+            className="flex-1 min-w-0"
             style={{ accentColor: '#8b5cf6' }}
           />
-          <span className="text-xs" style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
+          <span className="text-xs shrink-0" style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}>
             px
           </span>
         </div>
@@ -450,7 +454,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
       </div>
 
       <div className="pt-2 border-t" style={{ borderColor: theme === 'dark' ? '#374151' : '#e5e7eb' }}>
-        <Button onClick={applyAllScenes} className="w-full" variant="outline">
+        <Button onClick={applyAllScenes} className="w-full h-10 text-sm" variant="outline">
           ✨ 모든 씬에 적용하기
         </Button>
       </div>

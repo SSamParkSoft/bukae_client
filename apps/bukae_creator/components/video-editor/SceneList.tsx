@@ -161,8 +161,8 @@ export function SceneList({
                       style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
                     >
                       {scene.splitIndex
-                        ? `씬 ${scene.sceneId}-${scene.splitIndex}`
-                        : `씬 ${scene.sceneId}`}
+                        ? `Scene ${scene.sceneId}-${scene.splitIndex}`
+                        : `Scene ${scene.sceneId}`}
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
@@ -190,7 +190,7 @@ export function SceneList({
                           e.stopPropagation()
                           onDuplicateScene(index)
                         }}
-                        title="씬 복사"
+                        title="Scene 복사"
                       >
                         <Copy className="w-3 h-3" />
                       </Button>
@@ -207,7 +207,7 @@ export function SceneList({
                             onDeleteScene(index)
                           }
                         }}
-                        title="씬 삭제"
+                        title="Scene 삭제"
                       >
                         <Trash2 className="w-3 h-3" />
                       </Button>
@@ -229,7 +229,7 @@ export function SceneList({
                       borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
                       color: theme === 'dark' ? '#ffffff' : '#111827',
                     }}
-                    placeholder="씬 텍스트 입력..."
+                    placeholder="Scene 텍스트 입력..."
                   />
                   {onTtsPreview && scene.script.trim() && (
                     <Button
@@ -278,7 +278,7 @@ export function SceneList({
                     {transitionLabels[timeline?.scenes[index]?.transition || 'none'] || '없음'}
                   </span>
                   <select
-                    value={timeline?.scenes[index]?.imageFit || 'fill'}
+                    value={timeline?.scenes[index]?.imageFit || 'contain'}
                     onChange={(e) => onImageFitChange(index, e.target.value as 'cover' | 'contain' | 'fill')}
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
@@ -289,9 +289,9 @@ export function SceneList({
                       color: theme === 'dark' ? '#ffffff' : '#111827',
                     }}
                   >
-                    <option value="cover">Cover</option>
-                    <option value="contain">Contain</option>
-                    <option value="fill">Fill</option>
+                    <option value="cover">꽉 채우기</option>
+                    <option value="contain">비율 유지</option>
+                    <option value="fill">늘려 채우기</option>
                   </select>
                 </div>
               </div>

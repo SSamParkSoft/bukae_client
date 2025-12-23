@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { YouTubeVideo } from '@/lib/types/statistics'
 import { authStorage } from '@/lib/api/auth-storage'
+import { useUserStore } from '@/store/useUserStore'
 
 const fetchYouTubeVideos = async (): Promise<YouTubeVideo[]> => {
   const accessToken = authStorage.getAccessToken()
@@ -18,9 +19,12 @@ const fetchYouTubeVideos = async (): Promise<YouTubeVideo[]> => {
 }
 
 export const useYouTubeVideos = () => {
+  const isAuthenticated = useUserStore((state) => state.isAuthenticated)
+  
   return useQuery({
     queryKey: ['youtube-videos'],
     queryFn: fetchYouTubeVideos,
+    enabled: isAuthenticated, // 로그인 상태일 때만 쿼리 실행
     staleTime: 5 * 60 * 1000, // 5분간 캐시 유지
   })
 }
