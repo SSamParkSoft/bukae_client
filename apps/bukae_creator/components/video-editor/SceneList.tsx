@@ -278,7 +278,7 @@ export function SceneList({
                     {transitionLabels[timeline?.scenes[index]?.transition || 'none'] || '없음'}
                   </span>
                   <select
-                    value={timeline?.scenes[index]?.imageFit || 'fill'}
+                    value={timeline?.scenes[index]?.imageFit || 'contain'}
                     onChange={(e) => onImageFitChange(index, e.target.value as 'cover' | 'contain' | 'fill')}
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
@@ -289,9 +289,9 @@ export function SceneList({
                       color: theme === 'dark' ? '#ffffff' : '#111827',
                     }}
                   >
-                    <option value="cover">Cover</option>
-                    <option value="contain">Contain</option>
-                    <option value="fill">Fill</option>
+                    <option value="cover">꽉 채우기</option>
+                    <option value="contain">비율 유지</option>
+                    <option value="fill">늘려 채우기</option>
                   </select>
                 </div>
               </div>

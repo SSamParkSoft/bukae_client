@@ -196,7 +196,7 @@ export default function Step4Page() {
           transition: existingScene?.transition || 'none',
           transitionDuration: existingScene?.transitionDuration || 0.5,
           image: scene.imageUrl || selectedImages[index] || '',
-          imageFit: existingScene?.imageFit || 'fill', // 기본값을 fill로 변경하여 9:16 캔버스를 항상 채움
+          imageFit: existingScene?.imageFit || 'contain', // 기본값을 contain으로 변경하여 이미지 비율을 유지하면서 영역에 맞춤
           text: {
             content: scene.script,
             font: existingScene?.text?.font ?? subtitleFont ?? SUBTITLE_DEFAULT_FONT_ID,
@@ -2587,7 +2587,7 @@ export default function Step4Page() {
             transition: transitionMap[transitionType] || transitionMap.none,
             image: {
               url: scene.image,
-              fit: scene.imageFit || 'fill',
+              fit: scene.imageFit || 'contain',
               transform: scene.imageTransform ? {
                 ...scene.imageTransform,
                 anchor: {
@@ -3576,7 +3576,7 @@ export default function Step4Page() {
                 <div className="font-semibold mb-2">선택된 애셋</div>
                 <div className="space-y-1 text-xs">
                   <div>씬: {currentSceneIndex + 1}</div>
-                  <div>이미지: {timeline.scenes[currentSceneIndex].imageFit || 'fill'}</div>
+                  <div>이미지: {timeline.scenes[currentSceneIndex].imageFit || 'contain'}</div>
                   <div>텍스트: {timeline.scenes[currentSceneIndex].text.content.substring(0, 30)}...</div>
                 </div>
               </div>
