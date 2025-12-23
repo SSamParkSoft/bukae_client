@@ -2688,9 +2688,10 @@ export default function Step4Page() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="flex h-screen overflow-hidden"
+      style={{ width: '100%', maxWidth: '100vw', boxSizing: 'border-box' }}
     >
       <StepIndicator />
-      <div className="flex-1 flex overflow-hidden h-full">
+      <div className="flex-1 flex overflow-hidden h-full" style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
         {/* 왼쪽 패널: 미리보기 + 타임라인 */}
         <div className="w-[30%] border-r flex flex-col h-full overflow-hidden" style={{
           borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
@@ -3096,7 +3097,10 @@ export default function Step4Page() {
         {/* 오른쪽 패널: 효과 설정 */}
         <div className="w-[30%] flex flex-col h-full overflow-hidden" style={{
           borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-          backgroundColor: theme === 'dark' ? '#111827' : '#ffffff'
+          backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
+          maxWidth: '30%',
+          minWidth: 0,
+          boxSizing: 'border-box',
         }}>
           <EffectsPanel
             theme={theme}

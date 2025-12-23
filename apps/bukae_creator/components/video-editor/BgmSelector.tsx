@@ -142,7 +142,7 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
               <PopoverTrigger asChild>
                 <div
                   onClick={() => handleCardClick(template.id)}
-                  className={`p-1 rounded-lg border cursor-pointer transition-all hover:scale-105 ${
+                  className={`p-1 m-2 rounded-lg border cursor-pointer transition-all hover:scale-105 ${
                     isSelected
                       ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500'
                       : isPlaying

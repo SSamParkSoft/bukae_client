@@ -32,7 +32,7 @@ export function SubtitleColorPalette({ value, onChange, theme }: SubtitleColorPa
 
   return (
     <div
-      className="mt-2 rounded-lg border p-3"
+      className="mt-2 rounded-lg border p-3 w-full"
       style={{
         backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
         borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
@@ -59,16 +59,16 @@ export function SubtitleColorPalette({ value, onChange, theme }: SubtitleColorPa
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <div
-            className="h-8 w-8 rounded border"
+            className="h-8 w-8 rounded border shrink-0"
             style={{
               backgroundColor: current,
               borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
             }}
             aria-label="현재 색상"
           />
-          <div className="text-xs" style={{ color: theme === 'dark' ? '#d1d5db' : '#374151' }}>
+          <div className="text-xs truncate" style={{ color: theme === 'dark' ? '#d1d5db' : '#374151' }}>
             {current.toUpperCase()}
           </div>
         </div>
@@ -77,7 +77,7 @@ export function SubtitleColorPalette({ value, onChange, theme }: SubtitleColorPa
           type="color"
           value={current}
           onChange={(e) => onChange(e.target.value)}
-          className="h-9 w-12 rounded border"
+          className="h-9 w-12 rounded border shrink-0"
           style={{
             backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
             borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',

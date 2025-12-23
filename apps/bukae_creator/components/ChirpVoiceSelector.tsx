@@ -279,7 +279,7 @@ export default function ChirpVoiceSelector({
     >
       <div className="flex items-center justify-between gap-2">
         <div
-          className="text-xl font-semibold"
+          className="text-sm sm:text-lg md:text-xl font-semibold"
           style={{ color: isDark ? '#ffffff' : '#111827' }}
         >
           {title}
