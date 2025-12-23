@@ -5,12 +5,16 @@ import { ReactNode, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { authStorage } from '@/lib/api/auth-storage'
 import { useUserStore } from '@/store/useUserStore'
+import { useVideoCreateStore } from '@/store/useVideoCreateStore'
+import { useAppStore } from '@/store/useAppStore'
 import { authApi } from '@/lib/api/auth'
 import { ApiError } from '@/lib/api/client'
 
 function AuthSync() {
   const router = useRouter()
   const resetUser = useUserStore((state) => state.reset)
+  const resetVideoCreate = useVideoCreateStore((state) => state.reset)
+  const setProductUrl = useAppStore((state) => state.setProductUrl)
   const checkAuth = useUserStore((state) => state.checkAuth)
   const setUser = useUserStore((state) => state.setUser)
   const user = useUserStore((state) => state.user)
@@ -21,6 +25,10 @@ function AuthSync() {
       authStorage.clearTokens()
       // 사용자 상태 초기화
       resetUser()
+      // 비디오 생성 관련 store 초기화
+      resetVideoCreate()
+      // 앱 store 초기화
+      setProductUrl('')
       // 로그인 페이지로 리다이렉트
       router.replace('/login')
     }
@@ -55,6 +63,8 @@ function AuthSync() {
           // 401이 아닌 다른 에러인 경우에만 로그 출력 및 상태 초기화
           console.error('사용자 정보 복원 실패:', error)
           resetUser()
+          resetVideoCreate()
+          setProductUrl('')
         }
       }
     }
@@ -64,7 +74,7 @@ function AuthSync() {
     return () => {
       window.removeEventListener('auth:expired', handleAuthExpired)
     }
-  }, [router, resetUser, checkAuth, setUser, user])
+  }, [router, resetUser, resetVideoCreate, setProductUrl, checkAuth, setUser, user])
 
   return null
 }

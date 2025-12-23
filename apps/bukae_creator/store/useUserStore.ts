@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { authStorage } from '@/lib/api/auth-storage'
+import { useVideoCreateStore } from './useVideoCreateStore'
+import { useAppStore } from './useAppStore'
 
 export interface User {
   id: string
@@ -135,9 +137,12 @@ export const useUserStore = create<UserState>()(
           if (hasTokens) {
             state.isAuthenticated = true
           } else {
-            // 토큰이 없으면 인증 상태 초기화
+            // 토큰이 없으면 인증 상태 및 다른 store 초기화
             state.isAuthenticated = false
             state.user = null
+            // 다른 store들도 초기화
+            useVideoCreateStore.getState().reset()
+            useAppStore.getState().setProductUrl('')
           }
         }
       },

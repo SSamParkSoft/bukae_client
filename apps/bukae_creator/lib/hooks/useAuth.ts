@@ -5,6 +5,8 @@ import { authApi } from '@/lib/api/auth'
 import type { SignUpRequest, LoginRequest } from '@/lib/types/api/auth'
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { useUserStore } from '@/store/useUserStore'
+import { useVideoCreateStore } from '@/store/useVideoCreateStore'
+import { useAppStore } from '@/store/useAppStore'
 
 const mapSupabaseUser = (user: {
   id: string
@@ -51,10 +53,14 @@ export const useLogin = () => {
 export const useLogout = () => {
   const queryClient = useQueryClient()
   const resetUser = useUserStore((state) => state.reset)
+  const resetVideoCreate = useVideoCreateStore((state) => state.reset)
+  const setProductUrl = useAppStore((state) => state.setProductUrl)
 
   return async () => {
     await authApi.logout()
     resetUser()
+    resetVideoCreate()
+    setProductUrl('')
     queryClient.clear()
   }
 }
