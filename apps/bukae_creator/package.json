@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "node scripts/generate-media-assets.ts && next build && node scripts/copy-db.js",
+    "build": "node scripts/generate-media-assets.ts && next build",
     "start": "next start -p 3000",
     "lint": "eslint",
     "seed-demo": "node ../../scripts/seed-demo.mjs"

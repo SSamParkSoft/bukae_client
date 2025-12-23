@@ -45,11 +45,13 @@ function AuthSync() {
         // 토큰이 있고 사용자 정보가 없으면 사용자 정보 가져오기
         try {
           const userInfo = await authApi.getCurrentUser()
+          const fallbackName = userInfo.name ?? userInfo.nickname ?? '사용자'
+          const fallbackProfileImage = userInfo.profileImage ?? userInfo.profileImageUrl
           setUser({
             id: userInfo.id,
-            name: userInfo.name,
+            name: fallbackName,
             email: userInfo.email,
-            profileImage: userInfo.profileImage,
+            profileImage: fallbackProfileImage,
             createdAt: userInfo.createdAt,
             accountStatus: 'active',
           })

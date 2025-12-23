@@ -87,6 +87,16 @@ const PopularProductsCard = ({ theme, className = '' }: PopularProductsCardProps
   )
 }
 
+// 간단한 고정 시드 난수 생성기 (SSR/CSR 일관성 확보)
+const createRng = (seed: number) => {
+  let state = seed >>> 0
+  return () => {
+    state = Math.imul(state ^ (state >>> 15), 1 | state)
+    state = (state + Math.imul(state ^ (state >>> 7), 61 | state)) ^ state
+    return ((state ^ (state >>> 14)) >>> 0) / 4294967296
+  }
+}
+
 // 더미 데이터 생성 함수
 const generateProducts = (platform: Platform, count: number): Product[] => {
   const productTemplates: Record<Platform, { names: string[]; descriptions: string[]; priceRange: [number, number] }> = {
@@ -168,11 +178,22 @@ const generateProducts = (platform: Platform, count: number): Product[] => {
     amazon: convertMediaPathToStorageUrl('/media/bluetooth-speaker.png'), // Bluetooth Speaker
   }
 
+  // 플랫폼별 고정 시드로 SSR/CSR에서 동일한 데이터 생성
+  const rng = createRng(
+    platform === 'coupang'
+      ? 1
+      : platform === 'naver'
+        ? 2
+        : platform === 'aliexpress'
+          ? 3
+          : 4
+  )
+
   for (let i = 1; i <= count; i++) {
     const nameIndex = (i - 1) % template.names.length
     const descIndex = (i - 1) % template.descriptions.length
     const price = Math.floor(
-      Math.random() * (template.priceRange[1] - template.priceRange[0]) + template.priceRange[0]
+      rng() * (template.priceRange[1] - template.priceRange[0]) + template.priceRange[0]
     )
     
     // 첫 번째 제품이면 이미지 설정, 아니면 placeholder
