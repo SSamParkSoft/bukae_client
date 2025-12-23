@@ -406,6 +406,19 @@ export default function ProfilePage() {
           {/* 활동 내역 탭 */}
           <TabsContent value="activity">
             <div className="space-y-6">
+              <Card className={`border ${
+                theme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-purple-200 bg-purple-50'
+              }`}>
+                <CardHeader>
+                  <CardTitle className={theme === 'dark' ? 'text-white' : 'text-purple-900'}>
+                    제작된 영상 보관 안내
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className={theme === 'dark' ? 'text-gray-100' : 'text-purple-900'}>
+                  제작된 영상과 업로드된 음성/자막 파일은 30일간 보관된 뒤 자동 삭제됩니다.
+                  보관 기간 내 필요한 파일은 다운로드해 주세요.
+                </CardContent>
+              </Card>
               {/* 최근 제작한 영상 */}
               <Card className="border border-gray-200">
                 <CardHeader>

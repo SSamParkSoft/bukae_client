@@ -99,6 +99,7 @@ function Step5PageContent() {
   // 영상 제목 선택 관련 상태
   const [isGenerating, setIsGenerating] = useState(false)
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false)
+  const [isCompleting, setIsCompleting] = useState(false)
   const product = selectedProducts[0]
   const descriptionInitialized = useRef(false)
   const hashtagsInitialized = useRef(false)
@@ -131,8 +132,29 @@ function Step5PageContent() {
     }
   }, [resultVideoUrl, currentJobId])
 
+  type RichProgressDetail = {
+    step?: string | number
+    percent?: number
+    msg?: string
+    message?: string
+    progress?: number
+    error?: string
+    errorMessage?: string
+    currentScene?: number
+    sceneIndex?: number
+    currentSceneIndex?: number
+    scene?: number
+  }
+
+  type ProgressDetail = RichProgressDetail | string
+
+  type ExtendedStudioJobUpdate = StudioJobUpdate & {
+    progressDetail?: ProgressDetail
+    message?: string | Record<string, unknown>
+  }
+
   // 상태 업데이트 처리 함수
-  const handleStatusUpdate = useCallback((statusData: any) => {
+  const handleStatusUpdate = useCallback((statusData: ExtendedStudioJobUpdate) => {
     console.log('[handleStatusUpdate] 상태 업데이트 받음:', statusData)
     
     const newStatus = statusData.status
@@ -154,7 +176,7 @@ function Step5PageContent() {
         : typeof statusData.progressDetail === 'string'
           ? statusData.progressDetail
           : ''
-    if ((newStatus === 'FAILED' || detailError) && newStatus !== 'COMPLETED') {
+    if (detailError && newStatus !== 'COMPLETED') {
       const errorText = detailError || statusData.errorMessage || '알 수 없는 오류가 발생했습니다.'
       console.log('[handleStatusUpdate] 실패 처리:', errorText)
       alert(`영상 생성이 실패했어요.\n\n${errorText}`)
@@ -176,22 +198,36 @@ function Step5PageContent() {
     let progressText = ''
     let sceneIndex: number | null = null
     
+    const isRichProgressDetail = (detail: ProgressDetail): detail is RichProgressDetail =>
+      typeof detail === 'object' && detail !== null
+
+    const toText = (...values: Array<string | number | undefined | null>) => {
+      const first = values.find((v) => v !== undefined && v !== null)
+      return typeof first === 'number' ? first.toString() : first
+    }
+
     if (statusData.progressDetail) {
       if (typeof statusData.progressDetail === 'string') {
         progressText = statusData.progressDetail
-      } else if (typeof statusData.progressDetail === 'object') {
-        progressText = statusData.progressDetail.msg || 
-                      statusData.progressDetail.message || 
-                      statusData.progressDetail.step ||
-                      statusData.progressDetail.progress ||
-                      JSON.stringify(statusData.progressDetail)
-        sceneIndex = statusData.progressDetail.currentScene ?? 
-                    statusData.progressDetail.sceneIndex ?? 
-                    statusData.progressDetail.currentSceneIndex ??
-                    statusData.progressDetail.scene ??
-                    null
-        if (typeof sceneIndex === 'number') {
-          setEncodingSceneIndex(sceneIndex)
+      } else if (isRichProgressDetail(statusData.progressDetail)) {
+        const detail = statusData.progressDetail
+        const detailText = toText(
+          detail.msg,
+          detail.message,
+          detail.step,
+          detail.progress,
+          detail.percent
+        )
+        progressText = detailText || JSON.stringify(detail)
+        const parsedScene =
+          detail.currentScene ??
+          detail.sceneIndex ??
+          detail.currentSceneIndex ??
+          detail.scene ??
+          null
+        if (typeof parsedScene === 'number') {
+          sceneIndex = parsedScene
+          setEncodingSceneIndex(parsedScene)
         }
       }
     } else if (statusData.message) {
@@ -244,7 +280,7 @@ function Step5PageContent() {
       }
       console.log('[handleStatusUpdate] 완료 처리 완료, jobStatus:', newStatus)
     } else if (newStatus === 'FAILED') {
-      let errorMessages = [
+      const errorMessages = [
         statusData.errorMessage,
         statusData.error?.message,
         statusData.error,
@@ -295,7 +331,7 @@ function Step5PageContent() {
       setJobProgress('')
       setEncodingSceneIndex(null)
     }
-  }, [timeline])
+  }, [timeline, currentJobId])
 
   // HTTP 폴링 함수
   const startHttpPolling = useCallback((jobId: string, startTime: number) => {
@@ -847,7 +883,20 @@ function Step5PageContent() {
     setIsCompleteDialogOpen(true)
   }
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
+    if (isCompleting) return
+    setIsCompleting(true)
+
+    // TTS 정리 시도 (실패해도 나머지 플로우는 진행)
+    try {
+      const res = await fetch('/api/media/tts/cleanup', { method: 'POST' })
+      if (!res.ok) {
+        console.warn('[handleComplete] TTS cleanup failed', res.status)
+      }
+    } catch (error) {
+      console.error('[handleComplete] TTS cleanup error', error)
+    }
+
     // localStorage에서 jobId 제거
     if (typeof window !== 'undefined') {
       localStorage.removeItem('currentVideoJobId')
@@ -874,6 +923,7 @@ function Step5PageContent() {
     
     reset()
     setIsCompleteDialogOpen(false)
+    setIsCompleting(false)
     router.push('/')
   }
 
@@ -1280,6 +1330,13 @@ function Step5PageContent() {
               업로드 기능은 추가 예정이에요.
             </DialogDescription>
           </DialogHeader>
+          <div className={`rounded-lg border px-4 py-3 text-sm ${
+            theme === 'dark'
+              ? 'bg-gray-900 border-gray-700 text-gray-100'
+              : 'bg-purple-50 border-purple-200 text-purple-900'
+          }`}>
+            제작된 영상은 30일간 보관 후 자동 삭제됩니다. <br />기한 내 필요한 파일은 다운로드해 주세요!
+          </div>
           <DialogFooter>
             <Button
               variant="outline"
@@ -1288,9 +1345,18 @@ function Step5PageContent() {
             >
               취소
             </Button>
-            <Button onClick={handleComplete} className="gap-2">
-              완료하기
-              <CheckCircle2 className="w-4 h-4" />
+            <Button onClick={handleComplete} className="gap-2" disabled={isCompleting}>
+              {isCompleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  정리 중...
+                </>
+              ) : (
+                <>
+                  완료하기
+                  <CheckCircle2 className="w-4 h-4" />
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
