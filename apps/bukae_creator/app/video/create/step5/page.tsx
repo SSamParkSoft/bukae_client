@@ -972,13 +972,25 @@ function Step5PageContent() {
                             </div>
                             
                             {/* 영상 플레이어 */}
-                            <div className="mb-4">
-                              <video
-                                src={resultVideoUrl}
-                                controls
-                                className="w-full rounded-lg"
-                                style={{ maxHeight: '400px' }}
-                              />
+                            <div className="mb-4 flex justify-center">
+                              <div 
+                                className="video-player-container rounded-lg overflow-hidden"
+                                style={{
+                                  width: '100%',
+                                  maxWidth: '400px',
+                                  aspectRatio: '9/16', // 쇼츠 영상 비율 (가로:세로 = 9:16)
+                                  backgroundColor: theme === 'dark' ? '#000000' : '#000000'
+                                }}
+                              >
+                                <video
+                                  src={resultVideoUrl}
+                                  controls
+                                  className="video-player-shorts w-full h-full"
+                                  style={{
+                                    display: 'block'
+                                  }}
+                                />
+                              </div>
                             </div>
                             
                             {/* 다운로드 버튼 */}
