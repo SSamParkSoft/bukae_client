@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { ArrowRight, ChevronDown, Camera, Bot, MessageSquare, X, Clock, Sparkles } from 'lucide-react'
@@ -29,6 +29,15 @@ export default function Step2Page() {
   const [selectedTone, setSelectedTone] = useState<string | null>(tone)
   const [isStyleConfirmed] = useState(false)
   const [openToneExampleId, setOpenToneExampleId] = useState<string | null>(null)
+
+  // store의 값이 복원되면 로컬 state 동기화
+  useEffect(() => {
+    setSelectedScriptStyle(scriptStyle)
+    setSelectedTone(tone)
+    if (scriptStyle) {
+      setExpandedConceptId(scriptStyle)
+    }
+  }, [scriptStyle, tone])
 
   // 제작 방식 선택
   const handleModeSelect = (mode: CreationMode) => {

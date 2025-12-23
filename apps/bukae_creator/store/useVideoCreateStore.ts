@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import type { ConceptType } from '@/lib/data/templates'
 import type { AutoScene } from '@/lib/types/video'
 
@@ -240,89 +241,114 @@ const initialState = {
   videoHashtags: [],
 }
 
-export const useVideoCreateStore = create<VideoCreateState>((set) => ({
-  ...initialState,
-  setCurrentStep: (step) => set({ currentStep: step }),
-  addProduct: (product) =>
-    set((state) => {
-      const isSameProductSelected = state.selectedProducts.some((p) => p.id === product.id)
-      if (isSameProductSelected) {
-        // 이미 선택된 상품이면 변경 없음
-        return state
-      }
+export const useVideoCreateStore = create<VideoCreateState>()(
+  persist(
+    (set) => ({
+      ...initialState,
+      setCurrentStep: (step) => set({ currentStep: step }),
+      addProduct: (product) =>
+        set((state) => {
+          const isSameProductSelected = state.selectedProducts.some((p) => p.id === product.id)
+          if (isSameProductSelected) {
+            // 이미 선택된 상품이면 변경 없음
+            return state
+          }
 
-      const existingVideos = state.productVideos[product.id]
-      const existingImages = state.productImages[product.id]
-      const existingDetailImages = state.productDetailImages[product.id]
+          const existingVideos = state.productVideos[product.id]
+          const existingImages = state.productImages[product.id]
+          const existingDetailImages = state.productDetailImages[product.id]
 
-      return {
-        selectedProducts: [...state.selectedProducts, product],
-        productNames: { ...state.productNames, [product.id]: product.name },
-        productVideos: existingVideos ? { ...state.productVideos, [product.id]: existingVideos } : state.productVideos,
-        productImages: existingImages ? { ...state.productImages, [product.id]: existingImages } : state.productImages,
-        productDetailImages: existingDetailImages ? { ...state.productDetailImages, [product.id]: existingDetailImages } : state.productDetailImages,
-      }
+          return {
+            selectedProducts: [...state.selectedProducts, product],
+            productNames: { ...state.productNames, [product.id]: product.name },
+            productVideos: existingVideos ? { ...state.productVideos, [product.id]: existingVideos } : state.productVideos,
+            productImages: existingImages ? { ...state.productImages, [product.id]: existingImages } : state.productImages,
+            productDetailImages: existingDetailImages ? { ...state.productDetailImages, [product.id]: existingDetailImages } : state.productDetailImages,
+          }
+        }),
+      removeProduct: (productId) =>
+        set((state) => {
+          const { [productId]: _, ...productNames } = state.productNames
+          const { [productId]: __, ...productVideos } = state.productVideos
+          const { [productId]: ___, ...productImages } = state.productImages
+          const { [productId]: ____, ...productDetailImages } = state.productDetailImages
+          return {
+            selectedProducts: state.selectedProducts.filter((p) => p.id !== productId),
+            productNames,
+            productVideos,
+            productImages,
+            productDetailImages,
+          }
+        }),
+      clearProducts: () => set({ selectedProducts: [], productNames: {}, productVideos: {}, productImages: {}, productDetailImages: {} }),
+      setVideoEditData: (data) => set({ videoEditData: data }),
+      setIsCreating: (isCreating) => set({ isCreating }),
+      setCreationProgress: (progress) => set({ creationProgress: progress }),
+      setScriptMethod: (method) => set({ scriptMethod: method }),
+      setConcept: (concept) => set({ concept }),
+      setTone: (tone) => set({ tone }),
+      setScript: (script) => set({ script }),
+      setProductName: (productId, name) =>
+        set((state) => ({
+          productNames: { ...state.productNames, [productId]: name },
+        })),
+      setProductVideos: (productId, videos) =>
+        set((state) => ({
+          productVideos: { ...state.productVideos, [productId]: videos },
+        })),
+      setProductImages: (productId, images) =>
+        set((state) => ({
+          productImages: { ...state.productImages, [productId]: images },
+        })),
+      setProductDetailImages: (productId, images) =>
+        set((state) => ({
+          productDetailImages: { ...state.productDetailImages, [productId]: images },
+        })),
+      setThumbnailTemplate: (templateId) => set({ thumbnailTemplate: templateId }),
+      setThumbnailTitle: (title) => set({ thumbnailTitle: title }),
+      setThumbnailSubtitle: (subtitle) => set({ thumbnailSubtitle: subtitle }),
+      setVoiceTemplate: (templateId) => set({ voiceTemplate: templateId }),
+      setSubtitlePosition: (position) => set({ subtitlePosition: position }),
+      setSubtitleFont: (fontId) => set({ subtitleFont: fontId }),
+      setSubtitleColor: (colorId) => set({ subtitleColor: colorId }),
+      setBgmTemplate: (templateId) => set({ bgmTemplate: templateId }),
+      setTransitionTemplate: (templateId) => set({ transitionTemplate: templateId }),
+      setShowPriceInfo: (show) => set({ showPriceInfo: show }),
+      setIntroTemplate: (templateId) => set({ introTemplate: templateId }),
+      setStep2Result: (result) => set({ step2Result: result }),
+      // 새로운 프로세스 setter
+      setCreationMode: (mode) => set({ creationMode: mode }),
+      setScriptStyle: (style) => set({ scriptStyle: style }),
+      setSelectedImages: (images) => set({ selectedImages: images }),
+      setScenes: (scenes) => set({ scenes }),
+      setTimeline: (timeline) => set({ timeline }),
+      setVideoTitle: (title) => set({ videoTitle: title }),
+      setVideoTitleCandidates: (candidates) => set({ videoTitleCandidates: candidates }),
+      setVideoDescription: (description) => set({ videoDescription: description }),
+      setVideoHashtags: (hashtags) => set({ videoHashtags: hashtags }),
+      reset: () => set(initialState),
     }),
-  removeProduct: (productId) =>
-    set((state) => {
-      const { [productId]: _, ...productNames } = state.productNames
-      const { [productId]: __, ...productVideos } = state.productVideos
-      const { [productId]: ___, ...productImages } = state.productImages
-      const { [productId]: ____, ...productDetailImages } = state.productDetailImages
-      return {
-        selectedProducts: state.selectedProducts.filter((p) => p.id !== productId),
-        productNames,
-        productVideos,
-        productImages,
-        productDetailImages,
-      }
-    }),
-  clearProducts: () => set({ selectedProducts: [], productNames: {}, productVideos: {}, productImages: {}, productDetailImages: {} }),
-  setVideoEditData: (data) => set({ videoEditData: data }),
-  setIsCreating: (isCreating) => set({ isCreating }),
-  setCreationProgress: (progress) => set({ creationProgress: progress }),
-  setScriptMethod: (method) => set({ scriptMethod: method }),
-  setConcept: (concept) => set({ concept }),
-  setTone: (tone) => set({ tone }),
-  setScript: (script) => set({ script }),
-  setProductName: (productId, name) =>
-    set((state) => ({
-      productNames: { ...state.productNames, [productId]: name },
-    })),
-  setProductVideos: (productId, videos) =>
-    set((state) => ({
-      productVideos: { ...state.productVideos, [productId]: videos },
-    })),
-  setProductImages: (productId, images) =>
-    set((state) => ({
-      productImages: { ...state.productImages, [productId]: images },
-    })),
-  setProductDetailImages: (productId, images) =>
-    set((state) => ({
-      productDetailImages: { ...state.productDetailImages, [productId]: images },
-    })),
-  setThumbnailTemplate: (templateId) => set({ thumbnailTemplate: templateId }),
-  setThumbnailTitle: (title) => set({ thumbnailTitle: title }),
-  setThumbnailSubtitle: (subtitle) => set({ thumbnailSubtitle: subtitle }),
-  setVoiceTemplate: (templateId) => set({ voiceTemplate: templateId }),
-  setSubtitlePosition: (position) => set({ subtitlePosition: position }),
-  setSubtitleFont: (fontId) => set({ subtitleFont: fontId }),
-  setSubtitleColor: (colorId) => set({ subtitleColor: colorId }),
-  setBgmTemplate: (templateId) => set({ bgmTemplate: templateId }),
-  setTransitionTemplate: (templateId) => set({ transitionTemplate: templateId }),
-  setShowPriceInfo: (show) => set({ showPriceInfo: show }),
-  setIntroTemplate: (templateId) => set({ introTemplate: templateId }),
-  setStep2Result: (result) => set({ step2Result: result }),
-  // 새로운 프로세스 setter
-  setCreationMode: (mode) => set({ creationMode: mode }),
-  setScriptStyle: (style) => set({ scriptStyle: style }),
-  setSelectedImages: (images) => set({ selectedImages: images }),
-  setScenes: (scenes) => set({ scenes }),
-  setTimeline: (timeline) => set({ timeline }),
-  setVideoTitle: (title) => set({ videoTitle: title }),
-  setVideoTitleCandidates: (candidates) => set({ videoTitleCandidates: candidates }),
-  setVideoDescription: (description) => set({ videoDescription: description }),
-  setVideoHashtags: (hashtags) => set({ videoHashtags: hashtags }),
-  reset: () => set(initialState),
-}))
+    {
+      name: 'bookae-video-create-storage',
+      storage: createJSONStorage(() => localStorage),
+      // File 객체는 직렬화 불가능하므로 제외
+      partialize: (state) => {
+        // step2Result의 uploadedVideo는 File 타입이므로 제외
+        const step2ResultWithoutFile = state.step2Result
+          ? {
+              ...state.step2Result,
+              uploadedVideo: undefined,
+            }
+          : null
+
+        return {
+          ...state,
+          // productVideos는 File[] 타입이므로 제외
+          productVideos: {},
+          step2Result: step2ResultWithoutFile,
+        }
+      },
+    }
+  )
+)
 

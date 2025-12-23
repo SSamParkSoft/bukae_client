@@ -37,6 +37,7 @@ export default function Step4Page() {
     timeline,
     setTimeline,
     setScenes,
+    setSelectedImages,
     subtitlePosition,
     subtitleFont,
     subtitleColor,
@@ -1820,6 +1821,12 @@ export default function Step4Page() {
     const reorderedScenes = newOrder.map((oldIndex) => scenes[oldIndex])
     setScenes(reorderedScenes)
 
+    // selectedImages도 같은 순서로 재정렬
+    const reorderedImages = newOrder.map((oldIndex) => selectedImages[oldIndex]).filter(Boolean)
+    if (reorderedImages.length > 0) {
+      setSelectedImages(reorderedImages)
+    }
+
     // timeline의 scenes도 재정렬
     const reorderedTimelineScenes = newOrder.map((oldIndex) => timeline.scenes[oldIndex])
     setTimeline({
@@ -1833,7 +1840,7 @@ export default function Step4Page() {
       setCurrentSceneIndex(currentOldIndex)
       currentSceneIndexRef.current = currentOldIndex
     }
-  }, [scenes, timeline, currentSceneIndex, setScenes, setTimeline, setCurrentSceneIndex])
+  }, [scenes, selectedImages, timeline, currentSceneIndex, setScenes, setSelectedImages, setTimeline, setCurrentSceneIndex])
 
   // PixiJS 컨테이너에 빈 공간 클릭 감지 추가
   useEffect(() => {
