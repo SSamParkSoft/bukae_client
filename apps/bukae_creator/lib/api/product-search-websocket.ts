@@ -219,9 +219,9 @@ export class ProductSearchWebSocket {
           heartbeatOutgoing: 4000,
           connectionTimeout: 0,
           connectHeaders: connectHeaders,
-          debug: (str: string) => {
-            // STOMP 클라이언트의 내부 디버그 메시지
-            console.log('[ProductSearchWebSocket] STOMP Debug:', str)
+          debug: () => {
+            // STOMP 클라이언트의 내부 디버그 메시지 비활성화
+            // heartbeat 메시지(PING/PONG)는 정상 동작이므로 로그에서 제외
           },
           beforeConnect: () => {
             this.reconnectAttempts++

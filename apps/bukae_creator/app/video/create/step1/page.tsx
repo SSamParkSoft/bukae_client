@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, Loader2, AlertCircle, Send, Globe, Sparkles, Search, ShoppingCart } from 'lucide-react'
+import { ArrowRight, Loader2, AlertCircle, Send, Globe, Sparkles, Search, ShoppingCart, ExternalLink } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useVideoCreateStore, Product } from '../../../../store/useVideoCreateStore'
 import { useThemeStore } from '../../../../store/useThemeStore'
@@ -140,9 +140,18 @@ export default function Step1Page() {
         response.correlationId,
         (products: ProductResponse[]) => {
           // 상품 목록 수신
-          const convertedProducts = products.map((p) =>
-            convertProductResponseToProduct(p, selectedPlatform)
-          )
+          console.log('[ProductSearch] API 응답 받은 상품 데이터:', products)
+          const convertedProducts = products.map((p) => {
+            const converted = convertProductResponseToProduct(p, selectedPlatform)
+            console.log('[ProductSearch] 변환된 상품:', {
+              id: converted.id,
+              name: converted.name,
+              price: converted.price,
+              url: converted.url,
+              image: converted.image,
+            })
+            return converted
+          })
           setCurrentProducts(convertedProducts)
 
           // AI 응답 메시지 추가
@@ -358,114 +367,126 @@ export default function Step1Page() {
               )}
             </div>
 
-            {/* 챗봇 응답 영역 */}
-            <div
-              className={`mb-6 rounded-lg shadow-sm border p-6 ${
-                themeMode === 'dark'
-                  ? 'bg-gray-800 border-gray-700'
-                  : 'bg-white border-gray-200'
-              }`}
-            >
-              <h2
-                className={`text-lg font-semibold mb-4 ${
-                  themeMode === 'dark' ? 'text-white' : 'text-gray-900'
+            {/* 검색 결과 영역 */}
+            {isSearching && (
+              <div
+                className={`mb-6 rounded-lg shadow-sm border p-6 ${
+                  themeMode === 'dark'
+                    ? 'bg-gray-800 border-gray-700'
+                    : 'bg-white border-gray-200'
                 }`}
               >
-                대화
-              </h2>
-              <div className="space-y-4 max-h-[400px] overflow-y-auto">
-                {chatMessages.length === 0 ? (
-                  <div
-                    className={`text-center py-8 ${
-                      themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                    }`}
-                  >
-                    <p>위에서 상품을 검색해보세요.</p>
-                  </div>
-                ) : (
-                  chatMessages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${
-                        message.type === 'user' ? 'justify-end' : 'justify-start'
-                      }`}
-                    >
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
+                  <span className={`text-lg ${
+                    themeMode === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    상품을 검색하고 있습니다...
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* 검색 결과 표시 */}
+            {currentProducts.length > 0 && (
+              <div
+                className={`mb-6 rounded-lg shadow-sm border p-6 ${
+                  themeMode === 'dark'
+                    ? 'bg-gray-800 border-gray-700'
+                    : 'bg-white border-gray-200'
+                }`}
+              >
+                <h2
+                  className={`text-xl font-bold mb-6 ${
+                    themeMode === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
+                  {currentProducts.length}개를 찾았습니다!
+                </h2>
+                <div className="space-y-4">
+                  {currentProducts.map((product) => {
+                    const isSelected = isProductSelected(product.id)
+                    return (
                       <div
-                        className={`max-w-[80%] rounded-lg p-4 ${
-                          message.type === 'user'
-                            ? 'bg-purple-500 text-white'
-                            : message.type === 'error'
-                              ? 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                              : themeMode === 'dark'
-                                ? 'bg-gray-700 text-white'
-                                : 'bg-gray-100 text-gray-900'
+                        key={product.id}
+                        onClick={() => handleProductToggle(product)}
+                        className={`flex gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          isSelected
+                            ? themeMode === 'dark'
+                              ? 'border-purple-500 bg-purple-900/20'
+                              : 'border-purple-500 bg-purple-50'
+                            : themeMode === 'dark'
+                              ? 'border-gray-600 bg-gray-800'
+                              : 'border-gray-200 bg-white'
                         }`}
                       >
-                        <p className="text-sm">{message.content}</p>
-                        {message.products && message.products.length > 0 && (
-                          <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-3">
-                            {message.products.map((product) => {
-                              const isSelected = isProductSelected(product.id)
-                              return (
-                                <div
-                                  key={product.id}
-                                  onClick={() => handleProductToggle(product)}
-                                  className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                                    isSelected
-                                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                                      : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800'
-                                  }`}
-                                >
-                                  <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
-                                    {product.image ? (
-                                      <img
-                                        src={product.image}
-                                        alt={product.name}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : (
-                                      <ShoppingCart className="w-6 h-6 text-gray-400" />
-                                    )}
-                                  </div>
-                                  <h4 className="font-semibold text-xs mb-1 line-clamp-2">
-                                    {product.name}
-                                  </h4>
-                                  <p className="text-xs font-bold">
-                                    {product.price ? product.price.toLocaleString() : '0'}원
-                                  </p>
-                                  {isSelected && (
-                                    <div className="mt-1 text-xs text-purple-600 dark:text-purple-400 font-medium">
-                                      선택됨
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })}
+                        <div className={`w-24 h-24 flex-shrink-0 rounded-lg flex items-center justify-center overflow-hidden ${
+                          themeMode === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
+                        }`}>
+                          {product.image ? (
+                            <img
+                              src={product.image}
+                              alt={product.name || '제품 이미지'}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <ShoppingCart className="w-8 h-8 text-gray-400" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className={`font-semibold text-base mb-2 line-clamp-2 ${
+                            themeMode === 'dark' ? 'text-white' : 'text-gray-900'
+                          }`}>
+                            {product.name || '제품명 없음'}
+                          </h4>
+                          <p className={`text-lg font-bold mb-2 ${
+                            themeMode === 'dark' ? 'text-white' : 'text-gray-900'
+                          }`}>
+                            {product.price ? product.price.toLocaleString() : '0'}원
+                          </p>
+                          {product.url && (
+                            <a
+                              href={product.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className={`inline-flex items-center gap-1 text-sm hover:underline ${
+                                themeMode === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                              }`}
+                            >
+                              상품 보기 <ExternalLink className="w-4 h-4" />
+                            </a>
+                          )}
+                        </div>
+                        {isSelected && (
+                          <div className="flex-shrink-0 flex items-center">
+                            <div className="px-3 py-1 rounded-full bg-purple-500 text-white text-sm font-medium">
+                              선택됨
+                            </div>
                           </div>
                         )}
                       </div>
-                    </div>
-                  ))
-                )}
-                {isSearching && (
-                  <div className="flex justify-start">
-                    <div
-                      className={`max-w-[80%] rounded-lg p-4 ${
-                        themeMode === 'dark'
-                          ? 'bg-gray-700 text-white'
-                          : 'bg-gray-100 text-gray-900'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">상품을 검색하고 있습니다...</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
+                    )
+                  })}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* 에러 메시지 표시 */}
+            {searchError && !isSearching && (
+              <div
+                className={`mb-6 rounded-lg shadow-sm border p-6 ${
+                  themeMode === 'dark'
+                    ? 'bg-red-900/20 border-red-700'
+                    : 'bg-red-50 border-red-200'
+                }`}
+              >
+                <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="text-base">{searchError}</span>
+                </div>
+              </div>
+            )}
 
             {/* 다음 단계 버튼 */}
             {selectedProducts.length > 0 && (
