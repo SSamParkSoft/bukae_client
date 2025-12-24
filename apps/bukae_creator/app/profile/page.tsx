@@ -75,22 +75,20 @@ export default function ProfilePage() {
   
   // Tracking ID 편집 상태
   const [editingTrackingId, setEditingTrackingId] = useState<TargetMall | null>(null)
-  const [trackingIdForm, setTrackingIdForm] = useState<Record<TargetMall, string>>(() => ({
-    ALI_EXPRESS: platformTrackingIds.ALI_EXPRESS || '',
-    COUPANG: platformTrackingIds.COUPANG || '',
-    AMAZON: platformTrackingIds.AMAZON || '',
-  }))
+  const [trackingIdForm, setTrackingIdForm] = useState<Record<TargetMall, string>>({
+    ALI_EXPRESS: '',
+    COUPANG: '',
+    AMAZON: '',
+  })
 
-  // Tracking ID 폼 동기화 (편집 중이 아닐 때만)
-  useEffect(() => {
-    if (editingTrackingId === null) {
-      setTrackingIdForm({
-        ALI_EXPRESS: platformTrackingIds.ALI_EXPRESS || '',
-        COUPANG: platformTrackingIds.COUPANG || '',
-        AMAZON: platformTrackingIds.AMAZON || '',
-      })
-    }
-  }, [platformTrackingIds, editingTrackingId])
+  // 편집 시작 시 현재 값으로 폼 초기화
+  const handleStartEdit = (platform: TargetMall) => {
+    setTrackingIdForm((prev) => ({
+      ...prev,
+      [platform]: platformTrackingIds[platform] || '',
+    }))
+    setEditingTrackingId(platform)
+  }
 
   const handleSaveProfile = () => {
     if (user) {
@@ -108,11 +106,7 @@ export default function ProfilePage() {
     setEditingTrackingId(null)
   }
 
-  const handleCancelTrackingId = (platform: TargetMall) => {
-    setTrackingIdForm((prev) => ({
-      ...prev,
-      [platform]: platformTrackingIds[platform] || '',
-    }))
+  const handleCancelTrackingId = () => {
     setEditingTrackingId(null)
   }
 
@@ -399,7 +393,7 @@ export default function ProfilePage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleCancelTrackingId(platform)}
+                                onClick={handleCancelTrackingId}
                                 className="flex-1"
                               >
                                 <X className="w-4 h-4 mr-1" />
@@ -427,7 +421,7 @@ export default function ProfilePage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setEditingTrackingId(platform)}
+                              onClick={() => handleStartEdit(platform)}
                             >
                               <Edit2 className="w-4 h-4 mr-1" />
                               {currentValue ? '수정' : '등록'}
