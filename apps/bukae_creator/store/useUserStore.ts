@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { authStorage } from '@/lib/api/auth-storage'
 import { useVideoCreateStore } from './useVideoCreateStore'
 import { useAppStore } from './useAppStore'
+import type { TargetMall } from '@/lib/types/products'
 
 export interface User {
   id: string
@@ -33,11 +34,14 @@ interface UserState {
   user: User | null
   connectedServices: ConnectedService[]
   notificationSettings: NotificationSettings
+  platformTrackingIds: Record<TargetMall, string | null>
   isAuthenticated: boolean
   setUser: (user: User | null) => void
   updateUser: (updates: Partial<User>) => void
   setConnectedService: (service: ConnectedService) => void
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void
+  setPlatformTrackingId: (platform: TargetMall, trackingId: string | null) => void
+  getPlatformTrackingId: (platform: TargetMall) => string | null
   checkAuth: () => boolean
   reset: () => void
 }
@@ -69,12 +73,19 @@ const defaultNotificationSettings: NotificationSettings = {
   pushNotifications: false,
 }
 
+const defaultPlatformTrackingIds: Record<TargetMall, string | null> = {
+  ALI_EXPRESS: null,
+  COUPANG: null,
+  AMAZON: null,
+}
+
 export const useUserStore = create<UserState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       connectedServices: defaultConnectedServices,
       notificationSettings: defaultNotificationSettings,
+      platformTrackingIds: defaultPlatformTrackingIds,
       isAuthenticated: false,
       setUser: (user) => {
         if (typeof window === 'undefined') {
@@ -110,6 +121,16 @@ export const useUserStore = create<UserState>()(
             ...settings,
           },
         })),
+      setPlatformTrackingId: (platform, trackingId) =>
+        set((state) => ({
+          platformTrackingIds: {
+            ...state.platformTrackingIds,
+            [platform]: trackingId,
+          },
+        })),
+      getPlatformTrackingId: (platform) => {
+        return get().platformTrackingIds[platform] || null
+      },
       checkAuth: () => {
         if (typeof window === 'undefined') return false
         const hasTokens = authStorage.hasTokens()
@@ -122,6 +143,7 @@ export const useUserStore = create<UserState>()(
           user: null,
           connectedServices: defaultConnectedServices,
           notificationSettings: defaultNotificationSettings,
+          platformTrackingIds: defaultPlatformTrackingIds,
           isAuthenticated: false,
         })
       },

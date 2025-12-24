@@ -15,6 +15,7 @@ import { useThemeStore } from '@/store/useThemeStore'
 import { authApi } from '@/lib/api/auth'
 import PageHeader from '@/components/PageHeader'
 import ComingSoonBanner from '@/components/ComingSoonBanner'
+import type { TargetMall } from '@/lib/types/products'
 import {
   User,
   Mail,
@@ -26,6 +27,8 @@ import {
   Download,
   Trash2,
   CheckCircle2,
+  Save,
+  X,
 } from 'lucide-react'
 
 const formatDate = (dateString: string) => {
@@ -43,8 +46,10 @@ export default function ProfilePage() {
     user,
     connectedServices,
     notificationSettings,
+    platformTrackingIds,
     updateUser,
     updateNotificationSettings,
+    setPlatformTrackingId,
     isAuthenticated,
     setUser,
   } = useUserStore()
@@ -67,6 +72,25 @@ export default function ProfilePage() {
     name: user?.name || '',
     email: user?.email || '',
   })
+  
+  // Tracking ID 편집 상태
+  const [editingTrackingId, setEditingTrackingId] = useState<TargetMall | null>(null)
+  const [trackingIdForm, setTrackingIdForm] = useState<Record<TargetMall, string>>(() => ({
+    ALI_EXPRESS: platformTrackingIds.ALI_EXPRESS || '',
+    COUPANG: platformTrackingIds.COUPANG || '',
+    AMAZON: platformTrackingIds.AMAZON || '',
+  }))
+
+  // Tracking ID 폼 동기화 (편집 중이 아닐 때만)
+  useEffect(() => {
+    if (editingTrackingId === null) {
+      setTrackingIdForm({
+        ALI_EXPRESS: platformTrackingIds.ALI_EXPRESS || '',
+        COUPANG: platformTrackingIds.COUPANG || '',
+        AMAZON: platformTrackingIds.AMAZON || '',
+      })
+    }
+  }, [platformTrackingIds, editingTrackingId])
 
   const handleSaveProfile = () => {
     if (user) {
@@ -76,6 +100,26 @@ export default function ProfilePage() {
       })
       setIsEditDialogOpen(false)
     }
+  }
+
+  const handleSaveTrackingId = (platform: TargetMall) => {
+    const trackingId = trackingIdForm[platform].trim() || null
+    setPlatformTrackingId(platform, trackingId)
+    setEditingTrackingId(null)
+  }
+
+  const handleCancelTrackingId = (platform: TargetMall) => {
+    setTrackingIdForm((prev) => ({
+      ...prev,
+      [platform]: platformTrackingIds[platform] || '',
+    }))
+    setEditingTrackingId(null)
+  }
+
+  const platformNames: Record<TargetMall, string> = {
+    ALI_EXPRESS: '알리익스프레스',
+    COUPANG: '쿠팡',
+    AMAZON: '아마존',
   }
 
   useEffect(() => {
@@ -288,7 +332,120 @@ export default function ProfilePage() {
 
           {/* 연동 서비스 탭 */}
           <TabsContent value="services">
-            <ComingSoonBanner />
+            <div className="space-y-6">
+              {/* 플랫폼별 Tracking ID 설정 */}
+              <Card className="border border-gray-200">
+                <CardHeader>
+                  <CardTitle>파트너스 추적 ID 설정</CardTitle>
+                  <p className={`text-sm mt-2 ${
+                    theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    각 플랫폼에서 발급받은 추적 ID를 등록하세요. 상품 검색 시 사용됩니다.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {(Object.keys(platformNames) as TargetMall[]).map((platform) => {
+                    const isEditing = editingTrackingId === platform
+                    const currentValue = platformTrackingIds[platform]
+                    const formValue = trackingIdForm[platform]
+
+                    return (
+                      <div
+                        key={platform}
+                        className={`p-4 rounded-lg border ${
+                          theme === 'dark'
+                            ? 'border-gray-700 bg-gray-800'
+                            : 'border-gray-200 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <h3 className={`font-semibold ${
+                              theme === 'dark' ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              {platformNames[platform]}
+                            </h3>
+                            <p className={`text-xs mt-1 ${
+                              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                            }`}>
+                              {platform === 'ALI_EXPRESS' && '알리익스프레스 파트너스 추적 ID'}
+                              {platform === 'COUPANG' && '쿠팡 파트너스 추적 ID'}
+                              {platform === 'AMAZON' && '아마존 어소시에이트 추적 ID'}
+                            </p>
+                          </div>
+                        </div>
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <Input
+                              value={formValue}
+                              onChange={(e) =>
+                                setTrackingIdForm((prev) => ({
+                                  ...prev,
+                                  [platform]: e.target.value,
+                                }))
+                              }
+                              placeholder="추적 ID를 입력하세요"
+                              className={theme === 'dark' ? 'bg-gray-900' : ''}
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleSaveTrackingId(platform)}
+                                className="flex-1"
+                              >
+                                <Save className="w-4 h-4 mr-1" />
+                                저장
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleCancelTrackingId(platform)}
+                                className="flex-1"
+                              >
+                                <X className="w-4 h-4 mr-1" />
+                                취소
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              {currentValue ? (
+                                <p className={`font-mono text-sm ${
+                                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                                }`}>
+                                  {currentValue}
+                                </p>
+                              ) : (
+                                <p className={`text-sm ${
+                                  theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
+                                }`}>
+                                  등록되지 않음
+                                </p>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditingTrackingId(platform)}
+                            >
+                              <Edit2 className="w-4 h-4 mr-1" />
+                              {currentValue ? '수정' : '등록'}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </CardContent>
+              </Card>
+
+              {/* 기타 연동 서비스 (향후 확장) */}
+              <ComingSoonBanner
+                title="기타 연동 서비스"
+                description="추가 연동 서비스는 준비 중입니다."
+              />
+            </div>
           </TabsContent>
 
           {/* 활동 내역 탭 */}
