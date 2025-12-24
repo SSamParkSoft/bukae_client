@@ -264,9 +264,34 @@ export class ProductSearchWebSocket {
               productsTopic,
               (message: IMessage) => {
                 try {
+                  console.log('[ProductSearchWebSocket] 원본 메시지 body:', message.body)
+                  const rawData = JSON.parse(message.body)
+                  console.log('[ProductSearchWebSocket] 파싱된 원본 데이터:', rawData)
+                  console.log('[ProductSearchWebSocket] 데이터 타입:', Array.isArray(rawData) ? '배열' : typeof rawData)
+                  if (Array.isArray(rawData) && rawData.length > 0) {
+                    console.log('[ProductSearchWebSocket] 첫 번째 상품 원본 필드들:', Object.keys(rawData[0]))
+                    console.log('[ProductSearchWebSocket] 첫 번째 상품 전체 데이터 (모든 필드):', JSON.stringify(rawData[0], null, 2))
+                    // 가격 관련 모든 필드 확인
+                    const firstProduct = rawData[0]
+                    console.log('[ProductSearchWebSocket] 가격 관련 필드들:', {
+                      originalPrice: firstProduct.originalPrice,
+                      salePrice: firstProduct.salePrice,
+                      price: firstProduct.price,
+                      currency: firstProduct.currency,
+                      priceKRW: firstProduct.priceKRW,
+                      krwPrice: firstProduct.krwPrice,
+                      finalPrice: firstProduct.finalPrice,
+                      allKeys: Object.keys(firstProduct).filter(key => 
+                        key.toLowerCase().includes('price') || 
+                        key.toLowerCase().includes('cost') ||
+                        key.toLowerCase().includes('amount')
+                      )
+                    })
+                  }
                   const payload: ProductResponse[] = JSON.parse(message.body)
                   this.onProducts(payload)
-                } catch {
+                } catch (error) {
+                  console.error('[ProductSearchWebSocket] 메시지 파싱 실패:', error, '원본 body:', message.body)
                   // 메시지 파싱 실패 시 무시
                 }
               }
@@ -290,7 +315,12 @@ export class ProductSearchWebSocket {
             resolve()
           },
           onStompError: (frame) => {
-            console.error('[ProductSearchWebSocket] STOMP 에러:', frame)
+            console.error('[ProductSearchWebSocket] STOMP 에러:', {
+              command: frame.command,
+              headers: frame.headers,
+              body: frame.body,
+              rawFrame: frame
+            })
             this.isConnecting = false
             if (this.connectionTimeout) {
               clearTimeout(this.connectionTimeout)
@@ -302,7 +332,7 @@ export class ProductSearchWebSocket {
               this.client = null
             }
             const errorMessage =
-              frame.headers['message'] ||
+              frame.headers?.['message'] ||
               frame.body ||
               'STOMP 연결 오류가 발생했습니다.'
             const error = new Error(errorMessage)

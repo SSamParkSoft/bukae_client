@@ -104,6 +104,9 @@ importers:
       lucide-react:
         specifier: ^0.552.0
         version: 0.552.0(react@19.2.3)
+      money:
+        specifier: ^0.2.0
+        version: 0.2.0
       next:
         specifier: 16.0.10
         version: 16.0.10(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -135,6 +138,9 @@ importers:
       '@types/fabric':
         specifier: ^4.5.12
         version: 4.5.15
+      '@types/money':
+        specifier: ^0.2.3
+        version: 0.2.3
       '@types/node':
         specifier: ^20
         version: 20.19.24
@@ -1287,6 +1293,9 @@ packages:
 
   '@types/json5@0.0.29':
     resolution: {integrity: sha512-dRLjCWHYg4oaA77cxO64oO+7JwCwnIzkZPdrrC71jQmQtlhM556pwKo5bUzqvZndkVbeFLIIi+9TC40JNF5hNQ==}
+
+  '@types/money@0.2.3':
+    resolution: {integrity: sha512-vBydZBuQnNlOq9g8JqwwScj74oFuilxpciT8qm8wyq7qATZL4ZumqBiEPbd0M1oFpcVTFi64puSzkCFAaFcLgw==}
 
   '@types/node@20.19.24':
     resolution: {integrity: sha512-FE5u0ezmi6y9OZEzlJfg37mqqf6ZDSF2V/NLjUyGrR9uTZ7Sb9F7bLNZ03S4XVUNRWGA7Ck4c1kK+YnuWjl+DA==}
@@ -2728,6 +2737,9 @@ packages:
     resolution: {integrity: sha512-vVqVZQyf3WLx2Shd0qJ9xuvqgAyKPLAiqITEtqW0oIUjzo3PePDd6fW9iFz30ef7Ysp/oiWqbhszeGWW2T6Gzw==}
     engines: {node: '>=10'}
     hasBin: true
+
+  money@0.2.0:
+    resolution: {integrity: sha512-0AblpmOvf7yXW9Or4iBHvms38blV74pwjF/G3qI2PDbcAowQEYgEJPqvnuGBYTuWXtZQSrN5g49RqyezdKhwGg==}
 
   motion-dom@12.23.23:
     resolution: {integrity: sha512-n5yolOs0TQQBRUFImrRfs/+6X4p3Q4n1dUEqt/H58Vx7OW6RF+foWEgmTVDhIWJIMXOuNNL0apKH2S16en9eiA==}
@@ -4635,6 +4647,8 @@ snapshots:
 
   '@types/json5@0.0.29': {}
 
+  '@types/money@0.2.3': {}
+
   '@types/node@20.19.24':
     dependencies:
       undici-types: 6.21.0
@@ -6356,6 +6370,8 @@ snapshots:
 
   mkdirp@1.0.4:
     optional: true
+
+  money@0.2.0: {}
 
   motion-dom@12.23.23:
     dependencies:

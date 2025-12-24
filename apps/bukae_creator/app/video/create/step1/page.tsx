@@ -140,7 +140,22 @@ export default function Step1Page() {
         response.correlationId,
         (products: ProductResponse[]) => {
           // 상품 목록 수신
-          console.log('[ProductSearch] API 응답 받은 상품 데이터:', products)
+          console.log('[ProductSearch] API 응답 받은 원본 상품 데이터:', products)
+          // 각 상품의 원본 데이터 상세 로그
+          products.forEach((p, index) => {
+            console.log(`[ProductSearch] 원본 상품 ${index + 1}:`, {
+              전체데이터: p,
+              id: p.id,
+              productId: p.productId,
+              name: p.name,
+              price: p.price,
+              image: p.image,
+              thumbnailUrl: p.thumbnailUrl,
+              url: p.url,
+              productUrl: p.productUrl,
+              platform: p.platform,
+            })
+          })
           const convertedProducts = products.map((p) => {
             const converted = convertProductResponseToProduct(p, selectedPlatform)
             console.log('[ProductSearch] 변환된 상품:', {
