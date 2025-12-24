@@ -431,7 +431,7 @@ export default function Step1Page() {
                                     {product.name}
                                   </h4>
                                   <p className="text-xs font-bold">
-                                    {product.price.toLocaleString()}원
+                                    {product.price ? product.price.toLocaleString() : '0'}원
                                   </p>
                                   {isSelected && (
                                     <div className="mt-1 text-xs text-purple-600 dark:text-purple-400 font-medium">

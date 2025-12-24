@@ -47,6 +47,25 @@ const nextConfig: NextConfig = {
             },
           ]
         : []),
+      // 알리익스프레스 이미지 도메인
+      {
+        protocol: 'https',
+        hostname: '*.aliexpress-media.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.alicdn.com',
+      },
+      // 쿠팡 이미지 도메인 (향후 사용)
+      {
+        protocol: 'https',
+        hostname: '*.coupangcdn.com',
+      },
+      // 아마존 이미지 도메인 (향후 사용)
+      {
+        protocol: 'https',
+        hostname: '*.ssl-images-amazon.com',
+      },
     ],
   },
   // better-sqlite3는 서버 사이드에서만 사용 (Turbopack 호환)

@@ -340,10 +340,12 @@ function Step5PageContent() {
       return
     }
     
-    const MAX_WAIT_TIME = 30 * 60 * 1000 // 30분
+    const MAX_WAIT_TIME = 10 * 60 * 1000 // 10분으로 단축 (기존 30분)
+    const MAX_PROCESSING_TIME = 5 * 60 * 1000 // PROCESSING 상태 최대 5분
     let checkCount = 0
     let lastStatusUpdateTime = startTime
     let lastStatus = 'PENDING'
+    let processingStartTime = startTime
     
     const checkVideoFileExists = async (jobId: string): Promise<string | null> => {
       try {
@@ -420,6 +422,24 @@ function Step5PageContent() {
           if (currentStatus !== lastStatus) {
             lastStatusUpdateTime = Date.now()
             lastStatus = currentStatus
+            if (currentStatus === 'PROCESSING') {
+              processingStartTime = Date.now()
+            }
+          }
+          
+          // PROCESSING 상태가 5분 이상 지속되면 타임아웃 처리
+          const processingElapsed = Date.now() - processingStartTime
+          if (currentStatus === 'PROCESSING' && processingElapsed > MAX_PROCESSING_TIME) {
+            console.error('[HTTP Polling] PROCESSING 상태가 5분 초과, 타임아웃 처리')
+            alert(`영상 생성이 5분 이상 진행 중입니다. 서버에 문제가 있을 수 있습니다.\n\n작업 ID: ${jobId}\n\n나중에 다시 확인해주세요.`)
+            setCurrentJobId(null)
+            setJobStatus('FAILED')
+            setJobProgress('영상 생성이 시간 초과되었습니다.')
+            if (jobStatusCheckTimeoutRef.current) {
+              clearTimeout(jobStatusCheckTimeoutRef.current)
+              jobStatusCheckTimeoutRef.current = null
+            }
+            return
           }
           
           const timeSinceLastUpdate = Date.now() - lastStatusUpdateTime
@@ -975,68 +995,94 @@ function Step5PageContent() {
                 }`}>
                   <CardContent className="pt-6">
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2">
-                        {isInitializing && (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" style={{
-                              color: theme === 'dark' ? '#60a5fa' : '#2563eb'
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          {isInitializing && (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" style={{
+                                color: theme === 'dark' ? '#60a5fa' : '#2563eb'
+                              }} />
+                              <span className="text-sm font-medium" style={{
+                                color: theme === 'dark' ? '#ffffff' : '#111827'
+                              }}>
+                                상태 확인 중...
+                              </span>
+                            </>
+                          )}
+                          {!isInitializing && (!jobStatus || jobStatus === 'PENDING') && (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" style={{
+                                  color: theme === 'dark' ? '#60a5fa' : '#2563eb'
+                                }} />
+                                <span className="text-sm font-medium" style={{
+                                  color: theme === 'dark' ? '#ffffff' : '#111827'
+                                }}>
+                                  영상 제작을 시작합니다...
+                                </span>
+                              </>
+                            )}
+                            {jobStatus === 'PROCESSING' && (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" style={{
+                                  color: theme === 'dark' ? '#60a5fa' : '#2563eb'
+                                }} />
+                                <span className="text-sm font-medium" style={{
+                                  color: theme === 'dark' ? '#ffffff' : '#111827'
+                                }}>
+                                  영상 생성 중...
+                                </span>
+                              </>
+                            )}
+                        </div>
+                        {(jobStatus === 'PROCESSING' || jobStatus === 'PENDING') && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (confirm('영상 생성을 중단하시겠습니까? 나중에 다시 확인할 수 있습니다.')) {
+                                if (jobStatusCheckTimeoutRef.current) {
+                                  clearTimeout(jobStatusCheckTimeoutRef.current)
+                                  jobStatusCheckTimeoutRef.current = null
+                                }
+                                if (currentJobId && websocketCallbacksRef.current) {
+                                  const { onUpdate, onError, onClose } = websocketCallbacksRef.current
+                                  websocketManager.disconnect(currentJobId, onUpdate, onError, onClose)
+                                  websocketCallbacksRef.current = {}
+                                }
+                                setJobStatus(null)
+                                setJobProgress('')
+                                router.push('/')
+                              }
+                            }}
+                          >
+                            중단하기
+                          </Button>
+                        )}
+                        {jobStatus === 'COMPLETED' && (
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4" style={{
+                              color: theme === 'dark' ? '#34d399' : '#10b981'
                             }} />
                             <span className="text-sm font-medium" style={{
-                              color: theme === 'dark' ? '#ffffff' : '#111827'
+                              color: theme === 'dark' ? '#34d399' : '#10b981'
                             }}>
-                              상태 확인 중...
+                              생성 완료!
                             </span>
-                          </>
+                          </div>
                         )}
-                        {!isInitializing && (!jobStatus || jobStatus === 'PENDING') && (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" style={{
-                                color: theme === 'dark' ? '#60a5fa' : '#2563eb'
-                              }} />
-                              <span className="text-sm font-medium" style={{
-                                color: theme === 'dark' ? '#ffffff' : '#111827'
-                              }}>
-                                영상 제작을 시작합니다...
-                              </span>
-                            </>
-                          )}
-                          {jobStatus === 'PROCESSING' && (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" style={{
-                                color: theme === 'dark' ? '#60a5fa' : '#2563eb'
-                              }} />
-                              <span className="text-sm font-medium" style={{
-                                color: theme === 'dark' ? '#ffffff' : '#111827'
-                              }}>
-                                영상 생성 중...
-                              </span>
-                            </>
-                          )}
-                          {jobStatus === 'COMPLETED' && (
-                            <>
-                              <CheckCircle2 className="w-4 h-4" style={{
-                                color: theme === 'dark' ? '#34d399' : '#10b981'
-                              }} />
-                              <span className="text-sm font-medium" style={{
-                                color: theme === 'dark' ? '#34d399' : '#10b981'
-                              }}>
-                                생성 완료!
-                              </span>
-                            </>
-                          )}
-                          {jobStatus === 'FAILED' && (
-                            <>
-                              <XCircle className="w-4 h-4" style={{
-                                color: theme === 'dark' ? '#f87171' : '#ef4444'
-                              }} />
-                              <span className="text-sm font-medium" style={{
-                                color: theme === 'dark' ? '#f87171' : '#ef4444'
-                              }}>
-                                생성 실패
-                              </span>
-                            </>
-                          )}
-                        </div>
+                        {jobStatus === 'FAILED' && (
+                          <div className="flex items-center gap-2">
+                            <XCircle className="w-4 h-4" style={{
+                              color: theme === 'dark' ? '#f87171' : '#ef4444'
+                            }} />
+                            <span className="text-sm font-medium" style={{
+                              color: theme === 'dark' ? '#f87171' : '#ef4444'
+                            }}>
+                              생성 실패
+                            </span>
+                          </div>
+                        )}
+                      </div>
                         {jobProgress && (
                           <div className="mt-2 space-y-1">
                             <p className="text-xs" style={{

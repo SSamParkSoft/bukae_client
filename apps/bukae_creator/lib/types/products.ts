@@ -61,8 +61,8 @@ export function convertProductResponseToProduct(
 
   return {
     id,
-    name: productResponse.name,
-    price: productResponse.price,
+    name: productResponse.name || '',
+    price: productResponse.price ?? 0, // price가 없으면 0으로 설정
     image,
     platform,
     url,
