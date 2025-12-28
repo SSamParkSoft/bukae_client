@@ -2931,22 +2931,6 @@ export default function Step4Page() {
                 </span>
                     </div>
               </div>
-
-            {/* 선택된 애셋 정보 */}
-            {timeline && timeline.scenes[currentSceneIndex] && (
-              <div className="p-3 rounded-lg border text-sm" style={{
-                backgroundColor: theme === 'dark' ? '#1f2937' : '#f9fafb',
-                borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-                color: theme === 'dark' ? '#d1d5db' : '#374151'
-              }}>
-                <div className="font-semibold mb-2">선택된 애셋</div>
-                <div className="space-y-1 text-xs">
-                  <div>씬: {currentSceneIndex + 1}</div>
-                  <div>이미지: {timeline.scenes[currentSceneIndex].imageFit || 'contain'}</div>
-                  <div>텍스트: {timeline.scenes[currentSceneIndex].text.content.substring(0, 30)}...</div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
