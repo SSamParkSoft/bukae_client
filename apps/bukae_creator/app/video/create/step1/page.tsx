@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, Loader2, AlertCircle, Send, Globe, Sparkles, Search, ShoppingCart, ExternalLink } from 'lucide-react'
+import { ArrowRight, Loader2, AlertCircle, Send, ShoppingCart, ExternalLink } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useVideoCreateStore, Product } from '../../../../store/useVideoCreateStore'
 import { useThemeStore } from '../../../../store/useThemeStore'
@@ -10,7 +10,6 @@ import { useUserStore } from '../../../../store/useUserStore'
 import StepIndicator from '../../../../components/StepIndicator'
 import SelectedProductsPanel from '../../../../components/SelectedProductsPanel'
 import { searchProducts } from '@/lib/api/products'
-import { ProductSearchWebSocket } from '@/lib/api/product-search-websocket'
 import type { TargetMall, ProductResponse } from '@/lib/types/products'
 import { convertProductResponseToProduct } from '@/lib/types/products'
 
@@ -44,25 +43,14 @@ export default function Step1Page() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
-  const [currentCorrelationId, setCurrentCorrelationId] = useState<string | null>(null)
   const [currentProducts, setCurrentProducts] = useState<Product[]>([])
-  const websocketRef = useRef<ProductSearchWebSocket | null>(null)
+  const [currentProductResponses, setCurrentProductResponses] = useState<ProductResponse[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // 메시지 스크롤
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
-
-  // WebSocket 정리
-  useEffect(() => {
-    return () => {
-      if (websocketRef.current) {
-        websocketRef.current.disconnect()
-        websocketRef.current = null
-      }
-    }
-  }, [])
 
   // 플랫폼 선택 핸들러
   const handlePlatformSelect = (platform: TargetMall | 'all') => {
@@ -96,12 +84,6 @@ export default function Step1Page() {
       return
     }
 
-    // 기존 WebSocket 연결 정리
-    if (websocketRef.current) {
-      websocketRef.current.disconnect()
-      websocketRef.current = null
-    }
-
     setIsSearching(true)
     setSearchError(null)
 
@@ -126,80 +108,59 @@ export default function Step1Page() {
         return
       }
 
-      // API 호출
-      const response = await searchProducts({
+      // API 호출 (동기 응답)
+      const products: ProductResponse[] = await searchProducts({
         query: prompt,
         targetMall: selectedPlatform,
         userTrackingId: trackingId,
       })
 
-      setCurrentCorrelationId(response.correlationId)
+      // 상품 목록 수신
+      console.log('[ProductSearch] API 응답 받은 원본 상품 데이터:', products)
+      // 각 상품의 원본 데이터 상세 로그
+      products.forEach((p, index) => {
+        console.log(`[ProductSearch] 원본 상품 ${index + 1}:`, {
+          전체데이터: p,
+          id: p.id,
+          productId: p.productId,
+          name: p.name,
+          title: p.title,
+          productTitle: p.productTitle,
+          price: p.price,
+          image: p.image,
+          thumbnailUrl: p.thumbnailUrl,
+          productMainImageUrl: p.productMainImageUrl,
+          url: p.url,
+          productUrl: p.productUrl,
+          affiliateLink: p.affiliateLink,
+          platform: p.platform,
+        })
+      })
 
-      // WebSocket 연결 및 구독
-      const ws = new ProductSearchWebSocket(
-        response.correlationId,
-        (products: ProductResponse[]) => {
-          // 상품 목록 수신
-          console.log('[ProductSearch] API 응답 받은 원본 상품 데이터:', products)
-          // 각 상품의 원본 데이터 상세 로그
-          products.forEach((p, index) => {
-            console.log(`[ProductSearch] 원본 상품 ${index + 1}:`, {
-              전체데이터: p,
-              id: p.id,
-              productId: p.productId,
-              name: p.name,
-              price: p.price,
-              image: p.image,
-              thumbnailUrl: p.thumbnailUrl,
-              url: p.url,
-              productUrl: p.productUrl,
-              platform: p.platform,
-            })
-          })
-          const convertedProducts = products.map((p) => {
-            const converted = convertProductResponseToProduct(p, selectedPlatform)
-            console.log('[ProductSearch] 변환된 상품:', {
-              id: converted.id,
-              name: converted.name,
-              price: converted.price,
-              url: converted.url,
-              image: converted.image,
-            })
-            return converted
-          })
-          setCurrentProducts(convertedProducts)
+      const convertedProducts = products.map((p) => {
+        const converted = convertProductResponseToProduct(p, selectedPlatform)
+        console.log('[ProductSearch] 변환된 상품:', {
+          id: converted.id,
+          name: converted.name,
+          price: converted.price,
+          url: converted.url,
+          image: converted.image,
+        })
+        return converted
+      })
+      setCurrentProducts(convertedProducts)
+      setCurrentProductResponses(products) // 원본 데이터도 저장
 
-          // AI 응답 메시지 추가
-          const assistantMessage: ChatMessage = {
-            id: `assistant-${Date.now()}`,
-            type: 'assistant',
-            content: `${products.length}개의 상품을 찾았습니다. (환율로 인해 정확하지 않으니 정확한 가격은 링크를 통해 확인해주세요!)`,
-            products: convertedProducts,
-            timestamp: new Date(),
-          }
-          setChatMessages((prev) => [...prev, assistantMessage])
-          setIsSearching(false)
-        },
-        (error: string) => {
-          // 에러 메시지 추가
-          const errorMessage: ChatMessage = {
-            id: `error-${Date.now()}`,
-            type: 'error',
-            content: error,
-            timestamp: new Date(),
-          }
-          setChatMessages((prev) => [...prev, errorMessage])
-          setSearchError(error)
-          setIsSearching(false)
-        },
-        () => {
-          // 연결 종료
-          console.log('[ProductSearchWebSocket] 연결 종료')
-        }
-      )
-
-      websocketRef.current = ws
-      await ws.connect()
+      // AI 응답 메시지 추가
+      const assistantMessage: ChatMessage = {
+        id: `assistant-${Date.now()}`,
+        type: 'assistant',
+        content: `${products.length}개의 상품을 찾았습니다. (환율로 인해 정확하지 않으니 정확한 가격은 링크를 통해 확인해주세요!)`,
+        products: convertedProducts,
+        timestamp: new Date(),
+      }
+      setChatMessages((prev) => [...prev, assistantMessage])
+      setIsSearching(false)
     } catch (error) {
       console.error('[ProductSearch] 검색 실패:', error)
       const errorMessage =
@@ -406,7 +367,7 @@ export default function Step1Page() {
                   <span className={`text-lg ${
                     themeMode === 'dark' ? 'text-gray-300' : 'text-gray-700'
                   }`}>
-                    상품을 검색하고 있습니다...
+                    AI가 상품을 분석 중입니다...
                   </span>
                 </div>
               </div>
@@ -430,12 +391,38 @@ export default function Step1Page() {
                   <span className={`ml-2 text-sm font-normal ${
                     themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
                   }`}>
-                    환율로 인해 실제 가격은 링크에서 확인해주세요!
+                    정확한 가격은 링크에서 확인해주세요!
                   </span>
                 </h2>
                 <div className="space-y-4">
-                  {currentProducts.map((product) => {
+                  {currentProducts.map((product, index) => {
                     const isSelected = isProductSelected(product.id)
+                    const originalData = currentProductResponses[index]
+                    const originalPrice = originalData?.originalPrice
+                    const salePrice = originalData?.salePrice
+                    const discountRate = originalData?.discountRate || originalData?.discount
+                    const commissionRate = originalData?.commissionRate
+                    const currency = originalData?.currency || 'KRW'
+                    
+                    // 할인율 계산 (originalPrice와 salePrice가 있으면)
+                    let calculatedDiscount: string | undefined
+                    if (originalPrice && salePrice && originalPrice > salePrice) {
+                      const discountPercent = Math.round(((originalPrice - salePrice) / originalPrice) * 100)
+                      calculatedDiscount = `${discountPercent}%`
+                    }
+                    const displayDiscount = discountRate || calculatedDiscount
+
+                    // 예상 수익 계산 (salePrice * commissionRate)
+                    let expectedRevenue: number | null = null
+                    if (salePrice && commissionRate) {
+                      // commissionRate를 숫자로 변환 (예: "10%" -> 0.1, "5.5%" -> 0.055)
+                      const rateStr = String(commissionRate).replace(/%/g, '').trim()
+                      const rateNum = parseFloat(rateStr)
+                      if (!isNaN(rateNum)) {
+                        expectedRevenue = salePrice * (rateNum / 100)
+                      }
+                    }
+
                     return (
                       <div
                         key={product.id}
@@ -450,7 +437,7 @@ export default function Step1Page() {
                               : 'border-gray-200 bg-white'
                         }`}
                       >
-                        <div className={`w-24 h-24 flex-shrink-0 rounded-lg flex items-center justify-center overflow-hidden ${
+                        <div className={`w-24 h-24 shrink-0 rounded-lg flex items-center justify-center overflow-hidden ${
                           themeMode === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
                         }`}>
                           {product.image ? (
@@ -463,33 +450,102 @@ export default function Step1Page() {
                             <ShoppingCart className="w-8 h-8 text-gray-400" />
                           )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className={`font-semibold text-base mb-2 line-clamp-2 ${
-                            themeMode === 'dark' ? 'text-white' : 'text-gray-900'
-                          }`}>
-                            {product.name || '제품명 없음'}
-                          </h4>
-                          <p className={`text-lg font-bold mb-2 ${
-                            themeMode === 'dark' ? 'text-white' : 'text-gray-400'
-                          }`}>
-                            약 {product.price ? product.price.toLocaleString() : '0'}원
-                          </p>
-                          {product.url && (
-                            <a
-                              href={product.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className={`inline-flex items-center gap-1 text-sm hover:underline ${
-                                themeMode === 'dark' ? 'text-blue-400' : 'text-blue-600'
-                              }`}
-                            >
-                              상품 보기 <ExternalLink className="w-4 h-4" />
-                            </a>
+                        <div className="flex-1 min-w-0 flex flex-col justify-between">
+                          <div>
+                            <h4 className={`font-semibold text-base mb-2 line-clamp-2 ${
+                              themeMode === 'dark' ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              {product.name || '제품명 없음'}
+                            </h4>
+                            
+                            {/* 가격 정보 */}
+                            <div className="mb-2 space-y-1">
+                              {originalPrice && salePrice ? (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {originalPrice > salePrice && (
+                                    <span className={`text-sm line-through ${
+                                      themeMode === 'dark' ? 'text-gray-500' : 'text-gray-400'
+                                    }`}>
+                                      {originalPrice.toLocaleString()} {currency}
+                                    </span>
+                                  )}
+                                  <span className={`text-lg font-bold ${
+                                    themeMode === 'dark' ? 'text-white' : 'text-gray-900'
+                                  }`}>
+                                    {salePrice.toLocaleString()} {currency}
+                                  </span>
+                                  {displayDiscount && (
+                                    <span className="px-2 py-0.5 rounded bg-red-500 text-white text-xs font-medium">
+                                      {displayDiscount} 할인
+                                    </span>
+                                  )}
+                                </div>
+                              ) : salePrice ? (
+                                <p className={`text-lg font-bold ${
+                                  themeMode === 'dark' ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                  {salePrice.toLocaleString()} {currency}
+                                </p>
+                              ) : (
+                                <p className={`text-lg font-bold ${
+                                  themeMode === 'dark' ? 'text-white' : 'text-gray-400'
+                                }`}>
+                                  약 {product.price ? product.price.toLocaleString() : '0'}원
+                                </p>
+                              )}
+                              
+                              {/* 수수료 표시 */}
+                              {commissionRate && (
+                                <p className={`text-xs ${
+                                  themeMode === 'dark' ? 'text-green-400' : 'text-green-600'
+                                }`}>
+                                  수수료율: {commissionRate}
+                                </p>
+                              )}
+                            </div>
+
+                            {product.url && (
+                              <a
+                                href={product.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className={`inline-flex items-center gap-1 text-sm hover:underline ${
+                                  themeMode === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                                }`}
+                              >
+                                상품 보기 <ExternalLink className="w-4 h-4" />
+                              </a>
+                            )}
+                          </div>
+
+                          {/* 예상 수익 (오른쪽 하단) */}
+                          {expectedRevenue !== null && (
+                            <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-baseline gap-1">
+                                  <span className={`text-xs ${
+                                    themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                  }`}>
+                                    예상 수익
+                                  </span>
+                                  <span className={`text-lg font-bold ${
+                                    themeMode === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
+                                  }`}>
+                                    {Math.round(expectedRevenue).toLocaleString()} {currency}
+                                  </span>
+                                </div>
+                                <p className={`text-xs ${
+                                  themeMode === 'dark' ? 'text-gray-500' : 'text-gray-400'
+                                }`}>
+                                  * 수익 기준은 실제 금액 기준이라 예상 수익과 다를 수 있습니다
+                                </p>
+                              </div>
+                            </div>
                           )}
                         </div>
                         {isSelected && (
-                          <div className="flex-shrink-0 flex items-center">
+                          <div className="shrink-0 flex items-center">
                             <div className="px-3 py-1 rounded-full bg-purple-500 text-white text-sm font-medium">
                               선택됨
                             </div>

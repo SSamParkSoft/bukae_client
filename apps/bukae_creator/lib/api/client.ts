@@ -47,6 +47,7 @@ function getApiBaseUrl(): string {
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean
   autoRefresh?: boolean
+  timeout?: number // 타임아웃 시간 (밀리초, 기본값: 60000ms = 60초)
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -149,7 +150,7 @@ export async function apiRequest<T>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { skipAuth = false, autoRefresh = true, headers: initHeaders, ...fetchOptions } = options
+  const { skipAuth = false, autoRefresh = true, timeout = 60000, headers: initHeaders, ...fetchOptions } = options
 
   const API_BASE_URL = getApiBaseUrl()
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`
@@ -172,11 +173,19 @@ export async function apiRequest<T>(
     }
   }
 
+  // AbortController를 사용한 타임아웃 설정
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
+
   try {
     const response = await fetch(url, {
       ...fetchOptions,
       headers,
+      signal: controller.signal,
     })
+
+    // 타임아웃 정리
+    clearTimeout(timeoutId)
 
     // 토큰 만료(401) 시 1회 자동 재발급 후 재시도
     if (response.status === 401 && !skipAuth && autoRefresh) {
@@ -184,25 +193,46 @@ export async function apiRequest<T>(
 
       if (newAccessToken) {
         headers.set('Authorization', `Bearer ${newAccessToken}`)
-        const retryResponse = await fetch(url, {
-          ...fetchOptions,
-          headers,
-        })
+        // 재시도 시에도 타임아웃 설정
+        const retryController = new AbortController()
+        const retryTimeoutId = setTimeout(() => retryController.abort(), timeout)
+        try {
+          const retryResponse = await fetch(url, {
+            ...fetchOptions,
+            headers,
+            signal: retryController.signal,
+          })
+          clearTimeout(retryTimeoutId)
         
-        // 재시도 후에도 401이면 토큰 만료로 처리
-        if (retryResponse.status === 401) {
-          authStorage.clearTokens()
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('auth:expired'))
+          // 재시도 후에도 401이면 토큰 만료로 처리
+          if (retryResponse.status === 401) {
+            authStorage.clearTokens()
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('auth:expired'))
+            }
+            throw new ApiError(
+              '인증이 만료되었어요. 다시 로그인해주세요.',
+              401,
+              'Unauthorized'
+            )
           }
-          throw new ApiError(
-            '인증이 만료되었어요. 다시 로그인해주세요.',
-            401,
-            'Unauthorized'
-          )
+          
+          return handleResponse<T>(retryResponse)
+        } catch (retryError) {
+          clearTimeout(retryTimeoutId)
+          if (retryError instanceof ApiError) {
+            throw retryError
+          }
+          // AbortError (타임아웃) 처리
+          if (retryError instanceof Error && retryError.name === 'AbortError') {
+            throw new ApiError(
+              `요청 시간이 초과되었어요. (${timeout / 1000}초)`,
+              0,
+              'Timeout'
+            )
+          }
+          throw retryError
         }
-        
-        return handleResponse<T>(retryResponse)
       }
 
       // 재발급 실패: 토큰 정리 + 전역 이벤트로 로그인 유도
@@ -222,9 +252,21 @@ export async function apiRequest<T>(
     // handleResponse에서 처리하므로 여기서는 바로 넘김
     return handleResponse<T>(response)
   } catch (error) {
+    // 타임아웃 정리 (에러 발생 시에도)
+    clearTimeout(timeoutId)
+
     // ApiError가 이미 발생한 경우 (401 포함) 그대로 throw
     if (error instanceof ApiError) {
       throw error
+    }
+
+    // AbortError (타임아웃) 처리
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ApiError(
+        `요청 시간이 초과되었어요. (${timeout / 1000}초)`,
+        0,
+        'Timeout'
+      )
     }
 
     // 네트워크 에러 처리

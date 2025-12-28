@@ -9,31 +9,38 @@ export interface ProductSearchRequest {
   userTrackingId: string | null
 }
 
-// API 응답 타입 (초기 응답)
-export interface ProductSearchResponse {
-  correlationId: string
-  status: 'ACCEPTED'
-}
+// API 응답 타입 (동기 응답 - 상품 리스트 직접 반환)
+export type ProductSearchResponse = ProductResponse[]
 
-// API 응답 타입 (WebSocket을 통해 받는 상품 정보)
+// API 응답 타입 (상품 정보)
 export interface ProductResponse {
   id?: string
   productId?: string | number
   name?: string // API에서 오지 않을 수 있음
   title?: string // 실제 API 필드명
+  productTitle?: string // 새로운 API 필드명 (title과 동일)
   price?: number // API에서 오지 않을 수 있음
   originalPrice?: number // 실제 API 필드명
   salePrice?: number // 실제 API 필드명
   image?: string
   thumbnailUrl?: string // 실제 API 필드명
+  productMainImageUrl?: string // 새로운 API 필드명 (thumbnailUrl과 동일)
   url?: string // API에서 오지 않을 수 있음
   productUrl?: string
   affiliateLink?: string // 실제 API 필드명
+  detailUrl?: string // 새로운 API 필드명
   description?: string
   platform?: string
   mallName?: string // 실제 API 필드명 (AliExpress, Coupang, Amazon 등)
+  shopName?: string // 새로운 API 필드명
   currency?: string // 실제 API 필드명
+  discount?: string // 새로운 API 필드명 (할인율)
+  discountRate?: string // 새로운 API 필드명
+  commissionRate?: string // 수수료율
   rating?: number
+  evaluateRate?: number // 새로운 API 필드명 (rating과 동일)
+  salesVolume?: number // 새로운 API 필드명
+  lastestVolume?: number // 새로운 API 필드명 (salesVolume과 동일)
   // 추가 필드가 있을 수 있음
   [key: string]: unknown
 }
@@ -61,8 +68,8 @@ export function convertProductResponseToProduct(
   // ID 처리: id 또는 productId 사용
   const id = productResponse.id || String(productResponse.productId || '')
 
-  // 이름 처리: title 또는 name 사용 (API는 title을 사용)
-  const name = productResponse.title || productResponse.name || ''
+  // 이름 처리: productTitle, title, name 순서로 확인 (새로운 API는 productTitle 사용)
+  const name = productResponse.productTitle || productResponse.title || productResponse.name || ''
 
   // 가격 처리: salePrice 또는 originalPrice 사용 (API는 salePrice/originalPrice를 사용)
   // 통화 변환: 플랫폼별로 강제 통화 설정 (API의 currency 필드를 신뢰하지 않음)
@@ -99,11 +106,11 @@ export function convertProductResponseToProduct(
     convertedPrice: price,
   })
 
-  // 이미지 처리: thumbnailUrl 또는 image 사용 (API는 thumbnailUrl을 사용)
-  const image = productResponse.thumbnailUrl || productResponse.image || ''
+  // 이미지 처리: productMainImageUrl, thumbnailUrl, image 순서로 확인 (새로운 API는 productMainImageUrl 사용)
+  const image = productResponse.productMainImageUrl || productResponse.thumbnailUrl || productResponse.image || ''
 
-  // URL 처리: affiliateLink 또는 productUrl 또는 url 사용 (API는 affiliateLink를 사용)
-  const url = productResponse.affiliateLink || productResponse.productUrl || productResponse.url || ''
+  // URL 처리: affiliateLink, detailUrl, productUrl, url 순서로 확인 (새로운 API는 affiliateLink 또는 detailUrl 사용)
+  const url = productResponse.affiliateLink || productResponse.detailUrl || productResponse.productUrl || productResponse.url || ''
 
   return {
     id,
