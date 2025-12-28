@@ -2983,7 +2983,7 @@ export default function Step4Page() {
                       
                       // 텍스트 Transform: 하단 중앙 위치 (비율 기반)
                       // 텍스트는 하단에서 약 8% 위에 위치, 너비는 75%
-                      const textY = height * 0.88 // 하단에서 12% 위 (88% 위치)
+                      const textY = height * 0.90 // 하단에서 12% 위 (88% 위치)
                       const textWidth = width * 0.75 // 화면 너비의 75%
                       const textHeight = height * 0.07 // 화면 높이의 7%
                       
