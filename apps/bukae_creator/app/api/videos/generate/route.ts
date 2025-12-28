@@ -1,16 +1,24 @@
 import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/api/route-guard'
 import { enforceRateLimit } from '@/lib/api/rate-limit'
+import { requireEnvVars } from '@/lib/utils/env-validation'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 function getApiBaseUrl(): string {
-  return (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080').trim()
+  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
+  if (!envUrl) {
+    throw new Error('환경 변수 NEXT_PUBLIC_API_BASE_URL이 설정되어 있지 않습니다.')
+  }
+  return envUrl
 }
 
 export async function POST(request: Request) {
   try {
+    // 프로덕션 환경에서 필수 환경 변수 검증
+    requireEnvVars()
+    
     const auth = await requireUser(request)
     if (auth instanceof NextResponse) return auth
 
@@ -45,13 +53,6 @@ export async function POST(request: Request) {
     // 백엔드 API로 프록시 요청
     const API_BASE_URL = getApiBaseUrl()
     const accessToken = request.headers.get('Authorization') || ''
-    
-    console.log('=== 영상 생성 요청 (백엔드로 프록시) ===')
-    console.log('Job Type:', body.jobType)
-    console.log('Video ID:', body.encodingRequest.videoId)
-    console.log('Scenes Count:', body.encodingRequest.scenes.length)
-    console.log('Backend URL:', `${API_BASE_URL}/api/v1/studio/jobs`)
-    console.log('==================')
 
     const backendResponse = await fetch(`${API_BASE_URL}/api/v1/studio/jobs`, {
       method: 'POST',
@@ -76,11 +77,18 @@ export async function POST(request: Request) {
       }
     )
   } catch (error) {
-    console.error('영상 생성 API 오류:', error)
+    const isDev = process.env.NODE_ENV === 'development'
+    
+    // 개발 환경에서만 상세 에러 로깅
+    if (isDev) {
+      console.error('영상 생성 API 오류:', error)
+    }
+    
+    // 프로덕션에서는 내부 정보를 노출하지 않음
     return NextResponse.json(
       { 
         error: '영상 생성 중 오류가 발생했어요.',
-        message: error instanceof Error ? error.message : '알 수 없는 오류'
+        ...(isDev && error instanceof Error ? { message: error.message } : {}),
       },
       { status: 500 }
     )

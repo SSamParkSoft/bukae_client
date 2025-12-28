@@ -27,13 +27,23 @@ function isRunningOnLocalhost(): boolean {
 
 function getApiBaseUrl(): string {
   // 백엔드 API 서버 기본 주소 (도메인 + 포트까지, path 제외)
-  // 예: http://15.164.220.105.nip.io:8080
-  const base =
-    (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080').trim()
+  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
+  
+  // 로컬 개발 환경에서만 기본값 허용
+  const isLocal = isRunningOnLocalhost()
+  const base = envUrl || (isLocal ? 'http://15.164.220.105.nip.io:8080' : null)
+
+  if (!base) {
+    throw new ApiError(
+      '환경 변수 NEXT_PUBLIC_API_BASE_URL이 설정되어 있지 않습니다. 프로덕션 환경에서는 반드시 설정해야 합니다.',
+      0,
+      'Config Error'
+    )
+  }
 
   // 배포 환경에서 env가 localhost로 잘못 들어간 경우를 즉시 감지해서 안내
   // (Next.js NEXT_PUBLIC_* 는 빌드 타임에 번들에 박히기 쉬워 실수가 잦음)
-  if (!isRunningOnLocalhost() && isLocalhostUrl(base)) {
+  if (!isLocal && isLocalhostUrl(base)) {
     throw new ApiError(
       '배포 환경 설정 오류: NEXT_PUBLIC_API_BASE_URL이 localhost로 설정되어 있습니다. 배포 환경 변수 값을 실제 백엔드 주소로 변경 후 재배포해주세요.',
       0,

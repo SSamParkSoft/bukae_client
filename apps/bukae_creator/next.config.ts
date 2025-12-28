@@ -75,6 +75,72 @@ const nextConfig: NextConfig = {
     '@google-cloud/text-to-speech',
     'google-gax',
   ],
+  // 보안 헤더 추가
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()',
+          },
+        ],
+      },
+    ];
+  },
+  // Turbopack 설정 (개발 환경에서 사용)
+  // Next.js 16에서는 Turbopack이 기본이므로 빈 설정 추가하여 webpack과의 충돌 방지
+  turbopack: {},
+  // 프로덕션 빌드에서 console.log 제거 (webpack 사용 시)
+  webpack: (config, { dev, isServer }) => {
+    // 프로덕션 빌드에서만 webpack 설정 적용
+    // 개발 환경에서는 Turbopack 사용
+    if (!dev && !isServer) {
+      // 클라이언트 사이드 프로덕션 빌드에서만 console 제거
+      try {
+        const TerserPlugin = require('terser-webpack-plugin');
+        const existingMinimizer = config.optimization?.minimizer || [];
+        
+        // 기존 minimizer가 배열인지 확인
+        const minimizerArray = Array.isArray(existingMinimizer) 
+          ? existingMinimizer 
+          : [];
+        
+        config.optimization = {
+          ...config.optimization,
+          minimize: true,
+          minimizer: [
+            ...minimizerArray,
+            new TerserPlugin({
+              terserOptions: {
+                compress: {
+                  drop_console: true, // console.log, console.debug, console.info 제거
+                  drop_debugger: true, // debugger 제거
+                },
+              },
+            }),
+          ],
+        };
+      } catch (error) {
+        // TerserPlugin을 사용할 수 없는 경우 무시 (Next.js 기본 최적화 사용)
+        // 개발 환경에서는 에러를 출력하지 않음
+      }
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
