@@ -159,7 +159,7 @@ export default function Step4Page() {
             fontWeight: existingScene?.text?.fontWeight ?? 700,
             color: subtitleColor || '#ffffff',
             position: subtitlePosition || 'center',
-            fontSize: existingScene?.text?.fontSize || 32,
+            fontSize: existingScene?.text?.fontSize || 80,
           },
         }
       }),
@@ -407,7 +407,7 @@ export default function Step4Page() {
         }
         const textContent = textbox.text ?? ''
         // 리사이즈 시 scaleY를 fontSize에 반영 (scaleY * fontSize = 실제 표시 크기)
-        const baseFontSize = textbox.fontSize ?? 32
+        const baseFontSize = textbox.fontSize ?? 48
         const textScaleY = textbox.scaleY ?? 1
         // 실제 표시되는 폰트 크기 계산 후 좌표계 역변환
         const actualFontSize = baseFontSize * textScaleY * invScale
@@ -472,7 +472,7 @@ export default function Step4Page() {
       isManualSceneSelectRef.current = true
       
       const textContent = target.text ?? ''
-      const scaledFontSize = target.fontSize ?? 32
+      const scaledFontSize = target.fontSize ?? 48
       const fontSize = scaledFontSize * invScale
       
       const nextTimeline: TimelineData = {
@@ -523,7 +523,7 @@ export default function Step4Page() {
       }
       const textContent = target.text ?? ''
       // 리사이즈 시 scaleY를 fontSize에 반영
-      const baseFontSize = target.fontSize ?? 32
+      const baseFontSize = target.fontSize ?? 48
       const textScaleY = target.scaleY ?? 1
       const actualFontSize = baseFontSize * textScaleY * invScale
       const fill = target.fill ?? '#ffffff'
@@ -2512,7 +2512,7 @@ export default function Step4Page() {
           // 씬별 폰트 ID 또는 전역 선택 폰트 사용
           const sceneFontId = scene.text.font || subtitleFont || SUBTITLE_DEFAULT_FONT_ID
           const sceneFontWeight = scene.text.fontWeight || 700
-          const fontSize = scene.text.fontSize || 32
+          const fontSize = scene.text.fontSize || 48
           
           // 폰트 파일명 가져오기 (인코딩 요청용)
           const fontFileName = getFontFileName(sceneFontId, sceneFontWeight) || 'NanumGothic-Regular'
@@ -2563,15 +2563,15 @@ export default function Step4Page() {
               color: scene.text.color || '#FFFFFF',
               stroke: {
                 enabled: true,
-                color: scene.text.color || '#FFFFFF',
-                width: 3,
+                color: '#000000', // 테두리 색상을 검은색으로 변경
+                width: 10,
               },
               shadow: {
-                enabled: true,
+                enabled: false, // 쉐도우 비활성화
                 color: '#000000',
-                blur: 10,
-                offsetX: 5,
-                offsetY: 5,
+                blur: 0, // 블러 효과 제거
+                offsetX: 0,
+                offsetY: 0,
               },
               decoration: {
                 underline: scene.text.style?.underline || false,
@@ -2983,7 +2983,7 @@ export default function Step4Page() {
                       
                       // 텍스트 Transform: 하단 중앙 위치 (비율 기반)
                       // 텍스트는 하단에서 약 8% 위에 위치, 너비는 75%
-                      const textY = height * 0.92 // 하단에서 8% 위 (92% 위치)
+                      const textY = height * 0.88 // 하단에서 12% 위 (88% 위치)
                       const textWidth = width * 0.75 // 화면 너비의 75%
                       const textHeight = height * 0.07 // 화면 높이의 7%
                       
@@ -3005,7 +3005,7 @@ export default function Step4Page() {
                           ...scene.text,
                           position: 'bottom',
                           color: '#ffffff',
-                          fontSize: 48,
+                          fontSize: 80,
                           font: 'Arial',
                           transform: textTransform,
                           style: {

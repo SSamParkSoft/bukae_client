@@ -112,7 +112,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
           className="text-sm mb-2 p-2 rounded break-words"
           style={{
             fontFamily: currentFontFamily,
-            fontSize: Math.min(currentScene.text?.fontSize || 32, 20),
+            fontSize: Math.min(currentScene.text?.fontSize || 80, 20),
             color: currentScene.text?.color || '#ffffff',
             fontWeight: normalizedFontWeight,
             fontStyle: currentScene.text?.style?.italic ? 'italic' : 'normal',
@@ -390,7 +390,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
             type="number"
             min={8}
             max={200}
-            value={currentScene.text?.fontSize || 32}
+            value={currentScene.text?.fontSize || 80}
             onChange={(e) => {
               const val = parseInt(e.target.value || '0', 10)
               if (Number.isNaN(val)) return
@@ -411,7 +411,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
             type="range"
             min={8}
             max={200}
-            value={currentScene.text?.fontSize || 32}
+            value={currentScene.text?.fontSize || 80}
             onChange={(e) => {
               const fontSize = parseInt(e.target.value, 10)
               updateScene((scene) => ({
