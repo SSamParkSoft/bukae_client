@@ -346,7 +346,7 @@ export default function Step2Page() {
                                     
                                     {/* 말풍선 Popover */}
                                     <PopoverContent
-                                      side="bottom"
+                                      side="top"
                                       align="start"
                                       sideOffset={12}
                                       className={`w-80 p-4 relative ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
@@ -377,23 +377,23 @@ export default function Step2Page() {
                                         </div>
                                       </div>
                                       
-                                      {/* 말풍선 화살표 */}
+                                      {/* 말풍선 화살표 (아래쪽을 향함) */}
                                       <div
                                         className="absolute left-4 -translate-x-0 w-0 h-0"
                                         style={{
-                                          top: '-8px',
+                                          bottom: '-8px',
                                           borderLeft: '8px solid transparent',
                                           borderRight: '8px solid transparent',
-                                          borderBottom: `8px solid ${theme === 'dark' ? '#1f2937' : '#ffffff'}`,
+                                          borderTop: `8px solid ${theme === 'dark' ? '#1f2937' : '#ffffff'}`,
                                         }}
                                       />
                                       <div
                                         className="absolute left-4 -translate-x-0 w-0 h-0"
                                         style={{
-                                          top: '-9px',
+                                          bottom: '-9px',
                                           borderLeft: '9px solid transparent',
                                           borderRight: '9px solid transparent',
-                                          borderBottom: `9px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`,
+                                          borderTop: `9px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`,
                                         }}
                                       />
                                     </PopoverContent>
