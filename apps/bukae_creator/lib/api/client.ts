@@ -27,13 +27,23 @@ function isRunningOnLocalhost(): boolean {
 
 function getApiBaseUrl(): string {
   // 백엔드 API 서버 기본 주소 (도메인 + 포트까지, path 제외)
-  // 예: http://15.164.220.105.nip.io:8080
-  const base =
-    (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080').trim()
+  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
+  
+  // 로컬 개발 환경에서만 기본값 허용
+  const isLocal = isRunningOnLocalhost()
+  const base = envUrl || (isLocal ? 'http://15.164.220.105.nip.io:8080' : null)
+
+  if (!base) {
+    throw new ApiError(
+      '환경 변수 NEXT_PUBLIC_API_BASE_URL이 설정되어 있지 않습니다. 프로덕션 환경에서는 반드시 설정해야 합니다.',
+      0,
+      'Config Error'
+    )
+  }
 
   // 배포 환경에서 env가 localhost로 잘못 들어간 경우를 즉시 감지해서 안내
   // (Next.js NEXT_PUBLIC_* 는 빌드 타임에 번들에 박히기 쉬워 실수가 잦음)
-  if (!isRunningOnLocalhost() && isLocalhostUrl(base)) {
+  if (!isLocal && isLocalhostUrl(base)) {
     throw new ApiError(
       '배포 환경 설정 오류: NEXT_PUBLIC_API_BASE_URL이 localhost로 설정되어 있습니다. 배포 환경 변수 값을 실제 백엔드 주소로 변경 후 재배포해주세요.',
       0,
@@ -47,6 +57,7 @@ function getApiBaseUrl(): string {
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean
   autoRefresh?: boolean
+  timeout?: number // 타임아웃 시간 (밀리초, 기본값: 60000ms = 60초)
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
@@ -149,7 +160,7 @@ export async function apiRequest<T>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { skipAuth = false, autoRefresh = true, headers: initHeaders, ...fetchOptions } = options
+  const { skipAuth = false, autoRefresh = true, timeout = 60000, headers: initHeaders, ...fetchOptions } = options
 
   const API_BASE_URL = getApiBaseUrl()
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`
@@ -172,11 +183,19 @@ export async function apiRequest<T>(
     }
   }
 
+  // AbortController를 사용한 타임아웃 설정
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
+
   try {
     const response = await fetch(url, {
       ...fetchOptions,
       headers,
+      signal: controller.signal,
     })
+
+    // 타임아웃 정리
+    clearTimeout(timeoutId)
 
     // 토큰 만료(401) 시 1회 자동 재발급 후 재시도
     if (response.status === 401 && !skipAuth && autoRefresh) {
@@ -184,25 +203,46 @@ export async function apiRequest<T>(
 
       if (newAccessToken) {
         headers.set('Authorization', `Bearer ${newAccessToken}`)
-        const retryResponse = await fetch(url, {
-          ...fetchOptions,
-          headers,
-        })
+        // 재시도 시에도 타임아웃 설정
+        const retryController = new AbortController()
+        const retryTimeoutId = setTimeout(() => retryController.abort(), timeout)
+        try {
+          const retryResponse = await fetch(url, {
+            ...fetchOptions,
+            headers,
+            signal: retryController.signal,
+          })
+          clearTimeout(retryTimeoutId)
         
-        // 재시도 후에도 401이면 토큰 만료로 처리
-        if (retryResponse.status === 401) {
-          authStorage.clearTokens()
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('auth:expired'))
+          // 재시도 후에도 401이면 토큰 만료로 처리
+          if (retryResponse.status === 401) {
+            authStorage.clearTokens()
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('auth:expired'))
+            }
+            throw new ApiError(
+              '인증이 만료되었어요. 다시 로그인해주세요.',
+              401,
+              'Unauthorized'
+            )
           }
-          throw new ApiError(
-            '인증이 만료되었어요. 다시 로그인해주세요.',
-            401,
-            'Unauthorized'
-          )
+          
+          return handleResponse<T>(retryResponse)
+        } catch (retryError) {
+          clearTimeout(retryTimeoutId)
+          if (retryError instanceof ApiError) {
+            throw retryError
+          }
+          // AbortError (타임아웃) 처리
+          if (retryError instanceof Error && retryError.name === 'AbortError') {
+            throw new ApiError(
+              `요청 시간이 초과되었어요. (${timeout / 1000}초)`,
+              0,
+              'Timeout'
+            )
+          }
+          throw retryError
         }
-        
-        return handleResponse<T>(retryResponse)
       }
 
       // 재발급 실패: 토큰 정리 + 전역 이벤트로 로그인 유도
@@ -222,9 +262,21 @@ export async function apiRequest<T>(
     // handleResponse에서 처리하므로 여기서는 바로 넘김
     return handleResponse<T>(response)
   } catch (error) {
+    // 타임아웃 정리 (에러 발생 시에도)
+    clearTimeout(timeoutId)
+
     // ApiError가 이미 발생한 경우 (401 포함) 그대로 throw
     if (error instanceof ApiError) {
       throw error
+    }
+
+    // AbortError (타임아웃) 처리
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new ApiError(
+        `요청 시간이 초과되었어요. (${timeout / 1000}초)`,
+        0,
+        'Timeout'
+      )
     }
 
     // 네트워크 에러 처리

@@ -9,12 +9,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useVideoCreateStore, Product } from '../store/useVideoCreateStore'
 import { useThemeStore } from '../store/useThemeStore'
+import type { ProductResponse } from '@/lib/types/products'
 
 interface SelectedProductsPanelProps {
   className?: string
+  productResponses?: ProductResponse[]
+  currentProducts?: Product[]
 }
 
-export default function SelectedProductsPanel({ className = '' }: SelectedProductsPanelProps) {
+export default function SelectedProductsPanel({ 
+  className = '',
+  productResponses = [],
+  currentProducts = []
+}: SelectedProductsPanelProps) {
   const router = useRouter()
   const { selectedProducts, removeProduct, addProduct } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
@@ -51,7 +58,7 @@ export default function SelectedProductsPanel({ className = '' }: SelectedProduc
   }
 
   return (
-    <Card className={`w-full h-[calc(50vh-4rem)] flex flex-col border-gray-200 ${className}`}>
+    <Card className={`w-full max-h-[calc(100vh-8rem)] flex flex-col border-gray-200 ${className}`}>
       <CardHeader>
         <CardTitle>선택된 상품</CardTitle>
         <p className={`text-sm ${
@@ -91,59 +98,95 @@ export default function SelectedProductsPanel({ className = '' }: SelectedProduc
           </div>
         ) : (
           <div className="space-y-3">
-            {selectedProducts.map((product) => (
-              <Card key={product.id} className="border-gray-200">
-                <CardContent className="p-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden">
-                      {product.image && !imageError[product.id] ? (
-                        <Image
-                          src={product.image}
-                          alt={product.name}
-                          width={48}
-                          height={48}
-                          className="w-12 h-12 object-cover"
-                          onError={() =>
-                            setImageError((prev) => ({
-                              ...prev,
-                              [product.id]: true,
-                            }))
-                          }
-                        />
-                      ) : (
-                        <ShoppingCart className="w-5 h-5 text-gray-400" />
-                      )}
+            {selectedProducts.map((product) => {
+              // 원본 데이터 찾기 (product.id로 매칭)
+              const originalData = productResponses.find(
+                (resp) => {
+                  const respId = String(resp.productId || resp.id || '')
+                  return respId === product.id
+                }
+              )
+              
+              // 원본 가격 정보
+              const salePrice = originalData?.salePrice
+              const originalPrice = originalData?.originalPrice
+              const currency = originalData?.currency || 'KRW'
+              
+              // 표시할 가격 결정
+              const displayPrice = salePrice || originalPrice || product.price
+              const displayCurrency = (salePrice || originalPrice) ? currency : '원'
+
+              return (
+                <Card key={product.id} className="border-gray-200">
+                  <CardContent className="p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center overflow-hidden">
+                        {product.image && !imageError[product.id] ? (
+                          <Image
+                            src={product.image}
+                            alt={product.name}
+                            width={48}
+                            height={48}
+                            className="w-12 h-12 object-cover"
+                            onError={() =>
+                              setImageError((prev) => ({
+                                ...prev,
+                                [product.id]: true,
+                              }))
+                            }
+                          />
+                        ) : (
+                          <ShoppingCart className="w-5 h-5 text-gray-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className={`font-semibold text-sm mb-1 line-clamp-2 ${
+                          theme === 'dark' ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {product.name}
+                        </h3>
+                        <div className="mb-1">
+                          {originalPrice && salePrice && originalPrice > salePrice ? (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className={`text-xs line-through ${
+                                theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
+                              }`}>
+                                {originalPrice.toLocaleString()} {currency}
+                              </span>
+                              <span className={`text-xs font-semibold ${
+                                theme === 'dark' ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                {salePrice.toLocaleString()} {currency}
+                              </span>
+                            </div>
+                          ) : (
+                            <p className={`text-xs ${
+                              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                            }`}>
+                              {displayPrice.toLocaleString()} {displayCurrency}
+                            </p>
+                          )}
+                        </div>
+                        <Badge variant="secondary" className="text-xs">
+                          {product.platform === 'coupang' ? '쿠팡' :
+                           product.platform === 'naver' ? '네이버' :
+                           product.platform === 'aliexpress' ? '알리익스프레스' :
+                           '아마존'}
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeProduct(product.id)}
+                        className="h-8 w-8"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className={`font-semibold text-sm mb-1 line-clamp-2 ${
-                        theme === 'dark' ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {product.name}
-                      </h3>
-                      <p className={`text-xs mb-1 ${
-                        theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                      }`}>
-                        {product.price.toLocaleString()}원
-                      </p>
-                      <Badge variant="secondary" className="text-xs">
-                        {product.platform === 'coupang' ? '쿠팡' :
-                         product.platform === 'naver' ? '네이버' :
-                         product.platform === 'aliexpress' ? '알리익스프레스' :
-                         '아마존'}
-                      </Badge>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeProduct(product.id)}
-                      className="h-8 w-8"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
       </CardContent>

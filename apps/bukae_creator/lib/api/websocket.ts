@@ -4,8 +4,25 @@
 import SockJS from 'sockjs-client'
 import { Client, IMessage } from '@stomp/stompjs'
 
+function isRunningOnLocalhost(): boolean {
+  if (typeof window === 'undefined') return false
+  const host = window.location.hostname
+  return host === 'localhost' || host === '127.0.0.1'
+}
+
 function getWebSocketUrl(): string {
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
+  
+  // 로컬 개발 환경에서만 기본값 허용
+  const isLocal = isRunningOnLocalhost()
+  const API_BASE_URL = envUrl || (isLocal ? 'http://15.164.220.105.nip.io:8080' : null)
+
+  if (!API_BASE_URL) {
+    throw new Error(
+      '환경 변수 NEXT_PUBLIC_API_BASE_URL이 설정되어 있지 않습니다. 프로덕션 환경에서는 반드시 설정해야 합니다.'
+    )
+  }
+
   // SockJS는 http:// 또는 https:// URL을 받아야 함 (ws:// 또는 wss://는 사용 불가)
   return `${API_BASE_URL}/ws`
 }

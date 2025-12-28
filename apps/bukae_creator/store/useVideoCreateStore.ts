@@ -68,6 +68,8 @@ export interface TimelineScene {
     scaleX: number
     scaleY: number
     rotation: number
+    baseWidth?: number // 원본 이미지 너비 (scale 제거)
+    baseHeight?: number // 원본 이미지 높이 (scale 제거)
   }
   // 고급 효과
   advancedEffects?: {

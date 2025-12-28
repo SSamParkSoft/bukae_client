@@ -118,7 +118,7 @@ export function splitSceneBySentences(params: {
             fontWeight: 700,
             color: '#ffffff',
             position: 'center',
-            fontSize: 32,
+            fontSize: 80,
           },
         }
 

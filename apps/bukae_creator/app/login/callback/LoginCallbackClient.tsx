@@ -35,6 +35,15 @@ export default function LoginCallbackClient() {
           throw new Error('토큰 정보를 찾을 수 없어요. 다시 로그인해주세요.')
         }
 
+        // 보안: 토큰을 저장한 후 URL에서 제거 (브라우저 히스토리에서 토큰 노출 방지)
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href)
+          url.searchParams.delete('accessToken')
+          url.searchParams.delete('refreshToken')
+          url.searchParams.delete('error')
+          window.history.replaceState({}, '', url.toString())
+        }
+
         // 백엔드 API로 사용자 정보 조회
         const userInfo = await authApi.getCurrentUser()
         const fallbackName = userInfo.name ?? userInfo.nickname ?? '사용자'

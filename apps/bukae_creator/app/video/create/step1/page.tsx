@@ -1,377 +1,164 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
-import { TrendingUp, ArrowRight, Search, ShoppingCart, Loader2, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Loader2, AlertCircle, Send, ShoppingCart, ExternalLink } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { useVideoCreateStore, Product, Platform } from '../../../../store/useVideoCreateStore'
+import { useVideoCreateStore, Product } from '../../../../store/useVideoCreateStore'
 import { useThemeStore } from '../../../../store/useThemeStore'
+import { useUserStore } from '../../../../store/useUserStore'
 import StepIndicator from '../../../../components/StepIndicator'
 import SelectedProductsPanel from '../../../../components/SelectedProductsPanel'
-import { SPAEL_PRODUCT, isSpaelProduct } from '@/lib/data/spaelProduct'
-import { convertMediaPathToStorageUrl } from '@/lib/utils/supabase-storage'
+import { searchProducts } from '@/lib/api/products'
+import type { TargetMall, ProductResponse } from '@/lib/types/products'
+import { convertProductResponseToProduct } from '@/lib/types/products'
 
 type ThemeMode = 'light' | 'dark'
 
-// 인기 제품 더미 데이터
-const popularProducts = [
-  { id: 'pop1', name: '무선 이어폰', views: 12500, rank: 1 },
-  { id: 'pop2', name: '스마트워치', views: 9800, rank: 2 },
-  { id: 'pop3', name: '블루투스 스피커', views: 8700, rank: 3 },
-  { id: 'pop4', name: '노트북 스탠드', views: 7200, rank: 4 },
-  { id: 'pop5', name: '무선 마우스', views: 6500, rank: 5 },
-]
-
-interface PopularProductsCardProps {
-  theme: ThemeMode
-  className?: string
+// 플랫폼 정보
+const platformInfo: Record<TargetMall, { name: string; enabled: boolean }> = {
+  ALI_EXPRESS: { name: '알리익스프레스', enabled: true },
+  COUPANG: { name: '쿠팡', enabled: false },
+  AMAZON: { name: '아마존', enabled: false },
 }
 
-const PopularProductsCard = ({ theme, className = '' }: PopularProductsCardProps) => {
-  const containerStyle =
-    theme === 'dark'
-      ? 'bg-gray-800 border-gray-700'
-      : 'bg-white border-gray-200'
-  const badgeStyle =
-    theme === 'dark'
-      ? 'text-white'
-      : 'text-gray-900'
-  const subTextStyle =
-    theme === 'dark'
-      ? 'text-gray-400'
-      : 'text-gray-500'
-  const iconColor =
-    theme === 'dark'
-      ? 'text-purple-400'
-      : 'text-purple-600'
-
-  return (
-    <div className={`rounded-lg shadow-sm border p-6 ${containerStyle} ${className}`}>
-      <div className="flex items-center gap-2 mb-4">
-        <TrendingUp className={`w-5 h-5 ${iconColor}`} />
-        <h2 className={`text-xl font-semibold ${badgeStyle}`}>
-          인기 제품 순위
-        </h2>
-      </div>
-      <div className="space-y-3">
-        {popularProducts.map((product) => (
-          <div
-            key={product.id}
-            className={`flex items-center justify-between p-3 rounded-lg ${
-              theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'
-            }`}
-          >
-            <div className="flex items-center gap-4">
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
-                  product.rank <= 3
-                    ? 'bg-purple-500 text-white'
-                    : theme === 'dark'
-                      ? 'bg-gray-700 text-gray-300'
-                      : 'bg-gray-200 text-gray-600'
-                }`}
-              >
-                {product.rank}
-              </div>
-              <span className={badgeStyle}>
-                {product.name}
-              </span>
-            </div>
-            <span className={`text-sm ${subTextStyle}`}>
-              {product.views.toLocaleString()}회
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// 간단한 고정 시드 난수 생성기 (SSR/CSR 일관성 확보)
-const createRng = (seed: number) => {
-  let state = seed >>> 0
-  return () => {
-    state = Math.imul(state ^ (state >>> 15), 1 | state)
-    state = (state + Math.imul(state ^ (state >>> 7), 61 | state)) ^ state
-    return ((state ^ (state >>> 14)) >>> 0) / 4294967296
-  }
-}
-
-// 더미 데이터 생성 함수
-const generateProducts = (platform: Platform, count: number): Product[] => {
-  const productTemplates: Record<Platform, { names: string[]; descriptions: string[]; priceRange: [number, number] }> = {
-    coupang: {
-      names: [
-        '무선 이어폰 블루투스 5.0', '스마트워치 피트니스 트래커', 'USB-C 충전 케이블',
-        '노트북 쿨링 패드', '무선 충전기', '블루투스 스피커', '스마트폰 거치대',
-        'USB 허브', '케이블 정리함', '노트북 가방', '마우스 패드', '키보드',
-        '웹캠', '마이크', '헤드셋', '모니터 스탠드', '책상 정리함', '의자 쿠션',
-        'LED 데스크 램프', 'USB 메모리'
-      ],
-      descriptions: [
-        '고음질 무선 이어폰', '건강 관리 스마트워치', '고속 충전 케이블',
-        '노트북 발열 방지', '무선 충전 지원', '고품질 사운드', '각도 조절 가능',
-        '다중 포트 지원', '케이블 정리 용이', '보호 기능 우수', '부드러운 마우스 움직임',
-        '기계식 키보드', '고화질 영상', '선명한 음성', '편안한 착용감', '모니터 높이 조절',
-        '책상 정리 도우미', '등받이 쿠션', '눈 피로 감소', '빠른 전송 속도'
-      ],
-      priceRange: [5000, 100000]
-    },
-    naver: {
-      names: [
-        '에어컨 필터 세트', '무선 마우스', '공기청정기 필터', '청소기 필터',
-        '세탁기 세제', '다이어트 보조제', '비타민', '건강식품', '화장품 세트',
-        '스킨케어', '선크림', '마스크팩', '샴푸', '바디워시', '핸드크림',
-        '립밤', '에센스', '크림', '토너', '클렌징폼'
-      ],
-      descriptions: [
-        '에어컨 청정 필터', '인체공학 무선 마우스', '미세먼지 제거', '먼지 제거 효율 우수',
-        '강력한 세정력', '체중 관리', '영양 보충', '건강 유지', '완벽한 메이크업',
-        '피부 관리', '자외선 차단', '수분 공급', '모발 관리', '부드러운 세정',
-        '손 보호', '입술 보호', '피부 진정', '수분 공급', '피부 정화', '깨끗한 세정'
-      ],
-      priceRange: [5000, 50000]
-    },
-    aliexpress: {
-      names: [
-        'LED 스트립 라이트', '스마트폰 케이스', '보호 필름', '충전 케이블',
-        '어댑터', '거치대', '카메라 렌즈', '셀카봉', '삼각대', '조명',
-        '장식품', '액세서리', '가방', '지갑', '벨트', '시계',
-        '반지', '목걸이', '귀걸이', '팔찌'
-      ],
-      descriptions: [
-        'RGB LED 조명', '방수 보호 케이스', '스크래치 방지', '빠른 충전',
-        '다양한 기기 지원', '안정적인 거치', '고화질 촬영', '자유로운 각도',
-        '안정적인 촬영', '밝은 조명', '인테리어 소품', '스타일리시한 디자인',
-        '실용적인 수납', '컴팩트한 디자인', '편안한 착용', '정확한 시간',
-        '우아한 디자인', '세련된 스타일', '고급스러운 느낌', '데일리 착용'
-      ],
-      priceRange: [3000, 30000]
-    },
-    amazon: {
-      names: [
-        'Bluetooth Speaker', 'Laptop Stand', 'Wireless Mouse', 'Keyboard',
-        'Monitor', 'Webcam', 'Microphone', 'Headphones', 'USB Hub', 'Cable',
-        'Adapter', 'Charger', 'Power Bank', 'Tablet Stand', 'Phone Mount',
-        'Desk Organizer', 'Cable Management', 'Laptop Sleeve', 'Backpack', 'Stand'
-      ],
-      descriptions: [
-        'Portable wireless speaker', 'Ergonomic laptop stand', 'Precise tracking',
-        'Mechanical keys', 'Crystal clear display', 'HD video quality', 'Studio quality',
-        'Noise cancelling', 'Multiple ports', 'Fast charging', 'Universal compatibility',
-        'Quick charge', 'High capacity', 'Adjustable angle', 'Secure mount',
-        'Desk organization', 'Cable tidy', 'Laptop protection', 'Comfortable carry',
-        'Stable support'
-      ],
-      priceRange: [10000, 200000]
-    }
-  }
-
-  const template = productTemplates[platform]
-  const products: Product[] = []
-
-  // 각 플랫폼의 첫 번째 제품 이미지 매핑 (Supabase Storage images 버킷에서 가져오기)
-  const firstProductImages: Record<Platform, string> = {
-    coupang: convertMediaPathToStorageUrl('/media/spael-massager.png'), // 스파알 제품 (이미 SPAEL_PRODUCT로 교체됨)
-    naver: convertMediaPathToStorageUrl('/media/air-filter-set.png'), // 에어컨 필터 세트
-    aliexpress: convertMediaPathToStorageUrl('/media/led-strip-light.png'), // LED 스트립 라이트
-    amazon: convertMediaPathToStorageUrl('/media/bluetooth-speaker.png'), // Bluetooth Speaker
-  }
-
-  // 플랫폼별 고정 시드로 SSR/CSR에서 동일한 데이터 생성
-  const rng = createRng(
-    platform === 'coupang'
-      ? 1
-      : platform === 'naver'
-        ? 2
-        : platform === 'aliexpress'
-          ? 3
-          : 4
-  )
-
-  for (let i = 1; i <= count; i++) {
-    const nameIndex = (i - 1) % template.names.length
-    const descIndex = (i - 1) % template.descriptions.length
-    const price = Math.floor(
-      rng() * (template.priceRange[1] - template.priceRange[0]) + template.priceRange[0]
-    )
-    
-    // 첫 번째 제품이면 이미지 설정, 아니면 placeholder
-    const image = i === 1 ? firstProductImages[platform] : 'https://via.placeholder.com/200'
-    
-    products.push({
-      id: `${platform}${i}`,
-      name: `${template.names[nameIndex]} ${i > template.names.length ? `(${Math.floor(i / template.names.length) + 1})` : ''}`,
-      price: Math.floor(price / 100) * 100, // 100원 단위로 반올림
-      image,
-      platform,
-      url: `https://${platform === 'coupang' ? 'www.coupang.com/vp/products' : platform === 'naver' ? 'shopping.naver.com/products' : platform === 'aliexpress' ? 'www.aliexpress.com/item' : 'www.amazon.com/dp'}/${platform}${i}`,
-      description: template.descriptions[descIndex],
-    })
-  }
-
-  return products
-}
-
-// 각 플랫폼별로 20개씩 생성
-const dummyProducts: Record<Platform, Product[]> = {
-  coupang: generateProducts('coupang', 20),
-  naver: generateProducts('naver', 20),
-  aliexpress: generateProducts('aliexpress', 20),
-  amazon: generateProducts('amazon', 20),
-}
-
-// 쿠팡 첫 번째 항목을 스파알 제품으로 교체
-dummyProducts.coupang[0] = SPAEL_PRODUCT
-
-const platformNames: Record<Platform, string> = {
-  coupang: '쿠팡',
-  naver: '네이버',
-  aliexpress: '알리익스프레스',
-  amazon: '아마존',
+// 챗봇 메시지 타입
+interface ChatMessage {
+  id: string
+  type: 'user' | 'assistant' | 'error'
+  content: string
+  products?: Product[]
+  timestamp: Date
 }
 
 export default function Step1Page() {
-  const router = useRouter()
-  const { removeProduct, addProduct, selectedProducts } = useVideoCreateStore()
+  const { removeProduct, addProduct, selectedProducts, clearProducts } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedPlatform, setSelectedPlatform] = useState<Platform | 'all'>('all')
-  const [displayCount, setDisplayCount] = useState(16) // 초기 표시 개수
-  const [isLoading, setIsLoading] = useState(false)
-  const observerTarget = useRef<HTMLDivElement>(null)
+  const { getPlatformTrackingId } = useUserStore()
 
-  const handleDragStart = (e: React.DragEvent, product: Product) => {
-    e.dataTransfer.setData('application/json', JSON.stringify(product))
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.dropEffect = 'move'
+  // 상태 관리
+  const [selectedPlatform, setSelectedPlatform] = useState<TargetMall | 'all'>('all')
+  const [prompt, setPrompt] = useState('')
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [currentProducts, setCurrentProducts] = useState<Product[]>([])
+  const [currentProductResponses, setCurrentProductResponses] = useState<ProductResponse[]>([])
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // 메시지 스크롤
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [chatMessages])
+
+  // 플랫폼 선택 핸들러
+  const handlePlatformSelect = (platform: TargetMall | 'all') => {
+    setSelectedPlatform(platform)
+    setSearchError(null)
   }
 
-  // 플랫폼별로 골고루 섞기
-  const shuffleProducts = (products: Product[]): Product[] => {
-    const platformGroups: Record<Platform, Product[]> = {
-      coupang: [],
-      naver: [],
-      aliexpress: [],
-      amazon: [],
-    }
-
-    products.forEach((product) => {
-      platformGroups[product.platform].push(product)
-    })
-
-    const shuffled: Product[] = []
-    const maxLength = Math.max(...Object.values(platformGroups).map((arr) => arr.length))
-
-    for (let i = 0; i < maxLength; i++) {
-      Object.values(platformGroups).forEach((group) => {
-        if (group[i]) {
-          shuffled.push(group[i])
-        }
-      })
-    }
-
-    return shuffled
-  }
-
-  const filteredProducts = useMemo(() => {
-    // 현재는 더미 데이터만 사용 (products API 제거)
-    let products: Product[] =
-      selectedPlatform === 'all'
-        ? shuffleProducts(Object.values(dummyProducts).flat())
-        : dummyProducts[selectedPlatform]
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase()
-      const relevanceScore = (text: string | undefined) => {
-        if (!text) return Number.MAX_SAFE_INTEGER
-        const index = text.toLowerCase().indexOf(query)
-        return index === -1 ? Number.MAX_SAFE_INTEGER : index
-      }
-
-      products = products
-        .filter(
-          (p) =>
-            p.name.toLowerCase().includes(query) ||
-            p.description?.toLowerCase().includes(query)
-        )
-        .sort((a, b) => {
-          const aScore = Math.min(
-            relevanceScore(a.name),
-            relevanceScore(a.description)
-          )
-          const bScore = Math.min(
-            relevanceScore(b.name),
-            relevanceScore(b.description)
-          )
-          return aScore - bScore
-        })
-    }
-
-    // 스파알 제품을 맨 앞으로 이동
-    const spaelIndex = products.findIndex((p) => isSpaelProduct(p))
-    if (spaelIndex > 0) {
-      const spaelProduct = products[spaelIndex]
-      products.splice(spaelIndex, 1)
-      products.unshift(spaelProduct)
-    }
-
-    return products
-  }, [selectedPlatform, searchQuery])
-
-  const displayedProducts = useMemo(() => {
-    return filteredProducts.slice(0, displayCount)
-  }, [filteredProducts, displayCount])
-
-  // 무한 스크롤
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !isLoading && displayCount < filteredProducts.length) {
-          setIsLoading(true)
-          // 로딩 시뮬레이션
-          setTimeout(() => {
-            setDisplayCount((prev) => Math.min(prev + 16, filteredProducts.length))
-            setIsLoading(false)
-          }, 300)
-        }
-      },
-      { threshold: 0.1 }
-    )
-
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current)
-    }
-
-    return () => {
-      if (observerTarget.current) {
-        observer.unobserve(observerTarget.current)
-      }
-    }
-  }, [displayCount, filteredProducts.length, isLoading])
-
-  // 검색어나 플랫폼 변경 시 displayCount 리셋
-  useEffect(() => {
-    setDisplayCount(16)
-  }, [searchQuery, selectedPlatform])
-
+  // 상품 선택/해제
   const isProductSelected = (productId: string) => {
     return selectedProducts.some((p) => p.id === productId)
   }
 
   const handleProductToggle = (product: Product) => {
     if (isProductSelected(product.id)) {
+      // 이미 선택된 상품이면 선택 해제
       removeProduct(product.id)
     } else {
+      // 새로운 상품 선택 시 기존 선택 모두 제거 후 새 상품만 선택
+      clearProducts()
       addProduct(product)
     }
   }
 
-  const handleNext = () => {
-    if (selectedProducts.length > 0) {
-      router.push('/video/create/step2')
+  // 검색 실행
+  const handleSearch = useCallback(async () => {
+    if (!prompt.trim()) {
+      setSearchError('검색어를 입력해주세요.')
+      return
+    }
+
+    // 플랫폼 선택 확인
+    if (selectedPlatform === 'all') {
+      setSearchError('플랫폼을 선택해주세요.')
+      return
+    }
+
+    setIsSearching(true)
+    setSearchError(null)
+
+    // 사용자 메시지 추가
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      type: 'user',
+      content: prompt,
+      timestamp: new Date(),
+    }
+    setChatMessages((prev) => [...prev, userMessage])
+
+    try {
+      // 플랫폼별 tracking ID 가져오기
+      const trackingId = getPlatformTrackingId(selectedPlatform)
+
+      if (!trackingId) {
+        setSearchError(
+          `${platformInfo[selectedPlatform].name}의 추적 ID가 설정되지 않았습니다. 프로필에서 설정해주세요.`
+        )
+        setIsSearching(false)
+        return
+      }
+
+      // API 호출 (동기 응답)
+      const products: ProductResponse[] = await searchProducts({
+        query: prompt,
+        targetMall: selectedPlatform,
+        userTrackingId: trackingId,
+      })
+
+      // 상품 목록 수신
+      const convertedProducts = products.map((p) => {
+        return convertProductResponseToProduct(p, selectedPlatform)
+      })
+      setCurrentProducts(convertedProducts)
+      setCurrentProductResponses(products) // 원본 데이터도 저장
+
+      // AI 응답 메시지 추가
+      const assistantMessage: ChatMessage = {
+        id: `assistant-${Date.now()}`,
+        type: 'assistant',
+        content: `${products.length}개의 상품을 찾았습니다. (환율로 인해 정확하지 않으니 정확한 가격은 링크를 통해 확인해주세요!)`,
+        products: convertedProducts,
+        timestamp: new Date(),
+      }
+      setChatMessages((prev) => [...prev, assistantMessage])
+      setIsSearching(false)
+    } catch (error) {
+      console.error('[ProductSearch] 검색 실패:', error)
+      const errorMessage =
+        error instanceof Error ? error.message : '상품 검색 중 오류가 발생했습니다.'
+      setSearchError(errorMessage)
+
+      const errorChatMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        type: 'error',
+        content: errorMessage,
+        timestamp: new Date(),
+      }
+      setChatMessages((prev) => [...prev, errorChatMessage])
+      setIsSearching(false)
+    }
+  }, [prompt, selectedPlatform, getPlatformTrackingId])
+
+  // Enter 키로 검색
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !isSearching) {
+      e.preventDefault()
+      handleSearch()
     }
   }
+
+  const themeMode: ThemeMode = theme
 
   return (
     <motion.div
@@ -381,195 +168,388 @@ export default function Step1Page() {
       transition={{ duration: 0.3 }}
       className="flex min-h-screen justify-center"
     >
-      <div className="flex w-full max-w-[1600px]">
+      <div className="flex w-full max-w-[1600px] relative">
         <StepIndicator />
-        <div className="flex-1 p-4 md:p-8 overflow-y-auto min-w-0">
+        <div className="flex-1 p-4 md:p-8 min-w-0 overflow-y-auto" style={{ maxHeight: '100vh' }}>
           <div className="max-w-full">
-          <h1 className={`text-3xl font-bold mb-2 ${
-            theme === 'dark' ? 'text-white' : 'text-gray-900'
-          }`}>
-            상품 선택
-          </h1>
-          <p className={`mb-8 ${
-            theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            영상에 사용할 상품을 선택하세요
-          </p>
+            <h1
+              className={`text-3xl font-bold mb-2 ${
+                themeMode === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}
+            >
+              상품 선택
+            </h1>
+            <p
+              className={`mb-8 ${
+                themeMode === 'dark' ? 'text-gray-400' : 'text-gray-600'
+              }`}
+            >
+              AI에게 원하는 상품을 물어보세요
+            </p>
 
-          {/* 검색 및 필터 */}
-          <div className={`mb-8 rounded-lg shadow-sm border p-6 ${
-            theme === 'dark'
-              ? 'bg-gray-800 border-gray-700'
-              : 'bg-white border-gray-200'
-          }`}>
-            <div className="relative mb-4">
-              <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${
-                theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-              }`} />
-              <input
-                type="text"
-                placeholder="상품 검색..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full pl-10 pr-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-purple-500 ${
-                  theme === 'dark'
-                    ? 'bg-gray-900 border-gray-700 text-white placeholder-gray-400'
-                    : 'bg-white border-gray-300 text-gray-900'
-                }`}
-              />
-            </div>
-
-            {/* 플랫폼 탭 */}
-            <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={() => setSelectedPlatform('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  selectedPlatform === 'all'
-                    ? 'bg-purple-500 text-white'
-                    : theme === 'dark'
-                      ? 'bg-gray-900 text-gray-300 hover:bg-gray-700'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            {/* 플랫폼 선택 카드 */}
+            <div
+              className={`mb-6 rounded-lg shadow-sm border p-6 ${
+                themeMode === 'dark'
+                  ? 'bg-gray-800 border-gray-700'
+                  : 'bg-white border-gray-200'
+              }`}
+            >
+              <h2
+                className={`text-lg font-semibold mb-4 ${
+                  themeMode === 'dark' ? 'text-white' : 'text-gray-900'
                 }`}
               >
-                전체
-              </button>
-              {(Object.keys(platformNames) as Platform[]).map((platform) => (
+                플랫폼 선택
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <button
-                  key={platform}
-                  onClick={() => setSelectedPlatform(platform)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    selectedPlatform === platform
-                      ? 'bg-purple-500 text-white'
-                      : theme === 'dark'
-                        ? 'bg-gray-900 text-gray-300 hover:bg-gray-700'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  onClick={() => handlePlatformSelect('all')}
+                  disabled
+                  className={`p-4 rounded-lg border-2 transition-all ${
+                    selectedPlatform === 'all'
+                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                      : themeMode === 'dark'
+                        ? 'border-gray-700 bg-gray-900 opacity-50 cursor-not-allowed'
+                        : 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
                   }`}
                 >
-                  {platformNames[platform]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 인기 제품 순위 - 모바일 뷰 */}
-          <PopularProductsCard theme={theme} className="mb-8 lg:hidden" />
-
-          {/* 상품 그리드 */}
-          <div className={`mb-8 rounded-lg shadow-sm border p-6 ${
-            theme === 'dark'
-              ? 'bg-gray-800 border-gray-700'
-              : 'bg-white border-gray-200'
-          }`}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className={`text-lg font-semibold ${
-                theme === 'dark' ? 'text-white' : 'text-gray-900'
-              }`}>
-                상품 목록 ({filteredProducts.length}개)
-              </h2>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {displayedProducts.map((product) => {
-                const isSelected = isProductSelected(product.id)
-                return (
                   <div
-                    key={product.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, product)}
-                    onClick={() => handleProductToggle(product)}
-                    className={`p-4 rounded-lg border-2 cursor-move transition-all ${
-                      isSelected
-                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                        : theme === 'dark'
-                          ? 'border-gray-700 bg-gray-900 hover:border-purple-600'
-                          : 'border-gray-200 bg-white hover:border-purple-300'
+                    className={`font-medium ${
+                      themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
                     }`}
                   >
-                    <div className="aspect-square bg-gray-100 dark:bg-gray-700 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
-                      {product.image && product.image !== 'https://via.placeholder.com/200' ? (
-                        <img 
-                          src={product.image} 
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <ShoppingCart className="w-8 h-8 text-gray-400" />
-                      )}
-                    </div>
-                    <div className={`text-xs font-medium mb-1 ${
-                      theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                    }`}>
-                      {platformNames[product.platform]}
-                    </div>
-                    <h3 className={`font-semibold text-sm mb-1 line-clamp-2 ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
-                      {product.name}
-                    </h3>
-                    <p className={`text-xs mb-2 line-clamp-1 ${
-                      theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                    }`}>
-                      {product.description}
-                    </p>
-                    <div className={`text-lg font-bold ${
-                      theme === 'dark' ? 'text-white' : 'text-gray-900'
-                    }`}>
-                      {product.price.toLocaleString()}원
-                    </div>
-                    {isSelected && (
-                      <div className="mt-2 text-xs text-purple-600 dark:text-purple-400 font-medium">
-                        선택됨
+                    전체
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">준비 중</div>
+                </button>
+                {(Object.keys(platformInfo) as TargetMall[]).map((platform) => {
+                  const info = platformInfo[platform]
+                  return (
+                    <button
+                      key={platform}
+                      onClick={() => handlePlatformSelect(platform)}
+                      disabled={!info.enabled}
+                      className={`p-4 rounded-lg border-2 transition-all ${
+                        selectedPlatform === platform
+                          ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                          : info.enabled
+                            ? themeMode === 'dark'
+                              ? 'border-gray-700 bg-gray-900 hover:border-purple-600'
+                              : 'border-gray-200 bg-white hover:border-purple-300'
+                            : themeMode === 'dark'
+                              ? 'border-gray-700 bg-gray-900 opacity-50 cursor-not-allowed'
+                              : 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                      }`}
+                    >
+                      <div
+                        className={`font-medium ${
+                          selectedPlatform === platform
+                            ? 'text-purple-600 dark:text-purple-400'
+                            : themeMode === 'dark'
+                              ? 'text-gray-300'
+                              : 'text-gray-700'
+                        }`}
+                      >
+                        {info.name}
                       </div>
-                    )}
-                  </div>
-                )
-              })}
+                      {!info.enabled && (
+                        <div className="text-xs text-gray-400 mt-1">준비 중</div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-            {/* 무한 스크롤 트리거 */}
-            {displayCount < filteredProducts.length && (
-              <div ref={observerTarget} className="flex justify-center py-8">
-                {isLoading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
-                ) : (
-                  <div className={`text-sm ${
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                  }`}>
-                    더 많은 상품 로딩 중...
-                  </div>
-                )}
-              </div>
-            )}
-            {displayCount >= filteredProducts.length && filteredProducts.length > 0 && (
-              <div className={`text-center py-4 text-sm ${
-                theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-              }`}>
-                모든 상품을 불러왔어요
-              </div>
-            )}
-          </div>
 
-          {/* 다음 단계 버튼 */}
-          {selectedProducts.length > 0 && (
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={handleNext}
-                className="inline-flex items-center gap-2 rounded-lg bg-purple-500 px-4 py-2 text-sm font-medium text-white hover:bg-purple-600 transition-colors"
-              >
-                다음 단계
-                <ArrowRight className="w-5 h-5" />
-              </button>
+            {/* 프롬프트 입력 섹션 */}
+            <div
+              className={`mb-6 rounded-lg shadow-sm border p-6 ${
+                themeMode === 'dark'
+                  ? 'bg-gray-800 border-gray-700'
+                  : 'bg-white border-gray-200'
+              }`}
+            >
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="예: Spoon and Chopstick Set / 수저세트, 주방용품, 50000, 20"
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  disabled={isSearching || selectedPlatform === 'all'}
+                  className={`w-full pl-4 pr-12 py-4 rounded-lg border focus:outline-none focus:ring-2 focus:ring-purple-500 text-lg ${
+                    themeMode === 'dark'
+                      ? 'bg-gray-900 border-gray-700 text-white placeholder-gray-400'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  } ${isSearching || selectedPlatform === 'all' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                />
+                <button
+                  onClick={handleSearch}
+                  disabled={isSearching || !prompt.trim() || selectedPlatform === 'all'}
+                  className={`absolute right-2 top-1/2 transform -translate-y-1/2 p-2 rounded-lg transition-colors ${
+                    isSearching || !prompt.trim() || selectedPlatform === 'all'
+                      ? 'bg-gray-300 dark:bg-gray-700 cursor-not-allowed'
+                      : 'bg-purple-500 hover:bg-purple-600'
+                  }`}
+                >
+                  {isSearching ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-white" />
+                  ) : (
+                    <Send className="w-5 h-5 text-white" />
+                  )}
+                </button>
+              </div>
+              <p className={`mt-2 text-sm ${
+                themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                💡 <strong>영문 상품명 / 한글 상품명, 카테고리, 가격(원), 개수 순서로 입력하세요.</strong> 
+              </p>
+              <p className={`mt-2 text-sm ${
+                themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                💡 &quot;영문 상품명 / 한글 상품명&quot;으로 작성하면 검색 정확도가 높아져요!
+              </p>
+              {searchError && (
+                <div className="mt-4 flex items-center gap-2 text-red-500 text-sm">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>{searchError}</span>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* 검색 결과 영역 */}
+            {isSearching && (
+              <div
+                className={`mb-6 rounded-lg shadow-sm border p-6 ${
+                  themeMode === 'dark'
+                    ? 'bg-gray-800 border-gray-700'
+                    : 'bg-white border-gray-200'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-purple-500" />
+                  <span className={`text-lg ${
+                    themeMode === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    AI가 상품을 분석 중입니다...
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* 검색 결과 표시 */}
+            {currentProducts.length > 0 && (
+              <div
+                className={`mb-6 rounded-lg shadow-sm border p-6 ${
+                  themeMode === 'dark'
+                    ? 'bg-gray-800 border-gray-700'
+                    : 'bg-white border-gray-200'
+                }`}
+              >
+                <h2
+                  className={`text-xl font-bold mb-6 ${
+                    themeMode === 'dark' ? 'text-white' : 'text-gray-900'
+                  }`}
+                >
+                  {currentProducts.length}개를 찾았습니다!{' '}
+                  <span className={`ml-2 text-sm font-normal ${
+                    themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    정확한 가격은 링크에서 확인해주세요!
+                  </span>
+                </h2>
+                <div className="space-y-4">
+                  {currentProducts.map((product, index) => {
+                    const isSelected = isProductSelected(product.id)
+                    const originalData = currentProductResponses[index]
+                    const originalPrice = originalData?.originalPrice
+                    const salePrice = originalData?.salePrice
+                    const discountRate = originalData?.discountRate || originalData?.discount
+                    const commissionRate = originalData?.commissionRate
+                    const currency = originalData?.currency || 'KRW'
+                    
+                    // 할인율 계산 (originalPrice와 salePrice가 있으면)
+                    let calculatedDiscount: string | undefined
+                    if (originalPrice && salePrice && originalPrice > salePrice) {
+                      const discountPercent = Math.round(((originalPrice - salePrice) / originalPrice) * 100)
+                      calculatedDiscount = `${discountPercent}%`
+                    }
+                    const displayDiscount = discountRate || calculatedDiscount
+
+                    // 예상 수익 계산 (salePrice * commissionRate)
+                    let expectedRevenue: number | null = null
+                    if (salePrice && commissionRate) {
+                      // commissionRate를 숫자로 변환 (예: "10%" -> 0.1, "5.5%" -> 0.055)
+                      const rateStr = String(commissionRate).replace(/%/g, '').trim()
+                      const rateNum = parseFloat(rateStr)
+                      if (!isNaN(rateNum)) {
+                        expectedRevenue = salePrice * (rateNum / 100)
+                      }
+                    }
+
+                    return (
+                      <div
+                        key={product.id}
+                        onClick={() => handleProductToggle(product)}
+                        className={`flex gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          isSelected
+                            ? themeMode === 'dark'
+                              ? 'border-purple-500 bg-purple-900/20'
+                              : 'border-purple-500 bg-purple-50'
+                            : themeMode === 'dark'
+                              ? 'border-gray-600 bg-gray-800'
+                              : 'border-gray-200 bg-white'
+                        }`}
+                      >
+                        <div className={`w-24 h-24 shrink-0 rounded-lg flex items-center justify-center overflow-hidden ${
+                          themeMode === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
+                        }`}>
+                          {product.image ? (
+                            <img
+                              src={product.image}
+                              alt={product.name || '제품 이미지'}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <ShoppingCart className="w-8 h-8 text-gray-400" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0 flex flex-col justify-between">
+                          <div>
+                            <h4 className={`font-semibold text-base mb-2 line-clamp-2 ${
+                              themeMode === 'dark' ? 'text-white' : 'text-gray-900'
+                            }`}>
+                              {product.name || '제품명 없음'}
+                            </h4>
+                            
+                            {/* 가격 정보 */}
+                            <div className="mb-2 space-y-1">
+                              {originalPrice && salePrice ? (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {originalPrice > salePrice && (
+                                    <span className={`text-sm line-through ${
+                                      themeMode === 'dark' ? 'text-gray-500' : 'text-gray-400'
+                                    }`}>
+                                      {originalPrice.toLocaleString()} {currency}
+                                    </span>
+                                  )}
+                                  <span className={`text-lg font-bold ${
+                                    themeMode === 'dark' ? 'text-white' : 'text-gray-900'
+                                  }`}>
+                                    {salePrice.toLocaleString()} {currency}
+                                  </span>
+                                  {displayDiscount && (
+                                    <span className="px-2 py-0.5 rounded bg-red-500 text-white text-xs font-medium">
+                                      {displayDiscount} 할인
+                                    </span>
+                                  )}
+                                </div>
+                              ) : salePrice ? (
+                                <p className={`text-lg font-bold ${
+                                  themeMode === 'dark' ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                  {salePrice.toLocaleString()} {currency}
+                                </p>
+                              ) : (
+                                <p className={`text-lg font-bold ${
+                                  themeMode === 'dark' ? 'text-white' : 'text-gray-400'
+                                }`}>
+                                  약 {product.price ? product.price.toLocaleString() : '0'}원
+                                </p>
+                              )}
+                              
+                              {/* 수수료 표시 */}
+                              {commissionRate && (
+                                <p className={`text-xs ${
+                                  themeMode === 'dark' ? 'text-green-400' : 'text-green-600'
+                                }`}>
+                                  수수료율: {commissionRate}
+                                </p>
+                              )}
+                            </div>
+
+                            {product.url && (
+                              <a
+                                href={product.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className={`inline-flex items-center gap-1 text-sm hover:underline ${
+                                  themeMode === 'dark' ? 'text-blue-400' : 'text-blue-600'
+                                }`}
+                              >
+                                상품 보기 <ExternalLink className="w-4 h-4" />
+                              </a>
+                            )}
+                          </div>
+
+                          {/* 예상 수익 (오른쪽 하단) */}
+                          {expectedRevenue !== null && (
+                            <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
+                              <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-baseline gap-1">
+                                  <span className={`text-xs ${
+                                    themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                  }`}>
+                                    예상 수익
+                                  </span>
+                                  <span className={`text-lg font-bold ${
+                                    themeMode === 'dark' ? 'text-yellow-400' : 'text-yellow-600'
+                                  }`}>
+                                    {Math.round(expectedRevenue).toLocaleString()} {currency}
+                                  </span>
+                                </div>
+                                <p className={`text-xs ${
+                                  themeMode === 'dark' ? 'text-gray-500' : 'text-gray-400'
+                                }`}>
+                                  * 수익 기준은 실제 금액 기준이라 예상 수익과 다를 수 있습니다
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {isSelected && (
+                          <div className="shrink-0 flex items-center">
+                            <div className="px-3 py-1 rounded-full bg-purple-500 text-white text-sm font-medium">
+                              선택됨
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 에러 메시지 표시 */}
+            {searchError && !isSearching && (
+              <div
+                className={`mb-6 rounded-lg shadow-sm border p-6 ${
+                  themeMode === 'dark'
+                    ? 'bg-red-900/20 border-red-700'
+                    : 'bg-red-50 border-red-200'
+                }`}
+              >
+                <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                  <AlertCircle className="w-5 h-5" />
+                  <span className="text-base">{searchError}</span>
+                </div>
+              </div>
+            )}
 
           </div>
         </div>
-      </div>
-      <div className="hidden lg:block p-4 md:p-8 flex-shrink-0">
-        <div className="sticky top-8 flex flex-col gap-6 w-72 xl:w-80">
-          <SelectedProductsPanel />
-          <PopularProductsCard theme={theme} />
+        <div className="hidden lg:block shrink-0">
+          <div className="sticky top-4 p-4 md:p-8 flex flex-col gap-6 w-80 xl:w-96" style={{ maxHeight: 'calc(100vh - 2rem)' }}>
+            <SelectedProductsPanel 
+              productResponses={currentProductResponses}
+              currentProducts={currentProducts}
+            />
+          </div>
         </div>
       </div>
     </motion.div>
   )
 }
-

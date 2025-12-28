@@ -467,7 +467,7 @@ export const useSceneManager = ({
     if (scene.text?.content) {
       const transform = scene.text.transform
       const angleDeg = (transform?.rotation || 0) * (180 / Math.PI)
-      const baseFontSize = scene.text.fontSize || 32
+      const baseFontSize = scene.text.fontSize || 48
       const scaledFontSize = baseFontSize * scale
       const fontFamily = resolveSubtitleFontFamily(scene.text.font)
       const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
@@ -556,20 +556,27 @@ export const useSceneManager = ({
         if (scene.text?.content) {
           const fontFamily = resolveSubtitleFontFamily(scene.text.font)
           const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
-          const textStyle = new PIXI.TextStyle({
+          // 텍스트 너비 계산 (Transform이 있으면 그 너비 사용, 없으면 기본값)
+          let textWidth = width * 0.75 // 기본값: 화면 너비의 75%
+          if (scene.text.transform?.width) {
+            textWidth = scene.text.transform.width / (scene.text.transform.scaleX || 1)
+          }
+
+          // strokeThickness를 포함한 스타일 객체 생성
+          const styleConfig: Record<string, unknown> = {
             fontFamily,
-            fontSize: scene.text.fontSize || 32,
+            fontSize: scene.text.fontSize || 80, // 기본 크기 32 -> 48로 증가
             fill: scene.text.color || '#ffffff',
             align: scene.text.style?.align || 'center',
             fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
             fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
-            dropShadow: {
-              color: '#000000',
-              blur: 10,
-              angle: Math.PI / 4,
-              distance: 2,
-            },
-          })
+            wordWrap: true, // 자동 줄바꿈 활성화
+            wordWrapWidth: textWidth, // 줄바꿈 너비 설정
+            breakWords: true, // 단어 중간에서도 줄바꿈 가능
+            stroke: '#000000', // 쉐도우 대신 테두리(border) 사용
+            strokeThickness: 10, // 테두리 두께 10픽셀 (서버 인코딩과 동일)
+          }
+          const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
 
           const text = new PIXI.Text({
             text: scene.text.content,
@@ -596,6 +603,13 @@ export const useSceneManager = ({
             text.y = scene.text.transform.y
             text.scale.set(scaleX, scaleY)
             text.rotation = scene.text.transform.rotation
+            
+            // Transform이 있으면 wordWrapWidth도 업데이트
+            if (text.style && scene.text.transform.width) {
+              const baseWidth = scene.text.transform.width / scaleX
+              text.style.wordWrapWidth = baseWidth
+              text.text = text.text // 스타일 변경 적용
+            }
           }
 
           container.addChild(text)

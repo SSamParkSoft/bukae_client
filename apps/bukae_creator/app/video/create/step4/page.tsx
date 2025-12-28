@@ -159,7 +159,7 @@ export default function Step4Page() {
             fontWeight: existingScene?.text?.fontWeight ?? 700,
             color: subtitleColor || '#ffffff',
             position: subtitlePosition || 'center',
-            fontSize: existingScene?.text?.fontSize || 32,
+            fontSize: existingScene?.text?.fontSize || 80,
           },
         }
       }),
@@ -407,7 +407,7 @@ export default function Step4Page() {
         }
         const textContent = textbox.text ?? ''
         // 리사이즈 시 scaleY를 fontSize에 반영 (scaleY * fontSize = 실제 표시 크기)
-        const baseFontSize = textbox.fontSize ?? 32
+        const baseFontSize = textbox.fontSize ?? 48
         const textScaleY = textbox.scaleY ?? 1
         // 실제 표시되는 폰트 크기 계산 후 좌표계 역변환
         const actualFontSize = baseFontSize * textScaleY * invScale
@@ -472,7 +472,7 @@ export default function Step4Page() {
       isManualSceneSelectRef.current = true
       
       const textContent = target.text ?? ''
-      const scaledFontSize = target.fontSize ?? 32
+      const scaledFontSize = target.fontSize ?? 48
       const fontSize = scaledFontSize * invScale
       
       const nextTimeline: TimelineData = {
@@ -523,7 +523,7 @@ export default function Step4Page() {
       }
       const textContent = target.text ?? ''
       // 리사이즈 시 scaleY를 fontSize에 반영
-      const baseFontSize = target.fontSize ?? 32
+      const baseFontSize = target.fontSize ?? 48
       const textScaleY = target.scaleY ?? 1
       const actualFontSize = baseFontSize * textScaleY * invScale
       const fill = target.fill ?? '#ffffff'
@@ -1074,9 +1074,11 @@ export default function Step4Page() {
       const base = (timeline.scenes[sceneIndex]?.text?.content ?? '').trim()
       if (!base) return ''
       const isLast = sceneIndex >= timeline.scenes.length - 1
-      // 사용자에게는 보이지 않게, 합성 요청 직전에만 자동 숨을 markup에 삽입
+      // pause 기능은 현재 비활성화되어 있으나, 로직은 유지됨
+      // pause를 다시 사용하려면 enablePause: true로 변경
       return makeMarkupFromPlainText(base, { 
-        addSceneTransitionPause: !isLast
+        addSceneTransitionPause: !isLast,
+        enablePause: false // pause 비활성화 (로직은 유지)
       })
     },
     [timeline]
@@ -1253,141 +1255,148 @@ export default function Step4Page() {
     isPlayingRef.current = isPlaying
   }, [isPlaying])
   
+  // 재생 시작 로직을 별도 함수로 분리
+  const startPlayback = useCallback(() => {
+    if (!timeline) return
+    
+    setShowReadyMessage(false)
+    setIsPlaying(true)
+    isPlayingRef.current = true
+    
+    // TTS 전체 길이 계산 및 BGM 페이드 아웃 설정
+    const calculateTotalTtsDuration = (): number => {
+      let totalDuration = 0
+      for (let i = currentSceneIndex; i < timeline.scenes.length; i++) {
+        const markup = buildSceneMarkup(i)
+        const key = markup ? makeTtsKey(voiceTemplate!, markup) : null
+        const cached = key ? ttsCacheRef.current.get(key) : null
+        if (cached) {
+          totalDuration += cached.durationSec
+        } else {
+          totalDuration += timeline.scenes[i]?.duration || 3
+        }
+      }
+      return totalDuration
+    }
+    
+    // BGM 페이드 아웃 설정
+    const setupBgmFadeOut = () => {
+      if (!confirmedBgmTemplate || !bgmAudioRef.current) return
+      
+      const totalTtsDuration = calculateTotalTtsDuration()
+      const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
+      const totalTimeMs = (totalTtsDuration * 1000) / speed
+      const fadeDuration = 1000 // 1초 페이드
+      const fadeStartTime = Math.max(0, totalTimeMs - fadeDuration)
+      
+      if (fadeStartTime > 0) {
+        setTimeout(() => {
+          if (!bgmAudioRef.current) return
+          
+          const audio = bgmAudioRef.current
+          const startVolume = audio.volume
+          const fadeInterval = 50 // 50ms마다 volume 조절
+          const volumeStep = startVolume / (fadeDuration / fadeInterval)
+          
+          const fadeTimer = setInterval(() => {
+            if (!bgmAudioRef.current) {
+              clearInterval(fadeTimer)
+              return
+            }
+            
+            bgmAudioRef.current.volume = Math.max(0, bgmAudioRef.current.volume - volumeStep)
+            
+            if (bgmAudioRef.current.volume <= 0) {
+              clearInterval(fadeTimer)
+              stopBgmAudio()
+            }
+          }, fadeInterval)
+        }, fadeStartTime)
+      } else {
+        // 페이드 시간이 없으면 즉시 정지
+        setTimeout(() => {
+          stopBgmAudio()
+        }, totalTimeMs)
+      }
+    }
+    
+    // BGM 재생 시작 (이미 로드되어 있음)
+    if (confirmedBgmTemplate && bgmAudioRef.current) {
+      const audio = bgmAudioRef.current
+      bgmStartTimeRef.current = Date.now()
+      audio.play().catch(() => {})
+    }
+    
+    // BGM 페이드 아웃 시작
+    setupBgmFadeOut()
+    
+    // 실제 재생 시작 로직은 playNextScene에서 처리
+    const playNextScene = (currentIndex: number) => {
+      if (currentIndex >= timeline.scenes.length) {
+        setIsPlaying(false)
+        isPlayingRef.current = false
+        stopBgmAudio()
+        return
+      }
+      
+      const sceneIndex = currentIndex
+      const scene = timeline.scenes[sceneIndex]
+      const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
+      
+      handleSceneSelect(sceneIndex, true, () => {
+        // 캐시된 TTS 사용
+        const markup = buildSceneMarkup(sceneIndex)
+        const key = markup ? makeTtsKey(voiceTemplate!, markup) : null
+        const cached = key ? ttsCacheRef.current.get(key) : null
+        
+        // if (!cached) {
+        //   console.warn(`[TTS] 씬 ${sceneIndex} 캐시 미스 - 키: ${key}`)
+        //   console.log('[TTS] 현재 캐시 키 목록:', Array.from(ttsCacheRef.current.keys()))
+        // } else {
+        //   console.log(`[TTS] 씬 ${sceneIndex} 캐시 히트 - 재생 시작`)
+        // }
+        
+        if (cached) {
+          const { blob, durationSec } = cached
+          stopTtsAudio()
+          const url = URL.createObjectURL(blob)
+          ttsAudioUrlRef.current = url
+          const audio = new Audio(url)
+          audio.playbackRate = speed
+          ttsAudioRef.current = audio
+          audio.onended = () => stopTtsAudio()
+          audio.play().catch(() => {})
+          
+          const sceneDuration = durationSec > 0 ? durationSec : scene.duration
+          const waitTime = (sceneDuration * 1000) / speed
+          
+          playTimeoutRef.current = setTimeout(() => {
+            if (isPlayingRef.current) {
+              playNextScene(currentIndex + 1)
+            }
+          }, waitTime)
+        } else {
+          // 캐시에 없으면 fallback duration 사용
+          const fallbackDuration = scene.duration
+          const waitTime = (fallbackDuration * 1000) / speed
+          
+          playTimeoutRef.current = setTimeout(() => {
+            if (isPlayingRef.current) {
+              playNextScene(currentIndex + 1)
+            }
+          }, waitTime)
+        }
+      })
+    }
+    
+    playNextScene(currentSceneIndex)
+  }, [timeline, currentSceneIndex, voiceTemplate, confirmedBgmTemplate, playbackSpeed, buildSceneMarkup, makeTtsKey, handleSceneSelect, stopBgmAudio, stopTtsAudio])
+
   const handlePlayPause = async () => {
     if (!isPlaying) {
       // "재생이 가능해요!" 메시지가 표시되어 있으면 실제 재생 시작
       if (showReadyMessage) {
-        setShowReadyMessage(false)
-        setIsPlaying(true)
-        isPlayingRef.current = true
-        
-        // TTS 전체 길이 계산 및 BGM 페이드 아웃 설정
-        const calculateTotalTtsDuration = (): number => {
-          let totalDuration = 0
-          for (let i = currentSceneIndex; i < timeline!.scenes.length; i++) {
-            const markup = buildSceneMarkup(i)
-            const key = markup ? makeTtsKey(voiceTemplate!, markup) : null
-            const cached = key ? ttsCacheRef.current.get(key) : null
-            if (cached) {
-              totalDuration += cached.durationSec
-            } else {
-              totalDuration += timeline!.scenes[i]?.duration || 3
-            }
-          }
-          return totalDuration
-        }
-        
-        // BGM 페이드 아웃 설정
-        const setupBgmFadeOut = () => {
-          if (!confirmedBgmTemplate || !bgmAudioRef.current) return
-          
-          const totalTtsDuration = calculateTotalTtsDuration()
-          const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
-          const totalTimeMs = (totalTtsDuration * 1000) / speed
-          const fadeDuration = 1000 // 1초 페이드
-          const fadeStartTime = Math.max(0, totalTimeMs - fadeDuration)
-          
-          if (fadeStartTime > 0) {
-            setTimeout(() => {
-              if (!bgmAudioRef.current) return
-              
-              const audio = bgmAudioRef.current
-              const startVolume = audio.volume
-              const fadeInterval = 50 // 50ms마다 volume 조절
-              const volumeStep = startVolume / (fadeDuration / fadeInterval)
-              
-              const fadeTimer = setInterval(() => {
-                if (!bgmAudioRef.current) {
-                  clearInterval(fadeTimer)
-                  return
-                }
-                
-                bgmAudioRef.current.volume = Math.max(0, bgmAudioRef.current.volume - volumeStep)
-                
-                if (bgmAudioRef.current.volume <= 0) {
-                  clearInterval(fadeTimer)
-                  stopBgmAudio()
-                }
-              }, fadeInterval)
-            }, fadeStartTime)
-          } else {
-            // 페이드 시간이 없으면 즉시 정지
-            setTimeout(() => {
-              stopBgmAudio()
-            }, totalTimeMs)
-          }
-        }
-        
-        // BGM 재생 시작 (이미 로드되어 있음)
-        if (confirmedBgmTemplate && bgmAudioRef.current) {
-          const audio = bgmAudioRef.current
-          bgmStartTimeRef.current = Date.now()
-          audio.play().catch(() => {})
-        }
-        
-        // BGM 페이드 아웃 시작
-        setupBgmFadeOut()
-        
-        // 실제 재생 시작 로직은 playNextScene에서 처리
-        const playNextScene = (currentIndex: number) => {
-          if (currentIndex >= timeline!.scenes.length) {
-            setIsPlaying(false)
-            isPlayingRef.current = false
-            stopBgmAudio()
-            return
-          }
-          
-          const sceneIndex = currentIndex
-          const scene = timeline!.scenes[sceneIndex]
-          const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
-          
-          handleSceneSelect(sceneIndex, true, () => {
-            // 캐시된 TTS 사용
-            const markup = buildSceneMarkup(sceneIndex)
-            const key = markup ? makeTtsKey(voiceTemplate!, markup) : null
-            const cached = key ? ttsCacheRef.current.get(key) : null
-            
-            // if (!cached) {
-            //   console.warn(`[TTS] 씬 ${sceneIndex} 캐시 미스 - 키: ${key}`)
-            //   console.log('[TTS] 현재 캐시 키 목록:', Array.from(ttsCacheRef.current.keys()))
-            // } else {
-            //   console.log(`[TTS] 씬 ${sceneIndex} 캐시 히트 - 재생 시작`)
-            // }
-            
-            if (cached) {
-              const { blob, durationSec } = cached
-              stopTtsAudio()
-              const url = URL.createObjectURL(blob)
-              ttsAudioUrlRef.current = url
-              const audio = new Audio(url)
-              audio.playbackRate = speed
-              ttsAudioRef.current = audio
-              audio.onended = () => stopTtsAudio()
-              audio.play().catch(() => {})
-              
-              const sceneDuration = durationSec > 0 ? durationSec : scene.duration
-              const waitTime = (sceneDuration * 1000) / speed
-              
-              playTimeoutRef.current = setTimeout(() => {
-                if (isPlayingRef.current) {
-                  playNextScene(currentIndex + 1)
-                }
-              }, waitTime)
-            } else {
-              // 캐시에 없으면 fallback duration 사용
-              const fallbackDuration = scene.duration
-              const waitTime = (fallbackDuration * 1000) / speed
-              
-              playTimeoutRef.current = setTimeout(() => {
-                if (isPlayingRef.current) {
-                  playNextScene(currentIndex + 1)
-                }
-              }, waitTime)
-            }
-          })
-        }
-        
-        playNextScene(currentSceneIndex)
+        startPlayback()
         return
       }
       
@@ -1506,8 +1515,8 @@ export default function Step4Page() {
           setIsBgmBootstrapping(false)
           isBgmBootstrappingRef.current = false
           
-          // "재생이 가능해요!" 메시지 표시
-          setShowReadyMessage(true)
+          // 로딩 완료 후 바로 재생 시작
+          startPlayback()
         })
         .catch(() => {
           setIsPreparing(false)
@@ -2503,7 +2512,7 @@ export default function Step4Page() {
           // 씬별 폰트 ID 또는 전역 선택 폰트 사용
           const sceneFontId = scene.text.font || subtitleFont || SUBTITLE_DEFAULT_FONT_ID
           const sceneFontWeight = scene.text.fontWeight || 700
-          const fontSize = scene.text.fontSize || 32
+          const fontSize = scene.text.fontSize || 48
           
           // 폰트 파일명 가져오기 (인코딩 요청용)
           const fontFileName = getFontFileName(sceneFontId, sceneFontWeight) || 'NanumGothic-Regular'
@@ -2554,15 +2563,15 @@ export default function Step4Page() {
               color: scene.text.color || '#FFFFFF',
               stroke: {
                 enabled: true,
-                color: scene.text.color || '#FFFFFF',
-                width: 3,
+                color: '#000000', // 테두리 색상을 검은색으로 변경
+                width: 10,
               },
               shadow: {
-                enabled: true,
+                enabled: false, // 쉐도우 비활성화
                 color: '#000000',
-                blur: 10,
-                offsetX: 5,
-                offsetY: 5,
+                blur: 0, // 블러 효과 제거
+                offsetX: 0,
+                offsetY: 0,
               },
               decoration: {
                 underline: scene.text.style?.underline || false,
@@ -2922,22 +2931,6 @@ export default function Step4Page() {
                 </span>
                     </div>
               </div>
-
-            {/* 선택된 애셋 정보 */}
-            {timeline && timeline.scenes[currentSceneIndex] && (
-              <div className="p-3 rounded-lg border text-sm" style={{
-                backgroundColor: theme === 'dark' ? '#1f2937' : '#f9fafb',
-                borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-                color: theme === 'dark' ? '#d1d5db' : '#374151'
-              }}>
-                <div className="font-semibold mb-2">선택된 애셋</div>
-                <div className="space-y-1 text-xs">
-                  <div>씬: {currentSceneIndex + 1}</div>
-                  <div>이미지: {timeline.scenes[currentSceneIndex].imageFit || 'contain'}</div>
-                  <div>텍스트: {timeline.scenes[currentSceneIndex].text.content.substring(0, 30)}...</div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -2990,7 +2983,7 @@ export default function Step4Page() {
                       
                       // 텍스트 Transform: 하단 중앙 위치 (비율 기반)
                       // 텍스트는 하단에서 약 8% 위에 위치, 너비는 75%
-                      const textY = height * 0.92 // 하단에서 8% 위 (92% 위치)
+                      const textY = height * 0.90 // 하단에서 12% 위 (88% 위치)
                       const textWidth = width * 0.75 // 화면 너비의 75%
                       const textHeight = height * 0.07 // 화면 높이의 7%
                       
@@ -3012,7 +3005,7 @@ export default function Step4Page() {
                           ...scene.text,
                           position: 'bottom',
                           color: '#ffffff',
-                          fontSize: 48,
+                          fontSize: 80,
                           font: 'Arial',
                           transform: textTransform,
                           style: {

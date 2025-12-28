@@ -28,6 +28,16 @@ export function getRequestIp(request: Request): string | null {
   return first || null
 }
 
+function isRunningOnLocalhost(): boolean {
+  // 서버 사이드에서는 환경 변수로 판단
+  if (typeof window === 'undefined') {
+    const nodeEnv = process.env.NODE_ENV
+    return nodeEnv === 'development'
+  }
+  const host = window.location.hostname
+  return host === 'localhost' || host === '127.0.0.1'
+}
+
 function strEnv(name: string, fallback: string): string {
   const raw = process.env[name]
   return raw?.trim() ? raw.trim() : fallback
@@ -44,9 +54,18 @@ async function getBackendUserIdFromAccessToken(accessToken: string): Promise<str
     return cached.userId
   }
 
-  // 프론트에서 쓰는 base url과 동일 규칙 사용(없으면 기존 기본값 유지)
-  const API_BASE_URL =
-    strEnv('NEXT_PUBLIC_API_BASE_URL', 'http://15.164.220.105.nip.io:8080')
+  // 프론트에서 쓰는 base url과 동일 규칙 사용
+  const envUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
+  
+  // 로컬 개발 환경에서만 기본값 허용
+  const isLocal = isRunningOnLocalhost()
+  const API_BASE_URL = envUrl || (isLocal ? 'http://15.164.220.105.nip.io:8080' : null)
+
+  if (!API_BASE_URL) {
+    throw new Error(
+      '환경 변수 NEXT_PUBLIC_API_BASE_URL이 설정되어 있지 않습니다. 프로덕션 환경에서는 반드시 설정해야 합니다.'
+    )
+  }
 
   try {
     const res = await fetch(`${API_BASE_URL}/api/v1/users/me`, {

@@ -15,9 +15,9 @@ interface UsePixiEditorParams {
   dragStartPosRef: React.MutableRefObject<{ x: number; y: number; boundsWidth?: number; boundsHeight?: number }>
   isResizingRef: React.MutableRefObject<boolean>
   resizeHandleRef: React.MutableRefObject<'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | null>
-  resizeStartPosRef: React.MutableRefObject<{ x: number; y: number } | null>
+  resizeStartPosRef: React.MutableRefObject<{ x: number; y: number; handleX?: number; handleY?: number } | null>
   isFirstResizeMoveRef: React.MutableRefObject<boolean>
-  originalTransformRef: React.MutableRefObject<{ x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number; baseWidth?: number; baseHeight?: number } | null>
+  originalTransformRef: React.MutableRefObject<{ x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number; baseWidth?: number; baseHeight?: number; left?: number; right?: number; top?: number; bottom?: number } | null>
   originalSpriteTransformRef: React.MutableRefObject<Map<number, { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }>>
   originalTextTransformRef: React.MutableRefObject<Map<number, { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }>>
   isResizingTextRef: React.MutableRefObject<boolean>
@@ -66,6 +66,104 @@ export const usePixiEditor = ({
   setTimeline,
   useFabricEditing,
 }: UsePixiEditorParams) => {
+  // Canvas 크기 (9:16 비율, 1080x1920)
+  const STAGE_WIDTH = 1080
+  const STAGE_HEIGHT = 1920
+
+  // 요소가 canvas 밖으로 나갔는지 체크
+  const isOutsideCanvas = useCallback((element: PIXI.Sprite | PIXI.Text, isText: boolean = false): boolean => {
+    const bounds = element.getBounds()
+    
+    // canvas 밖으로 나갔는지 체크
+    if (bounds.x + bounds.width < 0 || bounds.x > STAGE_WIDTH ||
+        bounds.y + bounds.height < 0 || bounds.y > STAGE_HEIGHT) {
+      return true
+    }
+    return false
+  }, [])
+
+  // 중앙 위치로 복귀 (크기 조정하기 버튼의 템플릿 위치)
+  const resetToCenter = useCallback((element: PIXI.Sprite | PIXI.Text, sceneIndex: number, isText: boolean = false) => {
+    if (!timeline) return
+
+    if (isText) {
+      // 텍스트: 하단 중앙 위치
+      const textY = STAGE_HEIGHT * 0.92 // 하단에서 8% 위
+      const textWidth = STAGE_WIDTH * 0.75 // 화면 너비의 75%
+      
+      element.x = STAGE_WIDTH * 0.5 // 중앙
+      element.y = textY
+      
+      // wordWrapWidth 업데이트
+      if (element instanceof PIXI.Text && element.style) {
+        element.style.wordWrapWidth = textWidth
+        element.text = element.text // 스타일 변경 적용
+      }
+      
+      // Transform 저장
+      const bounds = element.getBounds()
+      const transform = {
+        x: element.x,
+        y: element.y,
+        width: bounds.width,
+        height: bounds.height,
+        scaleX: element.scale.x,
+        scaleY: element.scale.y,
+        rotation: element.rotation,
+      }
+      
+      const nextTimeline: TimelineData = {
+        ...timeline,
+        scenes: timeline.scenes.map((scene, i) => {
+          if (i === sceneIndex) {
+            return {
+              ...scene,
+              text: {
+                ...scene.text,
+                transform,
+              },
+            }
+          }
+          return scene
+        }),
+      }
+      setTimeline(nextTimeline)
+    } else {
+      // 이미지: 상단 15%부터 시작, 가로 100%, 높이 70%
+      const imageY = STAGE_HEIGHT * 0.15 // 상단에서 15% 위치
+      
+      element.x = 0
+      element.y = imageY
+      element.width = STAGE_WIDTH
+      element.height = STAGE_HEIGHT * 0.7
+      
+      // Transform 저장
+      const transform = {
+        x: element.x,
+        y: element.y,
+        width: element.width,
+        height: element.height,
+        scaleX: element.scale.x,
+        scaleY: element.scale.y,
+        rotation: element.rotation,
+      }
+      
+      const nextTimeline: TimelineData = {
+        ...timeline,
+        scenes: timeline.scenes.map((scene, i) => {
+          if (i === sceneIndex) {
+            return {
+              ...scene,
+              imageTransform: transform,
+            }
+          }
+          return scene
+        }),
+      }
+      setTimeline(nextTimeline)
+    }
+  }, [timeline, setTimeline])
+
   // 편집 핸들 그리기
   const drawEditHandles = useCallback((sprite: PIXI.Sprite, sceneIndex: number, handleResize: (e: PIXI.FederatedPointerEvent, sceneIndex: number) => void, saveImageTransform: (sceneIndex: number, sprite: PIXI.Sprite) => void) => {
     if (useFabricEditing) return
@@ -118,17 +216,30 @@ export const usePixiEditor = ({
         isFirstResizeMoveRef.current = true
         const sprite = spritesRef.current.get(sceneIndex)
         if (sprite && appRef.current) {
+          // 리사이즈 시작 전에 한 번 더 렌더링하여 정확한 bounds 확보
+          appRef.current.render()
+          
           const bounds = sprite.getBounds()
-          const baseWidth = bounds.width / (sprite.scale.x || 1)
-          const baseHeight = bounds.height / (sprite.scale.y || 1)
+          // 리사이즈 시작 시 현재 스프라이트의 정확한 크기와 위치를 저장 (현재 상태 기준)
+          // 현재 bounds를 기준으로 저장 (리사이즈 시작 시점의 실제 크기와 위치)
+          const currentWidth = bounds.width
+          const currentHeight = bounds.height
+          const currentScaleX = sprite.scale.x
+          const currentScaleY = sprite.scale.y
+          const currentX = bounds.x
+          const currentY = bounds.y
+          const savedTransform = timeline?.scenes[sceneIndex]?.imageTransform
+          const baseWidth = savedTransform?.baseWidth || (currentWidth / (currentScaleX || 1))
+          const baseHeight = savedTransform?.baseHeight || (currentHeight / (currentScaleY || 1))
+          
           originalTransformRef.current = {
-            x: bounds.x,
-            y: bounds.y,
-            width: bounds.width,
-            height: bounds.height,
-            scaleX: sprite.scale.x,
-            scaleY: sprite.scale.y,
-            rotation: sprite.rotation,
+            x: currentX, // 현재 위치 X
+            y: currentY, // 현재 위치 Y
+            width: currentWidth, // 현재 bounds 너비
+            height: currentHeight, // 현재 bounds 높이
+            scaleX: currentScaleX, // 현재 스케일 X
+            scaleY: currentScaleY, // 현재 스케일 Y
+            rotation: sprite.rotation, // 현재 회전
             baseWidth,
             baseHeight,
           }
@@ -182,7 +293,37 @@ export const usePixiEditor = ({
           // 리사이즈 완료 시 Transform 저장
           const currentSprite = spritesRef.current.get(sceneIndex)
           if (currentSprite && currentHandleType) {
-            saveImageTransform(sceneIndex, currentSprite)
+            // 리사이즈 완료 전에 한 번 더 렌더링하여 정확한 bounds 확보
+            if (appRef.current) {
+              appRef.current.render()
+            }
+            
+            // canvas 밖으로 나갔는지 체크
+            if (isOutsideCanvas(currentSprite, false)) {
+              // 중앙 위치로 복귀
+              resetToCenter(currentSprite, sceneIndex, false)
+              // 복귀 후 핸들 다시 그리기
+              // 핸들은 loadAllScenes 후 자동으로 다시 그려짐
+            } else {
+              // 리사이즈 완료 시 정확한 크기 저장
+              const bounds = currentSprite.getBounds()
+              const finalTransform = {
+                x: currentSprite.x,
+                y: currentSprite.y,
+                width: bounds.width,
+                height: bounds.height,
+                scaleX: currentSprite.scale.x,
+                scaleY: currentSprite.scale.y,
+                rotation: currentSprite.rotation,
+              }
+              
+              // originalSpriteTransformRef 업데이트 (다음 리사이즈 시 정확한 크기 기준으로 사용)
+              originalSpriteTransformRef.current.set(sceneIndex, finalTransform)
+              
+              // Transform 저장
+              saveImageTransform(sceneIndex, currentSprite)
+              // 핸들은 saveImageTransform 후 자동으로 다시 그려짐
+            }
           }
         }
       }
@@ -203,7 +344,7 @@ export const usePixiEditor = ({
 
     containerRef.current.addChild(handlesContainer)
     editHandlesRef.current.set(sceneIndex, handlesContainer)
-  }, [useFabricEditing, containerRef, editHandlesRef, spritesRef, appRef, isResizingRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, resizeStartPosRef, setSelectedElementIndex, setSelectedElementType])
+  }, [useFabricEditing, containerRef, editHandlesRef, spritesRef, appRef, isResizingRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, resizeStartPosRef, setSelectedElementIndex, setSelectedElementType, isOutsideCanvas, resetToCenter, timeline, setTimeline])
 
   // Transform 데이터 저장 (단일 씬)
   const saveImageTransform = useCallback((sceneIndex: number, sprite: PIXI.Sprite | null) => {
@@ -216,13 +357,41 @@ export const usePixiEditor = ({
       return
     }
 
+    // 기존 Transform의 크기 정보 유지 (드래그 시 크기 변경 방지)
+    const existingTransform = timeline.scenes[sceneIndex]?.imageTransform
+    const originalTransform = originalSpriteTransformRef.current.get(sceneIndex)
+    
+    // 리사이즈 중이면 현재 크기 사용, 아니면 현재 스프라이트 크기 사용
+    const isResizing = isResizingRef.current
+    
+    let width: number
+    let height: number
+    let scaleX: number
+    let scaleY: number
+    
+    if (isResizing) {
+      // 리사이즈 중: 현재 크기 사용 (정확한 크기 저장)
+      const bounds = sprite.getBounds()
+      width = bounds.width
+      height = bounds.height
+      scaleX = sprite.scale.x
+      scaleY = sprite.scale.y
+    } else {
+      // 드래그 중이거나 일반 저장: 현재 스프라이트 크기 사용 (변경된 크기 유지)
+      const bounds = sprite.getBounds()
+      width = bounds.width
+      height = bounds.height
+      scaleX = sprite.scale.x
+      scaleY = sprite.scale.y
+    }
+
     const transform = {
       x: sprite.x,
       y: sprite.y,
-      width: sprite.width,
-      height: sprite.height,
-      scaleX: sprite.scale.x,
-      scaleY: sprite.scale.y,
+      width,
+      height,
+      scaleX,
+      scaleY,
       rotation: sprite.rotation,
     }
 
@@ -404,7 +573,7 @@ export const usePixiEditor = ({
     if (appRef.current) {
       appRef.current.render()
     }
-  }, [isResizingRef, resizeHandleRef, originalTransformRef, spritesRef, appRef, editHandlesRef])
+  }, [isResizingRef, resizeHandleRef, originalTransformRef, spritesRef, appRef, editHandlesRef, isOutsideCanvas, resetToCenter, timeline, setTimeline, saveImageTransform, drawEditHandles])
 
   // 스프라이트 드래그 핸들러
   const setupSpriteDrag = useCallback((sprite: PIXI.Sprite, sceneIndex: number) => {
@@ -484,10 +653,43 @@ export const usePixiEditor = ({
             }
             currentSprite.x = globalPos.x - dragStartPosRef.current.x
             currentSprite.y = globalPos.y - dragStartPosRef.current.y
+            // 드래그 중에는 현재 크기 유지 (변경된 크기 그대로 사용)
             if (appRef.current) {
               appRef.current.render()
             }
-            drawEditHandles(currentSprite, sceneIndex, handleResize, saveImageTransform)
+            // 드래그 중에는 핸들 위치만 업데이트 (크기 변경 방지)
+            const existingHandles = editHandlesRef.current.get(sceneIndex)
+            if (existingHandles) {
+              const bounds = currentSprite.getBounds()
+              existingHandles.children.forEach((child, index) => {
+                if (child instanceof PIXI.Graphics && child.name) {
+                  const handleType = child.name as 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w'
+                  const handlePositions: Record<string, { x: number; y: number }> = {
+                    'nw': { x: bounds.x, y: bounds.y },
+                    'n': { x: bounds.x + bounds.width / 2, y: bounds.y },
+                    'ne': { x: bounds.x + bounds.width, y: bounds.y },
+                    'e': { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 },
+                    'se': { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+                    's': { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height },
+                    'sw': { x: bounds.x, y: bounds.y + bounds.height },
+                    'w': { x: bounds.x, y: bounds.y + bounds.height / 2 },
+                  }
+                  const pos = handlePositions[handleType]
+                  if (pos) {
+                    child.x = pos.x
+                    child.y = pos.y
+                  }
+                } else if (child instanceof PIXI.Graphics && index === existingHandles.children.length - 1) {
+                  // 경계선 업데이트
+                  child.clear()
+                  child.lineStyle(2, 0x8b5cf6, 1)
+                  child.drawRect(bounds.x, bounds.y, bounds.width, bounds.height)
+                }
+              })
+            } else {
+              // 핸들이 없으면 새로 그리기
+              drawEditHandles(currentSprite, sceneIndex, handleResize, saveImageTransform)
+            }
           }
         }
 
@@ -497,12 +699,25 @@ export const usePixiEditor = ({
             draggingElementRef.current = null
             const currentSprite = spritesRef.current.get(sceneIndex)
             if (currentSprite) {
-              if (hasMoved) {
-                // 드래그가 발생한 경우에만 Transform 저장
-                saveImageTransform(sceneIndex, currentSprite)
+              // canvas 밖으로 나갔는지 체크
+              if (isOutsideCanvas(currentSprite, false)) {
+                // 중앙 위치로 복귀
+                resetToCenter(currentSprite, sceneIndex, false)
+                // 복귀 후 핸들 다시 그리기
+                setTimeout(() => {
+                  const sprite = spritesRef.current.get(sceneIndex)
+                  if (sprite) {
+                    drawEditHandles(sprite, sceneIndex, handleResize, saveImageTransform)
+                  }
+                }, 100)
+              } else {
+                if (hasMoved) {
+                  // 드래그가 발생한 경우에만 Transform 저장
+                  saveImageTransform(sceneIndex, currentSprite)
+                }
+                // 클릭만 했거나 드래그를 했든 상관없이 핸들 유지
+                drawEditHandles(currentSprite, sceneIndex, handleResize, saveImageTransform)
               }
-              // 클릭만 했거나 드래그를 했든 상관없이 핸들 유지
-              drawEditHandles(currentSprite, sceneIndex, handleResize, saveImageTransform)
             }
             document.removeEventListener('mousemove', handleGlobalMove)
             document.removeEventListener('mouseup', handleGlobalUp)
@@ -523,7 +738,7 @@ export const usePixiEditor = ({
         // 핸들은 handleGlobalUp에서 유지됨
       })
     }
-  }, [editMode, useFabricEditing, drawEditHandles, saveImageTransform, handleResize, timeline, isDraggingRef, dragStartPosRef, originalSpriteTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingRef, appRef, spritesRef, setEditMode, draggingElementRef])
+  }, [editMode, useFabricEditing, drawEditHandles, saveImageTransform, handleResize, timeline, isDraggingRef, dragStartPosRef, originalSpriteTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingRef, appRef, spritesRef, setEditMode, draggingElementRef, isOutsideCanvas, resetToCenter, setTimeline])
 
   // Transform 데이터 적용
   const applyImageTransform = useCallback((sprite: PIXI.Sprite | null, transform?: TimelineScene['imageTransform']) => {
@@ -552,20 +767,52 @@ export const usePixiEditor = ({
       return
     }
 
-    // 원본 크기 계산 (scale을 제거한 실제 텍스트 크기)
-    const baseWidth = text.width / (text.scale.x || 1)
-    const baseHeight = text.height / (text.scale.y || 1)
+    // 기존 Transform의 크기 정보 유지 (드래그 시 크기 변경 방지)
+    const existingTransform = timeline.scenes[sceneIndex]?.text?.transform
+    const originalTransform = originalTextTransformRef.current.get(sceneIndex)
+    
+    // 리사이즈 중이면 현재 크기 사용, 아니면 현재 텍스트 크기 사용
+    const isResizing = isResizingTextRef.current
+    
+    let width: number
+    let height: number
+    let scaleX: number
+    let scaleY: number
+    let baseWidth: number
+    let baseHeight: number
+
+    if (isResizing) {
+      // 리사이즈 중: 현재 크기 사용 (정확한 크기 저장)
+      const bounds = text.getBounds()
+      const currentWordWrapWidth = text.style?.wordWrapWidth || bounds.width / (text.scale.x || 1)
+      width = bounds.width
+      height = bounds.height
+      scaleX = text.scale.x
+      scaleY = text.scale.y
+      baseWidth = currentWordWrapWidth
+      baseHeight = bounds.height / (text.scale.y || 1)
+    } else {
+      // 드래그 중이거나 일반 저장: 현재 텍스트 크기 사용 (변경된 크기 유지)
+      const bounds = text.getBounds()
+      const currentWordWrapWidth = text.style?.wordWrapWidth || bounds.width / (text.scale.x || 1)
+      width = bounds.width
+      height = bounds.height
+      scaleX = text.scale.x
+      scaleY = text.scale.y
+      baseWidth = currentWordWrapWidth
+      baseHeight = bounds.height / (text.scale.y || 1)
+    }
     
     const transform = {
       x: text.x,
       y: text.y,
-      width: text.width * text.scale.x,
-      height: text.height * text.scale.y,
-      scaleX: text.scale.x,
-      scaleY: text.scale.y,
+      width,
+      height,
+      scaleX,
+      scaleY,
       rotation: text.rotation,
-      baseWidth, // 원본 크기 저장
-      baseHeight, // 원본 크기 저장
+      baseWidth,
+      baseHeight,
     }
 
     // Transform 저장 중 플래그 설정
@@ -592,8 +839,8 @@ export const usePixiEditor = ({
     setTimeout(() => {
       isSavingTransformRef.current = false
     }, 100)
-  }, [timeline, setTimeline, isSavingTransformRef])
-
+  }, [timeline, setTimeline, isSavingTransformRef, isDraggingRef, draggingElementRef, originalTextTransformRef, isResizingTextRef])
+  
   // Transform 데이터 적용
   const applyTextTransform = useCallback((text: PIXI.Text | null, transform?: TimelineScene['text']['transform']) => {
     if (!transform || !text) return
@@ -609,11 +856,19 @@ export const usePixiEditor = ({
     text.y = transform.y
     text.scale.set(scaleX, scaleY)
     text.rotation = transform.rotation
+    
+    // 텍스트 스타일 업데이트: transform 너비에 맞게 wordWrapWidth 조정
+    if (text.style && transform.width) {
+      const baseWidth = transform.width / scaleX
+      text.style.wordWrapWidth = baseWidth
+      // 스타일 변경 후 텍스트를 다시 렌더링
+      text.text = text.text
+    }
   }, [])
 
   // 텍스트 리사이즈 핸들러
   const handleTextResize = useCallback((e: PIXI.FederatedPointerEvent | MouseEvent, sceneIndex: number) => {
-    if (!isResizingTextRef.current || !resizeHandleRef.current || !originalTransformRef.current) return
+    if (!isResizingTextRef.current || !resizeHandleRef.current || !originalTransformRef.current || !resizeStartPosRef.current) return
 
     const text = textsRef.current.get(sceneIndex)
     if (!text || !appRef.current) return
@@ -635,93 +890,181 @@ export const usePixiEditor = ({
 
     const handleType = resizeHandleRef.current
     const original = originalTransformRef.current
+    const startPos = resizeStartPosRef.current
 
-    let newWidth = original.width
-    let newHeight = original.height
-    let newX = original.x
-    let newY = original.y
+    // 마우스 이동량 계산 (리사이즈 시작 시점 기준)
+    const deltaX = globalPos.x - startPos.x
+    const deltaY = globalPos.y - startPos.y
 
-    const rightEdge = original.x + original.width
-    const bottomEdge = original.y + original.height
+    // 리사이즈 시작 시점의 각 모서리 위치 (반대편 모서리 고정을 위해)
+    const left = original.left ?? (original.x - original.width / 2)
+    const right = original.right ?? (original.x + original.width / 2)
+    const top = original.top ?? (original.y - original.height / 2)
+    const bottom = original.bottom ?? (original.y + original.height / 2)
+    
+    // 현재 핸들 위치 계산 (시작 위치 + 마우스 이동량)
+    const currentHandleX = startPos.handleX! + deltaX
+    const currentHandleY = startPos.handleY! + deltaY
+    
+    // 각 핸들 타입에 따라 반대편 모서리를 고정하고 새로운 크기와 중앙 위치 계산
+    let newLeft = left
+    let newRight = right
+    let newTop = top
+    let newBottom = bottom
+    let newCenterX = original.x
+    let newCenterY = original.y
 
     switch (handleType) {
       case 'nw':
-        newWidth = rightEdge - globalPos.x
-        newHeight = bottomEdge - globalPos.y
-        newX = globalPos.x
-        newY = globalPos.y
+        // 왼쪽 위: 오른쪽 아래 모서리 고정
+        newLeft = currentHandleX
+        newTop = currentHandleY
+        newRight = right  // 고정
+        newBottom = bottom  // 고정
         break
       case 'n':
-        newHeight = bottomEdge - globalPos.y
-        newY = globalPos.y
+        // 위: 아래 모서리 고정
+        newTop = currentHandleY
+        newBottom = bottom  // 고정
+        newLeft = left  // 고정
+        newRight = right  // 고정
         break
       case 'ne':
-        newWidth = globalPos.x - original.x
-        newHeight = bottomEdge - globalPos.y
-        newY = globalPos.y
+        // 오른쪽 위: 왼쪽 아래 모서리 고정
+        newRight = currentHandleX
+        newTop = currentHandleY
+        newLeft = left  // 고정
+        newBottom = bottom  // 고정
         break
       case 'e':
-        newWidth = globalPos.x - original.x
+        // 오른쪽: 왼쪽 모서리 고정
+        newRight = currentHandleX
+        newLeft = left  // 고정
+        newTop = top  // 고정
+        newBottom = bottom  // 고정
         break
       case 'se':
-        newWidth = globalPos.x - original.x
-        newHeight = globalPos.y - original.y
+        // 오른쪽 아래: 왼쪽 위 모서리 고정
+        newRight = currentHandleX
+        newBottom = currentHandleY
+        newLeft = left  // 고정
+        newTop = top  // 고정
         break
       case 's':
-        newHeight = globalPos.y - original.y
+        // 아래: 위 모서리 고정
+        newBottom = currentHandleY
+        newTop = top  // 고정
+        newLeft = left  // 고정
+        newRight = right  // 고정
         break
       case 'sw':
-        newWidth = rightEdge - globalPos.x
-        newHeight = globalPos.y - original.y
-        newX = globalPos.x
+        // 왼쪽 아래: 오른쪽 위 모서리 고정
+        newLeft = currentHandleX
+        newBottom = currentHandleY
+        newRight = right  // 고정
+        newTop = top  // 고정
         break
       case 'w':
-        newWidth = rightEdge - globalPos.x
-        newX = globalPos.x
+        // 왼쪽: 오른쪽 모서리 고정
+        newLeft = currentHandleX
+        newRight = right  // 고정
+        newTop = top  // 고정
+        newBottom = bottom  // 고정
         break
     }
+    
+    // 새로운 크기와 중앙 위치 계산
+    let newWidth = newRight - newLeft
+    let newHeight = newBottom - newTop
+    newCenterX = (newLeft + newRight) / 2
+    newCenterY = (newTop + newBottom) / 2
 
     const minSize = 20
     if (newWidth < minSize) {
-      newWidth = minSize
-      if (handleType === 'nw' || handleType === 'w' || handleType === 'sw') {
-        newX = original.x + original.width - minSize
+      // 최소 크기로 제한 시 반대편 모서리 고정 유지
+      switch (handleType) {
+        case 'nw':
+        case 'w':
+        case 'sw':
+          // 왼쪽 핸들: 오른쪽 모서리 고정, 왼쪽 모서리 조정
+          newLeft = newRight - minSize
+          break
+        case 'ne':
+        case 'e':
+        case 'se':
+          // 오른쪽 핸들: 왼쪽 모서리 고정, 오른쪽 모서리 조정
+          newRight = newLeft + minSize
+          break
       }
+      newWidth = minSize
     }
     if (newHeight < minSize) {
-      newHeight = minSize
-      if (handleType === 'nw' || handleType === 'n' || handleType === 'ne') {
-        newY = original.y + original.height - minSize
+      // 최소 크기로 제한 시 반대편 모서리 고정 유지
+      switch (handleType) {
+        case 'nw':
+        case 'n':
+        case 'ne':
+          // 위쪽 핸들: 아래 모서리 고정, 위쪽 모서리 조정
+          newTop = newBottom - minSize
+          break
+        case 'sw':
+        case 's':
+        case 'se':
+          // 아래쪽 핸들: 위 모서리 고정, 아래쪽 모서리 조정
+          newBottom = newTop + minSize
+          break
       }
+      newHeight = minSize
     }
+    
+    // 최소 크기 제한 후 중앙 위치 재계산
+    newCenterX = (newLeft + newRight) / 2
+    newCenterY = (newTop + newBottom) / 2
 
     const baseWidth = original.baseWidth || original.width / (original.scaleX || 1)
     const baseHeight = original.baseHeight || original.height / (original.scaleY || 1)
     const scaleX = newWidth / baseWidth
     const scaleY = newHeight / baseHeight
-    const centerX = newX + newWidth / 2
-    const centerY = newY + newHeight / 2
+    
+    // 텍스트 스타일 업데이트: 새로운 너비에 맞게 wordWrapWidth 조정
+    if (text.style) {
+      const newWordWrapWidth = baseWidth * scaleX
+      // 이전 값과 충분히 다를 때만 업데이트하여 불필요한 렌더링 방지
+      const currentWordWrapWidth = text.style.wordWrapWidth || 0
+      if (Math.abs(currentWordWrapWidth - newWordWrapWidth) > 1) {
+        text.style.wordWrapWidth = newWordWrapWidth
+        // wordWrapWidth 변경 시 텍스트 업데이트 필요 (하지만 최소한으로만)
+        // updateText(true)를 사용하면 더 효율적이지만, 호환성을 위해 text 재할당
+        const originalText = text.text
+        text.text = originalText
+      }
+    }
     
     text.scale.set(scaleX, scaleY)
-    text.x = centerX
-    text.y = centerY
+    text.x = newCenterX
+    text.y = newCenterY
 
-    // 핸들 위치 업데이트
+    // 핸들 위치 업데이트 (bounds 계산 최적화)
     const existingHandles = textEditHandlesRef.current.get(sceneIndex)
     if (existingHandles && text) {
-      const bounds = text.getBounds()
+      // 텍스트는 anchor가 (0.5, 0.5)이므로 bounds를 직접 계산 (getBounds 호출 최소화)
+      const halfWidth = newWidth / 2
+      const halfHeight = newHeight / 2
+      const boundsX = newCenterX - halfWidth
+      const boundsY = newCenterY - halfHeight
+      
       existingHandles.children.forEach((child) => {
         if (child instanceof PIXI.Graphics && child.name) {
           const handleType = child.name as 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w'
           const handlePositions: Record<string, { x: number; y: number }> = {
-            'nw': { x: bounds.x, y: bounds.y },
-            'n': { x: bounds.x + bounds.width / 2, y: bounds.y },
-            'ne': { x: bounds.x + bounds.width, y: bounds.y },
-            'e': { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 },
-            'se': { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
-            's': { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height },
-            'sw': { x: bounds.x, y: bounds.y + bounds.height },
-            'w': { x: bounds.x, y: bounds.y + bounds.height / 2 },
+            'nw': { x: boundsX, y: boundsY },
+            'n': { x: boundsX + newWidth / 2, y: boundsY },
+            'ne': { x: boundsX + newWidth, y: boundsY },
+            'e': { x: boundsX + newWidth, y: boundsY + newHeight / 2 },
+            'se': { x: boundsX + newWidth, y: boundsY + newHeight },
+            's': { x: boundsX + newWidth / 2, y: boundsY + newHeight },
+            'sw': { x: boundsX, y: boundsY + newHeight },
+            'w': { x: boundsX, y: boundsY + newHeight / 2 },
           }
           const pos = handlePositions[handleType]
           if (pos) {
@@ -732,10 +1075,11 @@ export const usePixiEditor = ({
       })
     }
 
+    // 렌더링 (직접 호출 - requestAnimationFrame은 오히려 지연을 유발할 수 있음)
     if (appRef.current) {
       appRef.current.render()
     }
-  }, [isResizingTextRef, resizeHandleRef, originalTransformRef, textsRef, appRef, textEditHandlesRef])
+  }, [isResizingTextRef, resizeHandleRef, originalTransformRef, resizeStartPosRef, textsRef, appRef, textEditHandlesRef, isOutsideCanvas, resetToCenter, timeline, setTimeline])
 
   // 텍스트 편집 핸들 그리기
   const drawTextEditHandles = useCallback((text: PIXI.Text, sceneIndex: number, handleResize: (e: PIXI.FederatedPointerEvent, sceneIndex: number) => void, saveTextTransform: (sceneIndex: number, text: PIXI.Text) => void) => {
@@ -785,26 +1129,106 @@ export const usePixiEditor = ({
         isFirstResizeMoveRef.current = true
         const text = textsRef.current.get(sceneIndex)
         if (text && appRef.current) {
-          const bounds = text.getBounds()
-          // 저장된 Transform에서 baseWidth/baseHeight 가져오기 (있으면)
-          const savedTransform = timeline?.scenes[sceneIndex]?.text?.transform
-          const baseWidth = savedTransform?.baseWidth || bounds.width / (text.scale.x || 1)
-          const baseHeight = savedTransform?.baseHeight || bounds.height / (text.scale.y || 1)
+          // 리사이즈 시작 전에 텍스트를 한 번 렌더링하여 정확한 bounds 확보
+          appRef.current.render()
           
-          originalTransformRef.current = {
-            x: bounds.x,
-            y: bounds.y,
-            width: bounds.width,
-            height: bounds.height,
-            scaleX: text.scale.x,
-            scaleY: text.scale.y,
-            rotation: text.rotation,
-            baseWidth,
-            baseHeight,
+          // 현재 텍스트의 실제 bounds를 정확히 가져오기 (렌더링 후)
+          const bounds = text.getBounds()
+          
+          // 텍스트는 anchor가 (0.5, 0.5)이므로 중앙 좌표 사용
+          const centerX = text.x
+          const centerY = text.y
+          
+          // wordWrapWidth를 기준으로 baseWidth 계산 (텍스트의 실제 줄바꿈 너비)
+          // 현재 텍스트의 실제 wordWrapWidth를 가져와서 저장
+          const currentWordWrapWidth = text.style?.wordWrapWidth || bounds.width / (text.scale.x || 1)
+          const baseWidth = currentWordWrapWidth
+          // baseHeight는 현재 텍스트의 실제 높이를 scale로 나눈 값
+          const baseHeight = bounds.height / (text.scale.y || 1)
+          
+          // 리사이즈 시작 시점의 bounds 계산 (현재 크기 기준)
+          const halfWidth = bounds.width / 2
+          const halfHeight = bounds.height / 2
+          const boundsLeft = centerX - halfWidth
+          const boundsTop = centerY - halfHeight
+          const boundsRight = centerX + halfWidth
+          const boundsBottom = centerY + halfHeight
+          
+          // 리사이즈 시작 시점의 핸들 위치 계산 (bounds 기준)
+          let startHandleX = 0
+          let startHandleY = 0
+          switch (handle.type) {
+            case 'nw':
+              startHandleX = boundsLeft
+              startHandleY = boundsTop
+              break
+            case 'n':
+              startHandleX = centerX
+              startHandleY = boundsTop
+              break
+            case 'ne':
+              startHandleX = boundsRight
+              startHandleY = boundsTop
+              break
+            case 'e':
+              startHandleX = boundsRight
+              startHandleY = centerY
+              break
+            case 'se':
+              startHandleX = boundsRight
+              startHandleY = boundsBottom
+              break
+            case 's':
+              startHandleX = centerX
+              startHandleY = boundsBottom
+              break
+            case 'sw':
+              startHandleX = boundsLeft
+              startHandleY = boundsBottom
+              break
+            case 'w':
+              startHandleX = boundsLeft
+              startHandleY = centerY
+              break
           }
+          
+          // 리사이즈 시작 시 현재 텍스트의 정확한 크기와 위치를 저장 (현재 상태 기준)
+          // 현재 bounds를 기준으로 저장 (리사이즈 시작 시점의 실제 크기와 위치)
+          const currentWidth = bounds.width
+          const currentHeight = bounds.height
+          const currentScaleX = text.scale.x
+          const currentScaleY = text.scale.y
+          const currentBaseWidth = baseWidth
+          const currentBaseHeight = baseHeight
+          const currentCenterX = centerX
+          const currentCenterY = centerY
+          const currentHalfWidth = currentWidth / 2
+          const currentHalfHeight = currentHeight / 2
+          
+          // originalTransformRef에는 리사이즈 계산에 사용할 현재 크기와 모서리 위치 저장
+          originalTransformRef.current = {
+            x: currentCenterX, // 텍스트의 중앙 X 좌표 (현재 위치)
+            y: currentCenterY, // 텍스트의 중앙 Y 좌표 (현재 위치)
+            width: currentWidth, // 현재 bounds 너비
+            height: currentHeight, // 현재 bounds 높이
+            scaleX: currentScaleX, // 현재 스케일 X
+            scaleY: currentScaleY, // 현재 스케일 Y
+            rotation: text.rotation, // 현재 회전
+            baseWidth: currentBaseWidth, // 현재 wordWrapWidth (줄바꿈 기준 너비)
+            baseHeight: currentBaseHeight, // 현재 baseHeight
+            // 각 모서리 위치 저장 (반대편 모서리 고정을 위해) - 현재 위치 기준
+            left: currentCenterX - currentHalfWidth,
+            right: currentCenterX + currentHalfWidth,
+            top: currentCenterY - currentHalfHeight,
+            bottom: currentCenterY + currentHalfHeight,
+          }
+          
+          // 리사이즈 시작 위치 저장 (마우스 위치와 핸들 위치 모두 저장)
           resizeStartPosRef.current = {
-            x: e.global.x,
-            y: e.global.y,
+            x: e.global.x, // 마우스 X 위치
+            y: e.global.y, // 마우스 Y 위치
+            handleX: startHandleX, // 핸들 X 위치 (bounds 기준)
+            handleY: startHandleY, // 핸들 Y 위치 (bounds 기준)
           }
         }
         setSelectedElementIndex(sceneIndex)
@@ -851,7 +1275,39 @@ export const usePixiEditor = ({
           // 리사이즈 완료 시 Transform 저장
           const currentText = textsRef.current.get(sceneIndex)
           if (currentText && currentHandleType) {
-            saveTextTransform(sceneIndex, currentText)
+            // 리사이즈 완료 전에 한 번 더 렌더링하여 정확한 bounds 확보
+            if (appRef.current) {
+              appRef.current.render()
+            }
+            
+            // canvas 밖으로 나갔는지 체크
+            if (isOutsideCanvas(currentText, true)) {
+              // 중앙 위치로 복귀
+              resetToCenter(currentText, sceneIndex, true)
+              // 핸들은 loadAllScenes 후 자동으로 다시 그려짐
+            } else {
+              // 리사이즈 완료 시 정확한 크기 저장
+              const bounds = currentText.getBounds()
+              const currentWordWrapWidth = currentText.style?.wordWrapWidth || bounds.width / (currentText.scale.x || 1)
+              const finalTransform = {
+                x: currentText.x,
+                y: currentText.y,
+                width: bounds.width,
+                height: bounds.height,
+                scaleX: currentText.scale.x,
+                scaleY: currentText.scale.y,
+                rotation: currentText.rotation,
+                baseWidth: currentWordWrapWidth,
+                baseHeight: bounds.height / (currentText.scale.y || 1),
+              }
+              
+              // originalTextTransformRef 업데이트 (다음 리사이즈 시 정확한 크기 기준으로 사용)
+              originalTextTransformRef.current.set(sceneIndex, finalTransform)
+              
+              // Transform 저장
+              saveTextTransform(sceneIndex, currentText)
+              // 핸들은 saveTextTransform 후 자동으로 다시 그려짐
+            }
           }
         }
       }
@@ -872,7 +1328,7 @@ export const usePixiEditor = ({
 
     containerRef.current.addChild(handlesContainer)
     textEditHandlesRef.current.set(sceneIndex, handlesContainer)
-  }, [useFabricEditing, containerRef, textEditHandlesRef, textsRef, appRef, isResizingTextRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, resizeStartPosRef, setSelectedElementIndex, setSelectedElementType, handleTextResize, saveTextTransform, timeline])
+  }, [useFabricEditing, containerRef, textEditHandlesRef, textsRef, appRef, isResizingTextRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, resizeStartPosRef, setSelectedElementIndex, setSelectedElementType, timeline, isOutsideCanvas, resetToCenter])
 
   // 텍스트 드래그 설정
   const setupTextDrag = useCallback((text: PIXI.Text, sceneIndex: number) => {
@@ -959,19 +1415,64 @@ export const usePixiEditor = ({
             // 텍스트는 앵커가 중앙(0.5, 0.5)이므로 중앙 좌표를 직접 설정
             currentText.x = globalPos.x - dragStartPosRef.current.x
             currentText.y = globalPos.y - dragStartPosRef.current.y
+            // 드래그 중에는 현재 크기 유지 (변경된 크기 그대로 사용)
             if (appRef.current) {
               appRef.current.render()
             }
-            drawTextEditHandles(currentText, sceneIndex, handleTextResize, saveTextTransform)
+            // 드래그 중에는 핸들 위치만 업데이트 (크기 변경 방지)
+            const existingHandles = textEditHandlesRef.current.get(sceneIndex)
+            if (existingHandles) {
+              const bounds = currentText.getBounds()
+              existingHandles.children.forEach((child, index) => {
+                if (child instanceof PIXI.Graphics && child.name) {
+                  const handleType = child.name as 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w'
+                  const handlePositions: Record<string, { x: number; y: number }> = {
+                    'nw': { x: bounds.x, y: bounds.y },
+                    'n': { x: bounds.x + bounds.width / 2, y: bounds.y },
+                    'ne': { x: bounds.x + bounds.width, y: bounds.y },
+                    'e': { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 },
+                    'se': { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+                    's': { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height },
+                    'sw': { x: bounds.x, y: bounds.y + bounds.height },
+                    'w': { x: bounds.x, y: bounds.y + bounds.height / 2 },
+                  }
+                  const pos = handlePositions[handleType]
+                  if (pos) {
+                    child.x = pos.x
+                    child.y = pos.y
+                  }
+                } else if (child instanceof PIXI.Graphics && index === existingHandles.children.length - 1) {
+                  // 경계선 업데이트
+                  child.clear()
+                  child.lineStyle(2, 0x8b5cf6, 1)
+                  child.drawRect(bounds.x, bounds.y, bounds.width, bounds.height)
+                }
+              })
+            } else {
+              // 핸들이 없으면 새로 그리기
+              drawTextEditHandles(currentText, sceneIndex, handleTextResize, saveTextTransform)
+            }
           }
         }
 
-        const handleGlobalUp = () => {
-          if (isDraggingRef.current && draggingElementRef.current === 'text') {
-            isDraggingRef.current = false
-            draggingElementRef.current = null
-            const currentText = textsRef.current.get(sceneIndex)
-            if (currentText) {
+      const handleGlobalUp = () => {
+        if (isDraggingRef.current && draggingElementRef.current === 'text') {
+          isDraggingRef.current = false
+          draggingElementRef.current = null
+          const currentText = textsRef.current.get(sceneIndex)
+          if (currentText) {
+            // canvas 밖으로 나갔는지 체크
+            if (isOutsideCanvas(currentText, true)) {
+              // 중앙 위치로 복귀
+              resetToCenter(currentText, sceneIndex, true)
+              // 복귀 후 핸들 다시 그리기
+              setTimeout(() => {
+                const text = textsRef.current.get(sceneIndex)
+                if (text) {
+                  drawTextEditHandles(text, sceneIndex, handleTextResize, saveTextTransform)
+                }
+              }, 100)
+            } else {
               if (hasMoved) {
                 // 드래그가 발생한 경우에만 Transform 저장
                 saveTextTransform(sceneIndex, currentText)
@@ -979,10 +1480,11 @@ export const usePixiEditor = ({
               // 클릭만 했거나 드래그를 했든 상관없이 핸들 유지
               drawTextEditHandles(currentText, sceneIndex, handleTextResize, saveTextTransform)
             }
-            document.removeEventListener('mousemove', handleGlobalMove)
-            document.removeEventListener('mouseup', handleGlobalUp)
           }
+          document.removeEventListener('mousemove', handleGlobalMove)
+          document.removeEventListener('mouseup', handleGlobalUp)
         }
+      }
 
         document.addEventListener('mousemove', handleGlobalMove)
         document.addEventListener('mouseup', handleGlobalUp)
@@ -998,7 +1500,7 @@ export const usePixiEditor = ({
         // 핸들은 handleGlobalUp에서 유지됨
       })
     }
-  }, [editMode, useFabricEditing, drawTextEditHandles, saveTextTransform, handleTextResize, timeline, isDraggingRef, dragStartPosRef, originalTextTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingTextRef, appRef, textsRef, setEditMode, draggingElementRef])
+  }, [editMode, useFabricEditing, drawTextEditHandles, saveTextTransform, handleTextResize, timeline, isDraggingRef, dragStartPosRef, originalTextTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingTextRef, appRef, textsRef, setEditMode, draggingElementRef, isOutsideCanvas, resetToCenter, setTimeline])
 
   return {
     drawEditHandles,
