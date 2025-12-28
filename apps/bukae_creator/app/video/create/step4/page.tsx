@@ -1074,9 +1074,11 @@ export default function Step4Page() {
       const base = (timeline.scenes[sceneIndex]?.text?.content ?? '').trim()
       if (!base) return ''
       const isLast = sceneIndex >= timeline.scenes.length - 1
-      // 사용자에게는 보이지 않게, 합성 요청 직전에만 자동 숨을 markup에 삽입
+      // pause 기능은 현재 비활성화되어 있으나, 로직은 유지됨
+      // pause를 다시 사용하려면 enablePause: true로 변경
       return makeMarkupFromPlainText(base, { 
-        addSceneTransitionPause: !isLast
+        addSceneTransitionPause: !isLast,
+        enablePause: false // pause 비활성화 (로직은 유지)
       })
     },
     [timeline]

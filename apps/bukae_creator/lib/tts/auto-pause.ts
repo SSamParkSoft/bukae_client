@@ -10,6 +10,11 @@ export type AutoPauseOptions = {
    * - 마지막 씬이 아니면 true
    */
   addSceneTransitionPause: boolean
+  /**
+   * pause 삽입 기능 활성화 여부
+   * - false일 경우 pause 로직은 유지하되 실제로는 pause를 삽입하지 않음
+   */
+  enablePause?: boolean
 }
 
 /**
@@ -29,6 +34,13 @@ export function stripUserPauseTags(text: string): string {
 export function makeMarkupFromPlainText(input: string, opts: AutoPauseOptions): string {
   const cleaned = stripUserPauseTags(input)
   if (!cleaned) return ''
+
+  const enablePause = opts.enablePause ?? false // 기본값: false (pause 비활성화)
+
+  // pause 기능이 비활성화된 경우 원본 텍스트만 반환
+  if (!enablePause) {
+    return cleaned.trim()
+  }
 
   // 문장부호 뒤에 텍스트가 이어지는 경우에만 pause 삽입
   // 직전 문장 길이 > 7자일 때만 pause 삽입
