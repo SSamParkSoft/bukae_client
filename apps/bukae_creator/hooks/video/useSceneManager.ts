@@ -556,6 +556,12 @@ export const useSceneManager = ({
         if (scene.text?.content) {
           const fontFamily = resolveSubtitleFontFamily(scene.text.font)
           const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
+          // 텍스트 너비 계산 (Transform이 있으면 그 너비 사용, 없으면 기본값)
+          let textWidth = width * 0.75 // 기본값: 화면 너비의 75%
+          if (scene.text.transform?.width) {
+            textWidth = scene.text.transform.width / (scene.text.transform.scaleX || 1)
+          }
+
           const textStyle = new PIXI.TextStyle({
             fontFamily,
             fontSize: scene.text.fontSize || 32,
@@ -563,6 +569,9 @@ export const useSceneManager = ({
             align: scene.text.style?.align || 'center',
             fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
             fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
+            wordWrap: true, // 자동 줄바꿈 활성화
+            wordWrapWidth: textWidth, // 줄바꿈 너비 설정
+            breakWords: true, // 단어 중간에서도 줄바꿈 가능
             dropShadow: {
               color: '#000000',
               blur: 10,
@@ -596,6 +605,13 @@ export const useSceneManager = ({
             text.y = scene.text.transform.y
             text.scale.set(scaleX, scaleY)
             text.rotation = scene.text.transform.rotation
+            
+            // Transform이 있으면 wordWrapWidth도 업데이트
+            if (text.style && scene.text.transform.width) {
+              const baseWidth = scene.text.transform.width / scaleX
+              text.style.wordWrapWidth = baseWidth
+              text.text = text.text // 스타일 변경 적용
+            }
           }
 
           container.addChild(text)
