@@ -827,8 +827,25 @@ function Step5PageContent() {
       const product = selectedProducts[0]
       const fullScript = scenes.map((scene) => scene.script).join('\n')
 
+      // 유효성 검사: script가 비어있으면 에러
+      if (!fullScript || fullScript.trim().length === 0) {
+        alert('대본 내용이 없습니다. 대본을 먼저 생성해주세요.')
+        setIsGenerating(false)
+        return
+      }
+
+      // productDescription이 없으면 product.name 사용
+      const productDescription = product.description?.trim() || product.name || ''
+
+      // productDescription도 비어있으면 에러
+      if (!productDescription) {
+        alert('상품 정보가 없습니다.')
+        setIsGenerating(false)
+        return
+      }
+
       const response = await studioTitleApi.createTitle({
-        productDescription: product.description ?? '',
+        productDescription,
         script: fullScript,
       })
 

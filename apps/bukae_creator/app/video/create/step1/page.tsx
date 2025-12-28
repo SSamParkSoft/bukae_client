@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { ArrowRight, Loader2, AlertCircle, Send, ShoppingCart, ExternalLink } from 'lucide-react'
+import { Loader2, AlertCircle, Send, ShoppingCart, ExternalLink } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useVideoCreateStore, Product } from '../../../../store/useVideoCreateStore'
 import { useThemeStore } from '../../../../store/useThemeStore'
@@ -32,8 +31,7 @@ interface ChatMessage {
 }
 
 export default function Step1Page() {
-  const router = useRouter()
-  const { removeProduct, addProduct, selectedProducts } = useVideoCreateStore()
+  const { removeProduct, addProduct, selectedProducts, clearProducts } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const { getPlatformTrackingId } = useUserStore()
 
@@ -65,8 +63,11 @@ export default function Step1Page() {
 
   const handleProductToggle = (product: Product) => {
     if (isProductSelected(product.id)) {
+      // 이미 선택된 상품이면 선택 해제
       removeProduct(product.id)
     } else {
+      // 새로운 상품 선택 시 기존 선택 모두 제거 후 새 상품만 선택
+      clearProducts()
       addProduct(product)
     }
   }
@@ -157,13 +158,6 @@ export default function Step1Page() {
     }
   }
 
-  // 다음 단계로 이동
-  const handleNext = () => {
-    if (selectedProducts.length > 0) {
-      router.push('/video/create/step2')
-    }
-  }
-
   const themeMode: ThemeMode = theme
 
   return (
@@ -174,9 +168,9 @@ export default function Step1Page() {
       transition={{ duration: 0.3 }}
       className="flex min-h-screen justify-center"
     >
-      <div className="flex w-full max-w-[1600px]">
+      <div className="flex w-full max-w-[1600px] relative">
         <StepIndicator />
-        <div className="flex-1 p-4 md:p-8 overflow-y-auto min-w-0">
+        <div className="flex-1 p-4 md:p-8 min-w-0 overflow-y-auto" style={{ maxHeight: '100vh' }}>
           <div className="max-w-full">
             <h1
               className={`text-3xl font-bold mb-2 ${
@@ -545,23 +539,14 @@ export default function Step1Page() {
               </div>
             )}
 
-            {/* 다음 단계 버튼 */}
-            {selectedProducts.length > 0 && (
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={handleNext}
-                  className="inline-flex items-center gap-2 rounded-lg bg-purple-500 px-6 py-3 text-base font-medium text-white hover:bg-purple-600 transition-colors"
-                >
-                  이 상품 활용해서 제작하기
-                  <ArrowRight className="w-5 h-5" />
-                </button>
-              </div>
-            )}
           </div>
         </div>
-        <div className="hidden lg:block p-4 md:p-8 flex-shrink-0">
-          <div className="sticky top-8 flex flex-col gap-6 w-72 xl:w-80">
-            <SelectedProductsPanel />
+        <div className="hidden lg:block shrink-0">
+          <div className="sticky top-4 p-4 md:p-8 flex flex-col gap-6 w-80 xl:w-96" style={{ maxHeight: 'calc(100vh - 2rem)' }}>
+            <SelectedProductsPanel 
+              productResponses={currentProductResponses}
+              currentProducts={currentProducts}
+            />
           </div>
         </div>
       </div>
