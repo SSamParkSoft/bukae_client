@@ -173,7 +173,7 @@ export default function Step1Page() {
           const assistantMessage: ChatMessage = {
             id: `assistant-${Date.now()}`,
             type: 'assistant',
-            content: `${products.length}개의 상품을 찾았습니다.`,
+            content: `${products.length}개의 상품을 찾았습니다. (환율로 인해 정확하지 않으니 정확한 가격은 링크를 통해 확인해주세요!)`,
             products: convertedProducts,
             timestamp: new Date(),
           }
@@ -347,7 +347,7 @@ export default function Step1Page() {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="무엇이든 물어보세요"
+                  placeholder="예: Spoon and Chopstick Set / 수저세트, 주방용품, 50000, 20"
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   onKeyPress={handleKeyPress}
@@ -374,6 +374,16 @@ export default function Step1Page() {
                   )}
                 </button>
               </div>
+              <p className={`mt-2 text-sm ${
+                themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                💡 <strong>영문 상품명 / 한글 상품명, 카테고리, 가격(원), 개수 순서로 입력하세요.</strong> 
+              </p>
+              <p className={`mt-2 text-sm ${
+                themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                💡 &quot;영문 상품명 / 한글 상품명&quot;으로 작성하면 검색 정확도가 높아져요!
+              </p>
               {searchError && (
                 <div className="mt-4 flex items-center gap-2 text-red-500 text-sm">
                   <AlertCircle className="w-4 h-4" />
@@ -416,7 +426,12 @@ export default function Step1Page() {
                     themeMode === 'dark' ? 'text-white' : 'text-gray-900'
                   }`}
                 >
-                  {currentProducts.length}개를 찾았습니다!
+                  {currentProducts.length}개를 찾았습니다!{' '}
+                  <span className={`ml-2 text-sm font-normal ${
+                    themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                    환율로 인해 실제 가격은 링크에서 확인해주세요!
+                  </span>
                 </h2>
                 <div className="space-y-4">
                   {currentProducts.map((product) => {
@@ -455,9 +470,9 @@ export default function Step1Page() {
                             {product.name || '제품명 없음'}
                           </h4>
                           <p className={`text-lg font-bold mb-2 ${
-                            themeMode === 'dark' ? 'text-white' : 'text-gray-900'
+                            themeMode === 'dark' ? 'text-white' : 'text-gray-400'
                           }`}>
-                            {product.price ? product.price.toLocaleString() : '0'}원
+                            약 {product.price ? product.price.toLocaleString() : '0'}원
                           </p>
                           {product.url && (
                             <a
