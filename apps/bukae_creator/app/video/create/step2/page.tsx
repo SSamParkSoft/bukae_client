@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { Input } from '@/components/ui/input'
 import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore, type CreationMode } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
@@ -27,17 +28,21 @@ export default function Step2Page() {
   const [expandedConceptId, setExpandedConceptId] = useState<ConceptType | null>(null)
   const [selectedScriptStyle, setSelectedScriptStyle] = useState<ConceptType | null>(scriptStyle)
   const [selectedTone, setSelectedTone] = useState<string | null>(tone)
-  const [isStyleConfirmed] = useState(false)
+  const [isStyleConfirmed, setIsStyleConfirmed] = useState(false)
   const [openToneExampleId, setOpenToneExampleId] = useState<string | null>(null)
+  const [showConfirmPopover, setShowConfirmPopover] = useState(false)
+  const [confirmPopoverToneId, setConfirmPopoverToneId] = useState<string | null>(null)
 
   // store의 값이 복원되면 로컬 state 동기화
   useEffect(() => {
-    setSelectedScriptStyle(scriptStyle)
-    setSelectedTone(tone)
     if (scriptStyle) {
-      setExpandedConceptId(scriptStyle)
+      setTimeout(() => {
+        setSelectedScriptStyle(scriptStyle)
+        setSelectedTone(tone)
+        setExpandedConceptId(scriptStyle)
+      }, 0)
     }
-  }, [scriptStyle, tone])
+  }, [scriptStyle, tone]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 제작 방식 선택
   const handleModeSelect = (mode: CreationMode) => {
@@ -46,8 +51,6 @@ export default function Step2Page() {
 
   // 대본 스타일 선택
   const handleScriptStyleSelect = (concept: ConceptType, toneId: string) => {
-    if (isStyleConfirmed) return
-
     const isSameSelection = selectedScriptStyle === concept && selectedTone === toneId
 
     if (isSameSelection) {
@@ -57,6 +60,9 @@ export default function Step2Page() {
       setScriptStyle(null)
       setTone(null)
       setExpandedConceptId(null)
+      setShowConfirmPopover(false)
+      setConfirmPopoverToneId(null)
+      setIsStyleConfirmed(false)
       return
     }
 
@@ -65,11 +71,17 @@ export default function Step2Page() {
     setScriptStyle(concept)
     setTone(toneId)
     setExpandedConceptId(concept)
+    
+    // 새로운 선택 시 확정 상태 해제
+    setIsStyleConfirmed(false)
+    
+    // 확정 말풍선 표시 (위쪽으로)
+    setShowConfirmPopover(true)
+    setConfirmPopoverToneId(toneId)
   }
 
-  // 토글 열기
+  // 토글 열기 (확정 후에도 다시 열 수 있도록)
   const handleConceptToggle = (conceptId: ConceptType) => {
-    if (isStyleConfirmed) return
     setExpandedConceptId((prev) => (prev === conceptId ? null : conceptId))
   }
 
@@ -78,19 +90,32 @@ export default function Step2Page() {
     setOpenToneExampleId(open ? toneId : null)
   }
 
-  // const handleConfirmStyle = () => {
-  //   if (!selectedScriptStyle || !selectedTone) {
-  //     alert('대본 스타일과 말투를 선택해주세요.')
-  //     return
-  //   }
-  //   setIsStyleConfirmed(true)
-  //   setExpandedConceptId(null)
-  // }
+  // 스타일 확정하기
+  const handleConfirmStyle = () => {
+    if (!selectedScriptStyle || !selectedTone) {
+      alert('대본 스타일과 말투를 선택해주세요.')
+      return
+    }
+    setIsStyleConfirmed(true)
+    setShowConfirmPopover(false)
+    setExpandedConceptId(null)
+    
+    // 다음 단계 버튼으로 스크롤
+    setTimeout(() => {
+      const nextButton = document.querySelector('[data-next-step-button]') as HTMLElement
+      if (nextButton) {
+        nextButton.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }, 100)
+  }
 
-  // const handleCancelConfirm = () => {
-  //   setIsStyleConfirmed(false)
-  //   setExpandedConceptId(selectedScriptStyle)
-  // }
+  // 다시 선택하기
+  const handleReselect = () => {
+    setIsStyleConfirmed(false)
+    setShowConfirmPopover(false)
+    setConfirmPopoverToneId(null)
+    // 토글은 열어두지 않고 닫음 (사용자가 다시 클릭할 수 있도록)
+  }
 
   // 다음 단계로 이동
   const handleNext = () => {
@@ -220,7 +245,7 @@ export default function Step2Page() {
                       <Bot className={`h-6 w-6 ${
                         theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
                       }`} />
-                      <CardTitle className="text-xl">3분안에 영상 제작하기</CardTitle>
+                      <CardTitle className="text-xl">3분이내 영상 제작하기</CardTitle>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -286,7 +311,7 @@ export default function Step2Page() {
                     >
                       <CardHeader
                         onClick={() => handleConceptToggle(conceptOption.id)}
-                      className={`cursor-pointer ${isStyleConfirmed ? 'pointer-events-none' : ''}`}
+                        className="cursor-pointer"
                       >
                         <div className="flex items-center justify-between">
                           <div>
@@ -338,7 +363,6 @@ export default function Step2Page() {
                                               ? 'text-gray-400 hover:text-purple-400 hover:bg-purple-900/20'
                                               : 'text-gray-500 hover:text-purple-600 hover:bg-purple-50'
                                         }`}
-                                        disabled={isStyleConfirmed}
                                       >
                                         <MessageSquare className="w-4 h-4" />
                                       </button>
@@ -399,21 +423,109 @@ export default function Step2Page() {
                                     </PopoverContent>
                                   </Popover>
                                   
-                                  <Button
-                                    variant="outline"
-                                    disabled={isStyleConfirmed}
-                                    onClick={() => handleScriptStyleSelect(conceptOption.id, toneOption.id)}
-                                    className={`flex-1 justify-start ${
-                                      isToneSelected
-                                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                                        : ''
-                                    }`}
-                                  >
-                                    <span className="flex-1 text-left">{toneOption.label}</span>
-                                    <Badge variant={toneOption.tier === 'LIGHT' ? 'default' : 'secondary'} className="ml-2">
-                                      {toneOption.tier}
-                                    </Badge>
-                                  </Button>
+                                  <div className="relative flex-1">
+                                    <Popover 
+                                      open={showConfirmPopover && isToneSelected && confirmPopoverToneId === toneOption.id} 
+                                      onOpenChange={(open) => {
+                                        if (!open) {
+                                          setShowConfirmPopover(false)
+                                          setConfirmPopoverToneId(null)
+                                        }
+                                      }}
+                                    >
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          variant="outline"
+                                          onClick={() => handleScriptStyleSelect(conceptOption.id, toneOption.id)}
+                                          className={`w-full justify-start ${
+                                            isToneSelected
+                                              ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+                                              : ''
+                                          }`}
+                                        >
+                                          <span className="flex-1 text-left">{toneOption.label}</span>
+                                          <Badge variant={toneOption.tier === 'LIGHT' ? 'default' : 'secondary'} className="ml-2">
+                                            {toneOption.tier}
+                                          </Badge>
+                                        </Button>
+                                      </PopoverTrigger>
+                                      
+                                      {/* 확정하시겠어요? 말풍선 (위쪽으로 표시) */}
+                                      <PopoverContent
+                                        side="top"
+                                        align="center"
+                                        sideOffset={12}
+                                        className={`w-80 p-5 relative ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <div className="space-y-4">
+                                          {/* 메인 질문 */}
+                                          <div className={`text-base font-semibold ${
+                                            theme === 'dark' ? 'text-gray-100' : 'text-gray-900'
+                                          }`}>
+                                            이 스타일로 확정하시겠어요?
+                                          </div>
+                                          
+                                          {/* 선택된 스타일 표시 입력 필드 */}
+                                          <Input
+                                            value={toneOption.label}
+                                            readOnly
+                                            disabled
+                                            className={`${
+                                              theme === 'dark' 
+                                                ? 'bg-gray-900 border-gray-700 text-gray-100' 
+                                                : 'bg-gray-50 border-gray-200 text-gray-900'
+                                            } cursor-default pointer-events-none`}
+                                            onClick={(e) => e.preventDefault()}
+                                            onFocus={(e) => e.target.blur()}
+                                          />
+                                          
+                                          {/* 버튼들 */}
+                                          <div className="flex gap-2 pt-1">
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={handleReselect}
+                                              className={`flex-1 ${
+                                                theme === 'dark'
+                                                  ? 'bg-white border-gray-300 text-gray-900 hover:bg-gray-100'
+                                                  : 'bg-white border-gray-300 text-gray-900 hover:bg-gray-50'
+                                              }`}
+                                            >
+                                              다시 선택하기
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              onClick={handleConfirmStyle}
+                                              className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                                            >
+                                              확정하기
+                                            </Button>
+                                          </div>
+                                        </div>
+                                        
+                                        {/* 말풍선 화살표 (아래쪽을 향함) */}
+                                        <div
+                                          className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
+                                          style={{
+                                            bottom: '-8px',
+                                            borderLeft: '8px solid transparent',
+                                            borderRight: '8px solid transparent',
+                                            borderTop: `8px solid ${theme === 'dark' ? '#1f2937' : '#ffffff'}`,
+                                          }}
+                                        />
+                                        <div
+                                          className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
+                                          style={{
+                                            bottom: '-9px',
+                                            borderLeft: '9px solid transparent',
+                                            borderRight: '9px solid transparent',
+                                            borderTop: `9px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`,
+                                          }}
+                                        />
+                                      </PopoverContent>
+                                    </Popover>
+                                  </div>
                                 </div>
                               )
                             })}
@@ -438,6 +550,7 @@ export default function Step2Page() {
                   onClick={handleNext}
                   size="lg"
                   className="gap-2"
+                  data-next-step-button
                 >
                   다음 단계
                   <ArrowRight className="w-5 h-5" />
