@@ -1115,12 +1115,40 @@ export default function Step4Page() {
       if (Math.abs(prev - durationSec) <= 0.05) return
 
       const clamped = Math.max(0.5, Math.min(120, durationSec))
-      setTimeline({
+      
+      // 이전 totalDuration 계산 (마지막 씬의 transition 제외)
+      const prevTotalDuration = timeline.scenes.reduce((sum, scene, index) => {
+        const isLastScene = index === timeline.scenes.length - 1
+        const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
+        return sum + scene.duration + transitionDuration
+      }, 0)
+      
+      // 새로운 timeline 생성
+      const newTimeline = {
         ...timeline,
         scenes: timeline.scenes.map((s, i) => (i === sceneIndex ? { ...s, duration: clamped } : s)),
-      })
+      }
+      
+      // 새로운 totalDuration 계산 (마지막 씬의 transition 제외)
+      const newTotalDuration = newTimeline.scenes.reduce((sum, scene, index) => {
+        const isLastScene = index === newTimeline.scenes.length - 1
+        const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
+        return sum + scene.duration + transitionDuration
+      }, 0)
+      
+      // 재생 중일 때 currentTime을 비례적으로 조정하여 재생바 튕김 방지
+      if (isPlaying && prevTotalDuration > 0 && newTotalDuration > 0) {
+        const ratio = newTotalDuration / prevTotalDuration
+        setCurrentTime((prevTime) => {
+          const adjustedTime = prevTime * ratio
+          // 조정된 시간이 새로운 totalDuration을 넘지 않도록
+          return Math.min(adjustedTime, newTotalDuration)
+        })
+      }
+      
+      setTimeline(newTimeline)
     },
-    [setTimeline, timeline]
+    [setTimeline, timeline, isPlaying, setCurrentTime]
   )
 
   const ensureSceneTts = useCallback(
@@ -2200,7 +2228,11 @@ export default function Step4Page() {
     if (isPlaying) setIsPlaying(false)
     
     const totalDuration = timeline.scenes.reduce(
-      (acc, scene) => acc + scene.duration + (scene.transitionDuration || 0.5),
+      (acc, scene, index) => {
+        const isLastScene = index === timeline.scenes.length - 1
+        const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
+        return acc + scene.duration + transitionDuration
+      },
       0
     )
     const targetTime = ratio * totalDuration
@@ -2209,7 +2241,9 @@ export default function Step4Page() {
     let accumulated = 0
     let sceneIndex = 0
     for (let i = 0; i < timeline.scenes.length; i++) {
-      const sceneDuration = timeline.scenes[i].duration + (timeline.scenes[i].transitionDuration || 0.5)
+      const isLastScene = i === timeline.scenes.length - 1
+      const transitionDuration = isLastScene ? 0 : (timeline.scenes[i].transitionDuration || 0.5)
+      const sceneDuration = timeline.scenes[i].duration + transitionDuration
       accumulated += sceneDuration
       if (targetTime <= accumulated) {
         sceneIndex = i
@@ -2232,7 +2266,11 @@ export default function Step4Page() {
       const ratio = Math.max(0, Math.min(1, mouseX / rect.width))
       
       const totalDuration = timeline.scenes.reduce(
-        (acc, scene) => acc + scene.duration + (scene.transitionDuration || 0.5),
+        (acc, scene, index) => {
+          const isLastScene = index === timeline.scenes.length - 1
+          const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
+          return acc + scene.duration + transitionDuration
+        },
         0
       )
       const targetTime = ratio * totalDuration
@@ -2241,7 +2279,9 @@ export default function Step4Page() {
       let accumulated = 0
       let sceneIndex = 0
       for (let i = 0; i < timeline.scenes.length; i++) {
-        const sceneDuration = timeline.scenes[i].duration + (timeline.scenes[i].transitionDuration || 0.5)
+        const isLastScene = i === timeline.scenes.length - 1
+        const transitionDuration = isLastScene ? 0 : (timeline.scenes[i].transitionDuration || 0.5)
+        const sceneDuration = timeline.scenes[i].duration + transitionDuration
         accumulated += sceneDuration
         if (targetTime <= accumulated) {
           sceneIndex = i

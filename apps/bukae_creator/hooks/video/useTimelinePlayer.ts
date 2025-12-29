@@ -39,8 +39,10 @@ export function useTimelinePlayer({
 
   const totalDuration = useMemo(() => {
     if (!timeline || timeline.scenes.length === 0) return 0
-    return timeline.scenes.reduce((sum, scene) => {
-      const transitionDuration = scene.transitionDuration || 0.5
+    return timeline.scenes.reduce((sum, scene, index) => {
+      // 마지막 씬에는 transition이 없으므로 제외
+      const isLastScene = index === timeline.scenes.length - 1
+      const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
       return sum + scene.duration + transitionDuration
     }, 0)
   }, [timeline])
@@ -102,7 +104,10 @@ export function useTimelinePlayer({
       
       for (let i = 0; i < timeline.scenes.length; i++) {
         const scene = timeline.scenes[i]
-        const sceneDuration = scene.duration + (scene.transitionDuration || 0.5)
+        // 마지막 씬에는 transition이 없음
+        const isLastScene = i === timeline.scenes.length - 1
+        const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
+        const sceneDuration = scene.duration + transitionDuration
         const sceneStart = accumulated
         const sceneEnd = accumulated + sceneDuration
         

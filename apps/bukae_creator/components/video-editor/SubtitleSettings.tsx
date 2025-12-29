@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useCallback, useState } from 'react'
+import { useMemo, useCallback, useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -23,6 +24,7 @@ interface SubtitleSettingsProps {
 export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeline }: SubtitleSettingsProps) {
   const currentScene = useMemo(() => timeline?.scenes[currentSceneIndex], [timeline, currentSceneIndex])
   const [isColorOpen, setIsColorOpen] = useState(false)
+  const [showToast, setShowToast] = useState(false)
   const currentFontIdOrFamily = useMemo(() => {
     const raw = (currentScene?.text?.font || SUBTITLE_DEFAULT_FONT_ID).trim()
     if (raw === 'Pretendard-Bold' || raw === 'Pretendard') return 'pretendard'
@@ -84,7 +86,20 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
       })),
     }
     setTimeline(nextTimeline)
+    
+    // 말풍선 UI 표시
+    setShowToast(true)
   }
+
+  // 말풍선이 표시될 때 자동으로 사라지게 하는 효과
+  useEffect(() => {
+    if (showToast) {
+      const timer = setTimeout(() => {
+        setShowToast(false)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [showToast])
 
   if (!timeline || !currentScene) return null
 
@@ -480,7 +495,49 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
         </select>
       </div>
 
-      <div className="pt-2 border-t" style={{ borderColor: theme === 'dark' ? '#374151' : '#e5e7eb' }}>
+      <div className="pt-2 border-t relative" style={{ borderColor: theme === 'dark' ? '#374151' : '#e5e7eb' }}>
+        {/* 말풍선 UI */}
+        <AnimatePresence>
+          {showToast && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="absolute bottom-full left-1/2 transform -translate-x-1/2 z-50 mb-2"
+              style={{ pointerEvents: 'none' }}
+            >
+              <div
+                className="px-4 py-3 rounded-lg shadow-lg relative"
+                style={{
+                  backgroundColor: theme === 'dark' ? '#374151' : '#ffffff',
+                  border: `1px solid ${theme === 'dark' ? '#4b5563' : '#e5e7eb'}`,
+                  boxShadow: theme === 'dark' 
+                    ? '0 10px 25px rgba(0, 0, 0, 0.5)' 
+                    : '0 10px 25px rgba(0, 0, 0, 0.15)',
+                }}
+              >
+                {/* 말풍선 꼬리 (아래쪽을 가리킴) */}
+                <div
+                  className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rotate-45"
+                  style={{
+                    backgroundColor: theme === 'dark' ? '#374151' : '#ffffff',
+                    borderRight: `1px solid ${theme === 'dark' ? '#4b5563' : '#e5e7eb'}`,
+                    borderBottom: `1px solid ${theme === 'dark' ? '#4b5563' : '#e5e7eb'}`,
+                  }}
+                />
+                <p
+                  className="text-sm font-medium whitespace-nowrap relative z-10"
+                  style={{
+                    color: theme === 'dark' ? '#ffffff' : '#111827',
+                  }}
+                >
+                  모든 씬에 적용되었어요!
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <Button onClick={applyAllScenes} className="w-full h-10 text-sm" variant="outline">
           ✨ 모든 씬에 적용하기
         </Button>
