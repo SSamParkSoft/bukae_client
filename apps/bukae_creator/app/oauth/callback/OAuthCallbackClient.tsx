@@ -6,12 +6,14 @@ import { Loader2, AlertCircle } from 'lucide-react'
 import { authStorage } from '@/lib/api/auth-storage'
 import { useUserStore } from '@/store/useUserStore'
 import { authApi } from '@/lib/api/auth'
+import { getMallConfigs } from '@/lib/api/mall-configs'
 
 export default function OAuthCallbackClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const setUser = useUserStore((state) => state.setUser)
   const checkAuth = useUserStore((state) => state.checkAuth)
+  const setPlatformTrackingIds = useUserStore((state) => state.setPlatformTrackingIds)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -75,6 +77,15 @@ export default function OAuthCallbackClient() {
         } catch (userInfoError) {
           console.error('[OAuth Callback] 사용자 정보 조회 실패:', userInfoError)
           checkAuth()
+        }
+
+        // 트래킹 ID 자동 조회 (에러 발생해도 로그인은 계속 진행)
+        try {
+          const mallConfigs = await getMallConfigs()
+          setPlatformTrackingIds(mallConfigs)
+        } catch (trackingIdError) {
+          console.error('[OAuth Callback] 트래킹 ID 조회 실패:', trackingIdError)
+          // 트래킹 ID 조회 실패해도 로그인은 정상 진행
         }
 
         // 홈으로 리다이렉트

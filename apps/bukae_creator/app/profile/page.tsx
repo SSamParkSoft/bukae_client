@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { useUserStore } from '@/store/useUserStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { authApi } from '@/lib/api/auth'
+import { saveMallConfig } from '@/lib/api/mall-configs'
 import PageHeader from '@/components/PageHeader'
 import ComingSoonBanner from '@/components/ComingSoonBanner'
 import type { TargetMall } from '@/lib/types/products'
@@ -29,6 +30,7 @@ import {
   CheckCircle2,
   Save,
   X,
+  Loader2,
 } from 'lucide-react'
 
 const formatDate = (dateString: string) => {
@@ -80,6 +82,8 @@ export default function ProfilePage() {
     COUPANG: '',
     AMAZON: '',
   })
+  const [isSavingTrackingId, setIsSavingTrackingId] = useState(false)
+  const [trackingIdError, setTrackingIdError] = useState<string | null>(null)
 
   // 편집 시작 시 현재 값으로 폼 초기화
   const handleStartEdit = (platform: TargetMall) => {
@@ -100,10 +104,25 @@ export default function ProfilePage() {
     }
   }
 
-  const handleSaveTrackingId = (platform: TargetMall) => {
-    const trackingId = trackingIdForm[platform].trim() || null
-    setPlatformTrackingId(platform, trackingId)
-    setEditingTrackingId(null)
+  const handleSaveTrackingId = async (platform: TargetMall) => {
+    const trackingId = trackingIdForm[platform].trim() || ''
+    setIsSavingTrackingId(true)
+    setTrackingIdError(null)
+
+    try {
+      // API에 저장 (빈 문자열도 저장 가능)
+      await saveMallConfig(platform, trackingId)
+      
+      // 성공 시 로컬 스토리지에도 저장
+      setPlatformTrackingId(platform, trackingId || null)
+      setEditingTrackingId(null)
+    } catch (error) {
+      console.error('[Profile] 트래킹 ID 저장 실패:', error)
+      const errorMessage = error instanceof Error ? error.message : '트래킹 ID 저장에 실패했습니다.'
+      setTrackingIdError(errorMessage)
+    } finally {
+      setIsSavingTrackingId(false)
+    }
   }
 
   const handleCancelTrackingId = () => {
@@ -381,24 +400,40 @@ export default function ProfilePage() {
                               placeholder="추적 ID를 입력하세요"
                               className={theme === 'dark' ? 'bg-gray-900' : ''}
                             />
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                onClick={() => handleSaveTrackingId(platform)}
-                                className="flex-1"
-                              >
-                                <Save className="w-4 h-4 mr-1" />
-                                저장
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={handleCancelTrackingId}
-                                className="flex-1"
-                              >
-                                <X className="w-4 h-4 mr-1" />
-                                취소
-                              </Button>
+                            <div className="space-y-2">
+                              {trackingIdError && (
+                                <p className="text-xs text-red-500">{trackingIdError}</p>
+                              )}
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSaveTrackingId(platform)}
+                                  className="flex-1"
+                                  disabled={isSavingTrackingId}
+                                >
+                                  {isSavingTrackingId ? (
+                                    <>
+                                      <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                      저장 중...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Save className="w-4 h-4 mr-1" />
+                                      저장
+                                    </>
+                                  )}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={handleCancelTrackingId}
+                                  className="flex-1"
+                                  disabled={isSavingTrackingId}
+                                >
+                                  <X className="w-4 h-4 mr-1" />
+                                  취소
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         ) : (
