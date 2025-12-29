@@ -603,6 +603,7 @@ export default function Step4Page() {
         // 이미지나 텍스트 내용이 변경되었는지 확인 (Transform 제외)
         return prevScene.image !== scene.image || 
                prevScene.text?.content !== scene.text?.content ||
+               prevScene.text?.position !== scene.text?.position ||
                prevScene.duration !== scene.duration ||
                prevScene.transition !== scene.transition
       })
@@ -615,7 +616,7 @@ export default function Step4Page() {
     timelineScenesLengthRef.current = scenesLength
     timelineScenesRef.current = timeline.scenes.map(scene => ({
       image: scene.image,
-      text: scene.text ? { content: scene.text.content } : null,
+      text: scene.text ? { content: scene.text.content, position: scene.text.position } : null,
       duration: scene.duration,
       transition: scene.transition,
     }))

@@ -434,12 +434,39 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
         </label>
         <select
           value={currentScene.text?.position || 'center'}
-          onChange={(e) =>
-            updateScene((scene) => ({
-              ...scene,
-              text: { ...scene.text, position: e.target.value },
-            }))
-          }
+          onChange={(e) => {
+            const newPosition = e.target.value
+            updateScene((scene) => {
+              // 위치에 따른 Y 좌표 계산 (1080x1920 기준)
+              const height = 1920
+              let textY = height / 2 // center
+              if (newPosition === 'top') {
+                textY = 200
+              } else if (newPosition === 'bottom') {
+                textY = height - 200
+              }
+
+              // transform이 있으면 transform.y도 업데이트
+              const updatedText = {
+                ...scene.text,
+                position: newPosition,
+              }
+
+              if (scene.text.transform) {
+                updatedText.transform = {
+                  ...scene.text.transform,
+                  y: textY,
+                  // x는 중앙 유지
+                  x: scene.text.transform.x || 1080 / 2,
+                }
+              }
+
+              return {
+                ...scene,
+                text: updatedText,
+              }
+            })
+          }}
           className="w-full px-3 py-2 rounded border text-sm"
           style={{
             backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
