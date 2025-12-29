@@ -14,6 +14,7 @@ import { useUserStore } from '@/store/useUserStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { authApi } from '@/lib/api/auth'
 import { saveMallConfig } from '@/lib/api/mall-configs'
+import { useMyVideos } from '@/lib/hooks/useVideos'
 import PageHeader from '@/components/PageHeader'
 import ComingSoonBanner from '@/components/ComingSoonBanner'
 import type { TargetMall } from '@/lib/types/products'
@@ -31,6 +32,9 @@ import {
   Save,
   X,
   Loader2,
+  Video,
+  ExternalLink,
+  Play,
 } from 'lucide-react'
 
 const formatDate = (dateString: string) => {
@@ -40,6 +44,219 @@ const formatDate = (dateString: string) => {
     month: 'long',
     day: 'numeric',
   })
+}
+
+const formatDateTime = (dateString: string) => {
+  const date = new Date(dateString)
+  return date.toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+// 영상 목록 컴포넌트
+function VideoList() {
+  const theme = useThemeStore((state) => state.theme)
+  const { data: videos, isLoading, error } = useMyVideos()
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className={`w-8 h-8 animate-spin ${
+          theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+        }`} />
+        <span className={`ml-2 ${
+          theme === 'dark' ? 'text-gray-300' : 'text-gray-600'
+        }`}>
+          영상 목록을 불러오는 중...
+        </span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className={`p-6 rounded-lg border text-center ${
+        theme === 'dark' 
+          ? 'border-red-500/50 bg-red-900/20 text-red-300' 
+          : 'border-red-200 bg-red-50 text-red-700'
+      }`}>
+        영상 목록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.
+      </div>
+    )
+  }
+
+  if (!videos || videos.length === 0) {
+    return (
+      <div className={`p-8 rounded-lg border-2 border-dashed text-center ${
+        theme === 'dark' 
+          ? 'border-gray-700 bg-gray-800/50 text-gray-400' 
+          : 'border-gray-200 bg-gray-50 text-gray-500'
+      }`}>
+        <Video className={`w-12 h-12 mx-auto mb-3 ${
+          theme === 'dark' ? 'text-gray-600' : 'text-gray-400'
+        }`} />
+        <p className="font-medium">제작한 영상이 없어요</p>
+        <p className="text-sm mt-1">영상을 제작하면 여기에 표시됩니다.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {videos.map((video) => (
+        <motion.div
+          key={video.id}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`p-4 rounded-lg border transition-colors ${
+            theme === 'dark' 
+              ? 'border-gray-700 hover:bg-gray-800/50' 
+              : 'border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          <div className="flex items-start gap-4">
+            {/* 썸네일/비디오 아이콘 */}
+            <div className={`relative w-32 h-20 rounded-lg overflow-hidden flex-shrink-0 ${
+              theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'
+            }`}>
+              {video.fileUrl ? (
+                <video
+                  src={video.fileUrl}
+                  className="w-full h-full object-cover"
+                  muted
+                  onMouseEnter={(e) => {
+                    const videoEl = e.currentTarget
+                    videoEl.play().catch(() => {
+                      // 자동 재생 실패 시 무시
+                    })
+                  }}
+                  onMouseLeave={(e) => {
+                    const videoEl = e.currentTarget
+                    videoEl.pause()
+                    videoEl.currentTime = 0
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Video className={`w-8 h-8 ${
+                    theme === 'dark' ? 'text-gray-600' : 'text-gray-400'
+                  }`} />
+                </div>
+              )}
+            </div>
+
+            {/* 영상 정보 */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <h3 className={`font-semibold text-lg line-clamp-2 ${
+                  theme === 'dark' ? 'text-white' : 'text-gray-900'
+                }`}>
+                  {video.title}
+                </h3>
+                {video.fileUrl && (
+                  <a
+                    href={video.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`flex-shrink-0 p-2 rounded-lg transition-colors ${
+                      theme === 'dark' 
+                        ? 'hover:bg-gray-700 text-gray-400 hover:text-white' 
+                        : 'hover:bg-gray-100 text-gray-500 hover:text-gray-900'
+                    }`}
+                    title="영상 보기"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                )}
+              </div>
+
+              {video.description && (
+                <p className={`text-sm mb-3 line-clamp-2 ${
+                  theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  {video.description}
+                </p>
+              )}
+
+              <div className="flex flex-wrap items-center gap-4 text-sm">
+                {/* 플랫폼 타입 */}
+                <div className="flex items-center gap-1">
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    video.platformType === 'COUPANG'
+                      ? theme === 'dark'
+                        ? 'bg-purple-900/40 text-purple-300'
+                        : 'bg-purple-100 text-purple-700'
+                      : theme === 'dark'
+                      ? 'bg-gray-700 text-gray-300'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}>
+                    {video.platformType === 'COUPANG' ? '쿠팡' : video.platformType}
+                  </span>
+                </div>
+
+                {/* 게시된 채널 */}
+                {video.posts && video.posts.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    {video.posts.map((post, idx) => (
+                      <a
+                        key={idx}
+                        href={post.postUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                          post.channel === 'YOUTUBE'
+                            ? theme === 'dark'
+                              ? 'bg-red-900/40 text-red-300 hover:bg-red-900/60'
+                              : 'bg-red-100 text-red-700 hover:bg-red-200'
+                            : theme === 'dark'
+                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        <Play className="w-3 h-3" />
+                        {post.channel === 'YOUTUBE' ? '유튜브' : post.channel}
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                {/* 생성일 */}
+                <div className={`flex items-center gap-1 ${
+                  theme === 'dark' ? 'text-gray-500' : 'text-gray-400'
+                }`}>
+                  <Calendar className="w-3 h-3" />
+                  <span>{formatDateTime(video.createdAt)}</span>
+                </div>
+              </div>
+
+              {/* 파트너스 링크 */}
+              {video.partnersLink && (
+                <div className="mt-3">
+                  <a
+                    href={video.partnersLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`inline-flex items-center gap-1 text-sm transition-colors ${
+                      theme === 'dark' 
+                        ? 'text-purple-400 hover:text-purple-300' 
+                        : 'text-purple-600 hover:text-purple-700'
+                    }`}
+                  >
+                    파트너스 링크
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  )
 }
 
 export default function ProfilePage() {
@@ -493,12 +710,21 @@ export default function ProfilePage() {
                   보관 기간 내 필요한 파일은 다운로드해 주세요.
                 </CardContent>
               </Card>
+              
               {/* 최근 제작한 영상 */}
-              <ComingSoonBanner
-                title="최근 제작한 영상"
-                description="보다 나은 서비스 제공을 위해 준비 중입니다."
-                description2="빠른 시일 내에 준비하여 찾아뵙겠습니다."
-              />
+              <Card className="border border-gray-200">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Video className={`w-5 h-5 ${
+                      theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                    }`} />
+                    <CardTitle>최근 제작한 영상</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <VideoList />
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 

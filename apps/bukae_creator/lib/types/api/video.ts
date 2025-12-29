@@ -42,3 +42,26 @@ export interface Video {
   updatedAt: string
 }
 
+// 내 영상 목록 조회 API 응답 타입
+export type PlatformType = 'COUPANG' | 'NAVER' | 'ALIEXPRESS' | 'AMAZON'
+
+export type ChannelType = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM'
+
+export interface VideoPost {
+  channel: ChannelType
+  postUrl: string
+}
+
+export interface VideoListItem {
+  id: string
+  userId: string
+  title: string
+  description: string
+  fileUrl: string
+  partnersLink: string
+  platformType: PlatformType
+  posts: VideoPost[]
+  sequence: number
+  createdAt: string
+}
+

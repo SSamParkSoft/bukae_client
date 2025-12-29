@@ -1,9 +1,20 @@
 // Video API 함수
 
 import { api } from './client'
-import type { Video } from '@/lib/types/api/video'
+import type { Video, VideoListItem } from '@/lib/types/api/video'
 
 export const videosApi = {
+  /**
+   * 내 영상 목록 조회 (보관함)
+   * 로그인한 사용자가 생성한 모든 영상 목록을 조회합니다.
+   * 정렬: 생성일자 기준 내림차순 (최신순)
+   * 데이터가 없을 경우 [] (빈 배열)을 반환합니다.
+   * GET /api/v1/videos
+   */
+  getMyVideos: async (): Promise<VideoListItem[]> => {
+    return api.get<VideoListItem[]>('/api/v1/videos')
+  },
+
   /**
    * 모든 비디오 조회
    * GET /api/v1/videos
