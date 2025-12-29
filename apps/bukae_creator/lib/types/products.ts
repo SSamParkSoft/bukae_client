@@ -25,6 +25,7 @@ export interface ProductResponse {
   image?: string
   thumbnailUrl?: string // 실제 API 필드명
   productMainImageUrl?: string // 새로운 API 필드명 (thumbnailUrl과 동일)
+  imageURL?: string | string[] // 이미지 URL (단일 또는 배열)
   url?: string // API에서 오지 않을 수 있음
   productUrl?: string
   affiliateLink?: string // 실제 API 필드명
@@ -47,7 +48,6 @@ export interface ProductResponse {
 
 // 내부에서 사용하는 Product 타입 (useVideoCreateStore의 Product와 호환)
 import type { Product, Platform } from '@/store/useVideoCreateStore'
-import { convertToKRW } from '@/lib/utils/currency'
 
 /**
  * API 응답의 ProductResponse를 내부 Product 타입으로 변환
@@ -71,40 +71,8 @@ export function convertProductResponseToProduct(
   // 이름 처리: productTitle, title, name 순서로 확인 (새로운 API는 productTitle 사용)
   const name = productResponse.productTitle || productResponse.title || productResponse.name || ''
 
-  // 가격 처리: salePrice 또는 originalPrice 사용 (API는 salePrice/originalPrice를 사용)
-  // 통화 변환: 플랫폼별로 강제 통화 설정 (API의 currency 필드를 신뢰하지 않음)
-  const rawPrice = productResponse.salePrice ?? productResponse.originalPrice ?? productResponse.price ?? 0
-  
-  // 플랫폼별 강제 통화 설정
-  // 주의: API가 잘못된 currency를 보낼 수 있으므로, 플랫폼별로 강제로 설정
-  const forcedCurrencyMap: Record<TargetMall, string> = {
-    ALI_EXPRESS: 'CNY', // 알리익스프레스는 무조건 위안화 (API가 KRW로 보내도 무시)
-    COUPANG: 'KRW', // 쿠팡은 원화
-    AMAZON: 'USD', // 아마존은 달러
-  }
-  
-  // AliExpress의 경우 API의 currency 필드를 무시하고 무조건 CNY 사용
-  const currency = forcedCurrencyMap[targetMall] || 'KRW'
-  
-  // 디버깅: 변환 전 원본 데이터 로그
-  console.log('[ProductResponse] 가격 변환 전:', {
-    salePrice: productResponse.salePrice,
-    originalPrice: productResponse.originalPrice,
-    price: productResponse.price,
-    apiCurrency: productResponse.currency, // API에서 보낸 currency (신뢰하지 않음)
-    targetMall,
-    forcedCurrency: currency, // 실제로 사용하는 통화 (플랫폼별 강제)
-    rawPrice,
-  })
-  
-  const price = convertToKRW(rawPrice, currency)
-  
-  // 디버깅: 변환 후 결과 로그
-  console.log('[ProductResponse] 가격 변환 후:', {
-    rawPrice,
-    currency,
-    convertedPrice: price,
-  })
+  // 가격 처리: API에서 오는 가격을 그대로 사용 (환율 변환 없음)
+  const price = productResponse.salePrice ?? productResponse.originalPrice ?? productResponse.price ?? 0
 
   // 이미지 처리: productMainImageUrl, thumbnailUrl, image 순서로 확인 (새로운 API는 productMainImageUrl 사용)
   const image = productResponse.productMainImageUrl || productResponse.thumbnailUrl || productResponse.image || ''

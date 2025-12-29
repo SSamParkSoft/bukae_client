@@ -61,14 +61,16 @@ export default function Step1Page() {
     return selectedProducts.some((p) => p.id === productId)
   }
 
-  const handleProductToggle = (product: Product) => {
+  const handleProductToggle = (product: Product, index?: number) => {
     if (isProductSelected(product.id)) {
       // 이미 선택된 상품이면 선택 해제
       removeProduct(product.id)
     } else {
       // 새로운 상품 선택 시 기존 선택 모두 제거 후 새 상품만 선택
       clearProducts()
-      addProduct(product)
+      // 원본 ProductResponse 찾기
+      const productResponse = index !== undefined ? currentProductResponses[index] : undefined
+      addProduct(product, productResponse)
     }
   }
 
@@ -127,7 +129,7 @@ export default function Step1Page() {
       const assistantMessage: ChatMessage = {
         id: `assistant-${Date.now()}`,
         type: 'assistant',
-        content: `${products.length}개의 상품을 찾았습니다. (환율로 인해 정확하지 않으니 정확한 가격은 링크를 통해 확인해주세요!)`,
+        content: `${products.length}개의 상품을 찾았습니다.`,
         products: convertedProducts,
         timestamp: new Date(),
       }
@@ -391,7 +393,7 @@ export default function Step1Page() {
                     return (
                       <div
                         key={product.id}
-                        onClick={() => handleProductToggle(product)}
+                        onClick={() => handleProductToggle(product, index)}
                         className={`flex gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${
                           isSelected
                             ? themeMode === 'dark'

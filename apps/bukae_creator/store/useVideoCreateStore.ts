@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { ConceptType } from '@/lib/data/templates'
 import type { AutoScene } from '@/lib/types/video'
+import type { ProductResponse } from '@/lib/types/products'
 
 export type Platform = 'coupang' | 'naver' | 'aliexpress' | 'amazon'
 
@@ -128,6 +129,7 @@ export interface TimelineData {
 interface VideoCreateState {
   currentStep: number
   selectedProducts: Product[]
+  selectedProductResponses: ProductResponse[] // 원본 API 응답 데이터
   videoEditData: VideoEditData | null
   isCreating: boolean
   creationProgress: number
@@ -167,9 +169,10 @@ interface VideoCreateState {
   videoHashtags: string[] // 영상 해시태그
   isStepIndicatorCollapsed: boolean // 단계 표시기 접기/펼치기 상태
   setCurrentStep: (step: number) => void
-  addProduct: (product: Product) => void
+  addProduct: (product: Product, productResponse?: ProductResponse) => void
   removeProduct: (productId: string) => void
   clearProducts: () => void
+  setSelectedProductResponses: (responses: ProductResponse[]) => void
   setVideoEditData: (data: VideoEditData) => void
   setIsCreating: (isCreating: boolean) => void
   setCreationProgress: (progress: number) => void
@@ -210,6 +213,7 @@ interface VideoCreateState {
 const initialState = {
   currentStep: 1,
   selectedProducts: [],
+  selectedProductResponses: [],
   videoEditData: null,
   isCreating: false,
   creationProgress: 0,
@@ -251,7 +255,7 @@ export const useVideoCreateStore = create<VideoCreateState>()(
     (set) => ({
       ...initialState,
       setCurrentStep: (step) => set({ currentStep: step }),
-      addProduct: (product) =>
+      addProduct: (product, productResponse) =>
         set((state) => {
           const isSameProductSelected = state.selectedProducts.some((p) => p.id === product.id)
           if (isSameProductSelected) {
@@ -265,6 +269,9 @@ export const useVideoCreateStore = create<VideoCreateState>()(
 
           return {
             selectedProducts: [...state.selectedProducts, product],
+            selectedProductResponses: productResponse 
+              ? [...state.selectedProductResponses, productResponse]
+              : state.selectedProductResponses,
             productNames: { ...state.productNames, [product.id]: product.name },
             productVideos: existingVideos ? { ...state.productVideos, [product.id]: existingVideos } : state.productVideos,
             productImages: existingImages ? { ...state.productImages, [product.id]: existingImages } : state.productImages,
@@ -279,13 +286,25 @@ export const useVideoCreateStore = create<VideoCreateState>()(
           const { [productId]: ____, ...productDetailImages } = state.productDetailImages
           return {
             selectedProducts: state.selectedProducts.filter((p) => p.id !== productId),
+            selectedProductResponses: state.selectedProductResponses.filter((resp) => {
+              const respId = String(resp.productId || resp.id || '')
+              return respId !== productId
+            }),
             productNames,
             productVideos,
             productImages,
             productDetailImages,
           }
         }),
-      clearProducts: () => set({ selectedProducts: [], productNames: {}, productVideos: {}, productImages: {}, productDetailImages: {} }),
+      clearProducts: () => set({ 
+        selectedProducts: [], 
+        selectedProductResponses: [],
+        productNames: {}, 
+        productVideos: {}, 
+        productImages: {}, 
+        productDetailImages: {} 
+      }),
+      setSelectedProductResponses: (responses) => set({ selectedProductResponses: responses }),
       setVideoEditData: (data) => set({ videoEditData: data }),
       setIsCreating: (isCreating) => set({ isCreating }),
       setCreationProgress: (progress) => set({ creationProgress: progress }),
