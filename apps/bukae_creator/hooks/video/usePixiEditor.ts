@@ -70,6 +70,22 @@ export const usePixiEditor = ({
   const STAGE_WIDTH = 1080
   const STAGE_HEIGHT = 1920
 
+  // 마우스 좌표를 PixiJS 좌표로 변환하는 헬퍼 함수
+  // autoDensity와 resolution을 고려하여 정확한 좌표 변환
+  const getPixiCoordinates = useCallback((e: MouseEvent, app: PIXI.Application): { x: number; y: number } => {
+    const canvas = app.canvas
+    const rect = canvas.getBoundingClientRect()
+    
+    // app.screen을 사용하여 autoDensity와 resolution을 고려한 정확한 스케일 계산
+    const scaleX = app.screen.width / rect.width
+    const scaleY = app.screen.height / rect.height
+    
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    }
+  }, [])
+
   // 요소가 canvas 밖으로 나갔는지 체크
   const isOutsideCanvas = useCallback((element: PIXI.Sprite | PIXI.Text, isText: boolean = false): boolean => {
     const bounds = element.getBounds()
@@ -255,14 +271,7 @@ export const usePixiEditor = ({
       // 리사이즈 중 (전역 이벤트로 처리)
       const handleGlobalMove = (e: MouseEvent) => {
         if (isResizingRef.current && resizeHandleRef.current === handle.type && appRef.current && resizeStartPosRef.current) {
-          const canvas = appRef.current.canvas
-          const rect = canvas.getBoundingClientRect()
-          const scaleX = canvas.width / rect.width
-          const scaleY = canvas.height / rect.height
-          const globalPos = {
-            x: (e.clientX - rect.left) * scaleX,
-            y: (e.clientY - rect.top) * scaleY,
-          }
+          const globalPos = getPixiCoordinates(e, appRef.current)
           
           if (isFirstResizeMoveRef.current) {
             const dx = Math.abs(globalPos.x - resizeStartPosRef.current.x)
@@ -454,14 +463,7 @@ export const usePixiEditor = ({
     // 마우스 좌표를 PixiJS 좌표로 변환
     let globalPos: { x: number; y: number }
     if (e instanceof MouseEvent) {
-      const canvas = appRef.current.canvas
-      const rect = canvas.getBoundingClientRect()
-      const scaleX = canvas.width / rect.width
-      const scaleY = canvas.height / rect.height
-      globalPos = {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY,
-      }
+      globalPos = getPixiCoordinates(e, appRef.current)
     } else {
       const pixiEvent = e as PIXI.FederatedPointerEvent
       globalPos = pixiEvent.global
@@ -643,14 +645,7 @@ export const usePixiEditor = ({
               document.removeEventListener('mouseup', handleGlobalUp)
               return
             }
-            const canvas = appRef.current.canvas
-            const rect = canvas.getBoundingClientRect()
-            const scaleX = canvas.width / rect.width
-            const scaleY = canvas.height / rect.height
-            const globalPos = {
-              x: (e.clientX - rect.left) * scaleX,
-              y: (e.clientY - rect.top) * scaleY,
-            }
+            const globalPos = getPixiCoordinates(e, appRef.current)
             currentSprite.x = globalPos.x - dragStartPosRef.current.x
             currentSprite.y = globalPos.y - dragStartPosRef.current.y
             // 드래그 중에는 현재 크기 유지 (변경된 크기 그대로 사용)
@@ -875,14 +870,7 @@ export const usePixiEditor = ({
 
     let globalPos: { x: number; y: number }
     if (e instanceof MouseEvent) {
-      const canvas = appRef.current.canvas
-      const rect = canvas.getBoundingClientRect()
-      const scaleX = canvas.width / rect.width
-      const scaleY = canvas.height / rect.height
-      globalPos = {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY,
-      }
+      globalPos = getPixiCoordinates(e, appRef.current)
     } else {
       const pixiEvent = e as PIXI.FederatedPointerEvent
       globalPos = pixiEvent.global
@@ -1237,14 +1225,7 @@ export const usePixiEditor = ({
 
       const handleGlobalMove = (e: MouseEvent) => {
         if (isResizingTextRef.current && resizeHandleRef.current === handle.type && appRef.current && resizeStartPosRef.current) {
-          const canvas = appRef.current.canvas
-          const rect = canvas.getBoundingClientRect()
-          const scaleX = canvas.width / rect.width
-          const scaleY = canvas.height / rect.height
-          const globalPos = {
-            x: (e.clientX - rect.left) * scaleX,
-            y: (e.clientY - rect.top) * scaleY,
-          }
+          const globalPos = getPixiCoordinates(e, appRef.current)
           
           if (isFirstResizeMoveRef.current) {
             const dx = Math.abs(globalPos.x - resizeStartPosRef.current.x)
@@ -1404,14 +1385,7 @@ export const usePixiEditor = ({
               document.removeEventListener('mouseup', handleGlobalUp)
               return
             }
-            const canvas = appRef.current.canvas
-            const rect = canvas.getBoundingClientRect()
-            const scaleX = canvas.width / rect.width
-            const scaleY = canvas.height / rect.height
-            const globalPos = {
-              x: (e.clientX - rect.left) * scaleX,
-              y: (e.clientY - rect.top) * scaleY,
-            }
+            const globalPos = getPixiCoordinates(e, appRef.current)
             // 텍스트는 앵커가 중앙(0.5, 0.5)이므로 중앙 좌표를 직접 설정
             currentText.x = globalPos.x - dragStartPosRef.current.x
             currentText.y = globalPos.y - dragStartPosRef.current.y
