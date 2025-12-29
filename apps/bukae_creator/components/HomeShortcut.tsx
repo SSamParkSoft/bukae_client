@@ -1,18 +1,22 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { ArrowUpRight, User, ExternalLink, LogIn } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useUserStore } from '@/store/useUserStore'
+import { useState } from 'react'
 
 const PERSONAL_HOME_URL = 'https://bookae-client-bookae-viewer.vercel.app/ssambak'
 
 export default function HomeShortcut() {
   const theme = useThemeStore((state) => state.theme)
   const { user, isAuthenticated } = useUserStore()
+  const [imageError, setImageError] = useState(false)
 
   const isLoggedIn = isAuthenticated && user
+  const showProfileImage = isLoggedIn && user?.profileImage && !imageError
 
   return (
     <Link
@@ -30,14 +34,19 @@ export default function HomeShortcut() {
       >
         <CardContent className="flex items-center gap-6 p-6">
           {/* 프로필 이미지 */}
-          <div className={`relative w-[72px] h-[72px] rounded-full flex items-center justify-center shrink-0 ${
+          <div className={`relative w-[72px] h-[72px] rounded-full flex items-center justify-center shrink-0 overflow-hidden ${
             theme === 'dark' ? 'bg-purple-900/40' : 'bg-purple-100'
           }`}>
-            {isLoggedIn && user?.profileImage ? (
-              <img
+            {showProfileImage && user.profileImage ? (
+              <Image
+                key={user.profileImage}
                 src={user.profileImage}
-                alt={user.name}
-                className="w-full h-full rounded-full object-cover"
+                alt={user.name || '프로필'}
+                fill
+                sizes="72px"
+                className="rounded-full object-cover"
+                onError={() => setImageError(true)}
+                onLoad={() => setImageError(false)}
               />
             ) : (
               isLoggedIn ? (
