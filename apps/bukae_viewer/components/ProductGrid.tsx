@@ -11,10 +11,6 @@ interface ProductGridProps {
 }
 
 export default function ProductGrid({ products, isLoading }: ProductGridProps) {
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('ko-KR').format(price) + '원'
-  }
-
   if (isLoading) {
     return (
       <div className="px-4 py-6 bg-white">
@@ -88,13 +84,10 @@ export default function ProductGrid({ products, isLoading }: ProductGridProps) {
                   {product.name}
                 </h3>
                 {product.description && (
-                  <p className="text-xs text-gray-500 mb-2 line-clamp-1">
+                  <p className="text-xs text-gray-500 line-clamp-1">
                     {product.description}
                   </p>
                 )}
-                <p className="text-base font-bold text-gray-900">
-                  {formatPrice(product.price)}
-                </p>
               </div>
             </div>
           )

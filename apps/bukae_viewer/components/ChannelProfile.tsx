@@ -60,13 +60,16 @@ export default function ChannelProfile({ channel }: ChannelProfileProps) {
               fill
               sizes="96px"
               className="object-cover"
+              unoptimized
               onError={() => setImageError(true)}
             />
           ) : (
-            <img
+            <Image
               src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(channel.name)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`}
               alt={channel.name}
-              className="w-full h-full object-cover"
+              fill
+              sizes="96px"
+              className="object-cover"
             />
           )}
         </div>
