@@ -140,7 +140,8 @@ export function EffectsPanel({
                 </div>
               </div>
 
-              <div>
+              {/* 고급 효과 - 주석처리 */}
+              {/* <div>
               <h3
                 className="text-sm font-semibold mb-2"
                 style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
@@ -233,7 +234,7 @@ export function EffectsPanel({
                   </select>
                 </div>
               </div>
-            </div>
+            </div> */}
           </TabsContent>
 
           <TabsContent value="bgm" className="h-full w-full max-w-full overflow-x-hidden">
