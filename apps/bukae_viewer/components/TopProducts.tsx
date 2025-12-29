@@ -12,10 +12,6 @@ interface TopProductsProps {
 }
 
 export default function TopProducts({ topProducts, isLoading, channelName = '쌈박한 소프트' }: TopProductsProps) {
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('ko-KR').format(price) + '원'
-  }
-
   if (isLoading) {
     return (
       <div className="px-4 py-6 bg-white">
@@ -94,12 +90,9 @@ export default function TopProducts({ topProducts, isLoading, channelName = '쌈
 
                 {/* 제품 정보 */}
                 <div className="p-3">
-                  <h3 className="text-sm font-medium text-gray-900 line-clamp-2 mb-2 min-h-10">
+                  <h3 className="text-sm font-medium text-gray-900 line-clamp-2 min-h-10">
                     {product.productName}
                   </h3>
-                  <p className="text-base font-bold text-gray-900">
-                    {formatPrice(product.averagePrice)}
-                  </p>
                 </div>
               </div>
             )

@@ -17,7 +17,7 @@ import {
 import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
-import { studioTitleApi } from '@/lib/api/studio-title'
+import { studioMetaApi } from '@/lib/api/studio-meta'
 import { StudioJobWebSocket, type StudioJobUpdate } from '@/lib/api/websocket'
 import { websocketManager } from '@/lib/api/websocket-manager'
 import { authStorage } from '@/lib/api/auth-storage'
@@ -99,6 +99,8 @@ function Step5PageContent() {
   
   // 영상 제목 선택 관련 상태
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false)
+  const [isGeneratingHashtags, setIsGeneratingHashtags] = useState(false)
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
   const product = selectedProducts[0]
@@ -814,49 +816,45 @@ function Step5PageContent() {
     return Array.from(new Set(baseTags)).slice(0, 9)
   }, [product])
 
-  // 제목/설명 AI 생성
-  const handleGenerateTitles = async () => {
+  // 공통 유효성 검사 함수
+  const getProductAndScript = () => {
     if (!selectedProducts[0] || scenes.length === 0) {
       alert('상품과 대본 정보가 필요합니다.')
-      return
+      return null
     }
+
+    const product = selectedProducts[0]
+    const fullScript = scenes.map((scene) => scene.script).join('\n')
+
+    // 유효성 검사: script가 비어있으면 에러
+    if (!fullScript || fullScript.trim().length === 0) {
+      alert('대본 내용이 없습니다. 대본을 먼저 생성해주세요.')
+      return null
+    }
+
+    // productDescription이 없으면 product.name 사용
+    const productDescription = product.description?.trim() || product.name || ''
+
+    // productDescription도 비어있으면 에러
+    if (!productDescription) {
+      alert('상품 정보가 없습니다.')
+      return null
+    }
+
+    return { productDescription, script: fullScript }
+  }
+
+  // 제목 AI 생성
+  const handleGenerateTitles = async () => {
+    const data = getProductAndScript()
+    if (!data) return
 
     setIsGenerating(true)
 
     try {
-      const product = selectedProducts[0]
-      const fullScript = scenes.map((scene) => scene.script).join('\n')
-
-      // 유효성 검사: script가 비어있으면 에러
-      if (!fullScript || fullScript.trim().length === 0) {
-        alert('대본 내용이 없습니다. 대본을 먼저 생성해주세요.')
-        setIsGenerating(false)
-        return
-      }
-
-      // productDescription이 없으면 product.name 사용
-      const productDescription = product.description?.trim() || product.name || ''
-
-      // productDescription도 비어있으면 에러
-      if (!productDescription) {
-        alert('상품 정보가 없습니다.')
-        setIsGenerating(false)
-        return
-      }
-
-      const response = await studioTitleApi.createTitle({
-        productDescription,
-        script: fullScript,
-      })
-
-      const { title, description } = response
-
-      setVideoTitle(title)
-      setVideoTitleCandidates([title])
-
-      if (!videoDescription && description) {
-        setVideoDescription(description)
-      }
+      const response = await studioMetaApi.createTitle(data)
+      setVideoTitle(response.title)
+      setVideoTitleCandidates([response.title])
     } catch (error) {
       console.error('제목 생성 오류:', error)
       alert('제목 생성 중 오류가 발생했어요.')
@@ -896,12 +894,48 @@ function Step5PageContent() {
     setVideoTitle(title)
   }
 
-  const handleGenerateDescription = () => {
-    setVideoDescription(recommendedDescription)
+  // 상세설명 AI 생성
+  const handleGenerateDescription = async () => {
+    const data = getProductAndScript()
+    if (!data) return
+
+    setIsGeneratingDescription(true)
+
+    try {
+      const response = await studioMetaApi.createDescription(data)
+      setVideoDescription(response.description)
+    } catch (error) {
+      console.error('상세설명 생성 오류:', error)
+      alert('상세설명 생성 중 오류가 발생했어요.')
+      // 에러 발생 시 기본 추천 설명으로 폴백
+      setVideoDescription(recommendedDescription)
+    } finally {
+      setIsGeneratingDescription(false)
+    }
   }
 
-  const handleGenerateHashtags = () => {
-    setVideoHashtags(recommendedHashtags)
+  // 해시태그 AI 생성
+  const handleGenerateHashtags = async () => {
+    const data = getProductAndScript()
+    if (!data) return
+
+    setIsGeneratingHashtags(true)
+
+    try {
+      const response = await studioMetaApi.createHashtags(data)
+      // 해시태그가 #으로 시작하지 않으면 추가
+      const normalizedHashtags = response.hashtags.map((tag) =>
+        tag.startsWith('#') ? tag : `#${tag}`
+      )
+      setVideoHashtags(normalizedHashtags)
+    } catch (error) {
+      console.error('해시태그 생성 오류:', error)
+      alert('해시태그 생성 중 오류가 발생했어요.')
+      // 에러 발생 시 기본 추천 해시태그로 폴백
+      setVideoHashtags(recommendedHashtags)
+    } finally {
+      setIsGeneratingHashtags(false)
+    }
   }
 
   const handleHashtagChange = (value: string) => {
@@ -1304,9 +1338,19 @@ function Step5PageContent() {
                       size="sm"
                       className="gap-2"
                       variant="secondary"
+                      disabled={isGeneratingDescription}
                     >
-                      <Sparkles className="w-4 h-4" />
-                      AI 상세 설명 추천
+                      {isGeneratingDescription ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          AI 생성 중...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          AI 상세 설명 추천
+                        </>
+                      )}
                     </Button>
                   </CardHeader>
                   <CardContent>
@@ -1341,9 +1385,19 @@ function Step5PageContent() {
                       size="sm"
                       className="gap-2"
                       variant="secondary"
+                      disabled={isGeneratingHashtags}
                     >
-                      <Sparkles className="w-4 h-4" />
-                      AI 해시태그 추천
+                      {isGeneratingHashtags ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          AI 생성 중...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          AI 해시태그 추천
+                        </>
+                      )}
                     </Button>
                   </CardHeader>
                   <CardContent className="space-y-3">

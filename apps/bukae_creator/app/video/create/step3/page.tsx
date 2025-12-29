@@ -13,12 +13,12 @@ import { useVideoCreateStore, SceneScript } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { studioScriptApi } from '@/lib/api/studio-script'
 import type { ScriptType } from '@/lib/types/api/studio-script'
-import { convertMediaPathToStorageUrl } from '@/lib/utils/supabase-storage'
 
 export default function Step3Page() {
   const router = useRouter()
   const { 
     selectedProducts, 
+    selectedProductResponses,
     selectedImages, 
     setSelectedImages, 
     scriptStyle,
@@ -28,53 +28,56 @@ export default function Step3Page() {
   } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const selectedProduct = selectedProducts[0]
+  const selectedProductResponse = selectedProductResponses?.[0]
   
   // 사용 가능한 이미지 목록
   const availableImages = useMemo(() => {
     const images: string[] = []
     
-    // 1. 상품 기본 이미지
+    // 1. JSON의 imageURL 필드 활용 (우선순위 1)
+    if (selectedProductResponse) {
+      // imageURL 필드가 배열인 경우
+      if (Array.isArray(selectedProductResponse.imageURL)) {
+        images.push(...selectedProductResponse.imageURL.filter(Boolean))
+      } 
+      // imageURL 필드가 문자열인 경우
+      else if (typeof selectedProductResponse.imageURL === 'string' && selectedProductResponse.imageURL) {
+        images.push(selectedProductResponse.imageURL)
+      }
+      
+      // 다른 가능한 필드명들도 확인 (imageUrls, image_url, images 등)
+      const possibleImageFields = [
+        'imageUrls',
+        'image_url',
+        'image_urls',
+        'images',
+        'productImages',
+        'product_images',
+      ]
+      
+      for (const field of possibleImageFields) {
+        const value = (selectedProductResponse as any)[field]
+        if (value) {
+          if (Array.isArray(value)) {
+            images.push(...value.filter(Boolean))
+          } else if (typeof value === 'string') {
+            images.push(value)
+          }
+        }
+      }
+    }
+    
+    // 2. 상품 기본 이미지 (우선순위 2)
     if (selectedProduct?.image) {
       images.push(selectedProduct.image)
     }
     
     // 중복 제거
     const uniqueImages = Array.from(new Set(images))
-
-    // 더미 이미지 목록 (Supabase Storage images 버킷에서 가져오기)
-    const dummyImages = [
-      convertMediaPathToStorageUrl('/media/spael-massager.png'),
-      convertMediaPathToStorageUrl('/media/air-filter-set.png'),
-      convertMediaPathToStorageUrl('/media/bluetooth-speaker.png'),
-      convertMediaPathToStorageUrl('/media/led-strip-light.png'),
-      convertMediaPathToStorageUrl('/media/num1.png'),
-      convertMediaPathToStorageUrl('/media/num2.png'),
-      convertMediaPathToStorageUrl('/media/num3.png'),
-      convertMediaPathToStorageUrl('/media/num4.png'),
-      convertMediaPathToStorageUrl('/media/num5.png'),
-      convertMediaPathToStorageUrl('/media/num6.png'),
-    ]
-
-    // 상품 이미지가 없을 때: 더미 이미지만 반환
-    if (uniqueImages.length === 0) {
-      return dummyImages
-    }
-
-    // 상품 이미지가 1개 이상이지만 5개 미만일 때: 상품 이미지 + 더미 이미지 추가
-    if (uniqueImages.length > 0 && uniqueImages.length < 5) {
-      // 상품 이미지와 중복되지 않는 더미 이미지만 추가
-      const additionalDummyImages = dummyImages.filter(
-        (dummy) => !uniqueImages.includes(dummy)
-      )
-      // 최소 5장 이상이 되도록 더미 이미지 추가
-      const neededCount = 5 - uniqueImages.length
-      const imagesToAdd = additionalDummyImages.slice(0, neededCount)
-      return [...uniqueImages, ...imagesToAdd]
-    }
-
-    // 상품 이미지가 5개 이상일 때: 상품 이미지만 반환
+    
+    // 상품 이미지만 반환 (더미 이미지 사용 안 함)
     return uniqueImages
-  }, [selectedProduct])
+  }, [selectedProduct, selectedProductResponse])
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)

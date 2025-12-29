@@ -2,11 +2,20 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { videosApi } from '@/lib/api/videos'
+import type { VideoListItem } from '@/lib/types/api/video'
 
 export const useVideos = () => {
   return useQuery({
     queryKey: ['videos'],
     queryFn: () => videosApi.getAllVideos(),
+    staleTime: 30 * 1000, // 30초
+  })
+}
+
+export const useMyVideos = () => {
+  return useQuery<VideoListItem[]>({
+    queryKey: ['my-videos'],
+    queryFn: () => videosApi.getMyVideos(),
     staleTime: 30 * 1000, // 30초
   })
 }

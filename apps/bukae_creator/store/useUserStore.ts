@@ -4,6 +4,7 @@ import { authStorage } from '@/lib/api/auth-storage'
 import { useVideoCreateStore } from './useVideoCreateStore'
 import { useAppStore } from './useAppStore'
 import type { TargetMall } from '@/lib/types/products'
+import type { MallConfig } from '@/lib/types/api/mall-configs'
 
 export interface User {
   id: string
@@ -41,6 +42,7 @@ interface UserState {
   setConnectedService: (service: ConnectedService) => void
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void
   setPlatformTrackingId: (platform: TargetMall, trackingId: string | null) => void
+  setPlatformTrackingIds: (configs: MallConfig[]) => void
   getPlatformTrackingId: (platform: TargetMall) => string | null
   checkAuth: () => boolean
   reset: () => void
@@ -128,6 +130,20 @@ export const useUserStore = create<UserState>()(
             [platform]: trackingId,
           },
         })),
+      setPlatformTrackingIds: (configs) => {
+        // API 응답 배열을 Record<TargetMall, string | null> 형태로 변환
+        const trackingIds: Record<TargetMall, string | null> = {
+          ...defaultPlatformTrackingIds,
+        }
+        
+        configs.forEach((config) => {
+          if (config.mallType in trackingIds) {
+            trackingIds[config.mallType] = config.trackingId || null
+          }
+        })
+        
+        set({ platformTrackingIds: trackingIds })
+      },
       getPlatformTrackingId: (platform) => {
         return get().platformTrackingIds[platform] || null
       },

@@ -140,11 +140,15 @@ async function refreshAccessToken(): Promise<string | null> {
 
       if (!response.ok) return null
 
-      const data = (await response.json()) as Partial<TokenResponse> | null
-      if (!data?.accessToken) return null
+      const data = (await response.json()) as TokenResponse | null
+      if (!data?.accessToken || !data?.refreshToken) {
+        // RTR 정책에 따라 refreshToken이 필수이므로 없으면 실패 처리
+        console.error('[Token Refresh] RTR 정책 위반: 새 refreshToken이 반환되지 않았습니다.')
+        return null
+      }
 
-      // refreshToken이 없으면 기존 refreshToken 유지 (백엔드가 rotation을 안 할 수도 있음)
-      authStorage.setTokens(data.accessToken, data.refreshToken ?? refreshToken)
+      // RTR 정책: 두 토큰을 모두 갱신
+      authStorage.setTokens(data.accessToken, data.refreshToken)
       return data.accessToken
     } catch {
       return null

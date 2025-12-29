@@ -6,40 +6,49 @@ import { Loader2, AlertCircle } from 'lucide-react'
 import { authStorage } from '@/lib/api/auth-storage'
 import { useUserStore } from '@/store/useUserStore'
 import { authApi } from '@/lib/api/auth'
+import { getMallConfigs } from '@/lib/api/mall-configs'
 
 export default function OAuthCallbackClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const setUser = useUserStore((state) => state.setUser)
   const checkAuth = useUserStore((state) => state.checkAuth)
+  const setPlatformTrackingIds = useUserStore((state) => state.setPlatformTrackingIds)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let isProcessing = false
+
     const handleCallback = async () => {
+      // 이미 처리 중이면 중복 실행 방지
+      if (isProcessing) return
+      isProcessing = true
+
       try {
-        // URL 파라미터에서 토큰 추출 (백엔드가 리다이렉트할 때 전달)
+        // URL 파라미터에서 토큰 추출 (한 번만 읽기)
         const accessToken = searchParams.get('accessToken')
         const refreshToken = searchParams.get('refreshToken')
         const errorParam = searchParams.get('error')
 
-        // 에러가 있는 경우
+        // 에러 파라미터 확인
         if (errorParam) {
           throw new Error(errorParam || '로그인 중 오류가 발생했어요.')
         }
 
-        // 토큰이 URL 파라미터로 전달된 경우
-        if (accessToken && refreshToken) {
-          authStorage.setTokens(accessToken, refreshToken, { source: 'backend' })
-        } else if (accessToken) {
-          // accessToken만 있는 경우: refreshToken 없이 저장 (재발급 불가하므로 추후 만료 시 재로그인 필요)
-          authStorage.setTokens(accessToken, null, { source: 'backend' })
-        } else {
-          // 쿠키에서 토큰을 확인하거나, 백엔드가 다른 방식으로 전달할 수 있음
-          // 여기서는 URL 파라미터를 우선으로 하고, 없으면 에러 처리
-          throw new Error('토큰 정보를 찾을 수 없어요. 다시 로그인해주세요.')
+        // 토큰이 URL 파라미터에 없으면 에러
+        if (!accessToken) {
+          // 이미 처리된 경우가 아니면 에러
+          if (!authStorage.hasTokens()) {
+            throw new Error('토큰 정보를 찾을 수 없어요. 다시 로그인해주세요.')
+          }
+          // 이미 토큰이 있으면 성공으로 처리
+          return
         }
 
-        // 보안: 토큰을 저장한 후 URL에서 제거 (브라우저 히스토리에서 토큰 노출 방지)
+        // 토큰 저장
+        authStorage.setTokens(accessToken, refreshToken || null, { source: 'backend' })
+
+        // 보안: 토큰을 저장한 후 URL에서 제거 (비동기 작업 전에 먼저 제거)
         if (typeof window !== 'undefined') {
           const url = new URL(window.location.href)
           url.searchParams.delete('accessToken')
@@ -48,10 +57,10 @@ export default function OAuthCallbackClient() {
           window.history.replaceState({}, '', url.toString())
         }
 
-        // 토큰 저장 후 즉시 인증 상태 업데이트
+        // 인증 상태 업데이트
         checkAuth()
 
-        // 백엔드 API로 사용자 정보 조회
+        // 사용자 정보 조회
         try {
           const userInfo = await authApi.getCurrentUser()
           const fallbackName = userInfo.name ?? userInfo.nickname ?? '사용자'
@@ -64,19 +73,25 @@ export default function OAuthCallbackClient() {
             createdAt: userInfo.createdAt,
             accountStatus: 'active',
           })
-
-          // 사용자 정보 설정 후 다시 한 번 인증 상태 확인
           checkAuth()
         } catch (userInfoError) {
-          // 사용자 정보 조회 실패 시에도 토큰은 저장되어 있으므로 계속 진행
           console.error('[OAuth Callback] 사용자 정보 조회 실패:', userInfoError)
-          // 토큰은 저장되어 있으므로 인증 상태만 업데이트하고 진행
           checkAuth()
         }
 
-        // URL 파라미터 제거하고 홈으로 리다이렉트
+        // 트래킹 ID 자동 조회 (에러 발생해도 로그인은 계속 진행)
+        try {
+          const mallConfigs = await getMallConfigs()
+          setPlatformTrackingIds(mallConfigs)
+        } catch (trackingIdError) {
+          console.error('[OAuth Callback] 트래킹 ID 조회 실패:', trackingIdError)
+          // 트래킹 ID 조회 실패해도 로그인은 정상 진행
+        }
+
+        // 홈으로 리다이렉트
         router.replace('/')
       } catch (err) {
+        isProcessing = false
         const message =
           err instanceof Error
             ? err.message
@@ -86,7 +101,8 @@ export default function OAuthCallbackClient() {
     }
 
     void handleCallback()
-  }, [router, setUser, checkAuth, searchParams])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // searchParams를 dependency에서 제거하여 한 번만 실행
 
   return (
     <div className="flex min-h-screen items-center justify-center">
