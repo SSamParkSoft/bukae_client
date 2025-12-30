@@ -49,6 +49,18 @@ export function SceneList({
   // 드롭 위치 계산
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>, index: number) => {
     event.preventDefault()
+    
+    // 같은 sceneId를 가진 씬들 사이에서만 드롭 허용
+    if (draggedIndex !== null) {
+      const draggedScene = scenes[draggedIndex]
+      const targetScene = scenes[index]
+      
+      if (draggedScene.sceneId !== targetScene.sceneId) {
+        // 다른 그룹으로 드래그하면 드롭 위치 표시 안 함
+        return
+      }
+    }
+    
     const rect = event.currentTarget.getBoundingClientRect()
     const offsetY = event.clientY - rect.top
     const position: 'before' | 'after' = offsetY < rect.height / 2 ? 'before' : 'after'
@@ -60,12 +72,32 @@ export function SceneList({
     event?.preventDefault()
     if (draggedIndex === null || !dragOver) return
 
+    // 같은 sceneId를 가진 씬들 사이에서만 드롭 허용
+    const draggedScene = scenes[draggedIndex]
+    const targetScene = scenes[dragOver.index]
+    
+    if (draggedScene.sceneId !== targetScene.sceneId) {
+      // 다른 그룹으로 드롭하려고 하면 무시
+      setDraggedIndex(null)
+      setDragOver(null)
+      return
+    }
+
+    // 같은 그룹 내에서만 순서 변경
     const newOrder = scenes.map((_, idx) => idx)
     const [removed] = newOrder.splice(draggedIndex, 1)
 
     let targetIndex = dragOver.position === 'after' ? dragOver.index + 1 : dragOver.index
     if (draggedIndex < targetIndex) {
       targetIndex -= 1
+    }
+
+    // 같은 그룹 내에서만 이동 가능하도록 확인
+    const finalTargetScene = scenes[targetIndex]
+    if (finalTargetScene.sceneId !== draggedScene.sceneId) {
+      setDraggedIndex(null)
+      setDragOver(null)
+      return
     }
 
     newOrder.splice(targetIndex, 0, removed)
@@ -132,11 +164,19 @@ export function SceneList({
             }` : ''}
           >
             {/* 그룹화된 경우 그룹 헤더에 사진, 전환 효과, 이미지 비율 표시 */}
-            {isGrouped && (
-              <div className="mb-2 pb-2 border-b" style={{
-                borderColor: theme === 'dark' ? '#374151' : '#e5e7eb'
-              }}>
-                <div className="flex items-start gap-3">
+            {isGrouped && (() => {
+              // 그룹의 첫 번째 씬(원본 씬, splitIndex가 없는 씬) 찾기
+              const originalSceneIndex = group.indices.find(idx => !scenes[idx].splitIndex) ?? group.indices[0]
+              
+              return (
+                <div 
+                  className="mb-2 pb-2 border-b cursor-pointer hover:opacity-80 transition-opacity" 
+                  style={{
+                    borderColor: theme === 'dark' ? '#374151' : '#e5e7eb'
+                  }}
+                  onClick={() => onSelect(originalSceneIndex)}
+                >
+                  <div className="flex items-start gap-3">
                   {/* 썸네일 - 왼쪽 */}
                   <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-200 shrink-0">
                     {sceneThumbnails[firstSceneIndex] && (() => {
@@ -208,7 +248,8 @@ export function SceneList({
                   </div>
                 </div>
               </div>
-            )}
+              )
+            })()}
             
             {group.indices.map((index) => {
               const scene = scenes[index]
@@ -312,7 +353,7 @@ export function SceneList({
                                 자막 씬 분할
                               </Button>
                             )}
-                    {onDuplicateScene && (
+                    {onDuplicateScene && isGrouped && (
                       <Button
                         type="button"
                         variant="outline"
@@ -322,7 +363,7 @@ export function SceneList({
                           e.stopPropagation()
                           onDuplicateScene(index)
                         }}
-                        title="Scene 복사"
+                        title="Scene 복사 (같은 그룹 내에서만 가능)"
                       >
                         <Copy className="w-3 h-3" />
                       </Button>

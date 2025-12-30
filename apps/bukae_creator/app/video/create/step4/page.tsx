@@ -1741,7 +1741,7 @@ export default function Step4Page() {
     [scenes, timeline, currentSceneIndex, setScenes, setTimeline, setCurrentSceneIndex]
   )
 
-  // 씬 복사
+  // 씬 복사 - 같은 그룹 내에서만 가능
   const handleSceneDuplicate = useCallback(
     (index: number) => {
       if (!timeline || scenes.length === 0) return
@@ -1749,36 +1749,56 @@ export default function Step4Page() {
       const targetSceneScript = scenes[index]
       const targetTimelineScene = timeline.scenes[index]
 
-      // 복제된 씬 생성 (index + 1 위치에 삽입)
+      // 같은 sceneId를 가진 씬들 찾기 (같은 그룹)
+      const sameGroupScenes = scenes.filter(s => s.sceneId === targetSceneScript.sceneId)
+      
+      // 그룹화되지 않은 씬은 복사 불가
+      if (sameGroupScenes.length <= 1) {
+        return
+      }
+
+      // 같은 그룹 내에서 최대 splitIndex 찾기
+      const maxSplitIndex = sameGroupScenes.reduce((max, s) => {
+        return Math.max(max, s.splitIndex || 0)
+      }, 0)
+
+      // 복제된 씬 생성 (같은 sceneId 유지, splitIndex 증가)
       const duplicatedSceneScript: SceneScript = {
         ...targetSceneScript,
-        sceneId: index + 2, // 임시 ID (재할당 예정)
+        sceneId: targetSceneScript.sceneId, // 같은 sceneId 유지
+        splitIndex: maxSplitIndex + 1, // 새로운 splitIndex 할당
       }
 
       const duplicatedTimelineScene: TimelineScene = {
         ...targetTimelineScene,
-        sceneId: index + 2, // 임시 ID (재할당 예정)
+        sceneId: targetSceneScript.sceneId, // 같은 sceneId 유지
       }
+
+      // 같은 그룹의 마지막 씬 다음에 삽입
+      // 같은 sceneId를 가진 마지막 씬의 인덱스 찾기
+      let insertIndex = index
+      for (let i = index + 1; i < scenes.length; i++) {
+        if (scenes[i].sceneId === targetSceneScript.sceneId) {
+          insertIndex = i
+        } else {
+          break
+        }
+      }
+      insertIndex += 1
 
       // scenes 배열에 삽입
       const newScenes = [
-        ...scenes.slice(0, index + 1),
+        ...scenes.slice(0, insertIndex),
         duplicatedSceneScript,
-        ...scenes.slice(index + 1),
-      ].map((scene, i) => ({
-        ...scene,
-        sceneId: i + 1, // sceneId 재할당
-      }))
+        ...scenes.slice(insertIndex),
+      ]
 
       // timeline.scenes 배열에도 삽입
       const newTimelineScenes = [
-        ...timeline.scenes.slice(0, index + 1),
+        ...timeline.scenes.slice(0, insertIndex),
         duplicatedTimelineScene,
-        ...timeline.scenes.slice(index + 1),
-      ].map((scene, i) => ({
-        ...scene,
-        sceneId: i + 1,
-      }))
+        ...timeline.scenes.slice(insertIndex),
+      ]
 
       setScenes(newScenes)
       setTimeline({
@@ -1787,8 +1807,8 @@ export default function Step4Page() {
       })
 
       // 복제된 씬을 선택
-      setCurrentSceneIndex(index + 1)
-      currentSceneIndexRef.current = index + 1
+      setCurrentSceneIndex(insertIndex)
+      currentSceneIndexRef.current = insertIndex
     },
     [scenes, timeline, setScenes, setTimeline, setCurrentSceneIndex]
   )
@@ -1804,12 +1824,55 @@ export default function Step4Page() {
   const handleSceneReorder = useCallback((newOrder: number[]) => {
     if (!timeline) return
 
-    // scenes 배열 재정렬 및 sceneId 업데이트 (1부터 시작)
-    const reorderedScenes = newOrder.map((oldIndex, newIndex) => ({
-      ...scenes[oldIndex],
-      sceneId: newIndex + 1, // 새로운 순서에 맞게 sceneId 업데이트
-    }))
-    setScenes(reorderedScenes)
+    // 재정렬된 씬들
+    const reorderedScenes = newOrder.map((oldIndex) => scenes[oldIndex])
+    const reorderedTimelineScenes = newOrder.map((oldIndex) => timeline.scenes[oldIndex])
+
+    // 같은 sceneId를 가진 씬들을 그룹별로 처리하여 splitIndex 업데이트
+    const updatedScenes = reorderedScenes.map((scene, index) => {
+      // 원본 씬인지 확인 (원래 splitIndex가 없었던 씬)
+      const originalScene = scenes[newOrder[index]]
+      const isOriginalScene = !originalScene.splitIndex
+
+      // 원본 씬은 항상 splitIndex 없음 유지
+      if (isOriginalScene) {
+        return {
+          ...scene,
+          splitIndex: undefined,
+        }
+      }
+
+      // 분할된 씬들: 같은 그룹 내에서 원본 씬을 제외한 순서로 splitIndex 할당
+      const sameGroupScenes = reorderedScenes.filter((s, i) => {
+        const origScene = scenes[newOrder[i]]
+        return s.sceneId === scene.sceneId && origScene.splitIndex // 분할된 씬들만
+      })
+
+      // 현재 씬이 분할된 씬들 중 몇 번째인지 계산
+      let splitPosition = 0
+      for (let i = 0; i < index; i++) {
+        const prevOrigScene = scenes[newOrder[i]]
+        if (reorderedScenes[i].sceneId === scene.sceneId && prevOrigScene.splitIndex) {
+          splitPosition++
+        }
+      }
+
+      return {
+        ...scene,
+        splitIndex: splitPosition + 1, // 분할된 씬들은 1부터 시작
+      }
+    })
+
+    // timeline의 scenes도 동일하게 업데이트 (sceneId는 유지)
+    const updatedTimelineScenes = reorderedTimelineScenes.map((timelineScene, index) => {
+      const scene = updatedScenes[index]
+      return {
+        ...timelineScene,
+        sceneId: scene.sceneId, // sceneId 유지
+      }
+    })
+
+    setScenes(updatedScenes)
 
     // selectedImages도 같은 순서로 재정렬
     const reorderedImages = newOrder.map((oldIndex) => selectedImages[oldIndex]).filter(Boolean)
@@ -1817,14 +1880,9 @@ export default function Step4Page() {
       setSelectedImages(reorderedImages)
     }
 
-    // timeline의 scenes도 재정렬 및 sceneId 업데이트
-    const reorderedTimelineScenes = newOrder.map((oldIndex, newIndex) => ({
-      ...timeline.scenes[oldIndex],
-      sceneId: newIndex + 1, // 새로운 순서에 맞게 sceneId 업데이트
-    }))
     setTimeline({
       ...timeline,
-      scenes: reorderedTimelineScenes,
+      scenes: updatedTimelineScenes,
     })
 
     // 현재 선택된 씬 인덱스 업데이트
