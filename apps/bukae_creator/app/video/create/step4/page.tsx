@@ -740,7 +740,13 @@ export default function Step4Page() {
     
     let timeUntilScene = 0
     for (let i = 0; i < index; i++) {
-      timeUntilScene += timeline.scenes[i].duration + (timeline.scenes[i].transitionDuration || 0.5)
+      const scene = timeline.scenes[i]
+      const isLastScene = i === timeline.scenes.length - 1
+      const nextScene = !isLastScene ? timeline.scenes[i + 1] : null
+      const isSameSceneId = nextScene && scene.sceneId === nextScene.sceneId
+      // 같은 그룹 내 씬들 사이에서는 transitionDuration을 0으로 계산
+      const transitionDuration = isLastScene ? 0 : (isSameSceneId ? 0 : (scene.transitionDuration || 0.5))
+      timeUntilScene += scene.duration + transitionDuration
     }
     
     // 전환 효과 미리보기 활성화
@@ -750,10 +756,13 @@ export default function Step4Page() {
     // 씬 리스트에서 선택할 때: 현재 렌더링된 씬을 이전 씬으로 사용
     // 같은 씬을 다시 선택하는 경우: null로 설정하여 페이드 인 효과 적용
     let prevIndex: number | null = null
-    if (skipStopPlaying && lastRenderedSceneIndexRef.current === index && index === currentSceneIndex) {
-      // 재생 시작 시 현재 씬을 다시 선택: 이전 씬으로 설정
-      // 첫 씬일 때는 null로 설정하여 페이드 인 효과가 나타나도록 함
-      if (index > 0) {
+    if (skipStopPlaying) {
+      // 재생 중일 때: 이전 씬 인덱스를 올바르게 설정
+      if (lastRenderedSceneIndexRef.current !== null && lastRenderedSceneIndexRef.current !== index) {
+        // 다른 씬에서 선택된 씬으로 전환
+        prevIndex = lastRenderedSceneIndexRef.current
+      } else if (index > 0) {
+        // 첫 씬이 아니면 이전 씬으로 설정
         prevIndex = index - 1
       } else {
         // 첫 씬일 때는 null로 설정하여 페이드 인 효과 적용
@@ -2393,22 +2402,32 @@ export default function Step4Page() {
     'circle': '원형',
   }
 
-  // 모든 전환 효과 옵션
-  const allTransitions = [
+  // "움직임" 효과 목록 (그룹 내 전환 효과 지속 대상)
+  const MOVEMENT_EFFECTS = ['slide-left', 'slide-right', 'slide-up', 'slide-down', 'zoom-in', 'zoom-out']
+
+  // 전환 효과 옵션 (fade, none 등)
+  const transitions = [
     { value: 'none', label: '없음' },
     { value: 'fade', label: '페이드' },
-    { value: 'slide-left', label: '슬라이드 좌' },
-    { value: 'slide-right', label: '슬라이드 우' },
-    { value: 'slide-up', label: '슬라이드 상' },
-    { value: 'slide-down', label: '슬라이드 하' },
-    { value: 'zoom-in', label: '확대' },
-    { value: 'zoom-out', label: '축소' },
     { value: 'rotate', label: '회전' },
     { value: 'blur', label: '블러' },
     { value: 'glitch', label: '글리치' },
     { value: 'ripple', label: '물결' },
     { value: 'circle', label: '원형' },
   ]
+
+  // "움직임" 효과 옵션
+  const movements = [
+    { value: 'slide-left', label: '슬라이드 좌' },
+    { value: 'slide-right', label: '슬라이드 우' },
+    { value: 'slide-up', label: '슬라이드 상' },
+    { value: 'slide-down', label: '슬라이드 하' },
+    { value: 'zoom-in', label: '확대' },
+    { value: 'zoom-out', label: '축소' },
+  ]
+
+  // 모든 전환 효과 옵션 (하위 호환성을 위해 유지)
+  const allTransitions = [...transitions, ...movements]
 
   // 서버 전송
   const handleExport = async () => {
@@ -3244,6 +3263,8 @@ export default function Step4Page() {
             timeline={timeline}
             currentSceneIndex={currentSceneIndex}
             allTransitions={allTransitions}
+            transitions={transitions}
+            movements={movements}
             onTransitionChange={handleSceneTransitionChange}
             onAdvancedEffectChange={handleAdvancedEffectChange}
             bgmTemplate={bgmTemplate}

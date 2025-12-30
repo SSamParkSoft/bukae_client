@@ -25,6 +25,10 @@ function hasUpstashEnv(): boolean {
 }
 
 function isDevBypass(): boolean {
+  // 개발 환경에서 강제로 비활성화하는 환경변수 체크
+  if (process.env.DISABLE_RATE_LIMIT === 'true') {
+    return true
+  }
   return process.env.NODE_ENV !== 'production' && !hasUpstashEnv()
 }
 
@@ -196,11 +200,25 @@ const consumeQuotaLua = `
   local inc = tonumber(ARGV[2])
   local max = tonumber(ARGV[3])
 
+  -- ARGV 값이 nil이거나 변환 실패한 경우 기본값 설정
+  if not ttl or ttl <= 0 then
+    ttl = 3600
+  end
+  if not inc or inc < 0 then
+    inc = 1
+  end
+  if not max or max <= 0 then
+    max = 100
+  end
+
   local current = redis.call('GET', key)
   if not current then
     current = 0
   else
     current = tonumber(current)
+    if not current then
+      current = 0
+    end
   end
 
   if current + inc > max then
@@ -218,9 +236,21 @@ const consumeQuotaLua = `
 `
 
 async function consumeQuota(key: string, inc: number, max: number, ttlSeconds: number) {
+  // 개발 환경에서 Upstash Redis가 없으면 rate limiting 스킵
+  if (isDevBypass()) {
+    // 개발 환경에서는 항상 성공으로 처리 (쿼터 초과하지 않음)
+    return Math.max(0, Math.min(inc, max))
+  }
+  
   const redis = getRedis()
+  
+  // 값 검증 및 기본값 설정
+  const safeTtl = Number.isFinite(ttlSeconds) && ttlSeconds > 0 ? ttlSeconds : 3600
+  const safeInc = Number.isFinite(inc) && inc >= 0 ? inc : 1
+  const safeMax = Number.isFinite(max) && max > 0 ? max : 100
+  
   // @upstash/redis는 eval을 지원(atomic 보장)
-  return redis.eval<[number, number, number], number>(consumeQuotaLua, [key], [ttlSeconds, inc, max])
+  return redis.eval<[number, number, number], number>(consumeQuotaLua, [key], [safeTtl, safeInc, safeMax])
 }
 
 export async function enforceTtsDailyQuota(

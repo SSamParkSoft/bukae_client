@@ -4,6 +4,9 @@ import { gsap } from 'gsap'
 import { TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
 import { createGlowFilter, createGlitchFilter, createParticleSystem } from '@/utils/pixi'
 
+// "움직임" 효과 목록 (그룹 내 전환 효과 지속 대상)
+const MOVEMENT_EFFECTS = ['slide-left', 'slide-right', 'slide-up', 'slide-down', 'zoom-in', 'zoom-out']
+
 interface UsePixiEffectsParams {
   appRef: React.RefObject<PIXI.Application | null>
   containerRef: React.RefObject<PIXI.Container | null>
@@ -88,8 +91,15 @@ export const usePixiEffects = ({
     applyAdvancedEffectsFn: (sprite: PIXI.Sprite, sceneIndex: number, effects?: TimelineScene['advancedEffects']) => void,
     forceTransition?: string,
     onComplete?: () => void,
-    _previousIndex?: number | null // 추가 (현재 미사용, 향후 확장용)
+    _previousIndex?: number | null, // 추가 (현재 미사용, 향후 확장용)
+    groupTransitionTimelinesRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>, // 그룹별 Timeline 추적
+    sceneId?: number // 현재 씬의 sceneId
   ) => {
+    // 그룹의 마지막 씬인지 확인 (움직임 효과인 경우)
+    const isMovementEffect = sceneId !== undefined && MOVEMENT_EFFECTS.includes(transition)
+    const isLastInGroup = isMovementEffect && timeline && sceneId !== undefined
+      ? !timeline.scenes.some((s, idx) => idx > sceneIndex && s.sceneId === sceneId)
+      : true // 움직임 효과가 아니면 항상 마지막으로 간주
     // 현재는 사용하지 않지만, 향후 이전 씬 정보 활용을 위해 자리 유지
     void _previousIndex
     const actualTransition = (forceTransition || transition || 'none').trim().toLowerCase()
@@ -211,6 +221,16 @@ export const usePixiEffects = ({
         if (appRef.current) {
           appRef.current.render()
         }
+        
+        // "움직임" 효과이고 그룹의 마지막 씬이 아닌 경우, Timeline을 완료하지 않음
+        // (그룹이 끝날 때까지 Timeline이 계속 진행되도록 함)
+        if (isMovementEffect && !isLastInGroup) {
+          // Timeline을 완료하지 않고 계속 진행
+          // activeAnimationsRef에서 삭제하지 않음
+          // onComplete 콜백도 호출하지 않음 (자막 변경만 처리)
+          return
+        }
+        
         activeAnimationsRef.current.delete(sceneIndex)
         
         // 전달된 onComplete 콜백이 있으면 우선 호출 (재생 중 다음 씬으로 넘어갈 때 사용)
@@ -225,6 +245,11 @@ export const usePixiEffects = ({
     })
     // Timeline을 즉시 activeAnimationsRef에 추가하여 updateCurrentScene(true)가 호출되어도 전환 효과를 건너뛰지 않도록 함
     activeAnimationsRef.current.set(sceneIndex, tl)
+    
+    // "움직임" 효과인 경우 그룹별 Timeline 추적에 저장
+    if (groupTransitionTimelinesRef && sceneId !== undefined && MOVEMENT_EFFECTS.includes(actualTransition)) {
+      groupTransitionTimelinesRef.current.set(sceneId, tl)
+    }
     
     // 텍스트는 항상 페이드로 처리
     const applyTextFade = () => {

@@ -2,6 +2,9 @@ import { SceneScript, TimelineScene } from '@/store/useVideoCreateStore'
 import { getSceneDuration } from '@/utils/timeline'
 import { SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
 
+// "움직임" 효과 목록 (그룹 내 전환 효과 지속 대상)
+const MOVEMENT_EFFECTS = ['slide-left', 'slide-right', 'slide-up', 'slide-down', 'zoom-in', 'zoom-out']
+
 /**
  * `!`, `.`, `?` 기준으로 문장을 분리한다.
  * 구분 문자까지 포함한 형태로 반환하며, 공백/빈 문장은 제거한다.
@@ -103,8 +106,17 @@ export function splitSceneBySentences(params: {
   // 원본 씬의 transition과 transitionDuration 저장
   const originalTransition = timelineScene?.transition || 'none'
   const originalTransitionDuration = timelineScene?.transitionDuration || 0.5
+  
+  // "움직임" 효과인지 확인
+  const isMovementEffect = MOVEMENT_EFFECTS.includes(originalTransition)
+  
+  // "움직임" 효과인 경우 그룹 내 모든 씬의 duration 합 계산
+  const totalGroupDuration = isMovementEffect 
+    ? durations.reduce((sum, d) => sum + d, 0)
+    : originalTransitionDuration
 
   const timelineScenes: TimelineScene[] = sentences.map((sentence, idx) => {
+    const isFirstSplit = idx === 0
     const isLastSplit = idx === sentences.length - 1
     const base: TimelineScene = timelineScene
       ? {
@@ -127,17 +139,33 @@ export function splitSceneBySentences(params: {
           },
         }
 
-    return {
-      ...base,
-      sceneId: sceneScript.sceneId, // 원본 씬 번호 유지
-      duration: durations[idx],
-      // 마지막 분할 씬에만 원본 씬의 전환 효과 적용
-      transition: isLastSplit ? originalTransition : 'none',
-      transitionDuration: isLastSplit ? originalTransitionDuration : 0,
-      text: {
-        ...base.text,
-        content: sentence,
-      },
+    // "움직임" 효과인 경우: 첫 번째 분할 씬에만 transition 적용, transitionDuration은 그룹 전체 duration 합
+    // "움직임" 효과가 아닌 경우: 기존 로직 유지 (마지막 분할 씬에만 transition 적용)
+    if (isMovementEffect) {
+      return {
+        ...base,
+        sceneId: sceneScript.sceneId, // 원본 씬 번호 유지
+        duration: durations[idx],
+        transition: isFirstSplit ? originalTransition : 'none',
+        transitionDuration: isFirstSplit ? totalGroupDuration : 0,
+        text: {
+          ...base.text,
+          content: sentence,
+        },
+      }
+    } else {
+      return {
+        ...base,
+        sceneId: sceneScript.sceneId, // 원본 씬 번호 유지
+        duration: durations[idx],
+        // 마지막 분할 씬에만 원본 씬의 전환 효과 적용
+        transition: isLastSplit ? originalTransition : 'none',
+        transitionDuration: isLastSplit ? originalTransitionDuration : 0,
+        text: {
+          ...base.text,
+          content: sentence,
+        },
+      }
     }
   })
 
