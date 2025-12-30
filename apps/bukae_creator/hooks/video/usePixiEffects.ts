@@ -500,6 +500,16 @@ export const usePixiEffects = ({
           const centerX = originalX + (toSprite.texture.width * originalScaleX) / 2
           const centerY = originalY + (toSprite.texture.height * originalScaleY) / 2
           
+          // 텍스트 페이드 객체 (이미지와 동시에 시작)
+          const textFadeObj = { alpha: 0 }
+          if (toText) {
+            toText.alpha = 0
+            toText.visible = true
+            if (toText.mask) {
+              toText.mask = null
+            }
+          }
+          
           // 페이드 인과 확대를 동시에 진행
           tl.to(toZoomObj, { 
             alpha: 1,
@@ -524,14 +534,25 @@ export const usePixiEffects = ({
                 toSprite.x = centerX - newWidth / 2
                 toSprite.y = centerY - newHeight / 2
               }
+              
+              // 텍스트도 동시에 페이드 인
+              if (toText && containerRef.current) {
+                if (!toText.parent || toText.parent !== containerRef.current) {
+                  if (toText.parent) {
+                    toText.parent.removeChild(toText)
+                  }
+                  containerRef.current.addChild(toText)
+                }
+                // 이미지와 동일한 alpha 값 사용 (동시에 나타남)
+                textFadeObj.alpha = toZoomObj.alpha
+                toText.alpha = textFadeObj.alpha
+              }
+              
               if (appRef.current) {
                 appRef.current.render()
               }
             }
           }, 0)
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
         }
         break
 
@@ -546,6 +567,16 @@ export const usePixiEffects = ({
           // 중심점 계산 (스프라이트의 현재 중심)
           const centerX = originalX + (toSprite.texture.width * originalScaleX) / 2
           const centerY = originalY + (toSprite.texture.height * originalScaleY) / 2
+          
+          // 텍스트 페이드 객체 (이미지와 동시에 시작)
+          const textFadeObj = { alpha: 0 }
+          if (toText) {
+            toText.alpha = 0
+            toText.visible = true
+            if (toText.mask) {
+              toText.mask = null
+            }
+          }
           
           // 페이드 인과 축소를 동시에 진행
           tl.to(toZoomOutObj, { 
@@ -571,14 +602,25 @@ export const usePixiEffects = ({
                 toSprite.x = centerX - newWidth / 2
                 toSprite.y = centerY - newHeight / 2
               }
+              
+              // 텍스트도 동시에 페이드 인
+              if (toText && containerRef.current) {
+                if (!toText.parent || toText.parent !== containerRef.current) {
+                  if (toText.parent) {
+                    toText.parent.removeChild(toText)
+                  }
+                  containerRef.current.addChild(toText)
+                }
+                // 이미지와 동일한 alpha 값 사용 (동시에 나타남)
+                textFadeObj.alpha = toZoomOutObj.alpha
+                toText.alpha = textFadeObj.alpha
+              }
+              
               if (appRef.current) {
                 appRef.current.render()
               }
             }
           }, 0)
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
         }
         break
 
