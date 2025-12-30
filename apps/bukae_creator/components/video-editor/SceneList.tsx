@@ -9,8 +9,10 @@ interface SceneListProps {
   timeline: TimelineData | null
   sceneThumbnails: Array<string | null>
   currentSceneIndex: number
+  selectedPart?: { sceneIndex: number; partIndex: number } | null
   theme: string | undefined
   onSelect: (index: number) => void
+  onSelectPart?: (sceneIndex: number, partIndex: number) => void
   onScriptChange: (index: number, value: string) => void
   onImageFitChange: (index: number, fit: 'cover' | 'contain' | 'fill') => void
   onReorder: (newOrder: number[]) => void
@@ -26,6 +28,7 @@ export function SceneList({
   timeline,
   sceneThumbnails,
   currentSceneIndex,
+  selectedPart,
   theme,
   onSelect,
   onScriptChange,
@@ -36,6 +39,7 @@ export function SceneList({
   onDeleteScene,
   onDuplicateScene,
   onTtsPreview,
+  onSelectPart,
 }: SceneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
@@ -480,38 +484,43 @@ export function SceneList({
                   </div>
                 </div>
 
-                {/* 텍스트 입력 - ||| 구분자가 있으면 각 구간별로 표시 */}
+                {/* 텍스트 입력 - ||| 구분자가 있으면 각 구간별로 카드 형태로 표시 */}
                 {hasDelimiters ? (
                   <div className="space-y-2 mb-2">
-                    {scriptParts.map((part, partIndex) => (
-                      <div key={partIndex} className="space-y-1">
-                        <div className="flex items-center gap-2">
+                    {scriptParts.map((part, partIndex) => {
+                      const isSelected = selectedPart?.sceneIndex === index && selectedPart?.partIndex === partIndex
+                      return (
+                      <div 
+                        key={partIndex} 
+                        className={`rounded-lg border p-3 cursor-pointer transition-all ${
+                          isSelected
+                            ? theme === 'dark'
+                              ? 'border-purple-400 bg-purple-800/40'
+                              : 'border-purple-400 bg-purple-100'
+                            : currentSceneIndex === index
+                              ? theme === 'dark'
+                                ? 'border-purple-500 bg-purple-900/20'
+                                : 'border-purple-500 bg-purple-50'
+                              : theme === 'dark'
+                                ? 'border-gray-600 bg-gray-800/50 hover:border-purple-500'
+                                : 'border-gray-200 bg-white hover:border-purple-500'
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (onSelectPart) {
+                            onSelectPart(index, partIndex)
+                          } else {
+                            onSelect(index)
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-between mb-2">
                           <span
-                            className="text-xs font-medium shrink-0 w-20"
-                            style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}
+                            className="text-xs font-semibold"
+                            style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
                           >
-                            Scene {scene.sceneId}-{partIndex + 1}:
+                            Scene {scene.sceneId}-{partIndex + 1}
                           </span>
-                          <textarea
-                            rows={1}
-                            value={part}
-                            onChange={(e) => {
-                              // 해당 구간만 업데이트
-                              const newParts = [...scriptParts]
-                              newParts[partIndex] = e.target.value
-                              const newScript = newParts.join(' ||| ')
-                              onScriptChange(index, newScript)
-                            }}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => e.stopPropagation()}
-                            className="flex-1 text-sm rounded-md border px-2 py-1 resize-none"
-                            style={{
-                              backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-                              borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                              color: theme === 'dark' ? '#ffffff' : '#111827',
-                            }}
-                            placeholder={`구간 ${partIndex + 1} 텍스트 입력...`}
-                          />
                           <div className="flex items-center gap-1 shrink-0">
                             {onDuplicateScene && (
                               <Button
@@ -589,8 +598,29 @@ export function SceneList({
                             )}
                           </div>
                         </div>
+                        <textarea
+                          rows={2}
+                          value={part}
+                          onChange={(e) => {
+                            // 해당 구간만 업데이트
+                            const newParts = [...scriptParts]
+                            newParts[partIndex] = e.target.value
+                            const newScript = newParts.join(' ||| ')
+                            onScriptChange(index, newScript)
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full text-sm rounded-md border px-2 py-1 resize-none mt-2"
+                          style={{
+                            backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
+                            borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
+                            color: theme === 'dark' ? '#ffffff' : '#111827',
+                          }}
+                          placeholder={`구간 ${partIndex + 1} 텍스트 입력...`}
+                        />
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : (
                   <div className="flex items-start gap-2 mb-2">

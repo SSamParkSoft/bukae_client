@@ -119,6 +119,8 @@ export default function Step4Page() {
   const [isValidatingToken, setIsValidatingToken] = useState(true)
   // 스크립트가 변경된 씬 추적 (재생 시 강제 재생성)
   const changedScenesRef = useRef<Set<number>>(new Set())
+  // 선택된 구간 추적 (씬 인덱스, 구간 인덱스)
+  const [selectedPart, setSelectedPart] = useState<{ sceneIndex: number; partIndex: number } | null>(null)
 
   // 토큰 검증
   useEffect(() => {
@@ -237,6 +239,8 @@ export default function Step4Page() {
 
   // 진행 중인 애니메이션 추적 (usePixiFabric보다 먼저 선언)
   const activeAnimationsRef = useRef<Map<number, gsap.core.Timeline>>(new Map())
+  // 수동 씬 선택 중 플래그 (handleScenePartSelect에서 사용)
+  const isManualSceneSelectRef = useRef(false)
 
   // mounted 상태와 pixiContainerRef가 준비된 후에만 PixiJS 초기화
   usePixiFabric({
@@ -390,6 +394,7 @@ export default function Step4Page() {
     fabricCanvasRef,
     fabricScaleRatioRef,
     isSavingTransformRef,
+    isManualSceneSelectRef,
     timeline,
     stageDimensions,
     useFabricEditing,
@@ -640,6 +645,14 @@ export default function Step4Page() {
     if (isSavingTransformRef.current) {
       return
     }
+    
+    // 수동 씬 선택 중일 때는 loadAllScenes를 호출하지 않음 (handleScenePartSelect가 처리 중)
+    if (isManualSceneSelectRef.current) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:648',message:'useEffect timeline - 수동 씬 선택 중, loadAllScenes 호출 스킵',data:{isManualSceneSelect:isManualSceneSelectRef.current,timelineScenesLength:timeline.scenes.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run54',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      return
+    }
 
     // scenes 배열의 길이나 구조가 변경되었는지 확인 (Transform만 변경된 경우는 제외)
     const scenesLength = timeline.scenes.length
@@ -778,6 +791,9 @@ export default function Step4Page() {
   // 씬 선택 (씬 클릭할 때와 재생 버튼 눌렀을 때 모두 사용)
   const handleSceneSelect = (index: number, skipStopPlaying: boolean = false, onTransitionComplete?: () => void) => {
     if (!timeline) return
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:784',message:'handleSceneSelect 시작',data:{index,skipStopPlaying,isPlaying,currentSceneIndex:currentSceneIndexRef.current,isManualSceneSelectBefore:isManualSceneSelectRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run48',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     
     // 재생 중이 아니거나 skipStopPlaying이 false일 때만 재생 중지
     if (isPlaying && !skipStopPlaying) {
@@ -786,7 +802,9 @@ export default function Step4Page() {
     }
     
     // 씬 클릭 시 즉시 수동 선택 플래그 설정하여 우선순위 확보
-    isManualSceneSelectRef.current = true
+    // 단, 전체 컨테이너 클릭 시에는 플래그를 설정하지 않음 (자동 전환 효과를 위해)
+    // isManualSceneSelectRef.current는 handleScenePartSelect에서만 true로 설정되어야 함
+    // isManualSceneSelectRef.current = true
     currentSceneIndexRef.current = index
     // currentSceneIndex 상태도 즉시 업데이트하여 재생 버튼이 올바른 씬부터 시작하도록 함
     setCurrentSceneIndex(index)
@@ -989,6 +1007,9 @@ export default function Step4Page() {
       
       // Timeline의 onComplete 콜백을 사용하여 전환 효과 완료 시점을 정확히 감지
       // 선택된 씬의 전환 효과를 forceTransition으로 전달하여 해당 씬의 전환 효과가 표시되도록 함
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1000',message:'updateCurrentScene 호출',data:{index,prevIndex,transition,skipStopPlaying,isManualSceneSelect:isManualSceneSelectRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run48',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
       updateCurrentScene(false, prevIndex, transition, transitionCompleteCallback)
       
       // 수동으로 씬을 클릭한 경우(!skipStopPlaying)에는 자동 전환하지 않음
@@ -1031,7 +1052,6 @@ export default function Step4Page() {
     selectScene,
     togglePlay,
     getStageDimensions,
-    isManualSceneSelectRef,
   } = useTimelinePlayer({
     timeline,
     updateCurrentScene,
@@ -1042,6 +1062,427 @@ export default function Step4Page() {
     previousSceneIndexRef, // previousSceneIndexRef 전달
     onSceneChange: handleSceneSelect, // 재생 중 씬 변경 시 handleSceneSelect 호출
   })
+
+  // 구간 선택 (구분자가 있는 씬의 특정 구간 클릭 시)
+  const handleScenePartSelect = useCallback((sceneIndex: number, partIndex: number) => {
+    if (!timeline) return
+    
+    const scene = timeline.scenes[sceneIndex]
+    if (!scene) return
+    
+    // 같은 그룹의 첫 번째 씬에서 원본 script 가져오기
+    const sceneId = scene.sceneId
+    let originalScript = ''
+    
+    if (sceneId !== undefined) {
+      // 같은 sceneId를 가진 씬들 중 첫 번째 씬 찾기
+      const firstSceneIndexInTimeline = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+      if (firstSceneIndexInTimeline >= 0) {
+        // scenes 배열에서 같은 sceneId를 가진 첫 번째 씬 찾기
+        const firstSceneScript = scenes.find((s) => s.sceneId === sceneId)
+        if (firstSceneScript?.script) {
+          originalScript = firstSceneScript.script
+        }
+      }
+    }
+    
+    // 원본 script가 없으면 현재 씬의 text.content 사용 (fallback)
+    if (!originalScript) {
+      originalScript = scene.text?.content || ''
+    }
+    
+    // ||| 구분자로 분할 (원본 script 사용)
+    const scriptParts = originalScript.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+    const partText = scriptParts[partIndex]?.trim()
+    
+    if (!partText) return
+    
+    console.log(`[구간 선택] 씬${sceneIndex} 구간${partIndex + 1} 선택: "${partText}"`)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1082',message:'handleScenePartSelect 시작',data:{sceneIndex,partIndex,partText,isManualSceneSelectBefore:isManualSceneSelectRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
+    // currentSceneIndex 변경 시 useEffect가 호출되지 않도록 플래그 설정 (먼저 설정)
+    isManualSceneSelectRef.current = true
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1085',message:'플래그 설정 후',data:{isManualSceneSelectAfter:isManualSceneSelectRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
+    
+    // timeline의 text.content를 해당 구간 텍스트로 업데이트 (먼저 업데이트)
+    // 같은 그룹 내의 모든 씬도 업데이트 (같은 sceneId를 가진 씬들)
+    const updatedTimeline = {
+      ...timeline,
+      scenes: timeline.scenes.map((s, i) => {
+        // 현재 씬이거나 같은 그룹의 씬인 경우
+        if (i === sceneIndex || (sceneId !== undefined && s.sceneId === sceneId)) {
+          // 같은 그룹 내에서의 순서 확인
+          const sameGroupScenes = timeline.scenes
+            .map((sc, idx) => ({ scene: sc, index: idx }))
+            .filter(({ scene: sc }) => sceneId !== undefined && sc.sceneId === sceneId)
+            .sort((a, b) => a.index - b.index)
+          
+          const groupIndex = sameGroupScenes.findIndex(({ index }) => index === i)
+          
+          // 현재 선택한 씬이면 partText 사용, 같은 그룹의 다른 씬이면 해당 구간 텍스트 사용
+          if (i === sceneIndex) {
+            return {
+              ...s,
+              text: {
+                ...s.text,
+                content: partText, // ||| 구분자 없이 구간 텍스트만
+              },
+            }
+          } else if (groupIndex >= 0) {
+            // 같은 그룹의 다른 씬: 해당 구간 텍스트 사용
+            const originalText = s.text?.content || ''
+            const parts = originalText.includes('|||') 
+              ? originalText.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
+              : [originalText]
+            const groupPartText = parts[groupIndex] || ''
+            
+            return {
+              ...s,
+              text: {
+                ...s.text,
+                content: groupPartText, // ||| 구분자 없이 구간 텍스트만
+              },
+            }
+          }
+        }
+        return s
+      }),
+    }
+    
+    setTimeline(updatedTimeline)
+    
+    // 텍스트 객체를 즉시 동기적으로 업데이트 (setCurrentSceneIndex 전에)
+    // requestAnimationFrame을 사용하지 않고 즉시 실행하여 updateCurrentScene이 호출되기 전에 텍스트가 이미 업데이트되도록 함
+    // 같은 그룹 내의 모든 씬의 텍스트 객체를 찾아서 업데이트
+    const sameGroupIndices: number[] = []
+    
+    if (sceneId !== undefined) {
+      // 같은 sceneId를 가진 모든 씬 인덱스 찾기
+      timeline.scenes.forEach((s, idx) => {
+        if (s.sceneId === sceneId) {
+          sameGroupIndices.push(idx)
+        }
+      })
+    } else {
+      sameGroupIndices.push(sceneIndex)
+    }
+    
+    // 같은 그룹 내의 모든 텍스트 객체 업데이트
+    // 같은 그룹 내 씬인 경우, 첫 번째 씬의 텍스트 객체를 사용할 수 있으므로
+    // 현재 표시되고 있는 텍스트 객체를 찾아서 업데이트
+    let updatedCount = 0
+    let targetTextObj: PIXI.Text | null = null
+    
+    // 먼저 현재 씬의 텍스트 객체 찾기
+    targetTextObj = textsRef.current.get(sceneIndex) || null
+    
+    // 현재 표시되고 있는 텍스트 객체만 로그 출력
+    const visibleTexts: Array<{ idx: number; sceneId: number | undefined; text: string }> = []
+    textsRef.current.forEach((text, idx) => {
+      if (text && text.visible && text.alpha > 0) {
+        const textScene = timeline.scenes[idx]
+        visibleTexts.push({ idx, sceneId: textScene?.sceneId, text: text.text })
+      }
+    })
+    if (visibleTexts.length > 0) {
+      console.log(`[구간 선택] 현재 표시 중인 텍스트: ${visibleTexts.map(v => `씬${v.idx}(${v.sceneId}):"${v.text.substring(0, 20)}..."`).join(', ')}`)
+    }
+    
+    // 현재 씬의 텍스트 객체가 없거나 보이지 않으면, 현재 표시되고 있는 텍스트 찾기
+    if (!targetTextObj || !targetTextObj.visible || targetTextObj.alpha === 0) {
+      textsRef.current.forEach((text, idx) => {
+        if (text && text.visible && text.alpha > 0) {
+          // 현재 표시되고 있는 텍스트가 같은 그룹의 씬인지 확인
+          const textScene = timeline.scenes[idx]
+          if (textScene?.sceneId === sceneId) {
+            targetTextObj = text
+            console.log(`[구간 선택] 현재 표시되고 있는 텍스트 객체 찾음: 씬 ${idx} (sceneId: ${sceneId})`)
+          }
+        }
+      })
+    }
+    
+    // 여전히 찾지 못했으면 같은 그룹 내 첫 번째 씬의 텍스트 사용
+    if (!targetTextObj && sceneId !== undefined) {
+      const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+      if (firstSceneIndexInGroup >= 0) {
+        targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
+        console.log(`[구간 선택] 같은 그룹 내 첫 번째 씬의 텍스트 객체 사용: 씬 ${firstSceneIndexInGroup}`)
+      }
+    }
+    
+    if (targetTextObj) {
+      const oldText = targetTextObj.text
+      const targetTextObjId = `text_${sceneIndex}_${Date.now()}`
+      // #region agent log
+      const targetTextObjAddress = String(targetTextObj)
+      const allTextObjects: Array<{idx: number, address: string, debugId: string}> = []
+      textsRef.current.forEach((text, idx) => {
+        if (text) {
+          allTextObjects.push({
+            idx,
+            address: String(text),
+            debugId: (text as PIXI.Text & { __debugId?: string }).__debugId || '없음'
+          })
+        }
+      })
+      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1194',message:'디버그 ID 설정 전',data:{targetTextObjAddress,oldText,sceneIndex,partText,currentDebugId:(targetTextObj as PIXI.Text & { __debugId?: string }).__debugId || '없음',allTextObjects},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      ;(targetTextObj as PIXI.Text & { __debugId?: string }).__debugId = targetTextObjId
+      // #region agent log
+      const allTextObjectsAfter: Array<{idx: number, address: string, debugId: string}> = []
+      textsRef.current.forEach((text, idx) => {
+        if (text) {
+          allTextObjectsAfter.push({
+            idx,
+            address: String(text),
+            debugId: (text as PIXI.Text & { __debugId?: string }).__debugId || '없음'
+          })
+        }
+      })
+      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1197',message:'디버그 ID 설정 후',data:{targetTextObjAddress,debugId:targetTextObjId,verifiedDebugId:(targetTextObj as PIXI.Text & { __debugId?: string }).__debugId,allTextObjectsAfter},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      
+      console.log(`[구간 선택] 텍스트 객체 찾음: 씬${sceneIndex}, 이전:"${oldText}" -> 새:"${partText}", 디버그ID:${targetTextObjId}`)
+      
+      targetTextObj.text = partText
+      
+      // 전환 효과가 진행 중이면 visible과 alpha는 변경하지 않음 (전환 효과가 완료되면 자동으로 표시됨)
+      // 전환 효과가 진행 중이 아니면 visible과 alpha를 설정
+      if (!isPreviewingTransition) {
+        targetTextObj.visible = true
+        targetTextObj.alpha = 1
+        
+        // 스프라이트도 표시되어야 함 (같은 씬 인덱스의 스프라이트)
+        const currentSprite = spritesRef.current.get(sceneIndex)
+        if (currentSprite) {
+          currentSprite.visible = true
+          currentSprite.alpha = 1
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1235',message:'스프라이트 표시',data:{sceneIndex,spriteVisible:currentSprite.visible,spriteAlpha:currentSprite.alpha},timestamp:Date.now(),sessionId:'debug-session',runId:'run17',hypothesisId:'F'})}).catch(()=>{});
+          // #endregion
+        } else {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1240',message:'스프라이트 없음',data:{sceneIndex,spritesRefSize:spritesRef.current.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run17',hypothesisId:'F'})}).catch(()=>{});
+          // #endregion
+        }
+        
+        // 화면에 즉시 렌더링 (updateCurrentScene이 호출되지 않으므로 수동으로 렌더링)
+        if (appRef.current) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1248',message:'렌더링 전 상태',data:{sceneIndex,textVisible:targetTextObj.visible,textAlpha:targetTextObj.alpha,textText:targetTextObj.text,spriteVisible:currentSprite?.visible,spriteAlpha:currentSprite?.alpha},timestamp:Date.now(),sessionId:'debug-session',runId:'run17',hypothesisId:'F'})}).catch(()=>{});
+          // #endregion
+          appRef.current.render()
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1251',message:'렌더링 완료',data:{sceneIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run17',hypothesisId:'F'})}).catch(()=>{});
+          // #endregion
+        }
+      } else {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1236',message:'전환 효과 진행 중 - 텍스트만 업데이트, visible/alpha 변경 안함',data:{sceneIndex,partText,isPreviewingTransition,textVisible:targetTextObj.visible,textAlpha:targetTextObj.alpha},timestamp:Date.now(),sessionId:'debug-session',runId:'run17',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+      }
+      
+      // 스타일도 다시 적용하여 텍스트가 제대로 표시되도록 함
+      if (targetTextObj.style) {
+        targetTextObj.style.wordWrap = true
+        targetTextObj.style.wordWrapWidth = targetTextObj.width || 800
+      }
+      
+      // textsRef.current에 명시적으로 저장하여 updateCurrentScene에서 찾을 수 있도록 함
+      const targetTextObjAddressBeforeSet = String(targetTextObj)
+      const targetTextObjDebugIdBeforeSet = targetTextObjId
+      const targetTextObjTextBeforeSet = targetTextObj.text
+      textsRef.current.set(sceneIndex, targetTextObj)
+      // 저장 후 확인
+      const savedTextObj = textsRef.current.get(sceneIndex)
+      const savedTextObjAddress = savedTextObj ? String(savedTextObj) : 'null'
+      const savedTextObjDebugId = savedTextObj ? ((savedTextObj as PIXI.Text & { __debugId?: string }).__debugId || '없음') : 'null'
+      const savedTextObjText = savedTextObj?.text || 'null'
+      const areSameObject = targetTextObj === savedTextObj
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1244',message:'textsRef에 텍스트 객체 저장',data:{sceneIndex,textText:targetTextObj.text,textVisible:targetTextObj.visible,textAlpha:targetTextObj.alpha,debugId:targetTextObjId,isPreviewingTransition,targetTextObjAddressBeforeSet,targetTextObjDebugIdBeforeSet,targetTextObjTextBeforeSet,savedTextObjAddress,savedTextObjDebugId,savedTextObjText,areSameObject},timestamp:Date.now(),sessionId:'debug-session',runId:'run49',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      
+      // 저장 직후 다시 확인 (다른 코드 경로에서 변경되었는지 확인)
+      setTimeout(() => {
+        const textObjAfterSet = textsRef.current.get(sceneIndex)
+        const textObjDebugIdAfterSet = textObjAfterSet ? ((textObjAfterSet as PIXI.Text & { __debugId?: string }).__debugId || '없음') : 'null'
+        const textObjTextAfterSet = textObjAfterSet?.text || 'null'
+        const textObjAddressAfterSet = textObjAfterSet ? String(textObjAfterSet) : 'null'
+        const areStillSameObject = targetTextObj === textObjAfterSet
+        const debugIdChanged = textObjDebugIdAfterSet !== targetTextObjDebugIdBeforeSet
+        const textChanged = textObjTextAfterSet !== targetTextObjTextBeforeSet
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1300',message:'textsRef에 텍스트 객체 저장 후 100ms 확인',data:{sceneIndex,targetTextObjAddressBeforeSet,textObjAddressAfterSet,targetTextObjDebugIdBeforeSet,textObjDebugIdAfterSet,targetTextObjTextBeforeSet,textObjTextAfterSet,areStillSameObject,debugIdChanged,textChanged},timestamp:Date.now(),sessionId:'debug-session',runId:'run53',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+      }, 100)
+      
+      updatedCount++
+      
+      // 렌더링이 완료되었으므로 플래그 리셋 (다음 updateCurrentScene 호출을 허용)
+      // React 상태 업데이트와 다음 렌더링 사이클을 기다리기 위해 requestAnimationFrame 사용
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // updateCurrentScene 호출 전에 textsRef에 저장한 텍스트 객체가 여전히 유지되는지 확인
+          const textObjBeforeUpdate = textsRef.current.get(sceneIndex)
+          const textObjDebugIdBeforeUpdate = textObjBeforeUpdate ? ((textObjBeforeUpdate as PIXI.Text & { __debugId?: string }).__debugId || '없음') : 'null'
+          const textObjTextBeforeUpdate = textObjBeforeUpdate?.text || 'null'
+          const textObjAddressBeforeUpdate = textObjBeforeUpdate ? String(textObjBeforeUpdate) : 'null'
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1305',message:'requestAnimationFrame 내부 - updateCurrentScene 호출 전 textsRef 확인',data:{sceneIndex,textObjDebugIdBeforeUpdate,textObjTextBeforeUpdate,textObjAddressBeforeUpdate,savedTextObjAddress:targetTextObjAddressBeforeSet,areSameObject:textObjAddressBeforeUpdate === targetTextObjAddressBeforeSet},timestamp:Date.now(),sessionId:'debug-session',runId:'run52',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+          
+          isManualSceneSelectRef.current = false
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1275',message:'플래그 리셋',data:{sceneIndex,isManualSceneSelect:isManualSceneSelectRef.current,isPreviewingTransition},timestamp:Date.now(),sessionId:'debug-session',runId:'run16',hypothesisId:'G'})}).catch(()=>{});
+          // #endregion
+          
+          // 전환 효과가 진행 중이면 updateCurrentScene을 호출하지 않음
+          // 전환 효과가 완료되면 자동으로 텍스트가 표시될 것
+          if (isPreviewingTransition) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1288',message:'전환 효과 진행 중 - updateCurrentScene 호출 스킵',data:{sceneIndex,isPreviewingTransition},timestamp:Date.now(),sessionId:'debug-session',runId:'run16',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            return
+          }
+          
+          // 플래그 리셋 후 updateCurrentScene을 명시적으로 호출하여 화면 업데이트 보장
+          // 이 시점에서 timeline 상태가 업데이트되었을 것
+          // 전환 효과를 보여주기 위해 skipAnimation: false로 호출
+          // 같은 씬 내 구간 전환을 감지하기 위해 previousIndex를 현재 씬 인덱스로 전달
+          // updateCurrentScene 호출 전에 플래그를 다시 false로 설정하여 updateCurrentScene이 정상 작동하도록 함
+          const previousIndexForUpdate = currentSceneIndexRef.current === sceneIndex ? sceneIndex : currentSceneIndexRef.current
+          // #region agent log
+          const textsRefBeforeUpdate: Array<{idx: number, address: string, debugId: string, text: string, visible: boolean, alpha: number}> = []
+          textsRef.current.forEach((text, idx) => {
+            if (text) {
+              textsRefBeforeUpdate.push({
+                idx,
+                address: String(text),
+                debugId: (text as PIXI.Text & { __debugId?: string }).__debugId || '없음',
+                text: text.text || '',
+                visible: text.visible,
+                alpha: text.alpha
+              })
+            }
+          })
+          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1288',message:'updateCurrentScene 호출 전 (전환 효과 포함)',data:{sceneIndex,previousIndexForUpdate,currentSceneIndex:currentSceneIndexRef.current,skipAnimation:false,isManualSceneSelect:isManualSceneSelectRef.current,isPreviewingTransition,textsRefBeforeUpdate},timestamp:Date.now(),sessionId:'debug-session',runId:'run16',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+          updateCurrentScene(false, previousIndexForUpdate, undefined, undefined)
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1291',message:'플래그 리셋 후 updateCurrentScene 호출 완료',data:{sceneIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run16',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+        })
+      })
+      
+      console.log(`[구간 선택] ✅ 텍스트 업데이트 완료: "${oldText}" -> "${partText}" (디버그ID: ${targetTextObjId})`)
+      
+      // 같은 그룹 내의 다른 씬의 텍스트 객체도 업데이트 (보이지 않는 경우에도)
+      sameGroupIndices.forEach((idx) => {
+        if (idx !== sceneIndex) {
+          const text = textsRef.current.get(idx)
+          if (text && text !== targetTextObj) {
+            // 같은 그룹 내에서의 순서 확인
+            const sameGroupScenes = timeline.scenes
+              .map((s, i) => ({ scene: s, index: i }))
+              .filter(({ scene: s }) => sceneId !== undefined && s.sceneId === sceneId)
+              .sort((a, b) => a.index - b.index)
+            
+            const groupIndex = sameGroupScenes.findIndex(({ index }) => index === idx)
+            
+            if (groupIndex >= 0) {
+              // 같은 그룹의 다른 씬: 원본 script에서 해당 구간 텍스트 가져오기
+              const sceneScript = scenes.find((s) => s.sceneId === sceneId)
+              if (sceneScript?.script) {
+                const parts = sceneScript.script.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
+                const textToDisplay = parts[groupIndex] || ''
+                if (textToDisplay) {
+                  text.text = textToDisplay
+                  text.visible = false // 보이지 않는 씬의 텍스트는 숨김
+                  text.alpha = 0
+                }
+              }
+            }
+          }
+        }
+      })
+    }
+    
+    if (updatedCount === 0) {
+      // 텍스트 객체를 찾지 못했을 때
+      console.warn(`[구간 선택] 텍스트 객체를 찾을 수 없음 (씬 ${sceneIndex}, textsRef 크기: ${textsRef.current.size})`)
+      
+      // 텍스트 객체가 없으면 loadAllScenes를 호출하여 텍스트 객체를 생성
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1349',message:'텍스트 객체 없음 - loadAllScenes 호출',data:{sceneIndex,textsRefSize:textsRef.current.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run14',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      loadAllScenes().then(() => {
+        // loadAllScenes 완료 후 텍스트 업데이트
+        setTimeout(() => {
+          let text = textsRef.current.get(sceneIndex)
+          if (!text) {
+            // 현재 표시되고 있는 텍스트 찾기
+            textsRef.current.forEach((t, idx) => {
+              if (t && t.visible && t.alpha > 0) {
+                const textScene = timeline.scenes[idx]
+                const currentScene = timeline.scenes[sceneIndex]
+                if (textScene?.sceneId === currentScene?.sceneId) {
+                  text = t
+                }
+              }
+            })
+          }
+          if (text) {
+            text.text = partText
+            text.visible = true
+            text.alpha = 1
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1370',message:'loadAllScenes 후 텍스트 업데이트 완료',data:{sceneIndex,partText,textText:text.text},timestamp:Date.now(),sessionId:'debug-session',runId:'run14',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            console.log(`[구간 선택] loadAllScenes 후 텍스트 업데이트 완료: "${partText}"`)
+            
+            // 텍스트 업데이트 후 updateCurrentScene 호출하여 전환 효과 적용
+            const previousIndexForUpdate = currentSceneIndexRef.current === sceneIndex ? sceneIndex : currentSceneIndexRef.current
+            currentSceneIndexRef.current = sceneIndex
+            setCurrentSceneIndex(sceneIndex)
+            updateCurrentScene(false, previousIndexForUpdate, undefined, undefined)
+          } else {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1383',message:'loadAllScenes 후에도 텍스트 객체를 찾을 수 없음',data:{sceneIndex,textsRefSize:textsRef.current.size,allTextObjects:Array.from(textsRef.current.entries()).map(([idx, t]) => ({idx, hasText:!!t,visible:t?.visible,alpha:t?.alpha}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run14',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            console.error(`[구간 선택] loadAllScenes 후에도 텍스트 객체를 찾을 수 없음`)
+          }
+          // 플래그 해제
+          isManualSceneSelectRef.current = false
+        }, 100)
+      })
+    } else {
+      // 텍스트 업데이트 성공
+      // 씬 선택 (해당 씬으로 이동) - 텍스트 업데이트 후 인덱스 업데이트
+      // 플래그가 이미 설정되어 있으므로 useEffect가 updateCurrentScene을 호출하지 않음
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1283',message:'setCurrentSceneIndex 호출 전',data:{sceneIndex,isManualSceneSelect:isManualSceneSelectRef.current,currentSceneIndexBefore:currentSceneIndexRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      currentSceneIndexRef.current = sceneIndex
+      setCurrentSceneIndex(sceneIndex)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1284',message:'setCurrentSceneIndex 호출 후',data:{sceneIndex,isManualSceneSelect:isManualSceneSelectRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
+      // 플래그 해제 (더 긴 시간 대기하여 updateCurrentScene이 호출되지 않도록 함)
+      setTimeout(() => {
+        isManualSceneSelectRef.current = false
+      }, 500)
+    }
+    
+    // 선택된 구간 상태 업데이트
+    setSelectedPart({ sceneIndex, partIndex })
+  }, [timeline, setTimeline, setCurrentSceneIndex, appRef, textsRef, currentSceneIndexRef, isManualSceneSelectRef, scenes, isPreviewingTransition])
 
   useEffect(() => {
     currentSceneIndexRef.current = currentSceneIndex
@@ -1413,10 +1854,20 @@ export default function Step4Page() {
         // 변경 상태는 모든 구간 처리 완료 후 제거 (아래에서 처리)
       }
 
-      // 각 구간별로 TTS 생성 및 업로드
+      // 각 구간별로 TTS 생성 및 업로드 (순차적으로 처리하여 파일이 준비되는 대로 반환)
       console.log(`[TTS] 씬 ${sceneIndex} TTS 생성 시작: ${markups.length}개 구간${isChanged ? ' (강제 재생성)' : ''}`)
-      const parts = await Promise.all(
-        markups.map(async (markup, partIndex) => {
+      const parts: Array<{
+        blob: Blob
+        durationSec: number
+        url: string | null
+        partIndex: number
+        markup: string
+      }> = []
+      
+      // 순차적으로 처리하여 각 파일이 준비되는 대로 parts에 추가
+      for (let partIndex = 0; partIndex < markups.length; partIndex++) {
+        const markup = markups[partIndex]
+        const part = await (async () => {
           console.log(`[TTS] 씬 ${sceneIndex} 구간 ${partIndex + 1}/${markups.length} 처리 중... (isChanged=${isChanged})`)
           const key = makeTtsKey(voiceTemplate, markup)
 
@@ -1580,28 +2031,45 @@ export default function Step4Page() {
                 console.log(`[TTS] 구간 ${partIndex + 1} 생성 및 업로드 완료: ${url}`)
                 
                 // 업로드 후 저장소에서 다운로드해서 캐시에 저장 (최신 파일 보장)
+                // 다운로드는 선택적이므로 실패해도 생성한 blob 사용
                 if (url) {
                   try {
-                    const downloadRes = await fetch(url)
-                    if (downloadRes.ok) {
-                      const downloadedBlob = await downloadRes.blob()
-                      const downloadedDurationSec = await getMp3DurationSec(downloadedBlob)
-                      
-                      // 캐시에 저장 (다운로드한 파일 사용)
-                      const entry = { 
-                        blob: downloadedBlob, 
-                        durationSec: downloadedDurationSec, 
-                        markup, 
-                        url, 
-                        sceneId: scene.sceneId, 
-                        sceneIndex 
+                    // URL이 유효한지 확인
+                    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                      console.warn(`[TTS] 구간 ${partIndex + 1} 잘못된 URL 형식: ${url}`)
+                    } else {
+                      const downloadRes = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                          'Accept': 'audio/mpeg, audio/*, */*',
+                        },
+                      })
+                      if (downloadRes.ok) {
+                        const downloadedBlob = await downloadRes.blob()
+                        const downloadedDurationSec = await getMp3DurationSec(downloadedBlob)
+                        
+                        // 캐시에 저장 (다운로드한 파일 사용)
+                        const entry = { 
+                          blob: downloadedBlob, 
+                          durationSec: downloadedDurationSec, 
+                          markup, 
+                          url, 
+                          sceneId: scene.sceneId, 
+                          sceneIndex 
+                        }
+                        ttsCacheRef.current.set(key, entry)
+                        console.log(`[TTS] 구간 ${partIndex + 1} 저장소에서 다운로드하여 캐시 저장 완료: duration=${downloadedDurationSec}초`)
+                        return entry
+                      } else {
+                        console.warn(`[TTS] 구간 ${partIndex + 1} 저장소 다운로드 실패 (HTTP ${downloadRes.status}): ${downloadRes.statusText}`)
                       }
-                      ttsCacheRef.current.set(key, entry)
-                      console.log(`[TTS] 구간 ${partIndex + 1} 저장소에서 다운로드하여 캐시 저장 완료: duration=${downloadedDurationSec}초`)
-                      return entry
                     }
                   } catch (downloadError) {
                     console.error(`[TTS] 구간 ${partIndex + 1} 저장소 다운로드 실패 (생성한 blob 사용):`, downloadError)
+                    // 에러 상세 정보 로깅
+                    if (downloadError instanceof Error) {
+                      console.error(`[TTS] 다운로드 에러 상세: ${downloadError.message}`)
+                    }
                   }
                 }
               } else {
@@ -1630,8 +2098,10 @@ export default function Step4Page() {
             partIndex,
             markup,
           }
-        })
-      )
+        })()
+        
+        parts.push(part)
+      }
 
       // 전체 씬 duration 업데이트 (모든 구간의 duration 합)
       const totalDuration = parts.reduce((sum, part) => sum + part.durationSec, 0)
@@ -1695,6 +2165,10 @@ export default function Step4Page() {
         // 기존 미리듣기 오디오 정지
         stopScenePreviewAudio()
 
+        const scene = timeline.scenes[sceneIndex]
+        // 원본 텍스트 저장
+        const originalText = scene?.text?.content || ''
+
         // TTS 합성 (변경된 씬이면 강제 재생성)
         const result = await ensureSceneTts(sceneIndex, undefined, changedScenesRef.current.has(sceneIndex))
         if (result.parts.length === 0) {
@@ -1711,42 +2185,110 @@ export default function Step4Page() {
 
           const part = result.parts[currentPartIndex]
           
+          // ||| 기준으로 텍스트 배열로 나누기 (원본 텍스트 사용)
+          const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
+          const currentPartText = scriptParts[currentPartIndex]?.trim() || ''
+
+          // 자막 즉시 표시 (텍스트 객체를 먼저 직접 업데이트)
+          if (currentPartText) {
+            // timeline 먼저 업데이트
+            if (timeline && timeline.scenes[sceneIndex]) {
+              const updatedTimeline = {
+                ...timeline,
+                scenes: timeline.scenes.map((s, i) =>
+                  i === sceneIndex
+                    ? {
+                        ...s,
+                        text: {
+                          ...s.text,
+                          content: currentPartText,
+                        },
+                      }
+                    : s
+                ),
+              }
+              setTimeline(updatedTimeline)
+            }
+            
+            // 텍스트 객체 직접 업데이트 (즉시 반영)
+            const currentText = textsRef.current.get(sceneIndex)
+            if (currentText) {
+              currentText.text = currentPartText
+              currentText.visible = true
+              currentText.alpha = 1
+              console.log(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1}/${result.parts.length} 자막 업데이트: "${currentPartText.substring(0, 30)}..."`)
+            } else {
+              console.warn(`[씬 미리보기] 씬 ${sceneIndex} 텍스트 객체를 찾을 수 없음`)
+            }
+            
+            // 약간의 지연 후 updateCurrentScene 호출하여 timeline과 동기화
+            setTimeout(() => {
+              updateCurrentScene(true, null, undefined, undefined)
+            }, 10)
+          }
+          
           // 저장소 URL 우선 사용, 없으면 blob에서 URL 생성
-          let audioUrl: string
+          let audioUrl: string | null = null
           if (part.url) {
             audioUrl = part.url
             console.log(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1} 저장소 URL 사용: ${part.url.substring(0, 50)}...`)
           } else if (part.blob) {
             audioUrl = URL.createObjectURL(part.blob)
             console.log(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1} blob URL 생성`)
-          } else {
-            console.error(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1} 재생할 오디오 없음`)
-            stopScenePreviewAudio()
-            return
           }
 
-          scenePreviewAudioUrlRef.current = audioUrl
-          const audio = new Audio(audioUrl)
-          scenePreviewAudioRef.current = audio
+          // 텍스트가 표시될 시간을 주기 위해 약간의 지연
+          await new Promise(resolve => setTimeout(resolve, 50))
+          
+          // TTS duration만큼 정확히 표시
+          const targetDuration = (part.durationSec * 1000)
+          
+          if (audioUrl) {
+            scenePreviewAudioUrlRef.current = audioUrl
+            const audio = new Audio(audioUrl)
+            scenePreviewAudioRef.current = audio
 
-          await new Promise<void>((resolve) => {
-            audio.onended = () => {
-              // 현재 구간 재생 완료
-              resolve()
-            }
+            await new Promise<void>((resolve) => {
+              const startTime = Date.now()
+              let resolved = false
 
-            audio.onerror = () => {
-              console.error(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1} 재생 실패`)
-              stopScenePreviewAudio()
-              resolve()
-            }
+              const finish = () => {
+                if (resolved) return
+                resolved = true
+                resolve()
+              }
 
-            audio.play().catch((error) => {
-              console.error(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1} 재생 시작 실패:`, error)
-              stopScenePreviewAudio()
-              resolve()
+              audio.onended = () => {
+                finish()
+              }
+
+              audio.onerror = () => {
+                console.error(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1} 재생 실패`)
+                // 에러 발생 시 duration만큼 대기
+                const elapsed = Date.now() - startTime
+                const remaining = Math.max(0, targetDuration - elapsed)
+                setTimeout(() => finish(), remaining)
+              }
+
+              audio.play().catch((error) => {
+                console.error(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1} 재생 시작 실패:`, error)
+                // 재생 실패 시 duration만큼 대기
+                setTimeout(() => finish(), targetDuration)
+              })
+
+              // duration이 지나면 자동으로 다음 구간으로 (오디오가 끝나지 않아도)
+              setTimeout(() => {
+                if (!resolved && audio && !audio.ended) {
+                  audio.pause()
+                  finish()
+                }
+              }, targetDuration)
             })
-          })
+          } else {
+            // 오디오가 없어도 duration만큼 대기
+            console.warn(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1} 재생할 오디오 없음, duration만큼 대기: ${part.durationSec}초`)
+            await new Promise(resolve => setTimeout(resolve, targetDuration))
+          }
 
           // 특정 구간만 재생하는 경우 여기서 종료
           if (partIndex !== undefined) {
@@ -1755,9 +2297,7 @@ export default function Step4Page() {
           }
 
           // 다음 구간 재생 (전체 재생 모드)
-          if (scenePreviewAudioRef.current) {
-            await playPart(currentPartIndex + 1)
-          }
+          await playPart(currentPartIndex + 1)
         }
 
         // 특정 구간만 재생하거나 첫 번째 구간부터 재생 시작
@@ -1768,7 +2308,7 @@ export default function Step4Page() {
         alert(error instanceof Error ? error.message : 'TTS 미리듣기 실패')
       }
     },
-    [timeline, voiceTemplate, ensureSceneTts, stopScenePreviewAudio]
+    [timeline, voiceTemplate, ensureSceneTts, stopScenePreviewAudio, setTimeline, updateCurrentScene, textsRef]
   )
   
   // isPlaying 상태와 ref 동기화
@@ -1878,16 +2418,24 @@ export default function Step4Page() {
       const MOVEMENT_EFFECTS = ['slide-left', 'slide-right', 'slide-up', 'slide-down', 'zoom-in', 'zoom-out']
       const isMovementEffect = isSameGroup && previousScene && MOVEMENT_EFFECTS.includes(previousScene.transition || '')
       
-      // TTS 재생 함수 - 각 ||| 구간별로 순차 재생
+      // TTS 재생 함수 - 각 ||| 구간별로 순차 재생 (파일이 준비되는 대로 즉시 렌더링)
       const playTts = async () => {
         try {
-          // 모든 구간의 TTS 가져오기 (캐시 확인 포함)
-          console.log(`[재생] 씬 ${sceneIndex} TTS 확인 시작 (캐시 사용 여부 확인)`)
-          const ttsResult = await ensureSceneTts(sceneIndex, undefined, changedScenesRef.current.has(sceneIndex))
-          const parts = ttsResult.parts
-          console.log(`[재생] 씬 ${sceneIndex} TTS 확인 완료: ${parts.length}개 구간 (캐시에서 가져왔는지 확인)`)
+          // 원본 텍스트 저장
+          const originalText = scene.text?.content || ''
           
-          if (parts.length === 0) {
+          // ||| 기준으로 텍스트 배열로 나누기
+          const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
+          
+          // 자막 리스트 콘솔 출력
+          console.log(`[자막 리스트] 씬 ${sceneIndex} 원본 텍스트:`, originalText)
+          console.log(`[자막 리스트] 씬 ${sceneIndex} 분할된 자막 개수:`, scriptParts.length)
+          console.log(`[자막 리스트] 씬 ${sceneIndex} 자막 배열:`, scriptParts)
+          scriptParts.forEach((part, index) => {
+            console.log(`[자막 리스트] 씬 ${sceneIndex} 구간 ${index + 1}:`, part)
+          })
+          
+          if (scriptParts.length === 0) {
             // TTS가 없으면 fallback duration 사용
             const fallbackDuration = scene.duration
             const waitTime = (fallbackDuration * 1000) / speed
@@ -1899,77 +2447,253 @@ export default function Step4Page() {
             return
           }
 
-          // 각 구간을 순차적으로 재생
+          // 각 구간을 순차적으로 처리하면서 파일이 준비되는 대로 즉시 렌더링 (리스트 순서대로만)
           const playPart = async (partIndex: number): Promise<void> => {
-            if (!isPlayingRef.current || partIndex >= parts.length) {
+            if (!isPlayingRef.current || partIndex >= scriptParts.length) {
               // 재생 중지되었거나 모든 구간 재생 완료
+              console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex} 처리 완료 (총 ${scriptParts.length}개)`)
               return
             }
 
-            const part = parts[partIndex]
-            const scriptParts = scene.text?.content?.split(/\s*\|\|\|\s*/) || []
+            // 리스트 순서대로만 처리 (partIndex는 0, 1, 2... 순서대로만 증가)
+            console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1}/${scriptParts.length} 처리 시작 (리스트 인덱스: ${partIndex})`)
+            
             const currentPartText = scriptParts[partIndex]?.trim() || ''
-
-            // 자막 업데이트: 직접 텍스트 객체를 업데이트하여 즉시 반영
+            
+            if (!currentPartText) {
+              console.warn(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 텍스트가 비어있음`)
+              // 다음 구간으로
+              if (partIndex < scriptParts.length - 1) {
+                await playPart(partIndex + 1)
+              }
+              return
+            }
+            
+            // 자막 즉시 표시 (리스트 순서대로 렌더링)
             if (currentPartText) {
+              // timeline 먼저 업데이트
+              if (timeline && timeline.scenes[sceneIndex]) {
+                const updatedTimeline = {
+                  ...timeline,
+                  scenes: timeline.scenes.map((s, i) =>
+                    i === sceneIndex
+                      ? {
+                          ...s,
+                          text: {
+                            ...s.text,
+                            content: currentPartText,
+                          },
+                        }
+                      : s
+                  ),
+                }
+                setTimeline(updatedTimeline)
+              }
+              
+              // 텍스트 객체 직접 업데이트 (즉시 반영) - 리스트 순서대로만 렌더링
               const currentText = textsRef.current.get(sceneIndex)
               if (currentText) {
-                // 텍스트 내용 업데이트
                 currentText.text = currentPartText
                 currentText.visible = true
                 currentText.alpha = 1
-                
-                // 즉시 렌더링하여 자막이 바로 보이도록 함
-                if (appRef.current) {
-                  appRef.current.render()
+                console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1}/${scriptParts.length} 자막 렌더링 (리스트 인덱스 ${partIndex}): "${currentPartText.substring(0, 30)}..."`)
+              } else {
+                console.warn(`[재생] 씬 ${sceneIndex} 텍스트 객체를 찾을 수 없음 (textsRef 크기: ${textsRef.current.size})`)
+              }
+              
+              // 약간의 지연 후 updateCurrentScene 호출하여 timeline과 동기화
+              setTimeout(() => {
+                updateCurrentScene(true, null, undefined, undefined)
+              }, 10)
+            }
+
+            // 해당 구간의 TTS 파일 가져오기 (순차적으로 처리)
+            const markups = buildSceneMarkup(sceneIndex)
+            if (partIndex >= markups.length) {
+              // 다음 구간으로
+              if (partIndex < scriptParts.length - 1) {
+                await playPart(partIndex + 1)
+              } else {
+                // 모든 구간 재생 완료, 다음 씬으로 이동
+                const nextScene = currentIndex + 1 < timeline.scenes.length ? timeline.scenes[currentIndex + 1] : null
+                const isNextInSameGroup = nextScene && nextScene.sceneId === scene.sceneId
+
+                if (isNextInSameGroup) {
+                  const nextIndex = currentIndex + 1
+                  setCurrentSceneIndex(nextIndex)
+                  currentSceneIndexRef.current = nextIndex
+                  lastRenderedSceneIndexRef.current = nextIndex
+                  updateCurrentScene(false, currentIndex, undefined, () => {
+                    playNextScene(nextIndex)
+                  })
+                } else {
+                  playNextScene(currentIndex + 1)
                 }
-                
-                console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1}/${parts.length} 자막 표시: "${currentPartText.substring(0, 30)}..."`)
+              }
+              return
+            }
+
+            const markup = markups[partIndex]
+            if (!voiceTemplate) {
+              console.error('[재생] 목소리를 선택해주세요.')
+              return
+            }
+            const key = makeTtsKey(voiceTemplate, markup)
+            const accessToken = authStorage.getAccessToken()
+            if (!accessToken) {
+              console.error('[재생] 로그인이 필요합니다.')
+              return
+            }
+
+            // 캐시 확인
+            const cached = ttsCacheRef.current.get(key)
+            let part: { blob: Blob; durationSec: number; url: string | null } | null = null
+
+            if (cached && cached.blob) {
+              // 캐시에서 사용
+              part = {
+                blob: cached.blob,
+                durationSec: cached.durationSec || 0,
+                url: cached.url || null,
+              }
+              console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 캐시에서 사용`)
+            } else {
+              // TTS 생성
+              console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS 생성 중...`)
+              try {
+                const res = await fetch('/api/tts/synthesize', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+                  body: JSON.stringify({
+                    voiceName: voiceTemplate,
+                    mode: 'markup',
+                    markup,
+                  }),
+                })
+
+                if (!res.ok) {
+                  throw new Error('TTS 합성 실패')
+                }
+
+                const blob = await res.blob()
+                const durationSec = await getMp3DurationSec(blob)
+
+                // Supabase 업로드
+                let url: string | null = null
+                try {
+                  const formData = new FormData()
+                  formData.append('file', blob)
+                  formData.append('sceneId', String(scene.sceneId))
+
+                  const uploadRes = await fetch('/api/media/upload', {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                    body: formData,
+                  })
+
+                  if (uploadRes.ok) {
+                    const uploadData = await uploadRes.json()
+                    url = uploadData.url || null
+                  }
+                } catch (error) {
+                  console.error(`[재생] 구간 ${partIndex + 1} 업로드 실패:`, error)
+                }
+
+                // 캐시에 저장
+                const entry = { blob, durationSec, markup, url, sceneId: scene.sceneId, sceneIndex }
+                ttsCacheRef.current.set(key, entry)
+
+                part = { blob, durationSec, url }
+                console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS 생성 완료`)
+              } catch (error) {
+                console.error(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS 생성 실패:`, error)
+                // 다음 구간으로
+                if (partIndex < scriptParts.length - 1) {
+                  await playPart(partIndex + 1)
+                }
+                return
               }
             }
+
+            if (!part) {
+              // 다음 구간으로
+              if (partIndex < scriptParts.length - 1) {
+                await playPart(partIndex + 1)
+              }
+              return
+            }
+
+            // TTS 파일이 준비되었으므로 즉시 재생
 
             // TTS 재생: 저장소 URL이 있으면 우선 사용, 없으면 blob에서 URL 생성
             stopTtsAudio()
-            let audioUrl: string
+            let audioUrl: string | null = null
             if (part.url) {
-              // 저장소에 업로드된 파일 사용
               audioUrl = part.url
               console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 저장소 URL 사용: ${part.url.substring(0, 50)}...`)
             } else if (part.blob) {
-              // blob이 있으면 blob URL 생성
               audioUrl = URL.createObjectURL(part.blob)
               console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} blob URL 생성`)
-            } else {
-              console.error(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 재생할 오디오 없음`)
-              return
             }
-            ttsAudioUrlRef.current = audioUrl
-            const audio = new Audio(audioUrl)
-            audio.playbackRate = speed
-            ttsAudioRef.current = audio
 
-            await new Promise<void>((resolve) => {
-              audio.onended = () => {
-                stopTtsAudio()
-                resolve()
-              }
-              audio.onerror = () => {
-                stopTtsAudio()
-                resolve()
-              }
-              audio.play().catch(() => {
-                stopTtsAudio()
-                resolve()
+            // TTS duration만큼 정확히 표시
+            const targetDuration = (part.durationSec * 1000) / speed
+            
+            if (audioUrl) {
+              ttsAudioUrlRef.current = audioUrl
+              const audio = new Audio(audioUrl)
+              audio.playbackRate = speed
+              ttsAudioRef.current = audio
+
+              await new Promise<void>((resolve) => {
+                const startTime = Date.now()
+                let resolved = false
+
+                const finish = () => {
+                  if (resolved) return
+                  resolved = true
+                  stopTtsAudio()
+                  resolve()
+                }
+
+                audio.onended = () => {
+                  finish()
+                }
+                
+                audio.onerror = () => {
+                  // 에러 발생 시 duration만큼 대기
+                  const elapsed = Date.now() - startTime
+                  const remaining = Math.max(0, targetDuration - elapsed)
+                  setTimeout(() => finish(), remaining)
+                }
+                
+                audio.play().catch(() => {
+                  // 재생 실패 시 duration만큼 대기
+                  setTimeout(() => finish(), targetDuration)
+                })
+
+                // duration이 지나면 자동으로 다음 구간으로 (오디오가 끝나지 않아도)
+                setTimeout(() => {
+                  if (!resolved && audio && !audio.ended) {
+                    audio.pause()
+                    finish()
+                  }
+                }, targetDuration)
               })
-            })
+            } else {
+              // 오디오가 없어도 duration만큼 대기
+              console.warn(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 재생할 오디오 없음, duration만큼 대기: ${part.durationSec}초`)
+              await new Promise(resolve => setTimeout(resolve, targetDuration))
+            }
 
-            // 다음 구간 재생 또는 다음 씬으로 이동
+            // 다음 구간 재생 또는 다음 씬으로 이동 (리스트 순서대로만)
             if (!isPlayingRef.current) {
               return
             }
 
-            if (partIndex < parts.length - 1) {
-              // 같은 씬의 다음 구간 재생
+            if (partIndex < scriptParts.length - 1) {
+              // 같은 씬의 다음 구간 재생 (리스트 순서대로: partIndex + 1)
+              console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 완료, 다음 구간 ${partIndex + 2}로 이동`)
               await playPart(partIndex + 1)
             } else {
               // 모든 구간 재생 완료, 다음 씬으로 이동
@@ -1992,28 +2716,8 @@ export default function Step4Page() {
               }
             }
           }
-
-          // 첫 번째 구간의 자막을 먼저 표시
-          if (parts.length > 0) {
-            const firstPart = parts[0]
-            const scriptParts = scene.text?.content?.split(/\s*\|\|\|\s*/) || []
-            const firstPartText = scriptParts[0]?.trim() || ''
-            
-            if (firstPartText) {
-              const currentText = textsRef.current.get(sceneIndex)
-              if (currentText) {
-                currentText.text = firstPartText
-                currentText.visible = true
-                currentText.alpha = 1
-                if (appRef.current) {
-                  appRef.current.render()
-                }
-                console.log(`[재생] 씬 ${sceneIndex} 첫 번째 구간 자막 표시: "${firstPartText.substring(0, 30)}..."`)
-              }
-            }
-          }
           
-          // 첫 번째 구간부터 재생 시작
+          // 첫 번째 구간부터 재생 시작 (각 파일이 준비되는 대로 즉시 렌더링)
           await playPart(0)
         } catch (error) {
           console.error('TTS 재생 실패:', error)
@@ -2217,11 +2921,23 @@ export default function Step4Page() {
     if (isPlaying) {
       return // 재생 중일 때는 handleSceneSelect가 처리하므로 여기서는 처리하지 않음
     }
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:2746',message:'useEffect currentSceneIndex 체크',data:{currentSceneIndex,isManualSceneSelect:isManualSceneSelectRef.current,isPlaying},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
     if (isManualSceneSelectRef.current) {
+      console.log(`[useEffect] ⏭️ 수동 씬 선택 중, 리턴 (씬${currentSceneIndex}, timeline:"${timeline.scenes[currentSceneIndex]?.text?.content?.substring(0, 30)}...")`)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:2751',message:'useEffect 수동 씬 선택 중 리턴',data:{currentSceneIndex,isManualSceneSelect:isManualSceneSelectRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       return // 수동 씬 선택 중일 때는 handleSceneSelect가 처리하므로 여기서는 처리하지 않음
     }
     if (isPreviewingTransition) {
       return // 전환 효과 미리보기 중일 때는 handleSceneSelect가 처리하므로 여기서는 처리하지 않음
+    }
+    
+    // handleScenePartSelect가 처리 중일 때는 여기서 처리하지 않음
+    if (isManualSceneSelectRef.current) {
+      return
     }
     
     // 전환 효과가 진행 중인지 확인
@@ -2237,6 +2953,7 @@ export default function Step4Page() {
     
     const lastRenderedIndex = lastRenderedSceneIndexRef.current
     if (lastRenderedIndex !== currentSceneIndex) {
+      console.log(`[useEffect] ✅ updateCurrentScene 호출 (씬${currentSceneIndex}, timeline:"${timeline.scenes[currentSceneIndex]?.text?.content?.substring(0, 30)}...")`)
       // 재생 중이 아닐 때는 즉시 표시
       currentSceneIndexRef.current = currentSceneIndex
       updateCurrentScene(true)
@@ -3994,6 +4711,7 @@ export default function Step4Page() {
               timeline={timeline}
               sceneThumbnails={sceneThumbnails}
               currentSceneIndex={currentSceneIndex}
+              selectedPart={selectedPart}
               theme={theme}
               transitionLabels={transitionLabels}
               onSelect={handleSceneSelect}
@@ -4004,6 +4722,7 @@ export default function Step4Page() {
               onDeleteScene={handleSceneDelete}
               onDuplicateScene={handleSceneDuplicate}
               onTtsPreview={handleSceneTtsPreview}
+              onSelectPart={handleScenePartSelect}
             />
           </div>
         </div>

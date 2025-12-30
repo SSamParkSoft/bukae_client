@@ -199,11 +199,14 @@ export function usePixiFabric({
         if (appRef.current.ticker) {
           appRef.current.ticker.stop()
         }
-        // app이 유효한지 확인 후 destroy
-        try {
-          appRef.current.destroy(true, { children: true, texture: true })
-        } catch (error) {
-          console.error('usePixiFabric: Error destroying app', error)
+        // app이 유효한지 확인 후 destroy (destroy 호출 전에 다시 확인)
+        const app = appRef.current
+        if (app) {
+          try {
+            app.destroy(true, { children: true, texture: true })
+          } catch (error) {
+            console.error('usePixiFabric: Error destroying app', error)
+          }
         }
         appRef.current = null
         containerRef.current = null
