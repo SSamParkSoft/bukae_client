@@ -51,15 +51,18 @@ export function SceneList({
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>, index: number) => {
     event.preventDefault()
     
-    // 같은 sceneId를 가진 씬들 사이에서만 드롭 허용
-    if (draggedIndex !== null) {
-      const draggedScene = scenes[draggedIndex]
-      const targetScene = scenes[index]
-      
-      if (draggedScene.sceneId !== targetScene.sceneId) {
-        // 다른 그룹으로 드래그하면 드롭 위치 표시 안 함
-        return
-      }
+    if (draggedIndex === null) return
+    
+    const draggedScene = scenes[draggedIndex]
+    const targetScene = scenes[index]
+    
+    // 같은 sceneId를 가진 씬들 찾기 (같은 그룹)
+    const draggedGroupScenes = scenes.filter(s => s.sceneId === draggedScene.sceneId)
+    
+    // 그룹화된 씬은 같은 그룹 내에서만 이동 가능
+    if (draggedGroupScenes.length > 1 && draggedScene.sceneId !== targetScene.sceneId) {
+      // 다른 그룹으로 드래그하면 드롭 위치 표시 안 함
+      return
     }
     
     const rect = event.currentTarget.getBoundingClientRect()
@@ -73,18 +76,21 @@ export function SceneList({
     event?.preventDefault()
     if (draggedIndex === null || !dragOver) return
 
-    // 같은 sceneId를 가진 씬들 사이에서만 드롭 허용
     const draggedScene = scenes[draggedIndex]
     const targetScene = scenes[dragOver.index]
     
-    if (draggedScene.sceneId !== targetScene.sceneId) {
+    // 같은 sceneId를 가진 씬들 찾기 (같은 그룹)
+    const draggedGroupScenes = scenes.filter(s => s.sceneId === draggedScene.sceneId)
+    
+    // 그룹화된 씬은 같은 그룹 내에서만 이동 가능
+    if (draggedGroupScenes.length > 1 && draggedScene.sceneId !== targetScene.sceneId) {
       // 다른 그룹으로 드롭하려고 하면 무시
       setDraggedIndex(null)
       setDragOver(null)
       return
     }
 
-    // 같은 그룹 내에서만 순서 변경
+    // 순서 변경
     const newOrder = scenes.map((_, idx) => idx)
     const [removed] = newOrder.splice(draggedIndex, 1)
 
@@ -93,12 +99,14 @@ export function SceneList({
       targetIndex -= 1
     }
 
-    // 같은 그룹 내에서만 이동 가능하도록 확인
-    const finalTargetScene = scenes[targetIndex]
-    if (finalTargetScene.sceneId !== draggedScene.sceneId) {
-      setDraggedIndex(null)
-      setDragOver(null)
-      return
+    // 그룹화된 씬인 경우 같은 그룹 내에서만 이동 가능하도록 확인
+    if (draggedGroupScenes.length > 1) {
+      const finalTargetScene = scenes[targetIndex]
+      if (finalTargetScene.sceneId !== draggedScene.sceneId) {
+        setDraggedIndex(null)
+        setDragOver(null)
+        return
+      }
     }
 
     newOrder.splice(targetIndex, 0, removed)
@@ -280,7 +288,7 @@ export function SceneList({
               const isSplitScene = hasDelimiters || !!scene.splitIndex
               
               return (
-                <div key={hasDelimiters ? `${scene.sceneId}-delimiter` : (scene.splitIndex ? `${scene.sceneId}-${scene.splitIndex}` : scene.sceneId ?? index)}>
+                <div key={hasDelimiters ? `${scene.sceneId}-delimiter-${index}` : (scene.splitIndex ? `${scene.sceneId}-${scene.splitIndex}` : scene.sceneId ?? index)}>
                   {dragOver && dragOver.index === index && dragOver.position === 'before' && (
                     <div className="h-0.5 bg-blue-500 rounded-full" />
                   )}
@@ -400,8 +408,24 @@ export function SceneList({
                         <Copy className="w-3 h-3" />
                       </Button>
                     )}
-                    {/* 전체 씬 재생 버튼 - 구분자가 있는 씬일 때만 표시 */}
-                    {onTtsPreview && hasDelimiters && scene.script.trim() && (
+                    {/* 씬 복사 버튼 - 항상 표시 */}
+                    {onDuplicateScene && !isGrouped && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="text-[11px] px-2 py-0 h-6"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onDuplicateScene(index)
+                        }}
+                        title="씬 복사"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                    )}
+                    {/* 전체 씬 재생 버튼 - 항상 표시 */}
+                    {onTtsPreview && scene.script.trim() && (
                       <Button
                         type="button"
                         variant="outline"

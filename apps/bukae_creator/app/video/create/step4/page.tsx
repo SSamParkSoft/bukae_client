@@ -2473,7 +2473,7 @@ export default function Step4Page() {
     [scenes, timeline, currentSceneIndex, setScenes, setTimeline, setCurrentSceneIndex]
   )
 
-  // 씬 복사 - 같은 그룹 내에서만 가능
+  // 씬 복사 - 그룹화되지 않은 독립적인 씬으로 복사하고 자동으로 자막 씬 분할 실행
   const handleSceneDuplicate = useCallback(
     (index: number) => {
       if (!timeline || scenes.length === 0) return
@@ -2481,42 +2481,44 @@ export default function Step4Page() {
       const targetSceneScript = scenes[index]
       const targetTimelineScene = timeline.scenes[index]
 
-      // 같은 sceneId를 가진 씬들 찾기 (같은 그룹)
-      const sameGroupScenes = scenes.filter(s => s.sceneId === targetSceneScript.sceneId)
-      
-      // 그룹화되지 않은 씬은 복사 불가
-      if (sameGroupScenes.length <= 1) {
-        return
-      }
+      // ||| 구분자가 있는 씬인지 확인
+      const scriptParts = targetSceneScript.script.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+      const hasDelimiters = scriptParts.length > 1
 
-      // 같은 그룹 내에서 최대 splitIndex 찾기
-      const maxSplitIndex = sameGroupScenes.reduce((max, s) => {
-        return Math.max(max, s.splitIndex || 0)
-      }, 0)
+      // 새로운 sceneId 할당 (최대 sceneId + 1)
+      const maxSceneId = Math.max(...scenes.map(s => s.sceneId || 0), ...timeline.scenes.map(s => s.sceneId || 0))
+      const newSceneId = maxSceneId + 1
 
-      // 복제된 씬 생성 (같은 sceneId 유지, splitIndex 증가)
-      const duplicatedSceneScript: SceneScript = {
+      // 복제된 씬 생성 (새로운 sceneId, splitIndex 제거하여 독립적인 씬으로)
+      let duplicatedSceneScript: SceneScript = {
         ...targetSceneScript,
-        sceneId: targetSceneScript.sceneId, // 같은 sceneId 유지
-        splitIndex: maxSplitIndex + 1, // 새로운 splitIndex 할당
+        sceneId: newSceneId, // 새로운 sceneId 할당
+        splitIndex: undefined, // splitIndex 제거하여 독립적인 씬으로
       }
 
-      const duplicatedTimelineScene: TimelineScene = {
+      let duplicatedTimelineScene: TimelineScene = {
         ...targetTimelineScene,
-        sceneId: targetSceneScript.sceneId, // 같은 sceneId 유지
+        sceneId: newSceneId, // 새로운 sceneId 할당
       }
 
-      // 같은 그룹의 마지막 씬 다음에 삽입
-      // 같은 sceneId를 가진 마지막 씬의 인덱스 찾기
-      let insertIndex = index
-      for (let i = index + 1; i < scenes.length; i++) {
-        if (scenes[i].sceneId === targetSceneScript.sceneId) {
-          insertIndex = i
-        } else {
-          break
+      // 구분자가 없으면 자동으로 자막 씬 분할 실행
+      if (!hasDelimiters) {
+        const { sceneScript: updatedSceneScript, timelineScene: updatedTimelineScene } =
+          insertSceneDelimiters({
+            sceneScript: duplicatedSceneScript,
+            timelineScene: duplicatedTimelineScene,
+          })
+        
+        // 분할이 가능한 경우 (문장이 2개 이상)
+        if (updatedSceneScript.script !== duplicatedSceneScript.script && updatedTimelineScene) {
+          duplicatedSceneScript = updatedSceneScript
+          duplicatedTimelineScene = updatedTimelineScene
+          console.log(`[SceneDuplicate] 씬 ${index} 복사 후 자동 분할 완료`)
         }
       }
-      insertIndex += 1
+
+      // 복사된 씬을 원본 씬 다음에 삽입
+      const insertIndex = index + 1
 
       // scenes 배열에 삽입
       const newScenes = [
@@ -2541,6 +2543,10 @@ export default function Step4Page() {
       // 복제된 씬을 선택
       setCurrentSceneIndex(insertIndex)
       currentSceneIndexRef.current = insertIndex
+
+      // 복사된 씬을 변경 상태로 표시 (재생 시 강제 재생성)
+      changedScenesRef.current.add(insertIndex)
+      console.log(`[SceneDuplicate] 씬 ${index} 복사 완료: 새 sceneId=${newSceneId}, 인덱스=${insertIndex}`)
     },
     [scenes, timeline, setScenes, setTimeline, setCurrentSceneIndex]
   )
