@@ -158,7 +158,13 @@ export const useSceneManager = ({
     
     // 현재 씬 등장 효과 적용
     if (currentSprite) {
-      const transition = forceTransition || currentScene.transition || 'none'
+      // 같은 sceneId를 가진 씬들 사이에서는 transition 무시
+      const previousScene = previousIndex !== null ? timeline.scenes[previousIndex] : null
+      const isSameSceneId = previousScene && previousScene.sceneId === currentScene.sceneId
+      
+      const transition = isSameSceneId 
+        ? 'none' 
+        : (forceTransition || currentScene.transition || 'none')
       const transitionDuration =
         transition === 'none'
           ? 0

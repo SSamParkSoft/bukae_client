@@ -100,7 +100,12 @@ export function splitSceneBySentences(params: {
     splitIndex: idx + 1, // 분할 인덱스 (1, 2, 3...)
   }))
 
+  // 원본 씬의 transition과 transitionDuration 저장
+  const originalTransition = timelineScene?.transition || 'none'
+  const originalTransitionDuration = timelineScene?.transitionDuration || 0.5
+
   const timelineScenes: TimelineScene[] = sentences.map((sentence, idx) => {
+    const isLastSplit = idx === sentences.length - 1
     const base: TimelineScene = timelineScene
       ? {
           ...timelineScene,
@@ -126,8 +131,9 @@ export function splitSceneBySentences(params: {
       ...base,
       sceneId: sceneScript.sceneId, // 원본 씬 번호 유지
       duration: durations[idx],
-      transition: 'none', // 씬 분할 간에는 전환 효과 없음
-      transitionDuration: 0, // 씬 분할 간에는 전환 효과 없이 자막만 변경
+      // 마지막 분할 씬에만 원본 씬의 전환 효과 적용
+      transition: isLastSplit ? originalTransition : 'none',
+      transitionDuration: isLastSplit ? originalTransitionDuration : 0,
       text: {
         ...base.text,
         content: sentence,

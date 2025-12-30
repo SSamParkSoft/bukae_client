@@ -42,7 +42,13 @@ export function useTimelinePlayer({
     return timeline.scenes.reduce((sum, scene, index) => {
       // 마지막 씬에는 transition이 없으므로 제외
       const isLastScene = index === timeline.scenes.length - 1
-      const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
+      if (isLastScene) {
+        return sum + scene.duration
+      }
+      // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
+      const nextScene = timeline.scenes[index + 1]
+      const isSameSceneId = nextScene && scene.sceneId === nextScene.sceneId
+      const transitionDuration = isSameSceneId ? 0 : (scene.transitionDuration || 0.5)
       return sum + scene.duration + transitionDuration
     }, 0)
   }, [timeline])
@@ -106,7 +112,10 @@ export function useTimelinePlayer({
         const scene = timeline.scenes[i]
         // 마지막 씬에는 transition이 없음
         const isLastScene = i === timeline.scenes.length - 1
-        const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
+        // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
+        const nextScene = !isLastScene ? timeline.scenes[i + 1] : null
+        const isSameSceneId = nextScene && scene.sceneId === nextScene.sceneId
+        const transitionDuration = isLastScene ? 0 : (isSameSceneId ? 0 : (scene.transitionDuration || 0.5))
         const sceneDuration = scene.duration + transitionDuration
         const sceneStart = accumulated
         const sceneEnd = accumulated + sceneDuration

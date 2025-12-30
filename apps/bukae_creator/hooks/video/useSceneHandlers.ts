@@ -151,14 +151,23 @@ export function useSceneHandlers({
     (index: number, value: 'cover' | 'contain' | 'fill') => {
       if (!timeline) return
       isManualSceneSelectRef.current = true
+      // imageFit이 변경되면 imageTransform을 제거하여 새로운 imageFit이 적용되도록 함
       const nextTimeline: TimelineData = {
         ...timeline,
-        scenes: timeline.scenes.map((scene, i) => (i === index ? { ...scene, imageFit: value } : scene)),
+        scenes: timeline.scenes.map((scene, i) => 
+          i === index 
+            ? { ...scene, imageFit: value, imageTransform: undefined } 
+            : scene
+        ),
       }
       setTimeline(nextTimeline)
 
       if (pixiReady && appRef.current && containerRef.current) {
         loadAllScenes().then(() => {
+          // 현재 씬이 변경된 씬이면 업데이트
+          if (index === currentSceneIndex) {
+            updateCurrentScene(true)
+          }
           setTimeout(() => {
             isManualSceneSelectRef.current = false
           }, 50)
@@ -169,7 +178,7 @@ export function useSceneHandlers({
         }, 50)
       }
     },
-    [appRef, containerRef, isManualSceneSelectRef, loadAllScenes, pixiReady, setTimeline, timeline],
+    [appRef, containerRef, currentSceneIndex, isManualSceneSelectRef, loadAllScenes, pixiReady, setTimeline, timeline, updateCurrentScene],
   )
 
   const handlePlaybackSpeedChange = useCallback(

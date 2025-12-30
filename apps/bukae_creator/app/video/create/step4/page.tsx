@@ -675,7 +675,12 @@ export default function Step4Page() {
     if (!timeline) return 0
     let time = 0
     for (let i = 0; i < sceneIndex; i++) {
-      time += timeline.scenes[i].duration + (timeline.scenes[i].transitionDuration || 0.5)
+      const currentScene = timeline.scenes[i]
+      const nextScene = timeline.scenes[i + 1]
+      // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
+      const isSameSceneId = nextScene && currentScene.sceneId === nextScene.sceneId
+      const transitionDuration = isSameSceneId ? 0 : (currentScene.transitionDuration || 0.5)
+      time += currentScene.duration + transitionDuration
     }
     return time
   }, [timeline])
@@ -774,7 +779,10 @@ export default function Step4Page() {
     setCurrentTime(timeUntilScene)
     // 선택된 씬의 전환 효과 가져오기
     const selectedScene = timeline.scenes[index]
-    const transition = selectedScene?.transition || 'fade'
+    const previousScene = prevIndex !== null ? timeline.scenes[prevIndex] : null
+    // 같은 sceneId를 가진 씬들 사이에서는 transition 무시
+    const isSameSceneId = previousScene && previousScene.sceneId === selectedScene?.sceneId
+    const transition = isSameSceneId ? 'none' : (selectedScene?.transition || 'fade')
     
     // 씬 리스트에서 선택할 때는 이전 씬을 보여주지 않고 검은 캔버스에서 시작
     // previousIndex를 null로 설정하여 페이드 인 효과처럼 보이게 함
@@ -2539,126 +2547,161 @@ export default function Step4Page() {
             volume: 1,
           },
         },
-        scenes: timeline.scenes.map((scene, index) => {
-          // transition 파싱
-          const transitionType = scene.transition || 'none'
-          const transitionMap: Record<string, any> = {
-            fade: { type: 'fade', duration: scene.transitionDuration || 0.5, direction: 'left', easing: 'easeInOut' },
-            slide: { type: 'slide', duration: scene.transitionDuration || 0.5, direction: 'left', easing: 'easeInOut' },
-            zoom: { type: 'zoom', duration: scene.transitionDuration || 0.5, scale: 1.2, easing: 'easeInOut' },
-            none: { type: 'none', duration: 0 },
-          }
+        scenes: (() => {
+          // 같은 sceneId를 가진 씬들을 그룹화
+          const sceneGroups = new Map<number, Array<{ scene: TimelineScene; index: number; ttsResult?: any; ttsUrl?: string | null }>>()
           
-          // 폰트 정보 파싱
-          // 씬별 폰트 ID 또는 전역 선택 폰트 사용
-          const sceneFontId = scene.text.font || subtitleFont || SUBTITLE_DEFAULT_FONT_ID
-          const sceneFontWeight = scene.text.fontWeight || 700
-          const fontSize = scene.text.fontSize || 48
-          
-          // 폰트 파일명 가져오기 (인코딩 요청용)
-          const fontFileName = getFontFileName(sceneFontId, sceneFontWeight) || 'NanumGothic-Regular'
-          
-          // TTS URL 가져오기
-          const voiceUrl = ttsUrls[index] || null
-          const voiceText = scene.text.content
-          
-          // TTS 오디오 길이를 우선 사용 (실제 오디오 길이가 더 정확함)
-          const ttsResult = ttsResults[index]
-          const sceneDuration = ttsResult?.durationSec || scene.duration || 2.5
+          timeline.scenes.forEach((scene, index) => {
+            const sceneId = scene.sceneId
+            if (!sceneGroups.has(sceneId)) {
+              sceneGroups.set(sceneId, [])
+            }
+            sceneGroups.get(sceneId)!.push({
+              scene,
+              index,
+              ttsResult: ttsResults[index],
+              ttsUrl: ttsUrls[index],
+            })
+          })
 
+          // 각 그룹 내에서 splitIndex 순서로 정렬 (scenes 배열에서 확인)
+          sceneGroups.forEach(group => {
+            group.sort((a, b) => {
+              const aSplitIndex = scenes[a.index]?.splitIndex || 0
+              const bSplitIndex = scenes[b.index]?.splitIndex || 0
+              return aSplitIndex - bSplitIndex
+            })
+          })
 
-          return {
-            sceneId: scene.sceneId + 1, // API는 1부터 시작
-            order: index,
-            duration: sceneDuration,
-            transition: transitionMap[transitionType] || transitionMap.none,
-            image: {
-              url: scene.image,
-              fit: scene.imageFit || 'contain',
-              transform: scene.imageTransform ? {
-                ...scene.imageTransform,
-                anchor: {
-                  x: 0.5,
-                  y: 0.5,
+          // 그룹화된 씬들을 하나의 씬으로 변환
+          const SUBTITLE_SEPARATOR = '|||'
+          return Array.from(sceneGroups.entries()).map(([sceneId, group], groupIndex) => {
+            // 마지막 씬의 정보 사용 (transition 등)
+            const lastScene = group[group.length - 1].scene
+            
+            // 자막을 특수기호로 연결
+            const mergedText = group
+              .map(item => item.scene.text.content)
+              .join(SUBTITLE_SEPARATOR)
+
+            // duration 합산
+            const totalDuration = group.reduce((sum, item) => {
+              const ttsDuration = item.ttsResult?.durationSec || item.scene.duration || 2.5
+              return sum + ttsDuration
+            }, 0)
+
+            // TTS 처리: 첫 번째 TTS URL 사용 (또는 서버에서 합쳐진 텍스트로 새로 생성)
+            const mergedTtsUrl = group[0].ttsUrl || null
+            const mergedVoiceText = mergedText
+
+            // transition 파싱 (마지막 씬의 transition 사용)
+            const transitionType = lastScene.transition || 'none'
+            const transitionMap: Record<string, any> = {
+              fade: { type: 'fade', duration: lastScene.transitionDuration || 0.5, direction: 'left', easing: 'easeInOut' },
+              slide: { type: 'slide', duration: lastScene.transitionDuration || 0.5, direction: 'left', easing: 'easeInOut' },
+              zoom: { type: 'zoom', duration: lastScene.transitionDuration || 0.5, scale: 1.2, easing: 'easeInOut' },
+              none: { type: 'none', duration: 0 },
+            }
+
+            // 폰트 정보 (마지막 씬의 폰트 사용)
+            const sceneFontId = lastScene.text.font || subtitleFont || SUBTITLE_DEFAULT_FONT_ID
+            const sceneFontWeight = lastScene.text.fontWeight || 700
+            const fontSize = lastScene.text.fontSize || 48
+            const fontFileName = getFontFileName(sceneFontId, sceneFontWeight) || 'NanumGothic-Regular'
+
+            return {
+              sceneId: sceneId + 1, // API는 1부터 시작
+              order: groupIndex,
+              duration: totalDuration,
+              transition: transitionMap[transitionType] || transitionMap.none,
+              image: {
+                url: lastScene.image,
+                fit: lastScene.imageFit || 'contain',
+                transform: lastScene.imageTransform ? {
+                  ...lastScene.imageTransform,
+                  anchor: {
+                    x: 0.5,
+                    y: 0.5,
+                  },
+                } : {
+                  x: width / 2,
+                  y: height / 2,
+                  width: width,
+                  height: height,
+                  scaleX: 1,
+                  scaleY: 1,
+                  rotation: 0,
+                  anchor: { x: 0.5, y: 0.5 },
                 },
-              } : {
-                x: width / 2,
-                y: height / 2,
-                width: width,
-                height: height,
-                scaleX: 1,
-                scaleY: 1,
-                rotation: 0,
-                anchor: { x: 0.5, y: 0.5 },
               },
-            },
-            text: {
-              content: scene.text.content,
-              visible: true,
-              font: {
-                family: fontFileName,
-                size: fontSize,
-                weight: String(sceneFontWeight),
-                style: scene.text.style?.italic ? 'italic' : 'normal',
-              },
-              color: scene.text.color || '#FFFFFF',
-              stroke: {
-                enabled: true,
-                color: '#000000', // 테두리 색상을 검은색으로 변경
-                width: 10,
-              },
-              shadow: {
-                enabled: false, // 쉐도우 비활성화
-                color: '#000000',
-                blur: 0, // 블러 효과 제거
-                offsetX: 0,
-                offsetY: 0,
-              },
-              decoration: {
-                underline: scene.text.style?.underline || false,
-                italic: scene.text.style?.italic || false,
-              },
-              alignment: scene.text.position || 'center',
-              transform: scene.text.transform ? {
-                ...scene.text.transform,
-                anchor: {
-                  x: 0.5,
-                  y: 0.5,
+              text: {
+                content: mergedText, // 특수기호로 연결된 자막
+                visible: true,
+                font: {
+                  family: fontFileName,
+                  size: fontSize,
+                  weight: String(sceneFontWeight),
+                  style: lastScene.text.style?.italic ? 'italic' : 'normal',
                 },
-              } : {
-                x: width / 2,
-                y: height / 2,
-                width: width * 0.9,
-                height: 100,
-                scaleX: 1,
-                scaleY: 1,
-                rotation: 0,
-                anchor: { x: 0.5, y: 0.5 },
+                color: lastScene.text.color || '#FFFFFF',
+                stroke: {
+                  enabled: true,
+                  color: '#000000',
+                  width: 10,
+                },
+                shadow: {
+                  enabled: false,
+                  color: '#000000',
+                  blur: 0,
+                  offsetX: 0,
+                  offsetY: 0,
+                },
+                decoration: {
+                  underline: lastScene.text.style?.underline || false,
+                  italic: lastScene.text.style?.italic || false,
+                },
+                alignment: lastScene.text.position || 'center',
+                transform: lastScene.text.transform ? {
+                  ...lastScene.text.transform,
+                  anchor: {
+                    x: 0.5,
+                    y: 0.5,
+                  },
+                } : {
+                  x: width / 2,
+                  y: height / 2,
+                  width: width * 0.9,
+                  height: 100,
+                  scaleX: 1,
+                  scaleY: 1,
+                  rotation: 0,
+                  anchor: { x: 0.5, y: 0.5 },
+                },
               },
-            },
-            voice: {
-              enabled: !!voiceUrl,
-              text: voiceText,
-              startTime: 0.5,
-              url: voiceUrl, // 업로드된 TTS MP3 파일 URL
-            },
-            effects: {
-              glow: {
-                enabled: scene.advancedEffects?.glow?.enabled || false,
-                color: scene.advancedEffects?.glow?.color 
-                  ? `#${scene.advancedEffects.glow.color.toString(16).padStart(6, '0')}` 
-                  : '#FFFF00',
-                strength: scene.advancedEffects?.glow?.outerStrength || 10,
-                distance: scene.advancedEffects?.glow?.distance || 20,
+              voice: {
+                enabled: !!mergedTtsUrl,
+                text: mergedVoiceText, // 합쳐진 텍스트
+                startTime: 0.5,
+                url: mergedTtsUrl,
               },
-              particles: {
-                enabled: scene.advancedEffects?.particles?.enabled || false,
-                type: scene.advancedEffects?.particles?.type || 'sparkle',
-                count: scene.advancedEffects?.particles?.count || 50,
+              effects: {
+                glow: {
+                  enabled: lastScene.advancedEffects?.glow?.enabled || false,
+                  color: lastScene.advancedEffects?.glow?.color 
+                    ? `#${lastScene.advancedEffects.glow.color.toString(16).padStart(6, '0')}` 
+                    : '#FFFF00',
+                  strength: lastScene.advancedEffects?.glow?.outerStrength || 10,
+                  distance: lastScene.advancedEffects?.glow?.distance || 20,
+                },
+                particles: {
+                  enabled: lastScene.advancedEffects?.particles?.enabled || false,
+                  type: lastScene.advancedEffects?.particles?.type || 'sparkle',
+                  count: lastScene.advancedEffects?.particles?.count || 50,
+                },
               },
-            },
-          }
-        }),
+            }
+          })
+        })(),
         metadata: firstProduct ? {
           originalUrl: firstProduct.url,
           partnersLink: firstProduct.url, // 쿠팡 파트너스 링크로 변환 필요할 수도 있음
