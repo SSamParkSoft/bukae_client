@@ -1684,7 +1684,7 @@ export default function Step4Page() {
   )
 
   const handleSceneTtsPreview = useCallback(
-    async (sceneIndex: number) => {
+    async (sceneIndex: number, partIndex?: number) => {
       if (!timeline) return
       if (!voiceTemplate) {
         alert('목소리를 선택해주세요.')
@@ -1701,26 +1701,26 @@ export default function Step4Page() {
           throw new Error('TTS 구간이 없습니다.')
         }
 
-        // 모든 구간을 순차적으로 재생
-        const playPart = async (partIndex: number): Promise<void> => {
-          if (partIndex >= result.parts.length) {
+        // 특정 구간만 재생하거나 모든 구간을 순차적으로 재생
+        const playPart = async (currentPartIndex: number): Promise<void> => {
+          if (currentPartIndex >= result.parts.length) {
             // 모든 구간 재생 완료
             stopScenePreviewAudio()
             return
           }
 
-          const part = result.parts[partIndex]
+          const part = result.parts[currentPartIndex]
           
           // 저장소 URL 우선 사용, 없으면 blob에서 URL 생성
           let audioUrl: string
           if (part.url) {
             audioUrl = part.url
-            console.log(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${partIndex + 1} 저장소 URL 사용: ${part.url.substring(0, 50)}...`)
+            console.log(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1} 저장소 URL 사용: ${part.url.substring(0, 50)}...`)
           } else if (part.blob) {
             audioUrl = URL.createObjectURL(part.blob)
-            console.log(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${partIndex + 1} blob URL 생성`)
+            console.log(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1} blob URL 생성`)
           } else {
-            console.error(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${partIndex + 1} 재생할 오디오 없음`)
+            console.error(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1} 재생할 오디오 없음`)
             stopScenePreviewAudio()
             return
           }
@@ -1731,31 +1731,38 @@ export default function Step4Page() {
 
           await new Promise<void>((resolve) => {
             audio.onended = () => {
-              // 현재 구간 재생 완료, 다음 구간 재생
+              // 현재 구간 재생 완료
               resolve()
             }
 
             audio.onerror = () => {
-              console.error(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${partIndex + 1} 재생 실패`)
+              console.error(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1} 재생 실패`)
               stopScenePreviewAudio()
               resolve()
             }
 
             audio.play().catch((error) => {
-              console.error(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${partIndex + 1} 재생 시작 실패:`, error)
+              console.error(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1} 재생 시작 실패:`, error)
               stopScenePreviewAudio()
               resolve()
             })
           })
 
-          // 다음 구간 재생
+          // 특정 구간만 재생하는 경우 여기서 종료
+          if (partIndex !== undefined) {
+            stopScenePreviewAudio()
+            return
+          }
+
+          // 다음 구간 재생 (전체 재생 모드)
           if (scenePreviewAudioRef.current) {
-            await playPart(partIndex + 1)
+            await playPart(currentPartIndex + 1)
           }
         }
 
-        // 첫 번째 구간부터 재생 시작
-        await playPart(0)
+        // 특정 구간만 재생하거나 첫 번째 구간부터 재생 시작
+        const startIndex = partIndex !== undefined ? partIndex : 0
+        await playPart(startIndex)
       } catch (error) {
         stopScenePreviewAudio()
         alert(error instanceof Error ? error.message : 'TTS 미리듣기 실패')
