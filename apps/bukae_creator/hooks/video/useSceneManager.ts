@@ -288,17 +288,33 @@ export const useSceneManager = ({
         
         // 그룹의 첫 번째 씬에서 시작된 Timeline 찾기
         const groupTimeline = groupTransitionTimelinesRef.current.get(currentScene.sceneId)
-        if (groupTimeline && !groupTimeline.paused() && !isFirstSceneInGroup) {
+        // Timeline이 존재하고 첫 번째 씬이 아니면 자막만 변경
+        // 재생 중에는 Timeline이 완료되지 않아도 시간 기반으로 씬이 변경되므로,
+        // paused() 체크 없이 Timeline이 존재하기만 하면 자막만 변경
+        if (groupTimeline && !isFirstSceneInGroup) {
           // 기존 Timeline이 진행 중이고 첫 번째 씬이 아니면 자막만 변경
           // alpha는 Timeline이 제어하므로 건드리지 않음
           
-          // 이전 텍스트 숨기기
-          if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
+          // 같은 그룹 내의 이전 씬 텍스트 찾기
+          let previousTextInGroup: PIXI.Text | null = null
+          if (previousIndex !== null && previousIndex !== sceneIndex) {
+            const prevScene = timeline.scenes[previousIndex]
+            if (prevScene && prevScene.sceneId === currentScene.sceneId) {
+              previousTextInGroup = textsRef.current.get(previousIndex) || null
+            }
+          }
+          
+          // 이전 텍스트 숨기기 (같은 그룹 내의 이전 씬 텍스트)
+          if (previousTextInGroup) {
+            previousTextInGroup.visible = false
+            previousTextInGroup.alpha = 0
+          } else if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
+            // 같은 그룹이 아니더라도 이전 텍스트는 숨기기
             previousText.visible = false
             previousText.alpha = 0
           }
           
-          // 현재 텍스트 표시 (페이드 인)
+          // 현재 텍스트 표시 (효과 없이 즉시 표시)
           if (currentText) {
             if (currentText.parent !== containerRef.current) {
               if (currentText.parent) {
@@ -307,22 +323,7 @@ export const useSceneManager = ({
               containerRef.current.addChild(currentText)
             }
             currentText.visible = true
-            currentText.alpha = 0
-            
-            // 텍스트 페이드 인
-            const textFadeObj = { alpha: 0 }
-            gsap.to(textFadeObj, {
-              alpha: 1,
-              duration: 0.3,
-              onUpdate: function() {
-                if (currentText) {
-                  currentText.alpha = textFadeObj.alpha
-                }
-                if (appRef.current) {
-                  appRef.current.render()
-                }
-              }
-            })
+            currentText.alpha = 1
           }
           
           // 렌더링
@@ -351,9 +352,21 @@ export const useSceneManager = ({
         // 같은 그룹 내에서 "움직임" 효과인 경우, 첫 번째 씬의 transition과 duration 사용
         const firstScene = timeline.scenes[firstSceneIndex]
         transition = firstSceneTransition
-        transitionDuration = firstScene.transitionDuration && firstScene.transitionDuration > 0
-          ? firstScene.transitionDuration
-          : 0.5
+        
+        // 움직임 효과인 경우: 그룹 내 모든 씬의 duration 합계를 transitionDuration으로 사용
+        // (scene-splitter.ts에서 이미 첫 번째 씬의 transitionDuration에 설정되어 있지만,
+        //  재생 시 정확한 duration을 보장하기 위해 다시 계산)
+        if (firstScene.transitionDuration && firstScene.transitionDuration > 0) {
+          transitionDuration = firstScene.transitionDuration
+        } else {
+          // transitionDuration이 설정되지 않은 경우, 그룹 내 모든 씬의 duration 합계 계산
+          const groupScenes = timeline.scenes.filter(s => s.sceneId === currentScene.sceneId)
+          transitionDuration = groupScenes.reduce((sum, s) => sum + (s.duration || 0), 0)
+          // 최소값 보장
+          if (transitionDuration <= 0) {
+            transitionDuration = 0.5
+          }
+        }
       } else if (isSameSceneId) {
         // 같은 그룹 내이지만 "움직임" 효과가 아닌 경우
         transition = 'none'
@@ -684,6 +697,23 @@ export const useSceneManager = ({
       }
 
       try {
+        // 같은 그룹 내 씬들은 첫 번째 씬의 스프라이트를 공유
+        const firstSceneIndexInGroup = timeline.scenes.findIndex((s, idx) => 
+          s.sceneId === scene.sceneId && idx <= sceneIndex
+        )
+        const isFirstSceneInGroup = firstSceneIndexInGroup === sceneIndex
+        
+        // 첫 번째 씬이 아니고 같은 그룹 내에 스프라이트가 이미 있으면 공유
+        if (!isFirstSceneInGroup && firstSceneIndexInGroup >= 0) {
+          const firstSceneSprite = spritesRef.current.get(firstSceneIndexInGroup)
+          if (firstSceneSprite) {
+            // 같은 그룹 내 씬들은 첫 번째 씬의 스프라이트를 참조
+            spritesRef.current.set(sceneIndex, firstSceneSprite)
+            return
+          }
+        }
+        
+        // 첫 번째 씬이거나 같은 그룹 내 스프라이트가 없으면 새로 생성
         const texture = await loadPixiTextureWithCache(scene.image)
         const sprite = new PIXI.Sprite(texture)
         

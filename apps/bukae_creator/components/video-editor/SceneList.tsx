@@ -165,8 +165,8 @@ export function SceneList({
           >
             {/* 그룹화된 경우 그룹 헤더에 사진, 전환 효과, 이미지 비율 표시 */}
             {isGrouped && (() => {
-              // 그룹의 첫 번째 씬(원본 씬, splitIndex가 없는 씬) 찾기
-              const originalSceneIndex = group.indices.find(idx => !scenes[idx].splitIndex) ?? group.indices[0]
+              // 그룹의 첫 번째 씬 선택 (splitIndex가 없거나 0인 씬, 없으면 group.indices[0])
+              const firstSceneIndexInGroup = group.indices.find(idx => !scenes[idx].splitIndex) ?? group.indices[0]
               
               return (
                 <div 
@@ -174,7 +174,10 @@ export function SceneList({
                   style={{
                     borderColor: theme === 'dark' ? '#374151' : '#e5e7eb'
                   }}
-                  onClick={() => onSelect(originalSceneIndex)}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSelect(firstSceneIndexInGroup)
+                  }}
                 >
                   <div className="flex items-start gap-3">
                   {/* 썸네일 - 왼쪽 */}
@@ -267,7 +270,7 @@ export function SceneList({
                     onDrop={handleDrop}
                     onDragLeave={() => setDragOver(null)}
                     onDragEnd={handleDragEnd}
-                    className={`rounded-lg border p-3 transition-all ${
+                    className={`rounded-lg border p-3 transition-all cursor-pointer ${
                       isGrouped ? 'ml-6 border-l-2 border-l-purple-400' : ''
                     } ${
                       draggedIndex === index
@@ -284,7 +287,13 @@ export function SceneList({
                               ? 'border-gray-300 bg-gray-50 hover:border-purple-500'
                               : 'border-gray-200 bg-white hover:border-purple-500'
                     }`}
-                    onClick={() => onSelect(index)}
+                    onClick={(e) => {
+                      // 버튼이나 입력 필드가 아닌 경우에만 씬 선택
+                      const target = e.target as HTMLElement
+                      if (target.tagName !== 'BUTTON' && target.tagName !== 'TEXTAREA' && !target.closest('button') && !target.closest('textarea')) {
+                        onSelect(index)
+                      }
+                    }}
                   >
                     <div className="flex gap-3">
                       {/* 썸네일 - 그룹화되지 않은 경우에만 표시 */}

@@ -12,6 +12,7 @@ interface UseTimelinePlayerParams {
   appRef: MutableRefObject<PIXI.Application | null>
   containerRef: MutableRefObject<PIXI.Container | null>
   pixiReady: boolean
+  onSceneChange?: (sceneIndex: number, skipStopPlaying?: boolean) => void // 재생 중 씬 변경 콜백
 }
 
 export function useTimelinePlayer({
@@ -22,6 +23,7 @@ export function useTimelinePlayer({
   containerRef,
   pixiReady,
   previousSceneIndexRef,
+  onSceneChange,
 }: UseTimelinePlayerParams & { previousSceneIndexRef: React.MutableRefObject<number | null> }) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPreviewingTransition, setIsPreviewingTransition] = useState(false)
@@ -149,6 +151,10 @@ export function useTimelinePlayer({
         if (!isManualSceneSelectRef.current) {
           currentSceneIndexRef.current = targetSceneIndex
           setCurrentSceneIndex(targetSceneIndex)
+          // 재생 중 씬 변경 콜백 호출 (handleSceneSelect 등)
+          if (onSceneChange) {
+            onSceneChange(targetSceneIndex, true) // skipStopPlaying = true
+          }
         }
       }
 

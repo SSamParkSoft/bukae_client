@@ -319,6 +319,9 @@ export default function Step4Page() {
     }
   }, [setupSpriteDrag, setupTextDrag])
 
+  // 재생 상태 ref (usePixiEffects에서 사용하기 위해 먼저 선언)
+  const isPlayingRef = useRef(false)
+
   // PixiJS 효과 적용 hook (playbackSpeed는 timeline에서 가져옴)
   const { applyAdvancedEffects, applyEnterEffect } = usePixiEffects({
     appRef,
@@ -329,6 +332,7 @@ export default function Step4Page() {
     timeline,
     playbackSpeed: timeline?.playbackSpeed ?? 1.0,
     onAnimationComplete: handleAnimationComplete,
+    isPlayingRef, // 재생 중인지 확인용
   })
 
   // 씬 관리 hook
@@ -853,6 +857,7 @@ export default function Step4Page() {
     containerRef,
     pixiReady,
     previousSceneIndexRef, // previousSceneIndexRef 전달
+    onSceneChange: handleSceneSelect, // 재생 중 씬 변경 시 handleSceneSelect 호출
   })
 
   useEffect(() => {
@@ -901,7 +906,7 @@ export default function Step4Page() {
   const playTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const bgmStopTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const bgmStartTimeRef = useRef<number | null>(null)
-  const isPlayingRef = useRef(false)
+  // isPlayingRef는 위에서 이미 선언됨
   const currentPlayIndexRef = useRef<number>(0)
 
   // -----------------------------
@@ -1389,18 +1394,18 @@ export default function Step4Page() {
       const scene = timeline.scenes[sceneIndex]
       const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
       
-      handleSceneSelect(sceneIndex, true, () => {
-        // 캐시된 TTS 사용
+      // 같은 그룹 내 씬인지 확인 (움직임 효과가 적용된 분할된 씬들)
+      const previousSceneIndex = currentIndex > 0 ? currentIndex - 1 : null
+      const previousScene = previousSceneIndex !== null ? timeline.scenes[previousSceneIndex] : null
+      const isSameGroup = previousScene && previousScene.sceneId === scene.sceneId
+      const MOVEMENT_EFFECTS = ['slide-left', 'slide-right', 'slide-up', 'slide-down', 'zoom-in', 'zoom-out']
+      const isMovementEffect = isSameGroup && previousScene && MOVEMENT_EFFECTS.includes(previousScene.transition || '')
+      
+      // TTS 재생 함수
+      const playTts = () => {
         const markup = buildSceneMarkup(sceneIndex)
         const key = markup ? makeTtsKey(voiceTemplate!, markup) : null
         const cached = key ? ttsCacheRef.current.get(key) : null
-        
-        // if (!cached) {
-        //   console.warn(`[TTS] 씬 ${sceneIndex} 캐시 미스 - 키: ${key}`)
-        //   console.log('[TTS] 현재 캐시 키 목록:', Array.from(ttsCacheRef.current.keys()))
-        // } else {
-        //   console.log(`[TTS] 씬 ${sceneIndex} 캐시 히트 - 재생 시작`)
-        // }
         
         if (cached) {
           const { blob, durationSec } = cached
@@ -1432,6 +1437,14 @@ export default function Step4Page() {
             }
           }, waitTime)
         }
+      }
+      
+      // TTS를 씬 시작 시점에 즉시 재생
+      playTts()
+      
+      // 씬 선택 (자막 변경)
+      handleSceneSelect(sceneIndex, true, () => {
+        // 전환 효과 완료 콜백 (TTS는 이미 재생 중)
       })
     }
     

@@ -16,6 +16,7 @@ interface UsePixiEffectsParams {
   timeline: TimelineData | null
   playbackSpeed?: number
   onAnimationComplete?: (sceneIndex: number) => void
+  isPlayingRef?: React.MutableRefObject<boolean> // 재생 중인지 확인용
 }
 
 export const usePixiEffects = ({
@@ -27,6 +28,7 @@ export const usePixiEffects = ({
   timeline,
   playbackSpeed = 1.0,
   onAnimationComplete,
+  isPlayingRef,
 }: UsePixiEffectsParams) => {
   // 고급 효과 적용
   const applyAdvancedEffects = useCallback((
@@ -222,9 +224,9 @@ export const usePixiEffects = ({
           appRef.current.render()
         }
         
-        // "움직임" 효과이고 그룹의 마지막 씬이 아닌 경우, Timeline을 완료하지 않음
-        // (그룹이 끝날 때까지 Timeline이 계속 진행되도록 함)
-        if (isMovementEffect && !isLastInGroup) {
+        // "움직임" 효과이고 그룹의 마지막 씬이 아닌 경우
+        // 재생 중이 아닐 때만 Timeline을 완료하지 않음 (재생 중에는 시간 기반으로 씬이 변경되므로 onComplete 호출 필요)
+        if (isMovementEffect && !isLastInGroup && (!isPlayingRef || !isPlayingRef.current)) {
           // Timeline을 완료하지 않고 계속 진행
           // activeAnimationsRef에서 삭제하지 않음
           // onComplete 콜백도 호출하지 않음 (자막 변경만 처리)
@@ -251,27 +253,18 @@ export const usePixiEffects = ({
       groupTransitionTimelinesRef.current.set(sceneId, tl)
     }
     
-    // 텍스트는 항상 페이드로 처리
+    // 텍스트는 효과 없이 즉시 표시
     const applyTextFade = () => {
       if (!toText) return
-      const textFadeObj = { alpha: 0 }
-      toText.alpha = 0
+      toText.alpha = 1
       toText.visible = true
       if (toText.mask) {
         toText.mask = null
       }
-      tl.to(textFadeObj, {
-        alpha: 1,
-        duration,
-        onUpdate: function() {
-          if (toText) {
-            toText.alpha = textFadeObj.alpha
-          }
-          if (appRef.current) {
-            appRef.current.render()
-          }
-        }
-      }, 0)
+      // 페이드 효과 제거 - 즉시 표시
+      if (appRef.current) {
+        appRef.current.render()
+      }
     }
     
     // 전환 효과별 처리 (이미지만 적용, 텍스트는 항상 페이드)
