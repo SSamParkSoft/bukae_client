@@ -172,4 +172,50 @@ export function splitSceneBySentences(params: {
   return { sceneScripts, timelineScenes }
 }
 
+/**
+ * 씬 스크립트에 ||| 구분자를 삽입하여 하나의 객체로 유지한다.
+ * - 문장을 `.`, `!`, `?` 기준으로 분할하고 각 문장 사이에 `|||` 구분자 삽입
+ * - 객체 분할 없이 하나의 SceneScript/TimelineScene으로 반환
+ */
+export function insertSceneDelimiters(params: {
+  sceneScript: SceneScript
+  timelineScene?: TimelineScene
+}): { sceneScript: SceneScript; timelineScene?: TimelineScene } {
+  const { sceneScript, timelineScene } = params
+  const sentences = splitScriptByPunctuation(sceneScript.script)
+
+  // 분할 가능한 문장이 1개 이하이면 그대로 반환
+  if (sentences.length <= 1) {
+    return {
+      sceneScript,
+      timelineScene,
+    }
+  }
+
+  // 각 문장 사이에 ||| 구분자 삽입
+  const scriptWithDelimiters = sentences.join(' ||| ')
+
+  // SceneScript 업데이트
+  const updatedSceneScript: SceneScript = {
+    ...sceneScript,
+    script: scriptWithDelimiters,
+  }
+
+  // TimelineScene 업데이트 (text.content에 구분자 포함)
+  const updatedTimelineScene: TimelineScene | undefined = timelineScene
+    ? {
+        ...timelineScene,
+        text: {
+          ...timelineScene.text,
+          content: scriptWithDelimiters,
+        },
+      }
+    : undefined
+
+  return {
+    sceneScript: updatedSceneScript,
+    timelineScene: updatedTimelineScene,
+  }
+}
+
 

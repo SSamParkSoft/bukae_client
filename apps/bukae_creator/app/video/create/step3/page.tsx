@@ -13,6 +13,8 @@ import { useVideoCreateStore, SceneScript } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { studioScriptApi } from '@/lib/api/studio-script'
 import type { ScriptType } from '@/lib/types/api/studio-script'
+import { authStorage } from '@/lib/api/auth-storage'
+import { authApi } from '@/lib/api/auth'
 
 export default function Step3Page() {
   const router = useRouter()
@@ -29,6 +31,30 @@ export default function Step3Page() {
   const theme = useThemeStore((state) => state.theme)
   const selectedProduct = selectedProducts[0]
   const selectedProductResponse = selectedProductResponses?.[0]
+  const [isValidatingToken, setIsValidatingToken] = useState(true)
+
+  // 토큰 검증
+  useEffect(() => {
+    const validateToken = async () => {
+      try {
+        const token = authStorage.getAccessToken()
+        if (!token) {
+          router.replace('/login')
+          return
+        }
+
+        // 토큰 유효성 검증
+        await authApi.getCurrentUser()
+        setIsValidatingToken(false)
+      } catch (error) {
+        // 토큰이 유효하지 않으면 로그인 페이지로 리다이렉트
+        authStorage.clearTokens()
+        router.replace('/login')
+      }
+    }
+
+    validateToken()
+  }, [router])
   
   // 사용 가능한 이미지 목록
   const availableImages = useMemo(() => {
@@ -388,6 +414,18 @@ export default function Step3Page() {
     
     setScenes(finalScenes)
     router.push('/video/create/step4')
+  }
+
+  // 토큰 검증 중에는 로딩 표시
+  if (isValidatingToken) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-purple-600" />
+          <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>인증 확인 중...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

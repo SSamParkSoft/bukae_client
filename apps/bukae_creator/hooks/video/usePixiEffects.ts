@@ -99,6 +99,11 @@ export const usePixiEffects = ({
   ) => {
     // 그룹의 마지막 씬인지 확인 (움직임 효과인 경우)
     const isMovementEffect = sceneId !== undefined && MOVEMENT_EFFECTS.includes(transition)
+    
+    // 각 씬이 자신의 duration만큼만 전환 효과 사용
+    // 움직임 효과인 경우에도 각 씬의 duration 사용
+    const actualDuration = duration
+    
     const isLastInGroup = isMovementEffect && timeline && sceneId !== undefined
       ? !timeline.scenes.some((s, idx) => idx > sceneIndex && s.sceneId === sceneId)
       : true // 움직임 효과가 아니면 항상 마지막으로 간주
@@ -225,11 +230,12 @@ export const usePixiEffects = ({
         }
         
         // "움직임" 효과이고 그룹의 마지막 씬이 아닌 경우
-        // 재생 중이 아닐 때만 Timeline을 완료하지 않음 (재생 중에는 시간 기반으로 씬이 변경되므로 onComplete 호출 필요)
-        if (isMovementEffect && !isLastInGroup && (!isPlayingRef || !isPlayingRef.current)) {
+        // Timeline을 완료하지 않고 계속 진행 (재생 중이든 아니든 상관없이)
+        if (isMovementEffect && !isLastInGroup) {
           // Timeline을 완료하지 않고 계속 진행
           // activeAnimationsRef에서 삭제하지 않음
           // onComplete 콜백도 호출하지 않음 (자막 변경만 처리)
+          // 재생 중에는 시간 기반으로 씬이 변경되므로 onComplete는 재생 로직에서 처리
           return
         }
         
@@ -332,15 +338,21 @@ export const usePixiEffects = ({
 
       case 'slide-left':
         {
-          // 이전 코드 패턴: 슬라이드 좌 (왼쪽에서 나타남) - 이미지만 적용
-          const toSlideLeftObj = { x: originalX - stageWidth, alpha: 0 }
-          toSprite.x = originalX - stageWidth
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
+          // 이미지 내부에서 움직임: 시작 위치를 약간 오른쪽으로 설정
+          const offsetX = stageWidth * 0.1
+          const toSlideLeftObj = { x: originalX + offsetX }
+          toSprite.x = originalX + offsetX
+          toSprite.alpha = 1 // 페이드 없이 항상 보이도록
+          toSprite.visible = true
+          
+          // 디버깅: duration이 제대로 전달되었는지 확인
+          if (isMovementEffect) {
+            console.log(`[usePixiEffects] slide-left duration:`, actualDuration, '(그룹 전체 TTS duration)', 'sceneIndex:', sceneIndex, 'sceneId:', sceneId, 'isLastInGroup:', isLastInGroup)
+          }
           
           tl.to(toSlideLeftObj, { 
             x: originalX, 
-            alpha: 1, 
-            duration, 
+            duration: actualDuration, 
             onUpdate: function() {
               // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
               if (toSprite && containerRef.current) {
@@ -351,7 +363,7 @@ export const usePixiEffects = ({
                   containerRef.current.addChild(toSprite)
                 }
                 toSprite.x = toSlideLeftObj.x
-                toSprite.alpha = toSlideLeftObj.alpha
+                toSprite.alpha = 1 // 항상 보이도록 유지
               }
               
               if (toText && containerRef.current) {
@@ -361,6 +373,7 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
+                toText.alpha = 1 // 텍스트도 페이드 없이 표시
               }
               
               if (appRef.current) {
@@ -368,23 +381,21 @@ export const usePixiEffects = ({
               }
             }
           }, 0)
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
         }
         break
 
       case 'slide-right':
         {
-          // 이전 코드 패턴: 슬라이드 우 (오른쪽에서 나타남) - 이미지만 적용
-          const toSlideRightObj = { x: originalX + stageWidth, alpha: 0 }
-          toSprite.x = originalX + stageWidth
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
+          // 이미지 내부에서 움직임: 시작 위치를 약간 왼쪽으로 설정
+          const offsetX = stageWidth * 0.1
+          const toSlideRightObj = { x: originalX - offsetX }
+          toSprite.x = originalX - offsetX
+          toSprite.alpha = 1 // 페이드 없이 항상 보이도록
+          toSprite.visible = true
           
           tl.to(toSlideRightObj, { 
             x: originalX, 
-            alpha: 1, 
-            duration, 
+            duration: actualDuration, 
             onUpdate: function() {
               // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
               if (toSprite && containerRef.current) {
@@ -395,7 +406,7 @@ export const usePixiEffects = ({
                   containerRef.current.addChild(toSprite)
                 }
                 toSprite.x = toSlideRightObj.x
-                toSprite.alpha = toSlideRightObj.alpha
+                toSprite.alpha = 1 // 항상 보이도록 유지
               }
               
               if (toText && containerRef.current) {
@@ -405,6 +416,7 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
+                toText.alpha = 1 // 텍스트도 페이드 없이 표시
               }
               
               if (appRef.current) {
@@ -412,23 +424,21 @@ export const usePixiEffects = ({
               }
             }
           }, 0)
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
         }
         break
 
       case 'slide-up':
         {
-          // 이전 코드 패턴: 슬라이드 상 (아래에서 나타남) - 이미지만 적용
-          const toSlideUpObj = { y: originalY + stageHeight, alpha: 0 }
-          toSprite.y = originalY + stageHeight
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
+          // 이미지 내부에서 움직임: 시작 위치를 약간 아래로 설정
+          const offsetY = stageHeight * 0.1
+          const toSlideUpObj = { y: originalY + offsetY }
+          toSprite.y = originalY + offsetY
+          toSprite.alpha = 1 // 페이드 없이 항상 보이도록
+          toSprite.visible = true
           
           tl.to(toSlideUpObj, { 
             y: originalY, 
-            alpha: 1, 
-            duration, 
+            duration: actualDuration, 
             onUpdate: function() {
               // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
               if (toSprite && containerRef.current) {
@@ -439,7 +449,7 @@ export const usePixiEffects = ({
                   containerRef.current.addChild(toSprite)
                 }
                 toSprite.y = toSlideUpObj.y
-                toSprite.alpha = toSlideUpObj.alpha
+                toSprite.alpha = 1 // 항상 보이도록 유지
               }
               
               if (toText && containerRef.current) {
@@ -449,6 +459,7 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
+                toText.alpha = 1 // 텍스트도 페이드 없이 표시
               }
               
               if (appRef.current) {
@@ -456,23 +467,21 @@ export const usePixiEffects = ({
               }
             }
           }, 0)
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
         }
         break
 
       case 'slide-down':
         {
-          // 이전 코드 패턴: 슬라이드 하 (위에서 나타남) - 이미지만 적용
-          const toSlideDownObj = { y: originalY - stageHeight, alpha: 0 }
-          toSprite.y = originalY - stageHeight
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
+          // 이미지 내부에서 움직임: 시작 위치를 약간 위로 설정
+          const offsetY = stageHeight * 0.1
+          const toSlideDownObj = { y: originalY - offsetY }
+          toSprite.y = originalY - offsetY
+          toSprite.alpha = 1 // 페이드 없이 항상 보이도록
+          toSprite.visible = true
           
           tl.to(toSlideDownObj, { 
             y: originalY, 
-            alpha: 1, 
-            duration, 
+            duration: actualDuration, 
             onUpdate: function() {
               // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
               if (toSprite && containerRef.current) {
@@ -483,7 +492,7 @@ export const usePixiEffects = ({
                   containerRef.current.addChild(toSprite)
                 }
                 toSprite.y = toSlideDownObj.y
-                toSprite.alpha = toSlideDownObj.alpha
+                toSprite.alpha = 1 // 항상 보이도록 유지
               }
               
               if (toText && containerRef.current) {
@@ -493,6 +502,7 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
+                toText.alpha = 1 // 텍스트도 페이드 없이 표시
               }
               
               if (appRef.current) {
@@ -500,9 +510,6 @@ export const usePixiEffects = ({
               }
             }
           }, 0)
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
         }
         break
 
@@ -532,7 +539,7 @@ export const usePixiEffects = ({
           tl.to(toZoomObj, { 
             alpha: 1,
             scale: originalScale * 1.15, 
-            duration: duration, 
+            duration: actualDuration, 
             ease: 'power1.out',
             onUpdate: function() {
               if (toSprite && containerRef.current) {
@@ -600,7 +607,7 @@ export const usePixiEffects = ({
           tl.to(toZoomOutObj, { 
             alpha: 1,
             scale: originalScale * 0.85, 
-            duration: duration, 
+            duration: actualDuration, 
             ease: 'power1.out',
             onUpdate: function() {
               if (toSprite && containerRef.current) {

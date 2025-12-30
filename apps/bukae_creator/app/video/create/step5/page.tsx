@@ -22,6 +22,7 @@ import { StudioJobWebSocket, type StudioJobUpdate } from '@/lib/api/websocket'
 import { websocketManager } from '@/lib/api/websocket-manager'
 import { authStorage } from '@/lib/api/auth-storage'
 import { getSupabaseClient } from '@/lib/supabase/client'
+import { authApi } from '@/lib/api/auth'
 
 function Step5PageContent() {
   const router = useRouter()
@@ -46,6 +47,30 @@ function Step5PageContent() {
     reset,
   } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
+  const [isValidatingToken, setIsValidatingToken] = useState(true)
+
+  // 토큰 검증
+  useEffect(() => {
+    const validateToken = async () => {
+      try {
+        const token = authStorage.getAccessToken()
+        if (!token) {
+          router.replace('/login')
+          return
+        }
+
+        // 토큰 유효성 검증
+        await authApi.getCurrentUser()
+        setIsValidatingToken(false)
+      } catch (error) {
+        // 토큰이 유효하지 않으면 로그인 페이지로 리다이렉트
+        authStorage.clearTokens()
+        router.replace('/login')
+      }
+    }
+
+    validateToken()
+  }, [router])
   
   // 영상 렌더링 관련 상태
   // Hydration 오류 방지를 위해 초기값은 null로 설정하고, useEffect에서 클라이언트에서만 설정
@@ -1012,6 +1037,18 @@ function Step5PageContent() {
     setIsCompleteDialogOpen(false)
     setIsCompleting(false)
     router.push('/')
+  }
+
+  // 토큰 검증 중에는 로딩 표시
+  if (isValidatingToken) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-purple-600" />
+          <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>인증 확인 중...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

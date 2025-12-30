@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Loader2, AlertCircle, Send, ShoppingCart, ExternalLink } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useVideoCreateStore, Product } from '../../../../store/useVideoCreateStore'
@@ -11,6 +12,8 @@ import SelectedProductsPanel from '../../../../components/SelectedProductsPanel'
 import { searchProducts } from '@/lib/api/products'
 import type { TargetMall, ProductResponse } from '@/lib/types/products'
 import { convertProductResponseToProduct } from '@/lib/types/products'
+import { authStorage } from '@/lib/api/auth-storage'
+import { authApi } from '@/lib/api/auth'
 
 type ThemeMode = 'light' | 'dark'
 
@@ -31,6 +34,7 @@ interface ChatMessage {
 }
 
 export default function Step1Page() {
+  const router = useRouter()
   const { removeProduct, addProduct, selectedProducts, clearProducts } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const { getPlatformTrackingId } = useUserStore()
@@ -44,6 +48,30 @@ export default function Step1Page() {
   const [currentProducts, setCurrentProducts] = useState<Product[]>([])
   const [currentProductResponses, setCurrentProductResponses] = useState<ProductResponse[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [isValidatingToken, setIsValidatingToken] = useState(true)
+
+  // 토큰 검증
+  useEffect(() => {
+    const validateToken = async () => {
+      try {
+        const token = authStorage.getAccessToken()
+        if (!token) {
+          router.replace('/login')
+          return
+        }
+
+        // 토큰 유효성 검증
+        await authApi.getCurrentUser()
+        setIsValidatingToken(false)
+      } catch (error) {
+        // 토큰이 유효하지 않으면 로그인 페이지로 리다이렉트
+        authStorage.clearTokens()
+        router.replace('/login')
+      }
+    }
+
+    validateToken()
+  }, [router])
 
   // 메시지 스크롤
   useEffect(() => {
@@ -161,6 +189,18 @@ export default function Step1Page() {
   }
 
   const themeMode: ThemeMode = theme
+
+  // 토큰 검증 중에는 로딩 표시
+  if (isValidatingToken) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-purple-600" />
+          <p className={themeMode === 'dark' ? 'text-gray-400' : 'text-gray-600'}>인증 확인 중...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <motion.div

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowRight, ChevronDown, Camera, Bot, MessageSquare, X, Clock, Sparkles } from 'lucide-react'
+import { ArrowRight, ChevronDown, Camera, Bot, MessageSquare, X, Clock, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +13,8 @@ import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore, type CreationMode } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { conceptOptions, conceptTones, toneExamples, type ConceptType } from '@/lib/data/templates'
+import { authStorage } from '@/lib/api/auth-storage'
+import { authApi } from '@/lib/api/auth'
 
 export default function Step2Page() {
   const router = useRouter()
@@ -32,6 +34,30 @@ export default function Step2Page() {
   const [openToneExampleId, setOpenToneExampleId] = useState<string | null>(null)
   const [showConfirmPopover, setShowConfirmPopover] = useState(false)
   const [confirmPopoverToneId, setConfirmPopoverToneId] = useState<string | null>(null)
+  const [isValidatingToken, setIsValidatingToken] = useState(true)
+
+  // 토큰 검증
+  useEffect(() => {
+    const validateToken = async () => {
+      try {
+        const token = authStorage.getAccessToken()
+        if (!token) {
+          router.replace('/login')
+          return
+        }
+
+        // 토큰 유효성 검증
+        await authApi.getCurrentUser()
+        setIsValidatingToken(false)
+      } catch {
+        // 토큰이 유효하지 않으면 로그인 페이지로 리다이렉트
+        authStorage.clearTokens()
+        router.replace('/login')
+      }
+    }
+
+    validateToken()
+  }, [router])
 
   // store의 값이 복원되면 로컬 state 동기화
   useEffect(() => {
@@ -131,6 +157,18 @@ export default function Step2Page() {
       // Manual 모드면 기존 플로우로 (Step3는 편집 단계)
       router.push('/video/create/step3')
     }
+  }
+
+  // 토큰 검증 중에는 로딩 표시
+  if (isValidatingToken) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-purple-600" />
+          <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>인증 확인 중...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

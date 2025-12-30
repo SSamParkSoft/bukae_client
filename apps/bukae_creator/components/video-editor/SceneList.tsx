@@ -153,21 +153,38 @@ export function SceneList({
       {sceneGroups.map((group) => {
         const isGrouped = group.indices.length > 1
         const firstSceneIndex = group.indices[0]
+        // 그룹의 첫 번째 씬 선택 (splitIndex가 없거나 0인 씬, 없으면 group.indices[0])
+        const firstSceneIndexInGroup = group.indices.find(idx => !scenes[idx].splitIndex) ?? group.indices[0]
         
         return (
           <div 
             key={`group-${group.sceneId}`} 
-            className={isGrouped ? `space-y-1 rounded-lg p-2 ${
+            className={isGrouped ? `space-y-1 rounded-lg p-2 cursor-pointer hover:opacity-90 transition-opacity ${
               theme === 'dark' 
                 ? 'bg-gray-800/30 border border-gray-700' 
                 : 'bg-purple-50/50 border border-purple-200'
             }` : ''}
+            onClick={(e) => {
+              // 그룹화된 경우에만 클릭 이벤트 처리
+              // 자식 요소(헤더, 씬 카드 등)를 클릭한 경우는 각각의 핸들러가 처리하므로 stopPropagation 호출
+              // 그룹 컨테이너의 빈 공간(패딩 영역)을 클릭한 경우에만 선택
+              if (isGrouped) {
+                const target = e.target as HTMLElement
+                // 클릭한 요소가 그룹 컨테이너 자체이거나, 클릭 가능한 자식 요소가 아닌 경우
+                // (버튼, 텍스트 영역, 셀렉트, 드래그 가능한 요소가 아닌 경우)
+                if (target === e.currentTarget || 
+                    (!target.closest('button') && 
+                     !target.closest('textarea') && 
+                     !target.closest('select') &&
+                     !target.closest('[draggable]') &&
+                     !target.closest('.cursor-pointer'))) {
+                  onSelect(firstSceneIndexInGroup)
+                }
+              }
+            }}
           >
             {/* 그룹화된 경우 그룹 헤더에 사진, 전환 효과, 이미지 비율 표시 */}
             {isGrouped && (() => {
-              // 그룹의 첫 번째 씬 선택 (splitIndex가 없거나 0인 씬, 없으면 group.indices[0])
-              const firstSceneIndexInGroup = group.indices.find(idx => !scenes[idx].splitIndex) ?? group.indices[0]
-              
               return (
                 <div 
                   className="mb-2 pb-2 border-b cursor-pointer hover:opacity-80 transition-opacity" 
@@ -256,10 +273,13 @@ export function SceneList({
             
             {group.indices.map((index) => {
               const scene = scenes[index]
-              const isSplitScene = !!scene.splitIndex
+              // ||| 구분자로 분할된 구간 확인 (공백 유무와 관계없이 분할)
+              const scriptParts = scene.script.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+              const hasDelimiters = scriptParts.length > 1
+              const isSplitScene = hasDelimiters || !!scene.splitIndex
               
               return (
-                <div key={scene.splitIndex ? `${scene.sceneId}-${scene.splitIndex}` : scene.sceneId ?? index}>
+                <div key={hasDelimiters ? `${scene.sceneId}-delimiter` : (scene.splitIndex ? `${scene.sceneId}-${scene.splitIndex}` : scene.sceneId ?? index)}>
                   {dragOver && dragOver.index === index && dragOver.position === 'before' && (
                     <div className="h-0.5 bg-blue-500 rounded-full" />
                   )}
@@ -342,13 +362,15 @@ export function SceneList({
                               className="text-sm font-semibold"
                               style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
                             >
-                              {scene.splitIndex
+                              {hasDelimiters
+                                ? `Scene ${scene.sceneId} (${scriptParts.length}개 구간)`
+                                : scene.splitIndex
                                 ? `Scene ${scene.sceneId}-${scene.splitIndex}`
                                 : `Scene ${scene.sceneId}`}
                             </span>
                           </div>
                           <div className="flex items-center gap-1">
-                            {onSplitScene && !scene.splitIndex && (
+                            {onSplitScene && !hasDelimiters && !scene.splitIndex && (
                               <Button
                                 type="button"
                                 variant="outline"
@@ -397,55 +419,130 @@ export function SceneList({
                   </div>
                 </div>
 
-                {/* 텍스트 입력 */}
-                <div className="flex items-start gap-2 mb-2">
-                  <textarea
-                    rows={2}
-                    value={scene.script}
-                    onChange={(e) => onScriptChange(index, e.target.value)}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex-1 text-sm rounded-md border px-2 py-1 resize-none"
-                    style={{
-                      backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-                      borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                      color: theme === 'dark' ? '#ffffff' : '#111827',
-                    }}
-                    placeholder="Scene 텍스트 입력..."
-                  />
-                  {onTtsPreview && scene.script.trim() && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      className="shrink-0 h-auto py-1 px-2"
-                      onClick={async (e) => {
-                        e.stopPropagation()
-                        if (previewingSceneIndex === index) {
-                          // 재생 중이면 정지 (추후 구현)
-                          setPreviewingSceneIndex(null)
-                        } else {
-                          setPreviewingSceneIndex(index)
-                          try {
-                            await onTtsPreview(index)
-                          } catch (error) {
-                            console.error('TTS 미리듣기 실패:', error)
-                          } finally {
-                            setPreviewingSceneIndex(null)
-                          }
-                        }
+                {/* 텍스트 입력 - ||| 구분자가 있으면 각 구간별로 표시 */}
+                {hasDelimiters ? (
+                  <div className="space-y-2 mb-2">
+                    {scriptParts.map((part, partIndex) => (
+                      <div key={partIndex} className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="text-xs font-medium shrink-0"
+                            style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}
+                          >
+                            Scene {scene.sceneId}-{partIndex + 1}:
+                          </span>
+                          <textarea
+                            rows={1}
+                            value={part}
+                            onChange={(e) => {
+                              // 해당 구간만 업데이트
+                              const newParts = [...scriptParts]
+                              newParts[partIndex] = e.target.value
+                              const newScript = newParts.join(' ||| ')
+                              onScriptChange(index, newScript)
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1 text-sm rounded-md border px-2 py-1 resize-none"
+                            style={{
+                              backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
+                              borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
+                              color: theme === 'dark' ? '#ffffff' : '#111827',
+                            }}
+                            placeholder={`구간 ${partIndex + 1} 텍스트 입력...`}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    {onTtsPreview && scene.script.trim() && (
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="xs"
+                          className="shrink-0 h-auto py-1 px-2"
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            if (previewingSceneIndex === index) {
+                              // 재생 중이면 정지 (추후 구현)
+                              setPreviewingSceneIndex(null)
+                            } else {
+                              setPreviewingSceneIndex(index)
+                              try {
+                                await onTtsPreview(index)
+                              } catch (error) {
+                                console.error('TTS 미리듣기 실패:', error)
+                              } finally {
+                                setPreviewingSceneIndex(null)
+                              }
+                            }
+                          }}
+                          disabled={previewingSceneIndex === index}
+                          title="TTS 미리듣기"
+                        >
+                          {previewingSceneIndex === index ? (
+                            <Pause className="w-3 h-3" />
+                          ) : (
+                            <Play className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2 mb-2">
+                    <textarea
+                      rows={2}
+                      value={scene.script.replace(/\s*\|\|\|\s*/g, ' ')}
+                      onChange={(e) => {
+                        // 사용자가 입력한 값에서 ||| 제거 (실수로 입력한 경우 방지)
+                        const cleaned = e.target.value.replace(/\s*\|\|\|\s*/g, ' ')
+                        onScriptChange(index, cleaned.trim())
                       }}
-                      disabled={previewingSceneIndex === index}
-                      title="TTS 미리듣기"
-                    >
-                      {previewingSceneIndex === index ? (
-                        <Pause className="w-3 h-3" />
-                      ) : (
-                        <Play className="w-3 h-3" />
-                      )}
-                    </Button>
-                  )}
-                </div>
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 text-sm rounded-md border px-2 py-1 resize-none"
+                      style={{
+                        backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
+                        borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
+                        color: theme === 'dark' ? '#ffffff' : '#111827',
+                      }}
+                      placeholder="Scene 텍스트 입력..."
+                    />
+                    {onTtsPreview && scene.script.trim() && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="shrink-0 h-auto py-1 px-2"
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (previewingSceneIndex === index) {
+                            // 재생 중이면 정지 (추후 구현)
+                            setPreviewingSceneIndex(null)
+                          } else {
+                            setPreviewingSceneIndex(index)
+                            try {
+                              await onTtsPreview(index)
+                            } catch (error) {
+                              console.error('TTS 미리듣기 실패:', error)
+                            } finally {
+                              setPreviewingSceneIndex(null)
+                            }
+                          }
+                        }}
+                        disabled={previewingSceneIndex === index}
+                        title="TTS 미리듣기"
+                      >
+                        {previewingSceneIndex === index ? (
+                          <Pause className="w-3 h-3" />
+                        ) : (
+                          <Play className="w-3 h-3" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                )}
 
                 {/* 설정 - 분할된 씬이 아닌 경우에만 표시 */}
                 {!isSplitScene && (
