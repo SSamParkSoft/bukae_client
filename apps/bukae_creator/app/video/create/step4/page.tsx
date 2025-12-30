@@ -876,9 +876,21 @@ export default function Step4Page() {
       const isFirstInGroup = index === timeline.scenes.findIndex((s) => s.sceneId === selectedScene?.sceneId)
       
       // 이전 씬이 같은 그룹이고, 현재 씬이 같은 그룹의 첫 번째 씬이 아닌 경우에만 prevIndex 유지
-      // 그 외의 경우는 prevIndex를 null로 설정하여 전환 효과 적용
       const isPrevInSameGroup = previousScene && selectedScene && previousScene.sceneId === selectedScene.sceneId
-      if (!isPrevInSameGroup || isFirstInGroup || !selectedScene?.sceneId) {
+      
+      // 같은 그룹 내 씬인 경우 prevIndex를 유지하여 자막만 변경하도록 함
+      if (isPrevInSameGroup && !isFirstInGroup && selectedScene?.sceneId) {
+        // prevIndex 유지 (같은 그룹 내 씬이므로)
+      } else if (selectedScene?.sceneId && lastRenderedSceneIndexRef.current !== null && !isFirstInGroup) {
+        // 같은 그룹 내 씬인지 확인 (lastRenderedSceneIndexRef 사용)
+        const lastRenderedScene = timeline.scenes[lastRenderedSceneIndexRef.current]
+        if (lastRenderedScene && lastRenderedScene.sceneId === selectedScene.sceneId) {
+          // 같은 그룹 내 씬이므로 prevIndex를 lastRenderedSceneIndexRef로 설정
+          prevIndex = lastRenderedSceneIndexRef.current
+        } else {
+          prevIndex = null
+        }
+      } else {
         prevIndex = null
       }
     }
@@ -1070,419 +1082,120 @@ export default function Step4Page() {
     const scene = timeline.scenes[sceneIndex]
     if (!scene) return
     
-    // 같은 그룹의 첫 번째 씬에서 원본 script 가져오기
+    // 원본 script 가져오기
     const sceneId = scene.sceneId
     let originalScript = ''
     
     if (sceneId !== undefined) {
-      // 같은 sceneId를 가진 씬들 중 첫 번째 씬 찾기
-      const firstSceneIndexInTimeline = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
-      if (firstSceneIndexInTimeline >= 0) {
-        // scenes 배열에서 같은 sceneId를 가진 첫 번째 씬 찾기
-        const firstSceneScript = scenes.find((s) => s.sceneId === sceneId)
-        if (firstSceneScript?.script) {
-          originalScript = firstSceneScript.script
-        }
+      const firstSceneScript = scenes.find((s) => s.sceneId === sceneId)
+      if (firstSceneScript?.script) {
+        originalScript = firstSceneScript.script
       }
     }
     
-    // 원본 script가 없으면 현재 씬의 text.content 사용 (fallback)
     if (!originalScript) {
       originalScript = scene.text?.content || ''
     }
     
-    // ||| 구분자로 분할 (원본 script 사용)
+    // ||| 구분자로 분할
     const scriptParts = originalScript.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
     const partText = scriptParts[partIndex]?.trim()
     
     if (!partText) return
     
-    console.log(`[구간 선택] 씬${sceneIndex} 구간${partIndex + 1} 선택: "${partText}"`)
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1082',message:'handleScenePartSelect 시작',data:{sceneIndex,partIndex,partText,isManualSceneSelectBefore:isManualSceneSelectRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
-    // currentSceneIndex 변경 시 useEffect가 호출되지 않도록 플래그 설정 (먼저 설정)
-    isManualSceneSelectRef.current = true
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1085',message:'플래그 설정 후',data:{isManualSceneSelectAfter:isManualSceneSelectRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-    
-    // timeline의 text.content를 해당 구간 텍스트로 업데이트 (먼저 업데이트)
-    // 같은 그룹 내의 모든 씬도 업데이트 (같은 sceneId를 가진 씬들)
+    // timeline의 text.content 업데이트
     const updatedTimeline = {
       ...timeline,
       scenes: timeline.scenes.map((s, i) => {
-        // 현재 씬이거나 같은 그룹의 씬인 경우
-        if (i === sceneIndex || (sceneId !== undefined && s.sceneId === sceneId)) {
-          // 같은 그룹 내에서의 순서 확인
-          const sameGroupScenes = timeline.scenes
-            .map((sc, idx) => ({ scene: sc, index: idx }))
-            .filter(({ scene: sc }) => sceneId !== undefined && sc.sceneId === sceneId)
-            .sort((a, b) => a.index - b.index)
-          
-          const groupIndex = sameGroupScenes.findIndex(({ index }) => index === i)
-          
-          // 현재 선택한 씬이면 partText 사용, 같은 그룹의 다른 씬이면 해당 구간 텍스트 사용
-          if (i === sceneIndex) {
-            return {
-              ...s,
-              text: {
-                ...s.text,
-                content: partText, // ||| 구분자 없이 구간 텍스트만
-              },
-            }
-          } else if (groupIndex >= 0) {
-            // 같은 그룹의 다른 씬: 해당 구간 텍스트 사용
-            const originalText = s.text?.content || ''
-            const parts = originalText.includes('|||') 
-              ? originalText.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
-              : [originalText]
-            const groupPartText = parts[groupIndex] || ''
-            
-            return {
-              ...s,
-              text: {
-                ...s.text,
-                content: groupPartText, // ||| 구분자 없이 구간 텍스트만
-              },
-            }
+        if (i === sceneIndex) {
+          return {
+            ...s,
+            text: {
+              ...s.text,
+              content: partText,
+            },
           }
         }
         return s
       }),
     }
-    
     setTimeline(updatedTimeline)
     
-    // 텍스트 객체를 즉시 동기적으로 업데이트 (setCurrentSceneIndex 전에)
-    // requestAnimationFrame을 사용하지 않고 즉시 실행하여 updateCurrentScene이 호출되기 전에 텍스트가 이미 업데이트되도록 함
-    // 같은 그룹 내의 모든 씬의 텍스트 객체를 찾아서 업데이트
-    const sameGroupIndices: number[] = []
+    // 텍스트 객체 찾기
+    let targetTextObj: PIXI.Text | null = textsRef.current.get(sceneIndex) || null
     
-    if (sceneId !== undefined) {
-      // 같은 sceneId를 가진 모든 씬 인덱스 찾기
-      timeline.scenes.forEach((s, idx) => {
-        if (s.sceneId === sceneId) {
-          sameGroupIndices.push(idx)
+    // 현재 씬의 텍스트 객체가 없거나 보이지 않으면, 같은 그룹 내 첫 번째 씬의 텍스트 사용
+    if (!targetTextObj || (!targetTextObj.visible && targetTextObj.alpha === 0)) {
+      if (sceneId !== undefined) {
+        const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+        if (firstSceneIndexInGroup >= 0) {
+          targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
         }
-      })
-    } else {
-      sameGroupIndices.push(sceneIndex)
-    }
-    
-    // 같은 그룹 내의 모든 텍스트 객체 업데이트
-    // 같은 그룹 내 씬인 경우, 첫 번째 씬의 텍스트 객체를 사용할 수 있으므로
-    // 현재 표시되고 있는 텍스트 객체를 찾아서 업데이트
-    let updatedCount = 0
-    let targetTextObj: PIXI.Text | null = null
-    
-    // 먼저 현재 씬의 텍스트 객체 찾기
-    targetTextObj = textsRef.current.get(sceneIndex) || null
-    
-    // 현재 표시되고 있는 텍스트 객체만 로그 출력
-    const visibleTexts: Array<{ idx: number; sceneId: number | undefined; text: string }> = []
-    textsRef.current.forEach((text, idx) => {
-      if (text && text.visible && text.alpha > 0) {
-        const textScene = timeline.scenes[idx]
-        visibleTexts.push({ idx, sceneId: textScene?.sceneId, text: text.text })
-      }
-    })
-    if (visibleTexts.length > 0) {
-      console.log(`[구간 선택] 현재 표시 중인 텍스트: ${visibleTexts.map(v => `씬${v.idx}(${v.sceneId}):"${v.text.substring(0, 20)}..."`).join(', ')}`)
-    }
-    
-    // 현재 씬의 텍스트 객체가 없거나 보이지 않으면, 현재 표시되고 있는 텍스트 찾기
-    if (!targetTextObj || !targetTextObj.visible || targetTextObj.alpha === 0) {
-      textsRef.current.forEach((text, idx) => {
-        if (text && text.visible && text.alpha > 0) {
-          // 현재 표시되고 있는 텍스트가 같은 그룹의 씬인지 확인
-          const textScene = timeline.scenes[idx]
-          if (textScene?.sceneId === sceneId) {
-            targetTextObj = text
-            console.log(`[구간 선택] 현재 표시되고 있는 텍스트 객체 찾음: 씬 ${idx} (sceneId: ${sceneId})`)
-          }
-        }
-      })
-    }
-    
-    // 여전히 찾지 못했으면 같은 그룹 내 첫 번째 씬의 텍스트 사용
-    if (!targetTextObj && sceneId !== undefined) {
-      const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
-      if (firstSceneIndexInGroup >= 0) {
-        targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
-        console.log(`[구간 선택] 같은 그룹 내 첫 번째 씬의 텍스트 객체 사용: 씬 ${firstSceneIndexInGroup}`)
       }
     }
+    
+    // 같은 씬 내 구간 전환인지 확인
+    const isSameSceneTransition = currentSceneIndexRef.current === sceneIndex
     
     if (targetTextObj) {
-      const oldText = targetTextObj.text
-      const targetTextObjId = `text_${sceneIndex}_${Date.now()}`
-      // #region agent log
-      const targetTextObjAddress = String(targetTextObj)
-      const allTextObjects: Array<{idx: number, address: string, debugId: string}> = []
-      textsRef.current.forEach((text, idx) => {
-        if (text) {
-          allTextObjects.push({
-            idx,
-            address: String(text),
-            debugId: (text as PIXI.Text & { __debugId?: string }).__debugId || '없음'
-          })
-        }
-      })
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1194',message:'디버그 ID 설정 전',data:{targetTextObjAddress,oldText,sceneIndex,partText,currentDebugId:(targetTextObj as PIXI.Text & { __debugId?: string }).__debugId || '없음',allTextObjects},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-      ;(targetTextObj as PIXI.Text & { __debugId?: string }).__debugId = targetTextObjId
-      // #region agent log
-      const allTextObjectsAfter: Array<{idx: number, address: string, debugId: string}> = []
-      textsRef.current.forEach((text, idx) => {
-        if (text) {
-          allTextObjectsAfter.push({
-            idx,
-            address: String(text),
-            debugId: (text as PIXI.Text & { __debugId?: string }).__debugId || '없음'
-          })
-        }
-      })
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1197',message:'디버그 ID 설정 후',data:{targetTextObjAddress,debugId:targetTextObjId,verifiedDebugId:(targetTextObj as PIXI.Text & { __debugId?: string }).__debugId,allTextObjectsAfter},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-      
-      console.log(`[구간 선택] 텍스트 객체 찾음: 씬${sceneIndex}, 이전:"${oldText}" -> 새:"${partText}", 디버그ID:${targetTextObjId}`)
-      
+      // 텍스트 업데이트
       targetTextObj.text = partText
+      targetTextObj.visible = true
+      targetTextObj.alpha = 1
       
-      // 전환 효과가 진행 중이면 visible과 alpha는 변경하지 않음 (전환 효과가 완료되면 자동으로 표시됨)
-      // 전환 효과가 진행 중이 아니면 visible과 alpha를 설정
-      if (!isPreviewingTransition) {
-        targetTextObj.visible = true
-        targetTextObj.alpha = 1
-        
-        // 스프라이트도 표시되어야 함 (같은 씬 인덱스의 스프라이트)
-        const currentSprite = spritesRef.current.get(sceneIndex)
-        if (currentSprite) {
-          currentSprite.visible = true
-          currentSprite.alpha = 1
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1235',message:'스프라이트 표시',data:{sceneIndex,spriteVisible:currentSprite.visible,spriteAlpha:currentSprite.alpha},timestamp:Date.now(),sessionId:'debug-session',runId:'run17',hypothesisId:'F'})}).catch(()=>{});
-          // #endregion
-        } else {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1240',message:'스프라이트 없음',data:{sceneIndex,spritesRefSize:spritesRef.current.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run17',hypothesisId:'F'})}).catch(()=>{});
-          // #endregion
-        }
-        
-        // 화면에 즉시 렌더링 (updateCurrentScene이 호출되지 않으므로 수동으로 렌더링)
+      // 스프라이트 표시
+      const currentSprite = spritesRef.current.get(sceneIndex)
+      if (currentSprite) {
+        currentSprite.visible = true
+        currentSprite.alpha = 1
+      }
+      
+      // 같은 씬 내 구간 전환인 경우: 자막만 업데이트 (전환 효과 없음)
+      if (isSameSceneTransition) {
         if (appRef.current) {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1248',message:'렌더링 전 상태',data:{sceneIndex,textVisible:targetTextObj.visible,textAlpha:targetTextObj.alpha,textText:targetTextObj.text,spriteVisible:currentSprite?.visible,spriteAlpha:currentSprite?.alpha},timestamp:Date.now(),sessionId:'debug-session',runId:'run17',hypothesisId:'F'})}).catch(()=>{});
-          // #endregion
           appRef.current.render()
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1251',message:'렌더링 완료',data:{sceneIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run17',hypothesisId:'F'})}).catch(()=>{});
-          // #endregion
         }
-      } else {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1236',message:'전환 효과 진행 중 - 텍스트만 업데이트, visible/alpha 변경 안함',data:{sceneIndex,partText,isPreviewingTransition,textVisible:targetTextObj.visible,textAlpha:targetTextObj.alpha},timestamp:Date.now(),sessionId:'debug-session',runId:'run17',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
+        setSelectedPart({ sceneIndex, partIndex })
+        return
       }
       
-      // 스타일도 다시 적용하여 텍스트가 제대로 표시되도록 함
-      if (targetTextObj.style) {
-        targetTextObj.style.wordWrap = true
-        targetTextObj.style.wordWrapWidth = targetTextObj.width || 800
-      }
-      
-      // textsRef.current에 명시적으로 저장하여 updateCurrentScene에서 찾을 수 있도록 함
-      const targetTextObjAddressBeforeSet = String(targetTextObj)
-      const targetTextObjDebugIdBeforeSet = targetTextObjId
-      const targetTextObjTextBeforeSet = targetTextObj.text
-      textsRef.current.set(sceneIndex, targetTextObj)
-      // 저장 후 확인
-      const savedTextObj = textsRef.current.get(sceneIndex)
-      const savedTextObjAddress = savedTextObj ? String(savedTextObj) : 'null'
-      const savedTextObjDebugId = savedTextObj ? ((savedTextObj as PIXI.Text & { __debugId?: string }).__debugId || '없음') : 'null'
-      const savedTextObjText = savedTextObj?.text || 'null'
-      const areSameObject = targetTextObj === savedTextObj
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1244',message:'textsRef에 텍스트 객체 저장',data:{sceneIndex,textText:targetTextObj.text,textVisible:targetTextObj.visible,textAlpha:targetTextObj.alpha,debugId:targetTextObjId,isPreviewingTransition,targetTextObjAddressBeforeSet,targetTextObjDebugIdBeforeSet,targetTextObjTextBeforeSet,savedTextObjAddress,savedTextObjDebugId,savedTextObjText,areSameObject},timestamp:Date.now(),sessionId:'debug-session',runId:'run49',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
-      // 저장 직후 다시 확인 (다른 코드 경로에서 변경되었는지 확인)
-      setTimeout(() => {
-        const textObjAfterSet = textsRef.current.get(sceneIndex)
-        const textObjDebugIdAfterSet = textObjAfterSet ? ((textObjAfterSet as PIXI.Text & { __debugId?: string }).__debugId || '없음') : 'null'
-        const textObjTextAfterSet = textObjAfterSet?.text || 'null'
-        const textObjAddressAfterSet = textObjAfterSet ? String(textObjAfterSet) : 'null'
-        const areStillSameObject = targetTextObj === textObjAfterSet
-        const debugIdChanged = textObjDebugIdAfterSet !== targetTextObjDebugIdBeforeSet
-        const textChanged = textObjTextAfterSet !== targetTextObjTextBeforeSet
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1300',message:'textsRef에 텍스트 객체 저장 후 100ms 확인',data:{sceneIndex,targetTextObjAddressBeforeSet,textObjAddressAfterSet,targetTextObjDebugIdBeforeSet,textObjDebugIdAfterSet,targetTextObjTextBeforeSet,textObjTextAfterSet,areStillSameObject,debugIdChanged,textChanged},timestamp:Date.now(),sessionId:'debug-session',runId:'run53',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-      }, 100)
-      
-      updatedCount++
-      
-      // 렌더링이 완료되었으므로 플래그 리셋 (다음 updateCurrentScene 호출을 허용)
-      // React 상태 업데이트와 다음 렌더링 사이클을 기다리기 위해 requestAnimationFrame 사용
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          // updateCurrentScene 호출 전에 textsRef에 저장한 텍스트 객체가 여전히 유지되는지 확인
-          const textObjBeforeUpdate = textsRef.current.get(sceneIndex)
-          const textObjDebugIdBeforeUpdate = textObjBeforeUpdate ? ((textObjBeforeUpdate as PIXI.Text & { __debugId?: string }).__debugId || '없음') : 'null'
-          const textObjTextBeforeUpdate = textObjBeforeUpdate?.text || 'null'
-          const textObjAddressBeforeUpdate = textObjBeforeUpdate ? String(textObjBeforeUpdate) : 'null'
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1305',message:'requestAnimationFrame 내부 - updateCurrentScene 호출 전 textsRef 확인',data:{sceneIndex,textObjDebugIdBeforeUpdate,textObjTextBeforeUpdate,textObjAddressBeforeUpdate,savedTextObjAddress:targetTextObjAddressBeforeSet,areSameObject:textObjAddressBeforeUpdate === targetTextObjAddressBeforeSet},timestamp:Date.now(),sessionId:'debug-session',runId:'run52',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
-          
-          isManualSceneSelectRef.current = false
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1275',message:'플래그 리셋',data:{sceneIndex,isManualSceneSelect:isManualSceneSelectRef.current,isPreviewingTransition},timestamp:Date.now(),sessionId:'debug-session',runId:'run16',hypothesisId:'G'})}).catch(()=>{});
-          // #endregion
-          
-          // 전환 효과가 진행 중이면 updateCurrentScene을 호출하지 않음
-          // 전환 효과가 완료되면 자동으로 텍스트가 표시될 것
-          if (isPreviewingTransition) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1288',message:'전환 효과 진행 중 - updateCurrentScene 호출 스킵',data:{sceneIndex,isPreviewingTransition},timestamp:Date.now(),sessionId:'debug-session',runId:'run16',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-            return
-          }
-          
-          // 플래그 리셋 후 updateCurrentScene을 명시적으로 호출하여 화면 업데이트 보장
-          // 이 시점에서 timeline 상태가 업데이트되었을 것
-          // 전환 효과를 보여주기 위해 skipAnimation: false로 호출
-          // 같은 씬 내 구간 전환을 감지하기 위해 previousIndex를 현재 씬 인덱스로 전달
-          // updateCurrentScene 호출 전에 플래그를 다시 false로 설정하여 updateCurrentScene이 정상 작동하도록 함
-          const previousIndexForUpdate = currentSceneIndexRef.current === sceneIndex ? sceneIndex : currentSceneIndexRef.current
-          // #region agent log
-          const textsRefBeforeUpdate: Array<{idx: number, address: string, debugId: string, text: string, visible: boolean, alpha: number}> = []
-          textsRef.current.forEach((text, idx) => {
-            if (text) {
-              textsRefBeforeUpdate.push({
-                idx,
-                address: String(text),
-                debugId: (text as PIXI.Text & { __debugId?: string }).__debugId || '없음',
-                text: text.text || '',
-                visible: text.visible,
-                alpha: text.alpha
-              })
-            }
-          })
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1288',message:'updateCurrentScene 호출 전 (전환 효과 포함)',data:{sceneIndex,previousIndexForUpdate,currentSceneIndex:currentSceneIndexRef.current,skipAnimation:false,isManualSceneSelect:isManualSceneSelectRef.current,isPreviewingTransition,textsRefBeforeUpdate},timestamp:Date.now(),sessionId:'debug-session',runId:'run16',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
-          updateCurrentScene(false, previousIndexForUpdate, undefined, undefined)
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1291',message:'플래그 리셋 후 updateCurrentScene 호출 완료',data:{sceneIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run16',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
-        })
-      })
-      
-      console.log(`[구간 선택] ✅ 텍스트 업데이트 완료: "${oldText}" -> "${partText}" (디버그ID: ${targetTextObjId})`)
-      
-      // 같은 그룹 내의 다른 씬의 텍스트 객체도 업데이트 (보이지 않는 경우에도)
-      sameGroupIndices.forEach((idx) => {
-        if (idx !== sceneIndex) {
-          const text = textsRef.current.get(idx)
-          if (text && text !== targetTextObj) {
-            // 같은 그룹 내에서의 순서 확인
-            const sameGroupScenes = timeline.scenes
-              .map((s, i) => ({ scene: s, index: i }))
-              .filter(({ scene: s }) => sceneId !== undefined && s.sceneId === sceneId)
-              .sort((a, b) => a.index - b.index)
-            
-            const groupIndex = sameGroupScenes.findIndex(({ index }) => index === idx)
-            
-            if (groupIndex >= 0) {
-              // 같은 그룹의 다른 씬: 원본 script에서 해당 구간 텍스트 가져오기
-              const sceneScript = scenes.find((s) => s.sceneId === sceneId)
-              if (sceneScript?.script) {
-                const parts = sceneScript.script.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
-                const textToDisplay = parts[groupIndex] || ''
-                if (textToDisplay) {
-                  text.text = textToDisplay
-                  text.visible = false // 보이지 않는 씬의 텍스트는 숨김
-                  text.alpha = 0
-                }
-              }
-            }
-          }
-        }
-      })
-    }
-    
-    if (updatedCount === 0) {
-      // 텍스트 객체를 찾지 못했을 때
-      console.warn(`[구간 선택] 텍스트 객체를 찾을 수 없음 (씬 ${sceneIndex}, textsRef 크기: ${textsRef.current.size})`)
-      
-      // 텍스트 객체가 없으면 loadAllScenes를 호출하여 텍스트 객체를 생성
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1349',message:'텍스트 객체 없음 - loadAllScenes 호출',data:{sceneIndex,textsRefSize:textsRef.current.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run14',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
+      // 다른 씬으로 이동하는 경우: updateCurrentScene 호출하여 전환 효과 적용
+      currentSceneIndexRef.current = sceneIndex
+      setCurrentSceneIndex(sceneIndex)
+      updateCurrentScene(false, currentSceneIndexRef.current, undefined, undefined)
+    } else {
+      // 텍스트 객체가 없으면 loadAllScenes 호출
       loadAllScenes().then(() => {
-        // loadAllScenes 완료 후 텍스트 업데이트
         setTimeout(() => {
-          let text = textsRef.current.get(sceneIndex)
-          if (!text) {
-            // 현재 표시되고 있는 텍스트 찾기
-            textsRef.current.forEach((t, idx) => {
-              if (t && t.visible && t.alpha > 0) {
-                const textScene = timeline.scenes[idx]
-                const currentScene = timeline.scenes[sceneIndex]
-                if (textScene?.sceneId === currentScene?.sceneId) {
-                  text = t
-                }
-              }
-            })
+          let text = textsRef.current.get(sceneIndex) || undefined
+          if (!text && sceneId !== undefined) {
+            const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+            if (firstSceneIndexInGroup >= 0) {
+              text = textsRef.current.get(firstSceneIndexInGroup) || undefined
+            }
           }
+          
           if (text) {
             text.text = partText
             text.visible = true
             text.alpha = 1
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1370',message:'loadAllScenes 후 텍스트 업데이트 완료',data:{sceneIndex,partText,textText:text.text},timestamp:Date.now(),sessionId:'debug-session',runId:'run14',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-            console.log(`[구간 선택] loadAllScenes 후 텍스트 업데이트 완료: "${partText}"`)
             
-            // 텍스트 업데이트 후 updateCurrentScene 호출하여 전환 효과 적용
-            const previousIndexForUpdate = currentSceneIndexRef.current === sceneIndex ? sceneIndex : currentSceneIndexRef.current
-            currentSceneIndexRef.current = sceneIndex
-            setCurrentSceneIndex(sceneIndex)
-            updateCurrentScene(false, previousIndexForUpdate, undefined, undefined)
-          } else {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1383',message:'loadAllScenes 후에도 텍스트 객체를 찾을 수 없음',data:{sceneIndex,textsRefSize:textsRef.current.size,allTextObjects:Array.from(textsRef.current.entries()).map(([idx, t]) => ({idx, hasText:!!t,visible:t?.visible,alpha:t?.alpha}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run14',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-            console.error(`[구간 선택] loadAllScenes 후에도 텍스트 객체를 찾을 수 없음`)
+            if (isSameSceneTransition) {
+              if (appRef.current) {
+                appRef.current.render()
+              }
+            } else {
+              currentSceneIndexRef.current = sceneIndex
+              setCurrentSceneIndex(sceneIndex)
+              updateCurrentScene(false, currentSceneIndexRef.current, undefined, undefined)
+            }
           }
-          // 플래그 해제
-          isManualSceneSelectRef.current = false
         }, 100)
       })
-    } else {
-      // 텍스트 업데이트 성공
-      // 씬 선택 (해당 씬으로 이동) - 텍스트 업데이트 후 인덱스 업데이트
-      // 플래그가 이미 설정되어 있으므로 useEffect가 updateCurrentScene을 호출하지 않음
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1283',message:'setCurrentSceneIndex 호출 전',data:{sceneIndex,isManualSceneSelect:isManualSceneSelectRef.current,currentSceneIndexBefore:currentSceneIndexRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-      currentSceneIndexRef.current = sceneIndex
-      setCurrentSceneIndex(sceneIndex)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'page.tsx:1284',message:'setCurrentSceneIndex 호출 후',data:{sceneIndex,isManualSceneSelect:isManualSceneSelectRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
-      
-      // 플래그 해제 (더 긴 시간 대기하여 updateCurrentScene이 호출되지 않도록 함)
-      setTimeout(() => {
-        isManualSceneSelectRef.current = false
-      }, 500)
     }
     
-    // 선택된 구간 상태 업데이트
     setSelectedPart({ sceneIndex, partIndex })
-  }, [timeline, setTimeline, setCurrentSceneIndex, appRef, textsRef, currentSceneIndexRef, isManualSceneSelectRef, scenes, isPreviewingTransition])
+  }, [timeline, setTimeline, setCurrentSceneIndex, appRef, textsRef, currentSceneIndexRef, scenes, updateCurrentScene, loadAllScenes])
 
   useEffect(() => {
     currentSceneIndexRef.current = currentSceneIndex

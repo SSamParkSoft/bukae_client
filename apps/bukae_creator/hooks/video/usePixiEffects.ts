@@ -81,7 +81,7 @@ export const usePixiEffects = ({
     }
   }, [appRef, containerRef, particlesRef, stageDimensions])
 
-  // 전환 효과 적용 - 완전히 새로 작성
+  // 전환 효과 적용
   const applyEnterEffect = useCallback((
     toSprite: PIXI.Sprite | null,
     toText: PIXI.Text | null,
@@ -93,51 +93,21 @@ export const usePixiEffects = ({
     applyAdvancedEffectsFn: (sprite: PIXI.Sprite, sceneIndex: number, effects?: TimelineScene['advancedEffects']) => void,
     forceTransition?: string,
     onComplete?: (toText?: PIXI.Text | null) => void,
-    _previousIndex?: number | null, // 추가 (현재 미사용, 향후 확장용)
-    groupTransitionTimelinesRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>, // 그룹별 Timeline 추적
-    sceneId?: number // 현재 씬의 sceneId
+    _previousIndex?: number | null,
+    groupTransitionTimelinesRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>,
+    sceneId?: number
   ) => {
-    // applyEnterEffect 호출 시 toText 객체의 상태를 로깅
-    // #region agent log
-    if (toText) {
-      const toTextDebugIdOnEntry = (toText as PIXI.Text & { __debugId?: string }).__debugId || '없음'
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:100',message:'applyEnterEffect 진입 시 toText 상태',data:{sceneIndex,toTextAddress:String(toText),debugId:toTextDebugIdOnEntry,textText:toText.text,visible:toText.visible,alpha:toText.alpha},timestamp:Date.now(),sessionId:'debug-session',runId:'run34',hypothesisId:'A'})}).catch(()=>{});
-    }
-    // #endregion
-    
-    // handleScenePartSelect에서 설정한 텍스트를 저장 (전환 효과 애니메이션 중 유지하기 위해)
-    // ref를 사용하여 전환 효과 중 텍스트가 변경되었는지 추적
-    const savedTextRef = { value: toText ? toText.text : null }
-    const savedDebugId = toText ? (toText as PIXI.Text & { __debugId?: string }).__debugId : null
-    // #region agent log
-    if (toText) {
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:100',message:'전환 효과 시작 시 텍스트 저장',data:{sceneIndex,textText:savedTextRef.value,debugId:savedDebugId || '없음'},timestamp:Date.now(),sessionId:'debug-session',runId:'run24',hypothesisId:'A'})}).catch(()=>{});
-    }
-    // #endregion
-    
-    // 그룹의 마지막 씬인지 확인 (움직임 효과인 경우)
-    const isMovementEffect = sceneId !== undefined && MOVEMENT_EFFECTS.includes(transition)
-    
-    // 각 씬이 자신의 duration만큼만 전환 효과 사용
-    // 움직임 효과인 경우에도 각 씬의 duration 사용
-    const actualDuration = duration
-    
-    const isLastInGroup = isMovementEffect && timeline && sceneId !== undefined
-      ? !timeline.scenes.some((s, idx) => idx > sceneIndex && s.sceneId === sceneId)
-      : true // 움직임 효과가 아니면 항상 마지막으로 간주
-    // 현재는 사용하지 않지만, 향후 이전 씬 정보 활용을 위해 자리 유지
-    void _previousIndex
-    const actualTransition = (forceTransition || transition || 'none').trim().toLowerCase()
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:112',message:'applyEnterEffect 시작',data:{sceneIndex,transition:actualTransition,duration,toSprite:!!toSprite,toText:!!toText,hasApp:!!appRef.current,hasContainer:!!containerRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     if (!toSprite || !appRef.current || !containerRef.current) {
-      console.error(`[전환효과] 필수 요소 없음`)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:115',message:'applyEnterEffect 필수 요소 없음으로 리턴',data:{toSprite:!!toSprite,hasApp:!!appRef.current,hasContainer:!!containerRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       return
     }
+    
+    const actualTransition = (forceTransition || transition || 'none').trim().toLowerCase()
+    const isMovementEffect = sceneId !== undefined && MOVEMENT_EFFECTS.includes(actualTransition)
+    const actualDuration = duration
+    const isLastInGroup = isMovementEffect && timeline && sceneId !== undefined
+      ? !timeline.scenes.some((s, idx) => idx > sceneIndex && s.sceneId === sceneId)
+      : true
+    void _previousIndex
     
     // transition이 'none'이면 애니메이션 없이 즉시 표시
     if (actualTransition === 'none') {
@@ -230,21 +200,10 @@ export const usePixiEffects = ({
       appRef.current.render()
     }
 
-    // Timeline 생성 (이전 코드처럼 자동 재생되도록 - paused 옵션 없음)
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:209',message:'Timeline 생성 시작',data:{sceneIndex,transition:actualTransition,duration,playbackSpeed},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
+    // Timeline 생성
     const tl = gsap.timeline({
-      timeScale: playbackSpeed, // 배속에 맞게 애니메이션 속도 조정
-      onStart: () => {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:213',message:'Timeline 시작',data:{sceneIndex,transition:actualTransition},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-      },
+      timeScale: playbackSpeed,
       onComplete: () => {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:216',message:'Timeline 완료',data:{sceneIndex,transition:actualTransition},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
         
         // 전환 효과 완료 후 이전 씬 숨기기
         // 이전 씬 인덱스는 updateCurrentScene에서 전달받아야 함
@@ -255,39 +214,8 @@ export const usePixiEffects = ({
           toSprite.alpha = 1
         }
         if (toText) {
-          // handleScenePartSelect에서 설정한 텍스트 확인
-          // 디버그 ID가 있거나, 텍스트가 저장된 텍스트와 다르면 handleScenePartSelect에서 업데이트된 것으로 간주
-          const currentDebugId = (toText as PIXI.Text & { __debugId?: string }).__debugId
-          const isManuallyUpdated = (currentDebugId && currentDebugId.startsWith('text_')) || 
-            (toText.text && toText.text !== savedTextRef.value && toText.text !== '와 대박!')
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:250',message:'Timeline 완료 후 텍스트 복원 시작',data:{sceneIndex,currentDebugId:currentDebugId || '없음',currentTextText:toText.text,savedText:savedTextRef.value,savedDebugId:savedDebugId || '없음',isManuallyUpdated,toTextAddress:String(toText)},timestamp:Date.now(),sessionId:'debug-session',runId:'run32',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
-          
-          if (isManuallyUpdated) {
-            // handleScenePartSelect에서 업데이트한 텍스트를 유지 (복원하지 않음)
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:239',message:'Timeline 완료 후 수동 업데이트된 텍스트 유지',data:{sceneIndex,textText:toText.text,debugId:currentDebugId || '없음',savedText:savedTextRef.value},timestamp:Date.now(),sessionId:'debug-session',runId:'run24',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-          } else if (savedTextRef.value && savedTextRef.value !== toText.text) {
-            // 저장된 텍스트로 복원
-            toText.text = savedTextRef.value
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:245',message:'Timeline 완료 후 텍스트 복원',data:{sceneIndex,oldText:toText.text,newText:savedTextRef.value,debugId:savedDebugId || '없음'},timestamp:Date.now(),sessionId:'debug-session',runId:'run24',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-          }
-          // 디버그 ID도 복원 (수동 업데이트가 아닌 경우에만)
-          if (!isManuallyUpdated && savedDebugId && savedDebugId.startsWith('text_')) {
-            (toText as PIXI.Text & { __debugId?: string }).__debugId = savedDebugId
-          }
-          // visible과 alpha 설정
           toText.visible = true
           toText.alpha = 1
-          // #region agent log
-          const finalDebugId = (toText as PIXI.Text & { __debugId?: string }).__debugId || '없음'
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:258',message:'Timeline 완료 후 텍스트 상태',data:{sceneIndex,textText:toText.text,debugId:finalDebugId,visible:toText.visible,alpha:toText.alpha,isManuallyUpdated,toTextAddress:String(toText)},timestamp:Date.now(),sessionId:'debug-session',runId:'run32',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
         }
         if (appRef.current) {
           appRef.current.render()
@@ -305,25 +233,8 @@ export const usePixiEffects = ({
         
         activeAnimationsRef.current.delete(sceneIndex)
         
-        // 전달된 onComplete 콜백이 있으면 우선 호출 (재생 중 다음 씬으로 넘어갈 때 사용)
-        // onComplete 호출 전에 toText 객체의 상태를 로깅
-        if (toText) {
-          const finalDebugIdBeforeOnComplete = (toText as PIXI.Text & { __debugId?: string }).__debugId || '없음'
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:297',message:'onComplete 호출 전 toText 상태',data:{sceneIndex,toTextAddress:String(toText),debugId:finalDebugIdBeforeOnComplete,textText:toText.text,visible:toText.visible,alpha:toText.alpha},timestamp:Date.now(),sessionId:'debug-session',runId:'run33',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
-        }
-        
         if (onComplete) {
           onComplete(toText)
-        }
-        
-        // onComplete 호출 후에 toText 객체의 상태를 로깅
-        if (toText) {
-          const finalDebugIdAfterOnComplete = (toText as PIXI.Text & { __debugId?: string }).__debugId || '없음'
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:310',message:'onComplete 호출 후 toText 상태',data:{sceneIndex,toTextAddress:String(toText),debugId:finalDebugIdAfterOnComplete,textText:toText.text,visible:toText.visible,alpha:toText.alpha},timestamp:Date.now(),sessionId:'debug-session',runId:'run33',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
         }
         
         // 기존 onAnimationComplete도 호출 (다른 용도로 사용될 수 있음)
@@ -399,33 +310,8 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // handleScenePartSelect에서 설정한 텍스트를 유지하기 위해 텍스트 내용은 변경하지 않음
-                // handleScenePartSelect에서 설정한 텍스트가 있으면 alpha를 변경하지 않음 (깜빡임 방지)
-                const currentDebugId = (toText as PIXI.Text & { __debugId?: string }).__debugId
-                const isManuallyUpdated = currentDebugId && currentDebugId.startsWith('text_')
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:375',message:'fade onUpdate - 텍스트 alpha 업데이트 전',data:{sceneIndex,currentDebugId:currentDebugId || '없음',isManuallyUpdated,fadeObjAlpha:fadeObj.alpha,currentTextAlpha:toText.alpha,currentTextText:toText.text},timestamp:Date.now(),sessionId:'debug-session',runId:'run26',hypothesisId:'A'})}).catch(()=>{});
-                // #endregion
-                if (isManuallyUpdated) {
-                  // 수동 업데이트된 텍스트는 alpha를 변경하지 않음 (깜빡임 방지)
-                  // visible은 항상 true로 유지
-                  toText.visible = true
-                  // alpha는 변경하지 않음 (현재 alpha 유지)
-                  // #region agent log
-                  fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:385',message:'fade onUpdate - 수동 업데이트된 텍스트 alpha 유지',data:{sceneIndex,currentDebugId,currentTextAlpha:toText.alpha,currentTextText:toText.text},timestamp:Date.now(),sessionId:'debug-session',runId:'run26',hypothesisId:'A'})}).catch(()=>{});
-                  // #endregion
-                  // 저장된 텍스트를 업데이트하여 전환 효과 완료 후 복원하지 않도록 함
-                  if (toText.text !== savedTextRef.value) {
-                    // #region agent log
-                    fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:338',message:'전환 효과 중 텍스트 업데이트 감지',data:{sceneIndex,oldSavedText:savedTextRef.value,newText:toText.text,debugId:currentDebugId},timestamp:Date.now(),sessionId:'debug-session',runId:'run26',hypothesisId:'A'})}).catch(()=>{});
-                    // #endregion
-                    savedTextRef.value = toText.text
-                  }
-                } else {
-                  // 수동 업데이트되지 않은 텍스트는 alpha 업데이트
-                  toText.alpha = fadeObj.alpha
-                  toText.visible = true
-                }
+                toText.alpha = fadeObj.alpha
+                toText.visible = true
               }
               
               // PixiJS 렌더링 강제 실행
@@ -485,29 +371,8 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // handleScenePartSelect에서 설정한 텍스트를 유지하기 위해 텍스트 내용은 변경하지 않음
-                // handleScenePartSelect에서 설정한 텍스트가 있으면 alpha를 변경하지 않음 (깜빡임 방지)
-                const currentDebugId = (toText as PIXI.Text & { __debugId?: string }).__debugId
-                const isManuallyUpdated = currentDebugId && currentDebugId.startsWith('text_')
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:461',message:'slide-left onUpdate - 텍스트 alpha 업데이트 전',data:{sceneIndex,currentDebugId:currentDebugId || '없음',isManuallyUpdated,currentTextAlpha:toText.alpha,currentTextText:toText.text},timestamp:Date.now(),sessionId:'debug-session',runId:'run27',hypothesisId:'A'})}).catch(()=>{});
-                // #endregion
-                if (isManuallyUpdated) {
-                  // 수동 업데이트된 텍스트는 alpha를 변경하지 않음 (깜빡임 방지)
-                  toText.visible = true
-                  // alpha는 변경하지 않음 (현재 alpha 유지)
-                  // #region agent log
-                  fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'usePixiEffects.ts:470',message:'slide-left onUpdate - 수동 업데이트된 텍스트 alpha 유지',data:{sceneIndex,currentDebugId,currentTextAlpha:toText.alpha,currentTextText:toText.text},timestamp:Date.now(),sessionId:'debug-session',runId:'run27',hypothesisId:'A'})}).catch(()=>{});
-                  // #endregion
-                  // 저장된 텍스트를 업데이트하여 전환 효과 완료 후 복원하지 않도록 함
-                  if (toText.text !== savedTextRef.value) {
-                    savedTextRef.value = toText.text
-                  }
-                } else {
-                  // 수동 업데이트되지 않은 텍스트는 alpha 업데이트
-                  toText.alpha = 1 // 텍스트도 페이드 없이 표시
-                  toText.visible = true
-                }
+                toText.alpha = 1
+                toText.visible = true
               }
               
               if (appRef.current) {
@@ -555,22 +420,8 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // handleScenePartSelect에서 설정한 텍스트를 유지하기 위해 텍스트 내용은 변경하지 않음
-                // handleScenePartSelect에서 설정한 텍스트가 있으면 alpha를 변경하지 않음 (깜빡임 방지)
-                const currentDebugId = (toText as PIXI.Text & { __debugId?: string }).__debugId
-                const isManuallyUpdated = currentDebugId && currentDebugId.startsWith('text_')
-                if (isManuallyUpdated) {
-                  // 수동 업데이트된 텍스트는 alpha를 변경하지 않음 (깜빡임 방지)
-                  toText.visible = true
-                  // 저장된 텍스트를 업데이트하여 전환 효과 완료 후 복원하지 않도록 함
-                  if (toText.text !== savedTextRef.value) {
-                    savedTextRef.value = toText.text
-                  }
-                } else {
-                  // 수동 업데이트되지 않은 텍스트는 alpha 업데이트
-                  toText.alpha = 1 // 텍스트도 페이드 없이 표시
-                  toText.visible = true
-                }
+                toText.alpha = 1
+                toText.visible = true
               }
               
               if (appRef.current) {
@@ -618,22 +469,8 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // handleScenePartSelect에서 설정한 텍스트를 유지하기 위해 텍스트 내용은 변경하지 않음
-                // handleScenePartSelect에서 설정한 텍스트가 있으면 alpha를 변경하지 않음 (깜빡임 방지)
-                const currentDebugId = (toText as PIXI.Text & { __debugId?: string }).__debugId
-                const isManuallyUpdated = currentDebugId && currentDebugId.startsWith('text_')
-                if (isManuallyUpdated) {
-                  // 수동 업데이트된 텍스트는 alpha를 변경하지 않음 (깜빡임 방지)
-                  toText.visible = true
-                  // 저장된 텍스트를 업데이트하여 전환 효과 완료 후 복원하지 않도록 함
-                  if (toText.text !== savedTextRef.value) {
-                    savedTextRef.value = toText.text
-                  }
-                } else {
-                  // 수동 업데이트되지 않은 텍스트는 alpha 업데이트
-                  toText.alpha = 1 // 텍스트도 페이드 없이 표시
-                  toText.visible = true
-                }
+                toText.alpha = 1
+                toText.visible = true
               }
               
               if (appRef.current) {
@@ -681,22 +518,8 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // handleScenePartSelect에서 설정한 텍스트를 유지하기 위해 텍스트 내용은 변경하지 않음
-                // handleScenePartSelect에서 설정한 텍스트가 있으면 alpha를 변경하지 않음 (깜빡임 방지)
-                const currentDebugId = (toText as PIXI.Text & { __debugId?: string }).__debugId
-                const isManuallyUpdated = currentDebugId && currentDebugId.startsWith('text_')
-                if (isManuallyUpdated) {
-                  // 수동 업데이트된 텍스트는 alpha를 변경하지 않음 (깜빡임 방지)
-                  toText.visible = true
-                  // 저장된 텍스트를 업데이트하여 전환 효과 완료 후 복원하지 않도록 함
-                  if (toText.text !== savedTextRef.value) {
-                    savedTextRef.value = toText.text
-                  }
-                } else {
-                  // 수동 업데이트되지 않은 텍스트는 alpha 업데이트
-                  toText.alpha = 1 // 텍스트도 페이드 없이 표시
-                  toText.visible = true
-                }
+                toText.alpha = 1
+                toText.visible = true
               }
               
               if (appRef.current) {
@@ -764,22 +587,9 @@ export const usePixiEffects = ({
                 }
                 // handleScenePartSelect에서 설정한 텍스트를 유지하기 위해 텍스트 내용은 변경하지 않음
                 // handleScenePartSelect에서 설정한 텍스트가 있으면 alpha를 변경하지 않음 (깜빡임 방지)
-                const currentDebugId = (toText as PIXI.Text & { __debugId?: string }).__debugId
-                const isManuallyUpdated = currentDebugId && currentDebugId.startsWith('text_')
-                if (isManuallyUpdated) {
-                  // 수동 업데이트된 텍스트는 alpha를 변경하지 않음 (깜빡임 방지)
-                  toText.visible = true
-                  // 저장된 텍스트를 업데이트하여 전환 효과 완료 후 복원하지 않도록 함
-                  if (toText.text !== savedTextRef.value) {
-                    savedTextRef.value = toText.text
-                  }
-                } else {
-                  // 수동 업데이트되지 않은 텍스트는 alpha 업데이트
-                  // 이미지와 동일한 alpha 값 사용 (동시에 나타남)
-                  textFadeObj.alpha = toZoomObj.alpha
-                  toText.alpha = textFadeObj.alpha
-                  toText.visible = true
-                }
+                textFadeObj.alpha = toZoomObj.alpha
+                toText.alpha = textFadeObj.alpha
+                toText.visible = true
               }
               
               if (appRef.current) {
@@ -845,24 +655,9 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // handleScenePartSelect에서 설정한 텍스트를 유지하기 위해 텍스트 내용은 변경하지 않음
-                // handleScenePartSelect에서 설정한 텍스트가 있으면 alpha를 변경하지 않음 (깜빡임 방지)
-                const currentDebugId = (toText as PIXI.Text & { __debugId?: string }).__debugId
-                const isManuallyUpdated = currentDebugId && currentDebugId.startsWith('text_')
-                if (isManuallyUpdated) {
-                  // 수동 업데이트된 텍스트는 alpha를 변경하지 않음 (깜빡임 방지)
-                  toText.visible = true
-                  // 저장된 텍스트를 업데이트하여 전환 효과 완료 후 복원하지 않도록 함
-                  if (toText.text !== savedTextRef.value) {
-                    savedTextRef.value = toText.text
-                  }
-                } else {
-                  // 수동 업데이트되지 않은 텍스트는 alpha 업데이트
-                  // 이미지와 동일한 alpha 값 사용 (동시에 나타남)
-                  textFadeObj.alpha = toZoomOutObj.alpha
-                  toText.alpha = textFadeObj.alpha
-                  toText.visible = true
-                }
+                textFadeObj.alpha = toZoomOutObj.alpha
+                toText.alpha = textFadeObj.alpha
+                toText.visible = true
               }
               
               if (appRef.current) {
