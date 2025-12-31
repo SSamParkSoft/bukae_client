@@ -10,7 +10,8 @@ export const formatTime = (seconds: number): string => {
 }
 
 /**
- * 대본 길이 기반 자동 duration을 계산합니다 (대략 초당 8글자, 1~5초 범위).
+ * 대본 길이 기반 자동 duration을 계산합니다 (대략 초당 8글자, 최소 1초).
+ * 실제 TTS duration이 계산되면 재생 버튼 클릭 시 Timeline이 업데이트됩니다.
  * @param script 대본 텍스트
  * @returns 계산된 duration (초)
  */
@@ -18,6 +19,6 @@ export const getSceneDuration = (script: string): number => {
   if (!script) return 2.5
   const length = script.replace(/\s+/g, '').length
   const raw = length / 8
-  return Math.max(1, Math.min(5, raw))
+  return Math.max(1, raw) // 최대 제한 제거, 최소 1초만 유지
 }
 

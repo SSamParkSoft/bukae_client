@@ -44,6 +44,7 @@ interface UseVideoPlaybackParams {
   loadAllScenes?: () => Promise<void>
   setShowReadyMessage?: (show: boolean) => void
   setCurrentTime?: (time: number) => void
+  setSceneDurationFromAudio?: (sceneIndex: number, durationSec: number) => void
 }
 
 export function useVideoPlayback({
@@ -75,6 +76,7 @@ export function useVideoPlayback({
   loadAllScenes,
   setShowReadyMessage,
   setCurrentTime,
+  setSceneDurationFromAudio,
 }: UseVideoPlaybackParams) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPreparing, setIsPreparingLocal] = useState(false)
@@ -284,36 +286,99 @@ export function useVideoPlayback({
     setIsPlaying(true)
     isPlayingRef.current = true
     
-    // TTS 전체 길이 계산 및 BGM 페이드 아웃 설정
-    const calculateTotalTtsDuration = (): number => {
-      let totalDuration = 0
-      for (let i = currentSceneIndex; i < timeline.scenes.length; i++) {
-        const markups = buildSceneMarkup(i)
-        // 각 구간의 duration 합산
-        let sceneDuration = 0
-        for (const markup of markups) {
-          const key = makeTtsKey(voiceTemplate!, markup)
-          const cached = ttsCacheRef.current.get(key)
-          if (cached) {
-            sceneDuration += cached.durationSec
-          }
-        }
-        if (sceneDuration > 0) {
-          totalDuration += sceneDuration
-        } else {
-          totalDuration += timeline.scenes[i]?.duration || 3
+    // 재생 시작 시간 기록
+    const playbackStartTime = Date.now()
+    
+    // 재생 버튼 클릭 시 TTS duration 계산 및 Timeline 업데이트
+    console.log(`[재생] 재생 버튼 클릭 - TTS duration 계산 및 Timeline 업데이트`)
+    
+    // 현재 Timeline 총 길이 계산 (23.5초가 어디서 나오는지 확인)
+    const currentTotalDuration = timeline.scenes.reduce((sum, scene, index) => {
+      const isLastScene = index === timeline.scenes.length - 1
+      const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
+      return sum + scene.duration + transitionDuration
+    }, 0)
+    console.log(`[Timeline 분석] 현재 Timeline 총 길이: ${currentTotalDuration.toFixed(2)}초`)
+    timeline.scenes.forEach((scene, index) => {
+      console.log(`[Timeline 분석]   씬 ${index}: duration=${scene.duration.toFixed(2)}초`)
+    })
+    
+    const sceneDurations: Array<{ sceneIndex: number; duration: number }> = []
+    
+    // 모든 씬의 TTS duration 계산 (캐시에 있는 것만)
+    for (let i = 0; i < timeline.scenes.length; i++) {
+      const markups = buildSceneMarkup(i)
+      let sceneDuration = 0
+      let hasCachedTts = false
+      
+      for (let partIndex = 0; partIndex < markups.length; partIndex++) {
+        const markup = markups[partIndex]
+        const key = makeTtsKey(voiceTemplate!, markup)
+        const cached = ttsCacheRef.current.get(key)
+        if (cached && cached.durationSec > 0) {
+          sceneDuration += cached.durationSec
+          hasCachedTts = true
         }
       }
-      return totalDuration
+      
+      const currentTimelineDuration = timeline.scenes[i]?.duration || 0
+      console.log(`[Timeline 분석] 씬 ${i}: Timeline=${currentTimelineDuration.toFixed(2)}초, TTS 캐시=${sceneDuration.toFixed(2)}초 (${hasCachedTts ? '있음' : '없음'})`)
+      
+      // 캐시에 TTS가 있으면 duration 사용
+      if (hasCachedTts && sceneDuration > 0) {
+        if (Math.abs(sceneDuration - currentTimelineDuration) > 0.05) {
+          sceneDurations.push({ sceneIndex: i, duration: sceneDuration })
+        }
+      }
     }
     
-    // BGM 페이드 아웃 설정
+    // Timeline 업데이트 (실제 TTS duration 사용, 제한 없음)
+    if (sceneDurations.length > 0 && setTimeline) {
+      const updatedScenes = timeline.scenes.map((scene, index) => {
+        const ttsDuration = sceneDurations.find(s => s.sceneIndex === index)
+        if (ttsDuration) {
+          // 최소 0.5초만 유지, 최대 제한 없음 (실제 duration 그대로 사용)
+          const clamped = Math.max(0.5, ttsDuration.duration)
+          console.log(`[Timeline 업데이트] 씬 ${index}: ${scene.duration.toFixed(2)}초 → ${clamped.toFixed(2)}초 (실제 TTS duration)`)
+          return { ...scene, duration: clamped }
+        }
+        return scene
+      })
+      
+      const newTimeline = {
+        ...timeline,
+        scenes: updatedScenes,
+      }
+      
+      // 업데이트 후 총 길이 계산
+      const updatedTotalDuration = updatedScenes.reduce((sum, scene, index) => {
+        const isLastScene = index === updatedScenes.length - 1
+        const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
+        return sum + scene.duration + transitionDuration
+      }, 0)
+      
+      setTimeline(newTimeline)
+      console.log(`[Timeline 업데이트] ✅ ${sceneDurations.length}개 씬 duration 업데이트 완료`)
+      console.log(`[Timeline 업데이트] 업데이트 후 총 길이: ${updatedTotalDuration.toFixed(2)}초 (이전: ${currentTotalDuration.toFixed(2)}초)`)
+    } else {
+      console.log(`[Timeline 업데이트] 업데이트할 씬이 없음 (sceneDurations.length=${sceneDurations.length}, setTimeline=${!!setTimeline})`)
+    }
+    
+    console.log(`[재생] 재생 시작 (씬 ${currentSceneIndex}부터)`)
+    
+    // BGM 페이드 아웃 설정 (Timeline duration 기반)
     const setupBgmFadeOut = () => {
       if (!bgmTemplate || !bgmAudioRef.current) return
       
-      const totalTtsDuration = calculateTotalTtsDuration()
+      // Timeline 기반 총 길이 계산
+      const totalTimelineDuration = timeline.scenes.reduce((sum, scene, index) => {
+        const isLastScene = index === timeline.scenes.length - 1
+        const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
+        return sum + scene.duration + transitionDuration
+      }, 0)
+      
       const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
-      const totalTimeMs = (totalTtsDuration * 1000) / speed
+      const totalTimeMs = (totalTimelineDuration * 1000) / speed
       const fadeDuration = 1000 // 1초 페이드
       const fadeStartTime = Math.max(0, totalTimeMs - fadeDuration)
       
@@ -350,11 +415,20 @@ export function useVideoPlayback({
     
     // 실제 재생 시작 로직은 playNextScene에서 처리
     let bgmStarted = false // BGM이 시작되었는지 추적
+    const actualPlaybackTimes: Array<{ sceneIndex: number; partIndex: number; expectedDuration: number; actualDuration: number; startTime: number; endTime: number }> = []
+    
     const playNextScene = async (currentIndex: number) => {
       if (currentIndex >= timeline.scenes.length) {
         setIsPlaying(false)
         isPlayingRef.current = false
         stopBgmAudio()
+        
+        // 재생 완료
+        const playbackEndTime = Date.now()
+        const actualTotalDuration = playbackEndTime - playbackStartTime
+        const actualTotalDurationSec = actualTotalDuration / 1000
+        console.log(`[재생] 재생 완료: 총 재생 시간 ${actualTotalDurationSec.toFixed(2)}초`)
+        
         return
       }
       
@@ -494,83 +568,41 @@ export function useVideoPlayback({
               return
             }
             const key = makeTtsKey(voiceTemplate, markup)
-            const accessToken = authStorage.getAccessToken()
-            if (!accessToken) {
-              console.error('[재생] 로그인이 필요합니다.')
-              return
-            }
-
-            // 캐시 확인
+            
+            // 캐시 확인 (재생 시작 전에 모든 TTS가 준비되어 있어야 함)
             const cached = ttsCacheRef.current.get(key)
             let part: { blob: Blob; durationSec: number; url: string | null } | null = null
 
-            if (cached && cached.blob) {
-              // 캐시에서 사용
+            if (cached && (cached.blob || cached.url)) {
+              // 캐시에서 사용 (blob 또는 url이 있으면 유효)
               part = {
-                blob: cached.blob,
+                blob: cached.blob!,
                 durationSec: cached.durationSec || 0,
                 url: cached.url || null,
               }
-              console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 캐시에서 사용`)
+              console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 캐시에서 사용 (duration: ${cached.durationSec}초)`)
             } else {
-              // TTS 생성
-              console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS 생성 중...`)
-              try {
-                const res = await fetch('/api/tts/synthesize', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-                  body: JSON.stringify({
-                    voiceName: voiceTemplate,
-                    mode: 'markup',
-                    markup,
-                  }),
-                })
-
-                if (!res.ok) {
-                  throw new Error('TTS 합성 실패')
-                }
-
-                const blob = await res.blob()
-                const durationSec = await getMp3DurationSec(blob)
-
-                // Supabase 업로드
-                let url: string | null = null
-                try {
-                  const formData = new FormData()
-                  formData.append('file', blob)
-                  formData.append('sceneId', String(scene.sceneId))
-
-                  const uploadRes = await fetch('/api/media/upload', {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${accessToken}` },
-                    body: formData,
-                  })
-
-                  if (uploadRes.ok) {
-                    const uploadData = await uploadRes.json()
-                    url = uploadData.url || null
-                  }
-                } catch (error) {
-                  console.error(`[재생] 구간 ${partIndex + 1} 업로드 실패:`, error)
-                }
-
-                // 캐시에 저장
-                const entry = { blob, durationSec, markup, url, sceneId: scene.sceneId, sceneIndex }
-                ttsCacheRef.current.set(key, entry)
-
-                part = { blob, durationSec, url }
-                console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS 생성 완료`)
-              } catch (error) {
-                console.error(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS 생성 실패:`, error)
-                // 다음 구간으로
-                if (partIndex < scriptParts.length - 1) {
-                  await playPart(partIndex + 1)
-                }
-                return
+              // 캐시에 없으면 에러 (재생 시작 전에 모든 TTS가 준비되어 있어야 함)
+              console.error(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS가 준비되지 않음 (재생 시작 전에 모든 TTS가 준비되어 있어야 함)`)
+              // 다음 구간으로
+              if (partIndex < scriptParts.length - 1) {
+                await playPart(partIndex + 1)
               }
+              return
             }
 
-            if (!part) {
+            if (!part || (!part.blob && !part.url)) {
+              // TTS가 없으면 다음 구간으로
+              console.warn(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS 데이터 없음`)
+              if (partIndex < scriptParts.length - 1) {
+                await playPart(partIndex + 1)
+              }
+              return
+            }
+            
+            // TTS duration이 없으면 에러
+            if (!part.durationSec || part.durationSec <= 0) {
+              console.error(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS duration이 없음`)
               // 다음 구간으로
               if (partIndex < scriptParts.length - 1) {
                 await playPart(partIndex + 1)
@@ -591,8 +623,9 @@ export function useVideoPlayback({
               console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} blob URL 생성`)
             }
 
-            // TTS duration만큼 정확히 표시
+            // TTS duration만큼 정확히 표시 (TTS duration을 기준으로 화면 전환 보장)
             const targetDuration = (part.durationSec * 1000) / speed
+            console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS duration: ${part.durationSec}초, 재생 시간: ${targetDuration}ms (배속: ${speed})`)
             
             if (audioUrl) {
               ttsAudioUrlRef.current = audioUrl
@@ -602,12 +635,43 @@ export function useVideoPlayback({
 
               await new Promise<void>((resolve) => {
                 const startTime = Date.now()
+                const partStartTime = startTime
                 let resolved = false
                 let playingStarted = false
+                let checkAudioProgress: NodeJS.Timeout | null = null
+                let audioActualDuration: number | null = null
 
                 const finish = () => {
                   if (resolved) return
                   resolved = true
+                  const endTime = Date.now()
+                  const actualDuration = (endTime - partStartTime) / 1000
+                  const expectedDuration = part.durationSec / speed
+                  
+                  // 실제 오디오 duration 확인
+                  if (audio && audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
+                    audioActualDuration = audio.duration / speed
+                  }
+                  
+                  // 재생 시간 기록
+                  actualPlaybackTimes.push({
+                    sceneIndex,
+                    partIndex,
+                    expectedDuration,
+                    actualDuration,
+                    startTime: partStartTime,
+                    endTime,
+                  })
+                  
+                  // 구간별 상세 로그
+                  const diff = actualDuration - expectedDuration
+                  const diffPercent = (diff / expectedDuration) * 100
+                  console.log(`[영상 길이 분석] 씬 ${sceneIndex} 구간 ${partIndex + 1} 완료: 예상=${expectedDuration.toFixed(2)}초, 실제=${actualDuration.toFixed(2)}초, 차이=${diff > 0 ? '+' : ''}${diff.toFixed(2)}초 (${diffPercent > 0 ? '+' : ''}${diffPercent.toFixed(1)}%)${audioActualDuration ? `, 오디오실제=${audioActualDuration.toFixed(2)}초` : ''}`)
+                  
+                  if (checkAudioProgress) {
+                    clearInterval(checkAudioProgress)
+                    checkAudioProgress = null
+                  }
                   stopTtsAudio()
                   resolve()
                 }
@@ -671,35 +735,96 @@ export function useVideoPlayback({
                 }
                 const progressInterval = setInterval(updateProgress, 100) // 100ms마다 업데이트
 
-                audio.onended = () => {
-                  clearInterval(progressInterval)
-                  finish()
-                }
-                
-                audio.onerror = () => {
-                  clearInterval(progressInterval)
-                  // 에러 발생 시 duration만큼 대기
-                  const elapsed = Date.now() - startTime
-                  const remaining = Math.max(0, targetDuration - elapsed)
-                  setTimeout(() => finish(), remaining)
-                }
-                
-                audio.play().catch(() => {
-                  // 재생 실패 시 duration만큼 대기
-                  setTimeout(() => {
+                // 오디오 재생 완료를 처리 (TTS가 끝나면 다음 씬으로 - duration 기반 타임아웃 없음)
+                // audio.play() 전에 이벤트를 등록해야 함
+                const handleEnded = () => {
+                  if (!resolved) {
+                    console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 오디오 재생 완료 (onended 이벤트) - currentTime: ${audio.currentTime.toFixed(2)}s, duration: ${audio.duration ? audio.duration.toFixed(2) : 'unknown'}s`)
                     clearInterval(progressInterval)
-                    finish()
-                  }, targetDuration)
-                })
-
-                // duration이 지나면 자동으로 다음 구간으로 (오디오가 끝나지 않아도)
-                setTimeout(() => {
-                  if (!resolved && audio && !audio.ended) {
-                    clearInterval(progressInterval)
-                    audio.pause()
+                    if (checkAudioProgress) {
+                      clearInterval(checkAudioProgress)
+                      checkAudioProgress = null
+                    }
+                    audio.removeEventListener('ended', handleEnded)
+                    audio.removeEventListener('error', handleError)
                     finish()
                   }
-                }, targetDuration)
+                }
+                
+                const handleError = () => {
+                  if (!resolved) {
+                    console.error(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 오디오 재생 에러`)
+                    clearInterval(progressInterval)
+                    if (checkAudioProgress) {
+                      clearInterval(checkAudioProgress)
+                      checkAudioProgress = null
+                    }
+                    audio.removeEventListener('ended', handleEnded)
+                    audio.removeEventListener('error', handleError)
+                    // 에러 발생 시 즉시 종료
+                    finish()
+                  }
+                }
+                
+                // 이벤트 리스너 등록 (play 전에 등록)
+                audio.addEventListener('ended', handleEnded)
+                audio.addEventListener('error', handleError)
+                
+                // 오디오 재생 상태를 주기적으로 확인하여 정확한 종료 시점 감지
+                // audio.onended가 트리거되지 않는 경우를 대비한 백업 (duration 기반이 아닌 ended 상태만 확인)
+                let audioStarted = false
+                checkAudioProgress = setInterval(() => {
+                  if (resolved) {
+                    if (checkAudioProgress) {
+                      clearInterval(checkAudioProgress)
+                      checkAudioProgress = null
+                    }
+                    return
+                  }
+                  
+                  // 오디오가 재생을 시작했는지 확인
+                  if (!audioStarted && !audio.paused && audio.currentTime > 0) {
+                    audioStarted = true
+                    console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 오디오 재생 시작 감지 (currentTime: ${audio.currentTime.toFixed(2)}s)`)
+                  }
+                  
+                  // 오디오가 끝났는지 확인 (ended 상태만 확인, duration 기반 계산 없음)
+                  // 단, 오디오가 실제로 재생을 시작한 후에만 ended를 신뢰
+                  if (audio && audio.ended && audioStarted) {
+                    console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 오디오 재생 완료 (checkAudioProgress 감지) - currentTime: ${audio.currentTime.toFixed(2)}s, duration: ${audio.duration ? audio.duration.toFixed(2) : 'unknown'}s`)
+                    if (checkAudioProgress) {
+                      clearInterval(checkAudioProgress)
+                      checkAudioProgress = null
+                    }
+                    audio.removeEventListener('ended', handleEnded)
+                    audio.removeEventListener('error', handleError)
+                    if (!resolved) {
+                      clearInterval(progressInterval)
+                      finish()
+                    }
+                  }
+                }, 50) // 50ms마다 확인
+                
+                // 오디오 재생 시작 (duration 기반 타임아웃 없음)
+                audio.play()
+                  .then(() => {
+                    console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 오디오 play() 호출 완료 (TTS 음성이 끝날 때까지 대기)`)
+                    // duration 기반 타임아웃 제거 - 오디오가 끝날 때까지 무조건 대기
+                  })
+                  .catch((error) => {
+                    // 재생 실패 시 즉시 종료
+                    console.error(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 오디오 재생 실패:`, error)
+                    audio.removeEventListener('ended', handleEnded)
+                    audio.removeEventListener('error', handleError)
+                    if (!resolved) {
+                      if (checkAudioProgress) {
+                        clearInterval(checkAudioProgress)
+                        checkAudioProgress = null
+                      }
+                      clearInterval(progressInterval)
+                      finish()
+                    }
+                  })
               })
             } else {
               // 오디오가 없어도 duration만큼 대기
@@ -775,7 +900,10 @@ export function useVideoPlayback({
       }
     }
     
-    void playNextScene(currentSceneIndex)
+    // currentSceneIndexRef를 사용하여 최신 씬 인덱스로 재생 시작
+    // (씬 선택 후 재생 시작 시 올바른 씬부터 재생하도록)
+    const startSceneIndex = currentSceneIndexRef.current
+    void playNextScene(startSceneIndex)
   }, [timeline, currentSceneIndex, voiceTemplate, bgmTemplate, playbackSpeed, buildSceneMarkup, makeTtsKey, selectScene, stopBgmAudio, stopTtsAudio, setCurrentSceneIndex, currentSceneIndexRef, lastRenderedSceneIndexRef, updateCurrentScene, setTimeline, textsRef, getMp3DurationSec, setShowReadyMessage, setCurrentTime])
 
   // 재생/일시정지 토글
@@ -865,6 +993,7 @@ export function useVideoPlayback({
       }
 
       // 캐시되지 않은 씬만 배치 처리
+      const ttsResults: Array<{ sceneIndex: number; parts: Array<any> }> = []
       if (ensureSceneTts) {
         for (let i = 0; i < scenesToSynthesize.length; i += batchSize) {
           const batch = []
@@ -873,16 +1002,26 @@ export function useVideoPlayback({
             batch.push(
               ensureSceneTts(sceneIndex, undefined, changedScenesRef?.current.has(sceneIndex) || false)
                 .then((result) => {
-                  return result
+                  return { sceneIndex, result }
                 })
-                .catch(() => {
-                  return null
+                .catch((error) => {
+                  console.error(`[TTS] 씬 ${sceneIndex} 합성 실패:`, error)
+                  return { sceneIndex, result: null }
                 })
             )
           }
           // 각 배치를 순차적으로 처리
           const batchResult = await Promise.allSettled(batch)
-          ttsPromises.push(...batchResult.map(r => r.status === 'fulfilled' ? r.value : null))
+          const successfulResults = batchResult
+            .filter(r => r.status === 'fulfilled' && (r as PromiseFulfilledResult<any>).value?.result !== null)
+            .map(r => (r as PromiseFulfilledResult<any>).value)
+          ttsResults.push(...successfulResults.map(r => ({ sceneIndex: r.sceneIndex, parts: r.result?.parts || [] })))
+          
+          // 실패한 씬이 있으면 경고
+          const failedResults = batchResult.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && (r as PromiseFulfilledResult<any>).value?.result === null))
+          if (failedResults.length > 0) {
+            console.warn(`[TTS] ${failedResults.length}개 씬의 TTS 합성 실패`)
+          }
           
           // 마지막 배치가 아니면 딜레이 추가
           if (i + batchSize < scenesToSynthesize.length) {
@@ -890,6 +1029,96 @@ export function useVideoPlayback({
           }
         }
       }
+      
+      // ensureSceneTts 결과를 직접 확인하여 모든 part가 준비되었는지 검증
+      // 그리고 각 part를 캐시에 명시적으로 저장 (타이밍 이슈 방지)
+      let allTtsReady = true
+      const missingTts: Array<{ sceneIndex: number; partIndex: number; reason: string }> = []
+      
+      // ensureSceneTts로 생성한 씬들의 part를 캐시에 명시적으로 저장
+      for (const ttsResult of ttsResults) {
+        const { sceneIndex, parts } = ttsResult
+        if (!parts || parts.length === 0) {
+          allTtsReady = false
+          missingTts.push({ sceneIndex, partIndex: -1, reason: 'parts 배열이 비어있음' })
+          continue
+        }
+        
+        const markups = buildSceneMarkup(sceneIndex)
+        for (let partIndex = 0; partIndex < markups.length; partIndex++) {
+          const part = parts[partIndex]
+          if (!part) {
+            allTtsReady = false
+            missingTts.push({ sceneIndex, partIndex, reason: 'part가 null' })
+            continue
+          }
+          
+          if (!part.blob && !part.url) {
+            allTtsReady = false
+            missingTts.push({ sceneIndex, partIndex, reason: 'blob과 url이 모두 없음' })
+            continue
+          }
+          
+          if (!part.durationSec || part.durationSec <= 0) {
+            allTtsReady = false
+            missingTts.push({ sceneIndex, partIndex, reason: 'durationSec가 없거나 0 이하' })
+            continue
+          }
+          
+          // 캐시에 명시적으로 저장 (타이밍 이슈 방지)
+          const markup = markups[partIndex]
+          const key = makeTtsKey(voiceTemplate!, markup)
+          const scene = timeline.scenes[sceneIndex]
+          const cacheEntry = {
+            blob: part.blob,
+            durationSec: part.durationSec,
+            markup: part.markup || markup,
+            url: part.url || null,
+            sceneId: scene?.sceneId,
+            sceneIndex,
+          }
+          ttsCacheRef.current.set(key, cacheEntry)
+          console.log(`[TTS] 씬 ${sceneIndex} 구간 ${partIndex + 1} 캐시에 명시적으로 저장 완료 (duration: ${part.durationSec}초)`)
+        }
+      }
+      
+      // 모든 씬의 모든 구간 TTS가 캐시에 있는지 최종 확인
+      for (let i = currentSceneIndex; i < timeline.scenes.length; i++) {
+        const markups = buildSceneMarkup(i)
+        for (let partIndex = 0; partIndex < markups.length; partIndex++) {
+          const markup = markups[partIndex]
+          const key = makeTtsKey(voiceTemplate!, markup)
+          const cached = ttsCacheRef.current.get(key)
+          if (!cached || (!cached.blob && !cached.url)) {
+            allTtsReady = false
+            missingTts.push({ sceneIndex: i, partIndex, reason: '캐시에 없음' })
+          } else if (!cached.durationSec || cached.durationSec <= 0) {
+            allTtsReady = false
+            missingTts.push({ sceneIndex: i, partIndex, reason: 'durationSec가 없거나 0 이하' })
+          }
+        }
+      }
+      
+      if (!allTtsReady) {
+        console.error(`[TTS] 일부 TTS가 준비되지 않음:`, missingTts)
+        setIsPreparingLocal(false)
+        if (setIsTtsBootstrapping) {
+          setIsTtsBootstrapping(false)
+        }
+        if (isTtsBootstrappingRef) {
+          isTtsBootstrappingRef.current = false
+        }
+        if (setIsBgmBootstrapping) {
+          setIsBgmBootstrapping(false)
+        }
+        if (isBgmBootstrappingRef) {
+          isBgmBootstrappingRef.current = false
+        }
+        alert(`TTS 준비 중 오류가 발생했어요. (${missingTts.length}개 구간 누락)`)
+        return
+      }
+      
+      console.log(`[TTS] 모든 TTS 준비 완료 확인: ${timeline.scenes.length - currentSceneIndex}개 씬, 총 ${missingTts.length === 0 ? '모든' : '일부'} 구간 준비됨`)
       
       // BGM 로드 (재생은 하지 않음)
       const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
@@ -905,8 +1134,8 @@ export function useVideoPlayback({
           })
         : Promise.resolve(null)
       
-      // 모든 준비 완료 대기
-      Promise.all([...ttsPromises, bgmPromise])
+      // 모든 준비 완료 대기 (TTS는 이미 확인했으므로 BGM만 대기)
+      Promise.all([bgmPromise])
         .then(() => {
           setIsPreparingLocal(false)
           if (setIsTtsBootstrapping) {
@@ -922,6 +1151,7 @@ export function useVideoPlayback({
             isBgmBootstrappingRef.current = false
           }
           
+          console.log(`[재생] 모든 TTS 준비 완료, 재생 시작`)
           // 로딩 완료 후 바로 재생 시작
           startPlayback()
         })
@@ -939,7 +1169,7 @@ export function useVideoPlayback({
           if (isBgmBootstrappingRef) {
             isBgmBootstrappingRef.current = false
           }
-          alert('재생 준비 중 오류가 발생했어요.')
+          alert('BGM 로드 중 오류가 발생했어요.')
         })
     } else {
       // 재생 중지

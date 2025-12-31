@@ -370,6 +370,11 @@ export default function Step4Page() {
 
   // 재생 상태 ref (usePixiEffects에서 사용하기 위해 먼저 선언)
   const isPlayingRef = useRef(false)
+  // 동기화 중인지 추적하는 ref (무한 루프 방지)
+  const isSyncingRef = useRef(false)
+  // 이전 값 추적 (어느 쪽이 변경되었는지 확인)
+  const prevVideoPlaybackIsPlayingRef = useRef<boolean | null>(null)
+  const prevTimelineIsPlayingRef = useRef<boolean | null>(null)
 
   // PixiJS 효과 적용 hook (playbackSpeed는 timeline에서 가져옴)
   const { applyAdvancedEffects, applyEnterEffect } = usePixiEffects({
@@ -842,6 +847,7 @@ export default function Step4Page() {
     currentSceneIndexRef.current = currentSceneIndex
   }, [currentSceneIndex])
 
+
   // 선택한 폰트가 Pixi(Canvas)에서 fallback으로 고정되지 않도록 선로딩 후 강제 리로드
   const lastSubtitleFontKeyRef = useRef<string>('')
   useEffect(() => {
@@ -1117,6 +1123,44 @@ export default function Step4Page() {
     []
   )
 
+  // Timeline의 duration을 TTS 캐시의 실제 duration으로 업데이트 (제한 없이 실제 길이 사용)
+  useEffect(() => {
+    if (!timeline || !voiceTemplate) return
+    
+    const updatedScenes = timeline.scenes.map((scene, index) => {
+      const markups = buildSceneMarkup(index)
+      let ttsDuration = 0
+      let hasCachedTts = false
+      
+      for (let partIndex = 0; partIndex < markups.length; partIndex++) {
+        const markup = markups[partIndex]
+        const key = makeTtsKey(voiceTemplate, markup)
+        const cached = ttsCacheRef.current.get(key)
+        if (cached && cached.durationSec > 0) {
+          ttsDuration += cached.durationSec
+          hasCachedTts = true
+        }
+      }
+      
+      // TTS 캐시에 실제 duration이 있으면 사용 (제한 없이)
+      if (hasCachedTts && ttsDuration > 0 && Math.abs(ttsDuration - scene.duration) > 0.05) {
+        return { ...scene, duration: ttsDuration }
+      }
+      return scene
+    })
+    
+    const hasDurationUpdate = updatedScenes.some((scene, index) => 
+      scene.duration !== timeline.scenes[index]?.duration
+    )
+    
+    if (hasDurationUpdate) {
+      setTimeline({
+        ...timeline,
+        scenes: updatedScenes,
+      })
+    }
+  }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, setTimeline, ttsCacheRef])
+
   const getMp3DurationSec = useCallback(async (blob: Blob) => {
     const url = URL.createObjectURL(blob)
     try {
@@ -1140,7 +1184,8 @@ export default function Step4Page() {
       const prev = timeline.scenes[sceneIndex]?.duration ?? 0
       if (Math.abs(prev - durationSec) <= 0.05) return
 
-      const clamped = Math.max(0.5, Math.min(120, durationSec))
+      // 실제 duration 사용 (최소 0.5초만 유지, 최대 제한 없음)
+      const clamped = Math.max(0.5, durationSec)
       
       // 이전 totalDuration 계산 (마지막 씬의 transition 제외)
       const prevTotalDuration = timeline.scenes.reduce((sum, scene, index) => {
@@ -1740,6 +1785,7 @@ export default function Step4Page() {
     loadAllScenes,
     setShowReadyMessage,
     setCurrentTime,
+    setSceneDurationFromAudio,
   })
 
   // 씬 네비게이션 훅 (씬 선택/전환 로직)
@@ -1788,24 +1834,45 @@ export default function Step4Page() {
     isPlayingRef.current = isPlaying
   }, [isPlaying])
   
-  // videoPlayback.isPlaying과 timelineIsPlaying 동기화
+  // videoPlayback.isPlaying과 timelineIsPlaying 동기화 (무한 루프 방지)
   useEffect(() => {
+    if (isSyncingRef.current) return // 이미 동기화 중이면 무시
+    
+    const videoPlaybackChanged = prevVideoPlaybackIsPlayingRef.current !== null && 
+      prevVideoPlaybackIsPlayingRef.current !== videoPlayback.isPlaying
+    const timelineChanged = prevTimelineIsPlayingRef.current !== null && 
+      prevTimelineIsPlayingRef.current !== timelineIsPlaying
+    
+    // 두 값이 다르고, 어느 쪽이 변경되었는지 확인
     if (videoPlayback.isPlaying !== timelineIsPlaying) {
-      // videoPlayback의 isPlaying 상태를 timeline의 isPlaying과 동기화
-      if (videoPlayback.isPlaying) {
-        setTimelineIsPlaying(true)
-      } else {
-        setTimelineIsPlaying(false)
+      if (videoPlaybackChanged && !timelineChanged) {
+        // videoPlayback.isPlaying이 변경된 경우 timelineIsPlaying을 업데이트
+        isSyncingRef.current = true
+        setTimelineIsPlaying(videoPlayback.isPlaying)
+        requestAnimationFrame(() => {
+          isSyncingRef.current = false
+        })
+      } else if (timelineChanged && !videoPlaybackChanged) {
+        // timelineIsPlaying이 변경된 경우 videoPlayback.isPlaying을 업데이트
+        isSyncingRef.current = true
+        videoPlayback.setIsPlaying(timelineIsPlaying)
+        requestAnimationFrame(() => {
+          isSyncingRef.current = false
+        })
+      } else if (!videoPlaybackChanged && !timelineChanged) {
+        // 초기 렌더링 또는 둘 다 변경되지 않은 경우, videoPlayback.isPlaying을 우선
+        isSyncingRef.current = true
+        setTimelineIsPlaying(videoPlayback.isPlaying)
+        requestAnimationFrame(() => {
+          isSyncingRef.current = false
+        })
       }
     }
-  }, [videoPlayback.isPlaying, timelineIsPlaying, setTimelineIsPlaying])
-  
-  // timelineIsPlaying이 변경되면 videoPlayback.isPlaying도 동기화
-  useEffect(() => {
-    if (timelineIsPlaying !== videoPlayback.isPlaying) {
-      videoPlayback.setIsPlaying(timelineIsPlaying)
-    }
-  }, [timelineIsPlaying, videoPlayback.isPlaying, videoPlayback.setIsPlaying])
+    
+    // 이전 값 업데이트
+    prevVideoPlaybackIsPlayingRef.current = videoPlayback.isPlaying
+    prevTimelineIsPlayingRef.current = timelineIsPlaying
+  }, [videoPlayback.isPlaying, timelineIsPlaying, setTimelineIsPlaying, videoPlayback.setIsPlaying])
   
   // 재생 시작 로직을 별도 함수로 분리
   
