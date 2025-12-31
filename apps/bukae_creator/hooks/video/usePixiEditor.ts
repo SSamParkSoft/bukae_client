@@ -233,7 +233,7 @@ export const usePixiEditor = ({
         const sprite = spritesRef.current.get(sceneIndex)
         if (sprite && appRef.current) {
           // 리사이즈 시작 전에 한 번 더 렌더링하여 정확한 bounds 확보
-          appRef.current.render()
+          // 렌더링은 PixiJS ticker가 처리
           
           const bounds = sprite.getBounds()
           // 리사이즈 시작 시 현재 스프라이트의 정확한 크기와 위치를 저장 (현재 상태 기준)
@@ -304,7 +304,7 @@ export const usePixiEditor = ({
           if (currentSprite && currentHandleType) {
             // 리사이즈 완료 전에 한 번 더 렌더링하여 정확한 bounds 확보
             if (appRef.current) {
-              appRef.current.render()
+              // 렌더링은 PixiJS ticker가 처리
             }
             
             // canvas 밖으로 나갔는지 체크
@@ -572,9 +572,7 @@ export const usePixiEditor = ({
       })
     }
 
-    if (appRef.current) {
-      appRef.current.render()
-    }
+    // 렌더링은 PixiJS ticker가 처리
   }, [isResizingRef, resizeHandleRef, originalTransformRef, spritesRef, appRef, editHandlesRef, isOutsideCanvas, resetToCenter, timeline, setTimeline, saveImageTransform, drawEditHandles])
 
   // 스프라이트 드래그 핸들러
@@ -650,7 +648,7 @@ export const usePixiEditor = ({
             currentSprite.y = globalPos.y - dragStartPosRef.current.y
             // 드래그 중에는 현재 크기 유지 (변경된 크기 그대로 사용)
             if (appRef.current) {
-              appRef.current.render()
+              // 렌더링은 PixiJS ticker가 처리
             }
             // 드래그 중에는 핸들 위치만 업데이트 (크기 변경 방지)
             const existingHandles = editHandlesRef.current.get(sceneIndex)
@@ -1064,9 +1062,7 @@ export const usePixiEditor = ({
     }
 
     // 렌더링 (직접 호출 - requestAnimationFrame은 오히려 지연을 유발할 수 있음)
-    if (appRef.current) {
-      appRef.current.render()
-    }
+    // 렌더링은 PixiJS ticker가 처리
   }, [isResizingTextRef, resizeHandleRef, originalTransformRef, resizeStartPosRef, textsRef, appRef, textEditHandlesRef, isOutsideCanvas, resetToCenter, timeline, setTimeline])
 
   // 텍스트 편집 핸들 그리기
@@ -1118,7 +1114,7 @@ export const usePixiEditor = ({
         const text = textsRef.current.get(sceneIndex)
         if (text && appRef.current) {
           // 리사이즈 시작 전에 텍스트를 한 번 렌더링하여 정확한 bounds 확보
-          appRef.current.render()
+          // 렌더링은 PixiJS ticker가 처리
           
           // 현재 텍스트의 실제 bounds를 정확히 가져오기 (렌더링 후)
           const bounds = text.getBounds()
@@ -1258,7 +1254,7 @@ export const usePixiEditor = ({
           if (currentText && currentHandleType) {
             // 리사이즈 완료 전에 한 번 더 렌더링하여 정확한 bounds 확보
             if (appRef.current) {
-              appRef.current.render()
+              // 렌더링은 PixiJS ticker가 처리
             }
             
             // canvas 밖으로 나갔는지 체크
@@ -1391,7 +1387,7 @@ export const usePixiEditor = ({
             currentText.y = globalPos.y - dragStartPosRef.current.y
             // 드래그 중에는 현재 크기 유지 (변경된 크기 그대로 사용)
             if (appRef.current) {
-              appRef.current.render()
+              // 렌더링은 PixiJS ticker가 처리
             }
             // 드래그 중에는 핸들 위치만 업데이트 (크기 변경 방지)
             const existingHandles = textEditHandlesRef.current.get(sceneIndex)

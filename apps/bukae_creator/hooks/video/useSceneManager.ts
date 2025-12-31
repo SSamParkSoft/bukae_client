@@ -47,6 +47,10 @@ interface UseSceneManagerParams {
     sceneId?: number // 현재 씬의 sceneId
   ) => void
   onLoadComplete?: (sceneIndex: number) => void // 로드 완료 후 콜백
+  
+  // Optional functions for renderSceneContent
+  setTimeline?: (timeline: TimelineData) => void
+  setCurrentSceneIndex?: (index: number) => void
 }
 
 export const useSceneManager = ({
@@ -68,6 +72,8 @@ export const useSceneManager = ({
   applyAdvancedEffects,
   applyEnterEffect,
   onLoadComplete,
+  setTimeline,
+  setCurrentSceneIndex,
 }: UseSceneManagerParams) => {
   // 그룹별 전환 효과 애니메이션 Timeline 추적 (sceneId를 키로 사용)
   const groupTransitionTimelinesRef = useRef<Map<number, gsap.core.Timeline>>(new Map())
@@ -103,9 +109,7 @@ export const useSceneManager = ({
             currentSprite.alpha = 1
           }
           
-          if (appRef.current) {
-            appRef.current.render()
-          }
+          // 렌더링은 PixiJS ticker가 처리
         }
         return
       }
@@ -202,9 +206,7 @@ export const useSceneManager = ({
         currentText.alpha = displayText.length > 0 ? 1 : 0
       }
       
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 렌더링은 PixiJS ticker가 처리
       previousSceneIndexRef.current = sceneIndex
       return
     }
@@ -249,9 +251,7 @@ export const useSceneManager = ({
         textToUpdate.alpha = displayText.length > 0 ? 1 : 0
       }
       
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 렌더링은 PixiJS ticker가 처리
       previousSceneIndexRef.current = sceneIndex
       return
     }
@@ -286,9 +286,7 @@ export const useSceneManager = ({
       })
       
       // 즉시 렌더링하여 이전 씬이 사라지도록 함
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 렌더링은 PixiJS ticker가 처리
     }
     
     // 전환 효과 적용을 위한 wrappedOnComplete 미리 정의
@@ -309,9 +307,7 @@ export const useSceneManager = ({
       })
       
       // 최종 렌더링
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 렌더링은 PixiJS ticker가 처리
       
       // 원래 onAnimationComplete 콜백 호출
       onAnimationComplete(sceneIndex)
@@ -330,9 +326,7 @@ export const useSceneManager = ({
         }
       })
       
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 렌더링은 PixiJS ticker가 처리
     })
     
     // 현재 씬 등장 효과 적용
@@ -438,9 +432,7 @@ export const useSceneManager = ({
           currentText.alpha = 1
         }
         
-        if (appRef.current) {
-          appRef.current.render()
-        }
+        // 렌더링은 PixiJS ticker가 처리
         
         previousSceneIndexRef.current = sceneIndex
         
@@ -471,9 +463,7 @@ export const useSceneManager = ({
         spriteToUse.visible = true
         spriteToUse.alpha = 1
         // 먼저 렌더링하여 이미지가 보이도록 보장
-        if (appRef.current) {
-          appRef.current.render()
-        }
+        // 렌더링은 PixiJS ticker가 처리
       } else {
         // 다른 그룹인 경우
         if (spriteToUse.parent !== containerRef.current) {
@@ -557,9 +547,7 @@ export const useSceneManager = ({
       }
 
       // 전환 효과 적용 전에 한 번 렌더링
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 렌더링은 PixiJS ticker가 처리
       
       // "움직임" 효과인 경우 그룹의 첫 번째 씬인지 확인
       const isCurrentTransitionMovement = MOVEMENT_EFFECTS.includes(transition)
@@ -802,9 +790,9 @@ export const useSceneManager = ({
             }
             containerRef.current.addChild(textToUpdate)
           }
-          appRef.current.render()
+          // 렌더링은 PixiJS ticker가 처리
         } else if (appRef.current) {
-          appRef.current.render()
+          // 렌더링은 PixiJS ticker가 처리
         }
         
         // 전환 효과는 적용하지 않음 (첫 번째 씬에서 이미 적용됨)
@@ -911,9 +899,7 @@ export const useSceneManager = ({
         }
       })
 
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 렌더링은 PixiJS ticker가 처리
     }
 
       previousSceneIndexRef.current = sceneIndex
@@ -1200,15 +1186,11 @@ export const useSceneManager = ({
           currentText.visible = true
           currentText.alpha = 1
         }
-        if (appRef.current) {
-          appRef.current.render()
-        }
+        // 렌더링은 PixiJS ticker가 처리
       } else {
         updateCurrentScene(true)
       }
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 렌더링은 PixiJS ticker가 처리
       
       if (onLoadComplete) {
         onLoadComplete(sceneIndex)
@@ -1216,9 +1198,139 @@ export const useSceneManager = ({
     })
   }, [timeline, stageDimensions, updateCurrentScene, appRef, containerRef, spritesRef, textsRef, currentSceneIndexRef, isSavingTransformRef, loadPixiTextureWithCache, onLoadComplete])
 
+  // 통합 렌더링 함수: 모든 canvas 렌더링 경로를 통합
+  const renderSceneContent = useCallback((
+    sceneIndex: number,
+    partIndex?: number | null,
+    options?: {
+      skipAnimation?: boolean
+      forceTransition?: string
+      previousIndex?: number | null
+      onComplete?: () => void
+      updateTimeline?: boolean
+    }
+  ) => {
+    if (!timeline || !appRef.current) return
+    
+    const scene = timeline.scenes[sceneIndex]
+    if (!scene) return
+    
+    const {
+      skipAnimation = false,
+      forceTransition,
+      previousIndex,
+      onComplete,
+      updateTimeline = true,
+    } = options || {}
+    
+    // 구간 인덱스가 있으면 해당 구간의 텍스트 추출
+    let partText: string | null = null
+    if (partIndex !== undefined && partIndex !== null) {
+      // 원본 텍스트에서 구간 추출
+      const originalText = scene.text?.content || ''
+      const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+      partText = scriptParts[partIndex]?.trim() || null
+    }
+    
+    // timeline 업데이트 (필요한 경우)
+    if (updateTimeline && partText && setTimeline) {
+      const updatedTimeline = {
+        ...timeline,
+        scenes: timeline.scenes.map((s, i) =>
+          i === sceneIndex
+            ? {
+                ...s,
+                text: {
+                  ...s.text,
+                  content: partText,
+                },
+              }
+            : s
+        ),
+      }
+      setTimeline(updatedTimeline)
+    }
+    
+    // 텍스트 객체 찾기
+    let targetTextObj: PIXI.Text | null = textsRef.current.get(sceneIndex) || null
+    
+    // 같은 그룹 내 첫 번째 씬의 텍스트 사용 (필요한 경우)
+    if (!targetTextObj || (!targetTextObj.visible && targetTextObj.alpha === 0)) {
+      const sceneId = scene.sceneId
+      if (sceneId !== undefined) {
+        const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+        if (firstSceneIndexInGroup >= 0) {
+          targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
+        }
+      }
+    }
+    
+    // 텍스트 객체 업데이트
+    if (targetTextObj && partText) {
+      targetTextObj.text = partText
+      targetTextObj.visible = true
+      targetTextObj.alpha = 1
+    }
+    
+    // 스프라이트 표시
+    const currentSprite = spritesRef.current.get(sceneIndex)
+    if (currentSprite) {
+      currentSprite.visible = true
+      currentSprite.alpha = 1
+    }
+    
+    // 같은 씬 내 구간 전환인지 확인
+    const isSameSceneTransition = currentSceneIndexRef.current === sceneIndex
+    
+    // 같은 씬 내 구간 전환인 경우: 자막만 업데이트 (전환 효과 없음)
+    if (isSameSceneTransition) {
+      // 렌더링은 PixiJS ticker가 처리
+      if (onComplete) {
+        onComplete()
+      }
+      return
+    }
+    
+    // 다른 씬으로 이동하는 경우: 씬 전환
+    if (setCurrentSceneIndex) {
+      currentSceneIndexRef.current = sceneIndex
+      setCurrentSceneIndex(sceneIndex)
+    }
+    
+    // updateCurrentScene 호출하여 씬 전환
+    updateCurrentScene(
+      skipAnimation,
+      previousIndex !== undefined ? previousIndex : currentSceneIndexRef.current,
+      forceTransition,
+      () => {
+        // 전환 완료 후 구간 텍스트가 올바르게 표시되었는지 확인
+        if (partText && targetTextObj) {
+          const finalText = textsRef.current.get(sceneIndex)
+          if (finalText && finalText.text !== partText) {
+            finalText.text = partText
+            // 렌더링은 PixiJS ticker가 처리
+          }
+        }
+        if (onComplete) {
+          onComplete()
+        }
+      }
+    )
+  }, [
+    timeline,
+    appRef,
+    textsRef,
+    spritesRef,
+    currentSceneIndexRef,
+    updateCurrentScene,
+    setTimeline,
+    setCurrentSceneIndex,
+  ])
+
   return {
     updateCurrentScene,
     syncFabricWithScene,
     loadAllScenes,
+    renderSceneContent,
   }
 }

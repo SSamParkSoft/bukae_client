@@ -22,6 +22,17 @@ interface UseSceneHandlersParams {
   containerRef: MutableRefObject<PIXI.Container | null>
   loadAllScenes: () => Promise<void>
   setPlaybackSpeed: (speed: number) => void
+  renderSceneContent?: (
+    sceneIndex: number,
+    partIndex?: number | null,
+    options?: {
+      skipAnimation?: boolean
+      forceTransition?: string
+      previousIndex?: number | null
+      onComplete?: () => void
+      updateTimeline?: boolean
+    }
+  ) => void
 }
 
 export function useSceneHandlers({
@@ -41,6 +52,7 @@ export function useSceneHandlers({
   containerRef,
   loadAllScenes,
   setPlaybackSpeed,
+  renderSceneContent,
 }: UseSceneHandlersParams) {
   const handleSceneScriptChange = useCallback(
     (index: number, value: string) => {
@@ -121,9 +133,11 @@ export function useSceneHandlers({
           // previousIndex는 null로 설정하여 페이드 인 효과 적용
           // 자막은 현재 씬의 첫 번째 구간만 표시 (구간이 나뉘어져 있으면)
           const currentScene = nextTimeline.scenes[targetSceneIndex]
+          let firstPartText: string | null = null
           if (currentScene?.text?.content) {
             const scriptParts = currentScene.text.content.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
             if (scriptParts.length > 1) {
+              firstPartText = scriptParts[0]
               // 구간이 나뉘어져 있으면 첫 번째 구간만 표시하도록 timeline 업데이트
               const updatedTimeline: TimelineData = {
                 ...nextTimeline,
@@ -143,18 +157,40 @@ export function useSceneHandlers({
             }
           }
           
-          updateCurrentScene(false, null, value)
-          
-          lastRenderedSceneIndexRef.current = targetSceneIndex
+          // renderSceneContent 사용 (통합 렌더링 함수)
+          if (renderSceneContent) {
+            renderSceneContent(targetSceneIndex, null, {
+              skipAnimation: false,
+              forceTransition: value,
+              previousIndex: null,
+              updateTimeline: false, // 이미 timeline 업데이트 완료
+              onComplete: () => {
+                lastRenderedSceneIndexRef.current = targetSceneIndex
+                const transitionDuration =
+                  nextTimeline.scenes[targetSceneIndex]?.transition === 'none'
+                    ? 0
+                    : nextTimeline.scenes[targetSceneIndex]?.transitionDuration || 0.5
+                setTimeout(() => {
+                  setIsPreviewingTransition(false)
+                  isManualSceneSelectRef.current = false
+                }, transitionDuration * 1000 + 200)
+              },
+            })
+          } else {
+            // fallback: 기존 방식
+            updateCurrentScene(false, null, value)
+            
+            lastRenderedSceneIndexRef.current = targetSceneIndex
 
-          const transitionDuration =
-            nextTimeline.scenes[targetSceneIndex]?.transition === 'none'
-              ? 0
-              : nextTimeline.scenes[targetSceneIndex]?.transitionDuration || 0.5
-          setTimeout(() => {
-            setIsPreviewingTransition(false)
-            isManualSceneSelectRef.current = false
-          }, transitionDuration * 1000 + 200)
+            const transitionDuration =
+              nextTimeline.scenes[targetSceneIndex]?.transition === 'none'
+                ? 0
+                : nextTimeline.scenes[targetSceneIndex]?.transitionDuration || 0.5
+            setTimeout(() => {
+              setIsPreviewingTransition(false)
+              isManualSceneSelectRef.current = false
+            }, transitionDuration * 1000 + 200)
+          }
         }, 50)
       })
     },
@@ -168,6 +204,7 @@ export function useSceneHandlers({
       timeline,
       updateCurrentScene,
       isPreviewingTransition,
+      renderSceneContent,
     ],
   )
 

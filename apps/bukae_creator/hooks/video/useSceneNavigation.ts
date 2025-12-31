@@ -39,6 +39,17 @@ interface UseSceneNavigationParams {
   activeAnimationsRef: React.MutableRefObject<Map<number, gsap.core.Timeline>>
   loadAllScenes?: () => Promise<void>
   setSelectedPart?: (part: { sceneIndex: number; partIndex: number } | null) => void
+  renderSceneContent?: (
+    sceneIndex: number,
+    partIndex?: number | null,
+    options?: {
+      skipAnimation?: boolean
+      forceTransition?: string
+      previousIndex?: number | null
+      onComplete?: () => void
+      updateTimeline?: boolean
+    }
+  ) => void
 }
 
 export function useSceneNavigation({
@@ -74,6 +85,7 @@ export function useSceneNavigation({
   activeAnimationsRef,
   loadAllScenes,
   setSelectedPart,
+  renderSceneContent,
 }: UseSceneNavigationParams) {
   // 씬 선택
   const selectScene = useCallback((
@@ -334,7 +346,19 @@ export function useSceneNavigation({
       
       // Timeline의 onComplete 콜백을 사용하여 전환 효과 완료 시점을 정확히 감지
       // 선택된 씬의 전환 효과를 forceTransition으로 전달하여 해당 씬의 전환 효과가 표시되도록 함
-      updateCurrentScene(false, prevIndex, transition, transitionCompleteCallback)
+      // renderSceneContent 사용 (통합 렌더링 함수)
+      if (renderSceneContent) {
+        renderSceneContent(index, null, {
+          skipAnimation: false,
+          forceTransition: transition,
+          previousIndex: prevIndex,
+          onComplete: transitionCompleteCallback,
+          updateTimeline: false, // selectScene은 timeline을 업데이트하지 않음 (첫 번째 구간만 표시)
+        })
+      } else {
+        // fallback: 기존 방식
+        updateCurrentScene(false, prevIndex, transition, transitionCompleteCallback)
+      }
       
       // 수동으로 씬을 클릭한 경우(!skipStopPlaying)에는 자동 전환하지 않음
       // 재생 중일 때만 자동 전환 (skipStopPlaying이 true일 때)
@@ -384,6 +408,7 @@ export function useSceneNavigation({
     playTimeoutRef,
     isPlayingRef,
     activeAnimationsRef,
+    renderSceneContent,
   ])
 
   // 구간 선택
@@ -414,6 +439,35 @@ export function useSceneNavigation({
     
     if (!partText) return
 
+    // renderSceneContent 사용 (통합 렌더링 함수)
+    if (renderSceneContent) {
+      // 같은 씬 내 구간 전환인지 확인
+      const isSameSceneTransition = currentSceneIndexRef.current === sceneIndex
+      
+      renderSceneContent(sceneIndex, partIndex, {
+        skipAnimation: isSameSceneTransition,
+        updateTimeline: true,
+        previousIndex: isSameSceneTransition ? sceneIndex : currentSceneIndexRef.current,
+        onComplete: () => {
+          if (setSelectedPart) {
+            setSelectedPart({ sceneIndex, partIndex })
+          }
+        },
+      })
+      
+      if (isSameSceneTransition) {
+        console.log(`[구간 선택] 같은 씬 내 구간 전환: 씬 ${sceneIndex}, 구간 ${partIndex}, 텍스트: "${partText.substring(0, 30)}..."`)
+      } else {
+        console.log(`[구간 선택] 다른 씬으로 이동: 씬 ${sceneIndex}, 구간 ${partIndex}, 텍스트: "${partText.substring(0, 30)}..."`)
+      }
+      
+      if (setSelectedPart) {
+        setSelectedPart({ sceneIndex, partIndex })
+      }
+      return
+    }
+    
+    // fallback: 기존 방식 (renderSceneContent가 없는 경우)
     // timeline의 text.content 업데이트
     const updatedTimeline = {
       ...timeline,
@@ -465,9 +519,7 @@ export function useSceneNavigation({
       if (isSameSceneTransition) {
         // 자막 업데이트 확인
         console.log(`[구간 선택] 같은 씬 내 구간 전환: 씬 ${sceneIndex}, 구간 ${partIndex}, 텍스트: "${partText.substring(0, 30)}..."`)
-        if (appRef.current) {
-          appRef.current.render()
-        }
+        // 렌더링은 PixiJS ticker가 처리
         if (setSelectedPart) {
           setSelectedPart({ sceneIndex, partIndex })
         }
@@ -485,7 +537,7 @@ export function useSceneNavigation({
         if (finalText && finalText.text !== partText) {
           finalText.text = partText
           if (appRef.current) {
-            appRef.current.render()
+            // 렌더링은 PixiJS ticker가 처리
           }
         }
       })
@@ -510,7 +562,7 @@ export function useSceneNavigation({
               if (isSameSceneTransition) {
                 // 같은 씬 내 구간 전환: 자막만 업데이트
                 if (appRef.current) {
-                  appRef.current.render()
+                  // 렌더링은 PixiJS ticker가 처리
                 }
                 if (setSelectedPart) {
                   setSelectedPart({ sceneIndex, partIndex })
@@ -525,7 +577,7 @@ export function useSceneNavigation({
                   if (finalText && finalText.text !== partText) {
                     finalText.text = partText
                     if (appRef.current) {
-                      appRef.current.render()
+                      // 렌더링은 PixiJS ticker가 처리
                     }
                   }
                 })
@@ -551,6 +603,7 @@ export function useSceneNavigation({
     appRef,
     loadAllScenes,
     setSelectedPart,
+    renderSceneContent,
   ])
 
   return {

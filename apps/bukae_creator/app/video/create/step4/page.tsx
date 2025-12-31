@@ -389,8 +389,9 @@ export default function Step4Page() {
     isPlayingRef, // 재생 중인지 확인용
   })
 
-  // 씬 관리 hook
-  const { updateCurrentScene, syncFabricWithScene, loadAllScenes } = useSceneManager({
+  // 씬 관리 hook (setCurrentSceneIndex는 useTimelinePlayer 이후에 설정됨)
+  // 임시로 undefined로 설정하고, 나중에 업데이트
+  const sceneManagerResult1 = useSceneManager({
     appRef,
     containerRef,
     spritesRef,
@@ -409,7 +410,11 @@ export default function Step4Page() {
     applyAdvancedEffects,
     applyEnterEffect,
     onLoadComplete: handleLoadComplete,
+    setTimeline,
+    setCurrentSceneIndex: undefined as any, // 나중에 설정됨
   })
+  
+  let { updateCurrentScene, syncFabricWithScene, loadAllScenes } = sceneManagerResult1
 
   // selectScene 함수를 나중에 연결하기 위한 ref
   const selectSceneRef = useRef<((index: number, skipStopPlaying?: boolean, onTransitionComplete?: () => void) => void) | null>(null)
@@ -722,7 +727,7 @@ export default function Step4Page() {
             currentText.visible = true
             currentText.alpha = 1
           }
-          appRef.current.render()
+          // 렌더링은 PixiJS ticker가 처리
           
           // lastRenderedSceneIndexRef 초기화 (전환 효과 추적용)
           lastRenderedSceneIndexRef.current = sceneIndex
@@ -795,7 +800,7 @@ export default function Step4Page() {
       selectedText.alpha = 1
     }
     
-    appRef.current.render()
+    // 렌더링은 PixiJS ticker가 처리
   }, [appRef, containerRef])
 
 
@@ -837,6 +842,168 @@ export default function Step4Page() {
   const setIsPlaying = setTimelineIsPlaying
   const currentSceneIndex = timelineCurrentSceneIndex
   const setCurrentSceneIndex = setTimelineCurrentSceneIndex
+  
+  // useSceneManager를 setCurrentSceneIndex와 함께 다시 생성
+  const sceneManagerResult2 = useSceneManager({
+    appRef,
+    containerRef,
+    spritesRef,
+    textsRef,
+    currentSceneIndexRef,
+    previousSceneIndexRef,
+    activeAnimationsRef,
+    fabricCanvasRef,
+    fabricScaleRatioRef,
+    isSavingTransformRef,
+    isManualSceneSelectRef,
+    timeline,
+    stageDimensions,
+    useFabricEditing,
+    loadPixiTextureWithCache,
+    applyAdvancedEffects,
+    applyEnterEffect,
+    onLoadComplete: handleLoadComplete,
+    setTimeline,
+    setCurrentSceneIndex,
+  })
+  
+  const { renderSceneContent: renderSceneContentFromManager } = sceneManagerResult2
+  
+  // renderSceneContent를 setCurrentSceneIndex와 함께 래핑
+  const renderSceneContent = useCallback((
+    sceneIndex: number,
+    partIndex?: number | null,
+    options?: {
+      skipAnimation?: boolean
+      forceTransition?: string
+      previousIndex?: number | null
+      onComplete?: () => void
+      updateTimeline?: boolean
+    }
+  ) => {
+    if (renderSceneContentFromManager) {
+      // renderSceneContent를 직접 사용
+      renderSceneContentFromManager(sceneIndex, partIndex, options)
+      return
+    }
+    
+    // fallback: renderSceneContent가 없는 경우 직접 구현
+    {
+      
+      // 같은 씬 내 구간 전환인지 확인
+      const isSameSceneTransition = currentSceneIndexRef.current === sceneIndex
+      
+      // timeline 업데이트 (필요한 경우)
+      if (options?.updateTimeline && partIndex !== undefined && partIndex !== null && timeline) {
+        const scene = timeline.scenes[sceneIndex]
+        if (scene) {
+          const originalText = scene.text?.content || ''
+          const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+          const partText = scriptParts[partIndex]?.trim()
+          
+          if (partText && setTimeline) {
+            const updatedTimeline = {
+              ...timeline,
+              scenes: timeline.scenes.map((s, i) =>
+                i === sceneIndex
+                  ? {
+                      ...s,
+                      text: {
+                        ...s.text,
+                        content: partText,
+                      },
+                    }
+                  : s
+              ),
+            }
+            setTimeline(updatedTimeline)
+          }
+        }
+      }
+      
+      // 텍스트 객체 업데이트
+      if (partIndex !== undefined && partIndex !== null) {
+        const scene = timeline?.scenes[sceneIndex]
+        if (scene) {
+          const originalText = scene.text?.content || ''
+          const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+          const partText = scriptParts[partIndex]?.trim()
+          
+          if (partText) {
+            let targetTextObj: PIXI.Text | null = textsRef.current.get(sceneIndex) || null
+            
+            // 같은 그룹 내 첫 번째 씬의 텍스트 사용 (필요한 경우)
+            if (!targetTextObj || (!targetTextObj.visible && targetTextObj.alpha === 0)) {
+              const sceneId = scene.sceneId
+              if (sceneId !== undefined && timeline) {
+                const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+                if (firstSceneIndexInGroup >= 0) {
+                  targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
+                }
+              }
+            }
+            
+            if (targetTextObj) {
+              targetTextObj.text = partText
+              targetTextObj.visible = true
+              targetTextObj.alpha = 1
+            }
+            
+            // 스프라이트 표시
+            const currentSprite = spritesRef.current.get(sceneIndex)
+            if (currentSprite) {
+              currentSprite.visible = true
+              currentSprite.alpha = 1
+            }
+            
+            // 같은 씬 내 구간 전환인 경우: 자막만 업데이트 (전환 효과 없음)
+            if (isSameSceneTransition) {
+              // 렌더링은 PixiJS ticker가 처리
+              if (options?.onComplete) {
+                options.onComplete()
+              }
+              return
+            }
+          }
+        }
+      }
+      
+      // 다른 씬으로 이동하는 경우: 씬 전환
+      if (!isSameSceneTransition && setCurrentSceneIndex) {
+        currentSceneIndexRef.current = sceneIndex
+        setCurrentSceneIndex(sceneIndex)
+      }
+      
+      // updateCurrentScene 호출하여 씬 전환
+      updateCurrentScene(
+        options?.skipAnimation ?? false,
+        options?.previousIndex !== undefined ? options.previousIndex : currentSceneIndexRef.current,
+        options?.forceTransition,
+        () => {
+          // 전환 완료 후 구간 텍스트가 올바르게 표시되었는지 확인
+          if (partIndex !== undefined && partIndex !== null && timeline) {
+            const scene = timeline.scenes[sceneIndex]
+            if (scene) {
+              const originalText = scene.text?.content || ''
+              const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+              const partText = scriptParts[partIndex]?.trim()
+              
+              if (partText) {
+                const finalText = textsRef.current.get(sceneIndex)
+                if (finalText && finalText.text !== partText) {
+                  finalText.text = partText
+                  // 렌더링은 PixiJS ticker가 처리
+                }
+              }
+            }
+          }
+          if (options?.onComplete) {
+            options.onComplete()
+          }
+        }
+      )
+    }
+  }, [timeline, setTimeline, setCurrentSceneIndex, textsRef, spritesRef, currentSceneIndexRef, updateCurrentScene, renderSceneContentFromManager])
   const isPreviewingTransition = timelineIsPreviewingTransition
   const setIsPreviewingTransition = setTimelineIsPreviewingTransition
 
@@ -1611,42 +1778,53 @@ export default function Step4Page() {
           const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
           const currentPartText = scriptParts[currentPartIndex]?.trim() || ''
 
-          // 자막 즉시 표시 (텍스트 객체를 먼저 직접 업데이트)
+          // 자막 즉시 표시 (renderSceneContent 사용)
           if (currentPartText) {
-            // timeline 먼저 업데이트
-            if (timeline && timeline.scenes[sceneIndex]) {
-              const updatedTimeline = {
-                ...timeline,
-                scenes: timeline.scenes.map((s, i) =>
-                  i === sceneIndex
-                    ? {
-                        ...s,
-                        text: {
-                          ...s.text,
-                          content: currentPartText,
-                        },
-                      }
-                    : s
-                ),
-              }
-              setTimeline(updatedTimeline)
-            }
-            
-            // 텍스트 객체 직접 업데이트 (즉시 반영)
-            const currentText = textsRef.current.get(sceneIndex)
-            if (currentText) {
-              currentText.text = currentPartText
-              currentText.visible = true
-              currentText.alpha = 1
+            // renderSceneContent 사용 (통합 렌더링 함수)
+            if (renderSceneContent) {
+              renderSceneContent(sceneIndex, currentPartIndex, {
+                skipAnimation: true,
+                updateTimeline: true,
+                previousIndex: null,
+              })
               console.log(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1}/${result.parts.length} 자막 업데이트: "${currentPartText.substring(0, 30)}..."`)
             } else {
-              console.warn(`[씬 미리보기] 씬 ${sceneIndex} 텍스트 객체를 찾을 수 없음`)
+              // fallback: 기존 방식 (renderSceneContent가 없는 경우)
+              // timeline 먼저 업데이트
+              if (timeline && timeline.scenes[sceneIndex]) {
+                const updatedTimeline = {
+                  ...timeline,
+                  scenes: timeline.scenes.map((s, i) =>
+                    i === sceneIndex
+                      ? {
+                          ...s,
+                          text: {
+                            ...s.text,
+                            content: currentPartText,
+                          },
+                        }
+                      : s
+                  ),
+                }
+                setTimeline(updatedTimeline)
+              }
+              
+              // 텍스트 객체 직접 업데이트 (즉시 반영)
+              const currentText = textsRef.current.get(sceneIndex)
+              if (currentText) {
+                currentText.text = currentPartText
+                currentText.visible = true
+                currentText.alpha = 1
+                console.log(`[씬 미리보기] 씬 ${sceneIndex} 구간 ${currentPartIndex + 1}/${result.parts.length} 자막 업데이트: "${currentPartText.substring(0, 30)}..."`)
+              } else {
+                console.warn(`[씬 미리보기] 씬 ${sceneIndex} 텍스트 객체를 찾을 수 없음`)
+              }
+              
+              // 약간의 지연 후 updateCurrentScene 호출하여 timeline과 동기화
+              setTimeout(() => {
+                updateCurrentScene(true, null, undefined, undefined)
+              }, 10)
             }
-            
-            // 약간의 지연 후 updateCurrentScene 호출하여 timeline과 동기화
-            setTimeout(() => {
-              updateCurrentScene(true, null, undefined, undefined)
-            }, 10)
           }
           
           // 저장소 URL 우선 사용, 없으면 blob에서 URL 생성
@@ -1744,7 +1922,7 @@ export default function Step4Page() {
         alert(error instanceof Error ? error.message : 'TTS 미리듣기 실패')
       }
     },
-    [timeline, voiceTemplate, ensureSceneTts, stopScenePreviewAudio, setTimeline, updateCurrentScene, textsRef]
+    [timeline, voiceTemplate, ensureSceneTts, stopScenePreviewAudio, setTimeline, updateCurrentScene, textsRef, renderSceneContent]
   )
 
   // useVideoPlayback과 useSceneNavigation을 위한 임시 selectScene 함수
@@ -1786,6 +1964,7 @@ export default function Step4Page() {
     setShowReadyMessage,
     setCurrentTime,
     setSceneDurationFromAudio,
+    renderSceneContent,
   })
 
   // 씬 네비게이션 훅 (씬 선택/전환 로직)
@@ -1822,6 +2001,7 @@ export default function Step4Page() {
     activeAnimationsRef,
     loadAllScenes,
     setSelectedPart,
+    renderSceneContent,
   })
 
   // selectSceneRef 업데이트 및 useTimelinePlayer의 onSceneChange 업데이트
@@ -2013,6 +2193,7 @@ export default function Step4Page() {
     containerRef,
     loadAllScenes,
     setPlaybackSpeed,
+    renderSceneContent,
   })
 
   // 스크립트 변경 시 캐시 무효화를 포함한 래퍼
@@ -2465,7 +2646,7 @@ export default function Step4Page() {
       }
 
       if (appRef.current) {
-        appRef.current.render()
+        // 렌더링은 PixiJS ticker가 처리
       }
     }
 
@@ -2528,7 +2709,7 @@ export default function Step4Page() {
     }
 
     if (appRef.current) {
-      appRef.current.render()
+      // 렌더링은 PixiJS ticker가 처리
     }
   }, [editMode, selectedElementIndex, selectedElementType, timeline, drawEditHandles, setupSpriteDrag, handleResize, saveImageTransform, drawTextEditHandles, setupTextDrag, handleTextResize, saveTextTransform, editHandlesRef, textEditHandlesRef])
 
@@ -2610,7 +2791,7 @@ export default function Step4Page() {
     gridGraphicsRef.current = gridGraphics
 
     if (appRef.current) {
-      appRef.current.render()
+      // 렌더링은 PixiJS ticker가 처리
     }
   }, [showGrid, stageDimensions])
 
@@ -2622,7 +2803,7 @@ export default function Step4Page() {
     if (showGrid) {
       requestAnimationFrame(() => {
         if (appRef.current) {
-          appRef.current.render()
+          // 렌더링은 PixiJS ticker가 처리
         }
       })
     }
@@ -3658,7 +3839,7 @@ export default function Step4Page() {
                           canvas.style.width = `${displayWidth}px`
                           canvas.style.height = `${displayHeight}px`
                           setCanvasSize({ width: `${displayWidth}px`, height: `${displayHeight}px` })
-                          appRef.current.render()
+                          // 렌더링은 PixiJS ticker가 처리
                         }
                       }
                     }, 100)

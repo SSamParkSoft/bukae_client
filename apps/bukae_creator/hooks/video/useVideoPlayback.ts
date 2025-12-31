@@ -45,6 +45,17 @@ interface UseVideoPlaybackParams {
   setShowReadyMessage?: (show: boolean) => void
   setCurrentTime?: (time: number) => void
   setSceneDurationFromAudio?: (sceneIndex: number, durationSec: number) => void
+  renderSceneContent?: (
+    sceneIndex: number,
+    partIndex?: number | null,
+    options?: {
+      skipAnimation?: boolean
+      forceTransition?: string
+      previousIndex?: number | null
+      onComplete?: () => void
+      updateTimeline?: boolean
+    }
+  ) => void
 }
 
 export function useVideoPlayback({
@@ -77,6 +88,7 @@ export function useVideoPlayback({
   setShowReadyMessage,
   setCurrentTime,
   setSceneDurationFromAudio,
+  renderSceneContent,
 }: UseVideoPlaybackParams) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPreparing, setIsPreparingLocal] = useState(false)
@@ -500,34 +512,44 @@ export function useVideoPlayback({
             
             // 자막 즉시 표시 (리스트 순서대로 렌더링)
             if (currentPartText) {
-              // timeline 먼저 업데이트
-              if (timeline && timeline.scenes[sceneIndex]) {
-                const updatedTimeline = {
-                  ...timeline,
-                  scenes: timeline.scenes.map((s, i) =>
-                    i === sceneIndex
-                      ? {
-                          ...s,
-                          text: {
-                            ...s.text,
-                            content: currentPartText,
-                          },
-                        }
-                      : s
-                  ),
-                }
-                setTimeline(updatedTimeline)
-              }
-              
-              // 텍스트 객체 직접 업데이트 (즉시 반영) - 리스트 순서대로만 렌더링
-              const currentText = textsRef.current.get(sceneIndex)
-              if (currentText) {
-                currentText.text = currentPartText
-                currentText.visible = true
-                currentText.alpha = 1
+              // renderSceneContent 사용 (통합 렌더링 함수)
+              if (renderSceneContent) {
+                renderSceneContent(sceneIndex, partIndex, {
+                  skipAnimation: true,
+                  updateTimeline: true,
+                })
                 console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1}/${scriptParts.length} 자막 렌더링 (리스트 인덱스 ${partIndex}): "${currentPartText.substring(0, 30)}..."`)
               } else {
-                console.warn(`[재생] 씬 ${sceneIndex} 텍스트 객체를 찾을 수 없음 (textsRef 크기: ${textsRef.current.size})`)
+                // fallback: 기존 방식 (renderSceneContent가 없는 경우)
+                // timeline 먼저 업데이트
+                if (timeline && timeline.scenes[sceneIndex]) {
+                  const updatedTimeline = {
+                    ...timeline,
+                    scenes: timeline.scenes.map((s, i) =>
+                      i === sceneIndex
+                        ? {
+                            ...s,
+                            text: {
+                              ...s.text,
+                              content: currentPartText,
+                            },
+                          }
+                        : s
+                    ),
+                  }
+                  setTimeline(updatedTimeline)
+                }
+                
+                // 텍스트 객체 직접 업데이트 (즉시 반영) - 리스트 순서대로만 렌더링
+                const currentText = textsRef.current.get(sceneIndex)
+                if (currentText) {
+                  currentText.text = currentPartText
+                  currentText.visible = true
+                  currentText.alpha = 1
+                  console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1}/${scriptParts.length} 자막 렌더링 (리스트 인덱스 ${partIndex}): "${currentPartText.substring(0, 30)}..."`)
+                } else {
+                  console.warn(`[재생] 씬 ${sceneIndex} 텍스트 객체를 찾을 수 없음 (textsRef 크기: ${textsRef.current.size})`)
+                }
               }
               
               // 자막은 이미 렌더링되었으므로 updateCurrentScene 호출 불필요 (씬 전환은 오디오 재생 시작 시 처리)

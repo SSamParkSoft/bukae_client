@@ -133,9 +133,7 @@ export const usePixiEffects = ({
         toText.alpha = 1
       }
       
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 렌더링은 PixiJS ticker가 처리
       
       // onComplete 콜백 호출
       if (onComplete) {
@@ -195,10 +193,7 @@ export const usePixiEffects = ({
       toText.alpha = 0
     }
     
-    // 초기 상태 렌더링 (스프라이트가 visible: true, alpha: 0인 상태로 렌더링)
-    if (appRef.current) {
-      appRef.current.render()
-    }
+    // 초기 상태 설정 (렌더링은 PixiJS ticker가 처리)
 
     // Timeline 생성
     const tl = gsap.timeline({
@@ -217,9 +212,7 @@ export const usePixiEffects = ({
           toText.visible = true
           toText.alpha = 1
         }
-        if (appRef.current) {
-          appRef.current.render()
-        }
+        // 렌더링은 PixiJS ticker가 처리
         
         // "움직임" 효과이고 그룹의 마지막 씬이 아닌 경우
         // Timeline을 완료하지 않고 계속 진행 (재생 중이든 아니든 상관없이)
@@ -259,10 +252,7 @@ export const usePixiEffects = ({
       if (toText.mask) {
         toText.mask = null
       }
-      // 페이드 효과 제거 - 즉시 표시
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 페이드 효과 제거 - 즉시 표시 (렌더링은 PixiJS ticker가 처리)
     }
     
     // 전환 효과별 처리 (이미지만 적용, 텍스트는 항상 페이드)
@@ -315,15 +305,11 @@ export const usePixiEffects = ({
               }
               
               // PixiJS 렌더링 강제 실행
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             },
             onComplete: function() {
               // 최종 렌더링
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
         }
@@ -375,9 +361,7 @@ export const usePixiEffects = ({
                 toText.visible = true
               }
               
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
         }
@@ -424,9 +408,7 @@ export const usePixiEffects = ({
                 toText.visible = true
               }
               
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
         }
@@ -473,9 +455,7 @@ export const usePixiEffects = ({
                 toText.visible = true
               }
               
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
         }
@@ -522,9 +502,7 @@ export const usePixiEffects = ({
                 toText.visible = true
               }
               
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
         }
@@ -592,9 +570,7 @@ export const usePixiEffects = ({
                 toText.visible = true
               }
               
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
         }
@@ -660,9 +636,7 @@ export const usePixiEffects = ({
                 toText.visible = true
               }
               
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
         }
@@ -699,9 +673,7 @@ export const usePixiEffects = ({
                   containerRef.current.addChild(toText)
                 }
               }
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
           
@@ -743,9 +715,7 @@ export const usePixiEffects = ({
                   containerRef.current.addChild(toText)
                 }
               }
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
           
@@ -772,9 +742,7 @@ export const usePixiEffects = ({
                 if (toSprite) {
                   toSprite.x = glitchObj.x
                 }
-                if (appRef.current) {
-                  appRef.current.render()
-                }
+                // 렌더링은 PixiJS ticker가 처리
               }
             })
           }
@@ -802,9 +770,7 @@ export const usePixiEffects = ({
                   containerRef.current.addChild(toText)
                 }
               }
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
           
@@ -840,9 +806,7 @@ export const usePixiEffects = ({
                 }
                 toSprite.alpha = toRippleObj.alpha
               }
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
           
@@ -876,9 +840,7 @@ export const usePixiEffects = ({
                   toSprite.x = centerX - newWidth / 2
                   toSprite.y = centerY - newHeight / 2
                 }
-                if (appRef.current) {
-                  appRef.current.render()
-                }
+                // 렌더링은 PixiJS ticker가 처리
               }
             }, waveStartTime)
             
@@ -900,9 +862,7 @@ export const usePixiEffects = ({
                   toSprite.x = centerX - newWidth / 2
                   toSprite.y = centerY - newHeight / 2
                 }
-                if (appRef.current) {
-                  appRef.current.render()
-                }
+                // 렌더링은 PixiJS ticker가 처리
               }
             }, waveStartTime + waveDuration * 0.5)
           }
@@ -971,9 +931,7 @@ export const usePixiEffects = ({
                 }
               }
               
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             },
             onComplete: function() {
               // 전환 효과 완료 후 마스크 정리 (선택사항)
@@ -1003,9 +961,7 @@ export const usePixiEffects = ({
               if (toText) {
                 toText.alpha = defaultFadeObj.alpha
               }
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
         }
@@ -1014,9 +970,7 @@ export const usePixiEffects = ({
     // 이전 코드 패턴: 애니메이션 완료 후 정리
     tl.call(() => {
       activeAnimationsRef.current.delete(sceneIndex)
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 렌더링은 PixiJS ticker가 처리
     })
 
     // 고급 효과 적용
@@ -1035,10 +989,7 @@ export const usePixiEffects = ({
         tl.play()
       }
       
-      // 초기 상태 렌더링 (스프라이트가 visible: true, alpha: 0인 상태로 렌더링)
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 초기 상태 설정 (렌더링은 PixiJS ticker가 처리)
     })
   }, [appRef, containerRef, activeAnimationsRef, timeline, playbackSpeed, onAnimationComplete])
 
