@@ -83,9 +83,10 @@ export function useSceneNavigation({
   ) => {
     if (!timeline) return
     
-    // 재생 중이 아니거나 skipStopPlaying이 false일 때만 재생 중지
+    // 재생 중이 아니거나 skipStopPlaying이 false일 때만 재생 중지 (즉시 정지)
     if (isPlaying && !skipStopPlaying) {
       setIsPlaying(false)
+      isPlayingRef.current = false
       resetTtsSession()
     }
     
@@ -258,13 +259,39 @@ export function useSceneNavigation({
         console.log(`[handleSceneSelect] setTimeout 실행: currentIdx=${currentIdx} -> nextIndex=${currentIdx + 1}`)
         // 같은 그룹 내의 다음 씬으로 넘어갈 때는 자막만 변경
         const nextIndex = currentIdx + 1
+        const nextScene = timeline.scenes[nextIndex]
+        if (!nextScene) return
+        
+        // 다음 씬의 자막 텍스트 가져오기 (구간이 나뉘어져 있으면 첫 번째 구간만)
+        const nextSceneText = nextScene.text?.content || ''
+        const scriptParts = nextSceneText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+        const displayText = scriptParts.length > 1 ? scriptParts[0] : nextSceneText
+        
+        // timeline 업데이트하여 자막 변경
+        const updatedTimeline = {
+          ...timeline,
+          scenes: timeline.scenes.map((s, i) =>
+            i === nextIndex
+              ? {
+                  ...s,
+                  text: {
+                    ...s.text,
+                    content: displayText,
+                  },
+                }
+              : s
+          ),
+        }
+        setTimeline(updatedTimeline)
+        
         setCurrentSceneIndex(nextIndex)
         currentSceneIndexRef.current = nextIndex
         lastRenderedSceneIndexRef.current = nextIndex
         
-        // updateCurrentScene을 직접 호출하여 자막만 변경
+        // updateCurrentScene을 직접 호출하여 자막만 변경 (전환 효과 없음)
         // previousIndex는 currentIdx (현재 씬이 이전 씬이 됨)로 전달하여 같은 그룹으로 인식되도록 함
-        updateCurrentScene(false, currentIdx, undefined, () => {
+        // 전환 효과를 'none'으로 설정하여 자막만 변경되도록 함
+        updateCurrentScene(false, currentIdx, 'none', () => {
           console.log(`[handleSceneSelect] updateCurrentScene 완료, 다음 씬으로 재귀 호출`)
           // 자막 변경 완료 후 재귀적으로 다음 씬 처리
           autoAdvanceToNextInGroup(nextIndex)
@@ -422,7 +449,7 @@ export function useSceneNavigation({
     const isSameSceneTransition = currentSceneIndexRef.current === sceneIndex
     
     if (targetTextObj) {
-      // 텍스트 업데이트
+      // 텍스트 업데이트 (항상 업데이트)
       targetTextObj.text = partText
       targetTextObj.visible = true
       targetTextObj.alpha = 1
@@ -436,6 +463,8 @@ export function useSceneNavigation({
       
       // 같은 씬 내 구간 전환인 경우: 자막만 업데이트 (전환 효과 없음)
       if (isSameSceneTransition) {
+        // 자막 업데이트 확인
+        console.log(`[구간 선택] 같은 씬 내 구간 전환: 씬 ${sceneIndex}, 구간 ${partIndex}, 텍스트: "${partText.substring(0, 30)}..."`)
         if (appRef.current) {
           appRef.current.render()
         }
@@ -445,10 +474,21 @@ export function useSceneNavigation({
         return
       }
       
-      // 다른 씬으로 이동하는 경우: updateCurrentScene 호출하여 전환 효과 적용
+      // 다른 씬으로 이동하는 경우: 씬 전환 및 구간 텍스트 표시
+      console.log(`[구간 선택] 다른 씬으로 이동: 씬 ${sceneIndex}, 구간 ${partIndex}, 텍스트: "${partText.substring(0, 30)}..."`)
       currentSceneIndexRef.current = sceneIndex
       setCurrentSceneIndex(sceneIndex)
-      updateCurrentScene(false, currentSceneIndexRef.current, undefined, undefined)
+      // updateCurrentScene 호출하여 씬 전환 (구간 텍스트는 이미 업데이트됨)
+      updateCurrentScene(false, currentSceneIndexRef.current, undefined, () => {
+        // 전환 완료 후 구간 텍스트가 올바르게 표시되었는지 확인
+        const finalText = textsRef.current.get(sceneIndex)
+        if (finalText && finalText.text !== partText) {
+          finalText.text = partText
+          if (appRef.current) {
+            appRef.current.render()
+          }
+        }
+      })
     } else {
       // 텍스트 객체가 없으면 loadAllScenes 호출
       if (loadAllScenes) {
@@ -468,13 +508,27 @@ export function useSceneNavigation({
               text.alpha = 1
               
               if (isSameSceneTransition) {
+                // 같은 씬 내 구간 전환: 자막만 업데이트
                 if (appRef.current) {
                   appRef.current.render()
                 }
+                if (setSelectedPart) {
+                  setSelectedPart({ sceneIndex, partIndex })
+                }
               } else {
+                // 다른 씬으로 이동: 씬 전환 및 구간 텍스트 표시
                 currentSceneIndexRef.current = sceneIndex
                 setCurrentSceneIndex(sceneIndex)
-                updateCurrentScene(false, currentSceneIndexRef.current, undefined, undefined)
+                updateCurrentScene(false, currentSceneIndexRef.current, undefined, () => {
+                  // 전환 완료 후 구간 텍스트가 올바르게 표시되었는지 확인
+                  const finalText = textsRef.current.get(sceneIndex)
+                  if (finalText && finalText.text !== partText) {
+                    finalText.text = partText
+                    if (appRef.current) {
+                      appRef.current.render()
+                    }
+                  }
+                })
               }
             }
           }, 100)

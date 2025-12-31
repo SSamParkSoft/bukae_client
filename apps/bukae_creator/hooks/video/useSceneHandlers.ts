@@ -119,7 +119,31 @@ export function useSceneHandlers({
         setTimeout(() => {
           // 전환 효과 변경 시에는 같은 씬에서 전환 효과만 변경하므로
           // previousIndex는 null로 설정하여 페이드 인 효과 적용
-            updateCurrentScene(false, null, value)
+          // 자막은 현재 씬의 첫 번째 구간만 표시 (구간이 나뉘어져 있으면)
+          const currentScene = nextTimeline.scenes[targetSceneIndex]
+          if (currentScene?.text?.content) {
+            const scriptParts = currentScene.text.content.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+            if (scriptParts.length > 1) {
+              // 구간이 나뉘어져 있으면 첫 번째 구간만 표시하도록 timeline 업데이트
+              const updatedTimeline: TimelineData = {
+                ...nextTimeline,
+                scenes: nextTimeline.scenes.map((scene, i) =>
+                  i === targetSceneIndex
+                    ? {
+                        ...scene,
+                        text: {
+                          ...scene.text,
+                          content: scriptParts[0], // 첫 번째 구간만 표시
+                        },
+                      }
+                    : scene
+                ),
+              }
+              setTimeline(updatedTimeline)
+            }
+          }
+          
+          updateCurrentScene(false, null, value)
           
           lastRenderedSceneIndexRef.current = targetSceneIndex
 

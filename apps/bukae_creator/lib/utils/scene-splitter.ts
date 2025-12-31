@@ -201,10 +201,11 @@ export function insertSceneDelimiters(params: {
     script: scriptWithDelimiters,
   }
 
-  // TimelineScene 업데이트 (text.content에 구분자 포함)
+  // TimelineScene 업데이트 (text.content에 구분자 포함, 다른 속성은 모두 유지)
   const updatedTimelineScene: TimelineScene | undefined = timelineScene
     ? {
         ...timelineScene,
+        // 기존 속성 모두 유지 (imageFit, transition, duration 등)
         text: {
           ...timelineScene.text,
           content: scriptWithDelimiters,

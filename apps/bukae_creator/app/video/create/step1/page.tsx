@@ -315,7 +315,7 @@ export default function Step1Page() {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="예: Spoon and Chopstick Set / 수저세트, 주방용품, 50000, 20"
+                  placeholder="예) 화장실에서 심심할 때 좋은 거, 캠핑 가서 먹기 좋은 밀키트, 여친한테 사랑받는 선물"
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   onKeyPress={handleKeyPress}
@@ -351,11 +351,6 @@ export default function Step1Page() {
                 themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
               }`}>
                 💡 AI가 문맥을 파악해 지금 가장 잘 팔리는 &quot;인기 상품&quot;을 추천해 드릴게요.
-              </p>
-              <p className={`mt-2 text-sm ${
-                themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
-              }`}>
-                💡 예) 화장실에서 심심할 때 좋은 거, 캠핑 가서 먹기 좋은 밀키트, 여친한테 사랑받는 선물
               </p>
               {searchError && (
                 <div className="mt-4 flex items-center gap-2 text-red-500 text-sm">

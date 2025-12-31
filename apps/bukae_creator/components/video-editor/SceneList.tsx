@@ -191,7 +191,20 @@ export function SceneList({
                      !target.closest('select') &&
                      !target.closest('[draggable]') &&
                      !target.closest('.cursor-pointer'))) {
-                  onSelect(firstSceneIndexInGroup)
+                  // 첫 번째 씬의 첫 번째 구간만 표시
+                  const firstScene = scenes[firstSceneIndexInGroup]
+                  if (firstScene) {
+                    const scriptParts = firstScene.script.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+                    if (scriptParts.length > 1 && onSelectPart) {
+                      // 구간이 나뉘어져 있으면 첫 번째 구간만 선택
+                      onSelectPart(firstSceneIndexInGroup, 0)
+                    } else {
+                      // 구간이 없으면 첫 번째 씬 선택
+                      onSelect(firstSceneIndexInGroup)
+                    }
+                  } else {
+                    onSelect(firstSceneIndexInGroup)
+                  }
                 }
               }
             }}

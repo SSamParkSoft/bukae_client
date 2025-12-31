@@ -192,7 +192,9 @@ export const useSceneManager = ({
         currentSprite.alpha = 1
       }
       if (currentText && currentScene.text?.content) {
-        const displayText = currentScene.text.content
+        // 구간이 나뉘어져 있으면 첫 번째 구간만 표시
+        const scriptParts = currentScene.text.content.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+        const displayText = scriptParts.length > 1 ? scriptParts[0] : currentScene.text.content
         if (currentText.text !== displayText) {
           currentText.text = displayText
         }
@@ -237,7 +239,9 @@ export const useSceneManager = ({
       }
       
       if (textToUpdate && currentScene.text?.content) {
-        const displayText = currentScene.text.content
+        // 구간이 나뉘어져 있으면 첫 번째 구간만 표시
+        const scriptParts = currentScene.text.content.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+        const displayText = scriptParts.length > 1 ? scriptParts[0] : currentScene.text.content
         if (textToUpdate.text !== displayText) {
           textToUpdate.text = displayText
         }
@@ -252,24 +256,44 @@ export const useSceneManager = ({
       return
     }
     
-    // 전환 효과 적용을 위한 wrappedOnComplete 미리 정의
-    const wrappedOnComplete = onAnimationComplete ? () => {
-      // 전환 효과 완료 후 이전 씬 숨기기
-      if (!skipAnimation && previousIndex !== null && previousIndex !== sceneIndex) {
-        const prevSprite = spritesRef.current.get(previousIndex)
-        const prevText = textsRef.current.get(previousIndex)
-        
-        if (prevSprite) {
-          prevSprite.visible = false
-          prevSprite.alpha = 0
-        }
-        
-        if (prevText) {
-          prevText.visible = false
-          prevText.alpha = 0
-        }
+    // 전환 효과 시작 전에 이전 씬을 먼저 숨기기 (겹침 방지)
+    if (!skipAnimation && previousIndex !== null && previousIndex !== sceneIndex) {
+      const prevSprite = spritesRef.current.get(previousIndex)
+      const prevText = textsRef.current.get(previousIndex)
+      
+      if (prevSprite) {
+        prevSprite.visible = false
+        prevSprite.alpha = 0
       }
       
+      if (prevText) {
+        prevText.visible = false
+        prevText.alpha = 0
+      }
+      
+      // 다른 모든 씬들도 숨김 (현재 씬 제외)
+      spritesRef.current.forEach((sprite, idx) => {
+        if (sprite && idx !== sceneIndex && idx !== previousIndex) {
+          sprite.visible = false
+          sprite.alpha = 0
+        }
+      })
+      textsRef.current.forEach((text, idx) => {
+        if (text && idx !== sceneIndex && idx !== previousIndex) {
+          text.visible = false
+          text.alpha = 0
+        }
+      })
+      
+      // 즉시 렌더링하여 이전 씬이 사라지도록 함
+      if (appRef.current) {
+        appRef.current.render()
+      }
+    }
+    
+    // 전환 효과 적용을 위한 wrappedOnComplete 미리 정의
+    const wrappedOnComplete = onAnimationComplete ? () => {
+      // 전환 효과 완료 후 최종 정리
       // 다른 모든 씬들 숨기기
       spritesRef.current.forEach((sprite, idx) => {
         if (sprite && idx !== sceneIndex) {
@@ -292,38 +316,22 @@ export const useSceneManager = ({
       // 원래 onAnimationComplete 콜백 호출
       onAnimationComplete(sceneIndex)
     } : (() => {
-      // onAnimationComplete가 없어도 이전 씬을 숨겨야 함
-      if (!skipAnimation && previousIndex !== null && previousIndex !== sceneIndex) {
-        const prevSprite = spritesRef.current.get(previousIndex)
-        const prevText = textsRef.current.get(previousIndex)
-        
-        if (prevSprite) {
-          prevSprite.visible = false
-          prevSprite.alpha = 0
+      // onAnimationComplete가 없어도 최종 정리
+      spritesRef.current.forEach((sprite, idx) => {
+        if (sprite && idx !== sceneIndex) {
+          sprite.visible = false
+          sprite.alpha = 0
         }
-        
-        if (prevText) {
-          prevText.visible = false
-          prevText.alpha = 0
+      })
+      textsRef.current.forEach((text, idx) => {
+        if (text && idx !== sceneIndex) {
+          text.visible = false
+          text.alpha = 0
         }
-        
-        // 다른 모든 씬들도 숨김
-        spritesRef.current.forEach((sprite, idx) => {
-          if (sprite && idx !== sceneIndex) {
-            sprite.visible = false
-            sprite.alpha = 0
-          }
-        })
-        textsRef.current.forEach((text, idx) => {
-          if (text && idx !== sceneIndex) {
-            text.visible = false
-            text.alpha = 0
-          }
-        })
-        
-        if (appRef.current) {
-          appRef.current.render()
-        }
+      })
+      
+      if (appRef.current) {
+        appRef.current.render()
       }
     })
     

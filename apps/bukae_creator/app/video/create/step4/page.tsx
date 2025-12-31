@@ -903,6 +903,9 @@ export default function Step4Page() {
   const scenePreviewAudioUrlRef = useRef<string | null>(null)
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null)
   const bgmAudioUrlRef = useRef<string | null>(null)
+  const previewingSceneIndexRef = useRef<number | null>(null)
+  const previewingPartIndexRef = useRef<number | null>(null)
+  const isPreviewingRef = useRef<boolean>(false)
 
   const stopTtsAudio = useCallback(() => {
     const a = ttsAudioRef.current
@@ -936,6 +939,9 @@ export default function Step4Page() {
       URL.revokeObjectURL(scenePreviewAudioUrlRef.current)
       scenePreviewAudioUrlRef.current = null
     }
+    previewingSceneIndexRef.current = null
+    previewingPartIndexRef.current = null
+    isPreviewingRef.current = false
   }, [])
 
   const resetTtsSession = useCallback(() => {
@@ -1515,9 +1521,20 @@ export default function Step4Page() {
         return
       }
 
+      // 이미 같은 씬/구간을 미리듣기 중이면 정지
+      if (isPreviewingRef.current && previewingSceneIndexRef.current === sceneIndex && previewingPartIndexRef.current === (partIndex ?? null)) {
+        stopScenePreviewAudio()
+        return
+      }
+
       try {
         // 기존 미리듣기 오디오 정지
         stopScenePreviewAudio()
+        
+        // 미리듣기 상태 설정
+        previewingSceneIndexRef.current = sceneIndex
+        previewingPartIndexRef.current = partIndex ?? null
+        isPreviewingRef.current = true
 
         const scene = timeline.scenes[sceneIndex]
         // 원본 텍스트 저장
@@ -1531,6 +1548,12 @@ export default function Step4Page() {
 
         // 특정 구간만 재생하거나 모든 구간을 순차적으로 재생
         const playPart = async (currentPartIndex: number): Promise<void> => {
+          // 미리듣기가 중지되었는지 확인
+          if (!isPreviewingRef.current || previewingSceneIndexRef.current !== sceneIndex) {
+            stopScenePreviewAudio()
+            return
+          }
+          
           if (currentPartIndex >= result.parts.length) {
             // 모든 구간 재생 완료
             stopScenePreviewAudio()
@@ -1605,10 +1628,14 @@ export default function Step4Page() {
             await new Promise<void>((resolve) => {
               const startTime = Date.now()
               let resolved = false
+              let timeoutId: NodeJS.Timeout | null = null
+              let checkInterval: NodeJS.Timeout | null = null
 
               const finish = () => {
                 if (resolved) return
                 resolved = true
+                if (timeoutId) clearTimeout(timeoutId)
+                if (checkInterval) clearInterval(checkInterval)
                 resolve()
               }
 
@@ -1631,12 +1658,22 @@ export default function Step4Page() {
               })
 
               // duration이 지나면 자동으로 다음 구간으로 (오디오가 끝나지 않아도)
-              setTimeout(() => {
+              timeoutId = setTimeout(() => {
                 if (!resolved && audio && !audio.ended) {
                   audio.pause()
                   finish()
                 }
               }, targetDuration)
+              
+              // 미리듣기 중지 확인을 위한 인터벌
+              checkInterval = setInterval(() => {
+                if (!isPreviewingRef.current || previewingSceneIndexRef.current !== sceneIndex) {
+                  if (audio && !audio.ended) {
+                    audio.pause()
+                  }
+                  finish()
+                }
+              }, 100)
             })
           } else {
             // 오디오가 없어도 duration만큼 대기
@@ -1702,6 +1739,7 @@ export default function Step4Page() {
     spritesRef,
     loadAllScenes,
     setShowReadyMessage,
+    setCurrentTime,
   })
 
   // 씬 네비게이션 훅 (씬 선택/전환 로직)
@@ -1749,6 +1787,25 @@ export default function Step4Page() {
   useEffect(() => {
     isPlayingRef.current = isPlaying
   }, [isPlaying])
+  
+  // videoPlayback.isPlaying과 timelineIsPlaying 동기화
+  useEffect(() => {
+    if (videoPlayback.isPlaying !== timelineIsPlaying) {
+      // videoPlayback의 isPlaying 상태를 timeline의 isPlaying과 동기화
+      if (videoPlayback.isPlaying) {
+        setTimelineIsPlaying(true)
+      } else {
+        setTimelineIsPlaying(false)
+      }
+    }
+  }, [videoPlayback.isPlaying, timelineIsPlaying, setTimelineIsPlaying])
+  
+  // timelineIsPlaying이 변경되면 videoPlayback.isPlaying도 동기화
+  useEffect(() => {
+    if (timelineIsPlaying !== videoPlayback.isPlaying) {
+      videoPlayback.setIsPlaying(timelineIsPlaying)
+    }
+  }, [timelineIsPlaying, videoPlayback.isPlaying, videoPlayback.setIsPlaying])
   
   // 재생 시작 로직을 별도 함수로 분리
   
