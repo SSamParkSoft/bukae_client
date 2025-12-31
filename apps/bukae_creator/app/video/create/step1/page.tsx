@@ -345,12 +345,17 @@ export default function Step1Page() {
               <p className={`mt-2 text-sm ${
                 themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
               }`}>
-                💡 <strong>영문 상품명 / 한글 상품명, 카테고리, 가격(원), 개수 순서로 입력하세요.</strong> 
+                💡 복잡한 검색어 고민 NO! 평소 말하는 것처럼 자연스럽게 적어주세요.
               </p>
               <p className={`mt-2 text-sm ${
                 themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
               }`}>
-                💡 &quot;영문 상품명 / 한글 상품명&quot;으로 작성하면 검색 정확도가 높아져요!
+                💡 AI가 문맥을 파악해 지금 가장 잘 팔리는 &quot;인기 상품&quot;을 추천해 드릴게요.
+              </p>
+              <p className={`mt-2 text-sm ${
+                themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+                💡 예) 화장실에서 심심할 때 좋은 거, 캠핑 가서 먹기 좋은 밀키트, 여친한테 사랑받는 선물
               </p>
               {searchError && (
                 <div className="mt-4 flex items-center gap-2 text-red-500 text-sm">
