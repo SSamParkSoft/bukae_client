@@ -1965,6 +1965,8 @@ export default function Step4Page() {
     setCurrentTime,
     setSceneDurationFromAudio,
     renderSceneContent,
+    setIsPreviewingTransition,
+    setTimelineIsPlaying,
   })
 
   // 씬 네비게이션 훅 (씬 선택/전환 로직)

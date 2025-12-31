@@ -348,16 +348,23 @@ export function useSceneNavigation({
       // 선택된 씬의 전환 효과를 forceTransition으로 전달하여 해당 씬의 전환 효과가 표시되도록 함
       // renderSceneContent 사용 (통합 렌더링 함수)
       if (renderSceneContent) {
-        renderSceneContent(index, null, {
-          skipAnimation: false,
+        // 재생 중일 때는 첫 번째 구간(partIndex: 0)을 표시하도록 설정
+        // 씬 리스트에서 선택할 때는 전체 텍스트를 표시 (partIndex: null)
+        const partIndexToShow = skipStopPlaying ? 0 : null
+        // 재생 중이고 전환 효과가 'none'이면 애니메이션 스킵
+        const shouldSkipAnimation = skipStopPlaying && transition === 'none'
+        renderSceneContent(index, partIndexToShow, {
+          skipAnimation: shouldSkipAnimation,
           forceTransition: transition,
           previousIndex: prevIndex,
           onComplete: transitionCompleteCallback,
-          updateTimeline: false, // selectScene은 timeline을 업데이트하지 않음 (첫 번째 구간만 표시)
+          updateTimeline: skipStopPlaying, // 재생 중일 때만 timeline 업데이트 (첫 번째 구간만 표시)
         })
       } else {
         // fallback: 기존 방식
-        updateCurrentScene(false, prevIndex, transition, transitionCompleteCallback)
+        // 재생 중이고 전환 효과가 'none'이면 애니메이션 스킵
+        const shouldSkipAnimation = skipStopPlaying && transition === 'none'
+        updateCurrentScene(shouldSkipAnimation, prevIndex, transition, transitionCompleteCallback)
       }
       
       // 수동으로 씬을 클릭한 경우(!skipStopPlaying)에는 자동 전환하지 않음

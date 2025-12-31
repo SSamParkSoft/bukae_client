@@ -140,6 +140,7 @@ export const useSceneManager = ({
       }
       
       if (hasActiveAnimation) {
+        // 전환 효과가 진행 중이면 콜백은 호출하지 않음 (전환 효과 완료 시 콜백이 호출됨)
         return // 로그 제거하여 콘솔 스팸 방지
       }
       
@@ -158,6 +159,10 @@ export const useSceneManager = ({
             }
             currentText.visible = displayText.length > 0
             currentText.alpha = displayText.length > 0 ? 1 : 0
+          }
+          // 콜백 호출 (이미 같은 씬이 표시되어 있어도 콜백은 호출해야 함 - 재생 중 씬 전환 완료를 알리기 위해)
+          if (onAnimationComplete) {
+            onAnimationComplete(sceneIndex)
           }
           return
         }
@@ -208,6 +213,11 @@ export const useSceneManager = ({
       
       // 렌더링은 PixiJS ticker가 처리
       previousSceneIndexRef.current = sceneIndex
+      
+      // skipAnimation일 때는 즉시 콜백 호출 (재생 중 씬 전환 완료를 알리기 위해)
+      if (onAnimationComplete) {
+        onAnimationComplete(sceneIndex)
+      }
       return
     }
     
@@ -1280,7 +1290,14 @@ export const useSceneManager = ({
     }
     
     // 같은 씬 내 구간 전환인지 확인
-    const isSameSceneTransition = currentSceneIndexRef.current === sceneIndex
+    // previousIndex가 제공되면 다른 씬으로 전환하는 것이므로 전환 효과 적용
+    // previousIndex가 null이거나 제공되지 않고, partIndex가 제공되면 같은 씬 내 구간 전환
+    const isSameSceneTransition = 
+      currentSceneIndexRef.current === sceneIndex && 
+      previousIndex === undefined && 
+      partIndex !== undefined && 
+      partIndex !== null &&
+      partIndex > 0 // 첫 번째 구간(partIndex: 0)은 씬 전환과 함께 처리되므로 제외
     
     // 같은 씬 내 구간 전환인 경우: 자막만 업데이트 (전환 효과 없음)
     if (isSameSceneTransition) {
@@ -1298,11 +1315,12 @@ export const useSceneManager = ({
     }
     
     // updateCurrentScene 호출하여 씬 전환
+    // onComplete를 onAnimationComplete로 변환 (sceneIndex를 인자로 받음)
     updateCurrentScene(
       skipAnimation,
       previousIndex !== undefined ? previousIndex : currentSceneIndexRef.current,
       forceTransition,
-      () => {
+      (completedSceneIndex: number) => {
         // 전환 완료 후 구간 텍스트가 올바르게 표시되었는지 확인
         if (partText && targetTextObj) {
           const finalText = textsRef.current.get(sceneIndex)
