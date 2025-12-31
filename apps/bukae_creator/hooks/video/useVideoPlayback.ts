@@ -530,10 +530,7 @@ export function useVideoPlayback({
                 console.warn(`[재생] 씬 ${sceneIndex} 텍스트 객체를 찾을 수 없음 (textsRef 크기: ${textsRef.current.size})`)
               }
               
-              // 약간의 지연 후 updateCurrentScene 호출하여 timeline과 동기화
-              setTimeout(() => {
-                updateCurrentScene(true, null, undefined, undefined)
-              }, 10)
+              // 자막은 이미 렌더링되었으므로 updateCurrentScene 호출 불필요 (씬 전환은 오디오 재생 시작 시 처리)
             }
 
             // 해당 구간의 TTS 파일 가져오기 (순차적으로 처리)
@@ -637,8 +634,6 @@ export function useVideoPlayback({
                 const startTime = Date.now()
                 const partStartTime = startTime
                 let resolved = false
-                let playingStarted = false
-                let checkAudioProgress: NodeJS.Timeout | null = null
                 let audioActualDuration: number | null = null
 
                 const finish = () => {
@@ -668,10 +663,6 @@ export function useVideoPlayback({
                   const diffPercent = (diff / expectedDuration) * 100
                   console.log(`[영상 길이 분석] 씬 ${sceneIndex} 구간 ${partIndex + 1} 완료: 예상=${expectedDuration.toFixed(2)}초, 실제=${actualDuration.toFixed(2)}초, 차이=${diff > 0 ? '+' : ''}${diff.toFixed(2)}초 (${diffPercent > 0 ? '+' : ''}${diffPercent.toFixed(1)}%)${audioActualDuration ? `, 오디오실제=${audioActualDuration.toFixed(2)}초` : ''}`)
                   
-                  if (checkAudioProgress) {
-                    clearInterval(checkAudioProgress)
-                    checkAudioProgress = null
-                  }
                   stopTtsAudio()
                   resolve()
                 }
@@ -735,16 +726,12 @@ export function useVideoPlayback({
                 }
                 const progressInterval = setInterval(updateProgress, 100) // 100ms마다 업데이트
 
-                // 오디오 재생 완료를 처리 (TTS가 끝나면 다음 씬으로 - duration 기반 타임아웃 없음)
+                // 오디오 재생 완료를 처리 (TTS가 끝나면 다음 씬으로 - 오디오 이벤트만 사용)
                 // audio.play() 전에 이벤트를 등록해야 함
                 const handleEnded = () => {
                   if (!resolved) {
                     console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 오디오 재생 완료 (onended 이벤트) - currentTime: ${audio.currentTime.toFixed(2)}s, duration: ${audio.duration ? audio.duration.toFixed(2) : 'unknown'}s`)
                     clearInterval(progressInterval)
-                    if (checkAudioProgress) {
-                      clearInterval(checkAudioProgress)
-                      checkAudioProgress = null
-                    }
                     audio.removeEventListener('ended', handleEnded)
                     audio.removeEventListener('error', handleError)
                     finish()
@@ -755,10 +742,6 @@ export function useVideoPlayback({
                   if (!resolved) {
                     console.error(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 오디오 재생 에러`)
                     clearInterval(progressInterval)
-                    if (checkAudioProgress) {
-                      clearInterval(checkAudioProgress)
-                      checkAudioProgress = null
-                    }
                     audio.removeEventListener('ended', handleEnded)
                     audio.removeEventListener('error', handleError)
                     // 에러 발생 시 즉시 종료
@@ -769,41 +752,6 @@ export function useVideoPlayback({
                 // 이벤트 리스너 등록 (play 전에 등록)
                 audio.addEventListener('ended', handleEnded)
                 audio.addEventListener('error', handleError)
-                
-                // 오디오 재생 상태를 주기적으로 확인하여 정확한 종료 시점 감지
-                // audio.onended가 트리거되지 않는 경우를 대비한 백업 (duration 기반이 아닌 ended 상태만 확인)
-                let audioStarted = false
-                checkAudioProgress = setInterval(() => {
-                  if (resolved) {
-                    if (checkAudioProgress) {
-                      clearInterval(checkAudioProgress)
-                      checkAudioProgress = null
-                    }
-                    return
-                  }
-                  
-                  // 오디오가 재생을 시작했는지 확인
-                  if (!audioStarted && !audio.paused && audio.currentTime > 0) {
-                    audioStarted = true
-                    console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 오디오 재생 시작 감지 (currentTime: ${audio.currentTime.toFixed(2)}s)`)
-                  }
-                  
-                  // 오디오가 끝났는지 확인 (ended 상태만 확인, duration 기반 계산 없음)
-                  // 단, 오디오가 실제로 재생을 시작한 후에만 ended를 신뢰
-                  if (audio && audio.ended && audioStarted) {
-                    console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 오디오 재생 완료 (checkAudioProgress 감지) - currentTime: ${audio.currentTime.toFixed(2)}s, duration: ${audio.duration ? audio.duration.toFixed(2) : 'unknown'}s`)
-                    if (checkAudioProgress) {
-                      clearInterval(checkAudioProgress)
-                      checkAudioProgress = null
-                    }
-                    audio.removeEventListener('ended', handleEnded)
-                    audio.removeEventListener('error', handleError)
-                    if (!resolved) {
-                      clearInterval(progressInterval)
-                      finish()
-                    }
-                  }
-                }, 50) // 50ms마다 확인
                 
                 // 오디오 재생 시작 (duration 기반 타임아웃 없음)
                 audio.play()
@@ -817,10 +765,6 @@ export function useVideoPlayback({
                     audio.removeEventListener('ended', handleEnded)
                     audio.removeEventListener('error', handleError)
                     if (!resolved) {
-                      if (checkAudioProgress) {
-                        clearInterval(checkAudioProgress)
-                        checkAudioProgress = null
-                      }
                       clearInterval(progressInterval)
                       finish()
                     }
