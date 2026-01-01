@@ -2566,11 +2566,16 @@ export default function Step4Page() {
     
     // 재생 중이거나 전환 효과 미리보기 중이면 항상 PixiJS 보이기
     // 재생 중에는 isPreviewingTransition이 false여도 PixiJS를 보여야 함
+    // 재생 중일 때는 다른 상태 변경에 영향받지 않도록 먼저 체크
     if (isPlaying || isPreviewingTransition) {
       pixiCanvas.style.opacity = '1'
       pixiCanvas.style.pointerEvents = 'none'
       pixiCanvas.style.zIndex = '10'
-    } else if (useFabricEditing && fabricReady) {
+      return // 재생 중이면 여기서 종료하여 다른 조건에 영향받지 않도록 함
+    }
+    
+    // 재생 중이 아닐 때만 편집 모드에 따라 canvas 표시/숨김 처리
+    if (useFabricEditing && fabricReady) {
       // Fabric.js 편집 활성화 시 PixiJS 캔버스 숨김
       pixiCanvas.style.opacity = '0'
       pixiCanvas.style.pointerEvents = 'none'

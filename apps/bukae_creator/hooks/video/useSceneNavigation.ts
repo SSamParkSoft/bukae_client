@@ -360,11 +360,13 @@ export function useSceneNavigation({
           onComplete: transitionCompleteCallback,
           updateTimeline: skipStopPlaying, // 재생 중일 때만 timeline 업데이트 (첫 번째 구간만 표시)
         })
+        // 렌더링은 PixiJS ticker가 처리
       } else {
         // fallback: 기존 방식
         // 재생 중이고 전환 효과가 'none'이면 애니메이션 스킵
         const shouldSkipAnimation = skipStopPlaying && transition === 'none'
         updateCurrentScene(shouldSkipAnimation, prevIndex, transition, transitionCompleteCallback)
+        // 렌더링은 PixiJS ticker가 처리
       }
       
       // 수동으로 씬을 클릭한 경우(!skipStopPlaying)에는 자동 전환하지 않음
