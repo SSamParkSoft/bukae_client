@@ -21,6 +21,7 @@ interface SceneListProps {
   onDeleteScene?: (index: number) => void
   onDuplicateScene?: (index: number) => void
   onTtsPreview?: (sceneIndex: number, partIndex?: number) => Promise<void>
+  onPlayScene?: (sceneIndex: number) => Promise<void>
 }
 
 export function SceneList({
@@ -40,6 +41,7 @@ export function SceneList({
   onDuplicateScene,
   onTtsPreview,
   onSelectPart,
+  onPlayScene,
 }: SceneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
@@ -442,7 +444,7 @@ export function SceneList({
                       </Button>
                     )}
                     {/* 전체 씬 재생 버튼 - 항상 표시 */}
-                    {onTtsPreview && scene.script.trim() && (
+                    {onPlayScene && (
                       <Button
                         type="button"
                         variant="outline"
@@ -450,31 +452,15 @@ export function SceneList({
                         className="text-[11px] px-2 py-0 h-6"
                         onClick={async (e) => {
                           e.stopPropagation()
-                          if (previewingSceneIndex === index && previewingPartIndex === null) {
-                            // 재생 중이면 정지
-                            setPreviewingSceneIndex(null)
-                            setPreviewingPartIndex(null)
-                          } else {
-                            setPreviewingSceneIndex(index)
-                            setPreviewingPartIndex(null) // 전체 재생
-                            try {
-                              await onTtsPreview(index)
-                            } catch (error) {
-                              console.error('TTS 미리듣기 실패:', error)
-                            } finally {
-                              setPreviewingSceneIndex(null)
-                              setPreviewingPartIndex(null)
-                            }
+                          try {
+                            await onPlayScene(index)
+                          } catch (error) {
+                            console.error('씬 재생 실패:', error)
                           }
                         }}
-                        disabled={previewingSceneIndex === index && previewingPartIndex === null}
-                        title="전체 씬 TTS 미리듣기"
+                        title="씬 재생"
                       >
-                        {previewingSceneIndex === index && previewingPartIndex === null ? (
-                          <Pause className="w-3 h-3" />
-                        ) : (
-                          <Play className="w-3 h-3" />
-                        )}
+                        <Play className="w-3 h-3" />
                       </Button>
                     )}
                     {onDeleteScene && (
@@ -637,59 +623,61 @@ export function SceneList({
                   </div>
                 ) : (
                   <div className="flex items-start gap-2 mb-2">
-                    <textarea
-                      rows={2}
-                      value={scene.script.replace(/\s*\|\|\|\s*/g, ' ')}
-                      onChange={(e) => {
-                        // 사용자가 입력한 값에서 ||| 제거 (실수로 입력한 경우 방지)
-                        const cleaned = e.target.value.replace(/\s*\|\|\|\s*/g, ' ')
-                        onScriptChange(index, cleaned.trim())
-                      }}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex-1 text-sm rounded-md border px-2 py-1 resize-none"
-                      style={{
-                        backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-                        borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                        color: theme === 'dark' ? '#ffffff' : '#111827',
-                      }}
-                      placeholder="Scene 텍스트 입력..."
-                    />
-                    {onTtsPreview && scene.script.trim() && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        className="shrink-0 h-auto py-1 px-2"
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          if (previewingSceneIndex === index && previewingPartIndex === null) {
-                            // 재생 중이면 정지
-                            setPreviewingSceneIndex(null)
-                            setPreviewingPartIndex(null)
-                          } else {
-                            setPreviewingSceneIndex(index)
-                            setPreviewingPartIndex(null) // 전체 재생
-                            try {
-                              await onTtsPreview(index)
-                            } catch (error) {
-                              console.error('TTS 미리듣기 실패:', error)
-                            } finally {
+                    <div className="flex-1 relative">
+                      <textarea
+                        rows={2}
+                        value={scene.script.replace(/\s*\|\|\|\s*/g, ' ')}
+                        onChange={(e) => {
+                          // 사용자가 입력한 값에서 ||| 제거 (실수로 입력한 경우 방지)
+                          const cleaned = e.target.value.replace(/\s*\|\|\|\s*/g, ' ')
+                          onScriptChange(index, cleaned.trim())
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full text-sm rounded-md border px-2 py-1 pr-8 resize-none"
+                        style={{
+                          backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
+                          borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
+                          color: theme === 'dark' ? '#ffffff' : '#111827',
+                        }}
+                        placeholder="Scene 텍스트 입력..."
+                      />
+                      {onTtsPreview && scene.script.trim() && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          className="absolute right-2 top-2 h-6 w-6 p-0 z-10"
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            if (previewingSceneIndex === index && previewingPartIndex === null) {
+                              // 재생 중이면 정지
                               setPreviewingSceneIndex(null)
                               setPreviewingPartIndex(null)
+                            } else {
+                              setPreviewingSceneIndex(index)
+                              setPreviewingPartIndex(null) // 전체 재생
+                              try {
+                                await onTtsPreview(index)
+                              } catch (error) {
+                                console.error('TTS 미리듣기 실패:', error)
+                              } finally {
+                                setPreviewingSceneIndex(null)
+                                setPreviewingPartIndex(null)
+                              }
                             }
-                          }
-                        }}
-                        disabled={previewingSceneIndex === index && previewingPartIndex === null}
-                        title="전체 씬 TTS 미리듣기"
-                      >
-                        {previewingSceneIndex === index && previewingPartIndex === null ? (
-                          <Pause className="w-3 h-3" />
-                        ) : (
-                          <Play className="w-3 h-3" />
-                        )}
-                      </Button>
-                    )}
+                          }}
+                          disabled={previewingSceneIndex === index && previewingPartIndex === null}
+                          title="전체 씬 TTS 미리듣기"
+                        >
+                          {previewingSceneIndex === index && previewingPartIndex === null ? (
+                            <Pause className="w-3 h-3" />
+                          ) : (
+                            <Play className="w-3 h-3" />
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )}
 

@@ -35,6 +35,8 @@ interface UseTtsPreviewParams {
       previousIndex?: number | null
       onComplete?: () => void
       updateTimeline?: boolean
+      prepareOnly?: boolean
+      isPlaying?: boolean
     }
   ) => void
   changedScenesRef: React.MutableRefObject<Set<number>>

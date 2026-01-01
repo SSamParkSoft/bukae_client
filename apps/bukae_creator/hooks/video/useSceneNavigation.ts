@@ -48,6 +48,8 @@ interface UseSceneNavigationParams {
       previousIndex?: number | null
       onComplete?: () => void
       updateTimeline?: boolean
+      prepareOnly?: boolean
+      isPlaying?: boolean
     }
   ) => void
   renderSceneImage?: (
@@ -386,43 +388,46 @@ export function useSceneNavigation({
       
       // Timeline의 onComplete 콜백을 사용하여 전환 효과 완료 시점을 정확히 감지
       // 선택된 씬의 전환 효과를 forceTransition으로 전달하여 해당 씬의 전환 효과가 표시되도록 함
-      // 재생 중일 때는 분리된 함수 사용, 재생 중이 아닐 때는 renderSceneContent 사용
-      console.log(`[selectScene] 렌더링 경로 확인 | skipStopPlaying: ${skipStopPlaying}, renderSceneImage: ${!!renderSceneImage}, renderSubtitlePart: ${!!renderSubtitlePart}, prepareImageAndSubtitle: ${!!prepareImageAndSubtitle}`)
-      if (skipStopPlaying && renderSceneImage && renderSubtitlePart && prepareImageAndSubtitle) {
-        console.log(`[selectScene] 재생 중 렌더링 경로 사용 | transition: ${transition}, prevIndex: ${prevIndex}`)
-        // 재생 중일 때: 이미지와 자막을 alpha: 0으로 준비
-        prepareImageAndSubtitle(index, 0, {
-          onComplete: () => {
-            // 이미지와 자막 준비 완료 후 전환 효과 적용 (이미지만, 텍스트는 alpha: 0 유지)
-            if (renderSceneImage) {
+      // 재생 중/비재생 중 모두 renderSceneContent 사용 (통합 렌더링)
+      console.log(`[selectScene] 렌더링 경로 확인 | skipStopPlaying: ${skipStopPlaying}, renderSceneContent: ${!!renderSceneContent}`)
+      if (renderSceneContent) {
+        if (skipStopPlaying) {
+          // 재생 중일 때: 이미지와 자막을 alpha: 0으로 준비 후 전환 효과 적용
+          console.log(`[selectScene] 재생 중 렌더링 경로 사용 | transition: ${transition}, prevIndex: ${prevIndex}`)
+          renderSceneContent(index, 0, {
+            skipAnimation: false, // 준비 단계에서는 애니메이션 스킵
+            forceTransition: transition,
+            previousIndex: prevIndex,
+            updateTimeline: false, // 재생 중에는 timeline 업데이트 안함 (다른 함수 영향 방지)
+            prepareOnly: true, // alpha: 0으로 준비만
+            onComplete: () => {
+              // 이미지와 자막 준비 완료 후 전환 효과 적용
               console.log(`[selectScene] 씬 ${index} 렌더링 시작 | transition: ${transition}, skipAnimation: ${transition === 'none'}, previousIndex: ${prevIndex}`)
-              renderSceneImage(index, {
+              renderSceneContent(index, 0, {
                 skipAnimation: transition === 'none',
                 forceTransition: transition,
                 previousIndex: prevIndex,
-                onComplete: transitionCompleteCallback,
+                updateTimeline: false, // 재생 중에는 timeline 업데이트 안함 (다른 함수 영향 방지)
                 prepareOnly: false, // 전환 효과 적용 후 표시
+                onComplete: transitionCompleteCallback,
               })
-            }
-          },
-        })
-      } else if (renderSceneContent) {
-        // 재생 중이 아닐 때: 기존 renderSceneContent 사용
-        // 재생 중일 때는 첫 번째 구간(partIndex: 0)을 표시하도록 설정
-        // 씬 리스트에서 선택할 때는 전체 텍스트를 표시 (partIndex: null)
-        const partIndexToShow = skipStopPlaying ? 0 : null
-        // 재생 중이고 전환 효과가 'none'이면 애니메이션 스킵
-        const shouldSkipAnimation = skipStopPlaying && transition === 'none'
-        renderSceneContent(index, partIndexToShow, {
-          skipAnimation: shouldSkipAnimation,
-          forceTransition: transition,
-          previousIndex: prevIndex,
-          onComplete: transitionCompleteCallback,
-          updateTimeline: skipStopPlaying, // 재생 중일 때만 timeline 업데이트 (첫 번째 구간만 표시)
-        })
-        // 렌더링은 PixiJS ticker가 처리
+            },
+          })
+        } else {
+          // 재생 중이 아닐 때: renderSceneContent 사용
+          // 씬 리스트에서 선택할 때는 전체 텍스트를 표시 (partIndex: null)
+          // 씬 클릭 시에는 전환 효과 없이 즉시 표시
+          renderSceneContent(index, null, {
+            skipAnimation: true, // 씬 클릭 시에는 전환 효과 없이 즉시 표시
+            forceTransition: transition,
+            previousIndex: prevIndex,
+            updateTimeline: true, // 비재생 중에는 timeline 업데이트 가능
+            prepareOnly: false,
+            onComplete: transitionCompleteCallback,
+          })
+        }
       } else {
-        // fallback: 기존 방식
+        // fallback: 기존 방식 (renderSceneContent가 없는 경우)
         // 재생 중이고 전환 효과가 'none'이면 애니메이션 스킵
         const shouldSkipAnimation = skipStopPlaying && transition === 'none'
         updateCurrentScene(shouldSkipAnimation, prevIndex, transition, transitionCompleteCallback, skipStopPlaying)

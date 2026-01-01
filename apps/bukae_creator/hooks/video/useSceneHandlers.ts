@@ -31,6 +31,8 @@ interface UseSceneHandlersParams {
       previousIndex?: number | null
       onComplete?: () => void
       updateTimeline?: boolean
+      prepareOnly?: boolean
+      isPlaying?: boolean
     }
   ) => void
 }

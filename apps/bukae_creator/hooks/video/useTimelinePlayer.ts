@@ -13,6 +13,7 @@ interface UseTimelinePlayerParams {
   containerRef: MutableRefObject<PIXI.Container | null>
   pixiReady: boolean
   onSceneChange?: (sceneIndex: number, skipStopPlaying?: boolean) => void // 재생 중 씬 변경 콜백
+  disableAutoTimeUpdateRef?: React.MutableRefObject<boolean> // 비디오 재생 중일 때 자동 시간 업데이트 비활성화 (ref로 동적 제어)
 }
 
 export function useTimelinePlayer({
@@ -24,6 +25,7 @@ export function useTimelinePlayer({
   pixiReady,
   previousSceneIndexRef,
   onSceneChange,
+  disableAutoTimeUpdateRef,
 }: UseTimelinePlayerParams & { previousSceneIndexRef: React.MutableRefObject<number | null> }) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPreviewingTransition, setIsPreviewingTransition] = useState(false)
@@ -82,6 +84,17 @@ export function useTimelinePlayer({
   useEffect(() => {
     tickRef.current = (timestamp: number) => {
       if (!isPlaying || !timeline) return
+      
+      // 비디오 재생 중일 때는 자동 시간 업데이트와 씬 전환을 모두 건너뛰고 실제 오디오 재생 시간을 사용
+      // useVideoPlayback이 씬 전환을 담당하므로 여기서는 씬 전환을 하지 않음
+      if (disableAutoTimeUpdateRef?.current) {
+        // 시간 업데이트와 씬 전환은 useVideoPlayback에서 처리
+        // 여기서는 tick만 계속 실행하여 UI 업데이트는 유지
+        rafIdRef.current = requestAnimationFrame(tickRef.current!)
+        return
+      }
+      
+      // 일반 재생 모드 (자동 시간 업데이트)
       if (lastTimestampRef.current === null) {
         lastTimestampRef.current = timestamp
         // 첫 프레임에서는 delta 계산하지 않음 (ref는 이미 동기화됨)
@@ -181,6 +194,8 @@ export function useTimelinePlayer({
     timeline,
     totalDuration,
     updateCurrentScene,
+    disableAutoTimeUpdateRef,
+    onSceneChange,
   ])
 
   // timeline의 playbackSpeed와 동기화

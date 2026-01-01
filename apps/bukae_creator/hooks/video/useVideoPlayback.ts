@@ -3,7 +3,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import * as PIXI from 'pixi.js'
 import { TimelineData } from '@/store/useVideoCreateStore'
-import { authStorage } from '@/lib/api/auth-storage'
 import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
 
 interface UseVideoPlaybackParams {
@@ -15,7 +14,7 @@ interface UseVideoPlaybackParams {
   setCurrentSceneIndex: (index: number) => void
   currentSceneIndexRef: React.MutableRefObject<number>
   lastRenderedSceneIndexRef: React.MutableRefObject<number | null>
-  updateCurrentScene: (skipAnimation?: boolean, prevIndex?: number | null, forceTransition?: string, onComplete?: () => void) => void
+  updateCurrentScene: (skipAnimation?: boolean, prevIndex?: number | null, forceTransition?: string, onComplete?: (sceneIndex?: number) => void, isPlaying?: boolean) => void
   setTimeline: (timeline: TimelineData) => void
   buildSceneMarkup: (sceneIndex: number) => string[]
   makeTtsKey: (voice: string, markup: string) => string
@@ -44,7 +43,6 @@ interface UseVideoPlaybackParams {
   loadAllScenes?: () => Promise<void>
   setShowReadyMessage?: (show: boolean) => void
   setCurrentTime?: (time: number) => void
-  setSceneDurationFromAudio?: (sceneIndex: number, durationSec: number) => void
   renderSceneContent?: (
     sceneIndex: number,
     partIndex?: number | null,
@@ -54,6 +52,8 @@ interface UseVideoPlaybackParams {
       previousIndex?: number | null
       onComplete?: () => void
       updateTimeline?: boolean
+      prepareOnly?: boolean
+      isPlaying?: boolean
     }
   ) => void
   renderSceneImage?: (
@@ -99,10 +99,10 @@ export function useVideoPlayback({
   setTimeline,
   buildSceneMarkup,
   makeTtsKey,
-  getMp3DurationSec,
+  getMp3DurationSec: _getMp3DurationSec, // eslint-disable-line @typescript-eslint/no-unused-vars
   textsRef,
   appRef,
-  selectScene,
+  selectScene: _selectScene, // eslint-disable-line @typescript-eslint/no-unused-vars
   setIsPreparing,
   setIsTtsBootstrapping,
   setIsBgmBootstrapping,
@@ -115,7 +115,6 @@ export function useVideoPlayback({
   loadAllScenes,
   setShowReadyMessage,
   setCurrentTime,
-  setSceneDurationFromAudio,
   renderSceneContent,
   renderSceneImage,
   renderSubtitlePart,
@@ -267,7 +266,7 @@ export function useVideoPlayback({
           stopBgmAudio()
           return
         }
-      } catch (fetchError) {
+      } catch {
         stopBgmAudio()
         return
       }
@@ -327,7 +326,7 @@ export function useVideoPlayback({
         // audio.load()를 호출하여 메타데이터 로드
         audio.load()
       }
-    } catch (error) {
+    } catch {
       stopBgmAudio()
     }
   }, [stopBgmAudio])
@@ -524,104 +523,27 @@ export function useVideoPlayback({
       const scene = timeline.scenes[sceneIndex]
       const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
       
-      // 재생 시작 전 이미지/자막 alpha: 0 리셋 (이전 씬의 상태 정리)
-      if (prepareImageAndSubtitle) {
-        prepareImageAndSubtitle(sceneIndex, 0, {
-          onComplete: () => {
-            console.log(`[재생] 씬 ${sceneIndex} 이미지/자막 준비 완료 (alpha: 0)`)
-          },
+      // 이전 씬의 모든 오디오와 렌더링 정지 (현재 씬만 재생되도록 보장)
+      console.log(`[playNextScene] 씬 ${sceneIndex} 재생 시작 전 이전 씬 정리`)
+      stopTtsAudio() // 이전 씬의 TTS 오디오 정지
+      
+      // 다른 모든 씬의 렌더링 중지 (현재 씬 제외)
+      if (spritesRef && textsRef) {
+        spritesRef.current.forEach((sprite, idx) => {
+          if (sprite && idx !== sceneIndex) {
+            sprite.visible = false
+            sprite.alpha = 0
+          }
+        })
+        textsRef.current.forEach((text, idx) => {
+          if (text && idx !== sceneIndex) {
+            text.visible = false
+            text.alpha = 0
+          }
         })
       }
       
-      // 씬 전환: 재생 중에는 selectScene을 사용하여 전환 효과 적용
-      // 이전 씬 인덱스 계산
-      const previousSceneIndex = currentIndex > 0 ? currentIndex - 1 : null
-      const previousScene = previousSceneIndex !== null ? timeline.scenes[previousSceneIndex] : null
-      const isSameGroup = previousScene && previousScene.sceneId === scene.sceneId
-      
-      // 재생 중 씬 전환 (전환 효과 적용)
-      // 전환 효과가 완료된 후 TTS 재생을 시작하도록 Promise로 래핑 (타임아웃 10초)
-      await new Promise<void>((resolve, reject) => {
-        // AbortController 체크
-        if (playbackAbortControllerRef.current?.signal.aborted) {
-          reject(new Error('재생 중지됨'))
-          return
-        }
-        
-        let transitionResolved = false
-        const transitionTimeout = setTimeout(() => {
-          if (!transitionResolved) {
-            transitionResolved = true
-            console.warn(`[재생] 씬 ${sceneIndex} 전환 효과 타임아웃 (10초), 계속 진행`)
-            resolve()
-          }
-        }, 10000) // 10초 타임아웃
-        
-        const transitionCompleteCallback = () => {
-          if (!transitionResolved) {
-            transitionResolved = true
-            clearTimeout(transitionTimeout)
-            // 전환 효과 완료 후 TTS 재생 시작
-            console.log(`[재생] 씬 ${sceneIndex} 전환 효과 완료, TTS 재생 시작`)
-            resolve()
-          }
-        }
-        
-        if (currentIndex > 0 || lastRenderedSceneIndexRef.current !== null) {
-          // 이전 씬이 있거나 이미 렌더링된 씬이 있으면 전환 효과 적용
-          const prevIndex = previousSceneIndex !== null ? previousSceneIndex : lastRenderedSceneIndexRef.current
-          console.log(`[playNextScene] selectScene 호출 (이전 씬 있음) | sceneIndex: ${sceneIndex}, prevIndex: ${prevIndex}`)
-          selectScene(sceneIndex, true, transitionCompleteCallback)
-        } else {
-          // 첫 번째 씬이고 렌더링된 씬이 없으면 즉시 전환 (페이드 인)
-          console.log(`[playNextScene] selectScene 호출 (첫 번째 씬) | sceneIndex: ${sceneIndex}`)
-          selectScene(sceneIndex, true, transitionCompleteCallback)
-        }
-      }).catch((error) => {
-        // AbortController로 인한 중단이면 조용히 종료
-        if (error.message === '재생 중지됨') {
-          return
-        }
-        throw error
-      })
-      
-      // AbortController 체크: 재생 중지되었으면 중단
-      if (playbackAbortControllerRef.current?.signal.aborted) {
-        console.log(`[재생] 씬 ${sceneIndex} 재생 중지됨 (전환 효과 완료 후)`)
-        return
-      }
-      
-      // 같은 그룹 내 씬인지 확인 (움직임 효과가 적용된 분할된 씬들)
-      // previousSceneIndex, previousScene, isSameGroup은 위에서 이미 선언됨
-      const MOVEMENT_EFFECTS = ['slide-left', 'slide-right', 'slide-up', 'slide-down', 'zoom-in', 'zoom-out']
-      const isMovementEffect = isSameGroup && previousScene && MOVEMENT_EFFECTS.includes(previousScene.transition || '')
-      
-      // 전환 효과 duration과 TTS duration 불일치 처리 - 경고 로그 출력
-      if (scene.transitionDuration && scene.transitionDuration > 0) {
-        // 원본 텍스트에서 구간 추출
-        const originalText = scene.text?.content || ''
-        const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
-        
-        if (scriptParts.length > 0) {
-          const ttsDuration = scriptParts.reduce((sum, _, idx) => {
-            const markups = buildSceneMarkup(sceneIndex)
-            if (idx < markups.length) {
-              const markup = markups[idx]
-              const key = makeTtsKey(voiceTemplate!, markup)
-              const cached = ttsCacheRef.current.get(key)
-              if (cached && cached.durationSec > 0) {
-                return sum + cached.durationSec
-              }
-            }
-            return sum
-          }, 0)
-          
-          if (ttsDuration > 0 && Math.abs(scene.transitionDuration - ttsDuration) > 0.5) {
-            console.warn(`[재생] 씬 ${sceneIndex} 전환 효과 duration(${scene.transitionDuration.toFixed(2)}초)과 TTS duration(${ttsDuration.toFixed(2)}초) 불일치 (차이: ${Math.abs(scene.transitionDuration - ttsDuration).toFixed(2)}초)`)
-          }
-        }
-      }
-      
+      // TTS 재생 함수를 먼저 정의 (renderSceneWithSync에서 사용하기 위해)
       // TTS 재생 함수 - 각 ||| 구간별로 순차 재생 (파일이 준비되는 대로 즉시 렌더링)
       const playTts = async (): Promise<boolean> => {
         try {
@@ -684,7 +606,7 @@ export function useVideoPlayback({
             }
             
             // 자막 즉시 표시 (리스트 순서대로 렌더링)
-            // 단, 첫 번째 구간(partIndex === 0)은 playing 이벤트에서 렌더링하므로 여기서는 건너뜀
+            // 단, 첫 번째 구간(partIndex === 0)은 통합 렌더링에서 이미 처리되므로 여기서는 건너뜀
             if (currentPartText && partIndex > 0) {
               // renderSubtitlePart 사용 (자막만 렌더링)
               // 각 구간에 맞게 구간 파싱하여 표시
@@ -696,15 +618,11 @@ export function useVideoPlayback({
                 console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1}/${scriptParts.length} 자막 렌더링 (리스트 인덱스 ${partIndex}): "${currentPartText.substring(0, 30)}..."`)
               } else if (renderSceneContent) {
                 // fallback: renderSceneContent 사용
-                if (partIndex === 0) {
-                  console.log(`[재생] 씬 ${sceneIndex} 첫 번째 구간 자막 확인 (selectScene에서 이미 처리됨): "${currentPartText.substring(0, 30)}..."`)
-                } else {
-                  renderSceneContent(sceneIndex, partIndex, {
-                    skipAnimation: true,
-                    updateTimeline: true,
-                  })
-                  console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1}/${scriptParts.length} 자막 렌더링 (리스트 인덱스 ${partIndex}): "${currentPartText.substring(0, 30)}..."`)
-                }
+                renderSceneContent(sceneIndex, partIndex, {
+                  skipAnimation: true,
+                  updateTimeline: true,
+                })
+                console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1}/${scriptParts.length} 자막 렌더링 (리스트 인덱스 ${partIndex}): "${currentPartText.substring(0, 30)}..."`)
               } else {
                 // fallback: 기존 방식 (renderSceneContent가 없는 경우)
                 // timeline 먼저 업데이트
@@ -753,12 +671,16 @@ export function useVideoPlayback({
                 const isNextInSameGroup = nextScene && nextScene.sceneId === scene.sceneId
 
                 if (isNextInSameGroup) {
+                  // 같은 그룹 내의 다음 씬으로 넘어갈 때는 자막만 변경
                   const nextIndex = currentIndex + 1
                   setCurrentSceneIndex(nextIndex)
                   currentSceneIndexRef.current = nextIndex
-                  lastRenderedSceneIndexRef.current = nextIndex
+                  // lastRenderedSceneIndexRef는 updateCurrentScene 완료 후 업데이트되므로 여기서는 업데이트하지 않음
                   // 재생 중이므로 isPlaying: true
                   updateCurrentScene(false, currentIndex, undefined, () => {
+                    // updateCurrentScene 완료 후 lastRenderedSceneIndexRef 업데이트
+                    lastRenderedSceneIndexRef.current = nextIndex
+                    // 같은 그룹 내 씬이므로 전환 효과 없이 바로 TTS 재생 시작
                     void playNextScene(nextIndex)
                   }, true)
                 } else {
@@ -769,32 +691,37 @@ export function useVideoPlayback({
             }
 
             const markup = markups[partIndex]
-            if (!voiceTemplate) {
-              console.error('[재생] 목소리를 선택해주세요.')
-              return
-            }
-            const key = makeTtsKey(voiceTemplate, markup)
-            
-            // 캐시 확인 (재생 시작 전에 모든 TTS가 준비되어 있어야 함)
-            const cached = ttsCacheRef.current.get(key)
-            let part: { blob: Blob; durationSec: number; url: string | null } | null = null
-
-            if (cached && (cached.blob || cached.url)) {
-              // 캐시에서 사용 (blob 또는 url이 있으면 유효)
-              part = {
-                blob: cached.blob!,
-                durationSec: cached.durationSec || 0,
-                url: cached.url || null,
-              }
-              console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 캐시에서 사용 (duration: ${cached.durationSec}초)`)
-            } else {
-              // 캐시에 없으면 에러 (재생 시작 전에 모든 TTS가 준비되어 있어야 함)
-              console.error(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS가 준비되지 않음 (재생 시작 전에 모든 TTS가 준비되어 있어야 함)`)
+            if (!markup) {
               // 다음 구간으로
               if (partIndex < scriptParts.length - 1) {
                 await playPart(partIndex + 1)
               }
               return
+            }
+
+            // TTS 파일 가져오기 (캐시에서)
+            const key = makeTtsKey(voiceTemplate!, markup)
+            const cached = ttsCacheRef.current.get(key)
+            
+            if (!cached) {
+              console.error(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS 캐시 없음 - 재생 중지`)
+              console.error(`[재생] TTS 키: ${key}`)
+              console.error(`[재생] 캐시된 키 목록:`, Array.from(ttsCacheRef.current.keys()).slice(0, 10))
+              // TTS 캐시가 없으면 재생 중지 (다음 구간/씬으로 넘어가지 않음)
+              isPlayingRef.current = false
+              setIsPlaying(false)
+              if (setTimelineIsPlaying) {
+                setTimelineIsPlaying(false)
+              }
+              return
+            }
+
+            const part = {
+              blob: cached.blob,
+              durationSec: cached.durationSec,
+              url: cached.url,
+              partIndex,
+              markup,
             }
 
             if (!part || (!part.blob && !part.url)) {
@@ -847,8 +774,8 @@ export function useVideoPlayback({
                   return
                 }
                 
-                const startTime = Date.now()
-                const partStartTime = startTime
+                let startTime: number | null = null // audio.play() 호출 후 설정
+                const partStartTime = Date.now()
                 let resolved = false
                 let audioActualDuration: number | null = null
                 let playingEventListener: (() => void) | null = null
@@ -901,10 +828,9 @@ export function useVideoPlayback({
                       firstPartStarted = true
                       firstPartStartTime = Date.now()
                       
-                      // selectScene에서 이미 이미지와 자막이 렌더링되었으므로
+                      // 통합 렌더링에서 이미 이미지와 자막이 렌더링되었으므로
                       // playing 이벤트에서는 렌더링 함수를 호출하지 않고 직접 alpha만 변경
-                      // (renderSceneImage를 호출하면 이전 씬을 숨기는 로직이 실행되어 깜빡임 발생)
-                      const currentSprite = spritesRef.current.get(sceneIndex)
+                      const currentSprite = spritesRef?.current.get(sceneIndex)
                       const currentText = textsRef.current.get(sceneIndex)
                       
                       console.log(`[playing이벤트] 씬 ${sceneIndex} 현재 상태 확인 | sprite: alpha=${currentSprite?.alpha}, visible=${currentSprite?.visible} | text: alpha=${currentText?.alpha}, visible=${currentText?.visible}`)
@@ -927,7 +853,7 @@ export function useVideoPlayback({
                         console.log(`[playing이벤트] 씬 ${sceneIndex} 자막은 이미 표시됨 (alpha=${currentText?.alpha})`)
                       }
                       
-                      // 씬 전환은 playNextScene 시작 부분에서 이미 처리됨
+                      // 씬 전환은 통합 렌더링에서 이미 처리됨
                       // 첫 번째 구간이 재생되기 시작했음을 기록
                       // 첫 번째 씬에서만 BGM 재생 시작 (TTS와 동시에)
                       if (!bgmStarted && bgmTemplate && bgmAudioRef.current) {
@@ -950,9 +876,9 @@ export function useVideoPlayback({
 
                 // 재생바 업데이트를 위한 인터벌
                 const updateProgress = () => {
-                  if (!isPlayingRef.current || resolved) {
-                    // 재생 중지되었거나 완료되었으면 interval 정리
-                    if (progressIntervalRef.current) {
+                  if (!isPlayingRef.current || resolved || !startTime) {
+                    // 재생 중지되었거나 완료되었거나 아직 재생이 시작되지 않았으면 interval 정리
+                    if (progressIntervalRef.current && (!isPlayingRef.current || resolved)) {
                       clearInterval(progressIntervalRef.current)
                       progressIntervalRef.current = null
                     }
@@ -991,7 +917,7 @@ export function useVideoPlayback({
                 if (progressIntervalRef.current) {
                   clearInterval(progressIntervalRef.current)
                 }
-                progressIntervalRef.current = setInterval(updateProgress, 100) // 100ms마다 업데이트
+                // interval은 audio.play() 호출 후에 시작되도록 함 (startTime이 설정된 후)
 
                 // 오디오 재생 완료를 처리 (TTS가 끝나면 다음 씬으로 - 오디오 이벤트만 사용)
                 // audio.play() 전에 이벤트를 등록해야 함
@@ -1060,16 +986,47 @@ export function useVideoPlayback({
                 audio.addEventListener('error', handleError)
                 audio.addEventListener('canplaythrough', handleCanPlayThrough)
                 
-                // 오디오 재생 시작 (duration 기반 타임아웃 없음)
-                audio.play().catch((error) => {
-                  // audio.play() 실패 시 Promise 해결
-                  console.error(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} audio.play() 실패:`, error)
+                // 재생 중지 상태 확인
+                if (playbackAbortControllerRef.current?.signal.aborted || !isPlayingRef.current) {
+                  console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 재생 중지됨 (play() 호출 전)`)
                   clearTimeout(canplaythroughTimeout)
                   audio.removeEventListener('canplaythrough', handleCanPlayThrough)
-                  // 브라우저 자동 재생 정책 대응
-                  if (error.name === 'NotAllowedError' || error.name === 'NotSupportedError') {
-                    alert('오디오 재생이 차단되었습니다. 브라우저 설정을 확인해주세요.')
+                  finish()
+                  return
+                }
+
+                // 오디오 재생 시작 (duration 기반 타임아웃 없음)
+                audio.play().then(() => {
+                  // 재생 중지 상태 재확인
+                  if (playbackAbortControllerRef.current?.signal.aborted || !isPlayingRef.current) {
+                    console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 재생 중지됨 (play() 직후)`)
+                    audio.pause()
+                    clearTimeout(canplaythroughTimeout)
+                    audio.removeEventListener('canplaythrough', handleCanPlayThrough)
+                    finish()
+                    return
                   }
+                  
+                  // audio.play() 성공 시 startTime 설정 및 interval 시작
+                  if (!startTime) {
+                    startTime = Date.now()
+                    progressIntervalRef.current = setInterval(updateProgress, 100) // 100ms마다 업데이트
+                    console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 타임라인 업데이트 시작`)
+                  }
+                }).catch((error) => {
+                  // AbortError는 재생 중지로 인한 정상적인 경우이므로 무시
+                  if (error.name === 'AbortError' || error.message?.includes('interrupted')) {
+                    console.log(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 재생 중단됨 (정상)`)
+                  } else {
+                    // audio.play() 실패 시 Promise 해결
+                    console.error(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} audio.play() 실패:`, error)
+                    // 브라우저 자동 재생 정책 대응
+                    if (error.name === 'NotAllowedError' || error.name === 'NotSupportedError') {
+                      alert('오디오 재생이 차단되었습니다. 브라우저 설정을 확인해주세요.')
+                    }
+                  }
+                  clearTimeout(canplaythroughTimeout)
+                  audio.removeEventListener('canplaythrough', handleCanPlayThrough)
                   // 에러 발생 시 상태 복원
                   if (spritesRef && textsRef) {
                     const currentSprite = spritesRef.current.get(sceneIndex)
@@ -1094,13 +1051,11 @@ export function useVideoPlayback({
                     console.error(`[재생] 씬 ${sceneIndex} 구간 ${partIndex + 1} 오디오 재생 실패:`, error)
                     audio.removeEventListener('ended', handleEnded)
                     audio.removeEventListener('error', handleError)
-                    if (!resolved) {
-                      if (progressIntervalRef.current) {
-                        clearInterval(progressIntervalRef.current)
-                        progressIntervalRef.current = null
-                      }
-                      finish()
+                    if (playingEventListener) {
+                      audio.removeEventListener('playing', playingEventListener)
+                      playingEventListener = null
                     }
+                    finish()
                   })
               })
             } else {
@@ -1133,13 +1088,13 @@ export function useVideoPlayback({
                 const nextIndex = currentIndex + 1
                 setCurrentSceneIndex(nextIndex)
                 currentSceneIndexRef.current = nextIndex
-                lastRenderedSceneIndexRef.current = nextIndex
-
+                // lastRenderedSceneIndexRef는 updateCurrentScene 완료 후 업데이트되므로 여기서는 업데이트하지 않음
                 // 재생 중이므로 isPlaying: true
                 updateCurrentScene(false, currentIndex, undefined, () => {
-                  if (isPlayingRef.current) {
-                    void playNextScene(nextIndex)
-                  }
+                  // updateCurrentScene 완료 후 lastRenderedSceneIndexRef 업데이트
+                  lastRenderedSceneIndexRef.current = nextIndex
+                  // 같은 그룹 내 씬이므로 전환 효과 없이 바로 TTS 재생 시작
+                  void playNextScene(nextIndex)
                 }, true)
               } else {
                 // 다른 그룹으로 넘어갈 때는 selectScene을 통해 전환 효과 적용
@@ -1168,29 +1123,146 @@ export function useVideoPlayback({
         }
       }
       
-      // TTS를 씬 시작 시점에 즉시 재생 (씬 전환은 playNextScene 시작 부분에서 이미 처리됨)
-      const ttsStarted = await playTts()
+      // 이전 씬 인덱스 계산 (renderSceneWithSync 외부에서도 사용)
+      const previousSceneIndex = currentIndex > 0 ? currentIndex - 1 : null
+      const previousScene = previousSceneIndex !== null ? timeline.scenes[previousSceneIndex] : null
+      const isSameGroup = previousScene && previousScene.sceneId === scene.sceneId
       
-      // TTS가 시작되지 않았으면 (빈 텍스트 등) 다음 씬으로 이동
-      if (!ttsStarted) {
-        // 첫 번째 씬에서만 BGM 재생 시작
-        if (!bgmStarted && bgmTemplate && bgmAudioRef.current) {
-          bgmStarted = true
-          const audio = bgmAudioRef.current
-          bgmStartTimeRef.current = Date.now()
-          audio.play().catch(() => {})
-          // BGM 페이드 아웃 시작 (첫 번째 씬에서만)
-          setupBgmFadeOut()
+      // 통합 렌더링 함수: renderSceneContent 사용 (이미지, 자막, TTS를 동시에 시작)
+      const renderSceneWithSync = async () => {
+        const prevIndex = previousSceneIndex !== null ? previousSceneIndex : lastRenderedSceneIndexRef.current
+        
+        // 전환 효과 설정
+        const transition = scene.transition || 'fade'
+        const skipAnimation = transition === 'none'
+        
+        // renderSceneContent 사용: 이미지와 자막을 alpha: 0으로 준비
+        if (renderSceneContent) {
+          await new Promise<void>((resolve) => {
+            renderSceneContent(sceneIndex, 0, {
+              skipAnimation: false, // 준비 단계에서는 애니메이션 스킵
+              forceTransition: transition,
+              previousIndex: prevIndex,
+              updateTimeline: false, // 재생 중에는 timeline 업데이트 안함 (다른 함수 영향 방지)
+              prepareOnly: true, // alpha: 0으로 준비만
+              onComplete: () => {
+                console.log(`[통합 렌더링] 씬 ${sceneIndex} 이미지/자막 준비 완료`)
+                resolve()
+              },
+            })
+          })
+        }
+        
+        // renderSceneContent로 전환 효과 적용 (이미지 + 첫 번째 구간 자막)
+        // TTS 재생은 전환 효과 완료 후 시작
+        if (renderSceneContent) {
+          // 전환 효과 적용 (onComplete 콜백 없이)
+          renderSceneContent(sceneIndex, 0, {
+            skipAnimation,
+            forceTransition: transition,
+            previousIndex: prevIndex,
+            updateTimeline: false, // 재생 중에는 timeline 업데이트 안함 (다른 함수 영향 방지)
+            prepareOnly: false, // 전환 효과 적용 후 표시
+            isPlaying: true, // 재생 중임을 명시
+            onComplete: () => {
+              console.log(`[통합 렌더링] 씬 ${sceneIndex} 이미지/자막 전환 효과 완료`)
+            },
+          })
+          
+          // lastRenderedSceneIndexRef 업데이트
+          lastRenderedSceneIndexRef.current = sceneIndex
+          setCurrentSceneIndex(sceneIndex)
+          currentSceneIndexRef.current = sceneIndex
+          
+          // 전환 효과가 없으면 즉시 TTS 재생 시작
+          // 전환 효과가 있으면 약간의 지연 후 TTS 재생 시작 (전환 효과가 시작되도록)
+          if (skipAnimation) {
+            // 전환 효과가 없으면 즉시 TTS 재생 시작
+            void playTts()
+          } else {
+            // 전환 효과가 있으면 전환 효과 duration만큼 대기 후 TTS 재생 시작
+            const transitionDuration = scene.transitionDuration || 0.5
+            setTimeout(() => {
+              console.log(`[통합 렌더링] 씬 ${sceneIndex} 전환 효과 대기 완료, TTS 재생 시작`)
+              void playTts()
+            }, transitionDuration * 1000)
+          }
+        } else {
+          // fallback: 기존 방식
+          // lastRenderedSceneIndexRef 업데이트
+          lastRenderedSceneIndexRef.current = sceneIndex
+          setCurrentSceneIndex(sceneIndex)
+          currentSceneIndexRef.current = sceneIndex
+          // TTS 재생 시작 (비동기)
+          void playTts()
         }
       }
+      
+      // 통합 렌더링 실행 (이미지, 자막, TTS 동시 시작)
+      await renderSceneWithSync()
+      
+      // TTS 재생은 비동기로 시작되었으므로 여기서는 대기하지 않음
+      // playTts 내부에서 다음 씬으로 전환 처리
+      
+      // AbortController 체크: 재생 중지되었으면 중단
+      if (playbackAbortControllerRef.current?.signal.aborted) {
+        console.log(`[재생] 씬 ${sceneIndex} 재생 중지됨 (렌더링 후)`)
+        return
+      }
+      
+      // 같은 그룹 내 씬인지 확인 (움직임 효과가 적용된 분할된 씬들)
+      // previousSceneIndex, previousScene, isSameGroup은 위에서 이미 선언됨
+      // isSameGroup은 사용되지 않지만 타입 체크를 위해 유지
+      void isSameGroup
+      
+      // 전환 효과 duration과 TTS duration 불일치 처리 - 경고 로그 출력
+      if (scene.transitionDuration && scene.transitionDuration > 0) {
+        // 원본 텍스트에서 구간 추출
+        const originalText = scene.text?.content || ''
+        const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
+        
+        if (scriptParts.length > 0) {
+          const ttsDuration = scriptParts.reduce((sum, _, idx) => {
+            const markups = buildSceneMarkup(sceneIndex)
+            if (idx < markups.length) {
+              const markup = markups[idx]
+              const key = makeTtsKey(voiceTemplate!, markup)
+              const cached = ttsCacheRef.current.get(key)
+              if (cached && cached.durationSec > 0) {
+                return sum + cached.durationSec
+              }
+            }
+            return sum
+          }, 0)
+          
+          if (ttsDuration > 0 && Math.abs(scene.transitionDuration - ttsDuration) > 0.5) {
+            console.warn(`[재생] 씬 ${sceneIndex} 전환 효과 duration(${scene.transitionDuration.toFixed(2)}초)과 TTS duration(${ttsDuration.toFixed(2)}초) 불일치 (차이: ${Math.abs(scene.transitionDuration - ttsDuration).toFixed(2)}초)`)
+          }
+        }
+      }
+      
+      // TTS 재생은 renderSceneWithSync 내부에서 이미 시작됨 (이미지, 자막, TTS 동시 시작)
+      // BGM은 playTts의 playPart 내부 playing 이벤트에서 첫 번째 씬의 첫 번째 구간 재생 시작 시 처리됨
     }
     
     // currentSceneIndexRef를 사용하여 최신 씬 인덱스로 재생 시작
     // (씬 선택 후 재생 시작 시 올바른 씬부터 재생하도록)
     const startSceneIndex = currentSceneIndexRef.current
-    console.log(`[startPlayback] playNextScene 호출 전 | startSceneIndex: ${startSceneIndex}`)
+    console.log(`[startPlayback] playNextScene 호출 전 | startSceneIndex: ${startSceneIndex}, currentSceneIndex: ${currentSceneIndex}, timeline.scenes.length: ${timeline.scenes.length}`)
+    
+    // 시작 씬 인덱스 유효성 검사
+    if (startSceneIndex < 0 || startSceneIndex >= timeline.scenes.length) {
+      console.error(`[startPlayback] 잘못된 시작 씬 인덱스: ${startSceneIndex}, timeline.scenes.length: ${timeline.scenes.length}`)
+      isPlayingRef.current = false
+      setIsPlaying(false)
+      if (setTimelineIsPlaying) {
+        setTimelineIsPlaying(false)
+      }
+      return
+    }
+    
     void playNextScene(startSceneIndex)
-  }, [timeline, currentSceneIndex, voiceTemplate, bgmTemplate, playbackSpeed, buildSceneMarkup, makeTtsKey, selectScene, stopBgmAudio, stopTtsAudio, setCurrentSceneIndex, currentSceneIndexRef, lastRenderedSceneIndexRef, updateCurrentScene, setTimeline, textsRef, getMp3DurationSec, setShowReadyMessage, setCurrentTime])
+  }, [timeline, currentSceneIndex, voiceTemplate, bgmTemplate, playbackSpeed, buildSceneMarkup, makeTtsKey, stopBgmAudio, stopTtsAudio, setCurrentSceneIndex, currentSceneIndexRef, lastRenderedSceneIndexRef, updateCurrentScene, setTimeline, textsRef, setShowReadyMessage, setCurrentTime, prepareImageAndSubtitle, renderSceneContent, renderSceneImage, renderSubtitlePart, spritesRef, setIsPlaying, setTimelineIsPlaying, isPlayingRef])
 
   // 모든 재생 정지 (명시적 일시정지 함수)
   const pauseAll = useCallback(() => {
@@ -1259,8 +1331,11 @@ export function useVideoPlayback({
     }
     // TTS 세션 리셋
     resetTtsSession()
-  }, [setIsPlaying, setTimelineIsPlaying, stopTtsAudio, stopBgmAudio, resetTtsSession, setIsTtsBootstrapping, setIsBgmBootstrapping, isTtsBootstrappingRef, isBgmBootstrappingRef])
+  }, [setIsPlaying, setTimelineIsPlaying, stopTtsAudio, stopBgmAudio, resetTtsSession, setIsTtsBootstrapping, setIsBgmBootstrapping, isTtsBootstrappingRef, isBgmBootstrappingRef, spritesRef, textsRef, currentPlayingSceneIndexRef])
 
+  // handlePlayPause ref (재귀 호출을 위해)
+  const handlePlayPauseRef = useRef<(() => Promise<void>) | null>(null)
+  
   // 재생/일시정지 토글
   const handlePlayPause = useCallback(async () => {
     console.log(`[handlePlayPause] 함수 호출됨`)
@@ -1306,9 +1381,11 @@ export function useVideoPlayback({
           if (pixiReady && appRef.current && loadAllScenes) {
             loadAllScenes().then(() => {
               // 로드 완료 후 재생 시작
-              setTimeout(() => {
-                handlePlayPause()
-              }, 100)
+              if (handlePlayPauseRef.current) {
+                setTimeout(() => {
+                  void handlePlayPauseRef.current!()
+                }, 100)
+              }
             })
           }
           return
@@ -1344,7 +1421,6 @@ export function useVideoPlayback({
       // 이미 캐시된 씬은 스킵하여 rate limit 절약
       const batchSize = 3 // 3개씩 처리
       const batchDelay = 1000 // 1초 딜레이
-      const ttsPromises = []
 
       // 먼저 캐시 확인하여 이미 합성된 씬은 스킵
       // 단, 캐시에 blob이나 URL이 있어야 유효한 캐시로 간주
@@ -1368,7 +1444,14 @@ export function useVideoPlayback({
       }
 
       // 캐시되지 않은 씬만 배치 처리
-      const ttsResults: Array<{ sceneIndex: number; parts: Array<any> }> = []
+      interface TtsPart {
+        blob: Blob
+        durationSec: number
+        url: string | null
+        partIndex: number
+        markup: string
+      }
+      const ttsResults: Array<{ sceneIndex: number; parts: Array<TtsPart> }> = []
       if (ensureSceneTts) {
         for (let i = 0; i < scenesToSynthesize.length; i += batchSize) {
           const batch = []
@@ -1387,13 +1470,28 @@ export function useVideoPlayback({
           }
           // 각 배치를 순차적으로 처리
           const batchResult = await Promise.allSettled(batch)
+          interface BatchResultValue {
+            sceneIndex: number
+            result: {
+              sceneIndex: number
+              parts: Array<TtsPart>
+            } | null
+          }
           const successfulResults = batchResult
-            .filter(r => r.status === 'fulfilled' && (r as PromiseFulfilledResult<any>).value?.result !== null)
-            .map(r => (r as PromiseFulfilledResult<any>).value)
-          ttsResults.push(...successfulResults.map(r => ({ sceneIndex: r.sceneIndex, parts: r.result?.parts || [] })))
+            .filter((r): r is PromiseFulfilledResult<BatchResultValue> => 
+              r.status === 'fulfilled' && r.value?.result !== null
+            )
+            .map(r => r.value)
+          ttsResults.push(...successfulResults.map(r => ({ 
+            sceneIndex: r.sceneIndex, 
+            parts: r.result?.parts || [] 
+          })))
           
           // 실패한 씬이 있으면 경고
-          const failedResults = batchResult.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && (r as PromiseFulfilledResult<any>).value?.result === null))
+          const failedResults = batchResult.filter(r => 
+            r.status === 'rejected' || 
+            (r.status === 'fulfilled' && r.value?.result === null)
+          )
           if (failedResults.length > 0) {
             console.warn(`[TTS] ${failedResults.length}개 씬의 TTS 합성 실패`)
           }
@@ -1552,7 +1650,12 @@ export function useVideoPlayback({
       // 재생 중지 (일시정지) - pauseAll 함수 사용
       pauseAll()
     }
-  }, [isPreparing, timeline, voiceTemplate, bgmTemplate, playbackSpeed, pixiReady, spritesRef, currentSceneIndex, appRef, loadAllScenes, buildSceneMarkup, makeTtsKey, ensureSceneTts, changedScenesRef, startBgmAudio, startPlayback, pauseAll])
+  }, [isPreparing, timeline, voiceTemplate, bgmTemplate, playbackSpeed, pixiReady, spritesRef, currentSceneIndex, appRef, loadAllScenes, buildSceneMarkup, makeTtsKey, ensureSceneTts, changedScenesRef, startBgmAudio, startPlayback, pauseAll, setIsPreviewingTransition, setIsTtsBootstrapping, setIsBgmBootstrapping, isTtsBootstrappingRef, isBgmBootstrappingRef])
+  
+  // handlePlayPause ref 업데이트
+  useEffect(() => {
+    handlePlayPauseRef.current = handlePlayPause
+  }, [handlePlayPause])
 
   // 재생 중지 시 timeout 정리
   useEffect(() => {
