@@ -50,6 +50,32 @@ interface UseSceneNavigationParams {
       updateTimeline?: boolean
     }
   ) => void
+  renderSceneImage?: (
+    sceneIndex: number,
+    options?: {
+      skipAnimation?: boolean
+      forceTransition?: string
+      previousIndex?: number | null
+      onComplete?: () => void
+      prepareOnly?: boolean
+    }
+  ) => void
+  renderSubtitlePart?: (
+    sceneIndex: number,
+    partIndex: number,
+    options?: {
+      skipAnimation?: boolean
+      onComplete?: () => void
+      prepareOnly?: boolean
+    }
+  ) => void
+  prepareImageAndSubtitle?: (
+    sceneIndex: number,
+    partIndex?: number,
+    options?: {
+      onComplete?: () => void
+    }
+  ) => void
 }
 
 export function useSceneNavigation({
@@ -86,6 +112,9 @@ export function useSceneNavigation({
   loadAllScenes,
   setSelectedPart,
   renderSceneContent,
+  renderSceneImage,
+  renderSubtitlePart,
+  prepareImageAndSubtitle,
 }: UseSceneNavigationParams) {
   // 씬 선택
   const selectScene = useCallback((
@@ -93,6 +122,7 @@ export function useSceneNavigation({
     skipStopPlaying: boolean = false,
     onTransitionComplete?: () => void
   ) => {
+    console.log(`[selectScene] 호출됨 | index: ${index}, skipStopPlaying: ${skipStopPlaying}, isPlaying: ${isPlayingRef.current}`)
     if (!timeline) return
     
     // 재생 중이 아니거나 skipStopPlaying이 false일 때만 재생 중지 (즉시 정지)
@@ -114,6 +144,16 @@ export function useSceneNavigation({
     activeAnimationsRef.current.forEach((tl) => {
       if (tl && tl.isActive()) {
         tl.kill()
+        // Timeline kill 시 상태 복원
+        // 재생 중일 때는 텍스트 alpha: 0 유지, 재생 중이 아닐 때는 alpha: 1 복원
+        if (!skipStopPlaying) {
+          // 재생 중이 아닐 때: 현재 씬의 텍스트를 alpha: 1로 복원
+          const currentText = textsRef.current.get(index)
+          if (currentText) {
+            currentText.alpha = 1
+            currentText.visible = true
+          }
+        }
       }
     })
     activeAnimationsRef.current.clear()
@@ -346,8 +386,28 @@ export function useSceneNavigation({
       
       // Timeline의 onComplete 콜백을 사용하여 전환 효과 완료 시점을 정확히 감지
       // 선택된 씬의 전환 효과를 forceTransition으로 전달하여 해당 씬의 전환 효과가 표시되도록 함
-      // renderSceneContent 사용 (통합 렌더링 함수)
-      if (renderSceneContent) {
+      // 재생 중일 때는 분리된 함수 사용, 재생 중이 아닐 때는 renderSceneContent 사용
+      console.log(`[selectScene] 렌더링 경로 확인 | skipStopPlaying: ${skipStopPlaying}, renderSceneImage: ${!!renderSceneImage}, renderSubtitlePart: ${!!renderSubtitlePart}, prepareImageAndSubtitle: ${!!prepareImageAndSubtitle}`)
+      if (skipStopPlaying && renderSceneImage && renderSubtitlePart && prepareImageAndSubtitle) {
+        console.log(`[selectScene] 재생 중 렌더링 경로 사용 | transition: ${transition}, prevIndex: ${prevIndex}`)
+        // 재생 중일 때: 이미지와 자막을 alpha: 0으로 준비
+        prepareImageAndSubtitle(index, 0, {
+          onComplete: () => {
+            // 이미지와 자막 준비 완료 후 전환 효과 적용 (이미지만, 텍스트는 alpha: 0 유지)
+            if (renderSceneImage) {
+              console.log(`[selectScene] 씬 ${index} 렌더링 시작 | transition: ${transition}, skipAnimation: ${transition === 'none'}, previousIndex: ${prevIndex}`)
+              renderSceneImage(index, {
+                skipAnimation: transition === 'none',
+                forceTransition: transition,
+                previousIndex: prevIndex,
+                onComplete: transitionCompleteCallback,
+                prepareOnly: false, // 전환 효과 적용 후 표시
+              })
+            }
+          },
+        })
+      } else if (renderSceneContent) {
+        // 재생 중이 아닐 때: 기존 renderSceneContent 사용
         // 재생 중일 때는 첫 번째 구간(partIndex: 0)을 표시하도록 설정
         // 씬 리스트에서 선택할 때는 전체 텍스트를 표시 (partIndex: null)
         const partIndexToShow = skipStopPlaying ? 0 : null
@@ -365,7 +425,7 @@ export function useSceneNavigation({
         // fallback: 기존 방식
         // 재생 중이고 전환 효과가 'none'이면 애니메이션 스킵
         const shouldSkipAnimation = skipStopPlaying && transition === 'none'
-        updateCurrentScene(shouldSkipAnimation, prevIndex, transition, transitionCompleteCallback)
+        updateCurrentScene(shouldSkipAnimation, prevIndex, transition, transitionCompleteCallback, skipStopPlaying)
         // 렌더링은 PixiJS ticker가 처리
       }
       
@@ -427,6 +487,78 @@ export function useSceneNavigation({
     const scene = timeline.scenes[sceneIndex]
     if (!scene) return
     
+    // 같은 씬 내 구간 전환인지 확인
+    const isSameSceneTransition = currentSceneIndexRef.current === sceneIndex
+    
+    // renderSubtitlePart를 사용하여 해당 구간 자막 렌더링
+    if (renderSubtitlePart) {
+      // 같은 씬 내 구간 전환인 경우: 자막만 업데이트
+      if (isSameSceneTransition) {
+        renderSubtitlePart(sceneIndex, partIndex, {
+          skipAnimation: true,
+          onComplete: () => {
+            if (setSelectedPart) {
+              setSelectedPart({ sceneIndex, partIndex })
+            }
+          },
+        })
+        console.log(`[구간 선택] 같은 씬 내 구간 전환: 씬 ${sceneIndex}, 구간 ${partIndex}`)
+        if (setSelectedPart) {
+          setSelectedPart({ sceneIndex, partIndex })
+        }
+        return
+      }
+      
+      // 다른 씬으로 이동하는 경우: 씬 전환 후 구간 자막 표시
+      currentSceneIndexRef.current = sceneIndex
+      setCurrentSceneIndex(sceneIndex)
+      
+      // 씬 전환 (재생 중이 아니므로 isPlaying: false)
+      updateCurrentScene(false, currentSceneIndexRef.current, undefined, () => {
+        // 전환 완료 후 해당 구간 자막 렌더링
+        renderSubtitlePart(sceneIndex, partIndex, {
+          skipAnimation: true,
+          onComplete: () => {
+            if (setSelectedPart) {
+              setSelectedPart({ sceneIndex, partIndex })
+            }
+          },
+        })
+        console.log(`[구간 선택] 다른 씬으로 이동: 씬 ${sceneIndex}, 구간 ${partIndex}`)
+      })
+      
+      if (setSelectedPart) {
+        setSelectedPart({ sceneIndex, partIndex })
+      }
+      return
+    }
+    
+    // fallback: renderSceneContent 사용
+    if (renderSceneContent) {
+      renderSceneContent(sceneIndex, partIndex, {
+        skipAnimation: isSameSceneTransition,
+        updateTimeline: true,
+        previousIndex: isSameSceneTransition ? sceneIndex : currentSceneIndexRef.current,
+        onComplete: () => {
+          if (setSelectedPart) {
+            setSelectedPart({ sceneIndex, partIndex })
+          }
+        },
+      })
+      
+      if (isSameSceneTransition) {
+        console.log(`[구간 선택] 같은 씬 내 구간 전환: 씬 ${sceneIndex}, 구간 ${partIndex}`)
+      } else {
+        console.log(`[구간 선택] 다른 씬으로 이동: 씬 ${sceneIndex}, 구간 ${partIndex}`)
+      }
+      
+      if (setSelectedPart) {
+        setSelectedPart({ sceneIndex, partIndex })
+      }
+      return
+    }
+    
+    // fallback: 기존 방식 (renderSceneContent가 없는 경우)
     // 원본 script 가져오기
     const sceneId = scene.sceneId
     let originalScript = ''
@@ -447,36 +579,7 @@ export function useSceneNavigation({
     const partText = scriptParts[partIndex]?.trim()
     
     if (!partText) return
-
-    // renderSceneContent 사용 (통합 렌더링 함수)
-    if (renderSceneContent) {
-      // 같은 씬 내 구간 전환인지 확인
-      const isSameSceneTransition = currentSceneIndexRef.current === sceneIndex
-      
-      renderSceneContent(sceneIndex, partIndex, {
-        skipAnimation: isSameSceneTransition,
-        updateTimeline: true,
-        previousIndex: isSameSceneTransition ? sceneIndex : currentSceneIndexRef.current,
-        onComplete: () => {
-          if (setSelectedPart) {
-            setSelectedPart({ sceneIndex, partIndex })
-          }
-        },
-      })
-      
-      if (isSameSceneTransition) {
-        console.log(`[구간 선택] 같은 씬 내 구간 전환: 씬 ${sceneIndex}, 구간 ${partIndex}, 텍스트: "${partText.substring(0, 30)}..."`)
-      } else {
-        console.log(`[구간 선택] 다른 씬으로 이동: 씬 ${sceneIndex}, 구간 ${partIndex}, 텍스트: "${partText.substring(0, 30)}..."`)
-      }
-      
-      if (setSelectedPart) {
-        setSelectedPart({ sceneIndex, partIndex })
-      }
-      return
-    }
     
-    // fallback: 기존 방식 (renderSceneContent가 없는 경우)
     // timeline의 text.content 업데이트
     const updatedTimeline = {
       ...timeline,
@@ -508,9 +611,6 @@ export function useSceneNavigation({
       }
     }
     
-    // 같은 씬 내 구간 전환인지 확인
-    const isSameSceneTransition = currentSceneIndexRef.current === sceneIndex
-    
     if (targetTextObj) {
       // 텍스트 업데이트 (항상 업데이트)
       targetTextObj.text = partText
@@ -540,6 +640,7 @@ export function useSceneNavigation({
       currentSceneIndexRef.current = sceneIndex
       setCurrentSceneIndex(sceneIndex)
       // updateCurrentScene 호출하여 씬 전환 (구간 텍스트는 이미 업데이트됨)
+      // 재생 중이 아니므로 isPlaying: false
       updateCurrentScene(false, currentSceneIndexRef.current, undefined, () => {
         // 전환 완료 후 구간 텍스트가 올바르게 표시되었는지 확인
         const finalText = textsRef.current.get(sceneIndex)
@@ -580,6 +681,7 @@ export function useSceneNavigation({
                 // 다른 씬으로 이동: 씬 전환 및 구간 텍스트 표시
                 currentSceneIndexRef.current = sceneIndex
                 setCurrentSceneIndex(sceneIndex)
+                // 재생 중이 아니므로 isPlaying: false
                 updateCurrentScene(false, currentSceneIndexRef.current, undefined, () => {
                   // 전환 완료 후 구간 텍스트가 올바르게 표시되었는지 확인
                   const finalText = textsRef.current.get(sceneIndex)
@@ -613,6 +715,7 @@ export function useSceneNavigation({
     loadAllScenes,
     setSelectedPart,
     renderSceneContent,
+    renderSubtitlePart,
   ])
 
   return {

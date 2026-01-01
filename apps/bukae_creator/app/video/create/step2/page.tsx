@@ -13,8 +13,7 @@ import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore, type CreationMode } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { conceptOptions, conceptTones, toneExamples, type ConceptType } from '@/lib/data/templates'
-import { authStorage } from '@/lib/api/auth-storage'
-import { authApi } from '@/lib/api/auth'
+import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
 
 export default function Step2Page() {
   const router = useRouter()
@@ -34,30 +33,9 @@ export default function Step2Page() {
   const [openToneExampleId, setOpenToneExampleId] = useState<string | null>(null)
   const [showConfirmPopover, setShowConfirmPopover] = useState(false)
   const [confirmPopoverToneId, setConfirmPopoverToneId] = useState<string | null>(null)
-  const [isValidatingToken, setIsValidatingToken] = useState(true)
 
   // 토큰 검증
-  useEffect(() => {
-    const validateToken = async () => {
-      try {
-        const token = authStorage.getAccessToken()
-        if (!token) {
-          router.replace('/login')
-          return
-        }
-
-        // 토큰 유효성 검증
-        await authApi.getCurrentUser()
-        setIsValidatingToken(false)
-      } catch {
-        // 토큰이 유효하지 않으면 로그인 페이지로 리다이렉트
-        authStorage.clearTokens()
-        router.replace('/login')
-      }
-    }
-
-    validateToken()
-  }, [router])
+  const { isValidatingToken } = useVideoCreateAuth()
 
   // store의 값이 복원되면 로컬 state 동기화
   useEffect(() => {

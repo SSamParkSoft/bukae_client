@@ -1,0 +1,333 @@
+import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
+import { getMp3DurationSec } from '@/lib/utils/audio'
+import { authStorage } from '@/lib/api/auth-storage'
+import type { TimelineData } from '@/store/useVideoCreateStore'
+
+export interface TtsPart {
+  blob: Blob
+  durationSec: number
+  url: string | null
+  partIndex: number
+  markup: string
+}
+
+export interface EnsureSceneTtsResult {
+  sceneIndex: number
+  parts: TtsPart[]
+}
+
+export interface EnsureSceneTtsParams {
+  timeline: TimelineData
+  sceneIndex: number
+  voiceTemplate: string
+  ttsCacheRef: React.MutableRefObject<Map<string, { blob: Blob; durationSec: number; markup: string; url?: string | null; sceneId?: number; sceneIndex?: number }>>
+  ttsInFlightRef: React.MutableRefObject<Map<string, Promise<{ blob: Blob; durationSec: number; markup: string; url?: string | null; sceneId?: number; sceneIndex?: number }>>>
+  changedScenesRef: React.MutableRefObject<Set<number>>
+  setSceneDurationFromAudio: (sceneIndex: number, durationSec: number) => void
+  signal?: AbortSignal
+  forceRegenerate?: boolean
+}
+
+/**
+ * 씬의 TTS를 생성하고 캐시에 저장합니다.
+ * 캐시 확인, 업로드, 다운로드, TTS 합성 등의 로직을 포함합니다.
+ */
+export async function ensureSceneTts({
+  timeline,
+  sceneIndex,
+  voiceTemplate,
+  ttsCacheRef,
+  ttsInFlightRef,
+  changedScenesRef,
+  setSceneDurationFromAudio,
+  signal,
+  forceRegenerate = false,
+}: EnsureSceneTtsParams): Promise<EnsureSceneTtsResult> {
+  if (!timeline) throw new Error('timeline이 없습니다.')
+  if (!voiceTemplate) throw new Error('목소리를 먼저 선택해주세요.')
+
+  const scene = timeline.scenes[sceneIndex]
+  if (!scene) throw new Error(`씬 ${sceneIndex}을 찾을 수 없습니다.`)
+
+  const markups = buildSceneMarkup(timeline, sceneIndex)
+  if (markups.length === 0) throw new Error('씬 대본이 비어있습니다.')
+
+  const accessToken = authStorage.getAccessToken()
+  if (!accessToken) {
+    throw new Error('로그인이 필요합니다.')
+  }
+
+  // 변경된 씬이면 강제 재생성
+  const isChanged = forceRegenerate || changedScenesRef.current.has(sceneIndex)
+  if (isChanged) {
+    console.log(`[TTS] 씬 ${sceneIndex} 변경 감지됨 - 강제 재생성 (forceRegenerate=${forceRegenerate}, has=${changedScenesRef.current.has(sceneIndex)})`)
+    // 변경된 씬의 모든 캐시 무효화
+    markups.forEach((markup) => {
+      const key = makeTtsKey(voiceTemplate, markup)
+      ttsCacheRef.current.delete(key)
+    })
+    // 변경 상태는 모든 구간 처리 완료 후 제거 (아래에서 처리)
+  }
+
+  // 각 구간별로 TTS 생성 및 업로드 (순차적으로 처리하여 파일이 준비되는 대로 반환)
+  console.log(`[TTS] 씬 ${sceneIndex} TTS 생성 시작: ${markups.length}개 구간${isChanged ? ' (강제 재생성)' : ''}`)
+  const parts: TtsPart[] = []
+  
+  // 순차적으로 처리하여 각 파일이 준비되는 대로 parts에 추가
+  for (let partIndex = 0; partIndex < markups.length; partIndex++) {
+    const markup = markups[partIndex]
+    const part = await (async (): Promise<TtsPart> => {
+      console.log(`[TTS] 씬 ${sceneIndex} 구간 ${partIndex + 1}/${markups.length} 처리 중... (isChanged=${isChanged})`)
+      const key = makeTtsKey(voiceTemplate, markup)
+
+      // 강제 재생성이면 캐시와 저장소 다운로드 모두 스킵하고 바로 TTS 생성
+      if (isChanged) {
+        console.log(`[TTS] 구간 ${partIndex + 1} 강제 재생성 모드 - 캐시/저장소 스킵, TTS API 호출`)
+        // 바로 TTS 생성으로 진행 (아래로 계속)
+      } else {
+        // 강제 재생성이 아니면 캐시 확인
+        const cached = ttsCacheRef.current.get(key)
+        if (cached) {
+          console.log(`[TTS] 구간 ${partIndex + 1} 캐시 확인: blob=${!!cached.blob}, url=${!!cached.url}`)
+          // 캐시된 경우에도 URL이 있는지 확인하고 없으면 업로드
+          let url = cached.url || null
+          let blob = cached.blob || null
+          
+          if (!url && blob) {
+            // blob은 있지만 URL이 없으면 업로드
+            const formData = new FormData()
+            formData.append('file', blob, `scene_${sceneIndex}_part${partIndex + 1}.mp3`)
+            formData.append('sceneIndex', String(sceneIndex))
+            formData.append('partIndex', String(partIndex))
+            formData.append('sceneId', String(scene.sceneId))
+
+            try {
+              const uploadRes = await fetch('/api/media/upload', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${accessToken}` },
+                body: formData,
+              })
+
+              if (uploadRes.ok) {
+                const uploadData = await uploadRes.json()
+                url = uploadData.url || null
+                // 캐시 업데이트
+                ttsCacheRef.current.set(key, { ...cached, url })
+                console.log(`[TTS] 구간 ${partIndex + 1} 업로드 완료: ${url}`)
+              } else {
+                const errorData = await uploadRes.json().catch(() => ({}))
+                console.error(`[TTS] 구간 ${partIndex + 1} 업로드 실패:`, errorData)
+              }
+            } catch (error) {
+              console.error(`[TTS] 구간 ${partIndex + 1} 업로드 실패:`, error)
+            }
+          } else if (url && !blob) {
+            // URL은 있지만 blob이 없으면 저장소에서 다운로드
+            console.log(`[TTS] 구간 ${partIndex + 1} 저장소에서 다운로드: ${url}`)
+            try {
+              const downloadRes = await fetch(url)
+              if (downloadRes.ok) {
+                blob = await downloadRes.blob()
+                const durationSec = await getMp3DurationSec(blob)
+                // 캐시 업데이트 (blob 추가)
+                ttsCacheRef.current.set(key, { ...cached, blob, durationSec, url })
+                console.log(`[TTS] 구간 ${partIndex + 1} 다운로드 완료: duration=${durationSec}초`)
+              } else {
+                console.error(`[TTS] 구간 ${partIndex + 1} 다운로드 실패: ${downloadRes.status}`)
+              }
+            } catch (error) {
+              console.error(`[TTS] 구간 ${partIndex + 1} 다운로드 실패:`, error)
+            }
+          } else if (url && blob) {
+            console.log(`[TTS] 구간 ${partIndex + 1} ✅ 캐시에서 사용 (blob + URL): ${url.substring(0, 50)}...`)
+          }
+
+          // blob이 없으면 null 반환하여 재생성 유도
+          if (!blob) {
+            console.log(`[TTS] 구간 ${partIndex + 1} blob이 없어 재생성 필요`)
+            // 캐시에서 삭제하여 재생성 유도
+            ttsCacheRef.current.delete(key)
+          } else {
+            console.log(`[TTS] 구간 ${partIndex + 1} ✅ 캐시 사용 - TTS API 호출 스킵`)
+            return {
+              blob,
+              durationSec: cached.durationSec || 0,
+              url,
+              partIndex,
+              markup,
+            }
+          }
+        }
+
+        // 진행 중인 요청 확인
+        const inflight = ttsInFlightRef.current.get(key)
+        if (inflight) {
+          console.log(`[TTS] 구간 ${partIndex + 1} 진행 중인 요청 대기...`)
+          const result = await inflight
+          return {
+            blob: result.blob,
+            durationSec: result.durationSec,
+            url: result.url || null,
+            partIndex,
+            markup,
+          }
+        }
+
+        // 저장소에서 파일 경로를 추측해서 다운로드하는 로직 제거
+        // 이제는 업로드 후 반환되는 URL만 사용 (랜덤 파일 이름 사용)
+        console.log(`[TTS] 구간 ${partIndex + 1} 캐시 없음 - TTS API 호출 필요`)
+      }
+
+      // 진행 중인 요청 확인
+      const inflight = ttsInFlightRef.current.get(key)
+      if (inflight) {
+        const result = await inflight
+        return {
+          blob: result.blob,
+          durationSec: result.durationSec,
+          url: result.url || null,
+          partIndex,
+          markup,
+        }
+      }
+
+      // 저장소에서 파일 경로를 추측해서 다운로드하는 로직 제거
+      // 이제는 업로드 후 반환되는 URL만 사용 (랜덤 파일 이름 사용)
+
+      // 강제 재생성이거나 저장소에 파일이 없으면 TTS 생성
+      const p = (async () => {
+        const res = await fetch('/api/tts/synthesize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+          signal,
+          body: JSON.stringify({
+            voiceName: voiceTemplate,
+            mode: 'markup',
+            markup,
+          }),
+        })
+
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string; message?: string }
+          const errorMessage = data?.error || data?.message || 'TTS 합성 실패'
+          const error = new Error(errorMessage)
+          if (res.status === 429) {
+            (error as any).isRateLimit = true
+          }
+          throw error
+        }
+
+        const blob = await res.blob()
+        const durationSec = await getMp3DurationSec(blob)
+
+        // Supabase 업로드
+        let url: string | null = null
+        try {
+          const formData = new FormData()
+          // 파일 이름은 업로드 API에서 TTS 형식으로 생성 (타임스탬프_scene_{sceneId}_scene_{sceneId}_voice.mp3)
+          formData.append('file', blob)
+          formData.append('sceneId', String(scene.sceneId))
+
+          const uploadRes = await fetch('/api/media/upload', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${accessToken}` },
+            body: formData,
+          })
+
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json()
+            url = uploadData.url || null
+            console.log(`[TTS] 구간 ${partIndex + 1} 생성 및 업로드 완료: ${url}`)
+            
+            // 업로드 후 저장소에서 다운로드해서 캐시에 저장 (최신 파일 보장)
+            // 다운로드는 선택적이므로 실패해도 생성한 blob 사용
+            if (url) {
+              try {
+                // URL이 유효한지 확인
+                if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                  console.warn(`[TTS] 구간 ${partIndex + 1} 잘못된 URL 형식: ${url}`)
+                } else {
+                  const downloadRes = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                      'Accept': 'audio/mpeg, audio/*, */*',
+                    },
+                  })
+                  if (downloadRes.ok) {
+                    const downloadedBlob = await downloadRes.blob()
+                    const downloadedDurationSec = await getMp3DurationSec(downloadedBlob)
+                    
+                    // 캐시에 저장 (다운로드한 파일 사용)
+                    const entry = { 
+                      blob: downloadedBlob, 
+                      durationSec: downloadedDurationSec, 
+                      markup, 
+                      url, 
+                      sceneId: scene.sceneId, 
+                      sceneIndex 
+                    }
+                    ttsCacheRef.current.set(key, entry)
+                    console.log(`[TTS] 구간 ${partIndex + 1} 저장소에서 다운로드하여 캐시 저장 완료: duration=${downloadedDurationSec}초`)
+                    return entry
+                  } else {
+                    console.warn(`[TTS] 구간 ${partIndex + 1} 저장소 다운로드 실패 (HTTP ${downloadRes.status}): ${downloadRes.statusText}`)
+                  }
+                }
+              } catch (downloadError) {
+                console.error(`[TTS] 구간 ${partIndex + 1} 저장소 다운로드 실패 (생성한 blob 사용):`, downloadError)
+                // 에러 상세 정보 로깅
+                if (downloadError instanceof Error) {
+                  console.error(`[TTS] 다운로드 에러 상세: ${downloadError.message}`)
+                }
+              }
+            }
+          } else {
+            const errorData = await uploadRes.json().catch(() => ({}))
+            console.error(`[TTS] 구간 ${partIndex + 1} 업로드 실패:`, errorData)
+          }
+        } catch (error) {
+          console.error(`[TTS] 구간 ${partIndex + 1} 업로드 실패:`, error)
+        }
+
+        // 업로드 실패하거나 다운로드 실패한 경우 생성한 blob 사용
+        const entry = { blob, durationSec, markup, url, sceneId: scene.sceneId, sceneIndex }
+        ttsCacheRef.current.set(key, entry)
+        return entry
+      })().finally(() => {
+        ttsInFlightRef.current.delete(key)
+      })
+
+      ttsInFlightRef.current.set(key, p)
+      const result = await p
+
+      return {
+        blob: result.blob,
+        durationSec: result.durationSec,
+        url: result.url || null,
+        partIndex,
+        markup,
+      }
+    })()
+
+    parts.push(part)
+  }
+
+  // 전체 씬 duration 업데이트 (모든 구간의 duration 합)
+  const totalDuration = parts.reduce((sum, part) => sum + part.durationSec, 0)
+  if (totalDuration > 0) {
+    setSceneDurationFromAudio(sceneIndex, totalDuration)
+  }
+
+  // 변경 상태 제거 (모든 구간 처리 완료 후)
+  if (isChanged) {
+    changedScenesRef.current.delete(sceneIndex)
+    console.log(`[TTS] 씬 ${sceneIndex} 변경 상태 제거 (재생성 완료)`)
+  }
+
+  console.log(`[TTS] 씬 ${sceneIndex} TTS 생성 완료: ${parts.length}개 구간, 총 duration: ${totalDuration.toFixed(2)}초`)
+  return {
+    sceneIndex,
+    parts,
+  }
+}
+

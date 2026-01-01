@@ -12,8 +12,7 @@ import SelectedProductsPanel from '../../../../components/SelectedProductsPanel'
 import { searchProducts } from '@/lib/api/products'
 import type { TargetMall, ProductResponse } from '@/lib/types/products'
 import { convertProductResponseToProduct } from '@/lib/types/products'
-import { authStorage } from '@/lib/api/auth-storage'
-import { authApi } from '@/lib/api/auth'
+import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
 
 type ThemeMode = 'light' | 'dark'
 
@@ -48,30 +47,9 @@ export default function Step1Page() {
   const [currentProducts, setCurrentProducts] = useState<Product[]>([])
   const [currentProductResponses, setCurrentProductResponses] = useState<ProductResponse[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const [isValidatingToken, setIsValidatingToken] = useState(true)
 
   // 토큰 검증
-  useEffect(() => {
-    const validateToken = async () => {
-      try {
-        const token = authStorage.getAccessToken()
-        if (!token) {
-          router.replace('/login')
-          return
-        }
-
-        // 토큰 유효성 검증
-        await authApi.getCurrentUser()
-        setIsValidatingToken(false)
-      } catch (error) {
-        // 토큰이 유효하지 않으면 로그인 페이지로 리다이렉트
-        authStorage.clearTokens()
-        router.replace('/login')
-      }
-    }
-
-    validateToken()
-  }, [router])
+  const { isValidatingToken } = useVideoCreateAuth()
 
   // 메시지 스크롤
   useEffect(() => {

@@ -1,8 +1,7 @@
 import { useCallback } from 'react'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
-import { TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
-import { createGlowFilter, createGlitchFilter, createParticleSystem } from '@/utils/pixi'
+import { TimelineData } from '@/store/useVideoCreateStore'
 
 // "움직임" 효과 목록 (그룹 내 전환 효과 지속 대상)
 const MOVEMENT_EFFECTS = ['slide-left', 'slide-right', 'slide-up', 'slide-down', 'zoom-in', 'zoom-out']
@@ -10,7 +9,6 @@ const MOVEMENT_EFFECTS = ['slide-left', 'slide-right', 'slide-up', 'slide-down',
 interface UsePixiEffectsParams {
   appRef: React.RefObject<PIXI.Application | null>
   containerRef: React.RefObject<PIXI.Container | null>
-  particlesRef: React.MutableRefObject<Map<number, PIXI.Container>>
   activeAnimationsRef: React.MutableRefObject<Map<number, gsap.core.Timeline>>
   stageDimensions: { width: number; height: number }
   timeline: TimelineData | null
@@ -22,7 +20,6 @@ interface UsePixiEffectsParams {
 export const usePixiEffects = ({
   appRef,
   containerRef,
-  particlesRef,
   activeAnimationsRef,
   stageDimensions,
   timeline,
@@ -30,57 +27,6 @@ export const usePixiEffects = ({
   onAnimationComplete,
   isPlayingRef,
 }: UsePixiEffectsParams) => {
-  // 고급 효과 적용
-  const applyAdvancedEffects = useCallback((
-    sprite: PIXI.Sprite,
-    sceneIndex: number,
-    effects?: TimelineScene['advancedEffects']
-  ) => {
-    if (!effects || !appRef.current || !containerRef.current) return
-
-    const filters: PIXI.Filter[] = []
-
-    if (effects.glow?.enabled) {
-      const glowFilter = createGlowFilter(effects.glow.distance || 10)
-      filters.push(glowFilter)
-    }
-
-    if (effects.glitch?.enabled) {
-      const glitchFilter = createGlitchFilter(appRef.current, effects.glitch.intensity || 10)
-      if (glitchFilter) {
-        filters.push(glitchFilter)
-      }
-    }
-
-    sprite.filters = filters.length > 0 ? filters : null
-
-    if (effects.particles?.enabled && effects.particles.type) {
-      const existingParticles = particlesRef.current.get(sceneIndex)
-      if (existingParticles && existingParticles.parent) {
-        existingParticles.parent.removeChild(existingParticles)
-        particlesRef.current.delete(sceneIndex)
-      }
-
-      const particleSystem = createParticleSystem(
-        effects.particles.type,
-        effects.particles.count || 50,
-        stageDimensions.width,
-        stageDimensions.height,
-        effects.particles.duration || 2
-      )
-
-      containerRef.current.addChild(particleSystem)
-      particlesRef.current.set(sceneIndex, particleSystem)
-
-      setTimeout(() => {
-        if (particleSystem.parent) {
-          particleSystem.parent.removeChild(particleSystem)
-        }
-        particlesRef.current.delete(sceneIndex)
-      }, (effects.particles.duration || 2) * 1000)
-    }
-  }, [appRef, containerRef, particlesRef, stageDimensions])
-
   // 전환 효과 적용
   const applyEnterEffect = useCallback((
     toSprite: PIXI.Sprite | null,
@@ -90,12 +36,12 @@ export const usePixiEffects = ({
     stageWidth: number,
     stageHeight: number,
     sceneIndex: number,
-    applyAdvancedEffectsFn: (sprite: PIXI.Sprite, sceneIndex: number, effects?: TimelineScene['advancedEffects']) => void,
     forceTransition?: string,
     onComplete?: (toText?: PIXI.Text | null) => void,
     _previousIndex?: number | null,
     groupTransitionTimelinesRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>,
-    sceneId?: number
+    sceneId?: number,
+    isPlaying?: boolean // 재생 중인지 여부
   ) => {
     if (!toSprite || !appRef.current || !containerRef.current) {
       return
@@ -210,7 +156,8 @@ export const usePixiEffects = ({
         }
         if (toText) {
           toText.visible = true
-          toText.alpha = 1
+          // 재생 중일 때는 텍스트를 alpha: 0으로 유지 (TTS 재생 시작 시점에 표시)
+          toText.alpha = isPlaying ? 0 : 1
         }
         // 렌더링은 PixiJS ticker가 처리
         
@@ -244,15 +191,17 @@ export const usePixiEffects = ({
       groupTransitionTimelinesRef.current.set(sceneId, tl)
     }
     
-    // 텍스트는 효과 없이 즉시 표시
+    // 텍스트는 효과 없이 즉시 표시 (재생 중일 때는 alpha: 0으로 준비)
     const applyTextFade = () => {
       if (!toText) return
-      toText.alpha = 1
+      // 재생 중일 때: alpha: 0으로 준비만 (TTS 재생 시작 시점에 표시)
+      // 재생 중이 아닐 때: 즉시 표시
+      toText.alpha = isPlaying ? 0 : 1
       toText.visible = true
       if (toText.mask) {
         toText.mask = null
       }
-      // 페이드 효과 제거 - 즉시 표시 (렌더링은 PixiJS ticker가 처리)
+      // 페이드 효과 제거 - 즉시 표시 또는 준비 (렌더링은 PixiJS ticker가 처리)
     }
     
     // 전환 효과별 처리 (이미지만 적용, 텍스트는 항상 페이드)
@@ -300,8 +249,12 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                toText.alpha = fadeObj.alpha
-                toText.visible = true
+                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
+                // 재생 중이 아닐 때만 페이드 효과 적용
+                if (!isPlaying) {
+                  toText.alpha = fadeObj.alpha
+                  toText.visible = true
+                }
               }
               
               // PixiJS 렌더링 강제 실행
@@ -357,8 +310,12 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                toText.alpha = 1
-                toText.visible = true
+                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
+                // 재생 중이 아닐 때만 alpha 업데이트
+                if (!isPlaying) {
+                  toText.alpha = 1
+                  toText.visible = true
+                }
               }
               
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
@@ -404,8 +361,12 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                toText.alpha = 1
-                toText.visible = true
+                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
+                // 재생 중이 아닐 때만 alpha 업데이트
+                if (!isPlaying) {
+                  toText.alpha = 1
+                  toText.visible = true
+                }
               }
               
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
@@ -451,8 +412,12 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                toText.alpha = 1
-                toText.visible = true
+                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
+                // 재생 중이 아닐 때만 alpha 업데이트
+                if (!isPlaying) {
+                  toText.alpha = 1
+                  toText.visible = true
+                }
               }
               
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
@@ -498,8 +463,12 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                toText.alpha = 1
-                toText.visible = true
+                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
+                // 재생 중이 아닐 때만 alpha 업데이트
+                if (!isPlaying) {
+                  toText.alpha = 1
+                  toText.visible = true
+                }
               }
               
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
@@ -564,10 +533,12 @@ export const usePixiEffects = ({
                   containerRef.current.addChild(toText)
                 }
                 // handleScenePartSelect에서 설정한 텍스트를 유지하기 위해 텍스트 내용은 변경하지 않음
-                // handleScenePartSelect에서 설정한 텍스트가 있으면 alpha를 변경하지 않음 (깜빡임 방지)
+                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
                 textFadeObj.alpha = toZoomObj.alpha
-                toText.alpha = textFadeObj.alpha
-                toText.visible = true
+                if (!isPlaying) {
+                  toText.alpha = textFadeObj.alpha
+                  toText.visible = true
+                }
               }
               
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
@@ -631,9 +602,12 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
+                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
                 textFadeObj.alpha = toZoomOutObj.alpha
-                toText.alpha = textFadeObj.alpha
-                toText.visible = true
+                if (!isPlaying) {
+                  toText.alpha = textFadeObj.alpha
+                  toText.visible = true
+                }
               }
               
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
@@ -973,14 +947,6 @@ export const usePixiEffects = ({
       // 렌더링은 PixiJS ticker가 처리
     })
 
-    // 고급 효과 적용
-    if (toSprite && timeline) {
-      const scene = timeline.scenes[sceneIndex]
-      if (scene?.advancedEffects) {
-        applyAdvancedEffectsFn(toSprite, sceneIndex, scene.advancedEffects)
-      }
-    }
-
     // 이전 코드 패턴: Timeline은 자동으로 시작됨 (기본값이 paused: false)
     // 하지만 명시적으로 시작을 보장하기 위해 requestAnimationFrame에서 확인
     requestAnimationFrame(() => {
@@ -994,7 +960,6 @@ export const usePixiEffects = ({
   }, [appRef, containerRef, activeAnimationsRef, timeline, playbackSpeed, onAnimationComplete])
 
   return {
-    applyAdvancedEffects,
     applyEnterEffect,
   }
 }

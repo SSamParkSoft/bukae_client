@@ -4,30 +4,6 @@ import { SubtitleSettings } from '@/components/video-editor/SubtitleSettings'
 import ChirpVoiceSelector from '@/components/ChirpVoiceSelector'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 
-type AdvancedEffectKey = 'glow' | 'glitch' | 'particles'
-
-type GlowEffect = {
-  enabled: boolean
-  distance?: number
-  outerStrength?: number
-  innerStrength?: number
-  color?: number
-}
-
-type GlitchEffect = {
-  enabled: boolean
-  intensity?: number
-}
-
-type ParticlesEffect = {
-  enabled: boolean
-  type?: 'sparkle' | 'snow' | 'confetti' | 'stars'
-  count?: number
-  duration?: number
-}
-
-type AdvancedEffectValue = GlowEffect | GlitchEffect | ParticlesEffect
-
 interface EffectsPanelProps {
   theme: string | undefined
   rightPanelTab: string
@@ -38,11 +14,6 @@ interface EffectsPanelProps {
   transitions?: Array<{ value: string; label: string }>
   movements?: Array<{ value: string; label: string }>
   onTransitionChange: (sceneIndex: number, value: string) => void
-  onAdvancedEffectChange: (
-    sceneIndex: number,
-    effect: AdvancedEffectKey,
-    value: AdvancedEffectValue
-  ) => void
   bgmTemplate: string | null
   setBgmTemplate: (value: string | null) => void
   confirmedBgmTemplate: string | null
@@ -60,7 +31,6 @@ export function EffectsPanel({
   transitions,
   movements,
   onTransitionChange,
-  onAdvancedEffectChange,
   bgmTemplate,
   setBgmTemplate,
   confirmedBgmTemplate,
