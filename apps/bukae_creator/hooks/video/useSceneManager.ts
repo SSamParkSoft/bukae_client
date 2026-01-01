@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useEffect } from 'react'
 import * as PIXI from 'pixi.js'
 import * as fabric from 'fabric'
 import { gsap } from 'gsap'
@@ -76,167 +76,639 @@ export const useSceneManager = ({
 }: UseSceneManagerParams) => {
   // 그룹별 전환 효과 애니메이션 Timeline 추적 (sceneId를 키로 사용)
   const groupTransitionTimelinesRef = useRef<Map<number, gsap.core.Timeline>>(new Map())
+  
+  // renderSubtitlePart를 ref로 저장 (handleSkipAnimation에서 사용하기 위해)
+  const renderSubtitlePartRef = useRef<((sceneIndex: number, partIndex: number | null, options?: { skipAnimation?: boolean; onComplete?: () => void; prepareOnly?: boolean }) => void) | null>(null)
+
+  // 애니메이션 스킵 처리 헬퍼 함수
+  const handleSkipAnimation = useCallback(({
+    actualSceneIndex,
+    previousIndex,
+    currentSprite,
+    previousSprite,
+    previousText,
+    isPlaying,
+    partIndex,
+    onAnimationComplete,
+  }: {
+    actualSceneIndex: number
+    previousIndex: number | null
+    currentScene: TimelineData['scenes'][number]
+    currentSprite: PIXI.Sprite | null
+    currentText: PIXI.Text | null
+    previousSprite: PIXI.Sprite | null
+    previousText: PIXI.Text | null
+    isPlaying?: boolean
+    partIndex?: number | null
+    onAnimationComplete?: (sceneIndex: number) => void
+  }) => {
+    // 이미 같은 씬이 표시되어 있으면 텍스트만 업데이트
+    const isAlreadyDisplayed = previousSceneIndexRef.current === actualSceneIndex
+      && currentSprite?.visible
+      && currentSprite?.alpha === 1
+
+    if (isAlreadyDisplayed) {
+      // 자막 렌더링은 renderSubtitlePart가 담당하므로 여기서는 처리하지 않음
+      // onAnimationComplete를 호출하여 renderSceneContent의 onComplete에서 renderSubtitlePart 호출
+      onAnimationComplete?.(actualSceneIndex)
+      return
+    }
+
+    // 이전 씬 숨기기
+    const shouldHidePrevious = previousIndex !== null && previousIndex !== actualSceneIndex
+    if (shouldHidePrevious) {
+      if (previousSprite) {
+        previousSprite.visible = false
+        previousSprite.alpha = 0
+      }
+      if (previousText) {
+        previousText.visible = false
+        previousText.alpha = 0
+      }
+    }
+
+    // 다른 씬들 숨기기
+    const shouldHideOthers = previousIndex === null && previousSceneIndexRef.current !== actualSceneIndex
+    if (shouldHideOthers) {
+      spritesRef.current.forEach((sprite, idx) => {
+        if (sprite && idx !== actualSceneIndex) {
+          sprite.visible = false
+          sprite.alpha = 0
+        }
+      })
+      textsRef.current.forEach((text, idx) => {
+        if (text && idx !== actualSceneIndex) {
+          text.visible = false
+          text.alpha = 0
+        }
+      })
+    }
+
+    // 현재 씬 표시
+    if (currentSprite) {
+      currentSprite.visible = true
+      currentSprite.alpha = 1
+    }
+    
+    // 자막 렌더링은 renderSubtitlePart가 담당
+    previousSceneIndexRef.current = actualSceneIndex
+    
+    // 재생 중이 아닐 때만 자막 렌더링 (재생 중에는 재생 로직에서 처리)
+    if (!isPlaying && renderSubtitlePartRef.current) {
+      // partIndex에 따라 renderSubtitlePart 호출
+      if (partIndex !== undefined && partIndex !== null) {
+        // partIndex가 있으면 해당 구간만 렌더링
+        renderSubtitlePartRef.current(actualSceneIndex, partIndex, {
+          skipAnimation: true,
+          onComplete: () => {
+            onAnimationComplete?.(actualSceneIndex)
+          },
+        })
+      } else {
+        // partIndex가 null이면 전체 자막 렌더링
+        renderSubtitlePartRef.current(actualSceneIndex, null, {
+          skipAnimation: true,
+          onComplete: () => {
+            onAnimationComplete?.(actualSceneIndex)
+          },
+        })
+      }
+    } else {
+      // 재생 중이거나 renderSubtitlePart가 없으면 onAnimationComplete만 호출
+      onAnimationComplete?.(actualSceneIndex)
+    }
+  }, [previousSceneIndexRef, spritesRef, textsRef, timeline])
 
   // 현재 씬 업데이트
   // previousIndex 파라미터: 명시적으로 이전 씬 인덱스를 전달받음 (optional, 없으면 previousSceneIndexRef 사용)
   // forceTransition: 강제로 적용할 전환 효과 (timeline 값 무시, 전환 효과 미리보기용)
   // isPlaying: 재생 중인지 여부 (재생 중일 때 텍스트 alpha: 0 설정)
   // skipImage: 이미지 렌더링 스킵 (전환 효과와 자막만 렌더링)
-  const updateCurrentScene = useCallback((skipAnimation: boolean = false, explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, skipImage?: boolean) => {
-    const sceneIndex = currentSceneIndexRef.current
-    try {
-      if (!containerRef.current || !timeline || !appRef.current) {
-        return
-      }
+  const updateCurrentScene = useCallback((skipAnimation: boolean = false, explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, skipImage?: boolean, partIndex?: number | null, sceneIndex?: number) => {
+    // 기본 값 설정
+    const actualSceneIndex = sceneIndex !== undefined ? sceneIndex : currentSceneIndexRef.current
+    const previousIndex = explicitPreviousIndex !== undefined ? explicitPreviousIndex : previousSceneIndexRef.current
+    
+    console.log(`[updateCurrentScene] 호출 | 씬 ${actualSceneIndex}, partIndex: ${partIndex}, isPlaying: ${isPlaying}`)
+    
+    // 필수 참조 확인
+    const hasRequiredRefs = containerRef.current && timeline && appRef.current
+    if (!hasRequiredRefs) {
+      console.log(`[updateCurrentScene] early return | containerRef: ${!!containerRef.current}, timeline: ${!!timeline}, appRef: ${!!appRef.current}`)
+      return
+    }
 
-      const previousIndex = explicitPreviousIndex !== undefined ? explicitPreviousIndex : previousSceneIndexRef.current
-      const currentScene = timeline.scenes[sceneIndex]
-      const previousScene = previousIndex !== null ? timeline.scenes[previousIndex] : null
+    // 씬 데이터 가져오기
+    const currentScene = timeline.scenes[actualSceneIndex]
+    const previousScene = previousIndex !== null ? timeline.scenes[previousIndex] : null
+    
+    // 스프라이트 및 텍스트 객체 가져오기
+    const currentSprite = spritesRef.current.get(actualSceneIndex)
+    const currentText = textsRef.current.get(actualSceneIndex)
+    const previousSprite = previousIndex !== null ? spritesRef.current.get(previousIndex) : null
+    const previousText = previousIndex !== null ? textsRef.current.get(previousIndex) : null
+
+    // 스프라이트 없음 처리
+    if (!currentSprite) {
+      console.warn(`[updateCurrentScene] 씬 ${actualSceneIndex} 스프라이트를 찾을 수 없음`)
+      onAnimationComplete?.(actualSceneIndex)
+      previousSceneIndexRef.current = actualSceneIndex
+      return
+    }
+
+    // 같은 씬 내 구간 전환 처리
+    // partIndex가 null이면 전체 자막을 렌더링해야 하므로 early return하지 않음
+    const isSameSceneTransition = previousIndex === actualSceneIndex 
+      && currentScene 
+      && previousScene 
+      && currentScene.sceneId === previousScene.sceneId
+      && !skipImage
+      && partIndex !== null && partIndex !== undefined // partIndex가 null이면 전체 자막 렌더링 필요
+    
+    if (isSameSceneTransition) {
+      console.log(`[updateCurrentScene] 같은 씬 내 구간 전환 처리 | 씬 ${actualSceneIndex}, partIndex: ${partIndex}`)
+      currentSprite.visible = true
+      currentSprite.alpha = 1
+      return
+    }
+
+    // 애니메이션 스킵 시 즉시 표시
+    if (skipAnimation) {
+      handleSkipAnimation({
+        actualSceneIndex,
+        previousIndex,
+        currentScene,
+        currentSprite: currentSprite ?? null,
+        currentText: currentText ?? null,
+        previousSprite: previousSprite ?? null,
+        previousText: previousText ?? null,
+        isPlaying,
+        partIndex,
+        onAnimationComplete: () => {
+          // handleSkipAnimation 완료 후 onAnimationComplete 호출하여 renderSceneContent의 onComplete 실행
+          onAnimationComplete?.(actualSceneIndex)
+        },
+      })
+      return
+    }
+    
+    // 그룹 정보 계산
+    const hasSceneId = currentScene.sceneId !== undefined
+    const isInSameGroup = previousScene 
+      && currentScene 
+      && hasSceneId
+      && previousScene.sceneId === currentScene.sceneId
+    
+    const firstSceneIndex = isInSameGroup && hasSceneId
+      ? timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
+      : -1
+    const isFirstSceneInGroup = firstSceneIndex === actualSceneIndex
+    
+    // 그룹 전환 시 이전 그룹 Timeline 정리
+    const isGroupTransition = previousScene && previousScene.sceneId !== currentScene.sceneId
+    if (isGroupTransition) {
+      const previousGroupTimeline = groupTransitionTimelinesRef.current.get(previousScene.sceneId)
+      previousGroupTimeline?.kill()
+      groupTransitionTimelinesRef.current.delete(previousScene.sceneId)
+    }
+    
+    // 같은 그룹 내 씬 전환 (첫 번째 씬이 아닌 경우)
+    if (isInSameGroup && !isFirstSceneInGroup) {
+    // 같은 그룹 내 씬: 이미지와 전환 효과는 첫 번째 씬에서 이미 적용됨, 자막만 변경
+    let textToUpdate = currentText
+    
+    if (!textToUpdate && currentScene.sceneId !== undefined) {
+      // 같은 그룹 내 첫 번째 씬의 텍스트 객체 사용
+      const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
+      if (firstSceneIndexInGroup >= 0) {
+        textToUpdate = textsRef.current.get(firstSceneIndexInGroup) || undefined
+      }
+    }
+    
+    if (textToUpdate && currentScene.text?.content) {
+      // 구간이 나뉘어져 있으면 첫 번째 구간만 표시
+      const scriptParts = currentScene.text.content.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+      const displayText = scriptParts.length > 1 ? scriptParts[0] : currentScene.text.content
+      if (textToUpdate.text !== displayText) {
+        textToUpdate.text = displayText
+      }
+      textToUpdate.visible = displayText.length > 0
+      textToUpdate.alpha = displayText.length > 0 ? 1 : 0
+    }
+    
+    // 렌더링은 PixiJS ticker가 처리
+    previousSceneIndexRef.current = actualSceneIndex
+    return
+    }
+    
+    // 전환 효과 시작 전에 이전 씬 숨기기
+    const shouldHidePreviousBeforeTransition = previousIndex !== null && previousIndex !== actualSceneIndex
+    if (shouldHidePreviousBeforeTransition) {
+      const prevSprite = spritesRef.current.get(previousIndex)
+      const prevText = textsRef.current.get(previousIndex)
       
-      // 같은 씬 내 구간 전환 감지
-      const isSameSceneTransition = previousIndex === sceneIndex && currentScene && previousScene && currentScene.sceneId === previousScene.sceneId
+      if (prevSprite) {
+        prevSprite.visible = false
+        prevSprite.alpha = 0
+      }
+      if (prevText) {
+        prevText.visible = false
+        prevText.alpha = 0
+      }
       
-      // 같은 씬 내 구간 전환인 경우: 자막만 업데이트 (전환 효과 없음)
-      // 단, skipImage가 true일 때는 같은 씬에서도 전환 효과를 적용
-      if (isSameSceneTransition && !skipImage) {
-        const currentText = textsRef.current.get(sceneIndex)
-        if (currentText && currentScene.text?.content) {
-          // 재생 중일 때는 텍스트를 전혀 건드리지 않음 (renderSubtitlePart에서 처리)
-          // 재생 중이 아닐 때만 텍스트 업데이트
-          if (!isPlaying) {
-            currentText.text = currentScene.text.content
+      // 다른 모든 씬들도 숨김
+      spritesRef.current.forEach((sprite, idx) => {
+        if (sprite && idx !== actualSceneIndex && idx !== previousIndex) {
+          sprite.visible = false
+          sprite.alpha = 0
+        }
+      })
+      textsRef.current.forEach((text, idx) => {
+        if (text && idx !== actualSceneIndex && idx !== previousIndex) {
+          text.visible = false
+          text.alpha = 0
+        }
+      })
+    }
+    
+    // 전환 효과 적용을 위한 wrappedOnComplete 미리 정의
+    const wrappedOnComplete = onAnimationComplete ? () => {
+    // 전환 효과 완료 후 최종 정리
+    // 다른 모든 씬들 숨기기
+    spritesRef.current.forEach((sprite, idx) => {
+      if (sprite && idx !== actualSceneIndex) {
+        sprite.visible = false
+        sprite.alpha = 0
+      }
+    })
+    textsRef.current.forEach((text, idx) => {
+      if (text && idx !== actualSceneIndex) {
+        text.visible = false
+        text.alpha = 0
+      }
+    })
+    
+    // 최종 렌더링
+    // 렌더링은 PixiJS ticker가 처리
+    
+    // 원래 onAnimationComplete 콜백 호출
+    onAnimationComplete(actualSceneIndex)
+    } : (() => {
+    // onAnimationComplete가 없어도 최종 정리
+    spritesRef.current.forEach((sprite, idx) => {
+      if (sprite && idx !== actualSceneIndex) {
+        sprite.visible = false
+        sprite.alpha = 0
+      }
+    })
+    textsRef.current.forEach((text, idx) => {
+      if (text && idx !== actualSceneIndex) {
+        text.visible = false
+        text.alpha = 0
+      }
+    })
+    
+    // 렌더링은 PixiJS ticker가 처리
+    })
+    
+    // skipImage가 true이면 이미지는 전환 효과에만 사용하고, 전환 효과 후에는 숨김 (자막만 표시)
+    // 전환 효과를 보여주려면 이미지가 필요하므로, 이미지를 렌더링하고 전환 효과를 적용한 후 숨김
+    if (skipImage && currentSprite) {
+    // 전환 효과를 적용하기 위해 이미지를 렌더링
+    // 하지만 전환 효과가 끝나면 이미지를 숨기고 자막만 표시
+    
+    // 그룹의 첫 번째 씬 찾기 (같은 sceneId를 가진 씬들 중 첫 번째)
+    const firstSceneIndex = currentScene.sceneId !== undefined 
+      ? timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
+      : -1
+    const isFirstSceneInGroup = firstSceneIndex === actualSceneIndex
+    
+    // 같은 그룹 내 씬들은 항상 첫 번째 씬의 스프라이트 사용
+    let spriteToUse = currentSprite
+    if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
+      const firstSprite = spritesRef.current.get(firstSceneIndex)
+      if (firstSprite) {
+        spriteToUse = firstSprite
+      }
+    }
+    
+    // transition 결정
+    let transition: string
+    let transitionDuration: number
+    
+    if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
+      const firstSceneInGroup = timeline.scenes[firstSceneIndex]
+      transition = forceTransition || firstSceneInGroup?.transition || 'fade'
+      transitionDuration = currentScene.duration && currentScene.duration > 0
+        ? currentScene.duration
+        : 0.5
+    } else {
+      transition = forceTransition || currentScene.transition || 'fade'
+      transitionDuration = currentScene.transitionDuration && currentScene.transitionDuration > 0
+        ? currentScene.transitionDuration
+        : 0.5
+    }
+    
+    const { width, height } = stageDimensions
+    
+    // 스프라이트를 컨테이너에 추가
+    if (spriteToUse.parent !== containerRef.current && containerRef.current) {
+      if (spriteToUse.parent) {
+        spriteToUse.parent.removeChild(spriteToUse)
+      }
+      containerRef.current.addChild(spriteToUse)
+    }
+    
+    // 이전 씬 숨기기
+    if (previousIndex !== null && previousIndex !== actualSceneIndex) {
+      const prevSprite = spritesRef.current.get(previousIndex)
+      if (prevSprite) {
+        prevSprite.visible = false
+        prevSprite.alpha = 0
+      }
+    }
+    
+    // 다른 모든 씬들 숨기기
+    spritesRef.current.forEach((sprite, idx) => {
+      if (sprite && idx !== actualSceneIndex && idx !== previousIndex) {
+        sprite.visible = false
+        sprite.alpha = 0
+      }
+    })
+    
+    // 전환 효과 적용 (이미지를 사용하여 전환 효과 렌더링)
+    if (skipAnimation || transition === 'none') {
+      // 애니메이션 없이 즉시 표시 (이미지는 그대로 표시)
+      spriteToUse.visible = true
+      spriteToUse.alpha = 1
+      
+      // 자막 표시
+      if (currentText) {
+        currentText.visible = true
+        currentText.alpha = 1
+      }
+      
+      previousSceneIndexRef.current = actualSceneIndex
+      if (onAnimationComplete) {
+        onAnimationComplete(actualSceneIndex)
+      }
+    } else {
+      // 전환 효과 적용
+      spriteToUse.visible = true
+      spriteToUse.alpha = 0
+      
+      // applyEnterEffect를 사용하여 전환 효과 적용
+      // 전환 효과가 진행되는 동안 이미지가 보이면서 전환 효과가 적용됨
+      // 전환 효과가 끝나면 이미지를 숨기고 자막만 표시
+      applyEnterEffect(
+        spriteToUse,
+        currentText || null,
+        transition,
+        transitionDuration,
+        width,
+        height,
+        actualSceneIndex,
+        forceTransition,
+        () => {
+          // 전환 효과 완료 후 이미지는 그대로 표시 (숨기지 않음)
+          // 이미지는 이미 applyEnterEffect에서 alpha: 1로 설정되어 있음
+          
+          // 자막 표시
+          if (currentText) {
             currentText.visible = true
             currentText.alpha = 1
           }
           
-          const currentSprite = spritesRef.current.get(sceneIndex)
-          if (currentSprite) {
-            currentSprite.visible = true
-            currentSprite.alpha = 1
-          }
-          
-          // 렌더링은 PixiJS ticker가 처리
-        }
-        return
-      }
-      
-    const currentSprite = spritesRef.current.get(sceneIndex)
-    const currentText = textsRef.current.get(sceneIndex)
-    const previousSprite = previousIndex !== null ? spritesRef.current.get(previousIndex) : null
-    const previousText = previousIndex !== null ? textsRef.current.get(previousIndex) : null
-    
-    // 스프라이트가 없으면 경고 로그 출력
-    if (!currentSprite) {
-    }
-
-      // 애니메이션 스킵 시 즉시 표시
-      if (skipAnimation) {
-      // 전환 효과가 진행 중이면 무시 (전환 효과를 중단하지 않음)
-      // activeAnimationsRef에 있는 모든 애니메이션 확인
-      // Timeline이 생성되었지만 아직 시작되지 않았을 수도 있으므로, activeAnimationsRef에 있으면 무시
-      let hasActiveAnimation = false
-      if (activeAnimationsRef.current.has(sceneIndex)) {
-        hasActiveAnimation = true
-      } else {
-        activeAnimationsRef.current.forEach((anim) => {
-          if (anim && !anim.paused()) {
-            hasActiveAnimation = true
-          }
-        })
-      }
-      
-      if (hasActiveAnimation) {
-        // 전환 효과가 진행 중이면 콜백은 호출하지 않음 (전환 효과 완료 시 콜백이 호출됨)
-        return // 로그 제거하여 콘솔 스팸 방지
-      }
-      
-      // 이미 같은 씬이 표시되어 있으면 무시 (불필요한 렌더링 방지)
-      // 단, 텍스트 내용이 변경되었을 수 있으므로 텍스트는 업데이트해야 함
-      if (previousSceneIndexRef.current === sceneIndex) {
-        // 현재 씬이 이미 표시되어 있고, 스프라이트도 visible하고 alpha도 1이면
-        const currentSprite = spritesRef.current.get(sceneIndex)
-        if (currentSprite && currentSprite.visible && currentSprite.alpha === 1) {
-          // 같은 씬이 이미 표시되어 있지만, 텍스트 내용이 변경되었을 수 있으므로 텍스트만 업데이트
-          // 단, isManualSceneSelectRef가 true이면 handleScenePartSelect가 처리 중이므로 여기서는 업데이트하지 않음
-          if (currentText && currentScene.text?.content) {
-            const displayText = currentScene.text.content
-            if (currentText.text !== displayText) {
-              currentText.text = displayText
-            }
-            currentText.visible = displayText.length > 0
-            currentText.alpha = displayText.length > 0 ? 1 : 0
-          }
-          // 콜백 호출 (이미 같은 씬이 표시되어 있어도 콜백은 호출해야 함 - 재생 중 씬 전환 완료를 알리기 위해)
+          previousSceneIndexRef.current = actualSceneIndex
           if (onAnimationComplete) {
-            onAnimationComplete(sceneIndex)
+            onAnimationComplete(actualSceneIndex)
           }
-          return
+        },
+        previousIndex,
+        isFirstSceneInGroup ? groupTransitionTimelinesRef : undefined,
+        currentScene.sceneId,
+        isPlaying
+      )
+      // 전환 효과가 정상적으로 작동하여 이미지가 보이면서 전환 효과가 적용됨
+    }
+    return
+    }
+    
+    // 현재 씬 등장 효과 적용
+    if (currentSprite) {
+    // 그룹의 첫 번째 씬 찾기 (같은 sceneId를 가진 씬들 중 첫 번째)
+    const firstSceneIndex = currentScene.sceneId !== undefined 
+      ? timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
+      : -1
+    const firstSceneSprite = firstSceneIndex >= 0 ? spritesRef.current.get(firstSceneIndex) : null
+    const isFirstSceneInGroup = firstSceneIndex === actualSceneIndex
+    
+    // 같은 그룹 내 씬인지 확인 (이전 씬이 같은 그룹인 경우 또는 같은 씬 내 구간 전환)
+    const previousScene = previousIndex !== null ? timeline.scenes[previousIndex] : null
+    
+    // previousIndex가 null이어도 같은 그룹 내 씬인지 확인
+    // lastRenderedSceneIndexRef를 사용하여 이전에 렌더링된 씬이 같은 그룹인지 확인
+    let isInSameGroup = false
+    if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
+      // previousIndex가 null이 아닌 경우 기존 로직 사용
+      if (previousIndex !== null && previousScene !== null) {
+        isInSameGroup = previousScene.sceneId === currentScene.sceneId || previousIndex === actualSceneIndex
+      } else {
+        // previousIndex가 null인 경우 lastRenderedSceneIndexRef 사용
+        const lastRenderedIndex = previousSceneIndexRef.current
+        if (lastRenderedIndex !== null) {
+          const lastRenderedScene = timeline.scenes[lastRenderedIndex]
+          if (lastRenderedScene && lastRenderedScene.sceneId === currentScene.sceneId) {
+            isInSameGroup = true
+          }
         }
       }
+    }
+    
+    // 같은 그룹 내 씬들은 항상 첫 번째 씬의 스프라이트 사용
+    // 같은 그룹 내 씬인 경우 (이전 씬이 같은 그룹이거나 첫 번째 씬인 경우)
+    let spriteToUse = currentSprite
+    if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
+      // 같은 그룹 내 씬인 경우 항상 첫 번째 씬의 스프라이트 사용
+      const firstSprite = spritesRef.current.get(firstSceneIndex)
+      if (firstSprite) {
+        spriteToUse = firstSprite
+      }
+    }
+    
+    // transition 결정
+    // 같은 그룹 내 씬들은 첫 번째 씬의 transition과 transitionDuration을 공유
+    // 각 씬은 자신의 duration만큼만 전환 효과 사용
+    let transition: string
+    let transitionDuration: number
+    
+    if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
+      // 같은 그룹 내 씬: 첫 번째 씬의 transition과 transitionDuration 사용
+      const firstSceneInGroup = timeline.scenes[firstSceneIndex]
+      transition = forceTransition || firstSceneInGroup?.transition || 'fade'
       
+      // 각 씬은 자신의 duration만큼만 전환 효과 사용
+      transitionDuration = currentScene.duration && currentScene.duration > 0
+        ? currentScene.duration
+        : 0.5
+    } else {
+      // 다른 그룹으로 넘어가는 경우
+      transition = forceTransition || currentScene.transition || 'fade'
+      transitionDuration = currentScene.transitionDuration && currentScene.transitionDuration > 0
+        ? currentScene.transitionDuration
+        : 0.5
+    }
+    
+    const { width, height } = stageDimensions
+    
+    // transition이 'none'이면 애니메이션 없이 즉시 표시
+    if (transition === 'none') {
       // 이전 씬 숨기기
-      if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
+      if (previousSprite && previousIndex !== null && previousIndex !== actualSceneIndex) {
         previousSprite.visible = false
         previousSprite.alpha = 0
       }
-      if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
+      if (previousText && previousIndex !== null && previousIndex !== actualSceneIndex) {
         previousText.visible = false
         previousText.alpha = 0
       }
       
-      // 다른 씬들 숨기기 (previousIndex가 null일 때만 모든 다른 씬을 숨김)
-      // 단, 전환 효과가 완료된 후에는 이미 표시된 씬을 유지해야 하므로 previousSceneIndexRef를 확인
-      if (previousIndex === null && previousSceneIndexRef.current !== sceneIndex) {
-        spritesRef.current.forEach((sprite, idx) => {
-          if (sprite && idx !== sceneIndex) {
-            sprite.visible = false
-            sprite.alpha = 0
+        // 현재 씬 표시
+        if (currentSprite.parent !== containerRef.current && containerRef.current) {
+          if (currentSprite.parent) {
+            currentSprite.parent.removeChild(currentSprite)
           }
-        })
-        textsRef.current.forEach((text, idx) => {
-          if (text && idx !== sceneIndex) {
-            text.visible = false
-            text.alpha = 0
-          }
-        })
-      }
-      
-      // 현재 씬 표시
-      if (currentSprite) {
-        currentSprite.visible = true
-        currentSprite.alpha = 1
-      }
-      if (currentText && currentScene.text?.content) {
-        // 재생 중일 때는 텍스트를 전혀 건드리지 않음 (renderSubtitlePart에서 처리)
-        // 재생 중이 아닐 때만 텍스트 업데이트
-        if (!isPlaying) {
-          // 구간이 나뉘어져 있으면 첫 번째 구간만 표시
-          const scriptParts = splitSubtitleByDelimiter(currentScene.text.content)
-          const displayText = scriptParts.length > 1 ? scriptParts[0] : currentScene.text.content
-          if (currentText.text !== displayText) {
-            currentText.text = displayText
-          }
-          currentText.visible = displayText.length > 0
-          currentText.alpha = displayText.length > 0 ? 1 : 0
+          containerRef.current.addChild(currentSprite)
         }
+      currentSprite.visible = true
+      currentSprite.alpha = 1
+      
+      if (currentText) {
+          if (currentText.parent !== containerRef.current && containerRef.current) {
+            if (currentText.parent) {
+              currentText.parent.removeChild(currentText)
+            }
+            containerRef.current.addChild(currentText)
+          }
+        currentText.visible = true
+        currentText.alpha = 1
       }
       
       // 렌더링은 PixiJS ticker가 처리
-      previousSceneIndexRef.current = sceneIndex
       
-      // skipAnimation일 때는 즉시 콜백 호출 (재생 중 씬 전환 완료를 알리기 위해)
-      if (onAnimationComplete) {
-        onAnimationComplete(sceneIndex)
-      }
+      previousSceneIndexRef.current = actualSceneIndex
+      
+      setTimeout(() => {
+        wrappedOnComplete()
+      }, 50)
+      
       return
     }
     
-    // 전환 효과 적용
-    const isInSameGroup = previousScene && currentScene && previousScene.sceneId === currentScene.sceneId && previousScene.sceneId !== undefined
-    const firstSceneIndex = isInSameGroup && currentScene.sceneId !== undefined
-      ? timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
-      : -1
-    const isFirstSceneInGroup = firstSceneIndex === sceneIndex
+    // 현재 씬을 컨테이너에 추가
+    if (!containerRef.current) {
+      console.error(`[updateCurrentScene] containerRef.current가 null - sceneIndex: ${actualSceneIndex}`)
+      return
+    }
+    
+    // 같은 그룹 내에서는 첫 번째 씬의 스프라이트 사용
+    // 같은 그룹 내 씬인 경우 먼저 spriteToUse를 확실히 표시하여 검은 화면 방지
+    if (isInSameGroup) {
+      // 컨테이너에 추가되어 있는지 확인
+      if (spriteToUse.parent !== containerRef.current) {
+        if (spriteToUse.parent) {
+          spriteToUse.parent.removeChild(spriteToUse)
+        }
+        containerRef.current.addChild(spriteToUse)
+      }
+      // 즉시 visible/alpha 설정하여 검은 화면 방지
+      spriteToUse.visible = true
+      spriteToUse.alpha = 1
+      // 먼저 렌더링하여 이미지가 보이도록 보장
+      // 렌더링은 PixiJS ticker가 처리
+    } else {
+      // 다른 그룹인 경우
+      if (spriteToUse.parent !== containerRef.current) {
+        if (spriteToUse.parent) {
+          spriteToUse.parent.removeChild(spriteToUse)
+        }
+        containerRef.current.addChild(spriteToUse)
+      }
+    }
+    
+    // 현재 씬의 스프라이트는 숨기기 (같은 그룹 내에서는 첫 번째 씬의 스프라이트만 사용)
+    // 같은 그룹 내 씬인 경우 currentSprite를 숨기지 않음 (spriteToUse와 같을 수 있음)
+    if (currentSprite && currentSprite !== spriteToUse) {
+      // 같은 그룹 내 씬인 경우 currentSprite가 spriteToUse와 다르더라도 숨기지 않음
+      // 왜냐하면 같은 그룹 내에서는 spriteToUse만 사용하므로
+      if (!isInSameGroup) {
+        currentSprite.visible = false
+        currentSprite.alpha = 0
+      }
+    }
+    
+    if (currentText && currentText.parent !== containerRef.current) {
+      if (currentText.parent) {
+        currentText.parent.removeChild(currentText)
+      }
+      containerRef.current.addChild(currentText)
+    }
+    
+    // 모든 다른 씬들 숨기기
+    // 같은 그룹 내 씬인 경우 spriteToUse(firstSceneSprite)는 절대 숨기지 않음
+    spritesRef.current.forEach((sprite, idx) => {
+      if (!sprite) return
+      
+      // spriteToUse는 절대 숨기지 않음
+      if (sprite === spriteToUse) {
+        return
+      }
+      
+      // 같은 그룹 내 씬인 경우 firstSceneSprite도 절대 숨기지 않음
+      if (isInSameGroup && firstSceneSprite && sprite === firstSceneSprite) {
+        return
+      }
+      
+      // 현재 씬 인덱스가 아니고 spriteToUse가 아닌 경우에만 숨기기
+      if (idx !== actualSceneIndex) {
+        sprite.visible = false
+        sprite.alpha = 0
+      }
+    })
+    textsRef.current.forEach((text, idx) => {
+      if (text && idx !== actualSceneIndex) {
+        text.visible = false
+        text.alpha = 0
+      }
+    })
+    
+    // 현재 씬 visible 설정 및 alpha 초기화
+    // 같은 그룹 내 씬이 아닌 경우에만 alpha를 0으로 설정 (전환 효과를 위해)
+    if (!isInSameGroup) {
+      spriteToUse.visible = true
+      spriteToUse.alpha = 0
+    }
+    // 같은 그룹 내 씬인 경우는 위에서 이미 설정했으므로 여기서는 건드리지 않음
+    
+    if (currentText) {
+      currentText.visible = true
+      currentText.alpha = 0
+    }
+    
+    // 스프라이트가 컨테이너에 있는지 확인
+    if (!spriteToUse.parent && containerRef.current) {
+      containerRef.current.addChild(spriteToUse)
+    }
+    if (currentText && !currentText.parent && containerRef.current) {
+      containerRef.current.addChild(currentText)
+    }
+
+    // 전환 효과 적용 전에 한 번 렌더링
+    // 렌더링은 PixiJS ticker가 처리
+    
+    // "움직임" 효과인 경우 그룹의 첫 번째 씬인지 확인
+    const isCurrentTransitionMovement = MOVEMENT_EFFECTS.includes(transition)
+    const isFirstInGroup = isCurrentTransitionMovement && currentScene.sceneId && isFirstSceneInGroup
     
     // 그룹이 끝나고 다음 그룹으로 넘어갈 때 이전 그룹의 Timeline 정리
     if (previousScene && previousScene.sceneId !== currentScene.sceneId) {
@@ -248,809 +720,163 @@ export const useSceneManager = ({
     }
     
     // 전환 효과 적용
+    // 같은 그룹 내 씬인 경우: 같은 이미지와 전환 효과를 공유하고 자막만 변경
+    console.log(`[updateCurrentScene] 그룹 확인 | 씬 ${actualSceneIndex}, isInSameGroup: ${isInSameGroup}, isFirstSceneInGroup: ${isFirstSceneInGroup}, partIndex: ${partIndex}`)
     if (isInSameGroup && !isFirstSceneInGroup) {
       // 같은 그룹 내 씬: 이미지와 전환 효과는 첫 번째 씬에서 이미 적용됨, 자막만 변경
+      
+      // 같은 그룹 내 씬 전환 시 실제로 표시되고 있는 텍스트 객체 찾기
+      // handleScenePartSelect에서 이미 업데이트한 텍스트 객체를 우선 찾기
       let textToUpdate = currentText
       
-      if (!textToUpdate && currentScene.sceneId !== undefined) {
-        // 같은 그룹 내 첫 번째 씬의 텍스트 객체 사용
-        const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
-        if (firstSceneIndexInGroup >= 0) {
-          textToUpdate = textsRef.current.get(firstSceneIndexInGroup) || undefined
-        }
+      // currentText가 null이면 같은 그룹 내 첫 번째 씬의 텍스트 객체를 사용
+      if (!textToUpdate && firstSceneIndex >= 0) {
+        textToUpdate = textsRef.current.get(firstSceneIndex) || undefined
       }
       
-      if (textToUpdate && currentScene.text?.content) {
-        // 구간이 나뉘어져 있으면 첫 번째 구간만 표시
-        const scriptParts = currentScene.text.content.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
-        const displayText = scriptParts.length > 1 ? scriptParts[0] : currentScene.text.content
-        if (textToUpdate.text !== displayText) {
-          textToUpdate.text = displayText
-        }
-        textToUpdate.visible = displayText.length > 0
-        textToUpdate.alpha = displayText.length > 0 ? 1 : 0
-      }
-      
-      // 렌더링은 PixiJS ticker가 처리
-      previousSceneIndexRef.current = sceneIndex
-      return
-    }
-    
-    // 전환 효과 시작 전에 이전 씬을 먼저 숨기기 (겹침 방지)
-    if (!skipAnimation && previousIndex !== null && previousIndex !== sceneIndex) {
-      const prevSprite = spritesRef.current.get(previousIndex)
-      const prevText = textsRef.current.get(previousIndex)
-      
-      if (prevSprite) {
-        prevSprite.visible = false
-        prevSprite.alpha = 0
-      }
-      
-      if (prevText) {
-        prevText.visible = false
-        prevText.alpha = 0
-      }
-      
-      // 다른 모든 씬들도 숨김 (현재 씬 제외)
-      spritesRef.current.forEach((sprite, idx) => {
-        if (sprite && idx !== sceneIndex && idx !== previousIndex) {
-          sprite.visible = false
-          sprite.alpha = 0
-        }
-      })
-      textsRef.current.forEach((text, idx) => {
-        if (text && idx !== sceneIndex && idx !== previousIndex) {
-          text.visible = false
-          text.alpha = 0
-        }
-      })
-      
-      // 즉시 렌더링하여 이전 씬이 사라지도록 함
-      // 렌더링은 PixiJS ticker가 처리
-    }
-    
-    // 전환 효과 적용을 위한 wrappedOnComplete 미리 정의
-    const wrappedOnComplete = onAnimationComplete ? () => {
-      // 전환 효과 완료 후 최종 정리
-      // 다른 모든 씬들 숨기기
-      spritesRef.current.forEach((sprite, idx) => {
-        if (sprite && idx !== sceneIndex) {
-          sprite.visible = false
-          sprite.alpha = 0
-        }
-      })
-      textsRef.current.forEach((text, idx) => {
-        if (text && idx !== sceneIndex) {
-          text.visible = false
-          text.alpha = 0
-        }
-      })
-      
-      // 최종 렌더링
-      // 렌더링은 PixiJS ticker가 처리
-      
-      // 원래 onAnimationComplete 콜백 호출
-      onAnimationComplete(sceneIndex)
-    } : (() => {
-      // onAnimationComplete가 없어도 최종 정리
-      spritesRef.current.forEach((sprite, idx) => {
-        if (sprite && idx !== sceneIndex) {
-          sprite.visible = false
-          sprite.alpha = 0
-        }
-      })
-      textsRef.current.forEach((text, idx) => {
-        if (text && idx !== sceneIndex) {
-          text.visible = false
-          text.alpha = 0
-        }
-      })
-      
-      // 렌더링은 PixiJS ticker가 처리
-    })
-    
-    // skipImage가 true이면 이미지는 전환 효과에만 사용하고, 전환 효과 후에는 숨김 (자막만 표시)
-    // 전환 효과를 보여주려면 이미지가 필요하므로, 이미지를 렌더링하고 전환 효과를 적용한 후 숨김
-    if (skipImage && currentSprite) {
-      // 전환 효과를 적용하기 위해 이미지를 렌더링
-      // 하지만 전환 효과가 끝나면 이미지를 숨기고 자막만 표시
-      
-      // 그룹의 첫 번째 씬 찾기 (같은 sceneId를 가진 씬들 중 첫 번째)
-      const firstSceneIndex = currentScene.sceneId !== undefined 
-        ? timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
-        : -1
-      const isFirstSceneInGroup = firstSceneIndex === sceneIndex
-      
-      // 같은 그룹 내 씬들은 항상 첫 번째 씬의 스프라이트 사용
-      let spriteToUse = currentSprite
-      if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
-        const firstSprite = spritesRef.current.get(firstSceneIndex)
-        if (firstSprite) {
-          spriteToUse = firstSprite
-        }
-      }
-      
-      // transition 결정
-      let transition: string
-      let transitionDuration: number
-      
-      if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
-        const firstSceneInGroup = timeline.scenes[firstSceneIndex]
-        transition = forceTransition || firstSceneInGroup?.transition || 'fade'
-        transitionDuration = currentScene.duration && currentScene.duration > 0
-          ? currentScene.duration
-          : 0.5
-      } else {
-        transition = forceTransition || currentScene.transition || 'fade'
-        transitionDuration = currentScene.transitionDuration && currentScene.transitionDuration > 0
-          ? currentScene.transitionDuration
-          : 0.5
-      }
-      
-      const { width, height } = stageDimensions
-      
-      // 스프라이트를 컨테이너에 추가
-      if (spriteToUse.parent !== containerRef.current) {
-        if (spriteToUse.parent) {
-          spriteToUse.parent.removeChild(spriteToUse)
-        }
-        containerRef.current.addChild(spriteToUse)
-      }
-      
-      // 이전 씬 숨기기
-      if (previousIndex !== null && previousIndex !== sceneIndex) {
-        const prevSprite = spritesRef.current.get(previousIndex)
-        if (prevSprite) {
-          prevSprite.visible = false
-          prevSprite.alpha = 0
-        }
-      }
-      
-      // 다른 모든 씬들 숨기기
-      spritesRef.current.forEach((sprite, idx) => {
-        if (sprite && idx !== sceneIndex && idx !== previousIndex) {
-          sprite.visible = false
-          sprite.alpha = 0
-        }
-      })
-      
-      // 전환 효과 적용 (이미지를 사용하여 전환 효과 렌더링)
-      if (skipAnimation || transition === 'none') {
-        // 애니메이션 없이 즉시 표시 (이미지는 그대로 표시)
-        spriteToUse.visible = true
-        spriteToUse.alpha = 1
-        
-        // 자막 표시
-        if (currentText) {
-          currentText.visible = true
-          currentText.alpha = 1
-        }
-        
-        previousSceneIndexRef.current = sceneIndex
-        if (onAnimationComplete) {
-          onAnimationComplete(sceneIndex)
-        }
-      } else {
-        // 전환 효과 적용
-        spriteToUse.visible = true
-        spriteToUse.alpha = 0
-        
-        // applyEnterEffect를 사용하여 전환 효과 적용
-        // 전환 효과가 진행되는 동안 이미지가 보이면서 전환 효과가 적용됨
-        // 전환 효과가 끝나면 이미지를 숨기고 자막만 표시
-        applyEnterEffect(
-          spriteToUse,
-          currentText || null,
-          transition,
-          transitionDuration,
-          width,
-          height,
-          sceneIndex,
-          forceTransition,
-          () => {
-            // 전환 효과 완료 후 이미지는 그대로 표시 (숨기지 않음)
-            // 이미지는 이미 applyEnterEffect에서 alpha: 1로 설정되어 있음
-            
-            // 자막 표시
-            if (currentText) {
-              currentText.visible = true
-              currentText.alpha = 1
-            }
-            
-            previousSceneIndexRef.current = sceneIndex
-            if (onAnimationComplete) {
-              onAnimationComplete(sceneIndex)
-            }
-          },
-          previousIndex,
-          isFirstSceneInGroup ? groupTransitionTimelinesRef : undefined,
-          currentScene.sceneId,
-          isPlaying
-        )
-        // 전환 효과가 정상적으로 작동하여 이미지가 보이면서 전환 효과가 적용됨
-      }
-      return
-    }
-    
-    // 현재 씬 등장 효과 적용
-    if (currentSprite) {
-      // 그룹의 첫 번째 씬 찾기 (같은 sceneId를 가진 씬들 중 첫 번째)
-      const firstSceneIndex = currentScene.sceneId !== undefined 
-        ? timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
-        : -1
-      const firstSceneSprite = firstSceneIndex >= 0 ? spritesRef.current.get(firstSceneIndex) : null
-      const isFirstSceneInGroup = firstSceneIndex === sceneIndex
-      
-      // 같은 그룹 내 씬인지 확인 (이전 씬이 같은 그룹인 경우 또는 같은 씬 내 구간 전환)
-      const previousScene = previousIndex !== null ? timeline.scenes[previousIndex] : null
-      
-      // previousIndex가 null이어도 같은 그룹 내 씬인지 확인
-      // lastRenderedSceneIndexRef를 사용하여 이전에 렌더링된 씬이 같은 그룹인지 확인
-      let isInSameGroup = false
-      if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
-        // previousIndex가 null이 아닌 경우 기존 로직 사용
-        if (previousIndex !== null && previousScene !== null) {
-          isInSameGroup = previousScene.sceneId === currentScene.sceneId || previousIndex === sceneIndex
-        } else {
-          // previousIndex가 null인 경우 lastRenderedSceneIndexRef 사용
-          const lastRenderedIndex = previousSceneIndexRef.current
-          if (lastRenderedIndex !== null) {
-            const lastRenderedScene = timeline.scenes[lastRenderedIndex]
-            if (lastRenderedScene && lastRenderedScene.sceneId === currentScene.sceneId) {
-              isInSameGroup = true
-            }
-          }
-        }
-      }
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:640',message:'같은 그룹 확인',data:{sceneIndex,previousIndex,currentSceneId:currentScene.sceneId,previousSceneId:previousScene?.sceneId,firstSceneIndex,isInSameGroup,isFirstSceneInGroup},timestamp:Date.now(),sessionId:'debug-session',runId:'run7',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
-      // 같은 그룹 내 씬들은 항상 첫 번째 씬의 스프라이트 사용
-      // 같은 그룹 내 씬인 경우 (이전 씬이 같은 그룹이거나 첫 번째 씬인 경우)
-      let spriteToUse = currentSprite
-      if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
-        // 같은 그룹 내 씬인 경우 항상 첫 번째 씬의 스프라이트 사용
-        const firstSprite = spritesRef.current.get(firstSceneIndex)
-        if (firstSprite) {
-          spriteToUse = firstSprite
-        }
-      }
-      
-      // transition 결정
-      // 같은 그룹 내 씬들은 첫 번째 씬의 transition과 transitionDuration을 공유
-      // 각 씬은 자신의 duration만큼만 전환 효과 사용
-      let transition: string
-      let transitionDuration: number
-      
-      if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
-        // 같은 그룹 내 씬: 첫 번째 씬의 transition과 transitionDuration 사용
-        const firstSceneInGroup = timeline.scenes[firstSceneIndex]
-        transition = forceTransition || firstSceneInGroup?.transition || 'fade'
-        
-        // 각 씬은 자신의 duration만큼만 전환 효과 사용
-        transitionDuration = currentScene.duration && currentScene.duration > 0
-          ? currentScene.duration
-          : 0.5
-      } else {
-        // 다른 그룹으로 넘어가는 경우
-        transition = forceTransition || currentScene.transition || 'fade'
-        transitionDuration = currentScene.transitionDuration && currentScene.transitionDuration > 0
-          ? currentScene.transitionDuration
-          : 0.5
-      }
-      
-      const { width, height } = stageDimensions
-      
-      // transition이 'none'이면 애니메이션 없이 즉시 표시
-      if (transition === 'none') {
-        // 이전 씬 숨기기
-        if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
-          previousSprite.visible = false
-          previousSprite.alpha = 0
-        }
-        if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
-          previousText.visible = false
-          previousText.alpha = 0
-        }
-        
-        // 현재 씬 표시
-        if (currentSprite.parent !== containerRef.current) {
-          if (currentSprite.parent) {
-            currentSprite.parent.removeChild(currentSprite)
-          }
-          containerRef.current.addChild(currentSprite)
-        }
-        currentSprite.visible = true
-        currentSprite.alpha = 1
-        
-        if (currentText) {
-          if (currentText.parent !== containerRef.current) {
-            if (currentText.parent) {
-              currentText.parent.removeChild(currentText)
-            }
-            containerRef.current.addChild(currentText)
-          }
-          currentText.visible = true
-          currentText.alpha = 1
-        }
-        
-        // 렌더링은 PixiJS ticker가 처리
-        
-        previousSceneIndexRef.current = sceneIndex
-        
-        setTimeout(() => {
-          wrappedOnComplete()
-        }, 50)
-        
-        return
-      }
-      
-      // 현재 씬을 컨테이너에 추가
-      if (!containerRef.current) {
-        console.error(`[updateCurrentScene] containerRef.current가 null - sceneIndex: ${sceneIndex}`)
-        return
-      }
-      
-      // 같은 그룹 내에서는 첫 번째 씬의 스프라이트 사용
-      // 같은 그룹 내 씬인 경우 먼저 spriteToUse를 확실히 표시하여 검은 화면 방지
-      if (isInSameGroup) {
-        // 컨테이너에 추가되어 있는지 확인
-        if (spriteToUse.parent !== containerRef.current) {
-          if (spriteToUse.parent) {
-            spriteToUse.parent.removeChild(spriteToUse)
-          }
-          containerRef.current.addChild(spriteToUse)
-        }
-        // 즉시 visible/alpha 설정하여 검은 화면 방지
-        spriteToUse.visible = true
-        spriteToUse.alpha = 1
-        // 먼저 렌더링하여 이미지가 보이도록 보장
-        // 렌더링은 PixiJS ticker가 처리
-      } else {
-        // 다른 그룹인 경우
-        if (spriteToUse.parent !== containerRef.current) {
-          if (spriteToUse.parent) {
-            spriteToUse.parent.removeChild(spriteToUse)
-          }
-          containerRef.current.addChild(spriteToUse)
-        }
-      }
-      
-      // 현재 씬의 스프라이트는 숨기기 (같은 그룹 내에서는 첫 번째 씬의 스프라이트만 사용)
-      // 같은 그룹 내 씬인 경우 currentSprite를 숨기지 않음 (spriteToUse와 같을 수 있음)
-      if (currentSprite && currentSprite !== spriteToUse) {
-        // 같은 그룹 내 씬인 경우 currentSprite가 spriteToUse와 다르더라도 숨기지 않음
-        // 왜냐하면 같은 그룹 내에서는 spriteToUse만 사용하므로
-        if (!isInSameGroup) {
-          currentSprite.visible = false
-          currentSprite.alpha = 0
-        }
-      }
-      
-      if (currentText && currentText.parent !== containerRef.current) {
-        if (currentText.parent) {
-          currentText.parent.removeChild(currentText)
-        }
-        containerRef.current.addChild(currentText)
-      }
-      
-      // 모든 다른 씬들 숨기기
-      // 같은 그룹 내 씬인 경우 spriteToUse(firstSceneSprite)는 절대 숨기지 않음
-      spritesRef.current.forEach((sprite, idx) => {
-        if (!sprite) return
-        
-        // spriteToUse는 절대 숨기지 않음
-        if (sprite === spriteToUse) {
-          return
-        }
-        
-        // 같은 그룹 내 씬인 경우 firstSceneSprite도 절대 숨기지 않음
-        if (isInSameGroup && firstSceneSprite && sprite === firstSceneSprite) {
-          return
-        }
-        
-        // 현재 씬 인덱스가 아니고 spriteToUse가 아닌 경우에만 숨기기
-        if (idx !== sceneIndex) {
-          sprite.visible = false
-          sprite.alpha = 0
-        }
-      })
-      textsRef.current.forEach((text, idx) => {
-        if (text && idx !== sceneIndex) {
-          text.visible = false
-          text.alpha = 0
-        }
-      })
-      
-      // 현재 씬 visible 설정 및 alpha 초기화
-      // 같은 그룹 내 씬이 아닌 경우에만 alpha를 0으로 설정 (전환 효과를 위해)
-      if (!isInSameGroup) {
-        spriteToUse.visible = true
-        spriteToUse.alpha = 0
-      }
-      // 같은 그룹 내 씬인 경우는 위에서 이미 설정했으므로 여기서는 건드리지 않음
-      
-      if (currentText) {
-        currentText.visible = true
-        currentText.alpha = 0
-      }
-      
-      // 스프라이트가 컨테이너에 있는지 확인
-      if (!spriteToUse.parent && containerRef.current) {
-        containerRef.current.addChild(spriteToUse)
-      }
-      if (currentText && !currentText.parent && containerRef.current) {
-        containerRef.current.addChild(currentText)
-      }
-
-      // 전환 효과 적용 전에 한 번 렌더링
-      // 렌더링은 PixiJS ticker가 처리
-      
-      // "움직임" 효과인 경우 그룹의 첫 번째 씬인지 확인
-      const isCurrentTransitionMovement = MOVEMENT_EFFECTS.includes(transition)
-      const isFirstInGroup = isCurrentTransitionMovement && currentScene.sceneId && isFirstSceneInGroup
-      
-      // 그룹이 끝나고 다음 그룹으로 넘어갈 때 이전 그룹의 Timeline 정리
-      if (previousScene && previousScene.sceneId !== currentScene.sceneId) {
-        const previousGroupTimeline = groupTransitionTimelinesRef.current.get(previousScene.sceneId)
-        if (previousGroupTimeline) {
-          previousGroupTimeline.kill()
-          groupTransitionTimelinesRef.current.delete(previousScene.sceneId)
-        }
-      }
-      
-      // 전환 효과 적용
-      // 같은 그룹 내 씬인 경우: 같은 이미지와 전환 효과를 공유하고 자막만 변경
-      if (isInSameGroup && !isFirstSceneInGroup) {
-        // 같은 그룹 내 씬: 이미지와 전환 효과는 첫 번째 씬에서 이미 적용됨, 자막만 변경
-        
-        // 같은 그룹 내 씬 전환 시 실제로 표시되고 있는 텍스트 객체 찾기
-        // handleScenePartSelect에서 이미 업데이트한 텍스트 객체를 우선 찾기
-        let textToUpdate = currentText
-        
-        // currentText가 null이면 같은 그룹 내 첫 번째 씬의 텍스트 객체를 사용
-        if (!textToUpdate && firstSceneIndex >= 0) {
-          textToUpdate = textsRef.current.get(firstSceneIndex) || undefined
-        }
-        
-        if (currentScene.sceneId !== undefined) {
-          // 디버그 ID가 있는 객체를 먼저 찾기 (handleScenePartSelect에서 업데이트한 객체)
-          // 같은 씬 내 구간 전환 시 sceneId 조건 없이도 찾을 수 있도록 개선
-          let textWithDebugId: PIXI.Text | null = null
-          let maxDebugId: string = ''
-          // #region agent log
-          const allTextObjectsForDebugId: Array<{idx: number, debugId: string, text: string, sceneId: number | undefined, matchesSceneId: boolean, matchesIndex: boolean, address: string}> = []
-          const debugIdSearchResults: Array<{idx: number, debugId: string, text: string, sceneId: number | undefined, matchesSceneId: boolean}> = []
-          // #endregion
-          textsRef.current.forEach((text, idx) => {
-            if (text) {
-              const textScene = timeline.scenes[idx]
-              const debugId = (text as PIXI.Text & { __debugId?: string }).__debugId
-              const matchesSceneId = textScene?.sceneId === currentScene.sceneId
-              const matchesIndex = idx === sceneIndex
-              // #region agent log
-              allTextObjectsForDebugId.push({
-                idx,
-                debugId: debugId || '없음',
-                text: text.text || '',
-                sceneId: textScene?.sceneId,
-                matchesSceneId,
-                matchesIndex,
-                address: String(text)
-              })
+      if (currentScene.sceneId !== undefined) {
+        // 디버그 ID가 있는 객체를 먼저 찾기 (handleScenePartSelect에서 업데이트한 객체)
+        // 같은 씬 내 구간 전환 시 sceneId 조건 없이도 찾을 수 있도록 개선
+        let textWithDebugId: PIXI.Text | null = null
+        let maxDebugId: string = ''
+        textsRef.current.forEach((text, idx) => {
+          if (text) {
+            const textScene = timeline.scenes[idx]
+            const debugId = (text as PIXI.Text & { __debugId?: string }).__debugId
+            const matchesSceneId = textScene?.sceneId === currentScene.sceneId
+            const matchesIndex = idx === actualSceneIndex
+            // 같은 씬 내 구간 전환 시 sceneId 조건 없이도 찾을 수 있도록 개선
+            // 같은 씬 인덱스이거나 같은 sceneId를 가진 경우
+            if (matchesIndex || matchesSceneId) {
               if (debugId && debugId.startsWith('text_')) {
-                debugIdSearchResults.push({
-                  idx,
-                  debugId,
-                  text: text.text || '',
-                  sceneId: textScene?.sceneId,
-                  matchesSceneId
-                })
-              }
-              // #endregion
-              // 같은 씬 내 구간 전환 시 sceneId 조건 없이도 찾을 수 있도록 개선
-              // 같은 씬 인덱스이거나 같은 sceneId를 가진 경우
-              if (matchesIndex || matchesSceneId) {
-                if (debugId && debugId.startsWith('text_')) {
-                  if (debugId > maxDebugId) {
-                    maxDebugId = debugId
-                    textWithDebugId = text
-                  }
+                if (debugId > maxDebugId) {
+                  maxDebugId = debugId
+                  textWithDebugId = text
                 }
+              }
+            }
+          }
+        })
+        
+        if (textWithDebugId !== null) {
+          textToUpdate = textWithDebugId
+        } else {
+          // 디버그 ID가 없으면 실제로 표시되고 있는 텍스트 객체 찾기 (visible=true, alpha>0)
+          let visibleText: PIXI.Text | null = null
+          textsRef.current.forEach((text, idx) => {
+            if (text && text.visible && text.alpha > 0) {
+              const textScene = timeline.scenes[idx]
+              if (textScene?.sceneId === currentScene.sceneId || idx === actualSceneIndex) {
+                visibleText = text
               }
             }
           })
-          // #region agent log
-          const textWithDebugIdText = textWithDebugId ? (textWithDebugId as PIXI.Text).text || '' : ''
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:895',message:'디버그 ID 검색 결과',data:{sceneIndex,currentSceneId:currentScene.sceneId,allTextObjects:allTextObjectsForDebugId,debugIdSearchResults,found:textWithDebugId !== null,maxDebugId,textWithDebugIdText},timestamp:Date.now(),sessionId:'debug-session',runId:'run12',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
           
-          if (textWithDebugId !== null) {
-            textToUpdate = textWithDebugId
-            const debugText = textWithDebugId as PIXI.Text
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:888',message:'디버그 ID가 있는 텍스트 객체 사용',data:{debugId:maxDebugId,textText:debugText.text || ''},timestamp:Date.now(),sessionId:'debug-session',runId:'run12',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-          } else {
-            // 디버그 ID가 없으면 실제로 표시되고 있는 텍스트 객체 찾기 (visible=true, alpha>0)
-            let visibleText: PIXI.Text | null = null
-            textsRef.current.forEach((text, idx) => {
-              if (text && text.visible && text.alpha > 0) {
-                const textScene = timeline.scenes[idx]
-                if (textScene?.sceneId === currentScene.sceneId || idx === sceneIndex) {
-                  visibleText = text
-                  // #region agent log
-                  fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:862',message:'표시 중인 텍스트 객체 찾음',data:{idx,textText:text.text,sceneId:textScene.sceneId},timestamp:Date.now(),sessionId:'debug-session',runId:'run12',hypothesisId:'A'})}).catch(()=>{});
-                  // #endregion
-                }
-              }
-            })
-            
-            if (visibleText) {
-              textToUpdate = visibleText
-              const visibleTextObj = visibleText as PIXI.Text
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:894',message:'표시 중인 텍스트 객체 사용',data:{textText:visibleTextObj.text || ''},timestamp:Date.now(),sessionId:'debug-session',runId:'run12',hypothesisId:'A'})}).catch(()=>{});
-              // #endregion
-            } else if (firstSceneIndex >= 0) {
-              // 같은 그룹 내 첫 번째 씬의 텍스트 객체 사용
-              const firstText = textsRef.current.get(firstSceneIndex)
-              if (firstText) {
-                textToUpdate = firstText
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:901',message:'첫 번째 씬의 텍스트 객체 사용',data:{firstSceneIndex,textText:firstText?.text || ''},timestamp:Date.now(),sessionId:'debug-session',runId:'run12',hypothesisId:'A'})}).catch(()=>{});
-                // #endregion
-              }
-            }
-          }
-        }
-        
-        // textToUpdate가 여전히 null이면 currentText 또는 첫 번째 씬의 텍스트 객체 사용
-        if (!textToUpdate) {
-          if (currentText) {
-            textToUpdate = currentText
+          if (visibleText) {
+            textToUpdate = visibleText
           } else if (firstSceneIndex >= 0) {
-            textToUpdate = textsRef.current.get(firstSceneIndex) || undefined
-          }
-        }
-        
-        // 자막 내용이 수정되었을 수 있으므로 텍스트 내용 업데이트
-        // handleScenePartSelect에서 이미 텍스트 객체를 업데이트했을 수 있으므로, 
-        // 디버그 ID가 있는 텍스트 객체의 텍스트를 우선 사용
-        // 재생 중일 때는 텍스트를 전혀 건드리지 않음 (renderSubtitlePart에서 처리)
-        if (textToUpdate && !isPlaying) {
-          let textToDisplay: string | null = null
-          
-          // 디버그 ID가 있는 텍스트 객체의 텍스트를 우선 사용 (handleScenePartSelect에서 업데이트한 텍스트)
-          const debugId = (textToUpdate as PIXI.Text & { __debugId?: string }).__debugId
-          // handleScenePartSelect에서 이미 업데이트한 텍스트인지 확인
-          // 디버그 ID가 있거나, 텍스트가 "와 대박!"이 아니고 timeline의 첫 번째 구간 텍스트와 다른 경우
-          const timelineFirstPart = currentScene.text?.content?.split(/\s*\|\|\|\s*/)[0]?.trim() || ''
-          // 텍스트 객체의 실제 텍스트가 timeline의 첫 번째 구간과 다르면 수동 업데이트된 것으로 간주
-          const isManuallyUpdated = (debugId && debugId.startsWith('text_')) || 
-            (textToUpdate.text && textToUpdate.text !== '와 대박!' && textToUpdate.text !== timelineFirstPart && textToUpdate.text.trim().length > 0)
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:968',message:'isManuallyUpdated 계산',data:{sceneIndex,debugId:debugId || '없음',textToUpdateText:textToUpdate.text,timelineFirstPart,isManuallyUpdated,hasDebugId:!!(debugId && debugId.startsWith('text_')),textDifferent:!(textToUpdate.text === '와 대박!' || textToUpdate.text === timelineFirstPart)},timestamp:Date.now(),sessionId:'debug-session',runId:'run19',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
-          
-          if (isManuallyUpdated && textToUpdate.text) {
-            // handleScenePartSelect에서 이미 업데이트한 텍스트 사용
-            textToDisplay = textToUpdate.text
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:925',message:'수동 업데이트된 텍스트 사용',data:{sceneIndex,debugId:debugId || '없음',text:textToDisplay,timelineFirstPart,textToUpdateText:textToUpdate.text},timestamp:Date.now(),sessionId:'debug-session',runId:'run15',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-          } else if (currentScene.text?.content) {
-            // 디버그 ID가 없으면 timeline의 text.content 사용
-            textToDisplay = currentScene.text.content
-            
-            // playTts에서 이미 특정 구간 텍스트로 업데이트했을 수 있음 (|||가 없으면 이미 구간 텍스트)
-            // ||| 구분자가 있으면 그룹 내 순서에 따라 k번째 구간만 표시
-            if (textToDisplay.includes('|||')) {
-              // 같은 그룹 내에서의 순서 확인 (n-k에서 k 구하기)
-              if (currentScene.sceneId !== undefined) {
-                // 같은 sceneId를 가진 씬들 찾기 (원본 배열 순서 유지)
-                const sameGroupScenes = timeline.scenes
-                  .map((s, idx) => ({ scene: s, index: idx }))
-                  .filter(({ scene }) => scene.sceneId === currentScene.sceneId)
-                  .sort((a, b) => a.index - b.index) // 원본 배열 순서로 정렬
-                
-                // 현재 씬이 그룹 내에서 몇 번째인지 확인 (k, 0-based)
-                const groupIndex = sameGroupScenes.findIndex(({ index }) => index === sceneIndex)
-                
-                if (groupIndex >= 0) {
-                  // k번째 구간 텍스트만 표시
-                  const parts = textToDisplay.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
-                  textToDisplay = parts[groupIndex] || ''
-                } else {
-                  textToDisplay = ''
-                }
-              } else {
-                textToDisplay = ''
-              }
-            }
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:960',message:'timeline의 text.content 사용',data:{sceneIndex,textToDisplay,hasDelimiters:currentScene.text.content.includes('|||')},timestamp:Date.now(),sessionId:'debug-session',runId:'run9',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-          }
-          
-          if (textToDisplay !== null) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:970',message:'텍스트 업데이트',data:{sceneIndex,oldText:textToUpdate.text,newText:textToDisplay,willUpdate:textToUpdate.text !== textToDisplay,isManuallyUpdated},timestamp:Date.now(),sessionId:'debug-session',runId:'run18',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-            
-            // 수동 업데이트된 텍스트는 덮어쓰지 않음 (전환 효과 완료 후에도 유지)
-            if (isManuallyUpdated) {
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:1018',message:'수동 업데이트된 텍스트 유지 - 덮어쓰기 스킵',data:{sceneIndex,textToUpdateText:textToUpdate.text,textToDisplay},timestamp:Date.now(),sessionId:'debug-session',runId:'run21',hypothesisId:'A'})}).catch(()=>{});
-              // #endregion
-              // 텍스트는 유지하지만 visible과 alpha는 확실히 설정
-              if (!textToUpdate.visible || textToUpdate.alpha < 1) {
-                textToUpdate.visible = true
-                textToUpdate.alpha = 1
-              }
-            } else if (textToUpdate.text !== textToDisplay) {
-              textToUpdate.text = textToDisplay
-              // 같은 그룹 내 씬 전환 시 텍스트는 즉시 표시 (깜빡임 방지)
-              textToUpdate.visible = textToDisplay.length > 0
-              textToUpdate.alpha = textToDisplay.length > 0 ? 1 : 0
-            } else {
-              // 텍스트가 이미 올바르게 설정되어 있으면 visible과 alpha만 확인
-              if (textToDisplay.length > 0) {
-                textToUpdate.visible = true
-                textToUpdate.alpha = 1
-              }
-            }
-          } else {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:978',message:'텍스트를 찾을 수 없음',data:{sceneIndex,hasTextToUpdate:!!textToUpdate,hasTextContent:!!currentScene.text?.content},timestamp:Date.now(),sessionId:'debug-session',runId:'run9',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-          }
-        } else {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:983',message:'텍스트 객체를 찾을 수 없음',data:{sceneIndex,hasTextToUpdate:!!textToUpdate},timestamp:Date.now(),sessionId:'debug-session',runId:'run9',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
-        }
-        
-        // 이전 텍스트 숨기기 (새 텍스트를 보여준 후)
-        if (previousText && previousIndex !== null && previousIndex !== sceneIndex) {
-          previousText.visible = false
-          previousText.alpha = 0
-        }
-        
-        // 이미지는 이미 표시되어 있으므로 그대로 유지 (전환 효과 적용 안 함)
-        // 텍스트만 변경하고 렌더링
-        // textToUpdate가 업데이트되었는지 확인하고 렌더링
-        if (textToUpdate && appRef.current) {
-          // 텍스트 객체가 컨테이너에 있는지 확인
-          if (textToUpdate.parent !== containerRef.current) {
-            if (textToUpdate.parent) {
-              textToUpdate.parent.removeChild(textToUpdate)
-            }
-            containerRef.current.addChild(textToUpdate)
-          }
-          // 렌더링은 PixiJS ticker가 처리
-        } else if (appRef.current) {
-          // 렌더링은 PixiJS ticker가 처리
-        }
-        
-        // 전환 효과는 적용하지 않음 (첫 번째 씬에서 이미 적용됨)
-        // 완료 콜백만 호출
-        previousSceneIndexRef.current = sceneIndex
-        if (wrappedOnComplete) {
-          wrappedOnComplete()
-        }
-      } else {
-        // 첫 번째 씬이거나 다른 그룹: 전환 효과 적용
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:931',message:'첫 번째 씬 또는 다른 그룹 - 전환 효과 적용',data:{sceneIndex,isFirstSceneInGroup,isInSameGroup,transition,transitionDuration},timestamp:Date.now(),sessionId:'debug-session',runId:'run5',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        
-        // 자막 내용이 수정되었을 수 있으므로 텍스트 내용 업데이트
-        // 단, handleScenePartSelect에서 수동 업데이트된 텍스트인 경우 덮어쓰지 않음
-        if (currentText && currentScene.text?.content) {
-          // 수동 업데이트된 텍스트인지 확인
-          const currentTextDebugId = (currentText as PIXI.Text & { __debugId?: string }).__debugId
-          const isManuallyUpdated = currentTextDebugId && currentTextDebugId.startsWith('text_') && 
-            currentText.text && currentText.text !== '와 대박!'
-          
-          if (!isManuallyUpdated) {
-            // 수동 업데이트되지 않은 경우에만 텍스트 업데이트
-            let textToDisplay = ''
-            
-            // 재생 중일 때는 텍스트를 전혀 건드리지 않음 (renderSubtitlePart에서 처리)
-            // 재생 중이 아닐 때만 텍스트 업데이트
-            if (!isPlaying) {
-              // 재생 중이 아닐 때: 같은 그룹 내에서의 순서 확인 (n-k에서 k 구하기)
-              if (currentScene.sceneId !== undefined && currentScene.text.content.includes('|||')) {
-                // 같은 sceneId를 가진 씬들 찾기 (원본 배열 순서 유지)
-                const sameGroupScenes = timeline.scenes
-                  .map((s, idx) => ({ scene: s, index: idx }))
-                  .filter(({ scene }) => scene.sceneId === currentScene.sceneId)
-                  .sort((a, b) => a.index - b.index) // 원본 배열 순서로 정렬
-                
-                // 현재 씬이 그룹 내에서 몇 번째인지 확인 (k, 0-based)
-                const groupIndex = sameGroupScenes.findIndex(({ index }) => index === sceneIndex)
-                
-                if (groupIndex >= 0) {
-                  // k번째 구간 텍스트만 표시
-                  const parts = splitSubtitleByDelimiter(currentScene.text.content)
-                  textToDisplay = parts[groupIndex] || ''
-                }
-              } else {
-                // ||| 구분자가 없으면 전체 텍스트 사용
-                textToDisplay = currentScene.text.content || ''
-              }
-              
-              if (currentText.text !== textToDisplay) {
-                currentText.text = textToDisplay
-              }
-              currentText.visible = textToDisplay.length > 0
-              currentText.alpha = textToDisplay.length > 0 ? 1 : 0
-            }
-          } else {
-            // 수동 업데이트된 텍스트인 경우 visible과 alpha만 확인
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:1230',message:'수동 업데이트된 텍스트 유지 - 텍스트 덮어쓰기 스킵',data:{sceneIndex,currentTextDebugId,currentTextText:currentText.text},timestamp:Date.now(),sessionId:'debug-session',runId:'run45',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
-            // 재생 중일 때는 텍스트를 건드리지 않음 (renderSubtitlePart에서 처리)
-            if (!isPlaying && (!currentText.visible || currentText.alpha < 1)) {
-              currentText.visible = true
-              currentText.alpha = 1
+            // 같은 그룹 내 첫 번째 씬의 텍스트 객체 사용
+            const firstText = textsRef.current.get(firstSceneIndex)
+            if (firstText) {
+              textToUpdate = firstText
             }
           }
         }
-        
-        // applyEnterEffect 호출 전에 currentText 객체의 상태를 로깅
-        // #region agent log
+      }
+      
+      // textToUpdate가 여전히 null이면 currentText 또는 첫 번째 씬의 텍스트 객체 사용
+      if (!textToUpdate) {
         if (currentText) {
-          const currentTextDebugIdBeforeApply = (currentText as PIXI.Text & { __debugId?: string }).__debugId || '없음'
-          fetch('http://127.0.0.1:7242/ingest/c380660c-4fa0-4bba-b6e2-542824dcb4d9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'useSceneManager.ts:1209',message:'applyEnterEffect 호출 전 currentText 상태',data:{sceneIndex,currentTextAddress:String(currentText),debugId:currentTextDebugIdBeforeApply,textText:currentText.text,visible:currentText.visible,alpha:currentText.alpha},timestamp:Date.now(),sessionId:'debug-session',runId:'run34',hypothesisId:'A'})}).catch(()=>{});
+          textToUpdate = currentText
+        } else if (firstSceneIndex >= 0) {
+          textToUpdate = textsRef.current.get(firstSceneIndex) || undefined
         }
-        // #endregion
-        
-        applyEnterEffect(
-          spriteToUse,
-          currentText || null,
-          transition,
-          transitionDuration,
-          width,
-          height,
-          sceneIndex,
-          forceTransition,
-          () => {
-            previousSceneIndexRef.current = sceneIndex
-            wrappedOnComplete()
-          },
-          previousIndex,
-          isFirstInGroup ? groupTransitionTimelinesRef : undefined,
-          currentScene.sceneId,
-          isPlaying // 재생 중인지 여부 전달
-        )
+      }
+      
+      // 자막 내용이 수정되었을 수 있으므로 텍스트 내용 업데이트
+      // handleScenePartSelect에서 이미 텍스트 객체를 업데이트했을 수 있으므로, 
+      // 디버그 ID가 있는 텍스트 객체의 텍스트를 우선 사용
+      // 재생 중일 때는 텍스트를 전혀 건드리지 않음 (renderSubtitlePart에서 처리)
+      console.log(`[updateCurrentScene] 텍스트 업데이트 조건 확인 | 씬 ${actualSceneIndex}, textToUpdate: ${!!textToUpdate}, isPlaying: ${isPlaying}, partIndex: ${partIndex}`)
+      // 자막 렌더링은 renderSubtitlePart가 담당하므로 여기서는 처리하지 않음
+      // renderSceneContent의 onComplete에서 renderSubtitlePart 호출
+      
+      // 이전 텍스트 숨기기 (새 텍스트를 보여준 후)
+      if (previousText && previousIndex !== null && previousIndex !== actualSceneIndex) {
+        previousText.visible = false
+        previousText.alpha = 0
+      }
+      
+      // 이미지는 이미 표시되어 있으므로 그대로 유지 (전환 효과 적용 안 함)
+      // 텍스트만 변경하고 렌더링
+      // textToUpdate가 업데이트되었는지 확인하고 렌더링
+      if (textToUpdate && appRef.current) {
+        // 텍스트 객체가 컨테이너에 있는지 확인
+        if (textToUpdate.parent !== containerRef.current) {
+          if (textToUpdate.parent) {
+            textToUpdate.parent.removeChild(textToUpdate)
+          }
+          containerRef.current.addChild(textToUpdate)
+        }
+        // 렌더링은 PixiJS ticker가 처리
+      } else if (appRef.current) {
+        // 렌더링은 PixiJS ticker가 처리
+      }
+      
+      // 전환 효과는 적용하지 않음 (첫 번째 씬에서 이미 적용됨)
+      // 완료 콜백만 호출
+      previousSceneIndexRef.current = actualSceneIndex
+      if (wrappedOnComplete) {
+        wrappedOnComplete()
       }
     } else {
+      // 첫 번째 씬이거나 다른 그룹: 전환 효과 적용
+      
+      // 자막 렌더링은 renderSubtitlePart가 담당하므로 여기서는 처리하지 않음
+      // renderSceneContent의 onComplete에서 renderSubtitlePart 호출
+      
+      // applyEnterEffect 호출 전에 currentText 객체의 상태를 로깅
+      
+      applyEnterEffect(
+        spriteToUse,
+        currentText || null,
+        transition,
+        transitionDuration,
+        width,
+        height,
+        actualSceneIndex,
+        forceTransition,
+        () => {
+          previousSceneIndexRef.current = actualSceneIndex
+          wrappedOnComplete()
+        },
+        previousIndex,
+        isFirstInGroup ? groupTransitionTimelinesRef : undefined,
+        currentScene.sceneId,
+        isPlaying // 재생 중인지 여부 전달
+      )
+    }
+    
+    if (!currentSprite) {
       // 스프라이트가 없으면 즉시 표시
       spritesRef.current.forEach((sprite, index) => {
         if (sprite?.parent) {
-          sprite.visible = index === sceneIndex
-          sprite.alpha = index === sceneIndex ? 1 : 0
+          sprite.visible = index === actualSceneIndex
+          sprite.alpha = index === actualSceneIndex ? 1 : 0
         }
       })
       textsRef.current.forEach((text, index) => {
         if (text?.parent) {
-          text.visible = index === sceneIndex
-          text.alpha = index === sceneIndex ? 1 : 0
+          text.visible = index === actualSceneIndex
+          text.alpha = index === actualSceneIndex ? 1 : 0
         }
       })
 
       // 렌더링은 PixiJS ticker가 처리
+      previousSceneIndexRef.current = actualSceneIndex
     }
-
-      previousSceneIndexRef.current = sceneIndex
-    } catch (error) {
-      console.error('updateCurrentScene error:', error)
-    }
-  }, [timeline, stageDimensions, applyEnterEffect, appRef, containerRef, spritesRef, textsRef, currentSceneIndexRef, previousSceneIndexRef, activeAnimationsRef, isManualSceneSelectRef])
+  }
+  }, [timeline, stageDimensions, applyEnterEffect, appRef, containerRef, spritesRef, textsRef, currentSceneIndexRef, previousSceneIndexRef, activeAnimationsRef, isManualSceneSelectRef, handleSkipAnimation])
 
   // Fabric 오브젝트를 현재 씬 상태에 맞게 동기화
   const syncFabricWithScene = useCallback(async () => {
@@ -1332,7 +1158,10 @@ export const useSceneManager = ({
         }
         // 렌더링은 PixiJS ticker가 처리
       } else {
-        updateCurrentScene(true)
+        // 현재 씬의 첫 번째 구간 인덱스 계산 (구간이 나뉘어져 있으면 0, 아니면 null)
+        const currentScene = timeline.scenes[sceneIndex]
+        const partIndex = currentScene?.text?.content?.includes('|||') ? 0 : null
+        updateCurrentScene(true, undefined, undefined, undefined, false, undefined, partIndex)
       }
       // 렌더링은 PixiJS ticker가 처리
       
@@ -1413,6 +1242,10 @@ export const useSceneManager = ({
       const originalSceneIndex = currentSceneIndexRef.current
       currentSceneIndexRef.current = sceneIndex
       
+      // 현재 씬의 첫 번째 구간 인덱스 계산 (구간이 나뉘어져 있으면 0, 아니면 null)
+      const currentScene = timeline.scenes[sceneIndex]
+      const partIndex = currentScene?.text?.content?.includes('|||') ? 0 : null
+      
       // updateCurrentScene 호출 (이미지만 처리)
       updateCurrentScene(
         false,
@@ -1428,7 +1261,10 @@ export const useSceneManager = ({
           if (onComplete) {
             onComplete()
           }
-        }
+        },
+        false, // isPlaying
+        undefined, // skipImage
+        partIndex // 현재 씬의 첫 번째 구간 인덱스 전달
       )
       return
     }
@@ -1456,9 +1292,10 @@ export const useSceneManager = ({
   ])
 
   // 자막만 렌더링하는 함수
+  // partIndex가 null이면 전체 자막 렌더링
   const renderSubtitlePart = useCallback((
     sceneIndex: number,
-    partIndex: number,
+    partIndex: number | null,
     options?: {
       skipAnimation?: boolean
       onComplete?: () => void
@@ -1478,8 +1315,15 @@ export const useSceneManager = ({
     
     // 원본 텍스트에서 구간 추출
     const originalText = scene.text?.content || ''
-    const scriptParts = splitSubtitleByDelimiter(originalText)
-    const partText = scriptParts[partIndex]?.trim() || null
+    
+    // partIndex가 null이면 전체 자막 렌더링
+    let partText: string | null = null
+    if (partIndex === null) {
+      partText = originalText
+    } else {
+      const scriptParts = splitSubtitleByDelimiter(originalText)
+      partText = scriptParts[partIndex]?.trim() || null
+    }
     
     console.log(`[renderSubtitlePart] 구간 추출 | 씬 ${sceneIndex}, partIndex: ${partIndex}, 원본: "${originalText.substring(0, 50)}...", 추출된 텍스트: "${partText?.substring(0, 50) || '없음'}..."`)
     
@@ -1548,7 +1392,8 @@ export const useSceneManager = ({
     if (alphaChanged || visibleChanged || textChanged) {
       console.log(`[렌더링-자막] 씬${sceneIndex} 구간${partIndex} | alpha: ${prevAlpha}→${targetTextObj.alpha} | visible: ${prevVisible}→${targetTextObj.visible} | text변경: ${textChanged} | "${partText.substring(0, 20)}..."`)
     } else {
-      console.warn(`[렌더링-자막] 씬${sceneIndex} 구간${partIndex} 중복호출 감지! (값 변경 없음) | alpha: ${targetTextObj.alpha}, visible: ${targetTextObj.visible}`)
+      // 중복 호출이지만 값이 변경되지 않았으므로 조용히 무시 (경고 제거)
+      // updateCurrentScene과 renderSubtitlePart가 모두 호출될 수 있으므로 정상적인 동작일 수 있음
     }
     
     if (onComplete) {
@@ -1559,6 +1404,11 @@ export const useSceneManager = ({
     appRef,
     textsRef,
   ])
+  
+  // renderSubtitlePart를 ref에 저장 (handleSkipAnimation에서 사용)
+  useEffect(() => {
+    renderSubtitlePartRef.current = renderSubtitlePart
+  }, [renderSubtitlePart])
 
   // 이미지와 자막을 동시에 alpha: 0으로 준비하는 함수
   const prepareImageAndSubtitle = useCallback((
@@ -1669,7 +1519,7 @@ export const useSceneManager = ({
       } else {
         partText = originalText
       }
-      console.log(`[renderSceneContent] 구간 추출 | 씬 ${sceneIndex}, partIndex: ${partIndex}, 원본: "${originalText.substring(0, 50)}...", 추출된 텍스트: "${partText.substring(0, 50)}..."`)
+      console.log(`[renderSceneContent] 구간 추출 | 씬 ${sceneIndex}, partIndex: ${partIndex}, 원본: "${originalText.substring(0, 50)}...", 추출된 텍스트: "${partText.substring(0, 50)}...", updateCurrentScene에 partIndex 전달 예정`)
     } else {
       // partIndex가 없으면 전체 텍스트 사용
       partText = scene.text?.content || null
@@ -1804,51 +1654,59 @@ export const useSceneManager = ({
     const effectivePreviousIndex = previousIndex !== undefined 
       ? previousIndex 
       : (previousSceneIndexRef.current !== sceneIndex ? previousSceneIndexRef.current : null)
+    console.log(`[renderSceneContent] updateCurrentScene 호출 전 | 씬 ${sceneIndex}, partIndex: ${partIndex}, isPlaying: ${isPlaying}, skipImage: ${skipImage}`)
     updateCurrentScene(
       skipAnimation,
       effectivePreviousIndex,
       forceTransition,
       () => {
-        // 전환 완료 후 구간 텍스트가 올바르게 표시되었는지 확인
-        // 재생 중일 때는 renderSubtitlePart가 텍스트를 관리하므로 여기서는 업데이트하지 않음
-        // 재생 중이 아닐 때만 텍스트 업데이트
-        if (!isPlaying && partText && targetTextObj) {
-          // 텍스트 내용 업데이트
-          if (targetTextObj.text !== partText) {
-            targetTextObj.text = partText
-          }
-          targetTextObj.visible = true
-          targetTextObj.alpha = 1
-        } else if (!isPlaying && partText) {
-          // targetTextObj를 찾지 못한 경우, 다시 찾기 시도
-          let textToUpdate: PIXI.Text | null = null
-          const sceneId = scene.sceneId
-          if (sceneId !== undefined) {
-            const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
-            if (firstSceneIndexInGroup >= 0) {
-              textToUpdate = textsRef.current.get(firstSceneIndexInGroup) || null
+        // 전환 완료 후 자막 렌더링
+        // 재생 중이 아닐 때만 자막 렌더링 (재생 중에는 재생 로직에서 처리)
+        if (!isPlaying) {
+          if (partIndex !== undefined && partIndex !== null && renderSubtitlePart) {
+            // partIndex가 있으면 해당 구간만 렌더링
+            renderSubtitlePart(sceneIndex, partIndex, {
+              skipAnimation: true,
+              onComplete: () => {
+                if (onComplete) {
+                  onComplete()
+                }
+              },
+            })
+          } else if (partIndex === null || partIndex === undefined) {
+            // partIndex가 null이면 전체 자막 렌더링
+            // renderSubtitlePart를 null로 호출하여 전체 자막 렌더링
+            if (renderSubtitlePart) {
+              renderSubtitlePart(sceneIndex, null, {
+                skipAnimation: true,
+                onComplete: () => {
+                  if (onComplete) {
+                    onComplete()
+                  }
+                },
+              })
+            } else {
+              if (onComplete) {
+                onComplete()
+              }
+            }
+          } else {
+            if (onComplete) {
+              onComplete()
             }
           }
-          if (!textToUpdate) {
-            textToUpdate = textsRef.current.get(sceneIndex) || null
+        } else {
+          // 재생 중이면 onComplete만 호출
+          if (onComplete) {
+            onComplete()
           }
-          
-          if (textToUpdate) {
-            if (textToUpdate.text !== partText) {
-              textToUpdate.text = partText
-            }
-            textToUpdate.visible = true
-            textToUpdate.alpha = 1
-          }
-        }
-        // 렌더링은 PixiJS ticker가 처리
-        if (onComplete) {
-          onComplete()
         }
       },
       isPlaying, // 재생 중인지 여부 전달
-      skipImage // 이미지 렌더링 스킵 여부 전달
+      skipImage, // 이미지 렌더링 스킵 여부 전달
+      partIndex // 구간 인덱스 전달 (updateCurrentScene에서 해당 구간만 표시)
     )
+    console.log(`[renderSceneContent] updateCurrentScene 호출 후 | 씬 ${sceneIndex}, partIndex: ${partIndex}`)
   }, [
     timeline,
     appRef,
@@ -1860,6 +1718,7 @@ export const useSceneManager = ({
     updateCurrentScene,
     setTimeline,
     setCurrentSceneIndex,
+    renderSubtitlePart, // renderSubtitlePart를 dependency에 추가
   ])
 
   return {

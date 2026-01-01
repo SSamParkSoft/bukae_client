@@ -105,7 +105,7 @@ export default function Step4Page() {
   const previousSceneIndexRef = useRef<number | null>(null) // useTimelinePlayer와 공유
   const disableAutoTimeUpdateRef = useRef<boolean>(false) // 비디오 재생 중일 때 자동 시간 업데이트 비활성화
   const lastRenderedSceneIndexRef = useRef<number | null>(null) // 전환 효과 추적용 (로컬)
-  const updateCurrentSceneRef = useRef<(skipAnimation?: boolean) => void>(() => {})
+  const updateCurrentSceneRef = useRef<(skipAnimation?: boolean, explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, skipImage?: boolean, partIndex?: number | null, sceneIndex?: number) => void>(() => {})
   // Fabric.js refs
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
   const fabricCanvasElementRef = useRef<HTMLCanvasElement | null>(null)
@@ -131,7 +131,15 @@ export default function Step4Page() {
   // 스크립트가 변경된 씬 추적 (재생 시 강제 재생성)
   const changedScenesRef = useRef<Set<number>>(new Set())
   // 선택된 구간 추적 (씬 인덱스, 구간 인덱스)
-  const [selectedPart, setSelectedPart] = useState<{ sceneIndex: number; partIndex: number } | null>(null)
+  const [selectedPart, setSelectedPartState] = useState<{ sceneIndex: number; partIndex: number } | null>(null)
+  const selectedPartRef = useRef<{ sceneIndex: number; partIndex: number } | null>(null)
+  
+  // setSelectedPart를 래핑하여 selectedPartRef도 함께 업데이트
+  const setSelectedPart = useCallback((part: { sceneIndex: number; partIndex: number } | null) => {
+    selectedPartRef.current = part
+    console.log(`[setSelectedPart] selectedPartRef 업데이트 | sceneIndex: ${part?.sceneIndex}, partIndex: ${part?.partIndex}`)
+    setSelectedPartState(part)
+  }, [])
 
   // 토큰 검증
   const { isValidatingToken } = useVideoCreateAuth()
@@ -348,6 +356,9 @@ export default function Step4Page() {
   })
   
   let { updateCurrentScene, syncFabricWithScene, loadAllScenes } = sceneManagerResult1
+  
+  // updateCurrentScene을 ref로 감싸서 안정적인 참조 유지
+  updateCurrentSceneRef.current = updateCurrentScene
 
   // selectScene 함수를 나중에 연결하기 위한 ref
   const selectSceneRef = useRef<((index: number, skipStopPlaying?: boolean, onTransitionComplete?: () => void) => void) | null>(null)
@@ -580,11 +591,15 @@ export default function Step4Page() {
   })
   
   const { 
+    updateCurrentScene: updateCurrentScene2,
     renderSceneContent: renderSceneContentFromManager,
     renderSceneImage,
     renderSubtitlePart,
     prepareImageAndSubtitle,
   } = sceneManagerResult2
+  
+  // updateCurrentScene2를 ref로 감싸서 안정적인 참조 유지
+  updateCurrentSceneRef.current = updateCurrentScene2
   
   // renderSceneContent를 setCurrentSceneIndex와 함께 래핑
   const renderSceneContent = useCallback((
@@ -717,7 +732,11 @@ export default function Step4Page() {
           if (options?.onComplete) {
             options.onComplete()
           }
-        }
+        },
+        false, // isPlaying
+        undefined, // skipImage
+        partIndex, // partIndex 전달
+        sceneIndex // sceneIndex 전달
       )
     }
   }, [timeline, setTimeline, setCurrentSceneIndex, textsRef, spritesRef, currentSceneIndexRef, updateCurrentScene, renderSceneContentFromManager])
@@ -1346,49 +1365,6 @@ export default function Step4Page() {
       playTimeoutRef.current = null
     }
   }, [isPlaying])
-
-  // 재생 중이 아닐 때 씬 변경 처리 (씬 선택 로직은 handleSceneSelect에서 처리)
-  useEffect(() => {
-    if (!timeline || timeline.scenes.length === 0) return
-    if (isPlaying) {
-      return // 재생 중일 때는 handleSceneSelect가 처리하므로 여기서는 처리하지 않음
-    }
-    // #region agent log
-    // #endregion
-    if (isManualSceneSelectRef.current) {
-      console.log(`[useEffect] ⏭️ 수동 씬 선택 중, 리턴 (씬${currentSceneIndex}, timeline:"${timeline.scenes[currentSceneIndex]?.text?.content?.substring(0, 30)}...")`)
-      return // 수동 씬 선택 중일 때는 handleSceneSelect가 처리하므로 여기서는 처리하지 않음
-    }
-    if (isPreviewingTransition) {
-      return // 전환 효과 미리보기 중일 때는 handleSceneSelect가 처리하므로 여기서는 처리하지 않음
-    }
-    
-    // handleScenePartSelect가 처리 중일 때는 여기서 처리하지 않음
-    if (isManualSceneSelectRef.current) {
-      return
-    }
-    
-    // 전환 효과가 진행 중인지 확인
-    let hasActiveAnimation = false
-    activeAnimationsRef.current.forEach((anim) => {
-      if (anim && anim.isActive && anim.isActive()) {
-        hasActiveAnimation = true
-      }
-    })
-    if (hasActiveAnimation) {
-      return
-    }
-    
-    const lastRenderedIndex = lastRenderedSceneIndexRef.current
-    if (lastRenderedIndex !== currentSceneIndex) {
-      console.log(`[useEffect] ✅ updateCurrentScene 호출 (씬${currentSceneIndex}, timeline:"${timeline.scenes[currentSceneIndex]?.text?.content?.substring(0, 30)}...")`)
-      // 재생 중이 아닐 때는 즉시 표시
-      currentSceneIndexRef.current = currentSceneIndex
-      updateCurrentScene(true)
-      lastRenderedSceneIndexRef.current = currentSceneIndex
-      previousSceneIndexRef.current = currentSceneIndex
-    }
-  }, [currentSceneIndex, isPlaying, timeline, updateCurrentScene, isPreviewingTransition, activeAnimationsRef])
 
   // 특정 씬의 TTS 캐시 무효화 (저장소 URL도 제거하여 재업로드 유도)
   const invalidateSceneTtsCache = useCallback((sceneIndex: number) => {

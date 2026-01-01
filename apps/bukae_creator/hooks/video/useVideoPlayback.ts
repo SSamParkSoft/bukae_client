@@ -14,7 +14,7 @@ interface UseVideoPlaybackParams {
   setCurrentSceneIndex: (index: number) => void
   currentSceneIndexRef: React.MutableRefObject<number>
   lastRenderedSceneIndexRef: React.MutableRefObject<number | null>
-  updateCurrentScene: (skipAnimation?: boolean, prevIndex?: number | null, forceTransition?: string, onComplete?: (sceneIndex?: number) => void, isPlaying?: boolean) => void
+  updateCurrentScene: (skipAnimation?: boolean, prevIndex?: number | null, forceTransition?: string, onComplete?: (sceneIndex?: number) => void, isPlaying?: boolean, skipImage?: boolean, partIndex?: number | null) => void
   setTimeline: (timeline: TimelineData) => void
   buildSceneMarkup: (sceneIndex: number) => string[]
   makeTtsKey: (voice: string, markup: string) => string
@@ -675,6 +675,10 @@ export function useVideoPlayback({
                   const nextIndex = currentIndex + 1
                   setCurrentSceneIndex(nextIndex)
                   currentSceneIndexRef.current = nextIndex
+                  // 현재 씬의 첫 번째 구간 인덱스 계산 (구간이 나뉘어져 있으면 0, 아니면 null)
+                  const currentScene = timeline.scenes[nextIndex]
+                  const partIndex = currentScene?.text?.content?.includes('|||') ? 0 : null
+                  
                   // lastRenderedSceneIndexRef는 updateCurrentScene 완료 후 업데이트되므로 여기서는 업데이트하지 않음
                   // 재생 중이므로 isPlaying: true
                   updateCurrentScene(false, currentIndex, undefined, () => {
@@ -682,7 +686,7 @@ export function useVideoPlayback({
                     lastRenderedSceneIndexRef.current = nextIndex
                     // 같은 그룹 내 씬이므로 전환 효과 없이 바로 TTS 재생 시작
                     void playNextScene(nextIndex)
-                  }, true)
+                  }, true, undefined, partIndex, nextIndex) // 현재 씬의 첫 번째 구간 인덱스 전달, sceneIndex: nextIndex 전달
                 } else {
                   await playNextScene(currentIndex + 1)
                 }
@@ -1088,6 +1092,10 @@ export function useVideoPlayback({
                 const nextIndex = currentIndex + 1
                 setCurrentSceneIndex(nextIndex)
                 currentSceneIndexRef.current = nextIndex
+                // 현재 씬의 첫 번째 구간 인덱스 계산 (구간이 나뉘어져 있으면 0, 아니면 null)
+                const currentScene = timeline.scenes[nextIndex]
+                const partIndex = currentScene?.text?.content?.includes('|||') ? 0 : null
+                
                 // lastRenderedSceneIndexRef는 updateCurrentScene 완료 후 업데이트되므로 여기서는 업데이트하지 않음
                 // 재생 중이므로 isPlaying: true
                 updateCurrentScene(false, currentIndex, undefined, () => {
@@ -1095,7 +1103,7 @@ export function useVideoPlayback({
                   lastRenderedSceneIndexRef.current = nextIndex
                   // 같은 그룹 내 씬이므로 전환 효과 없이 바로 TTS 재생 시작
                   void playNextScene(nextIndex)
-                }, true)
+                }, true, undefined, partIndex, nextIndex) // 현재 씬의 첫 번째 구간 인덱스 전달, sceneIndex: nextIndex 전달
               } else {
                 // 다른 그룹으로 넘어갈 때는 selectScene을 통해 전환 효과 적용
                 // playNextScene 내부에서 selectScene을 호출하므로 바로 호출

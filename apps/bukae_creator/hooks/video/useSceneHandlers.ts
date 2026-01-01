@@ -180,7 +180,7 @@ export function useSceneHandlers({
             })
           } else {
             // fallback: 기존 방식
-            updateCurrentScene(false, null, value)
+            updateCurrentScene(false, null, value, undefined, undefined, undefined, undefined, targetSceneIndex)
             
             lastRenderedSceneIndexRef.current = targetSceneIndex
 
