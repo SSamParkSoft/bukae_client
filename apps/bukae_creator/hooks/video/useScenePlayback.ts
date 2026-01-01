@@ -125,6 +125,89 @@ export async function playSceneLogic({
 
   stopTtsAudio()
 
+  // 텍스트 객체와 스프라이트가 준비되었는지 확인
+  // 같은 그룹 내 첫 번째 씬의 텍스트 객체 확인
+  let targetTextObj: PIXI.Text | null = null
+  const sceneId = scene.sceneId
+  if (sceneId !== undefined) {
+    const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+    if (firstSceneIndexInGroup >= 0) {
+      targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
+      if (targetTextObj) {
+        console.log(`[playSceneLogic] 최초 텍스트 객체 확인 (같은 그룹 첫 번째 씬 ${firstSceneIndexInGroup}): "${targetTextObj.text.substring(0, 50)}..."`)
+      }
+    }
+  }
+  if (!targetTextObj) {
+    targetTextObj = textsRef.current.get(sceneIndex) || null
+    if (targetTextObj) {
+      console.log(`[playSceneLogic] 최초 텍스트 객체 확인 (현재 씬 ${sceneIndex}): "${targetTextObj.text.substring(0, 50)}..."`)
+    }
+  }
+  
+  if (!targetTextObj) {
+    console.log(`[playSceneLogic] 최초 텍스트 객체 없음 | 씬 ${sceneIndex}, sceneId: ${sceneId}, timeline 텍스트: "${scene.text?.content?.substring(0, 50) || '없음'}..."`)
+  }
+  
+  const targetSprite = spritesRef.current.get(sceneIndex) || null
+
+  // 텍스트 객체나 스프라이트가 없으면 먼저 씬을 렌더링
+  if (!targetTextObj || !targetSprite) {
+    // 씬이 한 번도 렌더링되지 않았으므로 먼저 렌더링
+    // updateCurrentScene을 직접 호출하여 씬을 초기화
+    // currentSceneIndexRef를 먼저 설정
+    currentSceneIndexRef.current = sceneIndex
+    
+    // updateCurrentScene을 사용하여 씬을 초기화 (skipAnimation: true로 즉시 표시)
+    // isPlaying: true로 설정하여 updateCurrentScene이 텍스트를 업데이트하지 않도록 함
+    // (renderSubtitlePart가 텍스트를 관리하므로)
+    if (renderSceneContent) {
+      await new Promise<void>((resolve) => {
+        renderSceneContent(sceneIndex, null, {
+          skipAnimation: true,
+          updateTimeline: true, // 초기 렌더링이므로 timeline 업데이트 허용
+          isPlaying: true, // 재생 중으로 설정하여 텍스트 업데이트 방지
+          onComplete: () => {
+            resolve()
+          },
+        })
+      })
+    } else {
+      // fallback: renderSceneImage와 renderSubtitlePart 사용
+      if (targetSprite) {
+        targetSprite.visible = true
+        targetSprite.alpha = 1
+      }
+      if (targetTextObj) {
+        targetTextObj.visible = true
+        targetTextObj.alpha = 1
+      }
+    }
+    
+    // 렌더링 후 다시 확인
+    if (sceneId !== undefined) {
+      const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+      if (firstSceneIndexInGroup >= 0) {
+        targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
+      }
+    }
+    if (!targetTextObj) {
+      targetTextObj = textsRef.current.get(sceneIndex) || null
+    }
+    
+    // 스프라이트도 다시 확인
+    const targetSpriteAfter = spritesRef.current.get(sceneIndex) || null
+    if (!targetSpriteAfter && sceneId !== undefined) {
+      const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+      if (firstSceneIndexInGroup >= 0) {
+        const firstSprite = spritesRef.current.get(firstSceneIndexInGroup)
+        if (firstSprite) {
+          // 같은 그룹의 첫 번째 씬 스프라이트 사용
+        }
+      }
+    }
+  }
+
   // 다른 모든 씬의 렌더링 중지 (현재 씬 제외)
   spritesRef.current.forEach((sprite, idx) => {
     if (sprite && idx !== sceneIndex) {
@@ -140,7 +223,10 @@ export async function playSceneLogic({
   })
 
   // 이전 씬 인덱스 계산
-  const previousSceneIndex = lastRenderedSceneIndexRef.current
+  // lastRenderedSceneIndexRef가 null이거나 현재 씬과 다르면 이전 씬으로 설정
+  const previousSceneIndex = lastRenderedSceneIndexRef.current !== null 
+    ? lastRenderedSceneIndexRef.current 
+    : (currentSceneIndexRef.current !== sceneIndex ? currentSceneIndexRef.current : null)
 
   // 전환 효과 설정
   const transition = scene.transition || 'fade'
@@ -232,7 +318,6 @@ export async function playSceneLogic({
           renderSubtitlePart(sceneIndex, partIndex, {
             skipAnimation: true,
           })
-          console.log(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} 자막 렌더링: "${currentPartText.substring(0, 30)}..."`)
         }
 
         // 해당 구간의 TTS 파일 가져오기
@@ -264,14 +349,8 @@ export async function playSceneLogic({
 
         // TTS 파일 가져오기 (캐시에서)
         const key = makeTtsKey(voiceTemplate, markup)
-        console.log(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS 키 생성`)
-        console.log(`[playSceneLogic] voiceTemplate: "${voiceTemplate}"`)
-        console.log(`[playSceneLogic] markup: "${markup.substring(0, 100)}..."`)
-        console.log(`[playSceneLogic] 생성된 키: "${key.substring(0, 150)}..."`)
-        console.log(`[playSceneLogic] 캐시 크기: ${ttsCacheRef.current.size}`)
         
         let cached = ttsCacheRef.current.get(key)
-        console.log(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS 캐시 확인: ${cached ? '있음' : '없음'}`)
 
         // 키로 찾지 못했으면 마크업으로 직접 검색 시도
         if (!cached) {
@@ -354,7 +433,6 @@ export async function playSceneLogic({
           }
         }
         
-        console.log(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS 캐시 발견 | duration: ${cached.durationSec}초, url: ${cached.url ? '있음' : '없음'}, blob: ${cached.blob ? '있음' : '없음'}`)
 
         const part = {
           blob: cached.blob,
@@ -395,14 +473,11 @@ export async function playSceneLogic({
         let audioUrl: string | null = null
         if (part.url) {
           audioUrl = part.url
-          console.log(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} 저장소 URL 사용`)
         } else if (part.blob) {
           audioUrl = URL.createObjectURL(part.blob)
-          console.log(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} blob URL 생성`)
         }
 
         const targetDuration = (part.durationSec * 1000) / playbackSpeed
-        console.log(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS duration: ${part.durationSec}초, 재생 시간: ${targetDuration}ms`)
 
         if (audioUrl) {
           ttsAudioUrlRef.current = audioUrl

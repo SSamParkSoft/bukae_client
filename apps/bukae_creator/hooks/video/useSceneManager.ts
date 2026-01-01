@@ -818,7 +818,8 @@ export const useSceneManager = ({
         // 자막 내용이 수정되었을 수 있으므로 텍스트 내용 업데이트
         // handleScenePartSelect에서 이미 텍스트 객체를 업데이트했을 수 있으므로, 
         // 디버그 ID가 있는 텍스트 객체의 텍스트를 우선 사용
-        if (textToUpdate) {
+        // 재생 중일 때는 텍스트를 전혀 건드리지 않음 (renderSubtitlePart에서 처리)
+        if (textToUpdate && !isPlaying) {
           let textToDisplay: string | null = null
           
           // 디버그 ID가 있는 텍스트 객체의 텍스트를 우선 사용 (handleScenePartSelect에서 업데이트한 텍스트)
@@ -1480,6 +1481,8 @@ export const useSceneManager = ({
     const scriptParts = splitSubtitleByDelimiter(originalText)
     const partText = scriptParts[partIndex]?.trim() || null
     
+    console.log(`[renderSubtitlePart] 구간 추출 | 씬 ${sceneIndex}, partIndex: ${partIndex}, 원본: "${originalText.substring(0, 50)}...", 추출된 텍스트: "${partText?.substring(0, 50) || '없음'}..."`)
+    
     if (!partText) {
       if (onComplete) {
         onComplete()
@@ -1488,17 +1491,20 @@ export const useSceneManager = ({
     }
     
     // 텍스트 객체 찾기
-    let targetTextObj: PIXI.Text | null = textsRef.current.get(sceneIndex) || null
-    
-    // 같은 그룹 내 첫 번째 씬의 텍스트 사용 (필요한 경우)
-    if (!targetTextObj || (!targetTextObj.visible && targetTextObj.alpha === 0)) {
-      const sceneId = scene.sceneId
-      if (sceneId !== undefined) {
-        const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
-        if (firstSceneIndexInGroup >= 0) {
-          targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
-        }
+    // 같은 그룹 내 씬들은 같은 텍스트 객체를 공유하므로, 항상 같은 그룹 내 첫 번째 씬의 텍스트 사용
+    let targetTextObj: PIXI.Text | null = null
+    const sceneId = scene.sceneId
+    if (sceneId !== undefined) {
+      // 같은 그룹 내 첫 번째 씬 찾기
+      const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+      if (firstSceneIndexInGroup >= 0) {
+        targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
       }
+    }
+    
+    // 같은 그룹이 아니거나 첫 번째 씬의 텍스트를 찾지 못한 경우, 현재 씬의 텍스트 사용
+    if (!targetTextObj) {
+      targetTextObj = textsRef.current.get(sceneIndex) || null
     }
     
     if (!targetTextObj) {
@@ -1657,12 +1663,17 @@ export const useSceneManager = ({
       // 원본 텍스트에서 구간 추출
       const originalText = scene.text?.content || ''
       const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
-      partText = scriptParts[partIndex]?.trim() || null
+      // partIndex가 범위 내에 있으면 해당 구간 사용, 없으면 첫 번째 구간 사용
+      if (scriptParts.length > 0) {
+        partText = scriptParts[partIndex]?.trim() || scriptParts[0] || originalText
+      } else {
+        partText = originalText
+      }
+      console.log(`[renderSceneContent] 구간 추출 | 씬 ${sceneIndex}, partIndex: ${partIndex}, 원본: "${originalText.substring(0, 50)}...", 추출된 텍스트: "${partText.substring(0, 50)}..."`)
     } else {
-      // partIndex가 없으면 전체 텍스트 사용 (첫 번째 구간만)
-      const originalText = scene.text?.content || ''
-      const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
-      partText = scriptParts.length > 0 ? scriptParts[0] : originalText
+      // partIndex가 없으면 전체 텍스트 사용
+      partText = scene.text?.content || null
+      console.log(`[renderSceneContent] 전체 텍스트 사용 | 씬 ${sceneIndex}, partIndex: null, 텍스트: "${partText?.substring(0, 50) || '없음'}..."`)
     }
     
     // timeline 업데이트 (필요한 경우만, 재생 중에는 안함)
@@ -1685,17 +1696,21 @@ export const useSceneManager = ({
     }
     
     // 텍스트 객체 찾기
-    let targetTextObj: PIXI.Text | null = textsRef.current.get(sceneIndex) || null
-    
-    // 같은 그룹 내 첫 번째 씬의 텍스트 사용 (필요한 경우)
-    if (!targetTextObj || (!targetTextObj.visible && targetTextObj.alpha === 0)) {
-      const sceneId = scene.sceneId
-      if (sceneId !== undefined) {
-        const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
-        if (firstSceneIndexInGroup >= 0) {
-          targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
-        }
+    // 같은 그룹 내 씬들은 같은 텍스트 객체를 공유하므로, 항상 같은 그룹 내 첫 번째 씬의 텍스트 사용
+    let targetTextObj: PIXI.Text | null = null
+    const sceneId = scene.sceneId
+    if (sceneId !== undefined) {
+      // 같은 그룹 내 첫 번째 씬 찾기
+      const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+      if (firstSceneIndexInGroup >= 0) {
+        targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
+        console.log(`[renderSceneContent] 같은 그룹 내 첫 번째 씬(${firstSceneIndexInGroup})의 텍스트 객체 사용 | 씬 ${sceneIndex}, 구간 ${partIndex}`)
       }
+    }
+    
+    // 같은 그룹이 아니거나 첫 번째 씬의 텍스트를 찾지 못한 경우, 현재 씬의 텍스트 사용
+    if (!targetTextObj) {
+      targetTextObj = textsRef.current.get(sceneIndex) || null
     }
     
     // 스프라이트 찾기
@@ -1743,7 +1758,7 @@ export const useSceneManager = ({
     // 텍스트 객체 업데이트 (prepareOnly가 아닐 때)
     if (targetTextObj && partText) {
       targetTextObj.text = partText
-      // 재생 중이고 첫 번째 구간일 때는 즉시 표시 (updateCurrentScene 완료 후에도 표시되도록)
+      // 재생 중이고 첫 번째 구간일 때는 즉시 표시 (updateCurrentScene 완료 전에도 표시되도록)
       if (isPlaying && partIndex === 0) {
         targetTextObj.visible = true
         targetTextObj.alpha = 1
@@ -1795,36 +1810,38 @@ export const useSceneManager = ({
       forceTransition,
       () => {
         // 전환 완료 후 구간 텍스트가 올바르게 표시되었는지 확인
-        if (partText) {
-          const finalText = textsRef.current.get(sceneIndex)
-          // 같은 그룹 내 첫 번째 씬의 텍스트도 확인
-          let textToUpdate = finalText
-          if (!textToUpdate && scene.sceneId !== undefined) {
-            const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === scene.sceneId)
+        // 재생 중일 때는 renderSubtitlePart가 텍스트를 관리하므로 여기서는 업데이트하지 않음
+        // 재생 중이 아닐 때만 텍스트 업데이트
+        if (!isPlaying && partText && targetTextObj) {
+          // 텍스트 내용 업데이트
+          if (targetTextObj.text !== partText) {
+            targetTextObj.text = partText
+          }
+          targetTextObj.visible = true
+          targetTextObj.alpha = 1
+        } else if (!isPlaying && partText) {
+          // targetTextObj를 찾지 못한 경우, 다시 찾기 시도
+          let textToUpdate: PIXI.Text | null = null
+          const sceneId = scene.sceneId
+          if (sceneId !== undefined) {
+            const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
             if (firstSceneIndexInGroup >= 0) {
-              textToUpdate = textsRef.current.get(firstSceneIndexInGroup)
+              textToUpdate = textsRef.current.get(firstSceneIndexInGroup) || null
             }
+          }
+          if (!textToUpdate) {
+            textToUpdate = textsRef.current.get(sceneIndex) || null
           }
           
           if (textToUpdate) {
-            // 텍스트 내용 업데이트
             if (textToUpdate.text !== partText) {
               textToUpdate.text = partText
             }
-            
-            // 재생 중일 때도 첫 번째 구간(partIndex: 0) 자막은 표시
-            if (isPlaying && partIndex === 0) {
-              textToUpdate.visible = true
-              textToUpdate.alpha = 1
-              console.log(`[renderSceneContent] 재생 중 첫 번째 구간 자막 표시: 씬 ${sceneIndex}, 구간 ${partIndex}`)
-            } else if (!isPlaying) {
-              // 재생 중이 아닐 때는 항상 표시
-              textToUpdate.visible = true
-              textToUpdate.alpha = 1
-            }
+            textToUpdate.visible = true
+            textToUpdate.alpha = 1
           }
-          // 렌더링은 PixiJS ticker가 처리
         }
+        // 렌더링은 PixiJS ticker가 처리
         if (onComplete) {
           onComplete()
         }

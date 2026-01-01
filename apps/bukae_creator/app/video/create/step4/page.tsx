@@ -282,7 +282,6 @@ export default function Step4Page() {
 
   // 애니메이션 완료 후 드래그 설정 재적용
   const handleAnimationComplete = useCallback((sceneIndex: number) => {
-    console.log(`[step4/page] 애니메이션 완료 | sceneIndex: ${sceneIndex}`)
     const sprite = spritesRef.current.get(sceneIndex)
     const text = textsRef.current.get(sceneIndex)
     
@@ -297,7 +296,6 @@ export default function Step4Page() {
 
   // 로드 완료 후 드래그 설정 재적용
   const handleLoadComplete = useCallback((sceneIndex: number) => {
-    console.log(`[step4/page] 로드 완료 | sceneIndex: ${sceneIndex}`)
     const sprite = spritesRef.current.get(sceneIndex)
     const text = textsRef.current.get(sceneIndex)
     
@@ -466,9 +464,7 @@ export default function Step4Page() {
 
   // 현재 씬의 시작 시간 계산
   const getSceneStartTime = useCallback((sceneIndex: number) => {
-    console.log(`[step4/page] 씬 시작 시간 계산 | sceneIndex: ${sceneIndex}`)
     if (!timeline) {
-      console.warn('[step4/page] getSceneStartTime: timeline이 없습니다.')
       return 0
     }
     let time = 0
@@ -480,7 +476,6 @@ export default function Step4Page() {
       const transitionDuration = isSameSceneId ? 0 : (currentScene.transitionDuration || 0.5)
       time += currentScene.duration + transitionDuration
     }
-    console.log(`[step4/page] 씬 시작 시간 계산 완료 | sceneIndex: ${sceneIndex}, time: ${time}`)
     return time
   }, [timeline])
 
@@ -775,7 +770,6 @@ export default function Step4Page() {
   const isPreviewingRef = useRef<boolean>(false)
 
   const stopTtsAudio = useCallback(() => {
-    console.log('[step4/page] TTS 오디오 정지')
     const a = ttsAudioRef.current
     if (a) {
       try {
@@ -793,7 +787,6 @@ export default function Step4Page() {
   }, [])
 
   const stopScenePreviewAudio = useCallback(() => {
-    console.log('[step4/page] 씬 미리보기 오디오 정지')
     const a = scenePreviewAudioRef.current
     if (a) {
       try {
@@ -814,7 +807,6 @@ export default function Step4Page() {
   }, [])
 
   const resetTtsSession = useCallback(() => {
-    console.log('[step4/page] TTS 세션 리셋')
     stopTtsAudio()
     stopScenePreviewAudio()
     ttsAbortRef.current?.abort()
@@ -828,7 +820,6 @@ export default function Step4Page() {
   // 목소리 변경 시 모든 캐시와 저장소 URL이 무효화되어 재업로드됨
   useEffect(() => {
     if (voiceTemplate) {
-      console.log('[step4/page] 목소리 변경 감지 - 모든 TTS 캐시 무효화 및 재업로드 필요')
       resetTtsSession()
     }
   }, [voiceTemplate, resetTtsSession])
@@ -883,18 +874,14 @@ export default function Step4Page() {
 
   const setSceneDurationFromAudio = useCallback(
     (sceneIndex: number, durationSec: number) => {
-      console.log(`[step4/page] 씬 duration 업데이트 | sceneIndex: ${sceneIndex}, durationSec: ${durationSec}`)
       if (!timeline) {
-        console.warn('[step4/page] setSceneDurationFromAudio: timeline이 없습니다.')
         return
       }
       if (!Number.isFinite(durationSec) || durationSec <= 0) {
-        console.warn(`[step4/page] setSceneDurationFromAudio: 유효하지 않은 durationSec: ${durationSec}`)
         return
       }
       const prev = timeline.scenes[sceneIndex]?.duration ?? 0
       if (Math.abs(prev - durationSec) <= 0.05) {
-        console.log(`[step4/page] setSceneDurationFromAudio: duration 변경 없음 (차이: ${Math.abs(prev - durationSec)})`)
         return
       }
 
@@ -924,7 +911,6 @@ export default function Step4Page() {
       // 재생 중일 때 currentTime을 비례적으로 조정하여 재생바 튕김 방지
       if (isPlaying && prevTotalDuration > 0 && newTotalDuration > 0) {
         const ratio = newTotalDuration / prevTotalDuration
-        console.log(`[step4/page] 재생 중 duration 변경 - currentTime 조정 | ratio: ${ratio}, prevTotal: ${prevTotalDuration}, newTotal: ${newTotalDuration}`)
         setCurrentTime((prevTime) => {
           const adjustedTime = prevTime * ratio
           // 조정된 시간이 새로운 totalDuration을 넘지 않도록
@@ -933,14 +919,13 @@ export default function Step4Page() {
       }
       
       setTimeline(newTimeline)
-      console.log(`[step4/page] 씬 duration 업데이트 완료 | sceneIndex: ${sceneIndex}, prev: ${prev}, new: ${clamped}`)
     },
     [setTimeline, timeline, isPlaying, setCurrentTime]
   )
 
   // ensureSceneTts를 유틸리티 함수로 래핑
   const ensureSceneTts = useCallback(
-    async (sceneIndex: number, signal?: AbortSignal, forceRegenerate: boolean = false): Promise<{
+    async (      sceneIndex: number, signal?: AbortSignal, forceRegenerate: boolean = false): Promise<{
       sceneIndex: number
       parts: Array<{
         blob: Blob
@@ -950,7 +935,6 @@ export default function Step4Page() {
         markup: string
       }>
     }> => {
-      console.log(`[step4/page] ensureSceneTts 호출 | sceneIndex: ${sceneIndex}, forceRegenerate: ${forceRegenerate}`)
       if (!timeline) {
         console.error('[step4/page] ensureSceneTts: timeline이 없습니다.')
         throw new Error('timeline이 없습니다.')
@@ -984,13 +968,10 @@ export default function Step4Page() {
 
   const prefetchWindow = useCallback(
     (baseIndex: number) => {
-      console.log(`[step4/page] TTS 프리페치 시작 | baseIndex: ${baseIndex}`)
       if (!timeline) {
-        console.warn('[step4/page] prefetchWindow: timeline이 없습니다.')
         return
       }
       if (!voiceTemplate) {
-        console.warn('[step4/page] prefetchWindow: voiceTemplate이 없습니다.')
         return
       }
 
@@ -1001,8 +982,6 @@ export default function Step4Page() {
       const candidates = [baseIndex + 1, baseIndex + 2].filter(
         (i) => i >= 0 && i < timeline.scenes.length
       )
-
-      console.log(`[step4/page] TTS 프리페치 대상 | candidates: [${candidates.join(', ')}]`)
 
       // 간단 동시성 제한: 2개까지만 (현재 창 +2)
       candidates.forEach((i) => {
@@ -1146,7 +1125,6 @@ export default function Step4Page() {
   // 전체 재생 함수
   const playAllScenes = useCallback(async () => {
     if (!timeline || !voiceTemplate) {
-      console.warn('[step4/page] timeline 또는 voiceTemplate이 없습니다.')
       return
     }
 
@@ -1414,15 +1392,12 @@ export default function Step4Page() {
 
   // 특정 씬의 TTS 캐시 무효화 (저장소 URL도 제거하여 재업로드 유도)
   const invalidateSceneTtsCache = useCallback((sceneIndex: number) => {
-    console.log(`[step4/page] TTS 캐시 무효화 시작 | sceneIndex: ${sceneIndex}`)
     if (!timeline) {
-      console.warn('[step4/page] invalidateSceneTtsCache: timeline이 없습니다.')
       return
     }
     
     const scene = timeline.scenes[sceneIndex]
     if (!scene) {
-      console.warn(`[step4/page] invalidateSceneTtsCache: 씬을 찾을 수 없습니다. | sceneIndex: ${sceneIndex}`)
       return
     }
 
@@ -1442,7 +1417,6 @@ export default function Step4Page() {
         
         if (shouldInvalidate) {
           keysToInvalidate.push(key)
-          console.log(`[step4/page] 캐시 발견 | sceneIndex: ${sceneIndex}, sceneId: ${scene.sceneId}, key: ${key.substring(0, 50)}...`)
         }
       }
     })
@@ -1456,7 +1430,6 @@ export default function Step4Page() {
         const key = makeTtsKey(voiceTemplate || '', markup)
         if (ttsCacheRef.current.has(key)) {
           keysToInvalidate.push(key)
-          console.log(`[step4/page] 스크립트 기반 캐시 발견 | sceneIndex: ${sceneIndex}, sceneId: ${scene.sceneId}, key: ${key.substring(0, 50)}...`)
         }
       })
     }
@@ -1465,16 +1438,9 @@ export default function Step4Page() {
     keysToInvalidate.forEach(key => {
       const cached = ttsCacheRef.current.get(key)
       if (cached) {
-        console.log(`[step4/page] 캐시 키 삭제 | sceneIndex: ${sceneIndex}, sceneId: ${scene.sceneId}, key: ${key.substring(0, 50)}...`)
         ttsCacheRef.current.delete(key)
       }
     })
-    
-    if (keysToInvalidate.length > 0) {
-      console.log(`[step4/page] TTS 캐시 무효화 완료 | sceneIndex: ${sceneIndex}, sceneId: ${scene.sceneId}, 총 ${keysToInvalidate.length}개 캐시 무효화됨 (재업로드 필요)`)
-    } else {
-      console.log(`[step4/page] TTS 캐시 무효화 완료 | sceneIndex: ${sceneIndex}, sceneId: ${scene.sceneId}, 무효화할 캐시 없음`)
-    }
   }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey])
 
   // 씬 편집 핸들러들
@@ -2079,9 +2045,7 @@ export default function Step4Page() {
                 </Button>
                 <Button
                   onClick={() => {
-                    console.log('[step4/page] 크기 조정하기 버튼 클릭')
                     if (!timeline || scenes.length === 0) {
-                      console.warn('[step4/page] 크기 조정하기: timeline 또는 scenes가 없습니다.')
                       return
                     }
                     
@@ -2090,7 +2054,6 @@ export default function Step4Page() {
                     setTimeline(nextTimeline)
                     
                     // 모든 씬을 다시 로드하여 Transform 적용
-                    console.log('[step4/page] 씬 재로드 및 Canvas 크기 재계산 예약 | delay: 100ms')
                     setTimeout(() => {
                       loadAllScenes()
                       // Canvas 크기 재계산
@@ -2128,7 +2091,6 @@ export default function Step4Page() {
               onSelectPart={sceneNavigation.selectPart}
               onPlayScene={async (sceneIndex: number) => {
                 if (!timeline || !voiceTemplate) {
-                  console.warn('[step4/page] timeline 또는 voiceTemplate이 없습니다.')
                   return
                 }
 
@@ -2191,7 +2153,6 @@ export default function Step4Page() {
                   ensureSceneTts,
                   changedScenesRef,
                   onComplete: () => {
-                    console.log(`[step4/page] 씬 ${sceneIndex} 재생 완료`)
                   },
                 })
               }}

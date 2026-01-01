@@ -1436,10 +1436,7 @@ export function useVideoPlayback({
         }).length
         
         if (cachedCount < markups.length) {
-          console.log(`[TTS] 씬 ${i} 합성 필요: ${cachedCount}/${markups.length}개 구간 캐시됨`)
           scenesToSynthesize.push(i)
-        } else {
-          console.log(`[TTS] 씬 ${i} 이미 캐시됨 (${markups.length}개 구간 모두) - 스킵`)
         }
       }
 
@@ -1462,8 +1459,7 @@ export function useVideoPlayback({
                 .then((result) => {
                   return { sceneIndex, result }
                 })
-                .catch((error) => {
-                  console.error(`[TTS] 씬 ${sceneIndex} 합성 실패:`, error)
+                .catch(() => {
                   return { sceneIndex, result: null }
                 })
             )
@@ -1487,14 +1483,7 @@ export function useVideoPlayback({
             parts: r.result?.parts || [] 
           })))
           
-          // 실패한 씬이 있으면 경고
-          const failedResults = batchResult.filter(r => 
-            r.status === 'rejected' || 
-            (r.status === 'fulfilled' && r.value?.result === null)
-          )
-          if (failedResults.length > 0) {
-            console.warn(`[TTS] ${failedResults.length}개 씬의 TTS 합성 실패`)
-          }
+          // 실패한 씬이 있으면 무시 (이미 처리됨)
           
           // 마지막 배치가 아니면 딜레이 추가
           if (i + batchSize < scenesToSynthesize.length) {
@@ -1551,7 +1540,6 @@ export function useVideoPlayback({
             sceneIndex,
           }
           ttsCacheRef.current.set(key, cacheEntry)
-          console.log(`[TTS] 씬 ${sceneIndex} 구간 ${partIndex + 1} 캐시에 명시적으로 저장 완료 (duration: ${part.durationSec}초)`)
         }
       }
       
@@ -1573,7 +1561,6 @@ export function useVideoPlayback({
       }
       
       if (!allTtsReady) {
-        console.error(`[TTS] 일부 TTS가 준비되지 않음:`, missingTts)
         setIsPreparingLocal(false)
         if (setIsTtsBootstrapping) {
           setIsTtsBootstrapping(false)
@@ -1590,8 +1577,6 @@ export function useVideoPlayback({
         alert(`TTS 준비 중 오류가 발생했어요. (${missingTts.length}개 구간 누락)`)
         return
       }
-      
-      console.log(`[TTS] 모든 TTS 준비 완료 확인: ${timeline.scenes.length - currentSceneIndex}개 씬, 총 ${missingTts.length === 0 ? '모든' : '일부'} 구간 준비됨`)
       
       // BGM 로드 (재생은 하지 않음)
       const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
