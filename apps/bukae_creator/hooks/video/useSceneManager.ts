@@ -189,7 +189,7 @@ export const useSceneManager = ({
     const actualSceneIndex = sceneIndex !== undefined ? sceneIndex : currentSceneIndexRef.current
     const previousIndex = explicitPreviousIndex !== undefined ? explicitPreviousIndex : previousSceneIndexRef.current
     
-    console.log(`[updateCurrentScene] 호출 | 씬 ${actualSceneIndex}, partIndex: ${partIndex}, isPlaying: ${isPlaying}`)
+    console.log(`[updateCurrentScene] 호출 | 씬 ${actualSceneIndex}, partIndex: ${partIndex}, isPlaying: ${isPlaying}, isManualSceneSelect: ${isManualSceneSelectRef.current}`)
     
     // 필수 참조 확인
     const hasRequiredRefs = containerRef.current && timeline && appRef.current
@@ -201,6 +201,51 @@ export const useSceneManager = ({
     // 씬 데이터 가져오기
     const currentScene = timeline.scenes[actualSceneIndex]
     const previousScene = previousIndex !== null ? timeline.scenes[previousIndex] : null
+    
+    // 같은 씬 내 구간 전환 중인지 확인
+    // selectPart에서 같은 씬 내 구간 전환인 경우 renderSubtitlePart만 사용하므로
+    // updateCurrentScene은 스킵하여 자막이 첫 번째 구간으로 되돌아가는 것을 방지
+    // isManualSceneSelectRef가 true이고 같은 씬이면 구간 전환으로 인식 (partIndex >= 0)
+    // partIndex가 null이면 전체 자막 렌더링이므로 이 조건에 걸리지 않음
+    // previousIndex가 actualSceneIndex와 같거나, previousIndex가 null이고 currentSceneIndexRef.current가 actualSceneIndex와 같으면 같은 씬으로 인식
+    const isSameScene = previousIndex === actualSceneIndex 
+      || (previousIndex === null && currentSceneIndexRef.current === actualSceneIndex)
+    const isSameScenePartTransition = isManualSceneSelectRef.current 
+      && isSameScene
+      && partIndex !== null 
+      && partIndex !== undefined
+      && partIndex >= 0 // partIndex가 0 이상이면 같은 씬 내 구간 전환으로 인식
+    
+    if (isSameScenePartTransition) {
+      console.log(`[updateCurrentScene] 같은 씬 내 구간 전환 중이므로 스킵 (renderSubtitlePart에서 처리됨) | 씬 ${actualSceneIndex}, partIndex: ${partIndex}, previousIndex: ${previousIndex}, currentSceneIndexRef: ${currentSceneIndexRef.current}`)
+      // 이미지만 렌더링하고 자막은 건드리지 않음
+      const currentSprite = spritesRef.current.get(actualSceneIndex)
+      if (currentSprite) {
+        currentSprite.visible = true
+        currentSprite.alpha = 1
+      }
+      // onAnimationComplete는 호출하지 않음 (renderSubtitlePart의 onComplete에서 처리)
+      return
+    }
+    
+    // isManualSceneSelectRef가 true이고 partIndex가 null이면 전체 자막 렌더링이므로
+    // 자막을 건드리지 않고 이미지만 렌더링
+    // previousIndex가 actualSceneIndex와 같거나, previousIndex가 null이고 currentSceneIndexRef.current가 actualSceneIndex와 같으면 같은 씬으로 인식
+    const isSameSceneForNull = previousIndex === actualSceneIndex 
+      || (previousIndex === null && currentSceneIndexRef.current === actualSceneIndex)
+    if (isManualSceneSelectRef.current && isSameSceneForNull && partIndex === null) {
+      console.log(`[updateCurrentScene] isManualSceneSelectRef가 true이고 partIndex가 null이므로 자막은 건드리지 않음 | 씬 ${actualSceneIndex}, previousIndex: ${previousIndex}, currentSceneIndexRef: ${currentSceneIndexRef.current}`)
+      // 이미지만 렌더링하고 자막은 건드리지 않음
+      const currentSprite = spritesRef.current.get(actualSceneIndex)
+      if (currentSprite) {
+        currentSprite.visible = true
+        currentSprite.alpha = 1
+      }
+      if (onAnimationComplete) {
+        onAnimationComplete(actualSceneIndex)
+      }
+      return
+    }
     
     // 스프라이트 및 텍스트 객체 가져오기
     const currentSprite = spritesRef.current.get(actualSceneIndex)
@@ -218,17 +263,20 @@ export const useSceneManager = ({
 
     // 같은 씬 내 구간 전환 처리
     // partIndex가 null이면 전체 자막을 렌더링해야 하므로 early return하지 않음
+    // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 이미 자막을 업데이트했으므로 건드리지 않음
     const isSameSceneTransition = previousIndex === actualSceneIndex 
       && currentScene 
       && previousScene 
       && currentScene.sceneId === previousScene.sceneId
       && !skipImage
       && partIndex !== null && partIndex !== undefined // partIndex가 null이면 전체 자막 렌더링 필요
+      && !isManualSceneSelectRef.current // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 처리했으므로 건드리지 않음
     
     if (isSameSceneTransition) {
       console.log(`[updateCurrentScene] 같은 씬 내 구간 전환 처리 | 씬 ${actualSceneIndex}, partIndex: ${partIndex}`)
       currentSprite.visible = true
       currentSprite.alpha = 1
+      // 자막은 renderSubtitlePart에서 이미 업데이트했으므로 건드리지 않음
       return
     }
 
@@ -253,11 +301,18 @@ export const useSceneManager = ({
     }
     
     // 그룹 정보 계산
+    // splitIndex가 있으면 분할된 독립적인 씬이므로 같은 그룹으로 처리하지 않음
     const hasSceneId = currentScene.sceneId !== undefined
+    const hasSplitIndex = currentScene.splitIndex !== undefined
+    const previousHasSplitIndex = previousScene?.splitIndex !== undefined
+    
+    // splitIndex가 있으면 독립적인 씬으로 처리 (같은 그룹 아님)
     const isInSameGroup = previousScene 
       && currentScene 
       && hasSceneId
       && previousScene.sceneId === currentScene.sceneId
+      && !hasSplitIndex // splitIndex가 있으면 같은 그룹이 아님
+      && !previousHasSplitIndex // 이전 씬도 splitIndex가 있으면 같은 그룹이 아님
     
     const firstSceneIndex = isInSameGroup && hasSceneId
       ? timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
@@ -275,25 +330,35 @@ export const useSceneManager = ({
     // 같은 그룹 내 씬 전환 (첫 번째 씬이 아닌 경우)
     if (isInSameGroup && !isFirstSceneInGroup) {
     // 같은 그룹 내 씬: 이미지와 전환 효과는 첫 번째 씬에서 이미 적용됨, 자막만 변경
-    let textToUpdate = currentText
-    
-    if (!textToUpdate && currentScene.sceneId !== undefined) {
-      // 같은 그룹 내 첫 번째 씬의 텍스트 객체 사용
-      const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
-      if (firstSceneIndexInGroup >= 0) {
-        textToUpdate = textsRef.current.get(firstSceneIndexInGroup) || undefined
+    // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 이미 자막을 업데이트했으므로 건드리지 않음
+    if (!isManualSceneSelectRef.current) {
+      let textToUpdate = currentText
+      
+      if (!textToUpdate && currentScene.sceneId !== undefined) {
+        // 같은 그룹 내 첫 번째 씬의 텍스트 객체 사용
+        const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
+        if (firstSceneIndexInGroup >= 0) {
+          textToUpdate = textsRef.current.get(firstSceneIndexInGroup) || undefined
+        }
       }
-    }
-    
-    if (textToUpdate && currentScene.text?.content) {
-      // 구간이 나뉘어져 있으면 첫 번째 구간만 표시
-      const scriptParts = currentScene.text.content.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
-      const displayText = scriptParts.length > 1 ? scriptParts[0] : currentScene.text.content
-      if (textToUpdate.text !== displayText) {
-        textToUpdate.text = displayText
+      
+      if (textToUpdate && currentScene.text?.content) {
+        // partIndex가 null이면 전체 자막 표시, 아니면 구간이 나뉘어져 있으면 첫 번째 구간만 표시
+        let displayText: string
+        if (partIndex === null || partIndex === undefined) {
+          // 전체 자막 표시
+          displayText = currentScene.text.content
+        } else {
+          // 구간이 나뉘어져 있으면 첫 번째 구간만 표시
+          const scriptParts = currentScene.text.content.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+          displayText = scriptParts.length > 1 ? scriptParts[0] : currentScene.text.content
+        }
+        if (textToUpdate.text !== displayText) {
+          textToUpdate.text = displayText
+        }
+        textToUpdate.visible = displayText.length > 0
+        textToUpdate.alpha = displayText.length > 0 ? 1 : 0
       }
-      textToUpdate.visible = displayText.length > 0
-      textToUpdate.alpha = displayText.length > 0 ? 1 : 0
     }
     
     // 렌더링은 PixiJS ticker가 처리
@@ -323,12 +388,15 @@ export const useSceneManager = ({
           sprite.alpha = 0
         }
       })
-      textsRef.current.forEach((text, idx) => {
-        if (text && idx !== actualSceneIndex && idx !== previousIndex) {
-          text.visible = false
-          text.alpha = 0
-        }
-      })
+      // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 이미 자막을 업데이트했으므로 텍스트는 건드리지 않음
+      if (!isManualSceneSelectRef.current) {
+        textsRef.current.forEach((text, idx) => {
+          if (text && idx !== actualSceneIndex && idx !== previousIndex) {
+            text.visible = false
+            text.alpha = 0
+          }
+        })
+      }
     }
     
     // 전환 효과 적용을 위한 wrappedOnComplete 미리 정의
@@ -341,12 +409,15 @@ export const useSceneManager = ({
         sprite.alpha = 0
       }
     })
-    textsRef.current.forEach((text, idx) => {
-      if (text && idx !== actualSceneIndex) {
-        text.visible = false
-        text.alpha = 0
-      }
-    })
+    // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 이미 자막을 업데이트했으므로 텍스트는 건드리지 않음
+    if (!isManualSceneSelectRef.current) {
+      textsRef.current.forEach((text, idx) => {
+        if (text && idx !== actualSceneIndex) {
+          text.visible = false
+          text.alpha = 0
+        }
+      })
+    }
     
     // 최종 렌더링
     // 렌더링은 PixiJS ticker가 처리
@@ -361,12 +432,15 @@ export const useSceneManager = ({
         sprite.alpha = 0
       }
     })
-    textsRef.current.forEach((text, idx) => {
-      if (text && idx !== actualSceneIndex) {
-        text.visible = false
-        text.alpha = 0
-      }
-    })
+    // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 이미 자막을 업데이트했으므로 텍스트는 건드리지 않음
+    if (!isManualSceneSelectRef.current) {
+      textsRef.current.forEach((text, idx) => {
+        if (text && idx !== actualSceneIndex) {
+          text.visible = false
+          text.alpha = 0
+        }
+      })
+    }
     
     // 렌더링은 PixiJS ticker가 처리
     })
@@ -508,17 +582,21 @@ export const useSceneManager = ({
     
     // previousIndex가 null이어도 같은 그룹 내 씬인지 확인
     // lastRenderedSceneIndexRef를 사용하여 이전에 렌더링된 씬이 같은 그룹인지 확인
+    // splitIndex가 있으면 분할된 독립적인 씬이므로 같은 그룹으로 처리하지 않음
     let isInSameGroup = false
-    if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
+    const currentHasSplitIndex = currentScene.splitIndex !== undefined
+    if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined && !currentHasSplitIndex) {
       // previousIndex가 null이 아닌 경우 기존 로직 사용
       if (previousIndex !== null && previousScene !== null) {
-        isInSameGroup = previousScene.sceneId === currentScene.sceneId || previousIndex === actualSceneIndex
+        const previousHasSplitIndex = previousScene.splitIndex !== undefined
+        isInSameGroup = (previousScene.sceneId === currentScene.sceneId || previousIndex === actualSceneIndex) && !previousHasSplitIndex
       } else {
         // previousIndex가 null인 경우 lastRenderedSceneIndexRef 사용
         const lastRenderedIndex = previousSceneIndexRef.current
         if (lastRenderedIndex !== null) {
           const lastRenderedScene = timeline.scenes[lastRenderedIndex]
-          if (lastRenderedScene && lastRenderedScene.sceneId === currentScene.sceneId) {
+          const lastRenderedHasSplitIndex = lastRenderedScene?.splitIndex !== undefined
+          if (lastRenderedScene && lastRenderedScene.sceneId === currentScene.sceneId && !lastRenderedHasSplitIndex) {
             isInSameGroup = true
           }
         }
@@ -675,12 +753,15 @@ export const useSceneManager = ({
         sprite.alpha = 0
       }
     })
-    textsRef.current.forEach((text, idx) => {
-      if (text && idx !== actualSceneIndex) {
-        text.visible = false
-        text.alpha = 0
-      }
-    })
+    // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 이미 자막을 업데이트했으므로 텍스트는 건드리지 않음
+    if (!isManualSceneSelectRef.current) {
+      textsRef.current.forEach((text, idx) => {
+        if (text && idx !== actualSceneIndex) {
+          text.visible = false
+          text.alpha = 0
+        }
+      })
+    }
     
     // 현재 씬 visible 설정 및 alpha 초기화
     // 같은 그룹 내 씬이 아닌 경우에만 alpha를 0으로 설정 (전환 효과를 위해)
@@ -690,7 +771,8 @@ export const useSceneManager = ({
     }
     // 같은 그룹 내 씬인 경우는 위에서 이미 설정했으므로 여기서는 건드리지 않음
     
-    if (currentText) {
+    // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 이미 자막을 업데이트했으므로 건드리지 않음
+    if (currentText && !isManualSceneSelectRef.current) {
       currentText.visible = true
       currentText.alpha = 0
     }
@@ -797,30 +879,34 @@ export const useSceneManager = ({
       // handleScenePartSelect에서 이미 텍스트 객체를 업데이트했을 수 있으므로, 
       // 디버그 ID가 있는 텍스트 객체의 텍스트를 우선 사용
       // 재생 중일 때는 텍스트를 전혀 건드리지 않음 (renderSubtitlePart에서 처리)
-      console.log(`[updateCurrentScene] 텍스트 업데이트 조건 확인 | 씬 ${actualSceneIndex}, textToUpdate: ${!!textToUpdate}, isPlaying: ${isPlaying}, partIndex: ${partIndex}`)
+      // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 이미 자막을 업데이트했으므로 건드리지 않음
+      console.log(`[updateCurrentScene] 텍스트 업데이트 조건 확인 | 씬 ${actualSceneIndex}, textToUpdate: ${!!textToUpdate}, isPlaying: ${isPlaying}, partIndex: ${partIndex}, isManualSceneSelect: ${isManualSceneSelectRef.current}`)
       // 자막 렌더링은 renderSubtitlePart가 담당하므로 여기서는 처리하지 않음
       // renderSceneContent의 onComplete에서 renderSubtitlePart 호출
       
-      // 이전 텍스트 숨기기 (새 텍스트를 보여준 후)
-      if (previousText && previousIndex !== null && previousIndex !== actualSceneIndex) {
-        previousText.visible = false
-        previousText.alpha = 0
-      }
-      
-      // 이미지는 이미 표시되어 있으므로 그대로 유지 (전환 효과 적용 안 함)
-      // 텍스트만 변경하고 렌더링
-      // textToUpdate가 업데이트되었는지 확인하고 렌더링
-      if (textToUpdate && appRef.current) {
-        // 텍스트 객체가 컨테이너에 있는지 확인
-        if (textToUpdate.parent !== containerRef.current) {
-          if (textToUpdate.parent) {
-            textToUpdate.parent.removeChild(textToUpdate)
-          }
-          containerRef.current.addChild(textToUpdate)
+      // isManualSceneSelectRef가 true이면 텍스트를 전혀 건드리지 않음
+      if (!isManualSceneSelectRef.current) {
+        // 이전 텍스트 숨기기 (새 텍스트를 보여준 후)
+        if (previousText && previousIndex !== null && previousIndex !== actualSceneIndex) {
+          previousText.visible = false
+          previousText.alpha = 0
         }
-        // 렌더링은 PixiJS ticker가 처리
-      } else if (appRef.current) {
-        // 렌더링은 PixiJS ticker가 처리
+        
+        // 이미지는 이미 표시되어 있으므로 그대로 유지 (전환 효과 적용 안 함)
+        // 텍스트만 변경하고 렌더링
+        // textToUpdate가 업데이트되었는지 확인하고 렌더링
+        if (textToUpdate && appRef.current) {
+          // 텍스트 객체가 컨테이너에 있는지 확인
+          if (textToUpdate.parent !== containerRef.current) {
+            if (textToUpdate.parent) {
+              textToUpdate.parent.removeChild(textToUpdate)
+            }
+            containerRef.current.addChild(textToUpdate)
+          }
+          // 렌더링은 PixiJS ticker가 처리
+        } else if (appRef.current) {
+          // 렌더링은 PixiJS ticker가 처리
+        }
       }
       
       // 전환 효과는 적용하지 않음 (첫 번째 씬에서 이미 적용됨)
@@ -865,12 +951,15 @@ export const useSceneManager = ({
           sprite.alpha = index === actualSceneIndex ? 1 : 0
         }
       })
-      textsRef.current.forEach((text, index) => {
-        if (text?.parent) {
-          text.visible = index === actualSceneIndex
-          text.alpha = index === actualSceneIndex ? 1 : 0
-        }
-      })
+      // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 이미 자막을 업데이트했으므로 건드리지 않음
+      if (!isManualSceneSelectRef.current) {
+        textsRef.current.forEach((text, index) => {
+          if (text?.parent) {
+            text.visible = index === actualSceneIndex
+            text.alpha = index === actualSceneIndex ? 1 : 0
+          }
+        })
+      }
 
       // 렌더링은 PixiJS ticker가 처리
       previousSceneIndexRef.current = actualSceneIndex
@@ -1158,10 +1247,22 @@ export const useSceneManager = ({
         }
         // 렌더링은 PixiJS ticker가 처리
       } else {
-        // 현재 씬의 첫 번째 구간 인덱스 계산 (구간이 나뉘어져 있으면 0, 아니면 null)
-        const currentScene = timeline.scenes[sceneIndex]
-        const partIndex = currentScene?.text?.content?.includes('|||') ? 0 : null
-        updateCurrentScene(true, undefined, undefined, undefined, false, undefined, partIndex)
+        // 구간이 있으면 첫 번째 구간만 표시, 없으면 전체 자막 표시
+        const scene = timeline.scenes[sceneIndex]
+        let partIndex: number | null = null
+        if (scene?.text?.content) {
+          const scriptParts = splitSubtitleByDelimiter(scene.text.content)
+          if (scriptParts.length > 1) {
+            // 구간이 있으면 첫 번째 구간(0)만 표시
+            partIndex = 0
+            console.log(`[loadAllScenes] 구간이 있으므로 첫 번째 구간(0)만 표시 | 씬 ${sceneIndex}, 구간 수: ${scriptParts.length}`)
+          } else {
+            // 구간이 없으면 전체 자막 표시
+            partIndex = null
+            console.log(`[loadAllScenes] 구간이 없으므로 전체 자막 표시 | 씬 ${sceneIndex}`)
+          }
+        }
+        updateCurrentScene(true, undefined, undefined, undefined, false, undefined, partIndex, sceneIndex)
       }
       // 렌더링은 PixiJS ticker가 처리
       
@@ -1242,9 +1343,8 @@ export const useSceneManager = ({
       const originalSceneIndex = currentSceneIndexRef.current
       currentSceneIndexRef.current = sceneIndex
       
-      // 현재 씬의 첫 번째 구간 인덱스 계산 (구간이 나뉘어져 있으면 0, 아니면 null)
-      const currentScene = timeline.scenes[sceneIndex]
-      const partIndex = currentScene?.text?.content?.includes('|||') ? 0 : null
+      // 구간이 있어도 전체 자막 표시 (partIndex: null로 설정하여 isSameSceneTransition 조건에 걸리지 않도록 함)
+      const partIndex = null
       
       // updateCurrentScene 호출 (이미지만 처리)
       updateCurrentScene(
@@ -1302,10 +1402,16 @@ export const useSceneManager = ({
       prepareOnly?: boolean // alpha: 0으로 준비만 하고 표시하지 않음
     }
   ) => {
-    if (!timeline || !appRef.current) return
+    if (!timeline || !appRef.current) {
+      console.warn(`[renderSubtitlePart] timeline 또는 appRef가 없습니다.`)
+      return
+    }
     
     const scene = timeline.scenes[sceneIndex]
-    if (!scene) return
+    if (!scene) {
+      console.warn(`[renderSubtitlePart] 씬 ${sceneIndex}을 찾을 수 없습니다. (총 ${timeline.scenes.length}개 씬)`)
+      return
+    }
     
     const {
       skipAnimation = false,
@@ -1315,17 +1421,40 @@ export const useSceneManager = ({
     
     // 원본 텍스트에서 구간 추출
     const originalText = scene.text?.content || ''
+    console.log(`[renderSubtitlePart] 원본 텍스트 확인 | 씬 ${sceneIndex}, 원본 길이: ${originalText.length}, 원본: "${originalText.substring(0, 100)}..."`)
     
-    // partIndex가 null이면 전체 자막 렌더링
+    // 구간 분할 확인
+    const scriptParts = splitSubtitleByDelimiter(originalText)
+    const hasSegments = scriptParts.length > 1
+    
+    // partIndex가 null이면 구간이 있으면 첫 번째 구간만 표시, 없으면 전체 자막 표시
     let partText: string | null = null
     if (partIndex === null) {
-      partText = originalText
+      if (hasSegments) {
+        // 구간이 있으면 첫 번째 구간만 표시
+        partText = scriptParts[0]?.trim() || originalText
+        console.log(`[renderSubtitlePart] partIndex가 null이고 구간이 있으므로 첫 번째 구간만 표시 | 텍스트: "${partText.substring(0, 50)}..."`)
+      } else {
+        // 구간이 없으면 전체 자막 표시
+        partText = originalText
+        console.log(`[renderSubtitlePart] partIndex가 null이고 구간이 없으므로 전체 자막 표시`)
+      }
     } else {
-      const scriptParts = splitSubtitleByDelimiter(originalText)
-      partText = scriptParts[partIndex]?.trim() || null
+      if (partIndex >= 0 && partIndex < scriptParts.length) {
+        partText = scriptParts[partIndex]?.trim() || null
+      } else {
+        console.warn(`[renderSubtitlePart] partIndex ${partIndex}가 범위를 벗어났습니다. (0~${scriptParts.length - 1})`)
+        // 범위를 벗어났을 때 fallback: 첫 번째 구간 사용 또는 전체 텍스트 사용
+        if (scriptParts.length > 0) {
+          partText = scriptParts[0]?.trim() || null
+          console.warn(`[renderSubtitlePart] fallback: 첫 번째 구간 사용 | 텍스트: "${partText?.substring(0, 50) || '없음'}..."`)
+        } else {
+          partText = originalText
+          console.warn(`[renderSubtitlePart] fallback: 전체 텍스트 사용`)
+        }
+      }
     }
     
-    console.log(`[renderSubtitlePart] 구간 추출 | 씬 ${sceneIndex}, partIndex: ${partIndex}, 원본: "${originalText.substring(0, 50)}...", 추출된 텍스트: "${partText?.substring(0, 50) || '없음'}..."`)
     
     if (!partText) {
       if (onComplete) {
@@ -1349,13 +1478,79 @@ export const useSceneManager = ({
     // 같은 그룹이 아니거나 첫 번째 씬의 텍스트를 찾지 못한 경우, 현재 씬의 텍스트 사용
     if (!targetTextObj) {
       targetTextObj = textsRef.current.get(sceneIndex) || null
+      console.log(`[renderSubtitlePart] 현재 씬(${sceneIndex})의 텍스트 객체 찾기: ${!!targetTextObj}`)
+    }
+    
+    // 텍스트 객체를 찾지 못한 경우, 모든 텍스트 객체를 검색하여 찾기
+    if (!targetTextObj) {
+      console.warn(`[renderSubtitlePart] 텍스트 객체를 찾지 못했습니다. 모든 텍스트 객체 검색 중...`)
+      console.log(`[renderSubtitlePart] textsRef.current 크기: ${textsRef.current.size}, 씬 수: ${timeline.scenes.length}`)
+      
+      // textsRef에 있는 모든 텍스트 객체 로깅
+      textsRef.current.forEach((text, idx) => {
+        console.log(`[renderSubtitlePart] textsRef[${idx}]: ${text ? '있음' : '없음'}`)
+      })
+      
+      // 같은 sceneId를 가진 씬들의 텍스트 객체 검색
+      if (sceneId !== undefined) {
+        timeline.scenes.forEach((s, idx) => {
+          if (s.sceneId === sceneId && !targetTextObj) {
+            const text = textsRef.current.get(idx)
+            if (text) {
+              targetTextObj = text
+              console.log(`[renderSubtitlePart] 같은 그룹 내 씬 ${idx}의 텍스트 객체 발견`)
+            }
+          }
+        })
+      }
+      
+      // 여전히 찾지 못한 경우, 모든 텍스트 객체 검색 (인덱스 순서대로)
+      if (!targetTextObj) {
+        for (let i = 0; i < timeline.scenes.length; i++) {
+          const text = textsRef.current.get(i)
+          if (text) {
+            targetTextObj = text
+            console.log(`[renderSubtitlePart] 씬 ${i}의 텍스트 객체를 대체로 사용`)
+            break
+          }
+        }
+      }
+      
+      // 여전히 찾지 못한 경우, 컨테이너에서 직접 찾기
+      if (!targetTextObj && containerRef.current) {
+        console.warn(`[renderSubtitlePart] 컨테이너에서 텍스트 객체 검색 중...`)
+        containerRef.current.children.forEach((child, idx) => {
+          if (child instanceof PIXI.Text && !targetTextObj) {
+            targetTextObj = child
+            console.log(`[renderSubtitlePart] 컨테이너의 ${idx}번째 자식에서 텍스트 객체 발견`)
+          }
+        })
+      }
     }
     
     if (!targetTextObj) {
+      console.error(`[renderSubtitlePart] 텍스트 객체를 찾을 수 없습니다. 씬 ${sceneIndex}, partIndex: ${partIndex}`)
+      console.error(`[renderSubtitlePart] textsRef.current 크기: ${textsRef.current.size}, 컨테이너 자식 수: ${containerRef.current?.children.length || 0}`)
+      // 텍스트 객체가 없으면 onComplete만 호출하고 종료
       if (onComplete) {
         onComplete()
       }
       return
+    }
+    
+    // 텍스트 객체가 컨테이너에 추가되어 있는지 확인하고, 없으면 추가
+    // 항상 컨테이너에 추가하여 렌더링 보장
+    if (containerRef.current) {
+      if (targetTextObj.parent !== containerRef.current) {
+        console.log(`[renderSubtitlePart] 텍스트 객체를 컨테이너에 추가 중... (parent: ${targetTextObj.parent ? '있음' : '없음'})`)
+        if (targetTextObj.parent) {
+          targetTextObj.parent.removeChild(targetTextObj)
+        }
+        containerRef.current.addChild(targetTextObj)
+      }
+      
+      // z-index를 최상위로 설정하여 다른 객체 위에 표시되도록 함
+      containerRef.current.setChildIndex(targetTextObj, containerRef.current.children.length - 1)
     }
     
     // 텍스트 업데이트
@@ -1385,6 +1580,17 @@ export const useSceneManager = ({
       targetTextObj.alpha = 1
     }
     
+    // 텍스트 객체가 컨테이너에 있는지 다시 확인 (중요: 렌더링을 위해 필수)
+    if (containerRef.current && targetTextObj.parent !== containerRef.current) {
+      console.warn(`[renderSubtitlePart] 텍스트 객체가 컨테이너에서 제거됨! 다시 추가 중...`)
+      if (targetTextObj.parent) {
+        targetTextObj.parent.removeChild(targetTextObj)
+      }
+      containerRef.current.addChild(targetTextObj)
+      // z-index를 최상위로 설정
+      containerRef.current.setChildIndex(targetTextObj, containerRef.current.children.length - 1)
+    }
+    
     // 깜빡임 확인: 값이 변경되었거나 반복 호출되는지 확인
     const alphaChanged = prevAlpha !== targetTextObj.alpha
     const visibleChanged = prevVisible !== targetTextObj.visible
@@ -1396,12 +1602,25 @@ export const useSceneManager = ({
       // updateCurrentScene과 renderSubtitlePart가 모두 호출될 수 있으므로 정상적인 동작일 수 있음
     }
     
+    // 자막이 제대로 렌더링되었는지 최종 확인
+    if (targetTextObj.visible && targetTextObj.alpha > 0 && targetTextObj.text === partText) {
+      console.log(`[renderSubtitlePart] 자막 렌더링 완료 확인 | 씬 ${sceneIndex}, 구간 ${partIndex}, visible: ${targetTextObj.visible}, alpha: ${targetTextObj.alpha}, text: "${partText.substring(0, 20)}..."`)
+    } else {
+      console.warn(`[renderSubtitlePart] 자막 렌더링 확인 실패 | 씬 ${sceneIndex}, 구간 ${partIndex}, visible: ${targetTextObj.visible}, alpha: ${targetTextObj.alpha}, text일치: ${targetTextObj.text === partText}`)
+      // 다시 시도
+      targetTextObj.text = partText
+      targetTextObj.visible = true
+      targetTextObj.alpha = 1
+    }
+    
+    
     if (onComplete) {
       onComplete()
     }
   }, [
     timeline,
     appRef,
+    containerRef,
     textsRef,
   ])
   
@@ -1509,11 +1728,12 @@ export const useSceneManager = ({
     
     // 구간 인덱스가 있으면 해당 구간의 텍스트 추출
     let partText: string | null = null
+    const originalText = scene.text?.content || ''
+    const scriptParts = splitSubtitleByDelimiter(originalText)
+    const hasSegments = scriptParts.length > 1
+    
     if (partIndex !== undefined && partIndex !== null) {
-      // 원본 텍스트에서 구간 추출
-      const originalText = scene.text?.content || ''
-      const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
-      // partIndex가 범위 내에 있으면 해당 구간 사용, 없으면 첫 번째 구간 사용
+      // partIndex가 있으면 해당 구간 사용
       if (scriptParts.length > 0) {
         partText = scriptParts[partIndex]?.trim() || scriptParts[0] || originalText
       } else {
@@ -1521,9 +1741,14 @@ export const useSceneManager = ({
       }
       console.log(`[renderSceneContent] 구간 추출 | 씬 ${sceneIndex}, partIndex: ${partIndex}, 원본: "${originalText.substring(0, 50)}...", 추출된 텍스트: "${partText.substring(0, 50)}...", updateCurrentScene에 partIndex 전달 예정`)
     } else {
-      // partIndex가 없으면 전체 텍스트 사용
-      partText = scene.text?.content || null
-      console.log(`[renderSceneContent] 전체 텍스트 사용 | 씬 ${sceneIndex}, partIndex: null, 텍스트: "${partText?.substring(0, 50) || '없음'}..."`)
+      // partIndex가 없으면 구간이 있으면 첫 번째 구간만 사용, 없으면 전체 텍스트 사용
+      if (hasSegments) {
+        partText = scriptParts[0]?.trim() || originalText
+        console.log(`[renderSceneContent] partIndex가 null이고 구간이 있으므로 첫 번째 구간만 사용 | 씬 ${sceneIndex}, 텍스트: "${partText.substring(0, 50)}..."`)
+      } else {
+        partText = originalText
+        console.log(`[renderSceneContent] partIndex가 null이고 구간이 없으므로 전체 텍스트 사용 | 씬 ${sceneIndex}, 텍스트: "${partText?.substring(0, 50) || '없음'}..."`)
+      }
     }
     
     // timeline 업데이트 (필요한 경우만, 재생 중에는 안함)
@@ -1674,12 +1899,54 @@ export const useSceneManager = ({
               },
             })
           } else if (partIndex === null || partIndex === undefined) {
-            // partIndex가 null이면 전체 자막 렌더링
-            // renderSubtitlePart를 null로 호출하여 전체 자막 렌더링
+            // partIndex가 null이면 구간이 있으면 첫 번째 구간만 표시, 없으면 전체 자막 렌더링
             if (renderSubtitlePart) {
-              renderSubtitlePart(sceneIndex, null, {
+              const scene = timeline.scenes[sceneIndex]
+              let effectivePartIndex: number | null = null
+              if (scene?.text?.content) {
+                const scriptParts = splitSubtitleByDelimiter(scene.text.content)
+                if (scriptParts.length > 1) {
+                  // 구간이 있으면 첫 번째 구간(0)만 표시
+                  effectivePartIndex = 0
+                  console.log(`[renderSceneContent] partIndex가 null이고 구간이 있으므로 첫 번째 구간(0)만 표시 | 씬 ${sceneIndex}, 구간 수: ${scriptParts.length}`)
+                } else {
+                  // 구간이 없으면 전체 자막 표시
+                  effectivePartIndex = null
+                  console.log(`[renderSceneContent] partIndex가 null이고 구간이 없으므로 전체 자막 표시 | 씬 ${sceneIndex}`)
+                }
+              }
+              
+              renderSubtitlePart(sceneIndex, effectivePartIndex, {
                 skipAnimation: true,
                 onComplete: () => {
+                  // 자막이 제대로 렌더링되었는지 확인하고 강제로 표시
+                  const scene = timeline.scenes[sceneIndex]
+                  if (scene) {
+                    const originalText = scene.text?.content || ''
+                    const scriptParts = splitSubtitleByDelimiter(originalText)
+                    const displayText = scriptParts.length > 1 ? (scriptParts[0]?.trim() || originalText) : originalText
+                    
+                    const targetTextObj = textsRef.current.get(sceneIndex)
+                    let textToCheck: PIXI.Text | null = targetTextObj || null
+                    const sceneId = scene.sceneId
+                    if (!textToCheck && sceneId !== undefined) {
+                      const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+                      if (firstSceneIndexInGroup >= 0) {
+                        textToCheck = textsRef.current.get(firstSceneIndexInGroup) || null
+                      }
+                    }
+                    
+                    if (textToCheck && displayText) {
+                      // 자막 강제로 표시
+                      textToCheck.text = displayText
+                      textToCheck.visible = true
+                      textToCheck.alpha = 1
+                      console.log(`[renderSceneContent] 자막 강제 표시 완료 | 씬 ${sceneIndex}, 텍스트: "${displayText.substring(0, 30)}...", visible: ${textToCheck.visible}, alpha: ${textToCheck.alpha}`)
+                    } else {
+                      console.warn(`[renderSceneContent] 자막 표시 실패 | 씬 ${sceneIndex}, textToCheck: ${!!textToCheck}, displayText: "${displayText?.substring(0, 30) || '없음'}..."`)
+                    }
+                  }
+                  
                   if (onComplete) {
                     onComplete()
                   }

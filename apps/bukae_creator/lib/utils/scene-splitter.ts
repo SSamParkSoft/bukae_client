@@ -148,6 +148,7 @@ export function splitSceneBySentences(params: {
         duration: durations[idx],
         transition: isFirstSplit ? originalTransition : 'none',
         transitionDuration: isFirstSplit ? totalGroupDuration : 0,
+        splitIndex: idx + 1, // 분할 인덱스 (1, 2, 3...)
         text: {
           ...base.text,
           content: sentence,
@@ -161,6 +162,7 @@ export function splitSceneBySentences(params: {
         // 마지막 분할 씬에만 원본 씬의 전환 효과 적용
         transition: isLastSplit ? originalTransition : 'none',
         transitionDuration: isLastSplit ? originalTransitionDuration : 0,
+        splitIndex: idx + 1, // 분할 인덱스 (1, 2, 3...)
         text: {
           ...base.text,
           content: sentence,

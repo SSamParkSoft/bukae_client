@@ -506,9 +506,12 @@ export function SceneList({
                         }`}
                         onClick={(e) => {
                           e.stopPropagation()
+                          console.log(`[SceneList] 구간 클릭 | 씬 ${index}, 구간 ${partIndex}, 총 구간 수: ${scriptParts.length}`)
                           if (onSelectPart) {
+                            console.log(`[SceneList] onSelectPart 호출 | 씬 ${index}, 구간 ${partIndex}`)
                             onSelectPart(index, partIndex)
                           } else {
+                            console.log(`[SceneList] onSelectPart가 없어서 onSelect 호출 | 씬 ${index}`)
                             onSelect(index)
                           }
                         }}

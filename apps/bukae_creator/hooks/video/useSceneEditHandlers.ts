@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { insertSceneDelimiters } from '@/lib/utils/scene-splitter'
+import { insertSceneDelimiters, splitSceneBySentences } from '@/lib/utils/scene-splitter'
 import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
 import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
 import type { TimelineData, SceneScript, TimelineScene } from '@/store/useVideoCreateStore'
@@ -88,7 +88,7 @@ export function useSceneEditHandlers({
     [scenes, timeline, voiceTemplate, originalHandleSceneScriptChange, invalidateSceneTtsCache, changedScenesRef, ttsCacheRef]
   )
 
-  // 씬 분할: 같은 이미지로 유지하면서 스크립트에 ||| 구분자 삽입 (객체 분할 없이)
+  // 씬 분할: 하나의 씬을 여러 개의 독립적인 씬으로 분할 (씬 1-1 -> 씬 1-2 -> 씬 1-3)
   const handleSceneSplit = useCallback(
     (index: number) => {
       if (!timeline || scenes.length === 0) return
@@ -96,48 +96,69 @@ export function useSceneEditHandlers({
       const targetSceneScript = scenes[index]
       const targetTimelineScene = timeline.scenes[index]
 
-      const { sceneScript: updatedSceneScript, timelineScene: updatedTimelineScene } =
-        insertSceneDelimiters({
+      // splitSceneBySentences를 사용하여 실제로 씬을 여러 개로 분할
+      const { sceneScripts: splitSceneScripts, timelineScenes: splitTimelineScenes } =
+        splitSceneBySentences({
           sceneScript: targetSceneScript,
           timelineScene: targetTimelineScene,
         })
 
       // 분할 불가(문장 1개 이하)이면 아무 것도 하지 않음
-      if (updatedSceneScript.script === targetSceneScript.script) {
+      if (splitSceneScripts.length <= 1) {
         console.log(`[SceneSplit] 씬 ${index} 분할 불가: 문장 1개 이하`)
         return
       }
 
-      console.log(`[SceneSplit] 씬 ${index} 구분자 삽입 완료:`, {
+      console.log(`[SceneSplit] 씬 ${index} 분할 완료:`, {
         원본: targetSceneScript.script.substring(0, 50),
-        변경: updatedSceneScript.script.substring(0, 100),
-        구간수: updatedSceneScript.script.split(' ||| ').length
+        분할된_씬_수: splitSceneScripts.length,
+        분할된_씬들: splitSceneScripts.map((s, i) => `${i + 1}: "${s.script.substring(0, 30)}..."`)
       })
 
+      // 분할된 씬들은 같은 sceneId를 유지하여 UI에서 그룹화되도록 함
+      // splitIndex로 구분되므로 재생 시에는 각각 독립적인 씬으로 처리됨
+      // splitSceneBySentences가 이미 같은 sceneId를 유지하고 splitIndex를 설정하므로 그대로 사용
+      const updatedSplitSceneScripts = splitSceneScripts
+      const updatedSplitTimelineScenes = splitTimelineScenes
+
       // 변경된 씬으로 표시 (재생 시 강제 재생성)
-      changedScenesRef.current.add(index)
-      console.log(`[SceneSplit] 씬 ${index} 변경 상태로 표시 (재생 시 강제 재생성)`)
+      // 분할된 모든 씬을 변경 상태로 표시
+      updatedSplitTimelineScenes.forEach((_, idx) => {
+        changedScenesRef.current.add(index + idx)
+      })
+      console.log(`[SceneSplit] 분할된 씬들 변경 상태로 표시 (재생 시 강제 재생성)`)
 
       // 스크립트가 변경되었으므로 해당 씬의 TTS 캐시 무효화
       invalidateSceneTtsCache(index)
 
-      // scenes 배열 업데이트 (하나의 씬만 업데이트)
-      const newScenes = scenes.map((scene, i) =>
-        i === index ? updatedSceneScript : scene
-      )
+      // scenes 배열 업데이트: 기존 씬을 분할된 씬들로 교체
+      const newScenes = [
+        ...scenes.slice(0, index),
+        ...updatedSplitSceneScripts,
+        ...scenes.slice(index + 1),
+      ]
 
       // timeline.scenes 배열도 업데이트
-      const newTimelineScenes = timeline.scenes.map((scene, i) =>
-        i === index && updatedTimelineScene ? updatedTimelineScene : scene
-      )
+      const newTimelineScenes = [
+        ...timeline.scenes.slice(0, index),
+        ...updatedSplitTimelineScenes,
+        ...timeline.scenes.slice(index + 1),
+      ]
 
       setScenes(newScenes)
       setTimeline({
         ...timeline,
         scenes: newTimelineScenes,
       })
+      
+      // 현재 씬 인덱스가 분할된 씬 범위에 있으면 첫 번째 분할 씬으로 조정
+      if (currentSceneIndex >= index) {
+        // 분할된 씬의 첫 번째로 이동
+        setCurrentSceneIndex(index)
+        currentSceneIndexRef.current = index
+      }
     },
-    [scenes, timeline, setScenes, setTimeline, invalidateSceneTtsCache, changedScenesRef]
+    [scenes, timeline, setScenes, setTimeline, invalidateSceneTtsCache, changedScenesRef, currentSceneIndex, setCurrentSceneIndex, currentSceneIndexRef]
   )
 
   // 씬 삭제
@@ -148,21 +169,63 @@ export function useSceneEditHandlers({
         return
       }
 
-      // scenes 배열에서 삭제
-      const newScenes = scenes
-        .filter((_, i) => i !== index)
-        .map((scene, i) => ({
-          ...scene,
-          sceneId: i + 1, // sceneId 재할당
-        }))
+      const deletedScene = scenes[index]
+      const deletedSceneId = deletedScene.sceneId
 
-      // timeline.scenes 배열에서도 삭제
-      const newTimelineScenes = timeline.scenes
-        .filter((_, i) => i !== index)
-        .map((scene, i) => ({
-          ...scene,
-          sceneId: i + 1,
-        }))
+      // 같은 그룹 내 씬들 찾기 (같은 sceneId를 가진 씬들, 삭제할 씬 제외)
+      const sameGroupScenes = scenes.filter((s, i) => s.sceneId === deletedSceneId && i !== index)
+
+      // scenes 배열에서 삭제
+      let newScenes = scenes.filter((_, i) => i !== index)
+      let newTimelineScenes = timeline.scenes.filter((_, i) => i !== index)
+
+      // 같은 그룹 내 씬이 남아있으면 그룹화 유지 (splitIndex 재정렬)
+      if (sameGroupScenes.length > 0) {
+        // 같은 그룹 내 씬들의 splitIndex 재정렬
+        const groupSceneIndices: number[] = []
+        newScenes.forEach((scene, i) => {
+          if (scene.sceneId === deletedSceneId && scene.splitIndex !== undefined) {
+            groupSceneIndices.push(i)
+          }
+        })
+
+        // splitIndex 재할당 (1부터 시작)
+        groupSceneIndices.sort((a, b) => (newScenes[a].splitIndex || 0) - (newScenes[b].splitIndex || 0))
+        groupSceneIndices.forEach((sceneIndex, idx) => {
+          const newSplitIndex = idx + 1
+          newScenes[sceneIndex] = {
+            ...newScenes[sceneIndex],
+            splitIndex: newSplitIndex,
+          }
+          
+          // timeline도 동일하게 업데이트
+          if (sceneIndex < newTimelineScenes.length) {
+            newTimelineScenes[sceneIndex] = {
+              ...newTimelineScenes[sceneIndex],
+              splitIndex: newSplitIndex,
+            }
+          }
+        })
+      } else {
+        // 그룹 내 씬이 하나만 남으면 원래 씬으로 복원: splitIndex 제거
+        const remainingSceneIndex = newScenes.findIndex(s => s.sceneId === deletedSceneId)
+        if (remainingSceneIndex >= 0) {
+          const remainingScene = newScenes[remainingSceneIndex]
+          // splitIndex가 있으면 제거하여 원래 씬으로 복원
+          if (remainingScene.splitIndex !== undefined) {
+            const { splitIndex, ...sceneWithoutSplitIndex } = remainingScene
+            newScenes[remainingSceneIndex] = sceneWithoutSplitIndex
+            
+            // timeline도 동일하게 업데이트
+            if (remainingSceneIndex < newTimelineScenes.length) {
+              const { splitIndex: timelineSplitIndex, ...timelineSceneWithoutSplitIndex } = newTimelineScenes[remainingSceneIndex]
+              newTimelineScenes[remainingSceneIndex] = timelineSceneWithoutSplitIndex
+            }
+          }
+        }
+      }
+
+      // sceneId는 그대로 유지 (그룹화 유지를 위해)
 
       setScenes(newScenes)
       setTimeline({
@@ -184,7 +247,7 @@ export function useSceneEditHandlers({
     [scenes, timeline, currentSceneIndex, setScenes, setTimeline, setCurrentSceneIndex, currentSceneIndexRef]
   )
 
-  // 씬 복사 - 그룹화되지 않은 독립적인 씬으로 복사하고 자동으로 자막 씬 분할 실행
+  // 씬 복사 - 그룹 내 씬이면 같은 그룹으로 복사, 아니면 독립적인 씬으로 복사
   const handleSceneDuplicate = useCallback(
     (index: number) => {
       if (!timeline || scenes.length === 0) return
@@ -192,28 +255,57 @@ export function useSceneEditHandlers({
       const targetSceneScript = scenes[index]
       const targetTimelineScene = timeline.scenes[index]
 
+      // 같은 그룹 내 씬들 찾기 (같은 sceneId를 가진 씬들)
+      const sameGroupScenes = scenes.filter(s => s.sceneId === targetSceneScript.sceneId)
+      const isGroupedScene = sameGroupScenes.length > 1 || targetSceneScript.splitIndex !== undefined
+
       // ||| 구분자가 있는 씬인지 확인
       const scriptParts = targetSceneScript.script.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
       const hasDelimiters = scriptParts.length > 1
 
-      // 새로운 sceneId 할당 (최대 sceneId + 1)
-      const maxSceneId = Math.max(...scenes.map(s => s.sceneId || 0), ...timeline.scenes.map(s => s.sceneId || 0))
-      const newSceneId = maxSceneId + 1
+      let duplicatedSceneScript: SceneScript
+      let duplicatedTimelineScene: TimelineScene
 
-      // 복제된 씬 생성 (새로운 sceneId, splitIndex 제거하여 독립적인 씬으로)
-      let duplicatedSceneScript: SceneScript = {
-        ...targetSceneScript,
-        sceneId: newSceneId, // 새로운 sceneId 할당
-        splitIndex: undefined, // splitIndex 제거하여 독립적인 씬으로
+      // 그룹 내 씬이면 같은 그룹으로 복사
+      if (isGroupedScene) {
+        // 같은 그룹 내 씬들의 splitIndex 중 최대값 찾기
+        const maxSplitIndex = sameGroupScenes
+          .map(s => s.splitIndex || 0)
+          .reduce((max, idx) => Math.max(max, idx), 0)
+        const newSplitIndex = maxSplitIndex + 1
+
+        // 같은 sceneId 유지하고 새로운 splitIndex 할당
+        duplicatedSceneScript = {
+          ...targetSceneScript,
+          sceneId: targetSceneScript.sceneId, // 같은 sceneId 유지
+          splitIndex: newSplitIndex, // 새로운 splitIndex 할당
+        }
+
+        duplicatedTimelineScene = {
+          ...targetTimelineScene,
+          sceneId: targetSceneScript.sceneId, // 같은 sceneId 유지
+          splitIndex: newSplitIndex, // 새로운 splitIndex 할당
+        }
+      } else {
+        // 그룹 내 씬이 아니면 독립적인 씬으로 복사
+        // 새로운 sceneId 할당 (최대 sceneId + 1)
+        const maxSceneId = Math.max(...scenes.map(s => s.sceneId || 0), ...timeline.scenes.map(s => s.sceneId || 0))
+        const newSceneId = maxSceneId + 1
+
+        duplicatedSceneScript = {
+          ...targetSceneScript,
+          sceneId: newSceneId, // 새로운 sceneId 할당
+          splitIndex: undefined, // splitIndex 제거하여 독립적인 씬으로
+        }
+
+        duplicatedTimelineScene = {
+          ...targetTimelineScene,
+          sceneId: newSceneId, // 새로운 sceneId 할당
+        }
       }
 
-      let duplicatedTimelineScene: TimelineScene = {
-        ...targetTimelineScene,
-        sceneId: newSceneId, // 새로운 sceneId 할당
-      }
-
-      // 구분자가 없으면 자동으로 자막 씬 분할 실행
-      if (!hasDelimiters) {
+      // 그룹 내 씬이 아니고 구분자가 없으면 자동으로 자막 씬 분할 실행
+      if (!isGroupedScene && !hasDelimiters) {
         const { sceneScript: updatedSceneScript, timelineScene: updatedTimelineScene } =
           insertSceneDelimiters({
             sceneScript: duplicatedSceneScript,
@@ -228,8 +320,19 @@ export function useSceneEditHandlers({
         }
       }
 
-      // 복사된 씬을 원본 씬 다음에 삽입
-      const insertIndex = index + 1
+      // 복사된 씬을 삽입할 위치 결정
+      // 그룹 내 씬이면 같은 그룹 내 마지막에 삽입, 아니면 원본 씬 다음에 삽입
+      let insertIndex: number
+      if (isGroupedScene) {
+        // 같은 그룹 내 마지막 씬 다음에 삽입
+        const sameGroupIndices = scenes
+          .map((s, i) => s.sceneId === targetSceneScript.sceneId ? i : -1)
+          .filter(i => i >= 0)
+        insertIndex = Math.max(...sameGroupIndices) + 1
+      } else {
+        // 원본 씬 다음에 삽입
+        insertIndex = index + 1
+      }
 
       // scenes 배열에 삽입
       const newScenes = [

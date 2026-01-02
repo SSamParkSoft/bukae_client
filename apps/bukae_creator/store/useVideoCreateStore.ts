@@ -61,6 +61,7 @@ export interface TimelineScene {
   transitionDuration?: number // 전환 시간 (초), 기본값 0.5
   image: string // base64 또는 URL
   imageFit?: 'cover' | 'contain' | 'fill' // 이미지 표시 방식
+  splitIndex?: number // 씬 분할 시 하위 번호 (1, 2, 3...), 있으면 독립적인 씬으로 처리
   imageTransform?: {
     x: number
     y: number

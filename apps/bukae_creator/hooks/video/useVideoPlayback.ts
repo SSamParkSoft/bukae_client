@@ -14,7 +14,7 @@ interface UseVideoPlaybackParams {
   setCurrentSceneIndex: (index: number) => void
   currentSceneIndexRef: React.MutableRefObject<number>
   lastRenderedSceneIndexRef: React.MutableRefObject<number | null>
-  updateCurrentScene: (skipAnimation?: boolean, prevIndex?: number | null, forceTransition?: string, onComplete?: (sceneIndex?: number) => void, isPlaying?: boolean, skipImage?: boolean, partIndex?: number | null) => void
+  updateCurrentScene: (skipAnimation?: boolean, prevIndex?: number | null, forceTransition?: string, onComplete?: (sceneIndex?: number) => void, isPlaying?: boolean, skipImage?: boolean, partIndex?: number | null, sceneIndex?: number) => void
   setTimeline: (timeline: TimelineData) => void
   buildSceneMarkup: (sceneIndex: number) => string[]
   makeTtsKey: (voice: string, markup: string) => string
