@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore, TimelineData, TimelineScene, SceneScript } from '@/store/useVideoCreateStore'
+import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useSceneHandlers } from '@/hooks/video/useSceneHandlers'
 import { useTimelinePlayer } from '@/hooks/video/useTimelinePlayer'
@@ -27,6 +28,7 @@ import { useBgmManager } from '@/hooks/video/useBgmManager'
 import { useTimelineInteraction } from '@/hooks/video/useTimelineInteraction'
 import { usePlaybackStateSync } from '@/hooks/video/usePlaybackStateSync'
 import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
+import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { getMp3DurationSec } from '@/lib/utils/audio'
 import { useSceneEditHandlers } from '@/hooks/video/useSceneEditHandlers'
 import { useVideoExport } from '@/hooks/video/useVideoExport'
@@ -78,6 +80,7 @@ export default function Step4Page() {
     videoDescription,
   } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
+  const sceneStructureStore = useSceneStructureStore()
   
   // PixiJS refs
   const pixiContainerRef = useRef<HTMLDivElement>(null)
@@ -611,6 +614,9 @@ export default function Step4Page() {
       previousIndex?: number | null
       onComplete?: () => void
       updateTimeline?: boolean
+      prepareOnly?: boolean
+      isPlaying?: boolean
+      skipImage?: boolean
     }
   ) => {
     if (renderSceneContentFromManager) {
@@ -1525,6 +1531,56 @@ export default function Step4Page() {
     setIsTtsBootstrapping,
   })
 
+  // 씬 구조 정보 자동 업데이트
+  useEffect(() => {
+    if (!scenes.length || !timeline) return
+    
+    sceneStructureStore.updateStructure({
+      scenes,
+      timeline,
+      ttsCacheRef: videoPlayback.ttsCacheRef,
+      voiceTemplate,
+      buildSceneMarkup: buildSceneMarkupWithTimeline,
+      makeTtsKey,
+    })
+    
+    // 구조 정보 콘솔 출력
+    console.log('=== 씬 구조 정보 ===')
+    console.log('전체 씬 수:', sceneStructureStore.sceneStructures.length)
+    console.log('그룹 수:', sceneStructureStore.groups.size)
+    
+    // 각 씬의 구조 정보
+    sceneStructureStore.sceneStructures.forEach((structure) => {
+      console.log(`\n씬 ${structure.index}:`, {
+        sceneId: structure.sceneId,
+        splitIndex: structure.splitIndex,
+        isSplit: structure.isSplit,
+        fullSubtitle: structure.fullSubtitle.substring(0, 50) + (structure.fullSubtitle.length > 50 ? '...' : ''),
+        subtitleParts: structure.subtitleParts,
+        hasSubtitleSegments: structure.hasSubtitleSegments,
+        groupStartIndex: structure.groupStartIndex,
+        groupEndIndex: structure.groupEndIndex,
+        groupSize: structure.groupSize,
+        ttsDuration: structure.ttsDuration,
+        hasTtsCache: structure.hasTtsCache,
+      })
+    })
+    
+    // 그룹 정보
+    console.log('\n=== 그룹 정보 ===')
+    sceneStructureStore.groups.forEach((groupInfo, sceneId) => {
+      console.log(`그룹 sceneId ${sceneId}:`, {
+        indices: groupInfo.indices,
+        firstSceneIndex: groupInfo.firstSceneIndex,
+        lastSceneIndex: groupInfo.lastSceneIndex,
+        size: groupInfo.size,
+        totalTtsDuration: groupInfo.totalTtsDuration,
+        hasAllTtsCache: groupInfo.hasAllTtsCache,
+      })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenes, timeline, voiceTemplate])
+
   // 그룹 복사 핸들러
   const handleGroupDuplicate = useCallback((sceneId: number, groupIndices: number[]) => {
     if (!timeline || scenes.length === 0) return
@@ -1593,6 +1649,271 @@ export default function Step4Page() {
   const handleGroupPlay = useCallback(async (sceneId: number, groupIndices: number[]) => {
     await groupPlayback.playGroup(sceneId, groupIndices)
   }, [groupPlayback])
+
+  // 씬 재생 핸들러 (구간 분할 없이 전체 자막을 하나의 TTS로 재생)
+  const handleScenePlay = useCallback(async (sceneIndex: number) => {
+    if (!timeline || !voiceTemplate) {
+      return
+    }
+
+    const scene = timeline.scenes[sceneIndex]
+    if (!scene) return
+
+    // 전체 자막 텍스트 가져오기 (||| 구분자 제거)
+    const fullSubtitle = scene.text?.content || ''
+    const plainText = fullSubtitle.replace(/\s*\|\|\|\s*/g, ' ').trim()
+    
+    if (!plainText) {
+      return
+    }
+
+    // 전체 자막을 하나의 마크업으로 변환
+    const markup = makeMarkupFromPlainText(plainText, {
+      addSceneTransitionPause: false,
+      enablePause: false,
+    })
+
+    if (!markup) {
+      return
+    }
+
+    // TTS 캐시 확인
+    const key = makeTtsKey(voiceTemplate, markup)
+    let cached = videoPlayback.ttsCacheRef.current.get(key)
+
+    // TTS가 없으면 합성
+    if (!cached || (!cached.blob && !cached.url)) {
+      setIsPreparing(true)
+      if (setIsTtsBootstrapping) {
+        setIsTtsBootstrapping(true)
+      }
+      
+      try {
+        // 전체 마크업으로 TTS 합성 (직접 API 호출)
+        const accessToken = authStorage.getAccessToken()
+        if (!accessToken) {
+          throw new Error('로그인이 필요합니다.')
+        }
+
+        const response = await fetch('/api/tts/synthesize', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            voiceName: voiceTemplate,
+            mode: 'markup',
+            markup: markup,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || 'TTS 합성 실패')
+        }
+
+        const blob = await response.blob()
+        const durationSec = await getMp3DurationSec(blob)
+
+        cached = {
+          blob,
+          durationSec,
+          markup,
+          url: null,
+        }
+        videoPlayback.ttsCacheRef.current.set(key, cached)
+      } catch (error) {
+        console.error('[씬 재생] TTS 합성 실패:', error)
+        setIsPreparing(false)
+        if (setIsTtsBootstrapping) {
+          setIsTtsBootstrapping(false)
+        }
+        return
+      }
+      
+      setIsPreparing(false)
+      if (setIsTtsBootstrapping) {
+        setIsTtsBootstrapping(false)
+      }
+    }
+
+    // TTS duration 가져오기
+    const ttsDuration = cached?.durationSec || scene.duration || 2.5
+
+    // transitionDuration 설정
+    const originalTransitionDuration = scene.transitionDuration
+    let updatedTimeline = timeline
+    if (ttsDuration > 0) {
+      updatedTimeline = {
+        ...timeline,
+        scenes: timeline.scenes.map((s, idx) =>
+          idx === sceneIndex
+            ? {
+                ...s,
+                transitionDuration: ttsDuration,
+              }
+            : s
+        ),
+      }
+      setTimeline(updatedTimeline)
+      
+      // React 상태 업데이트가 완료될 때까지 대기
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    }
+
+    // 이전 오디오 정리
+    const stopTtsAudio = () => {
+      const a = videoPlayback.ttsAudioRef.current
+      if (a) {
+        try {
+          a.pause()
+          a.currentTime = 0
+          a.src = ''
+        } catch {
+          // ignore
+        }
+      }
+      videoPlayback.ttsAudioRef.current = null
+      if (videoPlayback.ttsAudioUrlRef.current) {
+        URL.revokeObjectURL(videoPlayback.ttsAudioUrlRef.current)
+        videoPlayback.ttsAudioUrlRef.current = null
+      }
+    }
+    stopTtsAudio()
+
+    // 씬리스트 패널 업데이트
+    currentSceneIndexRef.current = sceneIndex
+    setCurrentSceneIndex(sceneIndex)
+
+    // 전환 효과 이미지 렌더링
+    let previousSceneIndex: number | null = null
+    const lastRenderedIndex = lastRenderedSceneIndexRef.current
+    if (lastRenderedIndex !== null && lastRenderedIndex !== sceneIndex) {
+      previousSceneIndex = lastRenderedIndex
+    }
+
+    // 이미지 전환 효과와 자막 렌더링 (비동기로 시작만 하고 await하지 않음)
+    if (renderSceneContent) {
+      // renderSceneContent가 자막도 함께 렌더링하도록 호출
+      // partIndex를 null로 전달하면 전체 자막을 표시
+      renderSceneContent(sceneIndex, null, {
+        skipAnimation: false,
+        forceTransition: scene.transition || 'fade',
+        previousIndex: previousSceneIndex !== null ? previousSceneIndex : undefined,
+        updateTimeline: false,
+        prepareOnly: false,
+        isPlaying: true,
+        skipImage: false,
+        onComplete: () => {
+          lastRenderedSceneIndexRef.current = sceneIndex
+        },
+      })
+    } else if (renderSceneImage) {
+      renderSceneImage(sceneIndex, {
+        skipAnimation: false,
+        forceTransition: scene.transition || 'fade',
+        previousIndex: previousSceneIndex,
+        onComplete: () => {
+          lastRenderedSceneIndexRef.current = sceneIndex
+        },
+        prepareOnly: false,
+      })
+      
+      // 전체 자막 렌더링 (구간 분할 없이)
+      const textToUpdate = textsRef.current.get(sceneIndex)
+      if (textToUpdate) {
+        textToUpdate.text = plainText
+        textToUpdate.visible = true
+        textToUpdate.alpha = 1
+      }
+    }
+
+    // TTS 재생 (하나의 파일만)
+    if (cached && (cached.url || cached.blob)) {
+      let audioUrl: string | null = null
+      if (cached.url) {
+        audioUrl = cached.url
+      } else if (cached.blob) {
+        audioUrl = URL.createObjectURL(cached.blob)
+        videoPlayback.ttsAudioUrlRef.current = audioUrl
+      }
+
+      if (audioUrl) {
+        const audio = new Audio(audioUrl)
+        audio.playbackRate = updatedTimeline?.playbackSpeed ?? 1.0
+        videoPlayback.ttsAudioRef.current = audio
+
+        try {
+          await new Promise<void>((resolve) => {
+            const handleEnded = () => {
+              audio.removeEventListener('ended', handleEnded)
+              audio.removeEventListener('error', handleError)
+              resolve()
+            }
+
+            const handleError = () => {
+              console.error('[씬 재생] TTS 재생 오류')
+              audio.removeEventListener('ended', handleEnded)
+              audio.removeEventListener('error', handleError)
+              resolve()
+            }
+
+            audio.addEventListener('ended', handleEnded)
+            audio.addEventListener('error', handleError)
+
+            audio.play()
+              .then(() => {
+                // 재생 시작 성공
+              })
+              .catch((error) => {
+                console.error('[씬 재생] TTS 재생 시작 실패:', error)
+                handleError()
+              })
+          })
+        } finally {
+          // 재생 완료 후 정리
+          stopTtsAudio()
+          lastRenderedSceneIndexRef.current = sceneIndex
+        }
+      }
+    }
+
+    // 원래 transitionDuration 복원
+    if (originalTransitionDuration !== undefined && ttsDuration > 0) {
+      const restoredTimeline = {
+        ...timeline,
+        scenes: timeline.scenes.map((s, idx) =>
+          idx === sceneIndex
+            ? {
+                ...s,
+                transitionDuration: originalTransitionDuration,
+              }
+            : s
+      ),
+      }
+      setTimeline(restoredTimeline)
+    }
+  }, [
+    timeline,
+    voiceTemplate,
+    makeTtsKey,
+    videoPlayback.ttsCacheRef,
+    videoPlayback.ttsAudioRef,
+    videoPlayback.ttsAudioUrlRef,
+    changedScenesRef,
+    setIsPreparing,
+    setIsTtsBootstrapping,
+    setCurrentSceneIndex,
+    currentSceneIndexRef,
+    lastRenderedSceneIndexRef,
+    renderSceneContent,
+    renderSceneImage,
+    renderSubtitlePart,
+    setTimeline,
+    textsRef,
+    getMp3DurationSec,
+  ])
 
   // 그룹 삭제 핸들러
   const handleGroupDelete = useCallback((sceneId: number, groupIndices: number[]) => {
@@ -2190,73 +2511,7 @@ export default function Step4Page() {
               onDuplicateGroup={handleGroupDuplicate}
               onPlayGroup={handleGroupPlay}
               onDeleteGroup={handleGroupDelete}
-              onPlayScene={async (sceneIndex: number) => {
-                if (!timeline || !voiceTemplate) {
-                  return
-                }
-
-                // 해당 씬의 TTS가 준비되었는지 확인
-                const markups = buildSceneMarkupWrapper(sceneIndex)
-                const scenesToSynthesize: number[] = []
-                const cachedCount = markups.filter(markup => {
-                  const key = makeTtsKey(voiceTemplate, markup)
-                  const cached = videoPlayback.ttsCacheRef.current.get(key)
-                  return cached && (cached.blob || cached.url)
-                }).length
-                
-                if (cachedCount < markups.length) {
-                  scenesToSynthesize.push(sceneIndex)
-                }
-
-                // TTS가 준비되지 않았으면 합성
-                if (scenesToSynthesize.length > 0 && ensureSceneTts) {
-                  setIsPreparing(true)
-                  if (setIsTtsBootstrapping) {
-                    setIsTtsBootstrapping(true)
-                  }
-                  
-                  try {
-                    await ensureSceneTts(sceneIndex, undefined, changedScenesRef.current.has(sceneIndex) || false)
-                  } catch (error) {
-                    console.error('[step4/page] TTS 합성 실패:', error)
-                    setIsPreparing(false)
-                    if (setIsTtsBootstrapping) {
-                      setIsTtsBootstrapping(false)
-                    }
-                    return
-                  }
-                  
-                  setIsPreparing(false)
-                  if (setIsTtsBootstrapping) {
-                    setIsTtsBootstrapping(false)
-                  }
-                }
-
-                // 씬 재생
-                await playSceneLogic({
-                  timeline,
-                  voiceTemplate,
-                  playbackSpeed: timeline?.playbackSpeed ?? 1.0,
-                  sceneIndex,
-                  setCurrentSceneIndex,
-                  currentSceneIndexRef,
-                  lastRenderedSceneIndexRef,
-                  textsRef,
-                  spritesRef,
-                  ttsCacheRef: videoPlayback.ttsCacheRef,
-                  ttsAudioRef: videoPlayback.ttsAudioRef,
-                  ttsAudioUrlRef: videoPlayback.ttsAudioUrlRef,
-                  renderSceneImage,
-                  renderSubtitlePart,
-                  prepareImageAndSubtitle,
-                  renderSceneContent,
-                  setCurrentTime,
-                  ensureSceneTts,
-                  changedScenesRef,
-                  onComplete: () => {
-                  },
-                })
-              }}
+              onPlayScene={handleScenePlay}
             />
           </div>
         </div>

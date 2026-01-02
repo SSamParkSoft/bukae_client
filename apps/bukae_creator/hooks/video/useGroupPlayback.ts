@@ -3,6 +3,8 @@
 import { useCallback} from 'react'
 import * as PIXI from 'pixi.js'
 import type { TimelineData } from '@/store/useVideoCreateStore'
+import { useSceneStructureStore } from '@/store/useSceneStructureStore'
+import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 
 interface UseGroupPlaybackParams {
   timeline: TimelineData | null
@@ -91,6 +93,7 @@ export function useGroupPlayback({
   setIsPreparing,
   setIsTtsBootstrapping,
 }: UseGroupPlaybackParams) {
+  const { getGroupTtsDuration } = useSceneStructureStore()
   /**
    * 그룹 재생 함수
    * 1. 그룹화된 씬 확인
@@ -149,24 +152,11 @@ export function useGroupPlayback({
       if (setIsTtsBootstrapping) setIsTtsBootstrapping(false)
     }
 
-    // 3. TTS Duration 합산 및 전환 효과 길이 설정
-    let totalGroupTtsDuration = 0
+    // 3. TTS Duration 합산 및 전환 효과 길이 설정 (store에서 가져오기)
+    const totalGroupTtsDuration = getGroupTtsDuration(sceneId)
     
-    for (const sceneIndex of groupIndices) {
-      const markups = buildSceneMarkup(timeline, sceneIndex)
-      let sceneTtsDuration = 0
-      
-      for (let partIndex = 0; partIndex < markups.length; partIndex++) {
-        const markup = markups[partIndex]
-        const key = makeTtsKey(voiceTemplate, markup)
-        const cached = ttsCacheRef.current.get(key)
-        
-        if (cached && cached.durationSec > 0) {
-          sceneTtsDuration += cached.durationSec
-        }
-      }
-      
-      totalGroupTtsDuration += sceneTtsDuration
+    if (totalGroupTtsDuration === 0) {
+      console.warn(`[useGroupPlayback] 그룹 sceneId ${sceneId}의 TTS duration이 0입니다. store를 확인해주세요.`)
     }
 
     // 첫 번째 씬의 transitionDuration을 그룹 전체 TTS duration 합으로 설정
@@ -174,7 +164,7 @@ export function useGroupPlayback({
     const firstScene = timeline.scenes[firstSceneIndex]
     const originalTransitionDuration = firstScene?.transitionDuration
     
-    // 업데이트된 timeline 생성 (playSceneLogic에 전달하기 위해)
+    // 업데이트된 timeline 생성
     let updatedTimeline = timeline
     if (firstScene && totalGroupTtsDuration > 0) {
       updatedTimeline = {
@@ -189,6 +179,9 @@ export function useGroupPlayback({
         ),
       }
       setTimeline(updatedTimeline)
+      
+      // React 상태 업데이트가 완료될 때까지 대기
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     }
 
     // 재생 중지 가능하도록 AbortController 생성
@@ -533,27 +526,289 @@ export function useGroupPlayback({
       }
     }
 
-    // 4. 그룹 내 모든 씬의 TTS를 순차적으로 재생 (이미지 전환 효과 없이)
+    // 4. 첫 번째 씬: 이미지 전환 효과와 TTS 동시 시작
+    // 5. 나머지 씬: TTS만 순차적으로 재생
     try {
-      // 모든 씬의 TTS를 순차적으로 재생
-      for (let i = 0; i < groupIndices.length; i++) {
-        const sceneIndex = groupIndices[i]
-        
-        // 중단 신호 확인
-        if (abortController.signal.aborted || !isPlayingRef.current) {
-          break
+      // 재생 시작 전 오디오 정리
+      const prevAudio = ttsAudioRef.current
+      if (prevAudio) {
+        try {
+          prevAudio.pause()
+          prevAudio.currentTime = 0
+          prevAudio.src = ''
+        } catch {
+          // ignore
         }
-        
-        // 씬리스트 패널 업데이트
-        currentSceneIndexRef.current = sceneIndex
-        setCurrentSceneIndex(sceneIndex)
-        
-        // 자막 업데이트 및 TTS 재생
-        await playTtsOnly(sceneIndex)
-        
-        // 재생 완료 후 lastRenderedSceneIndexRef 업데이트
-        lastRenderedSceneIndexRef.current = sceneIndex
       }
+      ttsAudioRef.current = null
+      if (ttsAudioUrlRef.current) {
+        URL.revokeObjectURL(ttsAudioUrlRef.current)
+        ttsAudioUrlRef.current = null
+      }
+      
+      // 첫 번째 씬: 이미지 전환 효과와 TTS 동시 시작
+      const firstSceneIndex = groupIndices[0]
+      const firstScene = updatedTimeline.scenes[firstSceneIndex]
+      
+      // previousSceneIndex 결정: 같은 그룹 내 씬이면 null, 아니면 lastRenderedSceneIndexRef 사용
+      let previousSceneIndex: number | null = null
+      const lastRenderedIndex = lastRenderedSceneIndexRef.current
+      if (lastRenderedIndex !== null && lastRenderedIndex !== firstSceneIndex) {
+        const lastRenderedScene = updatedTimeline.scenes[lastRenderedIndex]
+        // 같은 그룹 내 씬이 아니면 이전 씬으로 사용
+        if (lastRenderedScene && lastRenderedScene.sceneId !== firstScene.sceneId) {
+          previousSceneIndex = lastRenderedIndex
+        }
+      }
+      
+      // 씬리스트 패널 업데이트
+      currentSceneIndexRef.current = firstSceneIndex
+      setCurrentSceneIndex(firstSceneIndex)
+      
+      // 이미지 전환 효과 시작 (비동기로 시작하고 TTS 재생도 동시에 시작)
+      let transitionPromise: Promise<void> | null = null
+      if (renderSceneContent) {
+        transitionPromise = new Promise<void>((resolve) => {
+          renderSceneContent(firstSceneIndex, 0, {
+            skipAnimation: false,
+            forceTransition: firstScene?.transition || 'fade',
+            previousIndex: previousSceneIndex !== null ? previousSceneIndex : undefined,
+            updateTimeline: false,
+            prepareOnly: false,
+            isPlaying: true,
+            skipImage: false, // 이미지 렌더링 포함
+            onComplete: () => {
+              lastRenderedSceneIndexRef.current = firstSceneIndex
+              resolve()
+            },
+          })
+        })
+      } else if (renderSceneImage) {
+        transitionPromise = new Promise<void>((resolve) => {
+          renderSceneImage(firstSceneIndex, {
+            skipAnimation: false,
+            forceTransition: firstScene?.transition || 'fade',
+            previousIndex: previousSceneIndex,
+            onComplete: () => {
+              lastRenderedSceneIndexRef.current = firstSceneIndex
+              resolve()
+            },
+            prepareOnly: false,
+          })
+        })
+        
+        // 첫 번째 구간 자막 렌더링
+        if (renderSubtitlePart) {
+          renderSubtitlePart(firstSceneIndex, 0, {
+            skipAnimation: true,
+            onComplete: () => {},
+          })
+        }
+      }
+      
+      // 이미지 전환 효과 시작 (비동기로 시작만 하고 await하지 않음)
+      if (transitionPromise) {
+        // 전환 효과는 시작만 하고 기다리지 않음
+        void transitionPromise
+      }
+      
+      // 그룹 내 모든 씬의 자막을 합쳐서 하나의 연속된 자막으로 파싱
+      const mergedTextParts: Array<{ text: string; sceneIndex: number; partIndex: number }> = []
+      
+      // 각 씬의 자막을 파싱하고 씬 인덱스와 구간 인덱스를 추적
+      for (const idx of groupIndices) {
+        const scene = updatedTimeline.scenes[idx]
+        if (!scene) continue
+        
+        const fullSubtitle = scene.text?.content || ''
+        const scriptParts = splitSubtitleByDelimiter(fullSubtitle)
+        
+        for (let partIdx = 0; partIdx < scriptParts.length; partIdx++) {
+          const partText = scriptParts[partIdx]?.trim()
+          if (partText) {
+            mergedTextParts.push({
+              text: partText,
+              sceneIndex: idx,
+              partIndex: partIdx,
+            })
+          }
+        }
+      }
+      
+      if (mergedTextParts.length === 0) {
+        return
+      }
+
+      // 각 구간을 순차적으로 처리
+      const playPart = async (globalPartIndex: number): Promise<void> => {
+        if (abortController.signal.aborted || !isPlayingRef.current) return
+
+        if (globalPartIndex >= mergedTextParts.length) {
+          return
+        }
+
+        const partInfo = mergedTextParts[globalPartIndex]
+        const currentPartText = partInfo.text
+        const targetSceneIndex = partInfo.sceneIndex
+        const scenePartIndex = partInfo.partIndex
+
+        if (!currentPartText) {
+          if (globalPartIndex < mergedTextParts.length - 1) {
+            await playPart(globalPartIndex + 1)
+          }
+          return
+        }
+
+        // 씬이 변경되면 씬리스트 패널 업데이트
+        if (currentSceneIndexRef.current !== targetSceneIndex) {
+          currentSceneIndexRef.current = targetSceneIndex
+          setCurrentSceneIndex(targetSceneIndex)
+        }
+
+        // TTS 파일이 재생될 때 해당 인덱스 자막 렌더링
+        if (renderSubtitlePart) {
+          renderSubtitlePart(targetSceneIndex, scenePartIndex, {
+            skipAnimation: true,
+            onComplete: () => {},
+          })
+        }
+
+        // 해당 씬의 마크업 가져오기
+        const markups = buildSceneMarkup(updatedTimeline, targetSceneIndex)
+        if (scenePartIndex >= markups.length) {
+          if (globalPartIndex < mergedTextParts.length - 1) {
+            await playPart(globalPartIndex + 1)
+          }
+          return
+        }
+
+        const markup = markups[scenePartIndex]
+        if (!markup) {
+          if (globalPartIndex < mergedTextParts.length - 1) {
+            await playPart(globalPartIndex + 1)
+          }
+          return
+        }
+
+        // TTS 파일 가져오기
+        const key = makeTtsKey(voiceTemplate, markup)
+        let cached = ttsCacheRef.current.get(key)
+
+        if (!cached) {
+          // 마크업으로 직접 검색
+          for (const [, cacheValue] of ttsCacheRef.current.entries()) {
+            if (cacheValue.markup === markup) {
+              cached = cacheValue
+              break
+            }
+          }
+        }
+
+        // TTS 재생
+        if (cached && (cached.url || cached.blob)) {
+          // 이전 오디오 완전히 정지 및 정리
+          const prevAudio = ttsAudioRef.current
+          if (prevAudio) {
+            try {
+              prevAudio.pause()
+              prevAudio.currentTime = 0
+              prevAudio.src = ''
+            } catch {
+              // ignore
+            }
+          }
+          ttsAudioRef.current = null
+          if (ttsAudioUrlRef.current) {
+            URL.revokeObjectURL(ttsAudioUrlRef.current)
+            ttsAudioUrlRef.current = null
+          }
+
+          // 새 오디오 재생
+          let audioUrl: string | null = null
+          if (cached.url) {
+            audioUrl = cached.url
+          } else if (cached.blob) {
+            audioUrl = URL.createObjectURL(cached.blob)
+          }
+
+          if (!audioUrl) {
+            console.warn(`[useGroupPlayback] 씬 ${targetSceneIndex} 구간 ${scenePartIndex + 1} TTS URL 생성 실패`)
+            // 다음 구간으로
+            if (globalPartIndex < mergedTextParts.length - 1) {
+              await playPart(globalPartIndex + 1)
+            }
+            return
+          }
+
+          ttsAudioUrlRef.current = audioUrl
+          const audio = new Audio(audioUrl)
+          audio.playbackRate = updatedTimeline?.playbackSpeed ?? 1.0
+          ttsAudioRef.current = audio
+          
+          await new Promise<void>((resolve) => {
+            // AbortSignal 체크
+            if (abortController.signal.aborted) {
+              resolve()
+              return
+            }
+
+            const handleEnded = () => {
+              audio.removeEventListener('ended', handleEnded)
+              audio.removeEventListener('error', handleError)
+              resolve()
+            }
+            
+            const handleError = () => {
+              audio.removeEventListener('ended', handleEnded)
+              audio.removeEventListener('error', handleError)
+              resolve()
+            }
+            
+            audio.addEventListener('ended', handleEnded)
+            audio.addEventListener('error', handleError)
+            
+            // 재생 중지 상태 확인
+            if (abortController.signal.aborted || !isPlayingRef.current) {
+              audio.removeEventListener('ended', handleEnded)
+              audio.removeEventListener('error', handleError)
+              resolve()
+              return
+            }
+            
+            // audio.play() 호출 및 성공/실패 처리
+            audio.play()
+              .then(() => {
+                // 재생 시작 성공
+              })
+              .catch((error) => {
+                // AbortError는 재생 중지로 인한 정상적인 경우이므로 무시
+                if (error.name !== 'AbortError' && !error.message?.includes('interrupted')) {
+                  console.error(`[useGroupPlayback] 씬 ${targetSceneIndex} 구간 ${scenePartIndex + 1} TTS 재생 시작 실패:`, error)
+                }
+                audio.removeEventListener('ended', handleEnded)
+                audio.removeEventListener('error', handleError)
+                handleError()
+              })
+          })
+        } else {
+          // TTS 캐시가 없으면 fallback duration 사용
+          const scene = updatedTimeline.scenes[targetSceneIndex]
+          const fallbackDuration = scene?.duration ? scene.duration / (splitSubtitleByDelimiter(scene.text?.content || '').length || 1) : 2.5
+          const waitTime = (fallbackDuration * 1000) / (updatedTimeline?.playbackSpeed ?? 1.0)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+        }
+
+        // 다음 구간 재생 (현재 구간 재생 완료 후)
+        if (globalPartIndex < mergedTextParts.length - 1) {
+          await playPart(globalPartIndex + 1)
+        } else {
+          // 모든 구간 재생 완료 후 lastRenderedSceneIndexRef 업데이트
+          lastRenderedSceneIndexRef.current = targetSceneIndex
+        }
+      }
+
+      // 첫 번째 구간부터 재생 시작
+      await playPart(0)
     } catch {
       // 재생 실패 처리
     } finally {
@@ -595,11 +850,12 @@ export function useGroupPlayback({
     renderSceneImage,
     prepareImageAndSubtitle,
     setCurrentTime,
-    changedScenesRef,
-    isPlayingRef,
-    setIsPreparing,
-    setIsTtsBootstrapping,
-  ])
+            changedScenesRef,
+            isPlayingRef,
+            setIsPreparing,
+            setIsTtsBootstrapping,
+            getGroupTtsDuration,
+          ])
 
   return {
     playGroup,

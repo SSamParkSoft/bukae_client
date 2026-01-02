@@ -1797,12 +1797,8 @@ export const useSceneManager = ({
     // 텍스트 객체 업데이트 (prepareOnly가 아닐 때)
     if (targetTextObj && partText) {
       targetTextObj.text = partText
-      // 재생 중이고 첫 번째 구간일 때는 즉시 표시 (updateCurrentScene 완료 전에도 표시되도록)
-      if (isPlaying && partIndex === 0) {
-        targetTextObj.visible = true
-        targetTextObj.alpha = 1
-      }
-      // visible과 alpha는 updateCurrentScene에서 처리하므로 여기서는 설정하지 않음 (재생 중 첫 번째 구간 제외)
+      // 재생 중일 때는 자막을 전환 효과와 함께 나타나도록 updateCurrentScene에서 처리
+      // 여기서는 텍스트 내용만 업데이트하고 visible/alpha는 updateCurrentScene에서 처리
     }
     
     // 같은 씬 내 구간 전환인지 확인
@@ -1849,81 +1845,69 @@ export const useSceneManager = ({
       forceTransition,
       () => {
         // 전환 완료 후 자막 렌더링
-        // 재생 중이 아닐 때만 자막 렌더링 (재생 중에는 재생 로직에서 처리)
-        if (!isPlaying) {
-          if (partIndex !== undefined && partIndex !== null && renderSubtitlePart) {
-            // partIndex가 있으면 해당 구간만 렌더링
-            renderSubtitlePart(sceneIndex, partIndex, {
-              skipAnimation: true,
-              onComplete: () => {
-                if (onComplete) {
-                  onComplete()
-                }
-              },
-            })
-          } else if (partIndex === null || partIndex === undefined) {
-            // partIndex가 null이면 구간이 있으면 첫 번째 구간만 표시, 없으면 전체 자막 렌더링
-            if (renderSubtitlePart) {
-              const scene = timeline.scenes[sceneIndex]
-              let effectivePartIndex: number | null = null
-              if (scene?.text?.content) {
-                const scriptParts = splitSubtitleByDelimiter(scene.text.content)
-                if (scriptParts.length > 1) {
-                  // 구간이 있으면 첫 번째 구간(0)만 표시
-                  effectivePartIndex = 0
-                } else {
-                  // 구간이 없으면 전체 자막 표시
-                  effectivePartIndex = null
-                }
-              }
-              
-              renderSubtitlePart(sceneIndex, effectivePartIndex, {
-                skipAnimation: true,
-                onComplete: () => {
-                  // 자막이 제대로 렌더링되었는지 확인하고 강제로 표시
-                  const scene = timeline.scenes[sceneIndex]
-                  if (scene) {
-                    const originalText = scene.text?.content || ''
-                    const scriptParts = splitSubtitleByDelimiter(originalText)
-                    const displayText = scriptParts.length > 1 ? (scriptParts[0]?.trim() || originalText) : originalText
-                    
-                    const targetTextObj = textsRef.current.get(sceneIndex)
-                    let textToCheck: PIXI.Text | null = targetTextObj || null
-                    const sceneId = scene.sceneId
-                    if (!textToCheck && sceneId !== undefined) {
-                      const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
-                      if (firstSceneIndexInGroup >= 0) {
-                        textToCheck = textsRef.current.get(firstSceneIndexInGroup) || null
-                      }
-                    }
-                    
-                    if (textToCheck && displayText) {
-                      // 자막 강제로 표시
-                      textToCheck.text = displayText
-                      textToCheck.visible = true
-                      textToCheck.alpha = 1
-                    } else {
-                      console.warn(`[renderSceneContent] 자막 표시 실패 | 씬 ${sceneIndex}, textToCheck: ${!!textToCheck}, displayText: "${displayText?.substring(0, 30) || '없음'}..."`)
-                    }
-                  }
-                  
-                  if (onComplete) {
-                    onComplete()
-                  }
-                },
-              })
-            } else {
+        // 재생 중일 때도 자막 렌더링 (전환 효과와 함께 자막이 나타나도록)
+        if (partIndex !== undefined && partIndex !== null && renderSubtitlePart) {
+          // partIndex가 있으면 해당 구간만 렌더링
+          renderSubtitlePart(sceneIndex, partIndex, {
+            skipAnimation: true,
+            onComplete: () => {
               if (onComplete) {
                 onComplete()
               }
-            }
-          } else {
-            if (onComplete) {
-              onComplete()
+            },
+          })
+        } else if ((partIndex === null || partIndex === undefined) && renderSubtitlePart) {
+          // partIndex가 null이면 구간이 있으면 첫 번째 구간만 표시, 없으면 전체 자막 렌더링
+          const scene = timeline.scenes[sceneIndex]
+          let effectivePartIndex: number | null = null
+          if (scene?.text?.content) {
+            const scriptParts = splitSubtitleByDelimiter(scene.text.content)
+            if (scriptParts.length > 1) {
+              // 구간이 있으면 첫 번째 구간(0)만 표시
+              effectivePartIndex = 0
+            } else {
+              // 구간이 없으면 전체 자막 표시
+              effectivePartIndex = null
             }
           }
+          
+          renderSubtitlePart(sceneIndex, effectivePartIndex, {
+            skipAnimation: true,
+            onComplete: () => {
+              // 자막이 제대로 렌더링되었는지 확인하고 강제로 표시
+              const scene = timeline.scenes[sceneIndex]
+              if (scene) {
+                const originalText = scene.text?.content || ''
+                const scriptParts = splitSubtitleByDelimiter(originalText)
+                const displayText = scriptParts.length > 1 ? (scriptParts[0]?.trim() || originalText) : originalText
+                
+                const targetTextObj = textsRef.current.get(sceneIndex)
+                let textToCheck: PIXI.Text | null = targetTextObj || null
+                const sceneId = scene.sceneId
+                if (!textToCheck && sceneId !== undefined) {
+                  const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+                  if (firstSceneIndexInGroup >= 0) {
+                    textToCheck = textsRef.current.get(firstSceneIndexInGroup) || null
+                  }
+                }
+                
+                if (textToCheck && displayText) {
+                  // 자막 강제로 표시
+                  textToCheck.text = displayText
+                  textToCheck.visible = true
+                  textToCheck.alpha = 1
+                } else {
+                  console.warn(`[renderSceneContent] 자막 표시 실패 | 씬 ${sceneIndex}, textToCheck: ${!!textToCheck}, displayText: "${displayText?.substring(0, 30) || '없음'}..."`)
+                }
+              }
+              
+              if (onComplete) {
+                onComplete()
+              }
+            },
+          })
         } else {
-          // 재생 중이면 onComplete만 호출
+          // renderSubtitlePart가 없거나 partIndex가 다른 경우 onComplete만 호출
           if (onComplete) {
             onComplete()
           }

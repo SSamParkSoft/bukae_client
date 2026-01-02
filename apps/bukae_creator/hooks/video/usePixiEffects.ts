@@ -156,8 +156,8 @@ export const usePixiEffects = ({
         }
         if (toText) {
           toText.visible = true
-          // 재생 중일 때는 텍스트를 alpha: 0으로 유지 (TTS 재생 시작 시점에 표시)
-          toText.alpha = isPlaying ? 0 : 1
+          // 재생 중일 때도 자막을 전환 효과와 함께 나타나도록 alpha: 0으로 시작 (전환 효과에서 페이드 인)
+          toText.alpha = 0
         }
         // 렌더링은 PixiJS ticker가 처리
         
@@ -249,12 +249,9 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
-                // 재생 중이 아닐 때만 페이드 효과 적용
-                if (!isPlaying) {
-                  toText.alpha = fadeObj.alpha
-                  toText.visible = true
-                }
+                // 재생 중일 때도 자막을 전환 효과와 함께 나타나도록 페이드 효과 적용
+                toText.alpha = fadeObj.alpha
+                toText.visible = true
               }
               
               // PixiJS 렌더링 강제 실행
@@ -310,12 +307,9 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
-                // 재생 중이 아닐 때만 alpha 업데이트
-                if (!isPlaying) {
-                  toText.alpha = 1
-                  toText.visible = true
-                }
+                // 재생 중일 때도 자막을 전환 효과와 함께 나타나도록 표시
+                toText.alpha = 1
+                toText.visible = true
               }
               
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
@@ -361,12 +355,9 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
-                // 재생 중이 아닐 때만 alpha 업데이트
-                if (!isPlaying) {
-                  toText.alpha = 1
-                  toText.visible = true
-                }
+                // 재생 중일 때도 자막을 전환 효과와 함께 나타나도록 표시
+                toText.alpha = 1
+                toText.visible = true
               }
               
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
@@ -412,12 +403,9 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
-                // 재생 중이 아닐 때만 alpha 업데이트
-                if (!isPlaying) {
-                  toText.alpha = 1
-                  toText.visible = true
-                }
+                // 재생 중일 때도 자막을 전환 효과와 함께 나타나도록 표시
+                toText.alpha = 1
+                toText.visible = true
               }
               
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
@@ -463,12 +451,9 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
-                // 재생 중이 아닐 때만 alpha 업데이트
-                if (!isPlaying) {
-                  toText.alpha = 1
-                  toText.visible = true
-                }
+                // 재생 중일 때도 자막을 전환 효과와 함께 나타나도록 표시
+                toText.alpha = 1
+                toText.visible = true
               }
               
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
@@ -533,12 +518,10 @@ export const usePixiEffects = ({
                   containerRef.current.addChild(toText)
                 }
                 // handleScenePartSelect에서 설정한 텍스트를 유지하기 위해 텍스트 내용은 변경하지 않음
-                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
+                // 재생 중일 때도 자막을 전환 효과와 함께 나타나도록 페이드 효과 적용
                 textFadeObj.alpha = toZoomObj.alpha
-                if (!isPlaying) {
-                  toText.alpha = textFadeObj.alpha
-                  toText.visible = true
-                }
+                toText.alpha = textFadeObj.alpha
+                toText.visible = true
               }
               
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
@@ -602,12 +585,10 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // 재생 중일 때는 텍스트 alpha를 변경하지 않음 (renderSubtitlePart에서 처리)
+                // 재생 중일 때도 자막을 전환 효과와 함께 나타나도록 페이드 효과 적용
                 textFadeObj.alpha = toZoomOutObj.alpha
-                if (!isPlaying) {
-                  toText.alpha = textFadeObj.alpha
-                  toText.visible = true
-                }
+                toText.alpha = textFadeObj.alpha
+                toText.visible = true
               }
               
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)

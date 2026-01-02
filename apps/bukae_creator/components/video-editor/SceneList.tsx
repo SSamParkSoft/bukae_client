@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { GripVertical, Copy, Trash2, Play, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { TimelineData, SceneScript } from '@/store/useVideoCreateStore'
+import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 
 interface SceneListProps {
   scenes: SceneScript[]
@@ -53,6 +54,9 @@ export function SceneList({
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
   const [previewingSceneIndex, setPreviewingSceneIndex] = useState<number | null>(null)
   const [previewingPartIndex, setPreviewingPartIndex] = useState<number | null>(null)
+
+  // 씬 구조 정보 store
+  const sceneStructureStore = useSceneStructureStore()
 
   // 드래그 시작
   const handleDragStart = (index: number) => {
@@ -145,27 +149,12 @@ export function SceneList({
     )
   }
 
-  // 같은 sceneId를 가진 씬들을 그룹화
+  // store에서 그룹 정보 가져오기
   const sceneGroups: Array<{ sceneId: number; indices: number[] }> = []
-  const sceneIdToGroupIndex = new Map<number, number>()
-  
-  scenes.forEach((scene, index) => {
-    const sceneId = scene.sceneId
-    if (!sceneIdToGroupIndex.has(sceneId)) {
-      sceneIdToGroupIndex.set(sceneId, sceneGroups.length)
-      sceneGroups.push({ sceneId, indices: [index] })
-    } else {
-      const groupIndex = sceneIdToGroupIndex.get(sceneId)!
-      sceneGroups[groupIndex].indices.push(index)
-    }
-  })
-
-  // 각 그룹 내에서 splitIndex 순서로 정렬
-  sceneGroups.forEach(group => {
-    group.indices.sort((a, b) => {
-      const aSplitIndex = scenes[a].splitIndex || 0
-      const bSplitIndex = scenes[b].splitIndex || 0
-      return aSplitIndex - bSplitIndex
+  sceneStructureStore.groups.forEach((groupInfo, sceneId) => {
+    sceneGroups.push({
+      sceneId,
+      indices: groupInfo.indices,
     })
   })
 
@@ -175,7 +164,7 @@ export function SceneList({
         const isGrouped = group.indices.length > 1
         const firstSceneIndex = group.indices[0]
         // 그룹의 첫 번째 씬 선택 (splitIndex가 없거나 0인 씬, 없으면 group.indices[0])
-        const firstSceneIndexInGroup = group.indices.find(idx => !scenes[idx].splitIndex) ?? group.indices[0]
+        const firstSceneIndexInGroup = group.indices.find(idx => scenes[idx] && !scenes[idx].splitIndex) ?? group.indices[0]
         
         return (
           <div 
@@ -362,8 +351,9 @@ export function SceneList({
             
             {group.indices.map((index) => {
               const scene = scenes[index]
+              if (!scene) return null
               // ||| 구분자로 분할된 구간 확인 (공백 유무와 관계없이 분할)
-              const scriptParts = scene.script.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+              const scriptParts = (scene.script || '').split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
               const hasDelimiters = scriptParts.length > 1
               const isSplitScene = hasDelimiters || !!scene.splitIndex
               
