@@ -47,11 +47,8 @@ export function useSceneEditHandlers({
       // 기존 스크립트와 비교하여 변경되었는지 확인
       const currentScript = scenes[index]?.script || ''
       if (currentScript !== value) {
-        console.log(`[스크립트 변경 감지] 씬 ${index}: "${currentScript.substring(0, 30)}..." → "${value.substring(0, 30)}..."`)
-        
         // 변경된 씬으로 표시 (재생 시 강제 재생성)
         changedScenesRef.current.add(index)
-        console.log(`[스크립트 변경] 씬 ${index} 변경 상태로 표시 (재생 시 강제 재생성)`)
         
         // 변경 전 스크립트로 생성된 캐시 키 찾기
         if (currentScript && voiceTemplate && timeline) {
@@ -72,7 +69,6 @@ export function useSceneEditHandlers({
             oldMarkups.forEach((markup) => {
               const key = makeTtsKey(voiceTemplate, markup)
               if (ttsCacheRef.current.has(key)) {
-                console.log(`[캐시 무효화] 씬 ${index} 변경 전 스크립트 캐시 삭제: ${key.substring(0, 50)}...`)
                 ttsCacheRef.current.delete(key)
               }
             })
@@ -105,15 +101,8 @@ export function useSceneEditHandlers({
 
       // 분할 불가(문장 1개 이하)이면 아무 것도 하지 않음
       if (splitSceneScripts.length <= 1) {
-        console.log(`[SceneSplit] 씬 ${index} 분할 불가: 문장 1개 이하`)
         return
       }
-
-      console.log(`[SceneSplit] 씬 ${index} 분할 완료:`, {
-        원본: targetSceneScript.script.substring(0, 50),
-        분할된_씬_수: splitSceneScripts.length,
-        분할된_씬들: splitSceneScripts.map((s, i) => `${i + 1}: "${s.script.substring(0, 30)}..."`)
-      })
 
       // 분할된 씬들은 같은 sceneId를 유지하여 UI에서 그룹화되도록 함
       // splitIndex로 구분되므로 재생 시에는 각각 독립적인 씬으로 처리됨
@@ -126,7 +115,6 @@ export function useSceneEditHandlers({
       updatedSplitTimelineScenes.forEach((_, idx) => {
         changedScenesRef.current.add(index + idx)
       })
-      console.log(`[SceneSplit] 분할된 씬들 변경 상태로 표시 (재생 시 강제 재생성)`)
 
       // 스크립트가 변경되었으므로 해당 씬의 TTS 캐시 무효화
       invalidateSceneTtsCache(index)
@@ -316,7 +304,6 @@ export function useSceneEditHandlers({
         if (updatedSceneScript.script !== duplicatedSceneScript.script && updatedTimelineScene) {
           duplicatedSceneScript = updatedSceneScript
           duplicatedTimelineScene = updatedTimelineScene
-          console.log(`[SceneDuplicate] 씬 ${index} 복사 후 자동 분할 완료`)
         }
       }
 
@@ -360,7 +347,6 @@ export function useSceneEditHandlers({
 
       // 복사된 씬을 변경 상태로 표시 (재생 시 강제 재생성)
       changedScenesRef.current.add(insertIndex)
-      console.log(`[SceneDuplicate] 씬 ${insertIndex} 변경 상태로 표시 (재생 시 강제 재생성)`)
 
       // 스크립트가 변경되었으므로 해당 씬의 TTS 캐시 무효화
       invalidateSceneTtsCache(insertIndex)

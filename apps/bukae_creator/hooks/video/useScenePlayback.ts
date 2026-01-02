@@ -133,20 +133,10 @@ export async function playSceneLogic({
     const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
     if (firstSceneIndexInGroup >= 0) {
       targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
-      if (targetTextObj) {
-        console.log(`[playSceneLogic] 최초 텍스트 객체 확인 (같은 그룹 첫 번째 씬 ${firstSceneIndexInGroup}): "${targetTextObj.text.substring(0, 50)}..."`)
-      }
     }
   }
   if (!targetTextObj) {
     targetTextObj = textsRef.current.get(sceneIndex) || null
-    if (targetTextObj) {
-      console.log(`[playSceneLogic] 최초 텍스트 객체 확인 (현재 씬 ${sceneIndex}): "${targetTextObj.text.substring(0, 50)}..."`)
-    }
-  }
-  
-  if (!targetTextObj) {
-    console.log(`[playSceneLogic] 최초 텍스트 객체 없음 | 씬 ${sceneIndex}, sceneId: ${sceneId}, timeline 텍스트: "${scene.text?.content?.substring(0, 50) || '없음'}..."`)
   }
   
   const targetSprite = spritesRef.current.get(sceneIndex) || null
@@ -242,7 +232,6 @@ export async function playSceneLogic({
         updateTimeline: false, // 재생 중에는 timeline 업데이트 안함 (다른 함수 영향 방지)
         prepareOnly: true, // alpha: 0으로 준비만
         onComplete: () => {
-          console.log(`[playSceneLogic] 씬 ${sceneIndex} 이미지/자막 준비 완료`)
           resolve()
         },
       })
@@ -252,7 +241,6 @@ export async function playSceneLogic({
     await new Promise<void>((resolve) => {
       prepareImageAndSubtitle(sceneIndex, 0, {
         onComplete: () => {
-          console.log(`[playSceneLogic] 씬 ${sceneIndex} 이미지/자막 준비 완료`)
           resolve()
         },
       })
@@ -261,15 +249,12 @@ export async function playSceneLogic({
 
   // 3. TTS 재생 함수 정의 (renderSceneContent의 onComplete에서 호출)
   const playTts = async (): Promise<void> => {
-    console.log(`[playSceneLogic] playTts 호출됨 | sceneIndex: ${sceneIndex}`)
     try {
       // 원본 텍스트 저장
       const originalText = scene.text?.content || ''
-      console.log(`[playSceneLogic] playTts | originalText: "${originalText.substring(0, 50)}..."`)
 
       // ||| 기준으로 텍스트 배열로 나누기
       const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
-      console.log(`[playSceneLogic] playTts | scriptParts.length: ${scriptParts.length}`)
 
       if (scriptParts.length === 0) {
         // TTS가 없으면 fallback duration 사용
@@ -291,7 +276,6 @@ export async function playSceneLogic({
       const playPart = async (partIndex: number): Promise<void> => {
         // AbortSignal 체크
         if (abortSignal?.aborted) {
-          console.log(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex} 재생 중지됨`)
           return
         }
 
@@ -313,10 +297,13 @@ export async function playSceneLogic({
           return
         }
 
-        // 자막 즉시 표시 (음성 재생과 동시에)
+        // 자막 즉시 표시 (음성 재생과 동시에, 애니메이션 없이)
         if (currentPartText) {
           renderSubtitlePart(sceneIndex, partIndex, {
             skipAnimation: true,
+            onComplete: () => {
+              // 자막 업데이트 완료 (추가 렌더링 없음)
+            },
           })
         }
 
@@ -354,10 +341,8 @@ export async function playSceneLogic({
 
         // 키로 찾지 못했으면 마크업으로 직접 검색 시도
         if (!cached) {
-          console.warn(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} 키로 캐시를 찾지 못함, 마크업으로 검색 시도`)
-          for (const [cacheKey, cacheValue] of ttsCacheRef.current.entries()) {
+          for (const [, cacheValue] of ttsCacheRef.current.entries()) {
             if (cacheValue.markup === markup) {
-              console.log(`[playSceneLogic] 마크업으로 캐시 발견! 키: "${cacheKey.substring(0, 200)}..."`)
               cached = cacheValue
               break
             }
@@ -379,11 +364,9 @@ export async function playSceneLogic({
           
           // ensureSceneTts가 있으면 동적으로 TTS 생성 시도
           if (ensureSceneTts && changedScenesRef) {
-            console.log(`[playSceneLogic] 씬 ${sceneIndex} TTS 동적 생성 시작`)
             try {
               const forceRegenerate = changedScenesRef.current.has(sceneIndex)
               const ttsResult = await ensureSceneTts(sceneIndex, abortSignal, forceRegenerate)
-              console.log(`[playSceneLogic] 씬 ${sceneIndex} TTS 동적 생성 완료: ${ttsResult.parts.length}개 구간`)
               
               // 생성된 TTS를 캐시에 저장
               const markups = buildSceneMarkup(timeline, sceneIndex)
@@ -402,7 +385,6 @@ export async function playSceneLogic({
                     sceneIndex,
                   }
                   ttsCacheRef.current.set(partKey, cacheEntry)
-                  console.log(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${i + 1} 동적 생성 후 캐시 저장 완료`)
                 }
               }
               
@@ -412,7 +394,6 @@ export async function playSceneLogic({
                 // 마크업으로 다시 검색
                 for (const [, cacheValue] of ttsCacheRef.current.entries()) {
                   if (cacheValue.markup === markup) {
-                    console.log(`[playSceneLogic] 동적 생성 후 마크업으로 캐시 발견!`)
                     cached = cacheValue
                     break
                   }
@@ -495,7 +476,6 @@ export async function playSceneLogic({
             const handleEnded = () => {
               audio.removeEventListener('ended', handleEnded)
               audio.removeEventListener('error', handleError)
-              console.log(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} 오디오 재생 완료`)
               stopTtsAudio()
               resolve()
             }
@@ -513,7 +493,6 @@ export async function playSceneLogic({
 
             // 재생 중지 상태 확인
             if (abortSignal?.aborted || (isPlayingRef && !isPlayingRef.current)) {
-              console.log(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} 재생 중지됨 (play() 호출 전)`)
               audio.removeEventListener('ended', handleEnded)
               audio.removeEventListener('error', handleError)
               stopTtsAudio()
@@ -523,10 +502,8 @@ export async function playSceneLogic({
 
             audio.play().catch((error) => {
               // AbortError는 재생 중지로 인한 정상적인 경우이므로 무시
-              if (error.name === 'AbortError' || error.message?.includes('interrupted')) {
-                console.log(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} 재생 중단됨 (정상)`)
-              } else {
-              console.error(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} audio.play() 실패:`, error)
+              if (error.name !== 'AbortError' && !error.message?.includes('interrupted')) {
+                console.error(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} audio.play() 실패:`, error)
               }
               audio.removeEventListener('ended', handleEnded)
               audio.removeEventListener('error', handleError)
@@ -547,11 +524,9 @@ export async function playSceneLogic({
 
         if (partIndex < scriptParts.length - 1) {
           // 같은 씬의 다음 구간 재생
-          console.log(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} 완료, 다음 구간 ${partIndex + 2}로 이동`)
           await playPart(partIndex + 1)
         } else {
           // 모든 구간 재생 완료
-          console.log(`[playSceneLogic] 씬 ${sceneIndex} 모든 구간 재생 완료`)
           if (onNextScene) {
             onNextScene()
           } else if (onComplete) {
@@ -592,7 +567,6 @@ export async function playSceneLogic({
         prepareOnly: true, // alpha: 0으로 준비만
         isPlaying: true, // 재생 중임을 명시
         onComplete: () => {
-          console.log(`[playSceneLogic] 씬 ${sceneIndex} 이미지/자막 준비 완료`)
           resolve()
         },
       })
@@ -611,7 +585,6 @@ export async function playSceneLogic({
       isPlaying: true, // 재생 중임을 명시
       skipImage: true, // 이미지 렌더링 스킵 (전환 효과와 자막만 렌더링)
       onComplete: () => {
-        console.log(`[playSceneLogic] 씬 ${sceneIndex} 전환 효과/자막 렌더링 완료`)
         // lastRenderedSceneIndexRef 업데이트는 전환 효과 완료 후에
         lastRenderedSceneIndexRef.current = sceneIndex
         setCurrentSceneIndex(sceneIndex)
@@ -625,7 +598,6 @@ export async function playSceneLogic({
     currentSceneIndexRef.current = sceneIndex
     
     // 전환 효과와 동시에 TTS 재생 시작 (await하지 않음)
-    console.log(`[playSceneLogic] 씬 ${sceneIndex} 전환 효과와 동시에 TTS 재생 시작 | skipAnimation: ${skipAnimation}, transition: ${transition}`)
     await playTts()
   } else {
     // fallback: 기존 방식 (renderSceneContent가 없는 경우)
@@ -634,18 +606,14 @@ export async function playSceneLogic({
       skipAnimation,
       forceTransition: transition,
       previousIndex: previousSceneIndex,
-      onComplete: () => {
-        console.log(`[playSceneLogic] 씬 ${sceneIndex} 이미지 전환 효과 완료`)
-      },
+      onComplete: () => {},
       prepareOnly: false,
     })
 
     // 2. 첫 번째 구간 자막 렌더링 시작
     renderSubtitlePart(sceneIndex, 0, {
       skipAnimation,
-      onComplete: () => {
-        console.log(`[playSceneLogic] 씬 ${sceneIndex} 첫 번째 구간 자막 렌더링 완료`)
-      },
+      onComplete: () => {},
     })
 
     // lastRenderedSceneIndexRef 업데이트

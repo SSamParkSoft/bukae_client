@@ -126,7 +126,6 @@ export function useSceneNavigation({
     skipStopPlaying: boolean = false,
     onTransitionComplete?: () => void
   ) => {
-    console.log(`[selectScene] 호출됨 | index: ${index}, skipStopPlaying: ${skipStopPlaying}, isPlaying: ${isPlayingRef.current}`)
     if (!timeline) return
     
     // 재생 중이 아니거나 skipStopPlaying이 false일 때만 재생 중지 (즉시 정지)
@@ -245,26 +244,19 @@ export function useSceneNavigation({
     
     // 같은 그룹 내 다음 씬으로 자동 전환하는 함수
     const autoAdvanceToNextInGroup = (currentIdx: number) => {
-      console.log(`[handleSceneSelect] autoAdvanceToNextInGroup 호출: currentIdx=${currentIdx}, voiceTemplate=${!!voiceTemplate}, isPlaying=${isPlayingRef.current}`)
-      
       if (isPlayingRef.current) {
-        console.log(`[handleSceneSelect] 재생 중이므로 자동 전환 중지`)
         return
       }
       
       const currentScene = timeline.scenes[currentIdx]
       if (!currentScene) {
-        console.log(`[handleSceneSelect] currentScene이 null입니다`)
         return
       }
       
       const nextScene = currentIdx + 1 < timeline.scenes.length ? timeline.scenes[currentIdx + 1] : null
       const isNextInSameGroup = nextScene && nextScene.sceneId === currentScene.sceneId
       
-      console.log(`[handleSceneSelect] 다음 씬 확인: nextScene=${!!nextScene}, isNextInSameGroup=${isNextInSameGroup}, currentSceneId=${currentScene.sceneId}, nextSceneId=${nextScene?.sceneId}`)
-      
       if (!isNextInSameGroup) {
-        console.log(`[handleSceneSelect] 같은 그룹 내 다음 씬이 없으므로 종료`)
         return
       }
       

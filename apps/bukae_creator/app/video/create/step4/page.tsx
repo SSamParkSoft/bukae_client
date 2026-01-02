@@ -18,6 +18,7 @@ import { usePixiEditor } from '@/hooks/video/usePixiEditor'
 import { useVideoPlayback } from '@/hooks/video/useVideoPlayback'
 import { useSceneNavigation } from '@/hooks/video/useSceneNavigation'
 import { playSceneLogic } from '@/hooks/video/useScenePlayback'
+import { useGroupPlayback } from '@/hooks/video/useGroupPlayback'
 import { useTimelineInitializer } from '@/hooks/video/useTimelineInitializer'
 import { useGridManager } from '@/hooks/video/useGridManager'
 import { useCanvasSize } from '@/hooks/video/useCanvasSize'
@@ -137,7 +138,6 @@ export default function Step4Page() {
   // setSelectedPart를 래핑하여 selectedPartRef도 함께 업데이트
   const setSelectedPart = useCallback((part: { sceneIndex: number; partIndex: number } | null) => {
     selectedPartRef.current = part
-    console.log(`[setSelectedPart] selectedPartRef 업데이트 | sceneIndex: ${part?.sceneIndex}, partIndex: ${part?.partIndex}`)
     setSelectedPartState(part)
   }, [])
 
@@ -850,6 +850,12 @@ export default function Step4Page() {
     (sceneIndex: number) => buildSceneMarkup(timeline, sceneIndex),
     [timeline]
   )
+  
+  // useGroupPlayback용 래퍼 (timeline을 파라미터로 받음)
+  const buildSceneMarkupWithTimeline = useCallback(
+    (timelineParam: TimelineData | null, sceneIndex: number) => buildSceneMarkup(timelineParam, sceneIndex),
+    []
+  )
 
   // Timeline의 duration을 TTS 캐시의 실제 duration으로 업데이트 (제한 없이 실제 길이 사용)
   useEffect(() => {
@@ -1027,7 +1033,6 @@ export default function Step4Page() {
   // useSceneNavigation이 먼저 선언되어야 하므로, ref를 통해 연결
   // tempSelectScene은 useVideoPlayback에서 사용되며, 나중에 sceneNavigation.selectScene으로 대체됨
   const tempSelectScene = useCallback((index: number, skipStopPlaying: boolean = false, onTransitionComplete?: () => void) => {
-    console.log(`[scene-navigation] selectScene 호출 (temp) | index: ${index}, skipStopPlaying: ${skipStopPlaying}, selectSceneRef.current: ${!!selectSceneRef.current}`)
     if (selectSceneRef.current) {
       selectSceneRef.current(index, skipStopPlaying, onTransitionComplete)
     } else {
@@ -1215,7 +1220,6 @@ export default function Step4Page() {
               sceneIndex,
             }
             videoPlayback.ttsCacheRef.current.set(key, cacheEntry)
-            console.log(`[playAllScenes] 씬 ${sceneIndex} 구간 ${partIndex + 1} 캐시에 명시적으로 저장 완료 (duration: ${part.durationSec}초)`)
           }
         }
       } catch (error) {
@@ -1493,6 +1497,124 @@ export default function Step4Page() {
 
   // 씬 순서 변경 핸들러는 useSceneEditHandlers에서 제공
   const handleSceneReorder = handleSceneReorderFromHook
+
+  // 그룹 재생 훅
+  const groupPlayback = useGroupPlayback({
+    timeline,
+    voiceTemplate,
+    buildSceneMarkup: buildSceneMarkupWithTimeline,
+    makeTtsKey,
+    ttsCacheRef: videoPlayback.ttsCacheRef,
+    ensureSceneTts,
+    renderSceneContent,
+    renderSubtitlePart,
+    setTimeline,
+    setCurrentSceneIndex,
+    currentSceneIndexRef,
+    lastRenderedSceneIndexRef,
+    textsRef,
+    spritesRef,
+    ttsAudioRef: videoPlayback.ttsAudioRef,
+    ttsAudioUrlRef: videoPlayback.ttsAudioUrlRef,
+    renderSceneImage,
+    prepareImageAndSubtitle,
+    setCurrentTime,
+    changedScenesRef,
+    isPlayingRef,
+    setIsPreparing,
+    setIsTtsBootstrapping,
+  })
+
+  // 그룹 복사 핸들러
+  const handleGroupDuplicate = useCallback((sceneId: number, groupIndices: number[]) => {
+    if (!timeline || scenes.length === 0) return
+
+    // 새로운 sceneId 할당
+    const maxSceneId = Math.max(...scenes.map(s => s.sceneId || 0), ...timeline.scenes.map(s => s.sceneId || 0))
+    const newSceneId = maxSceneId + 1
+
+    // 그룹 내 모든 씬 복사
+    const duplicatedScenes: SceneScript[] = []
+    const duplicatedTimelineScenes: TimelineScene[] = []
+    
+    groupIndices.forEach((index, idx) => {
+      const originalScene = scenes[index]
+      const originalTimelineScene = timeline.scenes[index]
+      
+      duplicatedScenes.push({
+        ...originalScene,
+        sceneId: newSceneId, // 새로운 그룹의 sceneId
+        splitIndex: idx + 1, // splitIndex 재할당 (1부터 시작)
+      })
+      
+      duplicatedTimelineScenes.push({
+        ...originalTimelineScene,
+        sceneId: newSceneId, // 새로운 그룹의 sceneId
+        splitIndex: idx + 1, // splitIndex 재할당
+      })
+    })
+
+    // 그룹의 마지막 씬 다음에 삽입
+    const lastGroupIndex = Math.max(...groupIndices)
+    const insertIndex = lastGroupIndex + 1
+
+    // scenes 배열에 삽입
+    const newScenes = [
+      ...scenes.slice(0, insertIndex),
+      ...duplicatedScenes,
+      ...scenes.slice(insertIndex),
+    ]
+
+    // timeline.scenes 배열에도 삽입
+    const newTimelineScenes = [
+      ...timeline.scenes.slice(0, insertIndex),
+      ...duplicatedTimelineScenes,
+      ...timeline.scenes.slice(insertIndex),
+    ]
+
+    setScenes(newScenes)
+    setTimeline({
+      ...timeline,
+      scenes: newTimelineScenes,
+    })
+
+    // 복사된 그룹의 첫 번째 씬 선택
+    setCurrentSceneIndex(insertIndex)
+    currentSceneIndexRef.current = insertIndex
+
+    // 복사된 씬들을 변경 상태로 표시
+    duplicatedScenes.forEach((_, idx) => {
+      changedScenesRef.current.add(insertIndex + idx)
+      invalidateSceneTtsCache(insertIndex + idx)
+    })
+  }, [scenes, timeline, setScenes, setTimeline, setCurrentSceneIndex, currentSceneIndexRef, invalidateSceneTtsCache, changedScenesRef])
+
+  // 그룹 재생 핸들러 (useGroupPlayback 훅 사용)
+  const handleGroupPlay = useCallback(async (sceneId: number, groupIndices: number[]) => {
+    await groupPlayback.playGroup(sceneId, groupIndices)
+  }, [groupPlayback])
+
+  // 그룹 삭제 핸들러
+  const handleGroupDelete = useCallback((sceneId: number, groupIndices: number[]) => {
+    if (!timeline || scenes.length === 0) return
+
+    // 그룹 내 모든 씬 삭제 (역순으로 삭제하여 인덱스 변경 문제 방지)
+    const sortedIndices = [...groupIndices].sort((a, b) => b - a)
+    
+    let newScenes = [...scenes]
+    let newTimelineScenes = [...timeline.scenes]
+
+    sortedIndices.forEach(index => {
+      newScenes = newScenes.filter((_, i) => i !== index)
+      newTimelineScenes = newTimelineScenes.filter((_, i) => i !== index)
+    })
+
+    setScenes(newScenes)
+    setTimeline({
+      ...timeline,
+      scenes: newTimelineScenes,
+    })
+  }, [timeline, scenes, setScenes, setTimeline])
 
   // PixiJS 컨테이너에 빈 공간 클릭 감지 추가
   useEffect(() => {
@@ -2065,6 +2187,9 @@ export default function Step4Page() {
               onDuplicateScene={handleSceneDuplicate}
               onTtsPreview={handleSceneTtsPreview}
               onSelectPart={sceneNavigation.selectPart}
+              onDuplicateGroup={handleGroupDuplicate}
+              onPlayGroup={handleGroupPlay}
+              onDeleteGroup={handleGroupDelete}
               onPlayScene={async (sceneIndex: number) => {
                 if (!timeline || !voiceTemplate) {
                   return

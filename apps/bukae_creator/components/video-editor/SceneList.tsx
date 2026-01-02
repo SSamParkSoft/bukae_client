@@ -22,6 +22,9 @@ interface SceneListProps {
   onDuplicateScene?: (index: number) => void
   onTtsPreview?: (sceneIndex: number, partIndex?: number) => Promise<void>
   onPlayScene?: (sceneIndex: number) => Promise<void>
+  onDuplicateGroup?: (sceneId: number, groupIndices: number[]) => void
+  onPlayGroup?: (sceneId: number, groupIndices: number[]) => Promise<void>
+  onDeleteGroup?: (sceneId: number, groupIndices: number[]) => void
 }
 
 export function SceneList({
@@ -42,6 +45,9 @@ export function SceneList({
   onTtsPreview,
   onSelectPart,
   onPlayScene,
+  onDuplicateGroup,
+  onPlayGroup,
+  onDeleteGroup,
 }: SceneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
@@ -256,13 +262,68 @@ export function SceneList({
                   
                   {/* 오른쪽: Scene 번호와 전환 효과/이미지 비율 */}
                   <div className="flex flex-col gap-2 flex-1">
-                    {/* Scene 번호 - 위쪽 */}
-                    <span
-                      className="text-sm font-semibold"
-                      style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
-                    >
-                      Scene {group.sceneId}
-                    </span>
+                    {/* Scene 번호와 그룹 액션 버튼 - 위쪽 */}
+                    <div className="flex items-center justify-between">
+                      <span
+                        className="text-sm font-semibold"
+                        style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
+                      >
+                        Scene {group.sceneId}
+                      </span>
+                      
+                      {/* 그룹 액션 버튼들 */}
+                      <div className="flex items-center gap-1">
+                        {onDuplicateGroup && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            className="text-[11px] px-2 py-0 h-6"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onDuplicateGroup(group.sceneId, group.indices)
+                            }}
+                            title="그룹 복사"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </Button>
+                        )}
+                        {onPlayGroup && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            className="text-[11px] px-2 py-0 h-6"
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              if (onPlayGroup) {
+                                await onPlayGroup(group.sceneId, group.indices)
+                              }
+                            }}
+                            title="그룹 재생"
+                          >
+                            <Play className="w-3 h-3" />
+                          </Button>
+                        )}
+                        {onDeleteGroup && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            className="text-[11px] px-2 py-0 h-6 text-red-500 hover:text-red-600 hover:border-red-500"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (confirm('그룹의 모든 씬을 삭제하시겠습니까?')) {
+                                onDeleteGroup(group.sceneId, group.indices)
+                              }
+                            }}
+                            title="그룹 삭제"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                     
                     {/* 전환 효과 및 이미지 비율 - 아래쪽 */}
                     <div className="flex items-center gap-2 text-xs flex-wrap">
@@ -443,8 +504,8 @@ export function SceneList({
                         <Copy className="w-3 h-3" />
                       </Button>
                     )}
-                    {/* 전체 씬 재생 버튼 - 항상 표시 */}
-                    {onPlayScene && (
+                    {/* 전체 씬 재생 버튼 - 씬 분할되지 않은 경우에만 표시 */}
+                    {onPlayScene && !isSplitScene && (
                       <Button
                         type="button"
                         variant="outline"
@@ -506,12 +567,9 @@ export function SceneList({
                         }`}
                         onClick={(e) => {
                           e.stopPropagation()
-                          console.log(`[SceneList] 구간 클릭 | 씬 ${index}, 구간 ${partIndex}, 총 구간 수: ${scriptParts.length}`)
                           if (onSelectPart) {
-                            console.log(`[SceneList] onSelectPart 호출 | 씬 ${index}, 구간 ${partIndex}`)
                             onSelectPart(index, partIndex)
                           } else {
-                            console.log(`[SceneList] onSelectPart가 없어서 onSelect 호출 | 씬 ${index}`)
                             onSelect(index)
                           }
                         }}
