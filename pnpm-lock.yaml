@@ -59,12 +59,6 @@ importers:
       '@radix-ui/react-tabs':
         specifier: ^1.1.13
         version: 1.1.13(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@remotion/player':
-        specifier: ^4.0.398
-        version: 4.0.398(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@remotion/transitions':
-        specifier: ^4.0.398
-        version: 4.0.398(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@splinetool/react-spline':
         specifier: ^4.1.0
         version: 4.1.0(@splinetool/runtime@1.12.28)(next@16.0.10(@babel/core@7.28.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -125,9 +119,6 @@ importers:
       react-dom:
         specifier: 19.2.3
         version: 19.2.3(react@19.2.3)
-      remotion:
-        specifier: ^4.0.398
-        version: 4.0.398(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       sockjs-client:
         specifier: ^1.6.1
         version: 1.6.1
@@ -1110,27 +1101,6 @@ packages:
     resolution: {integrity: sha512-famxyD5emrGGpFuUlgOP6fVW2h/ZaF405G5KDi3zPHzyjAWys/8W6NAVJtNbkCkhedmvL0xOhvt8feGXyXaw5w==}
     peerDependencies:
       react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
-
-  '@remotion/paths@4.0.398':
-    resolution: {integrity: sha512-7S0FhPeGqsUfiXZaSfHgdjwwRD+PFl3XCBuFgR6dhm+f5VNo9gYh1Bq64JVE8cnxhqI8VrglDvxHjsErkoAzgg==}
-
-  '@remotion/player@4.0.398':
-    resolution: {integrity: sha512-CmMvyXc3ZN4bbQO98S6zDIYxbP+g8Ob6gSmL3Bd5YzGX1UUFDxDYQydO0lVen18cB/LlUHc+yOn8pwZ1VH+rhw==}
-    peerDependencies:
-      react: '>=16.8.0'
-      react-dom: '>=16.8.0'
-
-  '@remotion/shapes@4.0.398':
-    resolution: {integrity: sha512-lRzjmQ/0T4G7394PQoSuW++LSx77UqM3JxBcGpM0Hti27vyrGvktAKfDMSFcSouo6M6nFvwYPjs22vST5Md8DQ==}
-    peerDependencies:
-      react: '>=16.8.0'
-      react-dom: '>=16.8.0'
-
-  '@remotion/transitions@4.0.398':
-    resolution: {integrity: sha512-E1P6EDoi/VxXb3yVRBYKjWv9/xz988UlILb3tHE1vnIF21e205/ETtucWXQcS2jHH96TNGwV1P5iNqFZx+wP0g==}
-    peerDependencies:
-      react: '>=16.8.0'
-      react-dom: '>=16.8.0'
 
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
@@ -3071,12 +3041,6 @@ packages:
     resolution: {integrity: sha512-dYqgNSZbDwkaJ2ceRd9ojCGjBq+mOm9LmtXnAnEGyHhN/5R7iDW2TRw3h+o/jCFxus3P2LfWIIiwowAjANm7IA==}
     engines: {node: '>= 0.4'}
 
-  remotion@4.0.398:
-    resolution: {integrity: sha512-AhPord4kHwdlU0Ey4W/pPbPPl0hD0PrQI+uU2oCIf4Nno8huz5/49DVPX5a88Cg2nlHGfBNTcukJSMb1cbbMdQ==}
-    peerDependencies:
-      react: '>=16.8.0'
-      react-dom: '>=16.8.0'
-
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
     engines: {node: '>=0.10.0'}
@@ -4502,28 +4466,6 @@ snapshots:
   '@react-types/shared@3.32.1(react@19.2.3)':
     dependencies:
       react: 19.2.3
-
-  '@remotion/paths@4.0.398': {}
-
-  '@remotion/player@4.0.398(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
-    dependencies:
-      react: 19.2.3
-      react-dom: 19.2.3(react@19.2.3)
-      remotion: 4.0.398(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-
-  '@remotion/shapes@4.0.398(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
-    dependencies:
-      '@remotion/paths': 4.0.398
-      react: 19.2.3
-      react-dom: 19.2.3(react@19.2.3)
-
-  '@remotion/transitions@4.0.398(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
-    dependencies:
-      '@remotion/paths': 4.0.398
-      '@remotion/shapes': 4.0.398(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      react: 19.2.3
-      react-dom: 19.2.3(react@19.2.3)
-      remotion: 4.0.398(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
 
   '@rtsao/scc@1.1.0': {}
 
@@ -6724,11 +6666,6 @@ snapshots:
       get-proto: 1.0.1
       gopd: 1.2.0
       set-function-name: 2.0.2
-
-  remotion@4.0.398(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
-    dependencies:
-      react: 19.2.3
-      react-dom: 19.2.3(react@19.2.3)
 
   require-directory@2.1.1: {}
 
