@@ -51,6 +51,11 @@ interface VideoCreateState {
   videoDescription: string // 영상 상세 설명
   videoHashtags: string[] // 영상 해시태그
   isStepIndicatorCollapsed: boolean // 단계 표시기 접기/펼치기 상태
+  // 저장 제어
+  autoSaveEnabled: boolean // 자동 저장 활성화 여부
+  hasUnsavedChanges: boolean // 저장되지 않은 변경사항이 있는지
+  setAutoSaveEnabled: (enabled: boolean) => void
+  setHasUnsavedChanges: (hasChanges: boolean) => void
   setCurrentStep: (step: number) => void
   addProduct: (product: Product) => void
   removeProduct: (productId: string) => void
@@ -130,6 +135,9 @@ const initialState = {
   videoDescription: '',
   videoHashtags: [],
   isStepIndicatorCollapsed: false,
+  // 저장 제어 초기값
+  autoSaveEnabled: true, // 기본값은 활성화
+  hasUnsavedChanges: false,
 }
 
 export const useVideoCreateStore = create<VideoCreateState>()(
@@ -224,11 +232,36 @@ export const useVideoCreateStore = create<VideoCreateState>()(
       setVideoDescription: (description) => set({ videoDescription: description }),
       setVideoHashtags: (hashtags) => set({ videoHashtags: hashtags }),
       setIsStepIndicatorCollapsed: (collapsed) => set({ isStepIndicatorCollapsed: collapsed }),
+      setAutoSaveEnabled: (enabled) => set({ autoSaveEnabled: enabled }),
+      setHasUnsavedChanges: (hasChanges) => set({ hasUnsavedChanges: hasChanges }),
       reset: () => set(initialState),
     }),
     {
       name: 'bookae-video-create-storage',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => {
+        // 커스텀 storage wrapper: autoSaveEnabled가 false면 저장하지 않음
+        return {
+          getItem: (name: string): string | null => {
+            return localStorage.getItem(name)
+          },
+          setItem: (name: string, value: string): void => {
+            try {
+              const parsed = JSON.parse(value)
+              // autoSaveEnabled가 false면 저장하지 않음
+              if (parsed?.state?.autoSaveEnabled === false) {
+                return
+              }
+              localStorage.setItem(name, value)
+            } catch {
+              // 파싱 실패 시에도 저장 (기존 동작 유지)
+              localStorage.setItem(name, value)
+            }
+          },
+          removeItem: (name: string): void => {
+            localStorage.removeItem(name)
+          },
+        }
+      }),
       // File 객체는 직렬화 불가능하므로 제외
       partialize: (state) => {
         // step2Result의 uploadedVideo는 File 타입이므로 제외

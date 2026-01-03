@@ -25,6 +25,7 @@ export default function Step2Page() {
     setScriptStyle, 
     setTone,
     setCreationMode,
+    setHasUnsavedChanges,
   } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const [expandedConceptId, setExpandedConceptId] = useState<ConceptType | null>(null)
@@ -52,6 +53,7 @@ export default function Step2Page() {
   // 제작 방식 선택
   const handleModeSelect = (mode: CreationMode) => {
     setCreationMode(mode)
+    setHasUnsavedChanges(true)
   }
 
   // 대본 스타일 선택
@@ -76,6 +78,7 @@ export default function Step2Page() {
     setScriptStyle(concept)
     setTone(toneId)
     setExpandedConceptId(concept)
+    setHasUnsavedChanges(true)
     
     // 새로운 선택 시 확정 상태 해제
     setIsStyleConfirmed(false)
