@@ -1,4 +1,13 @@
-// Video API 타입 정의
+/**
+ * Video API DTO (Data Transfer Object) 정의
+ * 
+ * 이 파일의 타입들은 백엔드 API와의 통신을 위한 DTO입니다.
+ * 내부 도메인 로직에서는 사용하지 않고, 반드시 변환 함수를 통해
+ * 도메인 모델로 변환하여 사용해야 합니다.
+ * 
+ * @see lib/types/domain/video.ts - Video 도메인 모델
+ * @see lib/utils/converters/video.ts - 변환 함수
+ */
 
 export type JobType = 'AUTO_CREATE_VIDEO_FROM_DATA'
 

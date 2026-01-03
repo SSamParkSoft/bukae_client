@@ -19,7 +19,6 @@ export default function Step3Page() {
   const router = useRouter()
   const { 
     selectedProducts, 
-    selectedProductResponses,
     selectedImages, 
     setSelectedImages, 
     scriptStyle,
@@ -29,59 +28,24 @@ export default function Step3Page() {
   } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const selectedProduct = selectedProducts[0]
-  const selectedProductResponse = selectedProductResponses?.[0]
 
   // 토큰 검증
   const { isValidatingToken } = useVideoCreateAuth()
   
   // 사용 가능한 이미지 목록
   const availableImages = useMemo(() => {
-    const images: string[] = []
-    
-    // 1. JSON의 imageURL 필드 활용 (우선순위 1)
-    if (selectedProductResponse) {
-      // imageURL 필드가 배열인 경우
-      if (Array.isArray(selectedProductResponse.imageURL)) {
-        images.push(...selectedProductResponse.imageURL.filter(Boolean))
-      } 
-      // imageURL 필드가 문자열인 경우
-      else if (typeof selectedProductResponse.imageURL === 'string' && selectedProductResponse.imageURL) {
-        images.push(selectedProductResponse.imageURL)
-      }
-      
-      // 다른 가능한 필드명들도 확인 (imageUrls, image_url, images 등)
-      const possibleImageFields = [
-        'imageUrls',
-        'image_url',
-        'image_urls',
-        'images',
-        'productImages',
-        'product_images',
-      ]
-      
-      for (const field of possibleImageFields) {
-        const value = (selectedProductResponse as any)[field]
-        if (value) {
-          if (Array.isArray(value)) {
-            images.push(...value.filter(Boolean))
-          } else if (typeof value === 'string') {
-            images.push(value)
-          }
-        }
-      }
+    // Product 도메인 모델의 images 필드 사용
+    if (selectedProduct?.images && selectedProduct.images.length > 0) {
+      return selectedProduct.images
     }
     
-    // 2. 상품 기본 이미지 (우선순위 2)
+    // images가 없으면 대표 이미지 사용
     if (selectedProduct?.image) {
-      images.push(selectedProduct.image)
+      return [selectedProduct.image]
     }
     
-    // 중복 제거
-    const uniqueImages = Array.from(new Set(images))
-    
-    // 상품 이미지만 반환 (더미 이미지 사용 안 함)
-    return uniqueImages
-  }, [selectedProduct, selectedProductResponse])
+    return []
+  }, [selectedProduct])
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)

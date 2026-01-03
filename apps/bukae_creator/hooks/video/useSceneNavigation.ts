@@ -3,7 +3,8 @@
 import { useCallback, useRef } from 'react'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
-import { TimelineData, SceneScript } from '@/store/useVideoCreateStore'
+import type { TimelineData } from '@/lib/types/domain/timeline'
+import type { SceneScript } from '@/lib/types/domain/script'
 import { useTtsResources } from './useTtsResources'
 
 interface UseSceneNavigationParams {

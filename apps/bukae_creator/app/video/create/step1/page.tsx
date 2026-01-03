@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, AlertCircle, Send, ShoppingCart, ExternalLink } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { useVideoCreateStore, Product } from '../../../../store/useVideoCreateStore'
+import { useVideoCreateStore } from '../../../../store/useVideoCreateStore'
+import type { Product } from '@/lib/types/domain/product'
 import { useThemeStore } from '../../../../store/useThemeStore'
 import { useUserStore } from '../../../../store/useUserStore'
 import StepIndicator from '../../../../components/StepIndicator'
@@ -67,16 +68,14 @@ export default function Step1Page() {
     return selectedProducts.some((p) => p.id === productId)
   }
 
-  const handleProductToggle = (product: Product, index?: number) => {
+  const handleProductToggle = (product: Product) => {
     if (isProductSelected(product.id)) {
       // 이미 선택된 상품이면 선택 해제
       removeProduct(product.id)
     } else {
       // 새로운 상품 선택 시 기존 선택 모두 제거 후 새 상품만 선택
       clearProducts()
-      // 원본 ProductResponse 찾기
-      const productResponse = index !== undefined ? currentProductResponses[index] : undefined
-      addProduct(product, productResponse)
+      addProduct(product)
     }
   }
 

@@ -7,7 +7,8 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { useVideoCreateStore, Product } from '../store/useVideoCreateStore'
+import { useVideoCreateStore } from '../store/useVideoCreateStore'
+import type { Product } from '@/lib/types/domain/product'
 import { useThemeStore } from '../store/useThemeStore'
 import type { ProductResponse } from '@/lib/types/products'
 
@@ -19,7 +20,6 @@ interface SelectedProductsPanelProps {
 
 export default function SelectedProductsPanel({ 
   className = '',
-  productResponses = [],
   currentProducts = []
 }: SelectedProductsPanelProps) {
   const router = useRouter()

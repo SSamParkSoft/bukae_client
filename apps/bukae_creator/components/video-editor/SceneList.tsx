@@ -2,7 +2,8 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { GripVertical, Copy, Trash2, Play, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { TimelineData, SceneScript } from '@/store/useVideoCreateStore'
+import type { TimelineData } from '@/lib/types/domain/timeline'
+import type { SceneScript } from '@/lib/types/domain/script'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 
 interface SceneListProps {

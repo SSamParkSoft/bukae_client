@@ -1,4 +1,11 @@
-// Studio - Script API 타입 정의 (백엔드 OpenAPI 스펙 기준)
+/**
+ * Studio Script API DTO (Data Transfer Object) 정의
+ * 백엔드 OpenAPI 스펙 기준
+ * 
+ * 이 파일의 타입들은 백엔드 API와의 통신을 위한 DTO입니다.
+ * 내부 도메인 로직에서는 사용하지 않고, 반드시 변환 함수를 통해
+ * 도메인 모델로 변환하여 사용해야 합니다.
+ */
 
 // 대본 분위기 설정 (INFORMATION: 정보성, ENTERTAINMENT: 예능형, EMPATHY/HEALING: 감정/힐링)
 export type ScriptType = 'ENTERTAINMENT' | 'INFORMATION' | 'EMPATHY' | 'HEALING'

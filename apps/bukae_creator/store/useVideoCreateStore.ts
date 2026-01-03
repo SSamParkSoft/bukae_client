@@ -2,56 +2,13 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { ConceptType } from '@/lib/data/templates'
 import type { AutoScene } from '@/lib/types/video'
-import type { ProductResponse } from '@/lib/types/products'
+// 도메인 모델 import
+import type { Product, Platform } from '@/lib/types/domain/product'
+import type { TimelineData, TimelineScene } from '@/lib/types/domain/timeline'
+import type { SceneScript } from '@/lib/types/domain/script'
+import type { VideoEditData, Step2Result, ScriptMethod, CreationMode } from '@/lib/types/domain/video'
 
-export type Platform = 'coupang' | 'naver' | 'aliexpress' | 'amazon'
-
-export interface Product {
-  id: string
-  name: string
-  price: number
-  image: string
-  platform: Platform
-  url: string
-  description?: string
-}
-
-export interface VideoEditData {
-  title: string
-  effects: string[]
-  productContent: Record<string, string> // 상품별 편집 내용
-}
-
-// 스크립트 생성 방법
-export type ScriptMethod = 'edit' | 'auto'
-
-// STEP2 모드 타입
-export type Step2Mode = 'manual' | 'auto'
-
-// STEP2 결과물 인터페이스
-export interface Step2Result {
-  mode: Step2Mode
-  finalScript: string
-  selectedImages?: string[] // auto 모드용
-  scenes?: AutoScene[] // auto 모드용
-  uploadedVideo?: File // manual 모드용
-  draftVideo: string // AI 초안 영상 경로
-  referenceVideo?: string // DB 추천 영상 경로
-}
-
-// 새로운 프로세스용 타입들
-export type CreationMode = 'manual' | 'auto'
-
-// Scene Script (씬별 대본)
-export interface SceneScript {
-  sceneId: number
-  script: string
-  imageUrl?: string
-  // 이 스크립트가 마지막으로 AI에 의해 생성/갱신되었는지 여부
-  isAiGenerated?: boolean
-  // 씬 분할 시 하위 번호 (1, 2, 3...)
-  splitIndex?: number
-}
+// 타입들은 domain에서 import하므로 여기서는 제거
 
 // Timeline 데이터 구조
 export interface TimelineScene {
@@ -130,7 +87,6 @@ export interface TimelineData {
 interface VideoCreateState {
   currentStep: number
   selectedProducts: Product[]
-  selectedProductResponses: ProductResponse[] // 원본 API 응답 데이터
   videoEditData: VideoEditData | null
   isCreating: boolean
   creationProgress: number
@@ -170,10 +126,9 @@ interface VideoCreateState {
   videoHashtags: string[] // 영상 해시태그
   isStepIndicatorCollapsed: boolean // 단계 표시기 접기/펼치기 상태
   setCurrentStep: (step: number) => void
-  addProduct: (product: Product, productResponse?: ProductResponse) => void
+  addProduct: (product: Product) => void
   removeProduct: (productId: string) => void
   clearProducts: () => void
-  setSelectedProductResponses: (responses: ProductResponse[]) => void
   setVideoEditData: (data: VideoEditData) => void
   setIsCreating: (isCreating: boolean) => void
   setCreationProgress: (progress: number) => void
@@ -256,7 +211,7 @@ export const useVideoCreateStore = create<VideoCreateState>()(
     (set) => ({
       ...initialState,
       setCurrentStep: (step) => set({ currentStep: step }),
-      addProduct: (product, productResponse) =>
+      addProduct: (product) =>
         set((state) => {
           const isSameProductSelected = state.selectedProducts.some((p) => p.id === product.id)
           if (isSameProductSelected) {
@@ -270,9 +225,6 @@ export const useVideoCreateStore = create<VideoCreateState>()(
 
           return {
             selectedProducts: [...state.selectedProducts, product],
-            selectedProductResponses: productResponse 
-              ? [...state.selectedProductResponses, productResponse]
-              : state.selectedProductResponses,
             productNames: { ...state.productNames, [product.id]: product.name },
             productVideos: existingVideos ? { ...state.productVideos, [product.id]: existingVideos } : state.productVideos,
             productImages: existingImages ? { ...state.productImages, [product.id]: existingImages } : state.productImages,
@@ -287,10 +239,6 @@ export const useVideoCreateStore = create<VideoCreateState>()(
           const { [productId]: ____, ...productDetailImages } = state.productDetailImages
           return {
             selectedProducts: state.selectedProducts.filter((p) => p.id !== productId),
-            selectedProductResponses: state.selectedProductResponses.filter((resp) => {
-              const respId = String(resp.productId || resp.id || '')
-              return respId !== productId
-            }),
             productNames,
             productVideos,
             productImages,
@@ -299,13 +247,11 @@ export const useVideoCreateStore = create<VideoCreateState>()(
         }),
       clearProducts: () => set({ 
         selectedProducts: [], 
-        selectedProductResponses: [],
         productNames: {}, 
         productVideos: {}, 
         productImages: {}, 
         productDetailImages: {} 
       }),
-      setSelectedProductResponses: (responses) => set({ selectedProductResponses: responses }),
       setVideoEditData: (data) => set({ videoEditData: data }),
       setIsCreating: (isCreating) => set({ isCreating }),
       setCreationProgress: (progress) => set({ creationProgress: progress }),

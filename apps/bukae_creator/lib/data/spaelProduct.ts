@@ -1,4 +1,4 @@
-import type { Product } from '@/store/useVideoCreateStore'
+import type { Product } from '@/lib/types/domain/product'
 import { convertMediaPathToStorageUrl } from '@/lib/utils/supabase-storage'
 
 export const SPAEL_PRODUCT_ID = 'spael-neck-massager'
