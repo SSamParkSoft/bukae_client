@@ -3,8 +3,8 @@ import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
 
 interface UseBgmManagerParams {
   bgmTemplate: string | null
-  playbackSpeed: number
-  isPlaying: boolean
+  playbackSpeed?: number // 사용되지 않지만 인터페이스 호환성을 위해 유지
+  isPlaying?: boolean // 사용되지 않지만 인터페이스 호환성을 위해 유지
 }
 
 /**
@@ -13,7 +13,9 @@ interface UseBgmManagerParams {
  */
 export function useBgmManager({
   bgmTemplate,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   playbackSpeed,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isPlaying,
 }: UseBgmManagerParams) {
   const [confirmedBgmTemplate, setConfirmedBgmTemplate] = useState<string | null>(bgmTemplate)
@@ -80,7 +82,7 @@ export function useBgmManager({
           stopBgmAudio()
           return
         }
-      } catch (fetchError) {
+      } catch {
         stopBgmAudio()
         return
       }
@@ -140,7 +142,7 @@ export function useBgmManager({
         // audio.load()를 호출하여 메타데이터 로드
         audio.load()
       }
-    } catch (error) {
+    } catch {
       stopBgmAudio()
     }
   }, [stopBgmAudio])
