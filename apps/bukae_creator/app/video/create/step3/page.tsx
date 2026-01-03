@@ -26,6 +26,7 @@ export default function Step3Page() {
     tone,
     setScenes,
     scenes,
+    setHasUnsavedChanges,
   } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const selectedProduct = selectedProducts[0]
@@ -234,6 +235,7 @@ export default function Step3Page() {
       const index = selectedImages.indexOf(imageUrl)
       const newSelectedImages = selectedImages.filter(url => url !== imageUrl)
       setSelectedImages(newSelectedImages)
+      setHasUnsavedChanges(true)
       
       // 해당 씬 스크립트도 제거
       setSceneScripts((prev) => {
@@ -256,6 +258,7 @@ export default function Step3Page() {
     } else {
       // 새 이미지 추가
       setSelectedImages([...selectedImages, imageUrl])
+      setHasUnsavedChanges(true)
       // 대본은 사용자가 명시적으로 버튼을 눌렀을 때만 생성
     }
   }
@@ -290,6 +293,7 @@ export default function Step3Page() {
     newImages.splice(targetIndex, 0, removed)
 
     setSelectedImages(newImages)
+    setHasUnsavedChanges(true)
     
     // 스크립트도 재정렬
     setSceneScripts((prev) => {
@@ -358,6 +362,7 @@ export default function Step3Page() {
       // store는 useEffect를 통해 자동으로 업데이트됨
       return newMap
     })
+    setHasUnsavedChanges(true)
   }
 
   // 다음 단계로 이동

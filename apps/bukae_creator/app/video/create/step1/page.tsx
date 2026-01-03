@@ -35,7 +35,7 @@ interface ChatMessage {
 
 export default function Step1Page() {
   const router = useRouter()
-  const { removeProduct, addProduct, selectedProducts, clearProducts } = useVideoCreateStore()
+  const { removeProduct, addProduct, selectedProducts, clearProducts, setHasUnsavedChanges } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const { getPlatformTrackingId } = useUserStore()
 
@@ -72,10 +72,12 @@ export default function Step1Page() {
     if (isProductSelected(product.id)) {
       // 이미 선택된 상품이면 선택 해제
       removeProduct(product.id)
+      setHasUnsavedChanges(true)
     } else {
       // 새로운 상품 선택 시 기존 선택 모두 제거 후 새 상품만 선택
       clearProducts()
       addProduct(product)
+      setHasUnsavedChanges(true)
     }
   }
 
