@@ -24,7 +24,6 @@ interface UseGroupPlaybackParams {
       updateTimeline?: boolean
       prepareOnly?: boolean
       isPlaying?: boolean
-      skipImage?: boolean
       transitionDuration?: number
     }
   ) => void
@@ -300,7 +299,6 @@ export function useGroupPlayback({
           updateTimeline: false,
           prepareOnly: false,
           isPlaying: true,
-          skipImage: true,
           transitionDuration: totalGroupTtsDuration,
           onComplete: () => {
             lastRenderedSceneIndexRef.current = firstSceneIndexForRender
@@ -549,7 +547,6 @@ export function useGroupPlayback({
           updateTimeline: false,
           prepareOnly: false,
           isPlaying: false,
-          skipImage: false,
         })
       } else {
         // renderSceneContent가 없으면 직접 텍스트만 유지

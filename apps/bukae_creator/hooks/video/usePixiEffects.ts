@@ -41,8 +41,7 @@ export const usePixiEffects = ({
     _previousIndex?: number | null,
     groupTransitionTimelinesRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>,
     sceneId?: number,
-    isPlaying?: boolean, // 재생 중인지 여부
-    skipImage?: boolean // 이미지 렌더링 스킵 (전환 효과 후 이미지 숨김)
+    isPlaying?: boolean // 재생 중인지 여부
   ) => {
     if (!toSprite || !appRef.current || !containerRef.current) {
       return
@@ -56,7 +55,7 @@ export const usePixiEffects = ({
       : true
     void _previousIndex
     
-    // transition이 'none'이면 애니메이션 없이 즉시 표시
+    // transition이 'none'이면 전환 효과가 없으므로 이미지는 렌더링하지 않음 (전환 효과를 통해서만 렌더링)
     if (actualTransition === 'none') {
       // 컨테이너에 추가
       if (toSprite.parent !== containerRef.current) {
@@ -72,9 +71,18 @@ export const usePixiEffects = ({
         containerRef.current.addChild(toText)
       }
       
-      // 즉시 표시
-      toSprite.visible = true
-      toSprite.alpha = 1
+      // 전환 효과가 없을 때: 재생 중이면 이미지 숨김, 편집 모드면 이미지 표시
+      if (isPlaying) {
+        // 재생 중: 전환 효과를 통해서만 렌더링
+        toSprite.visible = false
+        toSprite.alpha = 0
+      } else {
+        // 편집 모드: 이미지 표시
+        toSprite.visible = true
+        toSprite.alpha = 1
+      }
+      
+      // 자막은 항상 표시
       if (toText) {
         toText.visible = true
         toText.alpha = 1
@@ -131,13 +139,29 @@ export const usePixiEffects = ({
     }
 
 
-    // 전환 효과를 보여주려면 이미지가 필요하므로 항상 visible: true로 설정
-    // skipImage가 true이면 전환 효과 완료 후에만 숨김
+    // 편집 모드면 전환 효과 없이 바로 이미지 표시, 재생 중이면 전환 효과 적용
+    if (!isPlaying) {
+      // 편집 모드: 즉시 이미지 표시
+      toSprite.visible = true
+      toSprite.alpha = 1
+      if (toText) {
+        toText.visible = true
+        toText.alpha = 1
+      }
+      // 편집 모드에서는 전환 효과를 건너뛰고 바로 onComplete 호출
+      if (onComplete) {
+        onComplete(toText)
+      }
+      return
+    }
+    
+    // 재생 중: 전환 효과를 보여주려면 이미지가 필요하므로 항상 visible: true로 설정
+    // 전환 효과 완료 후에는 항상 숨김 (전환 효과를 통해서만 렌더링)
     toSprite.visible = true
     toSprite.alpha = 0 // 전환 효과 시작 시 alpha: 0
     if (toText) {
       toText.visible = true
-      toText.alpha = 0
+      toText.alpha = 1 // 자막은 항상 alpha: 1로 표시 (효과 없음)
     }
     
     // 초기 상태 설정 (렌더링은 PixiJS ticker가 처리)
@@ -151,7 +175,7 @@ export const usePixiEffects = ({
         // 이전 씬 인덱스는 updateCurrentScene에서 전달받아야 함
         // 하지만 현재는 직접 접근할 수 없으므로, onComplete 콜백에서 처리하도록 해야 함
         
-        // 그룹 재생 중(skipImage가 true이고 isPlaying이 true)이면 Timeline을 완료하지 않고 계속 진행
+        // 그룹 재생 중(isPlaying이 true)이면 Timeline을 완료하지 않고 계속 진행
         // duration이 끝나도 전환 효과가 끊어지지 않도록 유지
         // 그룹 재생 중에는 이미지가 사라지지 않도록 onComplete를 실행하지 않음
         const isGroupPlayback = isPlaying
@@ -163,36 +187,23 @@ export const usePixiEffects = ({
           return
         }
         
-        // 그룹 재생이 끝났을 때만 이미지 처리
+        // 전환 효과 완료 후: 재생 중이면 이미지 숨김, 편집 모드면 이미지 유지
         if (toSprite) {
-          if (skipImage && !(isPlayingRef?.current ?? false)) {
-            // 그룹 재생이 끝났을 때는 마지막 이미지 유지
-            toSprite.visible = true
-            toSprite.alpha = 1
-          } else if (skipImage) {
-            // skipImage가 true이지만 그룹 재생이 아닌 경우 (일반적으로는 발생하지 않음)
-            // 안전을 위해 이미지 숨김
+          if (isPlaying) {
+            // 재생 중: 전환 효과를 통해서만 렌더링
             toSprite.visible = false
             toSprite.alpha = 0
           } else {
-            // 일반적인 경우
+            // 편집 모드: 이미지 유지
             toSprite.visible = true
             toSprite.alpha = 1
           }
         }
         
-        // 그룹 재생이 끝났을 때 (skipImage가 true이지만 isPlayingRef.current가 false)
-        // 마지막 자막을 유지하기 위해 자막을 숨기지 않음
+        // 자막은 항상 alpha: 1로 표시 (효과 없음)
         if (toText) {
-          if (skipImage) {
-            // 그룹 재생이 끝났을 때는 마지막 자막 유지
-            toText.visible = true
-            toText.alpha = 1
-          } else {
-            // 일반적인 경우: 재생 중일 때도 자막을 전환 효과와 함께 나타나도록 alpha: 0으로 시작 (전환 효과에서 페이드 인)
-            toText.visible = true
-            toText.alpha = 0
-          }
+          toText.visible = true
+          toText.alpha = 1
         }
         // 렌더링은 PixiJS ticker가 처리
         
@@ -227,17 +238,15 @@ export const usePixiEffects = ({
       groupTransitionTimelinesRef.current.set(sceneId, tl)
     }
     
-    // 텍스트는 효과 없이 즉시 표시 (재생 중일 때는 alpha: 0으로 준비)
+    // 텍스트는 효과 없이 항상 alpha: 1로 표시
     const applyTextFade = () => {
       if (!toText) return
-      // 재생 중일 때: alpha: 0으로 준비만 (TTS 재생 시작 시점에 표시)
-      // 재생 중이 아닐 때: 즉시 표시
-      toText.alpha = isPlaying ? 0 : 1
+      // 자막은 항상 alpha: 1로 표시 (효과 없음)
+      toText.alpha = 1
       toText.visible = true
       if (toText.mask) {
         toText.mask = null
       }
-      // 페이드 효과 제거 - 즉시 표시 또는 준비 (렌더링은 PixiJS ticker가 처리)
     }
     
     // 전환 효과별 처리 (이미지만 적용, 텍스트는 항상 페이드)
@@ -256,7 +265,7 @@ export const usePixiEffects = ({
           }
           
           // 전환 효과를 보여주려면 이미지가 필요하므로, 전환 효과가 진행되는 동안에는 이미지가 보여야 함
-          // skipImage가 true이면 전환 효과 완료 후 onComplete에서 숨김
+          // 전환 효과 완료 후 onComplete에서 숨김 (전환 효과를 통해서만 렌더링)
           tl.to(fadeObj, { 
             alpha: 1, 
             duration, 
@@ -271,7 +280,7 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toSprite)
                 }
-                // 전환 효과 중에는 이미지가 보이도록 유지 (skipImage여도 전환 효과를 위해 필요)
+                // 전환 효과 중에는 이미지가 보이도록 유지 (전환 효과를 위해 필요)
                 toSprite.visible = true
                 toSprite.alpha = fadeObj.alpha
               }
@@ -283,8 +292,8 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // 자막은 부드럽게 페이드 인 (깜빡임 방지)
-                toText.alpha = fadeObj.alpha
+                // 자막은 항상 alpha: 1로 표시 (효과 없음)
+                toText.alpha = 1
                 toText.visible = true
               }
             }
@@ -323,7 +332,7 @@ export const usePixiEffects = ({
                 // toSprite가 여전히 유효한지 다시 확인
                 if (toSprite) {
                   toSprite.x = toSlideLeftObj.x
-                  // 전환 효과 중에는 이미지가 보이도록 유지 (skipImage여도 전환 효과를 위해 필요)
+                  // 전환 효과 중에는 이미지가 보이도록 유지 (전환 효과를 위해 필요)
                   toSprite.visible = true
                   toSprite.alpha = 1
                 }
@@ -509,10 +518,8 @@ export const usePixiEffects = ({
           const centerX = originalX + (toSprite.texture.width * originalScaleX) / 2
           const centerY = originalY + (toSprite.texture.height * originalScaleY) / 2
           
-          // 텍스트 페이드 객체 (이미지와 동시에 시작)
-          const textFadeObj = { alpha: 0 }
           if (toText) {
-            toText.alpha = 0
+            toText.alpha = 1 // 자막은 항상 alpha: 1로 표시 (효과 없음)
             toText.visible = true
             if (toText.mask) {
               toText.mask = null
@@ -546,7 +553,7 @@ export const usePixiEffects = ({
                 toSprite.y = centerY - newHeight / 2
               }
               
-              // 텍스트도 동시에 페이드 인
+              // 텍스트도 항상 표시
               if (toText && containerRef.current) {
                 if (!toText.parent || toText.parent !== containerRef.current) {
                   if (toText.parent) {
@@ -554,9 +561,8 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // 자막은 부드럽게 페이드 인 (깜빡임 방지)
-                textFadeObj.alpha = toZoomObj.alpha
-                toText.alpha = textFadeObj.alpha
+                // 자막은 항상 alpha: 1로 표시 (효과 없음)
+                toText.alpha = 1
                 toText.visible = true
               }
               
@@ -578,10 +584,8 @@ export const usePixiEffects = ({
           const centerX = originalX + (toSprite.texture.width * originalScaleX) / 2
           const centerY = originalY + (toSprite.texture.height * originalScaleY) / 2
           
-          // 텍스트 페이드 객체 (이미지와 동시에 시작)
-          const textFadeObj = { alpha: 0 }
           if (toText) {
-            toText.alpha = 0
+            toText.alpha = 1 // 자막은 항상 alpha: 1로 표시 (효과 없음)
             toText.visible = true
             if (toText.mask) {
               toText.mask = null
@@ -615,7 +619,7 @@ export const usePixiEffects = ({
                 toSprite.y = centerY - newHeight / 2
               }
               
-              // 텍스트도 동시에 페이드 인
+              // 텍스트도 항상 표시
               if (toText && containerRef.current) {
                 if (!toText.parent || toText.parent !== containerRef.current) {
                   if (toText.parent) {
@@ -623,9 +627,8 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
-                // 자막은 부드럽게 페이드 인 (깜빡임 방지)
-                textFadeObj.alpha = toZoomOutObj.alpha
-                toText.alpha = textFadeObj.alpha
+                // 자막은 항상 alpha: 1로 표시 (효과 없음)
+                toText.alpha = 1
                 toText.visible = true
               }
               
@@ -665,6 +668,9 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
+                // 자막은 항상 alpha: 1로 표시 (효과 없음)
+                toText.alpha = 1
+                toText.visible = true
               }
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
@@ -950,7 +956,7 @@ export const usePixiEffects = ({
                 toSprite.alpha = defaultFadeObj.alpha
               }
               if (toText) {
-                toText.alpha = defaultFadeObj.alpha
+                toText.alpha = 1 // 자막은 항상 alpha: 1로 표시 (효과 없음)
               }
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }

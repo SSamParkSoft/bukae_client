@@ -109,7 +109,7 @@ export default function Step4Page() {
   const previousSceneIndexRef = useRef<number | null>(null) // useTimelinePlayer와 공유
   const disableAutoTimeUpdateRef = useRef<boolean>(false) // 비디오 재생 중일 때 자동 시간 업데이트 비활성화
   const lastRenderedSceneIndexRef = useRef<number | null>(null) // 전환 효과 추적용 (로컬)
-  const updateCurrentSceneRef = useRef<(skipAnimation?: boolean, explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, skipImage?: boolean, partIndex?: number | null, sceneIndex?: number) => void>(() => {})
+  const updateCurrentSceneRef = useRef<(skipAnimation?: boolean, explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, partIndex?: number | null, sceneIndex?: number) => void>(() => {})
   // Fabric.js refs
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
   const fabricCanvasElementRef = useRef<HTMLCanvasElement | null>(null)
@@ -117,6 +117,12 @@ export default function Step4Page() {
   // State
   const [rightPanelTab, setRightPanelTab] = useState('animation')
   const [editMode, setEditMode] = useState<'none' | 'image' | 'text'>('none')
+  const editModeRef = useRef(editMode)
+  
+  // editMode 변경 시 ref 업데이트
+  useEffect(() => {
+    editModeRef.current = editMode
+  }, [editMode])
   
   // PixiJS 편집 모드일 때는 Fabric.js 편집 비활성화
   const useFabricEditing = false // PixiJS 편집 사용
@@ -305,10 +311,30 @@ export default function Step4Page() {
     }
   }, [setupSpriteDrag, setupTextDrag])
 
-  // 로드 완료 후 드래그 설정 재적용
+  // 로드 완료 후 드래그 설정 재적용 및 핸들 표시
   const handleLoadComplete = useCallback((sceneIndex: number) => {
     const sprite = spritesRef.current.get(sceneIndex)
     const text = textsRef.current.get(sceneIndex)
+    
+    // 편집 모드일 때 스프라이트와 텍스트를 먼저 표시 (핸들을 그리기 전에)
+    const currentEditMode = editModeRef.current
+    // isPlaying은 useTimelinePlayer에서 가져오므로 여기서는 ref를 직접 사용
+    // 재생 중이 아니라고 가정 (편집 모드이므로)
+    const isPlaying = false
+    
+    if (currentEditMode === 'image' || currentEditMode === 'text') {
+      // 재생 중이 아니면 스프라이트와 텍스트를 표시
+      if (!isPlaying) {
+        if (sprite) {
+          sprite.visible = true
+          sprite.alpha = 1
+        }
+        if (text) {
+          text.visible = true
+          text.alpha = 1
+        }
+      }
+    }
     
     if (sprite) {
       setupSpriteDrag(sprite, sceneIndex)
@@ -317,7 +343,54 @@ export default function Step4Page() {
     if (text) {
       setupTextDrag(text, sceneIndex)
     }
-  }, [setupSpriteDrag, setupTextDrag])
+    
+    // 편집 모드일 때 핸들 표시 (updateCurrentScene 완료 후)
+    if (currentEditMode === 'image') {
+      // 이미지 편집 모드일 때는 이미지 핸들만 표시하고 자막 핸들은 제거
+      const existingTextHandles = textEditHandlesRef.current.get(sceneIndex)
+      if (existingTextHandles && existingTextHandles.parent) {
+        existingTextHandles.parent.removeChild(existingTextHandles)
+        textEditHandlesRef.current.delete(sceneIndex)
+      }
+      
+      // 스프라이트가 visible하고 alpha가 0보다 클 때만 핸들 그리기
+      if (sprite && sprite.visible && sprite.alpha > 0) {
+        const existingHandles = editHandlesRef.current.get(sceneIndex)
+        if (!existingHandles || !existingHandles.parent) {
+          try {
+            drawEditHandles(sprite, sceneIndex, handleResize, saveImageTransform)
+            console.log(`[handleLoadComplete] 씬 ${sceneIndex} 이미지 핸들 그려짐`)
+          } catch (error) {
+            console.error('[handleLoadComplete] 이미지 핸들 그리기 실패:', error)
+          }
+        }
+      } else if (sprite) {
+        console.warn(`[handleLoadComplete] 씬 ${sceneIndex} 스프라이트는 있지만 visible하지 않음 (visible: ${sprite.visible}, alpha: ${sprite.alpha})`)
+      }
+    } else if (currentEditMode === 'text') {
+      // 자막 편집 모드일 때는 자막 핸들만 표시하고 이미지 핸들은 제거
+      const existingHandles = editHandlesRef.current.get(sceneIndex)
+      if (existingHandles && existingHandles.parent) {
+        existingHandles.parent.removeChild(existingHandles)
+        editHandlesRef.current.delete(sceneIndex)
+      }
+      
+      // 텍스트가 visible하고 alpha가 0보다 클 때만 핸들 그리기
+      if (text && text.visible && text.alpha > 0) {
+        const existingTextHandles = textEditHandlesRef.current.get(sceneIndex)
+        if (!existingTextHandles || !existingTextHandles.parent) {
+          try {
+            drawTextEditHandles(text, sceneIndex, handleTextResize, saveTextTransform)
+            console.log(`[handleLoadComplete] 씬 ${sceneIndex} 텍스트 핸들 그려짐`)
+          } catch (error) {
+            console.error('[handleLoadComplete] 자막 핸들 그리기 실패:', error)
+          }
+        }
+      } else if (text) {
+        console.warn(`[handleLoadComplete] 씬 ${sceneIndex} 텍스트는 있지만 visible하지 않음 (visible: ${text.visible}, alpha: ${text.alpha})`)
+      }
+    }
+  }, [setupSpriteDrag, setupTextDrag, drawEditHandles, drawTextEditHandles, handleResize, saveImageTransform, handleTextResize, saveTextTransform])
 
   // 재생 상태 ref (usePixiEffects에서 사용하기 위해 먼저 선언)
   const isPlayingRef = useRef(false)
@@ -360,6 +433,9 @@ export default function Step4Page() {
   
   let { updateCurrentScene, syncFabricWithScene, loadAllScenes } = sceneManagerResult1
   
+  // loadAllScenes가 항상 정의되도록 보장 (초기화되지 않은 경우를 대비)
+  const loadAllScenesStable = loadAllScenes || (async () => {})
+  
   // updateCurrentScene을 ref로 감싸서 안정적인 참조 유지
   updateCurrentSceneRef.current = updateCurrentScene
 
@@ -383,10 +459,11 @@ export default function Step4Page() {
   // timeline의 scenes 배열 길이나 구조가 변경될 때만 loadAllScenes 호출
   const timelineScenesLengthRef = useRef<number>(0)
   const timelineScenesRef = useRef<any[]>([])
+  const loadAllScenesCompletedRef = useRef<boolean>(false) // loadAllScenes 완료 여부 추적
 
   // Pixi와 타임라인이 모두 준비되면 씬 로드
   useEffect(() => {
-    if (!pixiReady || !appRef.current || !containerRef.current || !timeline || timeline.scenes.length === 0) {
+    if (!pixiReady || !appRef.current || !containerRef.current || !timeline || timeline.scenes.length === 0 || !loadAllScenesStable) {
       return
     }
     
@@ -429,51 +506,124 @@ export default function Step4Page() {
 
     // 다음 프레임에 실행하여 ref가 확실히 설정된 후 실행
     requestAnimationFrame(async () => {
-      await loadAllScenes()
-      // loadAllScenes 완료 후 현재 씬 표시
-      // 그룹 재생 중이면 이미지 렌더링 스킵
-      setTimeout(() => {
-        const sceneIndex = currentSceneIndexRef.current
-        if (appRef.current && containerRef.current) {
-          // 재생 중이면 이미지 렌더링 스킵 (그룹 재생 중일 수 있음)
-          const isPlaying = isPlayingRef?.current || false
-          
-          // 모든 씬 숨기기
-          spritesRef.current.forEach((sprite) => {
-            if (sprite) {
-              sprite.visible = false
-              sprite.alpha = 0
+      // loadAllScenesStable은 이미 위에서 체크했으므로 안전하게 사용 가능
+      loadAllScenesCompletedRef.current = false
+      await loadAllScenesStable()
+      
+      // loadAllScenes 완료 후 spritesRef와 textsRef 상태 확인
+      const sceneIndex = currentSceneIndexRef.current
+      const spriteAfterLoad = spritesRef.current.get(sceneIndex)
+      const textAfterLoad = textsRef.current.get(sceneIndex)
+      console.log(`[loadAllScenes 완료] 씬 ${sceneIndex} - 스프라이트: ${spriteAfterLoad ? '있음' : '없음'}, 텍스트: ${textAfterLoad ? '있음' : '없음'}, 전체 스프라이트 수: ${spritesRef.current.size}, 전체 텍스트 수: ${textsRef.current.size}`)
+      
+      loadAllScenesCompletedRef.current = true
+      
+      // loadAllScenes 완료 후 updateCurrentScene이 호출되므로, 
+      // updateCurrentScene 완료를 기다린 후 핸들을 그려야 함
+      // useSceneManager의 loadAllScenes는 requestAnimationFrame 내부에서 updateCurrentScene을 호출하므로
+      // 여러 프레임을 기다려야 함
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (appRef.current && containerRef.current) {
+              // 재생 중이면 이미지 렌더링 스킵 (그룹 재생 중일 수 있음)
+              const isPlaying = isPlayingRef?.current || false
+              
+              // 재생 중이 아니면 현재 씬만 표시
+              if (!isPlaying) {
+                const currentSprite = spritesRef.current.get(sceneIndex)
+                const currentText = textsRef.current.get(sceneIndex)
+                
+                // updateCurrentScene 호출 후 스프라이트와 텍스트 상태 확인
+                console.log(`[loadAllScenes 후 씬 표시] 씬 ${sceneIndex} - 스프라이트: ${currentSprite ? '있음' : '없음'}, 텍스트: ${currentText ? '있음' : '없음'}`)
+                
+                if (currentSprite) {
+                  currentSprite.visible = true
+                  currentSprite.alpha = 1
+                }
+                if (currentText) {
+                  currentText.visible = true
+                  currentText.alpha = 1
+                }
+              }
+              // 렌더링은 PixiJS ticker가 처리
+              
+              // lastRenderedSceneIndexRef 초기화 (전환 효과 추적용)
+              lastRenderedSceneIndexRef.current = sceneIndex
+              previousSceneIndexRef.current = sceneIndex
+              
+              // 편집 모드일 때 핸들 다시 표시 (editMode는 ref로 확인)
+              // updateCurrentScene 호출 후 핸들을 그리도록 함
+              const currentEditMode = editModeRef.current
+              if (currentEditMode === 'image') {
+                // 이미지 편집 모드일 때는 이미지 핸들만 표시하고 자막 핸들은 제거
+                const currentSprite = spritesRef.current.get(sceneIndex)
+                const currentText = textsRef.current.get(sceneIndex)
+                
+                // 자막 핸들 제거
+                const existingTextHandles = textEditHandlesRef.current.get(sceneIndex)
+                if (existingTextHandles && existingTextHandles.parent) {
+                  existingTextHandles.parent.removeChild(existingTextHandles)
+                  textEditHandlesRef.current.delete(sceneIndex)
+                }
+                
+                if (!currentSprite) {
+                  console.warn(`[loadAllScenes 후 핸들 표시] 씬 ${sceneIndex}의 스프라이트가 없습니다.`)
+                  return
+                }
+                
+                const existingHandles = editHandlesRef.current.get(sceneIndex)
+                if (!existingHandles || !existingHandles.parent) {
+                  try {
+                    drawEditHandlesRef.current(currentSprite, sceneIndex, handleResizeRef.current, saveImageTransformRef.current)
+                    console.log(`[loadAllScenes 후 핸들 표시] 씬 ${sceneIndex} 이미지 핸들 그려짐`)
+                  } catch (error) {
+                    console.error('[loadAllScenes 후 핸들 표시] 이미지 핸들 그리기 실패:', error)
+                  }
+                }
+                try {
+                  setupSpriteDragRef.current(currentSprite, sceneIndex)
+                } catch (error) {
+                  console.error('[loadAllScenes 후 핸들 표시] 이미지 드래그 설정 실패:', error)
+                }
+              } else if (currentEditMode === 'text') {
+                // 자막 편집 모드일 때는 자막 핸들만 표시하고 이미지 핸들은 제거
+                const currentSprite = spritesRef.current.get(sceneIndex)
+                const currentText = textsRef.current.get(sceneIndex)
+                
+                // 이미지 핸들 제거
+                const existingHandles = editHandlesRef.current.get(sceneIndex)
+                if (existingHandles && existingHandles.parent) {
+                  existingHandles.parent.removeChild(existingHandles)
+                  editHandlesRef.current.delete(sceneIndex)
+                }
+                
+                if (!currentText) {
+                  console.warn(`[loadAllScenes 후 핸들 표시] 씬 ${sceneIndex}의 텍스트가 없습니다.`)
+                  return
+                }
+                
+                const existingTextHandles = textEditHandlesRef.current.get(sceneIndex)
+                if (!existingTextHandles || !existingTextHandles.parent) {
+                  try {
+                    drawTextEditHandlesRef.current(currentText, sceneIndex, handleTextResizeRef.current, saveTextTransformRef.current)
+                    console.log(`[loadAllScenes 후 핸들 표시] 씬 ${sceneIndex} 텍스트 핸들 그려짐`)
+                  } catch (error) {
+                    console.error('[loadAllScenes 후 핸들 표시] 자막 핸들 그리기 실패:', error)
+                  }
+                }
+                try {
+                  setupTextDragRef.current(currentText, sceneIndex)
+                } catch (error) {
+                  console.error('[loadAllScenes 후 핸들 표시] 자막 드래그 설정 실패:', error)
+                }
+              }
             }
           })
-          textsRef.current.forEach((text) => {
-            if (text) {
-              text.visible = false
-              text.alpha = 0
-            }
-          })
-          
-          // 재생 중이 아니면 현재 씬만 표시
-          if (!isPlaying) {
-            const currentSprite = spritesRef.current.get(sceneIndex)
-            const currentText = textsRef.current.get(sceneIndex)
-            if (currentSprite) {
-              currentSprite.visible = true
-              currentSprite.alpha = 1
-            }
-            if (currentText) {
-              currentText.visible = true
-              currentText.alpha = 1
-            }
-          }
-          // 렌더링은 PixiJS ticker가 처리
-          
-          // lastRenderedSceneIndexRef 초기화 (전환 효과 추적용)
-          lastRenderedSceneIndexRef.current = sceneIndex
-          previousSceneIndexRef.current = sceneIndex
-        }
-      }, 100)
+        })
+      })
     })
-  }, [pixiReady, timeline, loadAllScenes])
+  }, [pixiReady, timeline, loadAllScenesStable])
 
   // Fabric 씬 동기화
   useEffect(() => {
@@ -624,7 +774,6 @@ export default function Step4Page() {
       updateTimeline?: boolean
       prepareOnly?: boolean
       isPlaying?: boolean
-      skipImage?: boolean
     }
   ) => {
     if (renderSceneContentFromManager) {
@@ -695,14 +844,7 @@ export default function Step4Page() {
               targetTextObj.alpha = 1
             }
             
-            // 스프라이트 표시 (skipImage가 true이면 스킵)
-            if (!options?.skipImage) {
-              const currentSprite = spritesRef.current.get(sceneIndex)
-              if (currentSprite) {
-                currentSprite.visible = true
-                currentSprite.alpha = 1
-              }
-            }
+            // 이미지는 전환 효과를 통해서만 렌더링되므로 여기서는 처리하지 않음
             
             // 같은 씬 내 구간 전환인 경우: 자막만 업데이트 (전환 효과 없음)
             if (isSameSceneTransition) {
@@ -750,7 +892,6 @@ export default function Step4Page() {
           }
         },
         options?.isPlaying ?? false, // isPlaying 옵션 전달
-        options?.skipImage, // skipImage 옵션 전달
         partIndex, // partIndex 전달
         sceneIndex // sceneIndex 전달
       )
@@ -1519,16 +1660,22 @@ export default function Step4Page() {
     })
   }, [timeline, scenes, setScenes, setTimeline])
 
-  // PixiJS 컨테이너에 빈 공간 클릭 감지 추가
+  // PixiJS 컨테이너에 빈 공간 클릭 감지 추가 (canvas 요소에 직접 이벤트 추가)
   useEffect(() => {
     if (!containerRef.current || !appRef.current || useFabricEditing || !pixiReady) return
 
-    const container = containerRef.current
     const app = appRef.current
+    const canvas = app.canvas
 
-    // 컨테이너에 클릭 이벤트 추가 (빈 공간 클릭 감지)
-    const handleContainerClick = (e: PIXI.FederatedPointerEvent) => {
-      // 클릭한 위치에서 hit test 수행
+    // canvas 요소에 직접 클릭 이벤트 추가 (스프라이트/텍스트의 stopPropagation과 무관하게 작동)
+    const handleCanvasClick = (e: MouseEvent) => {
+      // 마우스 좌표를 PixiJS 좌표로 변환
+      const rect = canvas.getBoundingClientRect()
+      const scaleX = app.screen.width / rect.width
+      const scaleY = app.screen.height / rect.height
+      const pixiX = (e.clientX - rect.left) * scaleX
+      const pixiY = (e.clientY - rect.top) * scaleY
+
       const clickedSprite = spritesRef.current.get(currentSceneIndexRef.current)
       const clickedText = textsRef.current.get(currentSceneIndexRef.current)
       
@@ -1536,29 +1683,29 @@ export default function Step4Page() {
       const clickedOnHandle = editHandlesRef.current.get(currentSceneIndexRef.current)?.children.some(handle => {
         if (handle instanceof PIXI.Graphics) {
           const handleBounds = handle.getBounds()
-          return e.global.x >= handleBounds.x && e.global.x <= handleBounds.x + handleBounds.width &&
-                 e.global.y >= handleBounds.y && e.global.y <= handleBounds.y + handleBounds.height
+          return pixiX >= handleBounds.x && pixiX <= handleBounds.x + handleBounds.width &&
+                 pixiY >= handleBounds.y && pixiY <= handleBounds.y + handleBounds.height
         }
         return false
       }) || textEditHandlesRef.current.get(currentSceneIndexRef.current)?.children.some(handle => {
         if (handle instanceof PIXI.Graphics) {
           const handleBounds = handle.getBounds()
-          return e.global.x >= handleBounds.x && e.global.x <= handleBounds.x + handleBounds.width &&
-                 e.global.y >= handleBounds.y && e.global.y <= handleBounds.y + handleBounds.height
+          return pixiX >= handleBounds.x && pixiX <= handleBounds.x + handleBounds.width &&
+                 pixiY >= handleBounds.y && pixiY <= handleBounds.y + handleBounds.height
         }
         return false
       })
 
       // 스프라이트나 텍스트를 클릭하지 않고, 핸들도 클릭하지 않은 경우 (빈 공간)
       const spriteBounds = clickedSprite?.getBounds()
-      const clickedOnSprite = spriteBounds && 
-        e.global.x >= spriteBounds.x && e.global.x <= spriteBounds.x + spriteBounds.width &&
-        e.global.y >= spriteBounds.y && e.global.y <= spriteBounds.y + spriteBounds.height
+      const clickedOnSprite = clickedSprite && spriteBounds && clickedSprite.visible && clickedSprite.alpha > 0 &&
+        pixiX >= spriteBounds.x && pixiX <= spriteBounds.x + spriteBounds.width &&
+        pixiY >= spriteBounds.y && pixiY <= spriteBounds.y + spriteBounds.height
       
       const textBounds = clickedText?.getBounds()
-      const clickedOnText = textBounds &&
-        e.global.x >= textBounds.x && e.global.x <= textBounds.x + textBounds.width &&
-        e.global.y >= textBounds.y && e.global.y <= textBounds.y + textBounds.height
+      const clickedOnText = clickedText && textBounds && clickedText.visible && clickedText.alpha > 0 &&
+        pixiX >= textBounds.x && pixiX <= textBounds.x + textBounds.width &&
+        pixiY >= textBounds.y && pixiY <= textBounds.y + textBounds.height
       
       if (!clickedOnHandle && !clickedOnSprite && !clickedOnText) {
         // 빈 공간 클릭: 선택 해제 및 편집 모드 종료
@@ -1568,11 +1715,11 @@ export default function Step4Page() {
       }
     }
 
-    container.interactive = true
-    container.on('pointerdown', handleContainerClick)
+    // canvas 요소에 직접 이벤트 리스너 추가 (capture phase에서 처리)
+    canvas.addEventListener('mousedown', handleCanvasClick, true)
 
     return () => {
-      container.off('pointerdown', handleContainerClick)
+      canvas.removeEventListener('mousedown', handleCanvasClick, true)
     }
   }, [containerRef, appRef, useFabricEditing, pixiReady, currentSceneIndexRef, spritesRef, textsRef, editHandlesRef, textEditHandlesRef, setSelectedElementIndex, setSelectedElementType, setEditMode])
 
@@ -1645,6 +1792,23 @@ export default function Step4Page() {
     }
   }, [selectedElementIndex, selectedElementType, editMode])
 
+  // ESC 키로 편집 모드 해제
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // ESC 키를 눌렀을 때 편집 모드 해제
+      if (e.key === 'Escape' && editMode !== 'none') {
+        setEditMode('none')
+        setSelectedElementIndex(null)
+        setSelectedElementType(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [editMode, setEditMode, setSelectedElementIndex, setSelectedElementType])
+
   // 현재 씬 변경 시 드래그 설정 재적용
   useEffect(() => {
     if (!containerRef.current || !timeline) {
@@ -1687,9 +1851,33 @@ export default function Step4Page() {
     }
   }, [currentSceneIndex, timeline, setupSpriteDrag, setupTextDrag, isPlaying, isPreviewingTransition])
 
+  // 편집 핸들러 함수들을 ref로 저장 (dependency array 크기 일정하게 유지)
+  const drawEditHandlesRef = useRef(drawEditHandles)
+  const setupSpriteDragRef = useRef(setupSpriteDrag)
+  const handleResizeRef = useRef(handleResize)
+  const saveImageTransformRef = useRef(saveImageTransform)
+  const drawTextEditHandlesRef = useRef(drawTextEditHandles)
+  const setupTextDragRef = useRef(setupTextDrag)
+  const handleTextResizeRef = useRef(handleTextResize)
+  const saveTextTransformRef = useRef(saveTextTransform)
+  const loadAllScenesRef = useRef(loadAllScenes)
+
+  // 함수 참조가 변경될 때마다 ref 업데이트
+  useEffect(() => {
+    drawEditHandlesRef.current = drawEditHandles
+    setupSpriteDragRef.current = setupSpriteDrag
+    handleResizeRef.current = handleResize
+    saveImageTransformRef.current = saveImageTransform
+    drawTextEditHandlesRef.current = drawTextEditHandles
+    setupTextDragRef.current = setupTextDrag
+    handleTextResizeRef.current = handleTextResize
+    saveTextTransformRef.current = saveTextTransform
+    loadAllScenesRef.current = loadAllScenes
+  }, [drawEditHandles, setupSpriteDrag, handleResize, saveImageTransform, drawTextEditHandles, setupTextDrag, handleTextResize, saveTextTransform, loadAllScenes])
+
   // 편집 모드 변경 시 핸들 표시/숨김
   useEffect(() => {
-    if (!containerRef.current || !timeline) return
+    if (!containerRef.current || !timeline || !pixiReady) return
 
     // 편집 모드가 종료되면 핸들 제거
     if (editMode === 'none') {
@@ -1710,32 +1898,112 @@ export default function Step4Page() {
         setSelectedElementIndex(null)
         setSelectedElementType(null)
       }
-    } else if (editMode === 'image' && selectedElementIndex !== null && selectedElementType === 'image') {
-      // 선택된 이미지 요소가 있으면 핸들 표시 (이미 핸들이 있으면 다시 그리지 않음)
-      const sprite = spritesRef.current.get(selectedElementIndex)
-      if (sprite && sprite.visible) {
-        const existingHandles = editHandlesRef.current.get(selectedElementIndex)
-        if (!existingHandles || !existingHandles.parent) {
-          drawEditHandles(sprite, selectedElementIndex, handleResize, saveImageTransform)
-        }
-        setupSpriteDrag(sprite, selectedElementIndex)
+    } else if (editMode === 'image') {
+      // 이미지 편집 모드일 때는 이미지 핸들만 표시하고 자막 핸들은 제거
+      const currentSceneIndex = timelineCurrentSceneIndex
+      
+      // 자막 핸들 제거
+      const existingTextHandles = textEditHandlesRef.current.get(currentSceneIndex)
+      if (existingTextHandles && existingTextHandles.parent) {
+        existingTextHandles.parent.removeChild(existingTextHandles)
+        textEditHandlesRef.current.delete(currentSceneIndex)
       }
-    } else if (editMode === 'text' && selectedElementIndex !== null && selectedElementType === 'text') {
-      // 선택된 텍스트 요소가 있으면 핸들 표시 (이미 핸들이 있으면 다시 그리지 않음)
-      const text = textsRef.current.get(selectedElementIndex)
-      if (text && text.visible) {
-        const existingHandles = textEditHandlesRef.current.get(selectedElementIndex)
-        if (!existingHandles || !existingHandles.parent) {
-          drawTextEditHandles(text, selectedElementIndex, handleTextResize, saveTextTransform)
+      
+      // 스프라이트가 실제로 존재하는지 확인
+      const sprite = spritesRef.current.get(currentSceneIndex)
+      
+      if (!sprite) {
+        // loadAllScenes가 완료되지 않았으면 나중에 handleLoadComplete에서 처리됨
+        if (!loadAllScenesCompletedRef.current) {
+          console.log(`[핸들 표시] loadAllScenes가 아직 완료되지 않아 나중에 handleLoadComplete에서 처리됩니다. 씬 ${currentSceneIndex}`)
+          return
         }
-        setupTextDrag(text, selectedElementIndex)
+        // loadAllScenes가 완료되었는데도 스프라이트가 없으면 핸들이 이미 그려져 있는지 확인
+        const existingHandles = editHandlesRef.current.get(currentSceneIndex)
+        if (existingHandles?.parent) {
+          // 핸들이 이미 있으면 정상 (handleLoadComplete에서 이미 처리됨)
+          return
+        }
+        return
+      }
+      
+      // 현재 씬의 이미지 핸들 표시
+      // 편집 모드에서는 스프라이트를 먼저 표시한 후 핸들 그리기
+      sprite.visible = true
+      sprite.alpha = 1
+      
+      const existingHandles = editHandlesRef.current.get(currentSceneIndex)
+      if (!existingHandles || !existingHandles.parent) {
+        try {
+          drawEditHandlesRef.current(sprite, currentSceneIndex, handleResizeRef.current, saveImageTransformRef.current)
+          console.log(`[핸들 표시 useEffect] 씬 ${currentSceneIndex} 이미지 핸들 그려짐`)
+        } catch (error) {
+          console.error('[핸들 표시] 이미지 핸들 그리기 실패:', error)
+        }
+      } else {
+        console.log(`[핸들 표시 useEffect] 씬 ${currentSceneIndex} 이미지 핸들이 이미 있음`)
+      }
+      try {
+        setupSpriteDragRef.current(sprite, currentSceneIndex)
+      } catch (error) {
+        console.error('[핸들 표시] 이미지 드래그 설정 실패:', error)
+      }
+    } else if (editMode === 'text') {
+      // 자막 편집 모드일 때는 자막 핸들만 표시하고 이미지 핸들은 제거
+      const currentSceneIndex = timelineCurrentSceneIndex
+      
+      // 이미지 핸들 제거
+      const existingHandles = editHandlesRef.current.get(currentSceneIndex)
+      if (existingHandles && existingHandles.parent) {
+        existingHandles.parent.removeChild(existingHandles)
+        editHandlesRef.current.delete(currentSceneIndex)
+      }
+      
+      // 텍스트가 실제로 존재하는지 확인
+      const text = textsRef.current.get(currentSceneIndex)
+      
+      if (!text) {
+        // loadAllScenes가 완료되지 않았으면 나중에 handleLoadComplete에서 처리됨
+        if (!loadAllScenesCompletedRef.current) {
+          console.log(`[핸들 표시] loadAllScenes가 아직 완료되지 않아 나중에 handleLoadComplete에서 처리됩니다. 씬 ${currentSceneIndex}`)
+          return
+        }
+        // loadAllScenes가 완료되었는데도 텍스트가 없으면 핸들이 이미 그려져 있는지 확인
+        const existingTextHandles = textEditHandlesRef.current.get(currentSceneIndex)
+        if (existingTextHandles?.parent) {
+          // 핸들이 이미 있으면 정상 (handleLoadComplete에서 이미 처리됨)
+          return
+        }
+        return
+      }
+      
+      // 현재 씬의 자막 핸들 표시
+      // 편집 모드에서는 텍스트를 먼저 표시한 후 핸들 그리기
+      text.visible = true
+      text.alpha = 1
+      
+      const existingTextHandles = textEditHandlesRef.current.get(currentSceneIndex)
+      if (!existingTextHandles || !existingTextHandles.parent) {
+        try {
+          drawTextEditHandlesRef.current(text, currentSceneIndex, handleTextResizeRef.current, saveTextTransformRef.current)
+          console.log(`[핸들 표시 useEffect] 씬 ${currentSceneIndex} 텍스트 핸들 그려짐`)
+        } catch (error) {
+          console.error('[핸들 표시] 자막 핸들 그리기 실패:', error)
+        }
+      } else {
+        console.log(`[핸들 표시 useEffect] 씬 ${currentSceneIndex} 텍스트 핸들이 이미 있음`)
+      }
+      try {
+        setupTextDragRef.current(text, currentSceneIndex)
+      } catch (error) {
+        console.error('[핸들 표시] 자막 드래그 설정 실패:', error)
       }
     }
 
     if (appRef.current) {
       // 렌더링은 PixiJS ticker가 처리
     }
-  }, [editMode, selectedElementIndex, selectedElementType, timeline, drawEditHandles, setupSpriteDrag, handleResize, saveImageTransform, drawTextEditHandles, setupTextDrag, handleTextResize, saveTextTransform, editHandlesRef, textEditHandlesRef])
+  }, [editMode, selectedElementIndex, selectedElementType, timeline, timelineCurrentSceneIndex, pixiReady])
 
 
 

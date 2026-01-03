@@ -82,7 +82,6 @@ export async function playSceneLogic({
       updateTimeline?: boolean
       prepareOnly?: boolean
       isPlaying?: boolean
-      skipImage?: boolean
     }
   ) => void
   setCurrentTime?: (time: number) => void
@@ -222,21 +221,9 @@ export async function playSceneLogic({
   const transition = scene.transition || 'fade'
   const skipAnimation = transition === 'none'
 
-  // renderSceneContent 사용: 이미지와 자막을 alpha: 0으로 준비
-  if (renderSceneContent) {
-    await new Promise<void>((resolve) => {
-      renderSceneContent(sceneIndex, 0, {
-        skipAnimation: false, // 준비 단계에서는 애니메이션 스킵
-        forceTransition: transition,
-        previousIndex: previousSceneIndex,
-        updateTimeline: false, // 재생 중에는 timeline 업데이트 안함 (다른 함수 영향 방지)
-        prepareOnly: true, // alpha: 0으로 준비만
-        onComplete: () => {
-          resolve()
-        },
-      })
-    })
-  } else {
+  // prepareOnly 단계 제거: 최종 상태로 바로 렌더링하고 전환 효과 애니메이션만 적용
+  // renderSceneContent가 없으면 prepareImageAndSubtitle 사용 (fallback)
+  if (!renderSceneContent) {
     // fallback: 기존 방식 (renderSceneContent가 없는 경우)
     await new Promise<void>((resolve) => {
       prepareImageAndSubtitle(sceneIndex, 0, {
@@ -556,34 +543,19 @@ export async function playSceneLogic({
 
   // renderSceneContent로 전환 효과 적용 (이미지 + 첫 번째 구간 자막)
   // TTS 재생은 전환 효과 완료 후 시작
+  // prepareOnly 단계 제거: 최종 상태로 바로 렌더링하고 전환 효과 애니메이션만 적용
   if (renderSceneContent) {
-    // 먼저 이미지와 자막을 alpha: 0으로 준비
-    await new Promise<void>((resolve) => {
-      renderSceneContent(sceneIndex, 0, {
-        skipAnimation: false, // 준비 단계에서는 애니메이션 스킵
-        forceTransition: transition,
-        previousIndex: previousSceneIndex !== null ? previousSceneIndex : undefined, // null을 undefined로 변환하여 씬 전환으로 인식
-        updateTimeline: false, // 재생 중에는 timeline 업데이트 안함 (다른 함수 영향 방지)
-        prepareOnly: true, // alpha: 0으로 준비만
-        isPlaying: true, // 재생 중임을 명시
-        onComplete: () => {
-          resolve()
-        },
-      })
-    })
-    
-    // 전환 효과 적용 (prepareOnly: false)
+    // 전환 효과 적용 (최종 상태로 바로 렌더링)
     // previousIndex를 명시적으로 전달하여 씬 전환으로 인식하도록 함
     // 전환 효과와 동시에 TTS 재생 시작 (await하지 않음)
-    // skipImage: true로 설정하여 이미지 렌더링 스킵 (전환 효과와 자막만 렌더링)
+    // 이미지는 전환 효과를 통해서만 렌더링됨 (전환 효과 완료 후 항상 숨김)
     renderSceneContent(sceneIndex, 0, {
       skipAnimation,
       forceTransition: transition,
       previousIndex: previousSceneIndex !== null ? previousSceneIndex : undefined, // null을 undefined로 변환하여 씬 전환으로 인식
       updateTimeline: false, // 재생 중에는 timeline 업데이트 안함 (다른 함수 영향 방지)
-      prepareOnly: false, // 전환 효과 적용 후 표시
+      prepareOnly: false, // 최종 상태로 바로 렌더링 (전환 효과 애니메이션은 usePixiEffects에서 처리)
       isPlaying: true, // 재생 중임을 명시
-      skipImage: true, // 이미지 렌더링 스킵 (전환 효과와 자막만 렌더링)
       onComplete: () => {
         // lastRenderedSceneIndexRef 업데이트는 전환 효과 완료 후에
         lastRenderedSceneIndexRef.current = sceneIndex

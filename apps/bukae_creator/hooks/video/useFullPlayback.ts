@@ -46,7 +46,6 @@ interface UseFullPlaybackParams {
       updateTimeline?: boolean
       prepareOnly?: boolean
       isPlaying?: boolean
-      skipImage?: boolean
       transitionDuration?: number
     }
   ) => void

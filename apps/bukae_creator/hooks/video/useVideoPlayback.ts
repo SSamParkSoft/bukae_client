@@ -14,7 +14,7 @@ interface UseVideoPlaybackParams {
   setCurrentSceneIndex: (index: number) => void
   currentSceneIndexRef: React.MutableRefObject<number>
   lastRenderedSceneIndexRef: React.MutableRefObject<number | null>
-  updateCurrentScene: (skipAnimation?: boolean, prevIndex?: number | null, forceTransition?: string, onComplete?: (sceneIndex?: number) => void, isPlaying?: boolean, skipImage?: boolean, partIndex?: number | null, sceneIndex?: number) => void
+  updateCurrentScene: (skipAnimation?: boolean, prevIndex?: number | null, forceTransition?: string, onComplete?: (sceneIndex?: number) => void, isPlaying?: boolean, partIndex?: number | null, sceneIndex?: number) => void
   setTimeline: (timeline: TimelineData) => void
   buildSceneMarkup: (sceneIndex: number) => string[]
   makeTtsKey: (voice: string, markup: string) => string
@@ -686,7 +686,7 @@ export function useVideoPlayback({
                     lastRenderedSceneIndexRef.current = nextIndex
                     // 같은 그룹 내 씬이므로 전환 효과 없이 바로 TTS 재생 시작
                     void playNextScene(nextIndex)
-                  }, true, undefined, partIndex, nextIndex) // 현재 씬의 첫 번째 구간 인덱스 전달, sceneIndex: nextIndex 전달
+                  }, true, partIndex, nextIndex) // 현재 씬의 첫 번째 구간 인덱스 전달, sceneIndex: nextIndex 전달
                 } else {
                   await playNextScene(currentIndex + 1)
                 }
@@ -1103,7 +1103,7 @@ export function useVideoPlayback({
                   lastRenderedSceneIndexRef.current = nextIndex
                   // 같은 그룹 내 씬이므로 전환 효과 없이 바로 TTS 재생 시작
                   void playNextScene(nextIndex)
-                }, true, undefined, partIndex, nextIndex) // 현재 씬의 첫 번째 구간 인덱스 전달, sceneIndex: nextIndex 전달
+                }, true, partIndex, nextIndex) // 현재 씬의 첫 번째 구간 인덱스 전달, sceneIndex: nextIndex 전달
               } else {
                 // 다른 그룹으로 넘어갈 때는 selectScene을 통해 전환 효과 적용
                 // playNextScene 내부에서 selectScene을 호출하므로 바로 호출
@@ -1144,33 +1144,17 @@ export function useVideoPlayback({
         const transition = scene.transition || 'fade'
         const skipAnimation = transition === 'none'
         
-        // renderSceneContent 사용: 이미지와 자막을 alpha: 0으로 준비
-        if (renderSceneContent) {
-          await new Promise<void>((resolve) => {
-            renderSceneContent(sceneIndex, 0, {
-              skipAnimation: false, // 준비 단계에서는 애니메이션 스킵
-              forceTransition: transition,
-              previousIndex: prevIndex,
-              updateTimeline: false, // 재생 중에는 timeline 업데이트 안함 (다른 함수 영향 방지)
-              prepareOnly: true, // alpha: 0으로 준비만
-              onComplete: () => {
-                console.log(`[통합 렌더링] 씬 ${sceneIndex} 이미지/자막 준비 완료`)
-                resolve()
-              },
-            })
-          })
-        }
-        
         // renderSceneContent로 전환 효과 적용 (이미지 + 첫 번째 구간 자막)
         // TTS 재생은 전환 효과 완료 후 시작
+        // prepareOnly 단계 제거: 최종 상태로 바로 렌더링하고 전환 효과 애니메이션만 적용
         if (renderSceneContent) {
-          // 전환 효과 적용 (onComplete 콜백 없이)
+          // 전환 효과 적용 (최종 상태로 바로 렌더링)
           renderSceneContent(sceneIndex, 0, {
             skipAnimation,
             forceTransition: transition,
             previousIndex: prevIndex,
             updateTimeline: false, // 재생 중에는 timeline 업데이트 안함 (다른 함수 영향 방지)
-            prepareOnly: false, // 전환 효과 적용 후 표시
+            prepareOnly: false, // 최종 상태로 바로 렌더링 (전환 효과 애니메이션은 usePixiEffects에서 처리)
             isPlaying: true, // 재생 중임을 명시
             onComplete: () => {
               console.log(`[통합 렌더링] 씬 ${sceneIndex} 이미지/자막 전환 효과 완료`)

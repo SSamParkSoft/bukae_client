@@ -29,7 +29,6 @@ interface UseSingleScenePlaybackParams {
       updateTimeline?: boolean
       prepareOnly?: boolean
       isPlaying?: boolean
-      skipImage?: boolean
       transitionDuration?: number
     }
   ) => void
@@ -195,6 +194,7 @@ export function useSingleScenePlayback({
     if (renderSceneContent) {
       // renderSceneContent가 자막도 함께 렌더링하도록 호출
       // partIndex를 null로 전달하면 전체 자막을 표시
+      // 이미지는 전환 효과를 통해서만 렌더링됨 (전환 효과 완료 후 항상 숨김)
       renderSceneContent(sceneIndex, null, {
         skipAnimation: false,
         forceTransition: scene.transition || 'fade',
@@ -202,7 +202,6 @@ export function useSingleScenePlayback({
         updateTimeline: false,
         prepareOnly: false,
         isPlaying: true,
-        skipImage: false,
         transitionDuration: ttsDuration, // TTS duration을 전환 효과 지속시간으로 사용
         onComplete: () => {
           lastRenderedSceneIndexRef.current = sceneIndex
