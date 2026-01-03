@@ -40,6 +40,7 @@ export function useTimelinePlayer({
   const playStartTimeRef = useRef<number>(0) // 재생 시작 시간 (절대 시간)
   const currentTimeRef = useRef<number>(0) // currentTime의 최신 값을 ref로 저장
   const currentSceneIndexRef = useRef<number>(0) // currentSceneIndex의 최신 값을 ref로 저장
+  const lastUpdateTimeRef = useRef<number>(0) // 마지막 상태 업데이트 시간 (리렌더링 방지용)
 
   const totalDuration = useMemo(() => {
     if (!timeline || timeline.scenes.length === 0) return 0
@@ -112,9 +113,16 @@ export function useTimelinePlayer({
       const nextTime = currentT + deltaSec
       const clampedTime = Math.min(nextTime, totalDuration)
       
-      // 시간 업데이트 (항상 업데이트하여 부드러운 애니메이션)
-      setCurrentTime(clampedTime)
+      // ref는 항상 업데이트 (내부 로직용)
       currentTimeRef.current = clampedTime
+      
+      // 상태 업데이트는 0.1초마다만 (리렌더링 방지)
+      const now = timestamp
+      const timeSinceLastUpdate = now - lastUpdateTimeRef.current
+      if (timeSinceLastUpdate >= 100) { // 0.1초마다 업데이트
+        setCurrentTime(clampedTime)
+        lastUpdateTimeRef.current = now
+      }
 
       // 씬 계산은 currentTime 기준 (배속이 적용된 시간)
       const t = clampedTime
@@ -164,6 +172,9 @@ export function useTimelinePlayer({
         if (!isManualSceneSelectRef.current) {
           currentSceneIndexRef.current = targetSceneIndex
           setCurrentSceneIndex(targetSceneIndex)
+          // 씬 변경 시 시간도 즉시 업데이트 (타임라인 바 동기화)
+          setCurrentTime(clampedTime)
+          lastUpdateTimeRef.current = timestamp
           // 재생 중 씬 변경 콜백 호출 (handleSceneSelect 등)
           if (onSceneChange) {
             onSceneChange(targetSceneIndex, true) // skipStopPlaying = true
@@ -174,9 +185,11 @@ export function useTimelinePlayer({
       rafIdRef.current = requestAnimationFrame(tickRef.current!)
     }
 
-    if (isPlaying) {
+    // disableAutoTimeUpdateRef가 true이면 재생 루프를 시작하지 않음 (전체 재생 중에는 수동으로 관리)
+    if (isPlaying && !disableAutoTimeUpdateRef?.current) {
       // 재생 시작 시 lastTimestamp 리셋
       lastTimestampRef.current = null
+      lastUpdateTimeRef.current = 0 // 상태 업데이트 시간 초기화
       rafIdRef.current = requestAnimationFrame(tickRef.current!)
     } else if (rafIdRef.current) {
       cancelAnimationFrame(rafIdRef.current)
@@ -192,6 +205,7 @@ export function useTimelinePlayer({
     isPreviewingTransition,
     playbackSpeed,
     timeline,
+    disableAutoTimeUpdateRef,
     totalDuration,
     updateCurrentScene,
     disableAutoTimeUpdateRef,
@@ -276,6 +290,7 @@ export function useTimelinePlayer({
     setCurrentSceneIndex,
     currentTime,
     setCurrentTime,
+    currentTimeRef, // export for useFullPlayback
     progressRatio,
     playbackSpeed,
     setPlaybackSpeed,

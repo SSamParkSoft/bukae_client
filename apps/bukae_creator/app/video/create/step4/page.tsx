@@ -21,6 +21,7 @@ import { useSceneNavigation } from '@/hooks/video/useSceneNavigation'
 import { playSceneLogic } from '@/hooks/video/useScenePlayback'
 import { useGroupPlayback } from '@/hooks/video/useGroupPlayback'
 import { useSingleScenePlayback } from '@/hooks/video/useSingleScenePlayback'
+import { useFullPlayback } from '@/hooks/video/useFullPlayback'
 import { useTimelineInitializer } from '@/hooks/video/useTimelineInitializer'
 import { useGridManager } from '@/hooks/video/useGridManager'
 import { useCanvasSize } from '@/hooks/video/useCanvasSize'
@@ -515,6 +516,7 @@ export default function Step4Page() {
     setCurrentSceneIndex: setTimelineCurrentSceneIndex,
     currentTime,
     setCurrentTime,
+    currentTimeRef: timelineCurrentTimeRef,
     progressRatio,
     playbackSpeed,
     setPlaybackSpeed,
@@ -1150,229 +1152,48 @@ export default function Step4Page() {
     videoPlaybackSetIsPlaying: videoPlayback.setIsPlaying,
   })
   
-  // 비디오 재생 중일 때 useTimelinePlayer의 자동 시간 업데이트 비활성화
-  useEffect(() => {
-    disableAutoTimeUpdateRef.current = videoPlayback.isPlaying
-  }, [videoPlayback.isPlaying])
-  
-  // 전체 재생을 위한 상태
-  const isPlayingAllRef = useRef(false)
-  const currentPlayingSceneIndexRef = useRef<number | null>(null)
-  const playbackAbortControllerRef = useRef<AbortController | null>(null)
-
-  // 전체 재생 함수
-  const playAllScenes = useCallback(async () => {
-    if (!timeline || !voiceTemplate) {
-      return
-    }
-
-    // 모든 씬의 TTS가 준비되었는지 확인
-    const scenesToSynthesize: number[] = []
-    for (let i = 0; i < timeline.scenes.length; i++) {
-      const markups = buildSceneMarkupWrapper(i)
-      const cachedCount = markups.filter(markup => {
-        const key = makeTtsKey(voiceTemplate, markup)
-        const cached = videoPlayback.ttsCacheRef.current.get(key)
-        return cached && (cached.blob || cached.url)
-      }).length
-      
-      if (cachedCount < markups.length) {
-        scenesToSynthesize.push(i)
-      }
-    }
-
-    // TTS가 준비되지 않은 씬이 있으면 합성
-    if (scenesToSynthesize.length > 0 && ensureSceneTts) {
-      setIsPreparing(true)
-      if (setIsTtsBootstrapping) {
-        setIsTtsBootstrapping(true)
-      }
-      
-      try {
-        const ttsResults = await Promise.all(
-          scenesToSynthesize.map(sceneIndex =>
-            ensureSceneTts(sceneIndex, undefined, changedScenesRef.current.has(sceneIndex) || false)
-          )
-        )
-        
-        // ensureSceneTts 결과를 명시적으로 캐시에 저장 (타이밍 이슈 방지)
-        for (const ttsResult of ttsResults) {
-          const { sceneIndex, parts } = ttsResult
-          if (!parts || parts.length === 0) {
-            console.warn(`[playAllScenes] 씬 ${sceneIndex} parts가 비어있음`)
-            continue
-          }
-          
-          const markups = buildSceneMarkupWrapper(sceneIndex)
-          for (let partIndex = 0; partIndex < markups.length; partIndex++) {
-            const part = parts[partIndex]
-            if (!part) {
-              console.warn(`[playAllScenes] 씬 ${sceneIndex} 구간 ${partIndex + 1} part가 null`)
-              continue
-            }
-            
-            if (!part.blob && !part.url) {
-              console.warn(`[playAllScenes] 씬 ${sceneIndex} 구간 ${partIndex + 1} blob과 url이 모두 없음`)
-              continue
-            }
-            
-            if (!part.durationSec || part.durationSec <= 0) {
-              console.warn(`[playAllScenes] 씬 ${sceneIndex} 구간 ${partIndex + 1} durationSec가 없거나 0 이하`)
-              continue
-            }
-            
-            // 캐시에 명시적으로 저장 (타이밍 이슈 방지)
-            const markup = markups[partIndex]
-            const key = makeTtsKey(voiceTemplate, markup)
-            const scene = timeline.scenes[sceneIndex]
-            const cacheEntry = {
-              blob: part.blob,
-              durationSec: part.durationSec,
-              markup: part.markup || markup,
-              url: part.url || null,
-              sceneId: scene?.sceneId,
-              sceneIndex,
-            }
-            videoPlayback.ttsCacheRef.current.set(key, cacheEntry)
-          }
-        }
-      } catch (error) {
-        console.error('[step4/page] TTS 합성 실패:', error)
-        setIsPreparing(false)
-        if (setIsTtsBootstrapping) {
-          setIsTtsBootstrapping(false)
-        }
-        return
-      }
-      
-      setIsPreparing(false)
-      if (setIsTtsBootstrapping) {
-        setIsTtsBootstrapping(false)
-      }
-    }
-
-    // BGM 로드
-    if (bgmTemplate) {
-      const speed = timeline?.playbackSpeed ?? 1.0
-      await startBgmAudio(bgmTemplate, speed, false)
-    }
-
-    // 재생 시작
-    playbackAbortControllerRef.current = new AbortController()
-    isPlayingAllRef.current = true
-    setIsPlaying(true)
-    setTimelineIsPlaying(true)
-
-    // 현재 씬부터 마지막 씬까지 순차적으로 재생
-    const playSceneSequence = async (startIndex: number) => {
-      if (!isPlayingAllRef.current || !timeline || playbackAbortControllerRef.current?.signal.aborted) {
-        return
-      }
-
-      for (let i = startIndex; i < timeline.scenes.length; i++) {
-        if (!isPlayingAllRef.current || playbackAbortControllerRef.current?.signal.aborted) {
-          break
-        }
-
-        currentPlayingSceneIndexRef.current = i
-
-        // playSceneLogic 직접 호출
-        await playSceneLogic({
-          timeline,
-          voiceTemplate,
-          playbackSpeed: timeline?.playbackSpeed ?? 1.0,
-          sceneIndex: i,
-          setCurrentSceneIndex,
-          currentSceneIndexRef,
-          lastRenderedSceneIndexRef,
-          textsRef,
-          spritesRef,
-          ttsCacheRef: videoPlayback.ttsCacheRef,
-          ttsAudioRef: videoPlayback.ttsAudioRef,
-          ttsAudioUrlRef: videoPlayback.ttsAudioUrlRef,
-          renderSceneImage,
-          renderSubtitlePart,
-          prepareImageAndSubtitle,
-          renderSceneContent,
-          setCurrentTime,
-          ensureSceneTts,
-          changedScenesRef,
-          onNextScene: () => {
-            // 다음 씬으로 자동 전환
-            if (i + 1 < timeline.scenes.length && isPlayingAllRef.current && !playbackAbortControllerRef.current?.signal.aborted) {
-              void playSceneSequence(i + 1)
-            } else {
-              // 모든 씬 재생 완료
-              isPlayingAllRef.current = false
-              setIsPlaying(false)
-              setTimelineIsPlaying(false)
-              currentPlayingSceneIndexRef.current = null
-              playbackAbortControllerRef.current = null
-              stopBgmAudio()
-            }
-          },
-          onComplete: () => {
-            // 씬 재생 완료
-            if (i + 1 < timeline.scenes.length && isPlayingAllRef.current && !playbackAbortControllerRef.current?.signal.aborted) {
-              void playSceneSequence(i + 1)
-            } else {
-              // 모든 씬 재생 완료
-              isPlayingAllRef.current = false
-              setIsPlaying(false)
-              setTimelineIsPlaying(false)
-              currentPlayingSceneIndexRef.current = null
-              playbackAbortControllerRef.current = null
-              stopBgmAudio()
-            }
-          },
-          abortSignal: playbackAbortControllerRef.current?.signal,
-          isPlayingRef: isPlayingRef,
-        })
-      }
-    }
-
-    // 현재 씬부터 재생 시작
-    void playSceneSequence(currentSceneIndex)
-  }, [
+  // 전체 재생 훅
+  const fullPlayback = useFullPlayback({
     timeline,
     voiceTemplate,
-    buildSceneMarkupWrapper,
+    bgmTemplate: confirmedBgmTemplate,
+    playbackSpeed: timeline?.playbackSpeed ?? 1.0,
+    buildSceneMarkup: buildSceneMarkupWithTimeline,
     makeTtsKey,
     ensureSceneTts,
-    changedScenesRef,
-    setIsPreparing,
-    setIsTtsBootstrapping,
-    bgmTemplate,
-    startBgmAudio,
-    setIsPlaying,
-    setTimelineIsPlaying,
     setCurrentSceneIndex,
     currentSceneIndexRef,
     lastRenderedSceneIndexRef,
-    textsRef,
-    spritesRef,
-    videoPlayback,
+    setCurrentTime,
+    setIsPlaying,
+    setTimelineIsPlaying,
+    setIsPreparing,
+    setIsTtsBootstrapping,
+    startBgmAudio,
+    stopBgmAudio,
+    changedScenesRef,
+    renderSceneContent,
     renderSceneImage,
     renderSubtitlePart,
     prepareImageAndSubtitle,
-    setCurrentTime,
-    stopBgmAudio,
-    isPlayingRef,
-  ])
+    textsRef,
+    spritesRef,
+    ttsCacheRef: videoPlayback.ttsCacheRef,
+    ttsAudioRef: videoPlayback.ttsAudioRef,
+    ttsAudioUrlRef: videoPlayback.ttsAudioUrlRef,
+    stopTtsAudio: videoPlayback.stopTtsAudio,
+    getMp3DurationSec,
+    setTimeline,
+    disableAutoTimeUpdateRef,
+    currentTimeRef: timelineCurrentTimeRef,
+    totalDuration,
+    timelineBarRef,
+  })
 
-  // 재생 중지 함수
-  const stopAllScenes = useCallback(() => {
-    if (playbackAbortControllerRef.current) {
-      playbackAbortControllerRef.current.abort()
-      playbackAbortControllerRef.current = null
-    }
-    isPlayingAllRef.current = false
-    setIsPlaying(false)
-    setTimelineIsPlaying(false)
-    currentPlayingSceneIndexRef.current = null
-    stopBgmAudio()
-    videoPlayback.stopTtsAudio()
-  }, [setIsPlaying, setTimelineIsPlaying, stopBgmAudio, videoPlayback])
+  // 비디오 재생 중일 때 useTimelinePlayer의 자동 시간 업데이트 비활성화
+  useEffect(() => {
+    disableAutoTimeUpdateRef.current = videoPlayback.isPlaying || fullPlayback.isPlayingAll
+  }, [videoPlayback.isPlaying, fullPlayback.isPlayingAll])
 
   // 재생 시작 로직을 별도 함수로 분리
   
@@ -2107,9 +1928,9 @@ export default function Step4Page() {
                         <Button
                           onClick={() => {
                             if (isPlaying) {
-                              stopAllScenes()
+                              fullPlayback?.stopAllScenes()
                             } else {
-                              void playAllScenes()
+                              void fullPlayback?.playAllScenes()
                             }
                           }}
                           variant="outline"
