@@ -184,7 +184,7 @@ export const useSceneManager = ({
   // forceTransition: 강제로 적용할 전환 효과 (timeline 값 무시, 전환 효과 미리보기용)
   // isPlaying: 재생 중인지 여부 (재생 중일 때 텍스트 alpha: 0 설정)
   // skipImage: 이미지 렌더링 스킵 (전환 효과와 자막만 렌더링)
-  const updateCurrentScene = useCallback((skipAnimation: boolean = false, explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, skipImage?: boolean, partIndex?: number | null, sceneIndex?: number) => {
+  const updateCurrentScene = useCallback((skipAnimation: boolean = false, explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, skipImage?: boolean, partIndex?: number | null, sceneIndex?: number, overrideTransitionDuration?: number) => {
     // 기본 값 설정
     const actualSceneIndex = sceneIndex !== undefined ? sceneIndex : currentSceneIndexRef.current
     const previousIndex = explicitPreviousIndex !== undefined ? explicitPreviousIndex : previousSceneIndexRef.current
@@ -623,21 +623,27 @@ export const useSceneManager = ({
       // 나머지 씬: 각 씬은 자신의 duration만큼만 전환 효과 사용
       if (firstSceneIndex === actualSceneIndex) {
         // 첫 번째 씬: transitionDuration 사용 (그룹 재생 시 그룹 전체 TTS duration 합)
-        transitionDuration = currentScene.transitionDuration && currentScene.transitionDuration > 0
-          ? currentScene.transitionDuration
-          : (currentScene.duration && currentScene.duration > 0 ? currentScene.duration : 0.5)
+        transitionDuration = overrideTransitionDuration !== undefined
+          ? overrideTransitionDuration
+          : (currentScene.transitionDuration && currentScene.transitionDuration > 0
+              ? currentScene.transitionDuration
+              : (currentScene.duration && currentScene.duration > 0 ? currentScene.duration : 0.5))
       } else {
         // 같은 그룹 내 나머지 씬: 각 씬은 자신의 duration만큼만 전환 효과 사용
-        transitionDuration = currentScene.duration && currentScene.duration > 0
-          ? currentScene.duration
-          : 0.5
+        transitionDuration = overrideTransitionDuration !== undefined
+          ? overrideTransitionDuration
+          : (currentScene.duration && currentScene.duration > 0
+              ? currentScene.duration
+              : 0.5)
       }
     } else {
       // 다른 그룹으로 넘어가는 경우
       transition = forceTransition || currentScene.transition || 'fade'
-      transitionDuration = currentScene.transitionDuration && currentScene.transitionDuration > 0
-        ? currentScene.transitionDuration
-        : 0.5
+      transitionDuration = overrideTransitionDuration !== undefined
+        ? overrideTransitionDuration
+        : (currentScene.transitionDuration && currentScene.transitionDuration > 0
+            ? currentScene.transitionDuration
+            : 0.5)
     }
     
     const { width, height } = stageDimensions
@@ -1676,6 +1682,7 @@ export const useSceneManager = ({
       prepareOnly?: boolean // alpha: 0으로 준비만 하고 표시하지 않음 (재생 중 사용)
       isPlaying?: boolean // 재생 중인지 여부 (updateCurrentScene에 전달)
       skipImage?: boolean // 이미지 렌더링 스킵 (전환 효과와 자막만 렌더링)
+      transitionDuration?: number // 전환 효과 지속시간 (TTS duration 등)
     }
   ) => {
     if (!timeline || !appRef.current) return
@@ -1692,6 +1699,7 @@ export const useSceneManager = ({
       prepareOnly = false,
       isPlaying = false, // 재생 중인지 여부
       skipImage = false, // 이미지 렌더링 스킵 (전환 효과와 자막만 렌더링)
+      transitionDuration: overrideTransitionDuration, // 전환 효과 지속시간 (TTS duration 등)
     } = options || {}
     
     // 구간 인덱스가 있으면 해당 구간의 텍스트 추출
@@ -1915,7 +1923,9 @@ export const useSceneManager = ({
       },
       isPlaying, // 재생 중인지 여부 전달
       skipImage, // 이미지 렌더링 스킵 여부 전달
-      partIndex // 구간 인덱스 전달 (updateCurrentScene에서 해당 구간만 표시)
+      partIndex, // 구간 인덱스 전달 (updateCurrentScene에서 해당 구간만 표시)
+      sceneIndex, // 씬 인덱스 전달
+      overrideTransitionDuration // 전환 효과 지속시간 (TTS duration 등)
     )
   }, [
     timeline,

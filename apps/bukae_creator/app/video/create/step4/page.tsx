@@ -20,6 +20,7 @@ import { useVideoPlayback } from '@/hooks/video/useVideoPlayback'
 import { useSceneNavigation } from '@/hooks/video/useSceneNavigation'
 import { playSceneLogic } from '@/hooks/video/useScenePlayback'
 import { useGroupPlayback } from '@/hooks/video/useGroupPlayback'
+import { useSingleScenePlayback } from '@/hooks/video/useSingleScenePlayback'
 import { useTimelineInitializer } from '@/hooks/video/useTimelineInitializer'
 import { useGridManager } from '@/hooks/video/useGridManager'
 import { useCanvasSize } from '@/hooks/video/useCanvasSize'
@@ -38,12 +39,10 @@ import { EffectsPanel } from '@/components/video-editor/EffectsPanel'
 import { loadPixiTexture, calculateSpriteParams } from '@/utils/pixi'
 import { formatTime, getSceneDuration } from '@/utils/timeline'
 import { splitSceneBySentences, insertSceneDelimiters } from '@/lib/utils/scene-splitter'
-import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
 import { resolveSubtitleFontFamily, SUBTITLE_DEFAULT_FONT_ID, loadSubtitleFont, isSubtitleFontId, getFontFileName } from '@/lib/subtitle-fonts'
 import { transitionLabels, transitions, movements, allTransitions, MOVEMENT_EFFECTS } from '@/lib/data/transitions'
 import { useUserStore } from '@/store/useUserStore'
 import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
-import { authStorage } from '@/lib/api/auth-storage'
 import { bgmTemplates, getBgmTemplateUrlSync, type BgmTemplate } from '@/lib/data/templates'
 import { useTtsPreview } from '@/hooks/video/useTtsPreview'
 import { useFabricHandlers } from '@/hooks/video/useFabricHandlers'
@@ -1531,6 +1530,24 @@ export default function Step4Page() {
     setIsTtsBootstrapping,
   })
 
+  const singleScenePlayback = useSingleScenePlayback({
+    timeline,
+    voiceTemplate,
+    makeTtsKey,
+    ttsCacheRef: videoPlayback.ttsCacheRef,
+    ttsAudioRef: videoPlayback.ttsAudioRef,
+    ttsAudioUrlRef: videoPlayback.ttsAudioUrlRef,
+    setIsPreparing,
+    setIsTtsBootstrapping,
+    setCurrentSceneIndex,
+    currentSceneIndexRef,
+    lastRenderedSceneIndexRef,
+    renderSceneContent,
+    renderSceneImage,
+    textsRef,
+    getMp3DurationSec,
+  })
+
   // 씬 구조 정보 자동 업데이트
   useEffect(() => {
     if (!scenes.length || !timeline) return
@@ -1650,270 +1667,10 @@ export default function Step4Page() {
     await groupPlayback.playGroup(sceneId, groupIndices)
   }, [groupPlayback])
 
-  // 씬 재생 핸들러 (구간 분할 없이 전체 자막을 하나의 TTS로 재생)
+  // 씬 재생 핸들러 (useSingleScenePlayback 훅 사용)
   const handleScenePlay = useCallback(async (sceneIndex: number) => {
-    if (!timeline || !voiceTemplate) {
-      return
-    }
-
-    const scene = timeline.scenes[sceneIndex]
-    if (!scene) return
-
-    // 전체 자막 텍스트 가져오기 (||| 구분자 제거)
-    const fullSubtitle = scene.text?.content || ''
-    const plainText = fullSubtitle.replace(/\s*\|\|\|\s*/g, ' ').trim()
-    
-    if (!plainText) {
-      return
-    }
-
-    // 전체 자막을 하나의 마크업으로 변환
-    const markup = makeMarkupFromPlainText(plainText, {
-      addSceneTransitionPause: false,
-      enablePause: false,
-    })
-
-    if (!markup) {
-      return
-    }
-
-    // TTS 캐시 확인
-    const key = makeTtsKey(voiceTemplate, markup)
-    let cached = videoPlayback.ttsCacheRef.current.get(key)
-
-    // TTS가 없으면 합성
-    if (!cached || (!cached.blob && !cached.url)) {
-      setIsPreparing(true)
-      if (setIsTtsBootstrapping) {
-        setIsTtsBootstrapping(true)
-      }
-      
-      try {
-        // 전체 마크업으로 TTS 합성 (직접 API 호출)
-        const accessToken = authStorage.getAccessToken()
-        if (!accessToken) {
-          throw new Error('로그인이 필요합니다.')
-        }
-
-        const response = await fetch('/api/tts/synthesize', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            voiceName: voiceTemplate,
-            mode: 'markup',
-            markup: markup,
-          }),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || 'TTS 합성 실패')
-        }
-
-        const blob = await response.blob()
-        const durationSec = await getMp3DurationSec(blob)
-
-        cached = {
-          blob,
-          durationSec,
-          markup,
-          url: null,
-        }
-        videoPlayback.ttsCacheRef.current.set(key, cached)
-      } catch (error) {
-        console.error('[씬 재생] TTS 합성 실패:', error)
-        setIsPreparing(false)
-        if (setIsTtsBootstrapping) {
-          setIsTtsBootstrapping(false)
-        }
-        return
-      }
-      
-      setIsPreparing(false)
-      if (setIsTtsBootstrapping) {
-        setIsTtsBootstrapping(false)
-      }
-    }
-
-    // TTS duration 가져오기
-    const ttsDuration = cached?.durationSec || scene.duration || 2.5
-
-    // transitionDuration 설정
-    const originalTransitionDuration = scene.transitionDuration
-    let updatedTimeline = timeline
-    if (ttsDuration > 0) {
-      updatedTimeline = {
-        ...timeline,
-        scenes: timeline.scenes.map((s, idx) =>
-          idx === sceneIndex
-            ? {
-                ...s,
-                transitionDuration: ttsDuration,
-              }
-            : s
-        ),
-      }
-      setTimeline(updatedTimeline)
-      
-      // React 상태 업데이트가 완료될 때까지 대기
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-    }
-
-    // 이전 오디오 정리
-    const stopTtsAudio = () => {
-      const a = videoPlayback.ttsAudioRef.current
-      if (a) {
-        try {
-          a.pause()
-          a.currentTime = 0
-          a.src = ''
-        } catch {
-          // ignore
-        }
-      }
-      videoPlayback.ttsAudioRef.current = null
-      if (videoPlayback.ttsAudioUrlRef.current) {
-        URL.revokeObjectURL(videoPlayback.ttsAudioUrlRef.current)
-        videoPlayback.ttsAudioUrlRef.current = null
-      }
-    }
-    stopTtsAudio()
-
-    // 씬리스트 패널 업데이트
-    currentSceneIndexRef.current = sceneIndex
-    setCurrentSceneIndex(sceneIndex)
-
-    // 전환 효과 이미지 렌더링
-    let previousSceneIndex: number | null = null
-    const lastRenderedIndex = lastRenderedSceneIndexRef.current
-    if (lastRenderedIndex !== null && lastRenderedIndex !== sceneIndex) {
-      previousSceneIndex = lastRenderedIndex
-    }
-
-    // 이미지 전환 효과와 자막 렌더링 (비동기로 시작만 하고 await하지 않음)
-    if (renderSceneContent) {
-      // renderSceneContent가 자막도 함께 렌더링하도록 호출
-      // partIndex를 null로 전달하면 전체 자막을 표시
-      renderSceneContent(sceneIndex, null, {
-        skipAnimation: false,
-        forceTransition: scene.transition || 'fade',
-        previousIndex: previousSceneIndex !== null ? previousSceneIndex : undefined,
-        updateTimeline: false,
-        prepareOnly: false,
-        isPlaying: true,
-        skipImage: false,
-        onComplete: () => {
-          lastRenderedSceneIndexRef.current = sceneIndex
-        },
-      })
-    } else if (renderSceneImage) {
-      renderSceneImage(sceneIndex, {
-        skipAnimation: false,
-        forceTransition: scene.transition || 'fade',
-        previousIndex: previousSceneIndex,
-        onComplete: () => {
-          lastRenderedSceneIndexRef.current = sceneIndex
-        },
-        prepareOnly: false,
-      })
-      
-      // 전체 자막 렌더링 (구간 분할 없이)
-      const textToUpdate = textsRef.current.get(sceneIndex)
-      if (textToUpdate) {
-        textToUpdate.text = plainText
-        textToUpdate.visible = true
-        textToUpdate.alpha = 1
-      }
-    }
-
-    // TTS 재생 (하나의 파일만)
-    if (cached && (cached.url || cached.blob)) {
-      let audioUrl: string | null = null
-      if (cached.url) {
-        audioUrl = cached.url
-      } else if (cached.blob) {
-        audioUrl = URL.createObjectURL(cached.blob)
-        videoPlayback.ttsAudioUrlRef.current = audioUrl
-      }
-
-      if (audioUrl) {
-        const audio = new Audio(audioUrl)
-        audio.playbackRate = updatedTimeline?.playbackSpeed ?? 1.0
-        videoPlayback.ttsAudioRef.current = audio
-
-        try {
-          await new Promise<void>((resolve) => {
-            const handleEnded = () => {
-              audio.removeEventListener('ended', handleEnded)
-              audio.removeEventListener('error', handleError)
-              resolve()
-            }
-
-            const handleError = () => {
-              console.error('[씬 재생] TTS 재생 오류')
-              audio.removeEventListener('ended', handleEnded)
-              audio.removeEventListener('error', handleError)
-              resolve()
-            }
-
-            audio.addEventListener('ended', handleEnded)
-            audio.addEventListener('error', handleError)
-
-            audio.play()
-              .then(() => {
-                // 재생 시작 성공
-              })
-              .catch((error) => {
-                console.error('[씬 재생] TTS 재생 시작 실패:', error)
-                handleError()
-              })
-          })
-        } finally {
-          // 재생 완료 후 정리
-          stopTtsAudio()
-          lastRenderedSceneIndexRef.current = sceneIndex
-        }
-      }
-    }
-
-    // 원래 transitionDuration 복원
-    if (originalTransitionDuration !== undefined && ttsDuration > 0) {
-      const restoredTimeline = {
-        ...timeline,
-        scenes: timeline.scenes.map((s, idx) =>
-          idx === sceneIndex
-            ? {
-                ...s,
-                transitionDuration: originalTransitionDuration,
-              }
-            : s
-      ),
-      }
-      setTimeline(restoredTimeline)
-    }
-  }, [
-    timeline,
-    voiceTemplate,
-    makeTtsKey,
-    videoPlayback.ttsCacheRef,
-    videoPlayback.ttsAudioRef,
-    videoPlayback.ttsAudioUrlRef,
-    changedScenesRef,
-    setIsPreparing,
-    setIsTtsBootstrapping,
-    setCurrentSceneIndex,
-    currentSceneIndexRef,
-    lastRenderedSceneIndexRef,
-    renderSceneContent,
-    renderSceneImage,
-    renderSubtitlePart,
-    setTimeline,
-    textsRef,
-    getMp3DurationSec,
-  ])
+    await singleScenePlayback.playScene(sceneIndex)
+  }, [singleScenePlayback])
 
   // 그룹 삭제 핸들러
   const handleGroupDelete = useCallback((sceneId: number, groupIndices: number[]) => {
