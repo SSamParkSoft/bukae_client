@@ -20,7 +20,7 @@ type ThemeMode = 'light' | 'dark'
 // 플랫폼 정보
 const platformInfo: Record<TargetMall, { name: string; enabled: boolean }> = {
   ALI_EXPRESS: { name: '알리익스프레스', enabled: true },
-  COUPANG: { name: '쿠팡', enabled: false },
+  COUPANG: { name: '쿠팡', enabled: true },
   AMAZON: { name: '아마존', enabled: false },
 }
 
