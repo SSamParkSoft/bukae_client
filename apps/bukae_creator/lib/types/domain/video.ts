@@ -37,11 +37,6 @@ export interface Step2Result {
 }
 
 /**
- * 스크립트 생성 방법
- */
-export type ScriptMethod = 'edit' | 'auto'
-
-/**
  * 생성 모드
  */
 export type CreationMode = 'manual' | 'auto'

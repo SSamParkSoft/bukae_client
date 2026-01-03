@@ -10,80 +10,6 @@ import type { VideoEditData, Step2Result, ScriptMethod, CreationMode } from '@/l
 
 // 타입들은 domain에서 import하므로 여기서는 제거
 
-// Timeline 데이터 구조
-export interface TimelineScene {
-  sceneId: number
-  duration: number
-  transition: string
-  transitionDuration?: number // 전환 시간 (초), 기본값 0.5
-  image: string // base64 또는 URL
-  imageFit?: 'cover' | 'contain' | 'fill' // 이미지 표시 방식
-  splitIndex?: number // 씬 분할 시 하위 번호 (1, 2, 3...), 있으면 독립적인 씬으로 처리
-  imageTransform?: {
-    x: number
-    y: number
-    width: number
-    height: number
-    scaleX: number
-    scaleY: number
-    rotation: number
-    baseWidth?: number // 원본 이미지 너비 (scale 제거)
-    baseHeight?: number // 원본 이미지 높이 (scale 제거)
-  }
-  // 고급 효과
-  advancedEffects?: {
-    glow?: {
-      enabled: boolean
-      distance?: number // 후광 거리
-      outerStrength?: number // 외부 강도
-      innerStrength?: number // 내부 강도
-      color?: number // 색상 (hex)
-    }
-    particles?: {
-      enabled: boolean
-      type?: 'sparkle' | 'snow' | 'confetti' | 'stars' // 파티클 타입
-      count?: number // 파티클 개수
-      duration?: number // 지속 시간
-    }
-    glitch?: {
-      enabled: boolean
-      intensity?: number // 글리치 강도
-    }
-  }
-  text: {
-    content: string
-    font: string
-    fontWeight?: number
-    color: string
-    position?: string
-    fontSize?: number
-    transform?: {
-      x: number
-      y: number
-      width: number
-      height: number
-      scaleX: number
-      scaleY: number
-      rotation: number
-      baseWidth?: number // 원본 텍스트 너비 (scale 제거)
-      baseHeight?: number // 원본 텍스트 높이 (scale 제거)
-    }
-    style?: {
-      bold?: boolean
-      italic?: boolean
-      underline?: boolean
-      align?: 'left' | 'center' | 'right' | 'justify'
-    }
-  }
-}
-
-export interface TimelineData {
-  fps: number
-  resolution: string
-  scenes: TimelineScene[]
-  playbackSpeed?: number // 전체 영상 재생 배속 (기본값 1.0)
-}
-
 interface VideoCreateState {
   currentStep: number
   selectedProducts: Product[]
@@ -323,4 +249,9 @@ export const useVideoCreateStore = create<VideoCreateState>()(
     }
   )
 )
+
+// Re-export types for convenience
+export type { SceneScript } from '@/lib/types/domain/script'
+export type { CreationMode } from '@/lib/types/domain/video'
+export type { TimelineData, TimelineScene } from '@/lib/types/domain/timeline'
 

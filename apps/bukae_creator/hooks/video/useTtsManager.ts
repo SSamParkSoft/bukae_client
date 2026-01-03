@@ -31,13 +31,16 @@ export function useTtsManager({
   const invalidateSceneTtsCache = useCallback((sceneIndex: number) => {
     if (!timeline || !voiceTemplate) return
 
-    const keysToInvalidate: string[] = []
     const scene = timeline.scenes[sceneIndex]
     if (!scene) return
 
-    // sceneId나 sceneIndex로 캐시된 항목 찾기
-    ttsCacheRef.current.forEach((cached, key) => {
-      if (cached.sceneId === scene.sceneId || cached.sceneIndex === sceneIndex) {
+    // 씬의 마크업을 생성하여 해당하는 모든 캐시 키 찾기
+    const markups = buildSceneMarkup(timeline, sceneIndex)
+    const keysToInvalidate: string[] = []
+
+    markups.forEach((markup) => {
+      const key = makeTtsKey(voiceTemplate, markup)
+      if (ttsCacheRef.current.has(key)) {
         keysToInvalidate.push(key)
       }
     })

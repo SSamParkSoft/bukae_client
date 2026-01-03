@@ -410,7 +410,7 @@ export default function Step1Page() {
                     return (
                       <div
                         key={product.id}
-                        onClick={() => handleProductToggle(product, index)}
+                        onClick={() => handleProductToggle(product)}
                         className={`flex gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${
                           isSelected
                             ? themeMode === 'dark'

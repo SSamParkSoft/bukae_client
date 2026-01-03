@@ -611,7 +611,7 @@ export function useSceneTransition({
         // 다른 모든 스프라이트 숨기기 및 컨테이너에서 제거 (spriteToUse 추가 전에 먼저 정리)
         spritesRef.current.forEach((sprite) => {
           if (!sprite || sprite === spriteToUse) return
-          if (sprite.parent === containerRef.current) {
+          if (containerRef.current && sprite.parent === containerRef.current) {
             containerRef.current.removeChild(sprite)
           }
           sprite.visible = false
@@ -759,8 +759,9 @@ export function useSceneTransition({
           }
         } else {
           // 전환 효과 시작 전에 컨테이너의 모든 스프라이트 확인 및 정리
-          if (containerRef.current) {
-            const containerChildren = Array.from(containerRef.current.children)
+          const container = containerRef.current
+          if (container) {
+            const containerChildren = Array.from(container.children)
             const spritesInContainer = containerChildren.filter(
               (child) => child instanceof PIXI.Sprite && child !== spriteToUse
             ) as PIXI.Sprite[]
@@ -774,7 +775,7 @@ export function useSceneTransition({
             
             // spriteToUse가 아닌 모든 스프라이트를 컨테이너에서 제거
             spritesInContainer.forEach((sprite) => {
-              containerRef.current.removeChild(sprite)
+              container.removeChild(sprite)
               sprite.visible = false
               sprite.alpha = 0
             })
@@ -783,9 +784,9 @@ export function useSceneTransition({
           // 이전 씬 및 다른 모든 씬 숨기기
           if (previousIndex !== null && previousIndex !== actualSceneIndex) {
             const prevSprite = spritesRef.current.get(previousIndex)
-            if (prevSprite) {
-              if (prevSprite.parent === containerRef.current) {
-                containerRef.current.removeChild(prevSprite)
+            if (prevSprite && container) {
+              if (prevSprite.parent === container) {
+                container.removeChild(prevSprite)
               }
               prevSprite.visible = false
               prevSprite.alpha = 0
@@ -796,8 +797,8 @@ export function useSceneTransition({
           spritesRef.current.forEach((sprite) => {
             if (!sprite || sprite === spriteToUse) return
             // 컨테이너에서 제거
-            if (sprite.parent === containerRef.current) {
-              containerRef.current.removeChild(sprite)
+            if (container && sprite.parent === container) {
+              container.removeChild(sprite)
             }
             sprite.visible = false
             sprite.alpha = 0
