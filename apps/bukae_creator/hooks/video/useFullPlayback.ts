@@ -121,6 +121,9 @@ export function useFullPlayback({
 }: UseFullPlaybackParams) {
   // TTS 리소스 가져오기
   const { ttsCacheRef, ttsAudioRef, ttsAudioUrlRef, stopTtsAudio, resetTtsSession } = useTtsResources()
+  
+  // 타임라인 동기화를 위한 ref
+  const groupPlaybackStartTimeRef = useRef<number | null>(null)
 
   // 재생 상태 관리
   const [isPlaying, setIsPlaying] = useState(false)
@@ -424,12 +427,13 @@ export function useFullPlayback({
         return
       }
 
-      // currentGroupStartTimeRef가 0이면 아직 첫 번째 그룹이 시작되지 않았으므로 업데이트하지 않음
-      if (currentGroupStartTimeRef.current === 0) {
+      // groupPlaybackStartTimeRef가 null이면 아직 첫 번째 그룹의 TTS 재생이 시작되지 않았으므로 업데이트하지 않음
+      if (groupPlaybackStartTimeRef.current === null) {
         return
       }
 
-      const elapsed = (Date.now() - currentGroupStartTimeRef.current) / 1000
+      // 실제 TTS 재생 시작 시점부터 경과한 시간 계산
+      const elapsed = (Date.now() - groupPlaybackStartTimeRef.current) / 1000
       const currentTime = accumulatedTimeRef.current + Math.min(
         elapsed,
         currentGroupDurationRef.current
@@ -529,14 +533,25 @@ export function useFullPlayback({
 
         const [sceneId, groupIndices] = groupEntries[groupIndex]
         
-        // 현재 그룹/씬의 총 duration 계산
+        // 실제 TTS 재생 시간 계산 (정확한 타임라인 동기화를 위해)
+        // TTS 캐시에서 직접 duration을 가져와서 계산
         let groupDuration = 0
         if (sceneId !== undefined && groupIndices.length > 1) {
-          // 그룹 재생: 모든 씬의 duration 합산
+          // 그룹 재생: 실제 TTS duration 계산
           for (const sceneIndex of groupIndices) {
-            const scene = timeline.scenes[sceneIndex]
-            if (scene) {
-              groupDuration += scene.duration || 0
+            const markups = buildSceneMarkup(timeline, sceneIndex)
+            for (const markup of markups) {
+              const key = makeTtsKey(voiceTemplate!, markup)
+              const cached = ttsCacheRef.current.get(key)
+              if (cached?.durationSec) {
+                groupDuration += cached.durationSec
+              } else {
+                // 캐시가 없으면 scene.duration 사용 (fallback)
+                const scene = timeline.scenes[sceneIndex]
+                if (scene) {
+                  groupDuration += scene.duration || 0
+                }
+              }
             }
           }
           // 첫 번째 씬의 transitionDuration만 추가 (그룹 내 전환은 0)
@@ -545,8 +560,23 @@ export function useFullPlayback({
             groupDuration += firstScene.transitionDuration || 0.5
           }
         } else {
-          // 단일 씬 재생
+          // 단일 씬 재생: 실제 TTS duration 계산
           for (const sceneIndex of groupIndices) {
+            const markups = buildSceneMarkup(timeline, sceneIndex)
+            let sceneTtsDuration = 0
+            for (const markup of markups) {
+              const key = makeTtsKey(voiceTemplate!, markup)
+              const cached = ttsCacheRef.current.get(key)
+              if (cached?.durationSec) {
+                sceneTtsDuration += cached.durationSec
+              } else {
+                // 캐시가 없으면 scene.duration 사용 (fallback)
+                const scene = timeline.scenes[sceneIndex]
+                if (scene) {
+                  sceneTtsDuration += scene.duration || 0
+                }
+              }
+            }
             const scene = timeline.scenes[sceneIndex]
             if (scene) {
               const isLastScene = sceneIndex === timeline.scenes.length - 1
@@ -555,14 +585,16 @@ export function useFullPlayback({
               const transitionDuration = isLastScene 
                 ? 0 
                 : (isSameSceneId ? 0 : (scene.transitionDuration || 0.5))
-              groupDuration += (scene.duration || 0) + transitionDuration
+              groupDuration += sceneTtsDuration + transitionDuration
             }
           }
         }
 
-        // 현재 그룹 시작 시간 기록
-        currentGroupStartTimeRef.current = Date.now()
+        // 현재 그룹 duration 설정
         currentGroupDurationRef.current = groupDuration
+        // 그룹 재생 시작 시간은 playGroup 내부에서 실제 TTS 재생 시작 시점에 설정
+        // 여기서는 초기화만 함
+        groupPlaybackStartTimeRef.current = null
 
         // BGM 재생 시작 (첫 번째 그룹만, 재생 시작 직전)
         if (!bgmStartedRef.current && bgmTemplate) {
@@ -581,6 +613,12 @@ export function useFullPlayback({
         if (sceneId !== undefined && groupIndices.length > 1) {
           // 그룹 재생
           console.log(`[전체재생] 그룹 ${groupIndex + 1} 재생 시작 전 | SceneId: ${sceneId}, GroupIndices: [${groupIndices.join(', ')}]`)
+          
+          // 실제 TTS 재생 시작 시점을 추적하기 위해 재생 시작 전 시간 기록
+          // playGroup 내부에서 실제 TTS 재생이 시작되면 이 시간을 사용
+          const playbackStartTime = Date.now()
+          groupPlaybackStartTimeRef.current = playbackStartTime
+          
           await groupPlayback.playGroup(sceneId, groupIndices)
           
           // 디버깅: 그룹 재생 완료
@@ -600,6 +638,11 @@ export function useFullPlayback({
               // sceneId는 undefined로 전달하고, groupIndices는 [sceneIndex]로 전달
               const singleSceneId = scene.sceneId
               console.log(`[전체재생] 단일 씬 재생 시작 전 | SceneIndex: ${sceneIndex}, SceneId: ${singleSceneId}`)
+              
+              // 실제 TTS 재생 시작 시점을 추적하기 위해 재생 시작 전 시간 기록
+              const playbackStartTime = Date.now()
+              groupPlaybackStartTimeRef.current = playbackStartTime
+              
               await groupPlayback.playGroup(singleSceneId, [sceneIndex])
               
               // 디버깅: 단일 씬 재생 완료
@@ -613,11 +656,27 @@ export function useFullPlayback({
         }
 
         // 그룹 재생 완료 후 누적 시간 업데이트 및 재생바 업데이트
-        // 그룹 재생과 단일 씬 재생 모두 groupDuration 사용
-        accumulatedTimeRef.current += groupDuration
+        // 실제 재생된 시간을 정확히 계산
+        if (groupPlaybackStartTimeRef.current !== null) {
+          // 실제 재생된 시간 계산 (재생 시작 시점부터 현재까지)
+          const actualElapsed = (Date.now() - groupPlaybackStartTimeRef.current) / 1000
+          // groupDuration과 실제 경과 시간 중 작은 값 사용 (정확한 동기화)
+          const actualDuration = Math.min(actualElapsed, groupDuration)
+          accumulatedTimeRef.current += actualDuration
+        } else {
+          // fallback: 계산된 duration 사용
+          accumulatedTimeRef.current += groupDuration
+        }
+        
+        // currentGroupStartTimeRef 업데이트 (다음 그룹 재생을 위해)
+        currentGroupStartTimeRef.current = Date.now()
+        
         if (setCurrentTime) {
           setCurrentTime(accumulatedTimeRef.current)
         }
+        
+        // ref 초기화
+        groupPlaybackStartTimeRef.current = null
 
         // 다음 그룹 재생
         console.log(`[전체재생] 다음 그룹 체크 | groupIndex: ${groupIndex}, totalGroups: ${groupEntries.length}, isPlayingAll: ${isPlayingAllRef.current}, aborted: ${playbackAbortControllerRef.current?.signal.aborted}`)
