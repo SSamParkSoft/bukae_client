@@ -47,15 +47,19 @@ export const getSceneStartTime = (timeline: { scenes: Array<{ sceneId: number; d
  * @param timeline Timeline 객체
  * @returns 전체 duration (초)
  */
-export const calculateTotalDuration = (timeline: { scenes: Array<{ duration: number; transitionDuration?: number }> }): number => {
-  return timeline.scenes.reduce(
-    (acc, scene, index) => {
-      const isLastScene = index === timeline.scenes.length - 1
-      const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
-      return acc + scene.duration + transitionDuration
-    },
-    0
-  )
+export const calculateTotalDuration = (timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number }> }): number => {
+  return timeline.scenes.reduce((sum, scene, index) => {
+    // 마지막 씬에는 transition이 없으므로 제외
+    const isLastScene = index === timeline.scenes.length - 1
+    if (isLastScene) {
+      return sum + scene.duration
+    }
+    // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
+    const nextScene = timeline.scenes[index + 1]
+    const isSameSceneId = nextScene && scene.sceneId === nextScene.sceneId
+    const transitionDuration = isSameSceneId ? 0 : (scene.transitionDuration || 0.5)
+    return sum + scene.duration + transitionDuration
+  }, 0)
 }
 
 /**
@@ -64,14 +68,21 @@ export const calculateTotalDuration = (timeline: { scenes: Array<{ duration: num
  * @param targetTime 목표 시간 (초)
  * @returns 씬 인덱스
  */
-export const calculateSceneIndexFromTime = (timeline: { scenes: Array<{ duration: number; transitionDuration?: number }> }, targetTime: number): number => {
+export const calculateSceneIndexFromTime = (timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number }> }, targetTime: number): number => {
   let accumulated = 0
   let sceneIndex = 0
   for (let i = 0; i < timeline.scenes.length; i++) {
+    const scene = timeline.scenes[i]
     const isLastScene = i === timeline.scenes.length - 1
-    const transitionDuration = isLastScene ? 0 : (timeline.scenes[i].transitionDuration || 0.5)
-    const sceneDuration = timeline.scenes[i].duration + transitionDuration
-    accumulated += sceneDuration
+    if (isLastScene) {
+      accumulated += scene.duration
+    } else {
+      // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
+      const nextScene = timeline.scenes[i + 1]
+      const isSameSceneId = nextScene && scene.sceneId === nextScene.sceneId
+      const transitionDuration = isSameSceneId ? 0 : (scene.transitionDuration || 0.5)
+      accumulated += scene.duration + transitionDuration
+    }
     if (targetTime <= accumulated) {
       sceneIndex = i
       break

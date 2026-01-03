@@ -47,9 +47,11 @@ export function useTimelineInitializer({
             content: scene.script,
             font: existingScene?.text?.font ?? subtitleFont ?? SUBTITLE_DEFAULT_FONT_ID,
             fontWeight: existingScene?.text?.fontWeight ?? 700,
-            color: subtitleColor || '#ffffff',
-            position: subtitlePosition || 'center',
+            color: subtitleColor || existingScene?.text?.color || '#ffffff',
+            position: subtitlePosition || existingScene?.text?.position || 'center',
             fontSize: existingScene?.text?.fontSize || 80,
+            transform: existingScene?.text?.transform,
+            style: existingScene?.text?.style,
           },
         }
       }),
