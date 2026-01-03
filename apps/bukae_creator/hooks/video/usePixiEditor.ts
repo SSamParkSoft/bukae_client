@@ -214,15 +214,14 @@ export const usePixiEditor = ({
 
     handles.forEach((handle) => {
       const handleGraphics = new PIXI.Graphics()
-      handleGraphics.beginFill(handleColor, 1)
-      handleGraphics.lineStyle(2, handleBorderColor, 1)
-      handleGraphics.drawRect(-handleSize / 2, -handleSize / 2, handleSize, handleSize)
-      handleGraphics.endFill()
+      handleGraphics.fill({ color: handleColor, alpha: 1 })
+      handleGraphics.setStrokeStyle({ color: handleBorderColor, width: 2, alpha: 1 })
+      handleGraphics.rect(-handleSize / 2, -handleSize / 2, handleSize, handleSize)
       handleGraphics.x = handle.x
       handleGraphics.y = handle.y
       handleGraphics.interactive = true
       handleGraphics.cursor = 'pointer'
-      handleGraphics.name = handle.type
+      handleGraphics.label = handle.type
 
       // 드래그 시작
       handleGraphics.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
@@ -347,8 +346,8 @@ export const usePixiEditor = ({
 
     // 경계선 그리기
     const borderGraphics = new PIXI.Graphics()
-    borderGraphics.lineStyle(2, handleColor, 1)
-    borderGraphics.drawRect(bounds.x, bounds.y, bounds.width, bounds.height)
+    borderGraphics.setStrokeStyle({ color: handleColor, width: 2, alpha: 1 })
+    borderGraphics.rect(bounds.x, bounds.y, bounds.width, bounds.height)
     handlesContainer.addChild(borderGraphics)
 
     containerRef.current.addChild(handlesContainer)
@@ -566,8 +565,8 @@ export const usePixiEditor = ({
           }
         } else if (child instanceof PIXI.Graphics && index === existingHandles.children.length - 1) {
           child.clear()
-          child.lineStyle(2, 0x8b5cf6, 1)
-          child.drawRect(bounds.x, bounds.y, bounds.width, bounds.height)
+          child.setStrokeStyle({ color: 0x8b5cf6, width: 2, alpha: 1 })
+          child.rect(bounds.x, bounds.y, bounds.width, bounds.height)
         }
       })
     }
@@ -675,8 +674,8 @@ export const usePixiEditor = ({
                 } else if (child instanceof PIXI.Graphics && index === existingHandles.children.length - 1) {
                   // 경계선 업데이트
                   child.clear()
-                  child.lineStyle(2, 0x8b5cf6, 1)
-                  child.drawRect(bounds.x, bounds.y, bounds.width, bounds.height)
+                  child.setStrokeStyle({ color: 0x8b5cf6, width: 2, alpha: 1 })
+                  child.rect(bounds.x, bounds.y, bounds.width, bounds.height)
                 }
               })
             } else {
@@ -1096,15 +1095,14 @@ export const usePixiEditor = ({
 
     handles.forEach((handle) => {
       const handleGraphics = new PIXI.Graphics()
-      handleGraphics.beginFill(handleColor, 1)
-      handleGraphics.lineStyle(2, handleBorderColor, 1)
-      handleGraphics.drawRect(-handleSize / 2, -handleSize / 2, handleSize, handleSize)
-      handleGraphics.endFill()
+      handleGraphics.fill({ color: handleColor, alpha: 1 })
+      handleGraphics.setStrokeStyle({ color: handleBorderColor, width: 2, alpha: 1 })
+      handleGraphics.rect(-handleSize / 2, -handleSize / 2, handleSize, handleSize)
       handleGraphics.x = handle.x
       handleGraphics.y = handle.y
       handleGraphics.interactive = true
       handleGraphics.cursor = 'pointer'
-      handleGraphics.name = handle.type
+      handleGraphics.label = handle.type
 
       handleGraphics.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
         e.stopPropagation()
@@ -1299,8 +1297,8 @@ export const usePixiEditor = ({
 
     // 경계선 그리기
     const borderGraphics = new PIXI.Graphics()
-    borderGraphics.lineStyle(2, handleColor, 1)
-    borderGraphics.drawRect(bounds.x, bounds.y, bounds.width, bounds.height)
+    borderGraphics.setStrokeStyle({ color: handleColor, width: 2, alpha: 1 })
+    borderGraphics.rect(bounds.x, bounds.y, bounds.width, bounds.height)
     handlesContainer.addChild(borderGraphics)
 
     containerRef.current.addChild(handlesContainer)
@@ -1414,8 +1412,8 @@ export const usePixiEditor = ({
                 } else if (child instanceof PIXI.Graphics && index === existingHandles.children.length - 1) {
                   // 경계선 업데이트
                   child.clear()
-                  child.lineStyle(2, 0x8b5cf6, 1)
-                  child.drawRect(bounds.x, bounds.y, bounds.width, bounds.height)
+                  child.setStrokeStyle({ color: 0x8b5cf6, width: 2, alpha: 1 })
+                  child.rect(bounds.x, bounds.y, bounds.width, bounds.height)
                 }
               })
             } else {

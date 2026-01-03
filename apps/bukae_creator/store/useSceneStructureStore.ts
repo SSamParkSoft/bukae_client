@@ -146,14 +146,32 @@ export const useSceneStructureStore = create<SceneStructureState>((set, get) => 
     // 4. SceneStructureInfo 생성 (TTS duration 포함)
     const sceneStructures: SceneStructureInfo[] = scenes.map((scene, index) => {
       const timelineScene = timeline.scenes[index]
-      const fullSubtitle = timelineScene?.text?.content || scene.script || ''
-      const subtitleParts = splitSubtitleByDelimiter(fullSubtitle)
-      const hasSubtitleSegments = subtitleParts.length > 1
-
       const groupInfo = groups.get(scene.sceneId)
       const groupStartIndex = groupInfo?.firstSceneIndex ?? index
       const groupEndIndex = groupInfo?.lastSceneIndex ?? index
       const groupSize = groupInfo?.size ?? 1
+
+      // 자막 씬 분할 시 원본 전체 자막 복원
+      // splitIndex가 있는 씬들(분할된 씬들)에 대해 같은 그룹의 모든 씬의 자막을 합쳐서 원본 전체 자막 복원
+      let fullSubtitle: string
+      if (scene.splitIndex !== undefined && groupSize > 1) {
+        // 분할된 씬인 경우: 같은 그룹의 모든 씬의 자막을 순서대로 합침
+        const groupIndices = groupInfo?.indices ?? []
+        const groupSubtitles = groupIndices
+          .map((idx) => {
+            const groupScene = timeline.scenes[idx]
+            return groupScene?.text?.content || scenes[idx]?.script || ''
+          })
+          .filter((text) => text.trim().length > 0)
+        // ||| 구분자로 합침 (그룹 재생 시 전체 자막을 한 번에 렌더링하기 위해)
+        fullSubtitle = groupSubtitles.join(' ||| ')
+      } else {
+        // 분할되지 않은 씬인 경우: 현재 씬의 자막만 사용
+        fullSubtitle = timelineScene?.text?.content || scene.script || ''
+      }
+      
+      const subtitleParts = splitSubtitleByDelimiter(fullSubtitle)
+      const hasSubtitleSegments = subtitleParts.length > 1
 
       // 씬별 TTS duration 계산
       let ttsDuration = 0

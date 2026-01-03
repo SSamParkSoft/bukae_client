@@ -17,12 +17,6 @@ export const buildSceneMarkup = (timeline: TimelineData | null, sceneIndex: numb
   // ||| 구분자로 분할 (공백 유무와 관계없이 분할)
   const parts = base.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
   
-  // 디버깅: Scene 1의 경우 로그 출력
-  if (sceneIndex === 0 && parts.length > 1) {
-    console.log(`[DEBUG] Scene ${sceneIndex} 구분자 발견: ${parts.length}개 구간`, base.substring(0, 100))
-  } else if (sceneIndex === 0) {
-    console.log(`[DEBUG] Scene ${sceneIndex} 구분자 없음: 1개 구간`, base.substring(0, 100))
-  }
   
   // 각 구간별로 마크업 생성
   const isLast = sceneIndex >= timeline.scenes.length - 1

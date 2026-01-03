@@ -44,7 +44,8 @@ interface UseSceneManagerParams {
     previousIndex?: number | null, // 이전 씬 인덱스
     groupTransitionTimelinesRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>, // 그룹별 Timeline 추적
     sceneId?: number, // 현재 씬의 sceneId
-    isPlaying?: boolean // 재생 중인지 여부
+    isPlaying?: boolean, // 재생 중인지 여부
+    skipImage?: boolean // 이미지 렌더링 스킵 (전환 효과 후 이미지 숨김)
   ) => void
   onLoadComplete?: (sceneIndex: number) => void // 로드 완료 후 콜백
   
@@ -187,7 +188,33 @@ export const useSceneManager = ({
   const updateCurrentScene = useCallback((skipAnimation: boolean = false, explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, skipImage?: boolean, partIndex?: number | null, sceneIndex?: number, overrideTransitionDuration?: number) => {
     // 기본 값 설정
     const actualSceneIndex = sceneIndex !== undefined ? sceneIndex : currentSceneIndexRef.current
-    const previousIndex = explicitPreviousIndex !== undefined ? explicitPreviousIndex : previousSceneIndexRef.current
+    
+    // previousIndex 계산: explicitPreviousIndex가 없으면 previousSceneIndexRef.current를 사용하되,
+    // 이미 현재 씬으로 업데이트되어 있으면 null을 사용 (잘못된 이전 인덱스 방지)
+    let previousIndex: number | null
+    const hasExplicitPreviousIndex = explicitPreviousIndex !== undefined
+    if (hasExplicitPreviousIndex) {
+      previousIndex = explicitPreviousIndex
+    } else {
+      const prevRefValue = previousSceneIndexRef.current
+      // previousSceneIndexRef.current가 이미 현재 씬과 같으면 null 사용 (전환 효과 없이 시작)
+      previousIndex = (prevRefValue !== null && prevRefValue === actualSceneIndex) ? null : prevRefValue
+    }
+    
+    // 렌더링 발생 확인 로그
+    console.log(`[updateCurrentScene] 렌더링 호출 | sceneIndex: ${actualSceneIndex}, previousIndex: ${previousIndex}, explicitPreviousIndex: ${hasExplicitPreviousIndex}, skipImage: ${skipImage}, isPlaying: ${isPlaying}, partIndex: ${partIndex}, forceTransition: ${forceTransition}, onAnimationComplete: ${!!onAnimationComplete}`)
+    
+    // 같은 씬이고 애니메이션 스킵이고 재생 중이 아니고, forceTransition이나 onAnimationComplete가 없으면 불필요한 렌더링 방지
+    // 단, partIndex가 있으면 구간 전환이므로 렌더링 필요
+    // explicitPreviousIndex가 명시적으로 전달된 경우에는 스킵하지 않음 (의도적인 호출이므로)
+    // previousIndex가 null이면 이전 씬 정보가 없으므로 렌더링 필요 (스킵하지 않음)
+    // previousIndex와 actualSceneIndex를 비교하여 실제로 같은 씬인지 확인 (previousIndex가 null이 아닐 때만)
+    const isActuallySameScene = previousIndex !== null && previousIndex === actualSceneIndex
+    if (skipAnimation && !isPlaying && !forceTransition && !onAnimationComplete && partIndex === null && isActuallySameScene && !hasExplicitPreviousIndex) {
+      // 렌더링 발생 확인 로그 (스킵된 경우)
+      console.log(`[updateCurrentScene] 렌더링 스킵 | sceneIndex: ${actualSceneIndex}, previousIndex: ${previousIndex}, 이미 같은 씬 (explicitPreviousIndex 없음)`)
+      return
+    }
     
     // 필수 참조 확인
     const hasRequiredRefs = containerRef.current && timeline && appRef.current
@@ -276,6 +303,29 @@ export const useSceneManager = ({
 
     // 애니메이션 스킵 시 즉시 표시
     if (skipAnimation) {
+      // skipImage가 true이면 이미지 렌더링 스킵
+      if (skipImage) {
+        // 모든 이미지 숨기기
+        spritesRef.current.forEach((sprite) => {
+          if (sprite) {
+            sprite.visible = false
+            sprite.alpha = 0
+          }
+        })
+        
+        // 자막만 표시
+        if (currentText) {
+          currentText.visible = true
+          currentText.alpha = 1
+        }
+        
+        previousSceneIndexRef.current = actualSceneIndex
+        if (onAnimationComplete) {
+          onAnimationComplete(actualSceneIndex)
+        }
+        return
+      }
+      
       handleSkipAnimation({
         actualSceneIndex,
         previousIndex,
@@ -361,33 +411,51 @@ export const useSceneManager = ({
     }
     
     // 전환 효과 시작 전에 이전 씬 숨기기
-    const shouldHidePreviousBeforeTransition = previousIndex !== null && previousIndex !== actualSceneIndex
-    if (shouldHidePreviousBeforeTransition) {
+    // 같은 그룹 내 첫 번째 씬인 경우 다른 씬들을 숨기지 않음 (깜빡임 방지)
+    const shouldHidePreviousBeforeTransition = previousIndex !== null && previousIndex !== actualSceneIndex && !isFirstSceneInGroup
+    if (shouldHidePreviousBeforeTransition && previousIndex !== null) {
       const prevSprite = spritesRef.current.get(previousIndex)
       const prevText = textsRef.current.get(previousIndex)
       
-      if (prevSprite) {
-        prevSprite.visible = false
-        prevSprite.alpha = 0
-      }
-      if (prevText) {
-        prevText.visible = false
-        prevText.alpha = 0
+      // 이전 씬이 같은 그룹 내 씬인지 확인
+      const prevScene = previousIndex !== null ? timeline.scenes[previousIndex] : null
+      const isPrevInSameGroup = prevScene && currentScene && hasSceneId && prevScene.sceneId === currentScene.sceneId
+      
+      // 이전 씬이 같은 그룹이 아니면 숨김
+      if (!isPrevInSameGroup) {
+        if (prevSprite) {
+          prevSprite.visible = false
+          prevSprite.alpha = 0
+        }
+        if (prevText) {
+          prevText.visible = false
+          prevText.alpha = 0
+        }
       }
       
-      // 다른 모든 씬들도 숨김
+      // 다른 모든 씬들도 숨김 (같은 그룹 내 씬 제외)
       spritesRef.current.forEach((sprite, idx) => {
         if (sprite && idx !== actualSceneIndex && idx !== previousIndex) {
-          sprite.visible = false
-          sprite.alpha = 0
+          const otherScene = timeline.scenes[idx]
+          const isOtherInSameGroup = otherScene && currentScene && hasSceneId && otherScene.sceneId === currentScene.sceneId
+          // 같은 그룹 내 씬이 아니면 숨김
+          if (!isOtherInSameGroup) {
+            sprite.visible = false
+            sprite.alpha = 0
+          }
         }
       })
       // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 이미 자막을 업데이트했으므로 텍스트는 건드리지 않음
       if (!isManualSceneSelectRef.current) {
         textsRef.current.forEach((text, idx) => {
           if (text && idx !== actualSceneIndex && idx !== previousIndex) {
-            text.visible = false
-            text.alpha = 0
+            const otherScene = timeline.scenes[idx]
+            const isOtherInSameGroup = otherScene && currentScene && hasSceneId && otherScene.sceneId === currentScene.sceneId
+            // 같은 그룹 내 씬이 아니면 숨김
+            if (!isOtherInSameGroup) {
+              text.visible = false
+              text.alpha = 0
+            }
           }
         })
       }
@@ -396,19 +464,29 @@ export const useSceneManager = ({
     // 전환 효과 적용을 위한 wrappedOnComplete 미리 정의
     const wrappedOnComplete = onAnimationComplete ? () => {
     // 전환 효과 완료 후 최종 정리
-    // 다른 모든 씬들 숨기기
+    // 다른 모든 씬들 숨기기 (같은 그룹 내 씬 제외)
     spritesRef.current.forEach((sprite, idx) => {
       if (sprite && idx !== actualSceneIndex) {
-        sprite.visible = false
-        sprite.alpha = 0
+        const otherScene = timeline.scenes[idx]
+        const isOtherInSameGroup = otherScene && currentScene && hasSceneId && otherScene.sceneId === currentScene.sceneId
+        // 같은 그룹 내 씬이 아니면 숨김
+        if (!isOtherInSameGroup) {
+          sprite.visible = false
+          sprite.alpha = 0
+        }
       }
     })
     // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 이미 자막을 업데이트했으므로 텍스트는 건드리지 않음
     if (!isManualSceneSelectRef.current) {
       textsRef.current.forEach((text, idx) => {
         if (text && idx !== actualSceneIndex) {
-          text.visible = false
-          text.alpha = 0
+          const otherScene = timeline.scenes[idx]
+          const isOtherInSameGroup = otherScene && currentScene && hasSceneId && otherScene.sceneId === currentScene.sceneId
+          // 같은 그룹 내 씬이 아니면 숨김
+          if (!isOtherInSameGroup) {
+            text.visible = false
+            text.alpha = 0
+          }
         }
       })
     }
@@ -439,128 +517,9 @@ export const useSceneManager = ({
     // 렌더링은 PixiJS ticker가 처리
     })
     
-    // skipImage가 true이면 이미지는 전환 효과에만 사용하고, 전환 효과 후에는 숨김 (자막만 표시)
-    // 전환 효과를 보여주려면 이미지가 필요하므로, 이미지를 렌더링하고 전환 효과를 적용한 후 숨김
-    if (skipImage && currentSprite) {
-    // 전환 효과를 적용하기 위해 이미지를 렌더링
-    // 하지만 전환 효과가 끝나면 이미지를 숨기고 자막만 표시
-    
-    // 그룹의 첫 번째 씬 찾기 (같은 sceneId를 가진 씬들 중 첫 번째)
-    const firstSceneIndex = currentScene.sceneId !== undefined 
-      ? timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
-      : -1
-    const isFirstSceneInGroup = firstSceneIndex === actualSceneIndex
-    
-    // 같은 그룹 내 씬들은 항상 첫 번째 씬의 스프라이트 사용
-    let spriteToUse = currentSprite
-    if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
-      const firstSprite = spritesRef.current.get(firstSceneIndex)
-      if (firstSprite) {
-        spriteToUse = firstSprite
-      }
-    }
-    
-    // transition 결정
-    let transition: string
-    let transitionDuration: number
-    
-    if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
-      const firstSceneInGroup = timeline.scenes[firstSceneIndex]
-      transition = forceTransition || firstSceneInGroup?.transition || 'fade'
-      transitionDuration = currentScene.duration && currentScene.duration > 0
-        ? currentScene.duration
-        : 0.5
-    } else {
-      transition = forceTransition || currentScene.transition || 'fade'
-      transitionDuration = currentScene.transitionDuration && currentScene.transitionDuration > 0
-        ? currentScene.transitionDuration
-        : 0.5
-    }
-    
-    const { width, height } = stageDimensions
-    
-    // 스프라이트를 컨테이너에 추가
-    if (spriteToUse.parent !== containerRef.current && containerRef.current) {
-      if (spriteToUse.parent) {
-        spriteToUse.parent.removeChild(spriteToUse)
-      }
-      containerRef.current.addChild(spriteToUse)
-    }
-    
-    // 이전 씬 숨기기
-    if (previousIndex !== null && previousIndex !== actualSceneIndex) {
-      const prevSprite = spritesRef.current.get(previousIndex)
-      if (prevSprite) {
-        prevSprite.visible = false
-        prevSprite.alpha = 0
-      }
-    }
-    
-    // 다른 모든 씬들 숨기기
-    spritesRef.current.forEach((sprite, idx) => {
-      if (sprite && idx !== actualSceneIndex && idx !== previousIndex) {
-        sprite.visible = false
-        sprite.alpha = 0
-      }
-    })
-    
-    // 전환 효과 적용 (이미지를 사용하여 전환 효과 렌더링)
-    if (skipAnimation || transition === 'none') {
-      // 애니메이션 없이 즉시 표시 (이미지는 그대로 표시)
-      spriteToUse.visible = true
-      spriteToUse.alpha = 1
-      
-      // 자막 표시
-      if (currentText) {
-        currentText.visible = true
-        currentText.alpha = 1
-      }
-      
-      previousSceneIndexRef.current = actualSceneIndex
-      if (onAnimationComplete) {
-        onAnimationComplete(actualSceneIndex)
-      }
-    } else {
-      // 전환 효과 적용
-      spriteToUse.visible = true
-      spriteToUse.alpha = 0
-      
-      // applyEnterEffect를 사용하여 전환 효과 적용
-      // 전환 효과가 진행되는 동안 이미지가 보이면서 전환 효과가 적용됨
-      // 전환 효과가 끝나면 이미지를 숨기고 자막만 표시
-      applyEnterEffect(
-        spriteToUse,
-        currentText || null,
-        transition,
-        transitionDuration,
-        width,
-        height,
-        actualSceneIndex,
-        forceTransition,
-        () => {
-          // 전환 효과 완료 후 이미지는 그대로 표시 (숨기지 않음)
-          // 이미지는 이미 applyEnterEffect에서 alpha: 1로 설정되어 있음
-          
-          // 자막 표시
-          if (currentText) {
-            currentText.visible = true
-            currentText.alpha = 1
-          }
-          
-          previousSceneIndexRef.current = actualSceneIndex
-          if (onAnimationComplete) {
-            onAnimationComplete(actualSceneIndex)
-          }
-        },
-        previousIndex,
-        isFirstSceneInGroup ? groupTransitionTimelinesRef : undefined,
-        currentScene.sceneId,
-        isPlaying
-      )
-      // 전환 효과가 정상적으로 작동하여 이미지가 보이면서 전환 효과가 적용됨
-    }
-    return
-    }
+    // skipImage가 true이면 전환 효과는 보여주되, 전환 효과 후 이미지는 숨김
+    // 전환 효과를 보여주려면 이미지가 필요하므로, 전환 효과를 적용한 후 이미지를 숨김
+    // 이 로직은 아래에서 처리되므로 여기서는 early return하지 않음
     
     // 현재 씬 등장 효과 적용
     if (currentSprite) {
@@ -667,6 +626,7 @@ export const useSceneManager = ({
           }
           containerRef.current.addChild(currentSprite)
         }
+
       currentSprite.visible = true
       currentSprite.alpha = 1
       
@@ -698,100 +658,112 @@ export const useSceneManager = ({
       return
     }
     
-    // 같은 그룹 내에서는 첫 번째 씬의 스프라이트 사용
-    // 같은 그룹 내 씬인 경우 먼저 spriteToUse를 확실히 표시하여 검은 화면 방지
-    if (isInSameGroup) {
-      // 컨테이너에 추가되어 있는지 확인
-      if (spriteToUse.parent !== containerRef.current) {
-        if (spriteToUse.parent) {
-          spriteToUse.parent.removeChild(spriteToUse)
+    // skipImage가 true이면 전환 효과에 사용되는 이미지만 처리하고 다른 이미지는 아예 건드리지 않음
+    if (!skipImage) {
+      // 같은 그룹 내 씬인 경우 먼저 spriteToUse를 확실히 표시하여 검은 화면 방지
+      if (isInSameGroup) {
+        // 컨테이너에 추가되어 있는지 확인
+        if (spriteToUse.parent !== containerRef.current) {
+          if (spriteToUse.parent) {
+            spriteToUse.parent.removeChild(spriteToUse)
+          }
+          containerRef.current.addChild(spriteToUse)
         }
-        containerRef.current.addChild(spriteToUse)
-      }
-      // 즉시 visible/alpha 설정하여 검은 화면 방지
-      spriteToUse.visible = true
-      spriteToUse.alpha = 1
-      // 먼저 렌더링하여 이미지가 보이도록 보장
-      // 렌더링은 PixiJS ticker가 처리
-    } else {
-      // 다른 그룹인 경우
-      if (spriteToUse.parent !== containerRef.current) {
-        if (spriteToUse.parent) {
-          spriteToUse.parent.removeChild(spriteToUse)
+        // 즉시 visible/alpha 설정하여 검은 화면 방지
+        spriteToUse.visible = true
+        spriteToUse.alpha = 1
+      } else {
+        // 다른 그룹인 경우
+        if (spriteToUse.parent !== containerRef.current) {
+          if (spriteToUse.parent) {
+            spriteToUse.parent.removeChild(spriteToUse)
+          }
+          containerRef.current.addChild(spriteToUse)
         }
-        containerRef.current.addChild(spriteToUse)
       }
-    }
-    
-    // 현재 씬의 스프라이트는 숨기기 (같은 그룹 내에서는 첫 번째 씬의 스프라이트만 사용)
-    // 같은 그룹 내 씬인 경우 currentSprite를 숨기지 않음 (spriteToUse와 같을 수 있음)
-    if (currentSprite && currentSprite !== spriteToUse) {
-      // 같은 그룹 내 씬인 경우 currentSprite가 spriteToUse와 다르더라도 숨기지 않음
-      // 왜냐하면 같은 그룹 내에서는 spriteToUse만 사용하므로
-      if (!isInSameGroup) {
+      
+      // 현재 씬의 스프라이트는 숨기기 (같은 그룹 내에서는 첫 번째 씬의 스프라이트만 사용)
+      if (currentSprite && currentSprite !== spriteToUse && !isInSameGroup) {
         currentSprite.visible = false
         currentSprite.alpha = 0
       }
-    }
-    
-    if (currentText && currentText.parent !== containerRef.current) {
-      if (currentText.parent) {
-        currentText.parent.removeChild(currentText)
-      }
-      containerRef.current.addChild(currentText)
-    }
-    
-    // 모든 다른 씬들 숨기기
-    // 같은 그룹 내 씬인 경우 spriteToUse(firstSceneSprite)는 절대 숨기지 않음
-    spritesRef.current.forEach((sprite, idx) => {
-      if (!sprite) return
       
-      // spriteToUse는 절대 숨기지 않음
-      if (sprite === spriteToUse) {
-        return
-      }
-      
-      // 같은 그룹 내 씬인 경우 firstSceneSprite도 절대 숨기지 않음
-      if (isInSameGroup && firstSceneSprite && sprite === firstSceneSprite) {
-        return
-      }
-      
-      // 현재 씬 인덱스가 아니고 spriteToUse가 아닌 경우에만 숨기기
-      if (idx !== actualSceneIndex) {
-        sprite.visible = false
-        sprite.alpha = 0
-      }
-    })
-    // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 이미 자막을 업데이트했으므로 텍스트는 건드리지 않음
-    if (!isManualSceneSelectRef.current) {
-      textsRef.current.forEach((text, idx) => {
-        if (text && idx !== actualSceneIndex) {
-          text.visible = false
-          text.alpha = 0
+      // 모든 다른 씬들 숨기기
+      spritesRef.current.forEach((sprite, idx) => {
+        if (!sprite || sprite === spriteToUse) return
+        
+        if (isInSameGroup && firstSceneSprite && sprite === firstSceneSprite) {
+          return
+        }
+        
+        if (idx !== actualSceneIndex) {
+          const otherScene = timeline.scenes[idx]
+          const isOtherInSameGroup = otherScene && currentScene && hasSceneId && otherScene.sceneId === currentScene.sceneId
+          if (!isOtherInSameGroup) {
+            sprite.visible = false
+            sprite.alpha = 0
+          }
         }
       })
-    }
-    
-    // 현재 씬 visible 설정 및 alpha 초기화
-    // 같은 그룹 내 씬이 아닌 경우에만 alpha를 0으로 설정 (전환 효과를 위해)
-    if (!isInSameGroup) {
+      
+      // 텍스트 처리
+      if (!isManualSceneSelectRef.current) {
+        textsRef.current.forEach((text, idx) => {
+          if (text && idx !== actualSceneIndex) {
+            const otherScene = timeline.scenes[idx]
+            const isOtherInSameGroup = otherScene && currentScene && hasSceneId && otherScene.sceneId === currentScene.sceneId
+            if (!isOtherInSameGroup) {
+              text.visible = false
+              text.alpha = 0
+            }
+          }
+        })
+      }
+      
+      // 현재 씬 visible 설정 및 alpha 초기화
+      if (!isInSameGroup) {
+        spriteToUse.visible = true
+        spriteToUse.alpha = 0
+      }
+      
+      if (currentText && !isManualSceneSelectRef.current) {
+        currentText.visible = true
+        currentText.alpha = 0
+      }
+      
+      // 스프라이트가 컨테이너에 있는지 확인
+      if (!spriteToUse.parent && containerRef.current) {
+        containerRef.current.addChild(spriteToUse)
+      }
+      if (currentText && !currentText.parent && containerRef.current) {
+        containerRef.current.addChild(currentText)
+      }
+    } else {
+      // skipImage가 true이면 전환 효과에 사용되는 이미지만 처리
+      // 전환 효과를 위해 컨테이너에 추가하고 초기 상태만 설정
+      if (spriteToUse.parent !== containerRef.current && containerRef.current) {
+        if (spriteToUse.parent) {
+          spriteToUse.parent.removeChild(spriteToUse)
+        }
+        containerRef.current.addChild(spriteToUse)
+      }
       spriteToUse.visible = true
       spriteToUse.alpha = 0
-    }
-    // 같은 그룹 내 씬인 경우는 위에서 이미 설정했으므로 여기서는 건드리지 않음
-    
-    // isManualSceneSelectRef가 true이면 renderSubtitlePart에서 이미 자막을 업데이트했으므로 건드리지 않음
-    if (currentText && !isManualSceneSelectRef.current) {
-      currentText.visible = true
-      currentText.alpha = 0
-    }
-    
-    // 스프라이트가 컨테이너에 있는지 확인
-    if (!spriteToUse.parent && containerRef.current) {
-      containerRef.current.addChild(spriteToUse)
-    }
-    if (currentText && !currentText.parent && containerRef.current) {
-      containerRef.current.addChild(currentText)
+      
+      // 텍스트만 처리 (컨테이너에 없을 때만 추가, 이미 올바른 상태면 건드리지 않음)
+      if (currentText) {
+        if (currentText.parent !== containerRef.current && containerRef.current) {
+          if (currentText.parent) {
+            currentText.parent.removeChild(currentText)
+          }
+          containerRef.current.addChild(currentText)
+        }
+        // 이미 올바른 상태면 건드리지 않음 (깜빡임 방지)
+        if (!isManualSceneSelectRef.current && (!currentText.visible || currentText.alpha !== 0)) {
+          currentText.visible = true
+          currentText.alpha = 0
+        }
+      }
     }
 
     // 전환 효과 적용 전에 한 번 렌더링
@@ -930,6 +902,7 @@ export const useSceneManager = ({
       
       // applyEnterEffect 호출 전에 currentText 객체의 상태를 로깅
       
+      // skipImage가 true이면 전환 효과 완료 후 즉시 이미지 숨기기
       applyEnterEffect(
         spriteToUse,
         currentText || null,
@@ -940,13 +913,20 @@ export const useSceneManager = ({
         actualSceneIndex,
         forceTransition,
         () => {
+          // skipImage가 true이면 전환 효과에 사용된 이미지만 숨김 (다른 이미지는 건드리지 않음)
+          if (skipImage && spriteToUse) {
+            spriteToUse.visible = false
+            spriteToUse.alpha = 0
+          }
+          
           previousSceneIndexRef.current = actualSceneIndex
           wrappedOnComplete()
         },
         previousIndex,
         isFirstInGroup ? groupTransitionTimelinesRef : undefined,
         currentScene.sceneId,
-        isPlaying // 재생 중인지 여부 전달
+        isPlaying,
+        skipImage
       )
     }
     
@@ -1167,7 +1147,7 @@ export const useSceneManager = ({
           const textContent = scene.text.content.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
           const displayText = textContent.length > 0 ? textContent[0] : scene.text.content
 
-          // strokeThickness를 포함한 스타일 객체 생성
+          // stroke를 포함한 스타일 객체 생성 (PixiJS v8)
           const styleConfig: Record<string, unknown> = {
             fontFamily,
             fontSize: scene.text.fontSize || 80, // 기본 크기 32 -> 48로 증가
@@ -1178,8 +1158,7 @@ export const useSceneManager = ({
             wordWrap: true, // 자동 줄바꿈 활성화
             wordWrapWidth: textWidth, // 줄바꿈 너비 설정
             breakWords: true, // 단어 중간에서도 줄바꿈 가능
-            stroke: '#000000', // 쉐도우 대신 테두리(border) 사용
-            strokeThickness: 10, // 테두리 두께 10픽셀 (서버 인코딩과 동일)
+            stroke: { color: '#000000', width: 10 }, // 테두리 (PixiJS v8 형식)
           }
           const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
 
@@ -1685,6 +1664,8 @@ export const useSceneManager = ({
       transitionDuration?: number // 전환 효과 지속시간 (TTS duration 등)
     }
   ) => {
+    // 렌더링 발생 확인 로그
+    console.log(`[renderSceneContent] 렌더링 호출 | sceneIndex: ${sceneIndex}, partIndex: ${partIndex}, skipImage: ${options?.skipImage}, isPlaying: ${options?.isPlaying}`)
     if (!timeline || !appRef.current) return
     
     const scene = timeline.scenes[sceneIndex]

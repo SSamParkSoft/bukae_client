@@ -430,9 +430,13 @@ export default function Step4Page() {
     requestAnimationFrame(async () => {
       await loadAllScenes()
       // loadAllScenes 완료 후 현재 씬 표시
+      // 그룹 재생 중이면 이미지 렌더링 스킵
       setTimeout(() => {
         const sceneIndex = currentSceneIndexRef.current
         if (appRef.current && containerRef.current) {
+          // 재생 중이면 이미지 렌더링 스킵 (그룹 재생 중일 수 있음)
+          const isPlaying = isPlayingRef?.current || false
+          
           // 모든 씬 숨기기
           spritesRef.current.forEach((sprite) => {
             if (sprite) {
@@ -446,16 +450,19 @@ export default function Step4Page() {
               text.alpha = 0
             }
           })
-          // 현재 씬만 표시
-          const currentSprite = spritesRef.current.get(sceneIndex)
-          const currentText = textsRef.current.get(sceneIndex)
-          if (currentSprite) {
-            currentSprite.visible = true
-            currentSprite.alpha = 1
-          }
-          if (currentText) {
-            currentText.visible = true
-            currentText.alpha = 1
+          
+          // 재생 중이 아니면 현재 씬만 표시
+          if (!isPlaying) {
+            const currentSprite = spritesRef.current.get(sceneIndex)
+            const currentText = textsRef.current.get(sceneIndex)
+            if (currentSprite) {
+              currentSprite.visible = true
+              currentSprite.alpha = 1
+            }
+            if (currentText) {
+              currentText.visible = true
+              currentText.alpha = 1
+            }
           }
           // 렌더링은 PixiJS ticker가 처리
           
@@ -686,11 +693,13 @@ export default function Step4Page() {
               targetTextObj.alpha = 1
             }
             
-            // 스프라이트 표시
-            const currentSprite = spritesRef.current.get(sceneIndex)
-            if (currentSprite) {
-              currentSprite.visible = true
-              currentSprite.alpha = 1
+            // 스프라이트 표시 (skipImage가 true이면 스킵)
+            if (!options?.skipImage) {
+              const currentSprite = spritesRef.current.get(sceneIndex)
+              if (currentSprite) {
+                currentSprite.visible = true
+                currentSprite.alpha = 1
+              }
             }
             
             // 같은 씬 내 구간 전환인 경우: 자막만 업데이트 (전환 효과 없음)
@@ -738,8 +747,8 @@ export default function Step4Page() {
             options.onComplete()
           }
         },
-        false, // isPlaying
-        undefined, // skipImage
+        options?.isPlaying ?? false, // isPlaying 옵션 전달
+        options?.skipImage, // skipImage 옵션 전달
         partIndex, // partIndex 전달
         sceneIndex // sceneIndex 전달
       )
@@ -1512,18 +1521,13 @@ export default function Step4Page() {
     ttsCacheRef: videoPlayback.ttsCacheRef,
     ensureSceneTts,
     renderSceneContent,
-    renderSubtitlePart,
     setTimeline,
-    setCurrentSceneIndex,
     currentSceneIndexRef,
     lastRenderedSceneIndexRef,
     textsRef,
     spritesRef,
     ttsAudioRef: videoPlayback.ttsAudioRef,
     ttsAudioUrlRef: videoPlayback.ttsAudioUrlRef,
-    renderSceneImage,
-    prepareImageAndSubtitle,
-    setCurrentTime,
     changedScenesRef,
     isPlayingRef,
     setIsPreparing,
@@ -1561,40 +1565,40 @@ export default function Step4Page() {
       makeTtsKey,
     })
     
-    // 구조 정보 콘솔 출력
-    console.log('=== 씬 구조 정보 ===')
-    console.log('전체 씬 수:', sceneStructureStore.sceneStructures.length)
-    console.log('그룹 수:', sceneStructureStore.groups.size)
+    // // 구조 정보 콘솔 출력
+    // console.log('=== 씬 구조 정보 ===')
+    // console.log('전체 씬 수:', sceneStructureStore.sceneStructures.length)
+    // console.log('그룹 수:', sceneStructureStore.groups.size)
     
-    // 각 씬의 구조 정보
-    sceneStructureStore.sceneStructures.forEach((structure) => {
-      console.log(`\n씬 ${structure.index}:`, {
-        sceneId: structure.sceneId,
-        splitIndex: structure.splitIndex,
-        isSplit: structure.isSplit,
-        fullSubtitle: structure.fullSubtitle.substring(0, 50) + (structure.fullSubtitle.length > 50 ? '...' : ''),
-        subtitleParts: structure.subtitleParts,
-        hasSubtitleSegments: structure.hasSubtitleSegments,
-        groupStartIndex: structure.groupStartIndex,
-        groupEndIndex: structure.groupEndIndex,
-        groupSize: structure.groupSize,
-        ttsDuration: structure.ttsDuration,
-        hasTtsCache: structure.hasTtsCache,
-      })
-    })
+    // // 각 씬의 구조 정보
+    // sceneStructureStore.sceneStructures.forEach((structure) => {
+    //   console.log(`\n씬 ${structure.index}:`, {
+    //     sceneId: structure.sceneId,
+    //     splitIndex: structure.splitIndex,
+    //     isSplit: structure.isSplit,
+    //     fullSubtitle: structure.fullSubtitle.substring(0, 50) + (structure.fullSubtitle.length > 50 ? '...' : ''),
+    //     subtitleParts: structure.subtitleParts,
+    //     hasSubtitleSegments: structure.hasSubtitleSegments,
+    //     groupStartIndex: structure.groupStartIndex,
+    //     groupEndIndex: structure.groupEndIndex,
+    //     groupSize: structure.groupSize,
+    //     ttsDuration: structure.ttsDuration,
+    //     hasTtsCache: structure.hasTtsCache,
+    //   })
+    // })
     
-    // 그룹 정보
-    console.log('\n=== 그룹 정보 ===')
-    sceneStructureStore.groups.forEach((groupInfo, sceneId) => {
-      console.log(`그룹 sceneId ${sceneId}:`, {
-        indices: groupInfo.indices,
-        firstSceneIndex: groupInfo.firstSceneIndex,
-        lastSceneIndex: groupInfo.lastSceneIndex,
-        size: groupInfo.size,
-        totalTtsDuration: groupInfo.totalTtsDuration,
-        hasAllTtsCache: groupInfo.hasAllTtsCache,
-      })
-    })
+    // // 그룹 정보
+    // console.log('\n=== 그룹 정보 ===')
+    // sceneStructureStore.groups.forEach((groupInfo, sceneId) => {
+    //   console.log(`그룹 sceneId ${sceneId}:`, {
+    //     indices: groupInfo.indices,
+    //     firstSceneIndex: groupInfo.firstSceneIndex,
+    //     lastSceneIndex: groupInfo.lastSceneIndex,
+    //     size: groupInfo.size,
+    //     totalTtsDuration: groupInfo.totalTtsDuration,
+    //     hasAllTtsCache: groupInfo.hasAllTtsCache,
+    //   })
+    // })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenes, timeline, voiceTemplate])
 
@@ -1801,8 +1805,6 @@ export default function Step4Page() {
       }
     }
   }, [isPlaying, isPreviewingTransition, fabricReady, useFabricEditing])
-
-
 
   // 선택된 요소에 따라 편집 모드 자동 설정
   useEffect(() => {

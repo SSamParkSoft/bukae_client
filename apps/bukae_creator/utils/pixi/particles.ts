@@ -26,7 +26,7 @@ export const createParticleSystem = (
     switch (type) {
       case 'sparkle':
         // 반짝이는 별 모양 (수동으로 그리기)
-        particle.beginFill(0xffffff, 1)
+        particle.fill({ color: 0xffffff, alpha: 1 })
         const sparkleSize = 5
         for (let i = 0; i < 5; i++) {
           const angle = (Math.PI * 2 * i) / 5
@@ -42,24 +42,21 @@ export const createParticleSystem = (
           particle.lineTo(x2, y2)
         }
         particle.closePath()
-        particle.endFill()
         break
       case 'snow':
         // 눈송이 (원)
-        particle.beginFill(0xffffff, 0.8)
-        particle.drawCircle(0, 0, 3)
-        particle.endFill()
+        particle.fill({ color: 0xffffff, alpha: 0.8 })
+        particle.circle(0, 0, 3)
         break
       case 'confetti':
         // 컨페티 (사각형)
         const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff]
-        particle.beginFill(colors[Math.floor(Math.random() * colors.length)], 1)
-        particle.drawRect(-5, -5, 10, 10)
-        particle.endFill()
+        particle.fill({ color: colors[Math.floor(Math.random() * colors.length)], alpha: 1 })
+        particle.rect(-5, -5, 10, 10)
         break
       case 'stars':
         // 별 (수동으로 그리기)
-        particle.beginFill(0xffff00, 1)
+        particle.fill({ color: 0xffff00, alpha: 1 })
         const starSize = 4
         for (let i = 0; i < 5; i++) {
           const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
@@ -75,7 +72,6 @@ export const createParticleSystem = (
           particle.lineTo(x2, y2)
         }
         particle.closePath()
-        particle.endFill()
         break
     }
 

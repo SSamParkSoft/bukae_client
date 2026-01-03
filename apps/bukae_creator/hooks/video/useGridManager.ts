@@ -60,25 +60,23 @@ export function useGridManager({
     const textAreaX = width * 0.5 - textAreaWidth / 2
 
     // 이미지 영역 배경 (반투명)
-    gridGraphics.beginFill(0x00ff00, areaAlpha) // 초록색 반투명
-    gridGraphics.drawRect(0, imageAreaY, width, imageAreaHeight)
-    gridGraphics.endFill()
+    gridGraphics.fill({ color: 0x00ff00, alpha: areaAlpha }) // 초록색 반투명
+    gridGraphics.rect(0, imageAreaY, width, imageAreaHeight)
 
     // 이미지 영역 테두리
-    gridGraphics.lineStyle(lineWidth, 0x00ff00, lineAlpha) // 초록색
-    gridGraphics.drawRect(0, imageAreaY, width, imageAreaHeight)
+    gridGraphics.setStrokeStyle({ color: 0x00ff00, width: lineWidth, alpha: lineAlpha }) // 초록색
+    gridGraphics.rect(0, imageAreaY, width, imageAreaHeight)
 
     // 자막 영역 배경 (반투명)
-    gridGraphics.beginFill(0x0000ff, areaAlpha) // 파란색 반투명
-    gridGraphics.drawRect(textAreaX, textAreaY - textAreaHeight / 2, textAreaWidth, textAreaHeight)
-    gridGraphics.endFill()
+    gridGraphics.fill({ color: 0x0000ff, alpha: areaAlpha }) // 파란색 반투명
+    gridGraphics.rect(textAreaX, textAreaY - textAreaHeight / 2, textAreaWidth, textAreaHeight)
 
     // 자막 영역 테두리
-    gridGraphics.lineStyle(lineWidth, 0x0000ff, lineAlpha) // 파란색
-    gridGraphics.drawRect(textAreaX, textAreaY - textAreaHeight / 2, textAreaWidth, textAreaHeight)
+    gridGraphics.setStrokeStyle({ color: 0x0000ff, width: lineWidth, alpha: lineAlpha }) // 파란색
+    gridGraphics.rect(textAreaX, textAreaY - textAreaHeight / 2, textAreaWidth, textAreaHeight)
 
     // 3x3 격자선 (Rule of Thirds) - 흰색
-    gridGraphics.lineStyle(1, lineColor, lineAlpha * 0.5)
+    gridGraphics.setStrokeStyle({ color: lineColor, width: 1, alpha: lineAlpha * 0.5 })
     // 수직선 2개 (1/3, 2/3 위치)
     gridGraphics.moveTo(width / 3, 0)
     gridGraphics.lineTo(width / 3, height)
