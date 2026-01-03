@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import * as PIXI from 'pixi.js'
 import { TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
 
@@ -23,6 +23,7 @@ interface UsePixiEditorParams {
   isResizingTextRef: React.MutableRefObject<boolean>
   currentSceneIndexRef: React.MutableRefObject<number>
   isSavingTransformRef: React.MutableRefObject<boolean>
+  clickedOnPixiElementRef?: React.MutableRefObject<boolean> // 빈 공간 클릭 감지를 위한 플래그
   
   // State
   editMode: 'none' | 'image' | 'text'
@@ -55,6 +56,7 @@ export const usePixiEditor = ({
   originalTextTransformRef,
   isResizingTextRef,
   isSavingTransformRef,
+  clickedOnPixiElementRef,
   editMode,
   setEditMode,
   setSelectedElementIndex,
@@ -66,6 +68,14 @@ export const usePixiEditor = ({
   // Canvas 크기 (9:16 비율, 1080x1920)
   const STAGE_WIDTH = 1080
   const STAGE_HEIGHT = 1920
+
+  // 순환 참조를 피하기 위한 ref
+  const drawEditHandlesRef = useRef<((sprite: PIXI.Sprite, sceneIndex: number, handleResize: (e: PIXI.FederatedPointerEvent, sceneIndex: number) => void, saveImageTransform: (sceneIndex: number, sprite: PIXI.Sprite) => void) => void) | null>(null)
+  const drawTextEditHandlesRef = useRef<((text: PIXI.Text, sceneIndex: number, handleResize: (e: PIXI.FederatedPointerEvent, sceneIndex: number) => void, saveTextTransform: (sceneIndex: number, text: PIXI.Text) => void) => void) | null>(null)
+  const handleResizeRef = useRef<((e: PIXI.FederatedPointerEvent | MouseEvent, sceneIndex: number) => void) | null>(null)
+  const handleTextResizeRef = useRef<((e: PIXI.FederatedPointerEvent | MouseEvent, sceneIndex: number) => void) | null>(null)
+  const saveImageTransformRef = useRef<((sceneIndex: number, sprite: PIXI.Sprite | null) => void) | null>(null)
+  const saveTextTransformRef = useRef<((sceneIndex: number, text: PIXI.Text | null) => void) | null>(null)
 
   // 마우스 좌표를 PixiJS 좌표로 변환하는 헬퍼 함수
   // autoDensity와 resolution을 고려하여 정확한 좌표 변환
@@ -253,6 +263,12 @@ export const usePixiEditor = ({
       // 드래그 시작
       handleGraphics.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
         e.stopPropagation()
+        
+        // 핸들 클릭 플래그 설정
+        if (clickedOnPixiElementRef) {
+          clickedOnPixiElementRef.current = true
+        }
+        
         isResizingRef.current = true
         resizeHandleRef.current = handle.type
         isFirstResizeMoveRef.current = true
@@ -357,7 +373,14 @@ export const usePixiEditor = ({
               
               // Transform 저장
               saveImageTransform(sceneIndex, currentSprite)
-              // 핸들은 saveImageTransform 후 자동으로 다시 그려짐
+              // 리사이즈 완료 후 핸들 다시 그리기 (setTimeline으로 인한 loadAllScenes 재호출 후)
+              setTimeout(() => {
+                const sprite = spritesRef.current.get(sceneIndex)
+                if (sprite && editMode === 'image' && drawEditHandlesRef.current && handleResizeRef.current && saveImageTransformRef.current) {
+                  // editMode가 여전히 'image'일 때만 핸들 다시 그리기
+                  drawEditHandlesRef.current(sprite, sceneIndex, handleResizeRef.current, saveImageTransformRef.current)
+                }
+              }, 200)
             }
           }
         }
@@ -430,7 +453,12 @@ export const usePixiEditor = ({
       appRef.current.ticker.add(keepOnTop)
       // cleanup은 handlesContainer가 제거될 때 자동으로 처리됨
     }
-  }, [useFabricEditing, containerRef, editHandlesRef, spritesRef, appRef, isResizingRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, originalSpriteTransformRef, resizeStartPosRef, setSelectedElementIndex, setSelectedElementType, getPixiCoordinates, isOutsideCanvas, resetToCenter, timeline, setTimeline])
+  }, [useFabricEditing, containerRef, editHandlesRef, spritesRef, appRef, isResizingRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, originalSpriteTransformRef, resizeStartPosRef, clickedOnPixiElementRef, editMode, setSelectedElementIndex, setSelectedElementType, getPixiCoordinates, isOutsideCanvas, resetToCenter, timeline, setTimeline])
+
+  // drawEditHandles ref 업데이트
+  useEffect(() => {
+    drawEditHandlesRef.current = drawEditHandles
+  }, [drawEditHandles])
 
   // Transform 데이터 저장 (단일 씬)
   const saveImageTransform = useCallback((sceneIndex: number, sprite: PIXI.Sprite | null) => {
@@ -503,6 +531,11 @@ export const usePixiEditor = ({
       isSavingTransformRef.current = false
     }, 100)
   }, [timeline, setTimeline, isSavingTransformRef, originalSpriteTransformRef, isResizingRef])
+
+  // saveImageTransform ref 업데이트
+  useEffect(() => {
+    saveImageTransformRef.current = saveImageTransform
+  }, [saveImageTransform])
   
   // 모든 Transform 데이터 일괄 저장
   const saveAllImageTransforms = useCallback((transforms: Map<number, { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }>) => {
@@ -649,7 +682,12 @@ export const usePixiEditor = ({
     }
 
     // 렌더링은 PixiJS ticker가 처리
-  }, [isResizingRef, resizeHandleRef, originalTransformRef, spritesRef, appRef, editHandlesRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, timeline, setTimeline, saveImageTransform, drawEditHandles])
+  }, [isResizingRef, resizeHandleRef, originalTransformRef, spritesRef, appRef, editHandlesRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, timeline, setTimeline, saveImageTransform, editMode])
+
+  // handleResize ref 업데이트
+  useEffect(() => {
+    handleResizeRef.current = handleResize
+  }, [handleResize])
 
   // 스프라이트 드래그 핸들러
   const setupSpriteDrag = useCallback((sprite: PIXI.Sprite, sceneIndex: number) => {
@@ -674,6 +712,11 @@ export const usePixiEditor = ({
     if (!useFabricEditing) {
       sprite.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
         e.stopPropagation()
+        
+        // 스프라이트 클릭 플래그 설정
+        if (clickedOnPixiElementRef) {
+          clickedOnPixiElementRef.current = true
+        }
         
         // 자막 핸들 제거 (이미지 편집 모드로 전환)
         const existingTextHandles = textEditHandlesRef.current.get(sceneIndex)
@@ -814,7 +857,7 @@ export const usePixiEditor = ({
         // 핸들은 handleGlobalUp에서 유지됨
       })
     }
-  }, [editMode, useFabricEditing, drawEditHandles, saveImageTransform, handleResize, timeline, isDraggingRef, dragStartPosRef, originalSpriteTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingRef, appRef, spritesRef, setEditMode, draggingElementRef, editHandlesRef, textEditHandlesRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, setTimeline])
+  }, [editMode, useFabricEditing, drawEditHandles, saveImageTransform, handleResize, timeline, isDraggingRef, dragStartPosRef, originalSpriteTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingRef, appRef, spritesRef, setEditMode, draggingElementRef, editHandlesRef, textEditHandlesRef, clickedOnPixiElementRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, setTimeline])
 
   // Transform 데이터 적용
   const applyImageTransform = useCallback((sprite: PIXI.Sprite | null, transform?: TimelineScene['imageTransform']) => {
@@ -912,6 +955,11 @@ export const usePixiEditor = ({
       isSavingTransformRef.current = false
     }, 100)
   }, [timeline, setTimeline, isSavingTransformRef, originalTextTransformRef, isResizingTextRef])
+
+  // saveTextTransform ref 업데이트
+  useEffect(() => {
+    saveTextTransformRef.current = saveTextTransform
+  }, [saveTextTransform])
   
   // Transform 데이터 적용
   const applyTextTransform = useCallback((text: PIXI.Text | null, transform?: TimelineScene['text']['transform']) => {
@@ -1146,7 +1194,12 @@ export const usePixiEditor = ({
 
     // 렌더링 (직접 호출 - requestAnimationFrame은 오히려 지연을 유발할 수 있음)
     // 렌더링은 PixiJS ticker가 처리
-  }, [isResizingTextRef, resizeHandleRef, originalTransformRef, resizeStartPosRef, textsRef, appRef, textEditHandlesRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, timeline, setTimeline])
+  }, [isResizingTextRef, resizeHandleRef, originalTransformRef, resizeStartPosRef, textsRef, appRef, textEditHandlesRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, timeline, setTimeline, saveTextTransform, editMode])
+
+  // handleTextResize ref 업데이트
+  useEffect(() => {
+    handleTextResizeRef.current = handleTextResize
+  }, [handleTextResize])
 
   // 텍스트 편집 핸들 그리기
   const drawTextEditHandles = useCallback((text: PIXI.Text, sceneIndex: number, handleResize: (e: PIXI.FederatedPointerEvent, sceneIndex: number) => void, saveTextTransform: (sceneIndex: number, text: PIXI.Text) => void) => {
@@ -1221,6 +1274,12 @@ export const usePixiEditor = ({
 
       handleGraphics.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
         e.stopPropagation()
+        
+        // 핸들 클릭 플래그 설정
+        if (clickedOnPixiElementRef) {
+          clickedOnPixiElementRef.current = true
+        }
+        
         isResizingTextRef.current = true
         resizeHandleRef.current = handle.type
         isFirstResizeMoveRef.current = true
@@ -1394,7 +1453,14 @@ export const usePixiEditor = ({
               
               // Transform 저장
               saveTextTransform(sceneIndex, currentText)
-              // 핸들은 saveTextTransform 후 자동으로 다시 그려짐
+              // 리사이즈 완료 후 핸들 다시 그리기 (setTimeline으로 인한 loadAllScenes 재호출 후)
+              setTimeout(() => {
+                const text = textsRef.current.get(sceneIndex)
+                if (text && editMode === 'text' && drawTextEditHandlesRef.current && handleTextResizeRef.current && saveTextTransformRef.current) {
+                  // editMode가 여전히 'text'일 때만 핸들 다시 그리기
+                  drawTextEditHandlesRef.current(text, sceneIndex, handleTextResizeRef.current, saveTextTransformRef.current)
+                }
+              }, 200)
             }
           }
         }
@@ -1467,7 +1533,12 @@ export const usePixiEditor = ({
       appRef.current.ticker.add(keepOnTop)
       // cleanup은 handlesContainer가 제거될 때 자동으로 처리됨
     }
-  }, [useFabricEditing, containerRef, textEditHandlesRef, textsRef, appRef, isResizingTextRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, originalTextTransformRef, resizeStartPosRef, setSelectedElementIndex, setSelectedElementType, getPixiCoordinates, handleTextResize, timeline, isOutsideCanvas, resetToCenter])
+  }, [useFabricEditing, containerRef, textEditHandlesRef, textsRef, appRef, isResizingTextRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, originalTextTransformRef, resizeStartPosRef, clickedOnPixiElementRef, editMode, setSelectedElementIndex, setSelectedElementType, getPixiCoordinates, handleTextResize, saveTextTransform, timeline, isOutsideCanvas, resetToCenter])
+
+  // drawTextEditHandles ref 업데이트
+  useEffect(() => {
+    drawTextEditHandlesRef.current = drawTextEditHandles
+  }, [drawTextEditHandles])
 
   // 텍스트 드래그 설정
   const setupTextDrag = useCallback((text: PIXI.Text, sceneIndex: number) => {
@@ -1492,6 +1563,11 @@ export const usePixiEditor = ({
     if (!useFabricEditing) {
       text.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
         // e.stopPropagation()
+        
+        // 텍스트 클릭 플래그 설정
+        if (clickedOnPixiElementRef) {
+          clickedOnPixiElementRef.current = true
+        }
         
         // 이미지 핸들 제거 (자막 편집 모드로 전환)
         const existingHandles = editHandlesRef.current.get(sceneIndex)
@@ -1639,7 +1715,7 @@ export const usePixiEditor = ({
         // 핸들은 handleGlobalUp에서 유지됨
       })
     }
-  }, [editMode, useFabricEditing, drawTextEditHandles, saveTextTransform, handleTextResize, timeline, isDraggingRef, dragStartPosRef, originalTextTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingTextRef, appRef, textsRef, setEditMode, draggingElementRef, textEditHandlesRef, editHandlesRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, setTimeline])
+  }, [editMode, useFabricEditing, drawTextEditHandles, saveTextTransform, handleTextResize, timeline, isDraggingRef, dragStartPosRef, originalTextTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingTextRef, appRef, textsRef, setEditMode, draggingElementRef, textEditHandlesRef, editHandlesRef, clickedOnPixiElementRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, setTimeline])
 
   return {
     drawEditHandles,

@@ -118,6 +118,8 @@ export default function Step4Page() {
   const [rightPanelTab, setRightPanelTab] = useState('animation')
   const [editMode, setEditMode] = useState<'none' | 'image' | 'text'>('none')
   const editModeRef = useRef(editMode)
+  // 빈 공간 클릭 감지를 위한 플래그 (스프라이트/텍스트/핸들 클릭 여부 추적)
+  const clickedOnPixiElementRef = useRef(false)
   
   // editMode 변경 시 ref 업데이트
   useEffect(() => {
@@ -286,6 +288,7 @@ export default function Step4Page() {
     isResizingTextRef,
     currentSceneIndexRef,
     isSavingTransformRef,
+    clickedOnPixiElementRef,
     editMode,
     setEditMode,
     selectedElementIndex,
@@ -1669,50 +1672,61 @@ export default function Step4Page() {
 
     // canvas 요소에 직접 클릭 이벤트 추가 (스프라이트/텍스트의 stopPropagation과 무관하게 작동)
     const handleCanvasClick = (e: MouseEvent) => {
-      // 마우스 좌표를 PixiJS 좌표로 변환
-      const rect = canvas.getBoundingClientRect()
-      const scaleX = app.screen.width / rect.width
-      const scaleY = app.screen.height / rect.height
-      const pixiX = (e.clientX - rect.left) * scaleX
-      const pixiY = (e.clientY - rect.top) * scaleY
-
-      const clickedSprite = spritesRef.current.get(currentSceneIndexRef.current)
-      const clickedText = textsRef.current.get(currentSceneIndexRef.current)
+      // 플래그 초기화
+      clickedOnPixiElementRef.current = false
       
-      // 핸들 클릭인지 확인
-      const clickedOnHandle = editHandlesRef.current.get(currentSceneIndexRef.current)?.children.some(handle => {
-        if (handle instanceof PIXI.Graphics) {
-          const handleBounds = handle.getBounds()
-          return pixiX >= handleBounds.x && pixiX <= handleBounds.x + handleBounds.width &&
-                 pixiY >= handleBounds.y && pixiY <= handleBounds.y + handleBounds.height
+      // 약간의 지연을 두어 스프라이트/텍스트/핸들 클릭 이벤트가 먼저 처리되도록 함
+      setTimeout(() => {
+        // 스프라이트나 텍스트나 핸들을 클릭했다면 빈 공간 클릭으로 처리하지 않음
+        if (clickedOnPixiElementRef.current) {
+          return
         }
-        return false
-      }) || textEditHandlesRef.current.get(currentSceneIndexRef.current)?.children.some(handle => {
-        if (handle instanceof PIXI.Graphics) {
-          const handleBounds = handle.getBounds()
-          return pixiX >= handleBounds.x && pixiX <= handleBounds.x + handleBounds.width &&
-                 pixiY >= handleBounds.y && pixiY <= handleBounds.y + handleBounds.height
-        }
-        return false
-      })
 
-      // 스프라이트나 텍스트를 클릭하지 않고, 핸들도 클릭하지 않은 경우 (빈 공간)
-      const spriteBounds = clickedSprite?.getBounds()
-      const clickedOnSprite = clickedSprite && spriteBounds && clickedSprite.visible && clickedSprite.alpha > 0 &&
-        pixiX >= spriteBounds.x && pixiX <= spriteBounds.x + spriteBounds.width &&
-        pixiY >= spriteBounds.y && pixiY <= spriteBounds.y + spriteBounds.height
-      
-      const textBounds = clickedText?.getBounds()
-      const clickedOnText = clickedText && textBounds && clickedText.visible && clickedText.alpha > 0 &&
-        pixiX >= textBounds.x && pixiX <= textBounds.x + textBounds.width &&
-        pixiY >= textBounds.y && pixiY <= textBounds.y + textBounds.height
-      
-      if (!clickedOnHandle && !clickedOnSprite && !clickedOnText) {
-        // 빈 공간 클릭: 선택 해제 및 편집 모드 종료
-        setSelectedElementIndex(null)
-        setSelectedElementType(null)
-        setEditMode('none')
-      }
+        // 마우스 좌표를 PixiJS 좌표로 변환
+        const rect = canvas.getBoundingClientRect()
+        const scaleX = app.screen.width / rect.width
+        const scaleY = app.screen.height / rect.height
+        const pixiX = (e.clientX - rect.left) * scaleX
+        const pixiY = (e.clientY - rect.top) * scaleY
+
+        const clickedSprite = spritesRef.current.get(currentSceneIndexRef.current)
+        const clickedText = textsRef.current.get(currentSceneIndexRef.current)
+        
+        // 핸들 클릭인지 확인
+        const clickedOnHandle = editHandlesRef.current.get(currentSceneIndexRef.current)?.children.some(handle => {
+          if (handle instanceof PIXI.Graphics) {
+            const handleBounds = handle.getBounds()
+            return pixiX >= handleBounds.x && pixiX <= handleBounds.x + handleBounds.width &&
+                   pixiY >= handleBounds.y && pixiY <= handleBounds.y + handleBounds.height
+          }
+          return false
+        }) || textEditHandlesRef.current.get(currentSceneIndexRef.current)?.children.some(handle => {
+          if (handle instanceof PIXI.Graphics) {
+            const handleBounds = handle.getBounds()
+            return pixiX >= handleBounds.x && pixiX <= handleBounds.x + handleBounds.width &&
+                   pixiY >= handleBounds.y && pixiY <= handleBounds.y + handleBounds.height
+          }
+          return false
+        })
+
+        // 스프라이트나 텍스트를 클릭하지 않고, 핸들도 클릭하지 않은 경우 (빈 공간)
+        const spriteBounds = clickedSprite?.getBounds()
+        const clickedOnSprite = clickedSprite && spriteBounds && clickedSprite.visible && clickedSprite.alpha > 0 &&
+          pixiX >= spriteBounds.x && pixiX <= spriteBounds.x + spriteBounds.width &&
+          pixiY >= spriteBounds.y && pixiY <= spriteBounds.y + spriteBounds.height
+        
+        const textBounds = clickedText?.getBounds()
+        const clickedOnText = clickedText && textBounds && clickedText.visible && clickedText.alpha > 0 &&
+          pixiX >= textBounds.x && pixiX <= textBounds.x + textBounds.width &&
+          pixiY >= textBounds.y && pixiY <= textBounds.y + textBounds.height
+        
+        if (!clickedOnHandle && !clickedOnSprite && !clickedOnText) {
+          // 빈 공간 클릭: 선택 해제 및 편집 모드 종료
+          setSelectedElementIndex(null)
+          setSelectedElementType(null)
+          setEditMode('none')
+        }
+      }, 50)
     }
 
     // canvas 요소에 직접 이벤트 리스너 추가 (capture phase에서 처리)
