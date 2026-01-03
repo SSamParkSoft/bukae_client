@@ -77,10 +77,38 @@ export const createTransitionMap = (
   transitionType: string,
   transitionDuration: number = 0.5
 ): Record<string, any> => {
+  // slide-left, slide-right, slide-up, slide-down 처리
+  if (transitionType.startsWith('slide-')) {
+    const direction = transitionType.replace('slide-', '')
+    return {
+      type: 'slide',
+      duration: transitionDuration,
+      direction: direction, // 'left', 'right', 'up', 'down'
+      easing: 'easeInOut',
+    }
+  }
+  
+  // zoom-in, zoom-out 처리
+  if (transitionType.startsWith('zoom-')) {
+    const zoomType = transitionType.replace('zoom-', '')
+    return {
+      type: 'zoom',
+      duration: transitionDuration,
+      scale: zoomType === 'in' ? 1.2 : 0.8,
+      easing: 'easeInOut',
+    }
+  }
+  
+  // 기본 전환 효과
   const transitionMap: Record<string, any> = {
     fade: { type: 'fade', duration: transitionDuration, direction: 'left', easing: 'easeInOut' },
     slide: { type: 'slide', duration: transitionDuration, direction: 'left', easing: 'easeInOut' },
     zoom: { type: 'zoom', duration: transitionDuration, scale: 1.2, easing: 'easeInOut' },
+    rotate: { type: 'rotate', duration: transitionDuration, easing: 'easeInOut' },
+    blur: { type: 'blur', duration: transitionDuration, easing: 'easeInOut' },
+    glitch: { type: 'glitch', duration: transitionDuration, easing: 'easeInOut' },
+    ripple: { type: 'ripple', duration: transitionDuration, easing: 'easeInOut' },
+    circle: { type: 'circle', duration: transitionDuration, easing: 'easeInOut' },
     none: { type: 'none', duration: 0 },
   }
   

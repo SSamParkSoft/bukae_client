@@ -5,7 +5,8 @@ import { groupScenesForExport, createTransitionMap } from '@/lib/utils/video-exp
 import { getFontFileName, SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
 import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
 import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
-import type { TimelineData, SceneScript, TimelineScene } from '@/store/useVideoCreateStore'
+import type { TimelineData } from '@/store/useVideoCreateStore'
+import type { SceneScript } from '@/lib/types/domain/script'
 
 interface UseVideoExportParams {
   timeline: TimelineData | null
@@ -151,7 +152,7 @@ export function useVideoExport({
             const isRateLimit = (error instanceof Error && (
               error.message.includes('요청이 너무 많습니다') ||
               error.message.includes('Too many requests') ||
-              (error as any).isRateLimit
+              ('isRateLimit' in error && (error as { isRateLimit?: boolean }).isRateLimit === true)
             ))
             
             if (isRateLimit) {
@@ -168,7 +169,7 @@ export function useVideoExport({
                     durationSec: result.parts.reduce((sum, part) => sum + part.durationSec, 0) || timeline.scenes[sceneIndex]?.duration || 2.5
                   }
                 }
-              } catch (retryError) {
+              } catch {
                 // 재시도 실패 시 무시
               }
             }
@@ -221,6 +222,11 @@ export function useVideoExport({
       
       // 6. API 문서 형태로 변환
       const sceneGroups = groupScenesForExport(timeline.scenes, scenes, ttsResults, ttsUrls)
+      
+      // 씬 그룹이 비어있는지 확인
+      if (sceneGroups.size === 0) {
+        throw new Error('내보낼 씬이 없습니다. 씬을 추가해주세요.')
+      }
 
       const encodingRequest = {
         videoId: crypto.randomUUID(),
@@ -244,7 +250,7 @@ export function useVideoExport({
             enabled: !!bgmTemplate,
             templateId: bgmTemplate || null,
             url: bgmUrl || null,
-            volume: 0.5,
+            volume: 1, // 내보내기 시 볼륨 1
             fadeIn: 2,
             fadeOut: 2,
           },
@@ -254,129 +260,140 @@ export function useVideoExport({
             volume: 1,
           },
         },
-        scenes: Array.from(sceneGroups.entries()).map(([sceneId, group], groupIndex) => {
-          // 임시 ID인 경우 개별 씬으로 처리 (그룹이 1개인 경우)
-          const isTempId = typeof sceneId === 'string' && sceneId.startsWith('temp_')
-          const actualSceneId = isTempId ? groupIndex + 1 : (sceneId as number) + 1
-          
-          // 같은 그룹 내에서는 첫 번째 씬의 이미지 사용
-          const firstScene = group[0].scene
-          // 마지막 씬의 정보 사용 (transition 등)
-          const lastScene = group[group.length - 1].scene
-          
-          // 자막을 특수기호로 연결 (씬마다 자막을 |||로 구분)
-          const mergedText = group
-            .map(item => item.scene.text.content.trim())
-            .filter(text => text.length > 0) // 빈 자막 제거
-            .join('|||')
+        scenes: Array.from(sceneGroups.entries())
+          .map(([sceneId, group], groupIndex) => {
+            // 임시 ID인 경우 개별 씬으로 처리 (그룹이 1개인 경우)
+            const isTempId = typeof sceneId === 'string' && sceneId.startsWith('temp_')
+            const actualSceneId = isTempId ? groupIndex + 1 : (sceneId as number) + 1
+            
+            // 같은 그룹 내에서는 첫 번째 씬의 이미지 사용
+            const firstScene = group[0].scene
+            // 마지막 씬의 정보 사용 (transition 등)
+            const lastScene = group[group.length - 1].scene
+            
+            // 자막을 특수기호로 연결 (씬마다 자막을 |||로 구분)
+            const mergedText = group
+              .map(item => item.scene.text.content.trim())
+              .filter(text => text.length > 0) // 빈 자막 제거
+              .join('|||')
 
-          // duration 합산
-          const totalDuration = group.reduce((sum, item) => {
-            const ttsDuration = item.ttsResult?.durationSec || item.scene.duration || 2.5
-            return sum + ttsDuration
-          }, 0)
+            // duration 합산
+            const totalDuration = group.reduce((sum, item) => {
+              const ttsDuration = item.ttsResult?.durationSec || item.scene.duration || 2.5
+              return sum + ttsDuration
+            }, 0)
 
-          // TTS 처리: 첫 번째 TTS URL 사용 (또는 서버에서 합쳐진 텍스트로 새로 생성)
-          const mergedTtsUrl = group[0].ttsUrl || null
-          const mergedVoiceText = mergedText
+            // TTS 처리: 첫 번째 TTS URL 사용 (또는 서버에서 합쳐진 텍스트로 새로 생성)
+            const mergedTtsUrl = group[0].ttsUrl || null
+            const mergedVoiceText = mergedText
 
-          // transition 파싱 (마지막 씬의 transition 사용)
-          const transitionType = lastScene.transition || 'none'
-          const transition = createTransitionMap(transitionType, lastScene.transitionDuration || 0.5)
+            // transition 파싱 (마지막 씬의 transition 사용)
+            const transitionType = lastScene.transition || 'none'
+            const transition = createTransitionMap(transitionType, lastScene.transitionDuration || 0.5)
 
-          // 폰트 정보 (마지막 씬의 폰트 사용)
-          const sceneFontId = lastScene.text.font || subtitleFont || SUBTITLE_DEFAULT_FONT_ID
-          const sceneFontWeight = lastScene.text.fontWeight || 700
-          const fontSize = lastScene.text.fontSize || 48
-          const fontFileName = getFontFileName(sceneFontId, sceneFontWeight) || 'NanumGothic-Regular'
+            // 폰트 정보 (마지막 씬의 폰트 사용)
+            const sceneFontId = lastScene.text.font || subtitleFont || SUBTITLE_DEFAULT_FONT_ID
+            const sceneFontWeight = lastScene.text.fontWeight || 700
+            const fontSize = lastScene.text.fontSize || 48
+            const fontFileName = getFontFileName(sceneFontId, sceneFontWeight) || 'NanumGothic-Regular'
 
-          return {
-            sceneId: actualSceneId, // API는 1부터 시작
-            order: groupIndex,
-            duration: totalDuration,
-            transition: transition,
-            image: {
-              url: firstScene.image, // 같은 그룹 내에서는 첫 번째 씬의 이미지 사용
-              fit: firstScene.imageFit || 'contain',
-              transform: firstScene.imageTransform ? {
-                ...firstScene.imageTransform,
-                anchor: {
-                  x: 0.5,
-                  y: 0.5,
+            // 이미지 URL 검증
+            if (!firstScene.image || firstScene.image.trim() === '') {
+              throw new Error(`씬 ${actualSceneId}의 이미지 URL이 없습니다.`)
+            }
+
+            return {
+              sceneId: actualSceneId, // API는 1부터 시작
+              order: groupIndex,
+              duration: Math.max(0.1, totalDuration), // duration이 0보다 커야 함
+              transition: transition,
+              image: {
+                url: firstScene.image, // 같은 그룹 내에서는 첫 번째 씬의 이미지 사용
+                fit: firstScene.imageFit || 'contain',
+                transform: firstScene.imageTransform ? {
+                  ...firstScene.imageTransform,
+                  anchor: {
+                    x: 0.5,
+                    y: 0.5,
+                  },
+                } : {
+                  x: width / 2,
+                  y: height / 2,
+                  width: width,
+                  height: height,
+                  scaleX: 1,
+                  scaleY: 1,
+                  rotation: 0,
+                  anchor: { x: 0.5, y: 0.5 },
                 },
-              } : {
-                x: width / 2,
-                y: height / 2,
-                width: width,
-                height: height,
-                scaleX: 1,
-                scaleY: 1,
-                rotation: 0,
-                anchor: { x: 0.5, y: 0.5 },
               },
-            },
-            text: {
-              content: mergedText, // 특수기호로 연결된 자막
-              visible: true,
-              font: {
-                family: fontFileName,
-                size: fontSize,
-                weight: String(sceneFontWeight),
-                style: lastScene.text.style?.italic ? 'italic' : 'normal',
-              },
-              color: lastScene.text.color || '#FFFFFF',
-              stroke: {
-                enabled: true,
-                color: '#000000',
-                width: 10,
-              },
-              shadow: {
-                enabled: false,
-                color: '#000000',
-                blur: 0,
-                offsetX: 0,
-                offsetY: 0,
-              },
-              decoration: {
-                underline: lastScene.text.style?.underline || false,
-                italic: lastScene.text.style?.italic || false,
-              },
-              alignment: lastScene.text.position || 'center',
-              transform: lastScene.text.transform ? {
-                ...lastScene.text.transform,
-                anchor: {
-                  x: 0.5,
-                  y: 0.5,
+              text: {
+                content: mergedText || ' ', // 빈 자막도 공백으로 처리
+                visible: true,
+                font: {
+                  family: fontFileName,
+                  size: fontSize,
+                  weight: String(sceneFontWeight),
+                  style: lastScene.text.style?.italic ? 'italic' : 'normal',
                 },
-              } : {
-                x: width / 2,
-                y: height * 0.85,
-                width: width * 0.75,
-                height: height * 0.07,
-                scaleX: 1,
-                scaleY: 1,
-                rotation: 0,
-                anchor: { x: 0.5, y: 0.5 },
+                color: lastScene.text.color || '#FFFFFF',
+                stroke: {
+                  enabled: true,
+                  color: '#000000',
+                  width: 10,
+                },
+                shadow: {
+                  enabled: false,
+                  color: '#000000',
+                  blur: 0,
+                  offsetX: 0,
+                  offsetY: 0,
+                },
+                decoration: {
+                  underline: lastScene.text.style?.underline || false,
+                  italic: lastScene.text.style?.italic || false,
+                },
+                alignment: lastScene.text.position || 'center',
+                transform: lastScene.text.transform ? {
+                  ...lastScene.text.transform,
+                  anchor: {
+                    x: 0.5,
+                    y: 0.5,
+                  },
+                } : {
+                  x: width / 2,
+                  y: height * 0.85,
+                  width: width * 0.75,
+                  height: height * 0.07,
+                  scaleX: 1,
+                  scaleY: 1,
+                  rotation: 0,
+                  anchor: { x: 0.5, y: 0.5 },
+                },
               },
-            },
-            tts: {
-              enabled: !!mergedTtsUrl,
-              url: mergedTtsUrl,
-              voiceText: mergedVoiceText,
-            },
-          }
-        }),
+              tts: {
+                enabled: !!mergedTtsUrl,
+                url: mergedTtsUrl,
+                voiceText: mergedVoiceText || ' ', // 빈 텍스트도 공백으로 처리
+              },
+            }
+          })
+          .filter(scene => scene !== null), // null 체크
         metadata: firstProduct ? {
           productName: firstProduct.name || '상품명 없음',
           productImage: firstProduct.image || '',
           productUrl: firstProduct.url || '',
           platform: firstProduct.platform || 'coupang',
+          mallType: firstProduct.platform || 'coupang', // mallType은 platform과 동일하게 설정
+          originalUrl: firstProduct.url || 'https://www.coupang.com', // originalUrl은 productUrl과 동일하게 설정
         } : {
           // 상품이 없을 때 기본값
           productName: '상품명 없음',
           productImage: '',
           productUrl: 'https://www.coupang.com',
           platform: 'coupang',
+          mallType: 'coupang', // 필수 필드
+          originalUrl: 'https://www.coupang.com', // 필수 필드
         },
       }
 
@@ -399,7 +416,13 @@ export function useVideoExport({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || '영상 생성 실패')
+        const errorMessage = errorData.error || errorData.message || `영상 생성 실패 (${response.status})`
+        console.error('=== 내보내기 에러 ===')
+        console.error('Status:', response.status)
+        console.error('Error Data:', errorData)
+        console.error('Request Body:', JSON.stringify(exportData, null, 2))
+        console.error('==================')
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()

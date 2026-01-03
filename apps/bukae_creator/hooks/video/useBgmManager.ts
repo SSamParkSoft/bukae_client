@@ -89,6 +89,7 @@ export function useBgmManager({
       const audio = new Audio(url)
       audio.loop = true
       audio.playbackRate = playbackSpeed
+      audio.volume = 0.5 // 미리보기에서 볼륨 낮춤
       bgmAudioRef.current = audio
       
       // 재생해야 하는 경우에만 재생
