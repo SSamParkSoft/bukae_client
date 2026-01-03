@@ -78,6 +78,7 @@ interface UseFullPlaybackParams {
   ) => void
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
   spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>
+  containerRef: React.RefObject<PIXI.Container | null>
   getMp3DurationSec: (blob: Blob) => Promise<number>
   setTimeline: (timeline: TimelineData) => void
   disableAutoTimeUpdateRef?: React.MutableRefObject<boolean>
@@ -109,6 +110,7 @@ export function useFullPlayback({
   renderSceneImage,
   textsRef,
   spritesRef,
+  containerRef,
   getMp3DurationSec,
   setTimeline,
   disableAutoTimeUpdateRef,
@@ -161,6 +163,7 @@ export function useFullPlayback({
     renderSceneContent,
     renderSceneImage,
     textsRef,
+    containerRef,
     getMp3DurationSec,
   })
 
@@ -177,6 +180,7 @@ export function useFullPlayback({
     lastRenderedSceneIndexRef,
     textsRef,
     spritesRef,
+    containerRef,
     changedScenesRef,
     isPlayingRef: isPlayingAllRef,
     setIsPreparing,
@@ -251,11 +255,50 @@ export function useFullPlayback({
     bgmStartedRef.current = false
   }, [setIsPlaying, setTimelineIsPlaying, stopBgmAudio, stopTtsAudio, cleanupProgressInterval, disableAutoTimeUpdateRef, activeAnimationsRef, spritesRef, textsRef, currentSceneIndexRef])
 
+  // 디버깅 함수: 중복 렌더링 확인
+  const debugRenderState = useCallback((label: string, sceneIndex?: number) => {
+    if (sceneIndex === undefined) {
+      console.log(`[전체재생] ${label}`)
+      return
+    }
+    
+    // visible: true인 스프라이트/텍스트 개수 확인
+    const visibleSprites = Array.from(spritesRef?.current.entries() || [])
+      .filter(([, sprite]) => sprite?.visible && sprite?.alpha > 0)
+      .map(([idx]) => idx)
+    
+    const visibleTexts = Array.from(textsRef.current.entries())
+      .filter(([, text]) => text?.visible && text?.alpha > 0)
+      .map(([idx]) => idx)
+    
+    const currentSprite = spritesRef?.current.get(sceneIndex)
+    const currentText = textsRef.current.get(sceneIndex)
+    
+    console.log(
+      `[전체재생] ${label} | Scene ${sceneIndex} | ` +
+      `스프라이트: ${currentSprite?.visible && currentSprite?.alpha > 0 ? '표시' : '숨김'} | ` +
+      `텍스트: ${currentText?.visible && currentText?.alpha > 0 ? '표시' : '숨김'} | ` +
+      `표시 중인 스프라이트: [${visibleSprites.join(', ')}] | ` +
+      `표시 중인 텍스트: [${visibleTexts.join(', ')}]`
+    )
+    
+    // 중복 렌더링 경고
+    if (visibleSprites.length > 1) {
+      console.warn(`⚠️ 중복 스프라이트 감지! ${visibleSprites.length}개가 동시에 표시됨: [${visibleSprites.join(', ')}]`)
+    }
+    if (visibleTexts.length > 1) {
+      console.warn(`⚠️ 중복 텍스트 감지! ${visibleTexts.length}개가 동시에 표시됨: [${visibleTexts.join(', ')}]`)
+    }
+  }, [spritesRef, textsRef])
+
   // 전체 재생 함수
   const playAllScenes = useCallback(async () => {
     if (!timeline || !voiceTemplate) {
       return
     }
+    
+    // 디버깅: 전체 재생 시작
+    console.log(`[전체재생] 전체 재생 시작 | 총 씬 수: ${timeline.scenes.length}`)
 
     // 모든 씬의 TTS가 준비되었는지 확인
     const scenesToSynthesize: number[] = []
@@ -471,6 +514,10 @@ export function useFullPlayback({
             }, 0)
             setCurrentTime(totalDuration)
           }
+          
+          // 디버깅: 전체 재생 완료
+          console.log('[전체재생] 전체 재생 완료')
+          
           return
         }
 
@@ -521,12 +568,20 @@ export function useFullPlayback({
           })
         }
 
+        // 디버깅: 그룹 재생 시작
+        console.log(`[전체재생] 그룹 ${groupIndex + 1}/${groupEntries.length} 재생 시작 | 씬 ID: ${sceneId} | 그룹 인덱스: [${groupIndices.join(', ')}]`)
+        
         if (sceneId !== undefined && groupIndices.length > 1) {
           // 그룹 재생
           await groupPlayback.playGroup(sceneId, groupIndices)
+          
+          // 디버깅: 그룹 재생 완료
+          console.log(`[전체재생] 그룹 ${groupIndex + 1} 재생 완료`)
         } else {
           // 단일 씬 재생
           for (const sceneIndex of groupIndices) {
+            // 디버깅: 단일 씬 재생 시작
+            debugRenderState(`단일 씬 재생 시작`, sceneIndex)
             if (playbackAbortControllerRef.current?.signal.aborted || !isPlayingAllRef.current) {
               break
             }
@@ -545,6 +600,9 @@ export function useFullPlayback({
               
               await singleScenePlayback.playScene(sceneIndex)
               
+              // 디버깅: 단일 씬 재생 완료
+              debugRenderState(`단일 씬 재생 완료`, sceneIndex)
+              
               // 재생 완료 후 누적 시간 업데이트 및 재생바 업데이트
               accumulatedTimeRef.current += sceneDuration
               if (setCurrentTime) {
@@ -552,6 +610,9 @@ export function useFullPlayback({
               }
             }
           }
+          
+          // 디버깅: 단일 씬 그룹 재생 완료
+          console.log(`[전체재생] 단일 씬 그룹 ${groupIndex + 1} 재생 완료`)
         }
 
         // 그룹 재생 완료 후 누적 시간 업데이트 및 재생바 업데이트
@@ -616,6 +677,7 @@ export function useFullPlayback({
     ttsCacheRef,
     cleanupProgressInterval,
     disableAutoTimeUpdateRef,
+    debugRenderState,
   ])
 
   // 항상 객체를 반환하도록 보장

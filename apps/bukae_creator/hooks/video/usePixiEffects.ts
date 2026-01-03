@@ -185,29 +185,16 @@ export const usePixiEffects = ({
         // 이전 씬 인덱스는 updateCurrentScene에서 전달받아야 함
         // 하지만 현재는 직접 접근할 수 없으므로, onComplete 콜백에서 처리하도록 해야 함
         
-        // 그룹 재생 중(isPlaying이 true)이면 Timeline을 완료하지 않고 계속 진행
-        // duration이 끝나도 전환 효과가 끊어지지 않도록 유지
-        // 그룹 재생 중에는 이미지가 사라지지 않도록 onComplete를 실행하지 않음
-        const isGroupPlayback = isPlaying
-        if (isGroupPlayback) {
-          // 그룹 재생 중에는 Timeline을 완료하지 않고 계속 진행
-          // activeAnimationsRef에서 삭제하지 않음
-          // onComplete 콜백도 호출하지 않음 (그룹 재생이 끝날 때까지 전환 효과와 이미지 유지)
-          // 이미지는 전환 효과 중에 보이도록 유지되므로 여기서 숨기지 않음
-          return
-        }
-        
-        // 전환 효과 완료 후: 재생 중이면 이미지 숨김, 편집 모드면 이미지 유지
-        if (toSprite) {
-          if (isPlaying) {
-            // 재생 중: 전환 효과를 통해서만 렌더링
-            toSprite.visible = false
-            toSprite.alpha = 0
-          } else {
-            // 편집 모드: 이미지 유지
-            toSprite.visible = true
-            toSprite.alpha = 1
-          }
+        // 재생 중(isPlaying이 true)이면 전환 효과 완료 후에도 이미지를 유지
+        // 씬 재생과 그룹 재생 모두에서 전환 효과가 보이도록 함
+        if (toSprite && isPlaying) {
+          // 재생 중: 전환 효과 완료 후에도 이미지를 유지하여 전환 효과가 보이도록 함
+          toSprite.visible = true
+          toSprite.alpha = 1
+        } else if (toSprite) {
+          // 편집 모드: 이미지 유지
+          toSprite.visible = true
+          toSprite.alpha = 1
         }
         
         // 자막은 항상 alpha: 1로 표시 (효과 없음)

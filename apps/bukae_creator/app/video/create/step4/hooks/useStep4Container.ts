@@ -1189,6 +1189,7 @@ export function useStep4Container() {
     prepareImageAndSubtitle,
     textsRef,
     spritesRef,
+    containerRef,
     getMp3DurationSec,
     setTimeline,
     disableAutoTimeUpdateRef,

@@ -32,6 +32,7 @@ interface UseGroupPlaybackParams {
   lastRenderedSceneIndexRef: React.MutableRefObject<number | null>
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
   spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>
+  containerRef: React.RefObject<PIXI.Container | null>
   changedScenesRef: React.MutableRefObject<Set<number>>
   isPlayingRef: React.MutableRefObject<boolean>
   setIsPreparing?: (preparing: boolean) => void
@@ -50,6 +51,7 @@ export function useGroupPlayback({
   lastRenderedSceneIndexRef,
   textsRef,
   spritesRef,
+  containerRef,
   changedScenesRef,
   isPlayingRef,
   setIsPreparing,
@@ -200,6 +202,57 @@ export function useGroupPlayback({
     stopTtsAudio()
   }, [stopTtsAudio])
 
+  // 디버깅 함수: 중복 렌더링 확인
+  const debugRenderState = useCallback((label: string, sceneIndex: number | null, partIndex?: number) => {
+    if (sceneIndex === null) {
+      console.log(`[그룹재생] ${label}`)
+      return
+    }
+    
+    // visible: true인 스프라이트/텍스트 개수 확인
+    const visibleSprites = Array.from(spritesRef?.current.entries() || [])
+      .filter(([, sprite]) => sprite?.visible && sprite?.alpha > 0)
+      .map(([idx]) => idx)
+    
+    const visibleTexts = Array.from(textsRef.current.entries())
+      .filter(([, text]) => text?.visible && text?.alpha > 0)
+      .map(([idx]) => idx)
+    
+    const currentSprite = spritesRef?.current.get(sceneIndex)
+    
+    // 같은 그룹 내 씬들은 첫 번째 씬의 텍스트를 공유하므로, 텍스트 객체를 올바르게 찾기
+    let currentText: PIXI.Text | null = null
+    if (timeline) {
+      const scene = timeline.scenes[sceneIndex]
+      if (scene?.sceneId !== undefined) {
+        const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === scene.sceneId)
+        if (firstSceneIndexInGroup >= 0) {
+          currentText = textsRef.current.get(firstSceneIndexInGroup) || null
+        }
+      }
+      if (!currentText) {
+        currentText = textsRef.current.get(sceneIndex) || null
+      }
+    }
+    
+    const partInfo = partIndex !== undefined ? ` Part ${partIndex}` : ''
+    console.log(
+      `[그룹재생] ${label} | Scene ${sceneIndex}${partInfo} | ` +
+      `스프라이트: ${currentSprite?.visible && currentSprite?.alpha > 0 ? '표시' : '숨김'} | ` +
+      `텍스트: ${currentText?.visible && currentText?.alpha > 0 ? '표시' : '숨김'} | ` +
+      `표시 중인 스프라이트: [${visibleSprites.join(', ')}] | ` +
+      `표시 중인 텍스트: [${visibleTexts.join(', ')}]`
+    )
+    
+    // 중복 렌더링 경고
+    if (visibleSprites.length > 1) {
+      console.warn(`⚠️ 중복 스프라이트 감지! ${visibleSprites.length}개가 동시에 표시됨: [${visibleSprites.join(', ')}]`)
+    }
+    if (visibleTexts.length > 1) {
+      console.warn(`⚠️ 중복 텍스트 감지! ${visibleTexts.length}개가 동시에 표시됨: [${visibleTexts.join(', ')}]`)
+    }
+  }, [spritesRef, textsRef, timeline])
+
   /**
    * 그룹 재생 함수
    */
@@ -207,6 +260,9 @@ export function useGroupPlayback({
     if (!timeline || !voiceTemplate || !ensureSceneTtsParam) {
       return
     }
+
+    // 디버깅: 그룹 재생 시작
+    console.log(`[그룹재생] 그룹 재생 시작 | SceneId ${sceneId} | 그룹 인덱스: [${groupIndices.join(', ')}]`)
 
     // 1. 그룹화된 씬 확인
     const groupScenes = groupIndices.map(index => timeline.scenes[index]).filter(Boolean)
@@ -257,14 +313,36 @@ export function useGroupPlayback({
       const firstSceneForRender = updatedTimeline.scenes[firstSceneIndexForRender]
       currentSceneIndexRef.current = firstSceneIndexForRender
       
-      // 그룹 재생 시작 전에 모든 씬의 이미지만 숨김 (자막은 유지)
+      // 그룹 재생 시작 전에 컨테이너의 모든 자식 제거 및 숨김
+      if (containerRef.current) {
+        // 컨테이너의 모든 자식을 제거 (스프라이트와 텍스트 모두)
+        const container = containerRef.current
+        const containerChildren = Array.from(container.children)
+        containerChildren.forEach((child) => {
+          container.removeChild(child)
+          if (child instanceof PIXI.Sprite) {
+            child.visible = false
+            child.alpha = 0
+          } else if (child instanceof PIXI.Text) {
+            child.visible = false
+            child.alpha = 0
+          }
+        })
+      }
+      
+      // spritesRef와 textsRef의 모든 요소도 숨김
       spritesRef.current.forEach((sprite) => {
         if (sprite) {
           sprite.visible = false
           sprite.alpha = 0
         }
       })
-      // 자막(텍스트)은 그대로 유지
+      textsRef.current.forEach((text) => {
+        if (text) {
+          text.visible = false
+          text.alpha = 0
+        }
+      })
       
       // 자막 파싱
       const mergedTextParts = parseMergedTextParts(groupIndices, updatedTimeline)
@@ -275,7 +353,22 @@ export function useGroupPlayback({
       // 텍스트 객체 찾기
       const textToUpdate = findTextObject(firstSceneIndex, updatedTimeline)
       
+      // 텍스트가 컨테이너에 없으면 추가하고 표시
+      if (textToUpdate && containerRef.current) {
+        if (textToUpdate.parent !== containerRef.current) {
+          if (textToUpdate.parent) {
+            textToUpdate.parent.removeChild(textToUpdate)
+          }
+          containerRef.current.addChild(textToUpdate)
+        }
+        textToUpdate.visible = true
+        textToUpdate.alpha = 1
+      }
+      
       if (renderSceneContent) {
+        // 디버깅: 첫 번째 씬 렌더링 시작 전
+        debugRenderState('첫 번째 씬 렌더링 시작 전', firstSceneIndexForRender)
+        
         // 렌더링 경로 확인: 그룹 재생 시작에서 renderSceneContent 사용
         renderSceneContent(firstSceneIndexForRender, null, {
           skipAnimation: false,
@@ -286,8 +379,15 @@ export function useGroupPlayback({
           transitionDuration: totalGroupTtsDuration,
           onComplete: () => {
             lastRenderedSceneIndexRef.current = firstSceneIndexForRender
+            // 디버깅: 첫 번째 씬 렌더링 완료 후
+            debugRenderState('첫 번째 씬 렌더링 완료 후', firstSceneIndexForRender)
           },
         })
+        
+        // 디버깅: 렌더링 호출 직후
+        setTimeout(() => {
+          debugRenderState('첫 번째 씬 렌더링 호출 직후', firstSceneIndexForRender)
+        }, 100)
       } else {
         lastRenderedSceneIndexRef.current = firstSceneIndexForRender
       }
@@ -323,15 +423,70 @@ export function useGroupPlayback({
           currentSceneIndexRef.current = targetSceneIndex
         }
 
-        // 자막 텍스트 업데이트 (텍스트가 변경될 때만)
-        if (textToUpdate && currentPartText) {
-          // 텍스트가 변경되는 경우에만 업데이트
-          if (textToUpdate.text !== currentPartText) {
-            textToUpdate.text = currentPartText
-            textToUpdate.visible = true
-            textToUpdate.alpha = 1
+        // 디버깅: 구간 재생 시작
+        debugRenderState(`구간 ${globalPartIndex + 1} 재생 시작`, targetSceneIndex, scenePartIndex)
+        
+        // 각 구간에서 텍스트 객체 찾기
+        // 같은 그룹 내 씬들은 첫 번째 씬의 텍스트를 공유하므로, 항상 첫 번째 씬의 텍스트를 사용
+        // textToUpdate는 이미 첫 번째 씬의 텍스트 객체이므로, 이를 직접 사용
+        const currentTextToUpdate = textToUpdate
+        
+        // 자막 텍스트 업데이트
+        if (currentTextToUpdate && currentPartText) {
+          // 텍스트 업데이트
+          currentTextToUpdate.text = currentPartText
+          
+          // 텍스트가 컨테이너에 없으면 추가 (반드시 컨테이너에 있어야 표시됨)
+          if (containerRef.current) {
+            if (currentTextToUpdate.parent !== containerRef.current) {
+              if (currentTextToUpdate.parent) {
+                currentTextToUpdate.parent.removeChild(currentTextToUpdate)
+              }
+              containerRef.current.addChild(currentTextToUpdate)
+            }
+            // 컨테이너의 맨 위로 이동 (다른 요소에 가려지지 않도록)
+            containerRef.current.setChildIndex(currentTextToUpdate, containerRef.current.children.length - 1)
           }
-          // 이미 올바른 상태면 건드리지 않음 (깜빡임 방지)
+          
+          // 텍스트 표시 (강제로 설정)
+          currentTextToUpdate.visible = true
+          currentTextToUpdate.alpha = 1
+          
+          // 디버깅: 텍스트 업데이트 후
+          debugRenderState(`구간 ${globalPartIndex + 1} 텍스트 업데이트 후`, targetSceneIndex, scenePartIndex)
+          
+          // 텍스트가 실제로 표시되는지 확인 및 로깅
+          const isInContainer = containerRef.current && currentTextToUpdate.parent === containerRef.current
+          const isVisible = currentTextToUpdate.visible && currentTextToUpdate.alpha > 0
+          console.log(
+            `[그룹재생] 구간 ${globalPartIndex + 1} 텍스트 상태 확인 | ` +
+            `컨테이너에 있음: ${isInContainer}, ` +
+            `표시됨: ${isVisible}, ` +
+            `visible: ${currentTextToUpdate.visible}, ` +
+            `alpha: ${currentTextToUpdate.alpha}, ` +
+            `텍스트: "${currentPartText.substring(0, 30)}..."`
+          )
+          
+          if (!isInContainer) {
+            console.warn(`[그룹재생] 구간 ${globalPartIndex + 1} 텍스트가 컨테이너에 없습니다! 다시 추가합니다.`)
+            if (containerRef.current) {
+              if (currentTextToUpdate.parent) {
+                currentTextToUpdate.parent.removeChild(currentTextToUpdate)
+              }
+              containerRef.current.addChild(currentTextToUpdate)
+              containerRef.current.setChildIndex(currentTextToUpdate, containerRef.current.children.length - 1)
+            }
+          }
+          
+          if (!isVisible) {
+            console.warn(`[그룹재생] 구간 ${globalPartIndex + 1} 텍스트가 숨김 상태입니다. 다시 표시합니다.`)
+            currentTextToUpdate.visible = true
+            currentTextToUpdate.alpha = 1
+          }
+        } else if (!currentTextToUpdate) {
+          console.warn(`[그룹재생] 구간 ${globalPartIndex + 1} 텍스트 객체를 찾을 수 없습니다. targetSceneIndex: ${targetSceneIndex}`)
+        } else if (!currentPartText) {
+          console.warn(`[그룹재생] 구간 ${globalPartIndex + 1} 텍스트가 비어있습니다.`)
         }
 
         // 마크업 가져오기
@@ -431,6 +586,18 @@ export function useGroupPlayback({
           })
         }
 
+        // 오디오 재생 전에 텍스트가 표시되어 있는지 확인하고 다시 표시
+        if (currentTextToUpdate && currentPartText) {
+          if (containerRef.current && currentTextToUpdate.parent !== containerRef.current) {
+            if (currentTextToUpdate.parent) {
+              currentTextToUpdate.parent.removeChild(currentTextToUpdate)
+            }
+            containerRef.current.addChild(currentTextToUpdate)
+          }
+          currentTextToUpdate.visible = true
+          currentTextToUpdate.alpha = 1
+        }
+        
         // 오디오 재생
         await new Promise<void>((resolve) => {
           if (abortController.signal.aborted) {
@@ -446,6 +613,17 @@ export function useGroupPlayback({
 
           const handleEnded = () => {
             cleanup()
+            // 오디오 재생 완료 후에도 텍스트가 표시되어 있는지 확인하고 다시 표시
+            if (currentTextToUpdate && currentPartText) {
+              if (containerRef.current && currentTextToUpdate.parent !== containerRef.current) {
+                if (currentTextToUpdate.parent) {
+                  currentTextToUpdate.parent.removeChild(currentTextToUpdate)
+                }
+                containerRef.current.addChild(currentTextToUpdate)
+              }
+              currentTextToUpdate.visible = true
+              currentTextToUpdate.alpha = 1
+            }
             resolve()
           }
           
@@ -487,12 +665,17 @@ export function useGroupPlayback({
           }
         })
 
+        // 디버깅: 구간 재생 완료
+        debugRenderState(`구간 ${globalPartIndex + 1} 재생 완료`, targetSceneIndex, scenePartIndex)
+        
         // 다음 구간 재생 (현재 구간 재생 완료 후)
         if (globalPartIndex < mergedTextParts.length - 1) {
           await playPart(globalPartIndex + 1)
         } else {
           // 모든 구간 재생 완료 후 lastRenderedSceneIndexRef 업데이트
           lastRenderedSceneIndexRef.current = targetSceneIndex
+          // 디버깅: 모든 구간 재생 완료
+          debugRenderState('모든 구간 재생 완료', targetSceneIndex)
         }
       }
       
@@ -523,26 +706,54 @@ export function useGroupPlayback({
       // 그룹 재생이 끝나기 전에 마지막 씬의 이미지와 자막 유지
       const lastSceneIndex = groupIndices[groupIndices.length - 1]
       
-      // 마지막 씬을 다시 렌더링하여 이미지와 자막 유지
-      if (renderSceneContent && lastSceneIndex !== undefined) {
-        // 렌더링 경로 확인: 그룹 재생 완료 후 마지막 씬 렌더링
-        renderSceneContent(lastSceneIndex, null, {
-          skipAnimation: true,
-          forceTransition: 'none',
-          updateTimeline: false,
-          prepareOnly: false,
-          isPlaying: false,
-        })
-      } else {
-        // renderSceneContent가 없으면 직접 텍스트만 유지
+      // 마지막 씬의 이미지와 자막이 이미 표시되어 있으므로, 다시 렌더링하지 않고 유지
+      // 이미지가 끊기지 않도록 마지막 씬의 스프라이트와 텍스트만 확인하여 표시
+      if (lastSceneIndex !== undefined) {
+        const lastSprite = spritesRef.current.get(lastSceneIndex)
         const lastText = textsRef.current.get(lastSceneIndex)
-        if (lastText) {
-          lastText.visible = true
-          lastText.alpha = 1
+        
+        // 같은 그룹 내 첫 번째 씬의 스프라이트/텍스트 사용
+        const lastScene = timeline.scenes[lastSceneIndex]
+        let spriteToShow = lastSprite
+        let textToShow = lastText
+        
+        if (lastScene?.sceneId !== undefined) {
+          const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === lastScene.sceneId)
+          if (firstSceneIndexInGroup >= 0 && firstSceneIndexInGroup !== lastSceneIndex) {
+            spriteToShow = spritesRef.current.get(firstSceneIndexInGroup) || spriteToShow
+            textToShow = textsRef.current.get(firstSceneIndexInGroup) || textToShow
+          }
+        }
+        
+        // 이미지와 자막이 컨테이너에 있고 표시되어 있는지 확인
+        if (spriteToShow && containerRef.current) {
+          if (spriteToShow.parent !== containerRef.current) {
+            if (spriteToShow.parent) {
+              spriteToShow.parent.removeChild(spriteToShow)
+            }
+            containerRef.current.addChild(spriteToShow)
+          }
+          spriteToShow.visible = true
+          spriteToShow.alpha = 1
+        }
+        
+        if (textToShow && containerRef.current) {
+          if (textToShow.parent !== containerRef.current) {
+            if (textToShow.parent) {
+              textToShow.parent.removeChild(textToShow)
+            }
+            containerRef.current.addChild(textToShow)
+          }
+          textToShow.visible = true
+          textToShow.alpha = 1
         }
       }
       
       isPlayingRef.current = false
+      
+      // 디버깅: 그룹 재생 완료
+      console.log(`[그룹재생] 그룹 재생 완료 | SceneId ${sceneId}`)
+      debugRenderState('최종 상태', lastSceneIndex)
     }
   }, [
     timeline,
@@ -559,6 +770,7 @@ export function useGroupPlayback({
     lastRenderedSceneIndexRef,
     textsRef,
     spritesRef,
+    containerRef,
     isPlayingRef,
     findScenesToSynthesize,
     synthesizeAndCacheTts,
@@ -566,6 +778,7 @@ export function useGroupPlayback({
     parseMergedTextParts,
     findTextObject,
     cleanupAudio,
+    debugRenderState,
   ])
 
   return {

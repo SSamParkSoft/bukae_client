@@ -403,20 +403,27 @@ export function useSceneTransition({
       // 전환 효과 적용을 위한 wrappedOnComplete 미리 정의
       const wrappedOnComplete = onAnimationComplete
         ? () => {
-            if (currentSprite && isPlaying) {
-              currentSprite.visible = false
-              currentSprite.alpha = 0
-              if (firstSceneIndex >= 0 && firstSceneIndex !== actualSceneIndex) {
-                const firstSprite = spritesRef.current.get(firstSceneIndex)
-                if (firstSprite) {
-                  firstSprite.visible = false
-                  firstSprite.alpha = 0
-                }
+            // 재생 중일 때: 전환 효과 완료 후에도 이미지를 유지 (그룹 재생 완료 시 끊기지 않도록)
+            // 이미지 숨김은 usePixiEffects의 onComplete에서 처리하므로 여기서는 숨기지 않음
+
+            // 이전 씬 숨기기 (전환 효과 완료 후)
+            if (previousIndex !== null && previousIndex !== actualSceneIndex) {
+              const prevSprite = spritesRef.current.get(previousIndex)
+              const prevText = textsRef.current.get(previousIndex)
+              
+              if (prevSprite) {
+                prevSprite.visible = false
+                prevSprite.alpha = 0
+              }
+              if (prevText) {
+                prevText.visible = false
+                prevText.alpha = 0
               }
             }
 
+            // 다른 모든 씬 숨기기 (현재 씬과 같은 그룹 제외)
             spritesRef.current.forEach((sprite, idx) => {
-              if (sprite && idx !== actualSceneIndex) {
+              if (sprite && idx !== actualSceneIndex && idx !== previousIndex) {
                 const otherScene = timeline.scenes[idx]
                 const isOtherInSameGroup =
                   otherScene && currentScene && hasSceneId && otherScene.sceneId === currentScene.sceneId
@@ -429,7 +436,7 @@ export function useSceneTransition({
 
             if (!isManualSceneSelectRef.current) {
               textsRef.current.forEach((text, idx) => {
-                if (text && idx !== actualSceneIndex) {
+                if (text && idx !== actualSceneIndex && idx !== previousIndex) {
                   const otherScene = timeline.scenes[idx]
                   const isOtherInSameGroup =
                     otherScene && currentScene && hasSceneId && otherScene.sceneId === currentScene.sceneId
@@ -587,6 +594,27 @@ export function useSceneTransition({
           return
         }
 
+        // currentSprite가 spriteToUse와 다르면 (같은 그룹 내 첫 번째 씬 스프라이트 사용 시)
+        // currentSprite를 컨테이너에서 제거하고 숨김
+        if (currentSprite && currentSprite !== spriteToUse) {
+          if (currentSprite.parent === containerRef.current) {
+            containerRef.current.removeChild(currentSprite)
+          }
+          currentSprite.visible = false
+          currentSprite.alpha = 0
+        }
+
+        // 다른 모든 스프라이트 숨기기 및 컨테이너에서 제거 (spriteToUse 추가 전에 먼저 정리)
+        spritesRef.current.forEach((sprite) => {
+          if (!sprite || sprite === spriteToUse) return
+          if (sprite.parent === containerRef.current) {
+            containerRef.current.removeChild(sprite)
+          }
+          sprite.visible = false
+          sprite.alpha = 0
+        })
+
+        // spriteToUse를 컨테이너에 추가 (한 번만, 다른 스프라이트 제거 후)
         if (spriteToUse.parent !== containerRef.current) {
           if (spriteToUse.parent) {
             spriteToUse.parent.removeChild(spriteToUse)
@@ -594,44 +622,29 @@ export function useSceneTransition({
           containerRef.current.addChild(spriteToUse)
         }
 
-        if (!isPlaying) {
-          spriteToUse.visible = true
-          spriteToUse.alpha = 1
-        } else if (isInSameGroup) {
-          spriteToUse.visible = true
-          spriteToUse.alpha = 1
-        } else {
-          spriteToUse.visible = true
-          spriteToUse.alpha = 0
-        }
-
-        if (currentSprite && currentSprite !== spriteToUse) {
-          currentSprite.visible = false
-          currentSprite.alpha = 0
-        }
-
-        spritesRef.current.forEach((sprite) => {
-          if (!sprite || sprite === spriteToUse) return
-          sprite.visible = false
-          sprite.alpha = 0
-        })
-
+        // 텍스트 처리
         textsRef.current.forEach((text) => {
           if (!text || text === currentText) return
           text.visible = false
           text.alpha = 0
         })
 
-        if (spriteToUse.parent !== containerRef.current && containerRef.current) {
-          if (spriteToUse.parent) {
-            spriteToUse.parent.removeChild(spriteToUse)
-          }
-          containerRef.current.addChild(spriteToUse)
-        }
-
-        if (isPlaying && !isInSameGroup) {
+        // spriteToUse의 visibility 설정
+        // 재생 중이고 전환 효과가 있는 경우, applyEnterEffect에서 alpha를 설정하므로
+        // 여기서는 visible만 true로 설정하고 alpha는 applyEnterEffect에서 처리
+        if (!isPlaying) {
           spriteToUse.visible = true
-          spriteToUse.alpha = 0
+          spriteToUse.alpha = 1
+        } else if (isInSameGroup) {
+          // 같은 그룹 내 씬 전환: 이미지 표시 (전환 효과 없음)
+          spriteToUse.visible = true
+          spriteToUse.alpha = 1
+        } else {
+          // 재생 중이고 전환 효과가 있는 경우: 
+          // visible은 true로 설정하되, alpha는 0으로 시작하여 전환 효과에서 표시되도록 함
+          spriteToUse.visible = true
+          spriteToUse.alpha = 0  // 전환 효과 시작 전에는 숨김
+          // alpha는 applyEnterEffect에서 전환 효과 시작 시 설정됨
         }
 
         if (currentText && !isManualSceneSelectRef.current) {
@@ -641,8 +654,7 @@ export function useSceneTransition({
             }
             containerRef.current.addChild(currentText)
           }
-          currentText.visible = true
-          currentText.alpha = 1
+          // visible/alpha는 applyEnterEffect에서 설정하므로 여기서는 설정하지 않음 (중복 렌더링 방지)
         }
 
         const isCurrentTransitionMovement = MOVEMENT_EFFECTS.includes(
@@ -740,8 +752,47 @@ export function useSceneTransition({
             wrappedOnComplete()
           }
         } else {
+          // 전환 효과 시작 전에 컨테이너의 모든 스프라이트 확인 및 정리
+          if (containerRef.current) {
+            const containerChildren = Array.from(containerRef.current.children)
+            const spritesInContainer = containerChildren.filter(
+              (child) => child instanceof PIXI.Sprite && child !== spriteToUse
+            ) as PIXI.Sprite[]
+            
+            // 디버깅: 컨테이너에 있는 스프라이트 확인
+            if (spritesInContainer.length > 0) {
+              console.warn(
+                `[전환효과] 컨테이너에 spriteToUse 외 ${spritesInContainer.length}개의 스프라이트가 있습니다. 제거합니다.`
+              )
+            }
+            
+            // spriteToUse가 아닌 모든 스프라이트를 컨테이너에서 제거
+            spritesInContainer.forEach((sprite) => {
+              containerRef.current.removeChild(sprite)
+              sprite.visible = false
+              sprite.alpha = 0
+            })
+          }
+
+          // 이전 씬 및 다른 모든 씬 숨기기
+          if (previousIndex !== null && previousIndex !== actualSceneIndex) {
+            const prevSprite = spritesRef.current.get(previousIndex)
+            if (prevSprite) {
+              if (prevSprite.parent === containerRef.current) {
+                containerRef.current.removeChild(prevSprite)
+              }
+              prevSprite.visible = false
+              prevSprite.alpha = 0
+            }
+          }
+
+          // spritesRef의 모든 스프라이트 확인 및 정리
           spritesRef.current.forEach((sprite) => {
             if (!sprite || sprite === spriteToUse) return
+            // 컨테이너에서 제거
+            if (sprite.parent === containerRef.current) {
+              containerRef.current.removeChild(sprite)
+            }
             sprite.visible = false
             sprite.alpha = 0
           })
