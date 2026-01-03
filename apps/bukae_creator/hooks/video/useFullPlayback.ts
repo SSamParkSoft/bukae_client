@@ -130,6 +130,8 @@ export function useFullPlayback({
   const playbackAbortControllerRef = useRef<AbortController | null>(null)
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const [isPlayingAll, setIsPlayingAll] = useState(false)
+  // useGroupPlayback에 전달할 별도의 isPlayingRef (전체 재생 중에는 변경되지 않음)
+  const groupPlaybackIsPlayingRef = useRef(false)
 
   // isPlaying 상태와 ref 동기화
   useEffect(() => {
@@ -182,7 +184,7 @@ export function useFullPlayback({
     spritesRef,
     containerRef,
     changedScenesRef,
-    isPlayingRef: isPlayingAllRef,
+    isPlayingRef: groupPlaybackIsPlayingRef,
     setIsPreparing,
     setIsTtsBootstrapping,
   })
@@ -232,6 +234,7 @@ export function useFullPlayback({
     isPlayingAllRef.current = false
     setIsPlayingAll(false)
     setIsPlaying(false)
+    groupPlaybackIsPlayingRef.current = false
     if (setTimelineIsPlaying) {
       setTimelineIsPlaying(false)
     }
@@ -390,6 +393,8 @@ export function useFullPlayback({
     isPlayingAllRef.current = true
     setIsPlayingAll(true)
     setIsPlaying(true)
+    // groupPlaybackIsPlayingRef도 true로 설정 (전체 재생 중에는 계속 true 유지)
+    groupPlaybackIsPlayingRef.current = true
     if (setTimelineIsPlaying) {
       setTimelineIsPlaying(true)
     }
@@ -489,6 +494,7 @@ export function useFullPlayback({
           isPlayingAllRef.current = false
           setIsPlayingAll(false)
           setIsPlaying(false)
+          groupPlaybackIsPlayingRef.current = false
           if (setTimelineIsPlaying) {
             setTimelineIsPlaying(false)
           }
@@ -571,14 +577,16 @@ export function useFullPlayback({
         // 디버깅: 그룹 재생 시작
         console.log(`[전체재생] 그룹 ${groupIndex + 1}/${groupEntries.length} 재생 시작 | 씬 ID: ${sceneId} | 그룹 인덱스: [${groupIndices.join(', ')}]`)
         
+        // 모든 재생을 useGroupPlayback으로 통일 (그룹 재생과 단일 씬 재생 모두)
         if (sceneId !== undefined && groupIndices.length > 1) {
           // 그룹 재생
+          console.log(`[전체재생] 그룹 ${groupIndex + 1} 재생 시작 전 | SceneId: ${sceneId}, GroupIndices: [${groupIndices.join(', ')}]`)
           await groupPlayback.playGroup(sceneId, groupIndices)
           
           // 디버깅: 그룹 재생 완료
-          console.log(`[전체재생] 그룹 ${groupIndex + 1} 재생 완료`)
+          console.log(`[전체재생] 그룹 ${groupIndex + 1} 재생 완료 | 다음 그룹으로 진행`)
         } else {
-          // 단일 씬 재생
+          // 단일 씬 재생도 useGroupPlayback 사용
           for (const sceneIndex of groupIndices) {
             // 디버깅: 단일 씬 재생 시작
             debugRenderState(`단일 씬 재생 시작`, sceneIndex)
@@ -586,28 +594,17 @@ export function useFullPlayback({
               break
             }
             
-            // 단일 씬의 duration 계산
             const scene = timeline.scenes[sceneIndex]
             if (scene) {
-              const isLastScene = sceneIndex === timeline.scenes.length - 1
-              const nextScene = !isLastScene ? timeline.scenes[sceneIndex + 1] : null
-              const isSameSceneId = nextScene && scene.sceneId === nextScene.sceneId
-              const transitionDuration = isLastScene 
-                ? 0 
-                : (isSameSceneId ? 0 : (scene.transitionDuration || 0.5))
-              
-              const sceneDuration = (scene.duration || 0) + transitionDuration
-              
-              await singleScenePlayback.playScene(sceneIndex)
+              // 단일 씬도 useGroupPlayback을 사용하여 재생
+              // sceneId는 undefined로 전달하고, groupIndices는 [sceneIndex]로 전달
+              const singleSceneId = scene.sceneId
+              console.log(`[전체재생] 단일 씬 재생 시작 전 | SceneIndex: ${sceneIndex}, SceneId: ${singleSceneId}`)
+              await groupPlayback.playGroup(singleSceneId, [sceneIndex])
               
               // 디버깅: 단일 씬 재생 완료
+              console.log(`[전체재생] 단일 씬 재생 완료 | SceneIndex: ${sceneIndex}, 다음으로 진행`)
               debugRenderState(`단일 씬 재생 완료`, sceneIndex)
-              
-              // 재생 완료 후 누적 시간 업데이트 및 재생바 업데이트
-              accumulatedTimeRef.current += sceneDuration
-              if (setCurrentTime) {
-                setCurrentTime(accumulatedTimeRef.current)
-              }
             }
           }
           
@@ -616,16 +613,19 @@ export function useFullPlayback({
         }
 
         // 그룹 재생 완료 후 누적 시간 업데이트 및 재생바 업데이트
-        if (sceneId !== undefined && groupIndices.length > 1) {
-          accumulatedTimeRef.current += groupDuration
-          if (setCurrentTime) {
-            setCurrentTime(accumulatedTimeRef.current)
-          }
+        // 그룹 재생과 단일 씬 재생 모두 groupDuration 사용
+        accumulatedTimeRef.current += groupDuration
+        if (setCurrentTime) {
+          setCurrentTime(accumulatedTimeRef.current)
         }
 
         // 다음 그룹 재생
+        console.log(`[전체재생] 다음 그룹 체크 | groupIndex: ${groupIndex}, totalGroups: ${groupEntries.length}, isPlayingAll: ${isPlayingAllRef.current}, aborted: ${playbackAbortControllerRef.current?.signal.aborted}`)
         if (!playbackAbortControllerRef.current?.signal.aborted && isPlayingAllRef.current) {
+          console.log(`[전체재생] 다음 그룹 재생 시작 | groupIndex: ${groupIndex + 1}`)
           await playGroupsSequentially(groupEntries, groupIndex + 1)
+        } else {
+          console.log(`[전체재생] 다음 그룹 재생 중단 | isPlayingAll: ${isPlayingAllRef.current}, aborted: ${playbackAbortControllerRef.current?.signal.aborted}`)
         }
       }
 
@@ -638,6 +638,7 @@ export function useFullPlayback({
       isPlayingAllRef.current = false
       setIsPlayingAll(false)
       setIsPlaying(false)
+      groupPlaybackIsPlayingRef.current = false
       if (setTimelineIsPlaying) {
         setTimelineIsPlaying(false)
       }

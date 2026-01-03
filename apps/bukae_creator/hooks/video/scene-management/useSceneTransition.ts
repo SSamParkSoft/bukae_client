@@ -546,7 +546,10 @@ export function useSceneTransition({
         const { width, height } = stageDimensions
 
         // transition이 'none'이면 애니메이션 없이 즉시 표시
-        if (transition === 'none') {
+        // forceTransition이 'none'이거나, currentScene.transition이 'none'이거나, transition이 'none'인 경우 모두 체크
+        // 이 변수는 아래에서도 사용되므로 상위 스코프에 선언
+        const isTransitionNone = forceTransition === 'none' || currentScene.transition === 'none' || transition === 'none'
+        if (isTransitionNone) {
           if (previousSprite && previousIndex !== null && previousIndex !== actualSceneIndex) {
             previousSprite.visible = false
             previousSprite.alpha = 0
@@ -556,15 +559,16 @@ export function useSceneTransition({
             previousText.alpha = 0
           }
 
-          if (currentSprite.parent !== containerRef.current && containerRef.current) {
-            if (currentSprite.parent) {
-              currentSprite.parent.removeChild(currentSprite)
+          // spriteToUse를 사용 (같은 그룹 내 씬인 경우 firstSprite를 사용)
+          if (spriteToUse.parent !== containerRef.current && containerRef.current) {
+            if (spriteToUse.parent) {
+              spriteToUse.parent.removeChild(spriteToUse)
             }
-            containerRef.current.addChild(currentSprite)
+            containerRef.current.addChild(spriteToUse)
           }
 
-          currentSprite.visible = true
-          currentSprite.alpha = 1
+          spriteToUse.visible = true
+          spriteToUse.alpha = 1
 
           if (currentText) {
             if (currentText.parent !== containerRef.current && containerRef.current) {
@@ -632,11 +636,13 @@ export function useSceneTransition({
         // spriteToUse의 visibility 설정
         // 재생 중이고 전환 효과가 있는 경우, applyEnterEffect에서 alpha를 설정하므로
         // 여기서는 visible만 true로 설정하고 alpha는 applyEnterEffect에서 처리
+        // 단, 전환 효과가 'none'이면 즉시 표시
+        // isTransitionNone은 위에서 이미 선언됨
         if (!isPlaying) {
           spriteToUse.visible = true
           spriteToUse.alpha = 1
-        } else if (isInSameGroup) {
-          // 같은 그룹 내 씬 전환: 이미지 표시 (전환 효과 없음)
+        } else if (isInSameGroup || isTransitionNone) {
+          // 같은 그룹 내 씬 전환이거나 전환 효과가 'none'인 경우: 이미지 표시
           spriteToUse.visible = true
           spriteToUse.alpha = 1
         } else {

@@ -220,6 +220,36 @@ export const useSceneManager = ({
             }
           }
         })
+        
+        // 전환 효과가 'none'인 경우, 현재 씬의 스프라이트를 미리 표시
+        // (updateCurrentScene 호출 전에 표시하여 즉시 보이도록 함)
+        if (shouldSkipAnimation || forceTransition === 'none' || currentScene.transition === 'none') {
+          const currentSprite = spritesRef?.current.get(sceneIndex)
+          // 같은 그룹 내 씬인 경우 첫 번째 씬의 스프라이트 사용
+          let spriteToShow = currentSprite
+          if (currentScene.sceneId !== undefined) {
+            const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
+            if (firstSceneIndexInGroup >= 0 && firstSceneIndexInGroup !== sceneIndex) {
+              const firstSprite = spritesRef?.current.get(firstSceneIndexInGroup)
+              if (firstSprite) {
+                spriteToShow = firstSprite
+              }
+            }
+          }
+          
+          if (spriteToShow && containerRef.current) {
+            // 컨테이너에 추가
+            if (spriteToShow.parent !== containerRef.current) {
+              if (spriteToShow.parent) {
+                spriteToShow.parent.removeChild(spriteToShow)
+              }
+              containerRef.current.addChild(spriteToShow)
+            }
+            // 즉시 표시
+            spriteToShow.visible = true
+            spriteToShow.alpha = 1
+          }
+        }
       }
       
       console.log(

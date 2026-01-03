@@ -55,7 +55,7 @@ export const usePixiEffects = ({
       : true
     void _previousIndex
     
-    // transition이 'none'이면 전환 효과가 없으므로 이미지는 렌더링하지 않음 (전환 효과를 통해서만 렌더링)
+    // transition이 'none'이면 전환 효과 없이 즉시 표시
     if (actualTransition === 'none') {
       // 컨테이너에 추가
       if (toSprite.parent !== containerRef.current) {
@@ -71,18 +71,11 @@ export const usePixiEffects = ({
         containerRef.current.addChild(toText)
       }
       
-      // 전환 효과가 없을 때: 재생 중이면 이미지 숨김, 편집 모드면 이미지 표시
-      if (isPlaying) {
-        // 재생 중: 전환 효과를 통해서만 렌더링
-        toSprite.visible = false
-        toSprite.alpha = 0
-      } else {
-        // 편집 모드: 이미지 표시
-        toSprite.visible = true
-        toSprite.alpha = 1
-      }
+      // 전환 효과가 없을 때: 재생 중이든 편집 모드든 이미지 표시
+      toSprite.visible = true
+      toSprite.alpha = 1
       
-      // 자막은 항상 표시
+      // 자막도 항상 표시
       if (toText) {
         toText.visible = true
         toText.alpha = 1

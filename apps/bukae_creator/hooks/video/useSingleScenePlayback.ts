@@ -111,36 +111,6 @@ export function useSingleScenePlayback({
     playingSceneIndexRef.current = null
   }, [stopTtsAudio, activeAnimationsRef, spritesRef, textsRef])
   
-  // 디버깅 함수: 중복 렌더링 확인
-  const debugRenderState = useCallback((label: string, sceneIndex: number) => {
-    // visible: true인 스프라이트/텍스트 개수 확인
-    const visibleSprites = Array.from(spritesRef?.current.entries() || [])
-      .filter(([, sprite]) => sprite?.visible && sprite?.alpha > 0)
-      .map(([idx]) => idx)
-    
-    const visibleTexts = Array.from(textsRef.current.entries())
-      .filter(([, text]) => text?.visible && text?.alpha > 0)
-      .map(([idx]) => idx)
-    
-    const currentSprite = spritesRef?.current.get(sceneIndex)
-    const currentText = textsRef.current.get(sceneIndex)
-    
-    console.log(
-      `[씬재생] ${label} | Scene ${sceneIndex} | ` +
-      `스프라이트: ${currentSprite?.visible && currentSprite?.alpha > 0 ? '표시' : '숨김'} | ` +
-      `텍스트: ${currentText?.visible && currentText?.alpha > 0 ? '표시' : '숨김'} | ` +
-      `표시 중인 스프라이트: [${visibleSprites.join(', ')}] | ` +
-      `표시 중인 텍스트: [${visibleTexts.join(', ')}]`
-    )
-    
-    // 중복 렌더링 경고
-    if (visibleSprites.length > 1) {
-      console.warn(`⚠️ 중복 스프라이트 감지! ${visibleSprites.length}개가 동시에 표시됨: [${visibleSprites.join(', ')}]`)
-    }
-    if (visibleTexts.length > 1) {
-      console.warn(`⚠️ 중복 텍스트 감지! ${visibleTexts.length}개가 동시에 표시됨: [${visibleTexts.join(', ')}]`)
-    }
-  }, [spritesRef, textsRef])
 
   const playScene = useCallback(async (sceneIndex: number) => {
     if (!timeline || !voiceTemplate) {
@@ -192,9 +162,6 @@ export function useSingleScenePlayback({
         text.alpha = 0
       }
     })
-    
-    // 디버깅: 재생 시작 (이전 씬 정리 후)
-    debugRenderState('재생 시작', sceneIndex)
 
     const scene = timeline.scenes[sceneIndex]
     if (!scene) return
@@ -340,9 +307,6 @@ export function useSingleScenePlayback({
 
     // 이미지 전환 효과와 자막 렌더링 (비동기로 시작만 하고 await하지 않음)
     if (renderSceneContent) {
-      // 디버깅: 렌더링 시작 전 (이전 씬 정리 후)
-      debugRenderState('렌더링 시작 전', sceneIndex)
-      
       // 렌더링 경로 확인: 씬 재생에서 renderSceneContent 사용
       // renderSceneContent가 자막도 함께 렌더링하도록 호출
       // partIndex를 null로 전달하면 전체 자막을 표시
@@ -357,15 +321,8 @@ export function useSingleScenePlayback({
         transitionDuration: ttsDuration, // TTS duration을 전환 효과 지속시간으로 사용
         onComplete: () => {
           lastRenderedSceneIndexRef.current = sceneIndex
-          // 디버깅: 렌더링 완료 후
-          debugRenderState('렌더링 완료 후', sceneIndex)
         },
       })
-      
-      // 디버깅: 렌더링 호출 직후
-      setTimeout(() => {
-        debugRenderState('렌더링 호출 직후', sceneIndex)
-      }, 100)
     } else if (renderSceneImage) {
       renderSceneImage(sceneIndex, {
         skipAnimation: false,
@@ -466,9 +423,6 @@ export function useSingleScenePlayback({
           stopTtsAudio()
           lastRenderedSceneIndexRef.current = sceneIndex
           
-          // 디버깅: TTS 재생 완료 후
-          debugRenderState('TTS 재생 완료 후', sceneIndex)
-          
           // 재생 중인 씬 인덱스 초기화
           if (playingSceneIndexRef.current === sceneIndex) {
             setPlayingSceneIndex(null)
@@ -495,7 +449,6 @@ export function useSingleScenePlayback({
     containerRef,
     getMp3DurationSec,
     stopScene,
-    debugRenderState,
     spritesRef,
   ])
 

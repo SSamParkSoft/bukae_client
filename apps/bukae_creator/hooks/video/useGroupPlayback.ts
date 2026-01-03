@@ -244,56 +244,6 @@ export function useGroupPlayback({
     isPlayingRef.current = false
   }, [stopTtsAudio, isPlayingRef])
 
-  // 디버깅 함수: 중복 렌더링 확인
-  const debugRenderState = useCallback((label: string, sceneIndex: number | null, partIndex?: number) => {
-    if (sceneIndex === null) {
-      console.log(`[그룹재생] ${label}`)
-      return
-    }
-    
-    // visible: true인 스프라이트/텍스트 개수 확인
-    const visibleSprites = Array.from(spritesRef?.current.entries() || [])
-      .filter(([, sprite]) => sprite?.visible && sprite?.alpha > 0)
-      .map(([idx]) => idx)
-    
-    const visibleTexts = Array.from(textsRef.current.entries())
-      .filter(([, text]) => text?.visible && text?.alpha > 0)
-      .map(([idx]) => idx)
-    
-    const currentSprite = spritesRef?.current.get(sceneIndex)
-    
-    // 같은 그룹 내 씬들은 첫 번째 씬의 텍스트를 공유하므로, 텍스트 객체를 올바르게 찾기
-    let currentText: PIXI.Text | null = null
-    if (timeline) {
-      const scene = timeline.scenes[sceneIndex]
-      if (scene?.sceneId !== undefined) {
-        const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === scene.sceneId)
-        if (firstSceneIndexInGroup >= 0) {
-          currentText = textsRef.current.get(firstSceneIndexInGroup) || null
-        }
-      }
-      if (!currentText) {
-        currentText = textsRef.current.get(sceneIndex) || null
-      }
-    }
-    
-    const partInfo = partIndex !== undefined ? ` Part ${partIndex}` : ''
-    console.log(
-      `[그룹재생] ${label} | Scene ${sceneIndex}${partInfo} | ` +
-      `스프라이트: ${currentSprite?.visible && currentSprite?.alpha > 0 ? '표시' : '숨김'} | ` +
-      `텍스트: ${currentText?.visible && currentText?.alpha > 0 ? '표시' : '숨김'} | ` +
-      `표시 중인 스프라이트: [${visibleSprites.join(', ')}] | ` +
-      `표시 중인 텍스트: [${visibleTexts.join(', ')}]`
-    )
-    
-    // 중복 렌더링 경고
-    if (visibleSprites.length > 1) {
-      console.warn(`⚠️ 중복 스프라이트 감지! ${visibleSprites.length}개가 동시에 표시됨: [${visibleSprites.join(', ')}]`)
-    }
-    if (visibleTexts.length > 1) {
-      console.warn(`⚠️ 중복 텍스트 감지! ${visibleTexts.length}개가 동시에 표시됨: [${visibleTexts.join(', ')}]`)
-    }
-  }, [spritesRef, textsRef, timeline])
 
   /**
    * 그룹 재생 함수
@@ -319,9 +269,7 @@ export function useGroupPlayback({
       return
     }
 
-    // 디버깅: 그룹 재생 시작 (단일 씬인 경우도 포함)
     if (isSingleScene) {
-      console.log(`[씬재생] 씬 재생 시작 | SceneIndex ${firstSceneIndex}`)
       // 재생 중인 씬 인덱스 설정
       setPlayingSceneIndex(firstSceneIndex)
       playingSceneIndexRef.current = firstSceneIndex
@@ -329,7 +277,6 @@ export function useGroupPlayback({
       setPlayingGroupSceneId(null)
       playingGroupSceneIdRef.current = null
     } else {
-      console.log(`[그룹재생] 그룹 재생 시작 | SceneId ${sceneId} | 그룹 인덱스: [${groupIndices.join(', ')}]`)
       // 그룹 재생인 경우 재생 중인 씬 인덱스 초기화
       setPlayingSceneIndex(null)
       playingSceneIndexRef.current = null
@@ -421,9 +368,7 @@ export function useGroupPlayback({
       
       // 자막 파싱
       const mergedTextParts = parseMergedTextParts(groupIndices, updatedTimeline)
-      if (mergedTextParts.length === 0) {
-        return
-      }
+      // mergedTextParts.length === 0이어도 finally 블록이 실행되도록 try 블록 내에서 처리
 
       // 텍스트 객체 찾기
       const textToUpdate = findTextObject(firstSceneIndex, updatedTimeline)
@@ -441,9 +386,6 @@ export function useGroupPlayback({
       }
       
       if (renderSceneContent) {
-        // 디버깅: 첫 번째 씬 렌더링 시작 전
-        debugRenderState('첫 번째 씬 렌더링 시작 전', firstSceneIndexForRender)
-        
         // 렌더링 경로 확인: 그룹 재생 시작에서 renderSceneContent 사용
         renderSceneContent(firstSceneIndexForRender, null, {
           skipAnimation: false,
@@ -454,15 +396,8 @@ export function useGroupPlayback({
           transitionDuration: totalGroupTtsDuration,
           onComplete: () => {
             lastRenderedSceneIndexRef.current = firstSceneIndexForRender
-            // 디버깅: 첫 번째 씬 렌더링 완료 후
-            debugRenderState('첫 번째 씬 렌더링 완료 후', firstSceneIndexForRender)
           },
         })
-        
-        // 디버깅: 렌더링 호출 직후
-        setTimeout(() => {
-          debugRenderState('첫 번째 씬 렌더링 호출 직후', firstSceneIndexForRender)
-        }, 100)
       } else {
         lastRenderedSceneIndexRef.current = firstSceneIndexForRender
       }
@@ -498,9 +433,6 @@ export function useGroupPlayback({
           currentSceneIndexRef.current = targetSceneIndex
         }
 
-        // 디버깅: 구간 재생 시작
-        debugRenderState(`구간 ${globalPartIndex + 1} 재생 시작`, targetSceneIndex, scenePartIndex)
-        
         // 각 구간에서 텍스트 객체 찾기
         // 같은 그룹 내 씬들은 첫 번째 씬의 텍스트를 공유하므로, 항상 첫 번째 씬의 텍스트를 사용
         // textToUpdate는 이미 첫 번째 씬의 텍스트 객체이므로, 이를 직접 사용
@@ -526,9 +458,6 @@ export function useGroupPlayback({
           // 텍스트 표시 (강제로 설정)
           currentTextToUpdate.visible = true
           currentTextToUpdate.alpha = 1
-          
-          // 디버깅: 텍스트 업데이트 후
-          debugRenderState(`구간 ${globalPartIndex + 1} 텍스트 업데이트 후`, targetSceneIndex, scenePartIndex)
           
           // 텍스트가 실제로 표시되는지 확인 및 로깅
           const isInContainer = containerRef.current && currentTextToUpdate.parent === containerRef.current
@@ -740,17 +669,12 @@ export function useGroupPlayback({
           }
         })
 
-        // 디버깅: 구간 재생 완료
-        debugRenderState(`구간 ${globalPartIndex + 1} 재생 완료`, targetSceneIndex, scenePartIndex)
-        
         // 다음 구간 재생 (현재 구간 재생 완료 후)
         if (globalPartIndex < mergedTextParts.length - 1) {
           await playPart(globalPartIndex + 1)
         } else {
           // 모든 구간 재생 완료 후 lastRenderedSceneIndexRef 업데이트
           lastRenderedSceneIndexRef.current = targetSceneIndex
-          // 디버깅: 모든 구간 재생 완료
-          debugRenderState('모든 구간 재생 완료', targetSceneIndex)
         }
       }
       
@@ -824,7 +748,15 @@ export function useGroupPlayback({
         }
       }
       
-      isPlayingRef.current = false
+      // 전체 재생 중이 아닐 때만 isPlayingRef를 false로 설정
+      // 전체 재생 중에는 useFullPlayback에서 관리하므로 여기서는 변경하지 않음
+      // isPlayingRef가 true로 유지되어 있으면 전체 재생 중인 것으로 간주
+      // (전체 재생 중에는 useFullPlayback에서 groupPlaybackIsPlayingRef를 true로 유지)
+      // 단, stopGroup이 호출된 경우는 예외 (명시적으로 정지)
+      if (!isPlayingRef.current || isSingleScene) {
+        // 전체 재생 중이 아니거나 단일 씬 재생인 경우에만 false로 설정
+        isPlayingRef.current = false
+      }
       
       // 단일 씬 재생인 경우 재생 중인 씬 인덱스 초기화
       if (isSingleScene) {
@@ -835,14 +767,6 @@ export function useGroupPlayback({
         setPlayingGroupSceneId(null)
         playingGroupSceneIdRef.current = null
       }
-      
-      // 디버깅: 그룹 재생 완료
-      if (isSingleScene) {
-        console.log(`[씬재생] 씬 재생 완료 | SceneIndex ${firstSceneIndex}`)
-      } else {
-        console.log(`[그룹재생] 그룹 재생 완료 | SceneId ${sceneId}`)
-      }
-      debugRenderState('최종 상태', lastSceneIndex)
     }
   }, [
     timeline,
@@ -867,7 +791,6 @@ export function useGroupPlayback({
     parseMergedTextParts,
     findTextObject,
     cleanupAudio,
-    debugRenderState,
     stopGroup,
     playingSceneIndexRef,
   ])
