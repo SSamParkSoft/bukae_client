@@ -17,6 +17,9 @@ interface SceneListPanelProps {
   stageDimensions: { width: number; height: number }
   transitionLabels: Record<string, string>
   playingSceneIndex: number | null
+  playingGroupSceneId: number | null
+  isPreparing: boolean
+  isTtsBootstrapping: boolean
   onToggleGrid: () => void
   onResizeTemplate: () => void
   onSelect: (index: number) => void
@@ -45,6 +48,9 @@ export const SceneListPanel = memo(function SceneListPanel({
   stageDimensions,
   transitionLabels,
   playingSceneIndex,
+  playingGroupSceneId,
+  isPreparing,
+  isTtsBootstrapping,
   onToggleGrid,
   onResizeTemplate,
   onSelect,
@@ -120,6 +126,9 @@ export const SceneListPanel = memo(function SceneListPanel({
           onDeleteGroup={onDeleteGroup}
           onPlayScene={onPlayScene}
           playingSceneIndex={playingSceneIndex}
+          playingGroupSceneId={playingGroupSceneId}
+          isPreparing={isPreparing}
+          isTtsBootstrapping={isTtsBootstrapping}
         />
       </div>
     </>

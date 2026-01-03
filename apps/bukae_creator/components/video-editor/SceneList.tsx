@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Image from 'next/image'
-import { GripVertical, Copy, Trash2, Play, Pause } from 'lucide-react'
+import { GripVertical, Copy, Trash2, Play, Pause, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 import type { SceneScript } from '@/lib/types/domain/script'
@@ -28,6 +28,9 @@ interface SceneListProps {
   onPlayGroup?: (sceneId: number, groupIndices: number[]) => Promise<void>
   onDeleteGroup?: (sceneId: number, groupIndices: number[]) => void
   playingSceneIndex?: number | null // 현재 재생 중인 씬 인덱스
+  playingGroupSceneId?: number | null // 현재 재생 중인 그룹의 sceneId
+  isPreparing?: boolean // TTS 준비 중인지 여부
+  isTtsBootstrapping?: boolean // TTS 부트스트래핑 중인지 여부
 }
 
 export function SceneList({
@@ -52,6 +55,9 @@ export function SceneList({
   onPlayGroup,
   onDeleteGroup,
   playingSceneIndex,
+  playingGroupSceneId,
+  isPreparing,
+  isTtsBootstrapping,
 }: SceneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
@@ -292,9 +298,22 @@ export function SceneList({
                                 await onPlayGroup(group.sceneId, group.indices)
                               }
                             }}
-                            title="그룹 재생"
+                            disabled={isPreparing || isTtsBootstrapping}
+                            title={
+                              isPreparing || isTtsBootstrapping
+                                ? "준비 중..."
+                                : playingGroupSceneId === group.sceneId
+                                ? "그룹 정지"
+                                : "그룹 재생"
+                            }
                           >
-                            <Play className="w-3 h-3" />
+                            {isPreparing || isTtsBootstrapping ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : playingGroupSceneId === group.sceneId ? (
+                              <Pause className="w-3 h-3" />
+                            ) : (
+                              <Play className="w-3 h-3" />
+                            )}
                           </Button>
                         )}
                         {onDeleteGroup && (
@@ -512,9 +531,18 @@ export function SceneList({
                             console.error('씬 재생 실패:', error)
                           }
                         }}
-                        title={playingSceneIndex === index ? "씬 정지" : "씬 재생"}
+                        disabled={isPreparing || isTtsBootstrapping}
+                        title={
+                          isPreparing || isTtsBootstrapping
+                            ? "준비 중..."
+                            : playingSceneIndex === index
+                            ? "씬 정지"
+                            : "씬 재생"
+                        }
                       >
-                        {playingSceneIndex === index ? (
+                        {isPreparing || isTtsBootstrapping ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : playingSceneIndex === index ? (
                           <Pause className="w-3 h-3" />
                         ) : (
                           <Play className="w-3 h-3" />

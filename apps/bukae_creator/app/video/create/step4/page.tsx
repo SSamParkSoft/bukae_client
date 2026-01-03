@@ -68,6 +68,9 @@ export default function Step4Page() {
             stageDimensions={container.stageDimensions}
             transitionLabels={container.transitionLabels}
             playingSceneIndex={container.playingSceneIndex}
+            playingGroupSceneId={container.playingGroupSceneId}
+            isPreparing={container.isPreparing}
+            isTtsBootstrapping={container.isTtsBootstrapping}
             onToggleGrid={() => container.setShowGrid(!container.showGrid)}
             onResizeTemplate={container.handleResizeTemplate}
             onSelect={container.handleSceneSelect}

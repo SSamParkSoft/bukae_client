@@ -1514,19 +1514,29 @@ export function useStep4Container() {
 
   // 그룹 재생 핸들러 (useGroupPlayback 훅 사용)
   const handleGroupPlay = useCallback(async (sceneId: number, groupIndices: number[]) => {
+    // 이미 같은 그룹이 재생 중이면 정지
+    if (groupPlayback.playingGroupSceneId === sceneId) {
+      groupPlayback.stopGroup()
+      return
+    }
+    
     await groupPlayback.playGroup(sceneId, groupIndices)
   }, [groupPlayback])
 
-  // 씬 재생 핸들러 (useSingleScenePlayback 훅 사용)
+  // 씬 재생 핸들러 (useGroupPlayback 훅 사용 - 단일 씬도 그룹으로 처리)
   const handleScenePlay = useCallback(async (sceneIndex: number) => {
     try {
       // 이미 같은 씬이 재생 중이면 정지
-      if (singleScenePlayback.playingSceneIndex === sceneIndex) {
-        singleScenePlayback.stopScene()
+      if (groupPlayback.playingSceneIndex === sceneIndex) {
+        groupPlayback.stopGroup()
         return
       }
       
-      await singleScenePlayback.playScene(sceneIndex)
+      // 단일 씬도 useGroupPlayback을 사용하여 재생
+      // sceneId는 undefined로 전달하고, groupIndices는 [sceneIndex]로 전달
+      const scene = timeline?.scenes[sceneIndex]
+      const sceneId = scene?.sceneId
+      await groupPlayback.playGroup(sceneId, [sceneIndex])
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       
@@ -2015,11 +2025,11 @@ export function useStep4Container() {
   // 씬 선택 핸들러
   const handleSceneSelect = useCallback((index: number) => {
     // 씬 재생 중일 때는 씬 선택 무시 (중복 렌더링 방지)
-    if (singleScenePlayback.playingSceneIndex !== null) {
+    if (groupPlayback.playingSceneIndex !== null) {
       return
     }
     sceneNavigation.selectScene(index)
-  }, [singleScenePlayback.playingSceneIndex, sceneNavigation])
+  }, [groupPlayback.playingSceneIndex, sceneNavigation])
 
   // 반환값 최적화
   return useMemo(() => ({
@@ -2100,7 +2110,8 @@ export function useStep4Container() {
     // Playback
     fullPlayback,
     singleScenePlayback,
-    playingSceneIndex: singleScenePlayback.playingSceneIndex,
+    playingSceneIndex: groupPlayback.playingSceneIndex,
+    playingGroupSceneId: groupPlayback.playingGroupSceneId,
     confirmedBgmTemplate,
     handleBgmConfirm,
     setTimeline,
@@ -2170,7 +2181,8 @@ export function useStep4Container() {
     confirmedBgmTemplate,
     handleBgmConfirm,
     setTimeline,
-    singleScenePlayback.playingSceneIndex,
+    groupPlayback.playingSceneIndex,
+    groupPlayback.playingGroupSceneId,
   ])
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback} from 'react'
+import { useCallback, useState, useRef } from 'react'
 import * as PIXI from 'pixi.js'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
@@ -60,6 +60,14 @@ export function useGroupPlayback({
   // TTS 리소스 가져오기
   const { ttsCacheRef, ttsAudioRef, ttsAudioUrlRef, stopTtsAudio } = useTtsResources()
   const { getSceneStructure } = useSceneStructureStore()
+  
+  // 재생 중인 씬 인덱스 추적 (단일 씬 재생용)
+  const [playingSceneIndex, setPlayingSceneIndex] = useState<number | null>(null)
+  const playingSceneIndexRef = useRef<number | null>(null)
+  
+  // 재생 중인 그룹의 sceneId 추적 (그룹 재생용)
+  const [playingGroupSceneId, setPlayingGroupSceneId] = useState<number | null>(null)
+  const playingGroupSceneIdRef = useRef<number | null>(null)
 
   // TTS 캐시 확인 및 필요한 씬 찾기
   const findScenesToSynthesize = useCallback((groupIndices: number[]): number[] => {
@@ -78,7 +86,7 @@ export function useGroupPlayback({
     return scenesToSynthesize
   }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef])
 
-  // TTS 합성 및 캐시 저장
+  // TTS 합성 및 캐시 저장 (병렬 처리로 최적화)
   const synthesizeAndCacheTts = useCallback(async (scenesToSynthesize: number[]): Promise<boolean> => {
     if (!ensureSceneTtsParam || scenesToSynthesize.length === 0) {
       return true
@@ -88,16 +96,28 @@ export function useGroupPlayback({
     setIsTtsBootstrapping?.(true)
 
     try {
-      for (const sceneIndex of scenesToSynthesize) {
-        const result = await ensureSceneTtsParam(
-          sceneIndex,
-          undefined,
-          changedScenesRef.current.has(sceneIndex)
+      // 병렬로 모든 씬의 TTS 합성 (useFullPlayback과 동일한 방식)
+      const ttsResults = await Promise.all(
+        scenesToSynthesize.map(sceneIndex =>
+          ensureSceneTtsParam(
+            sceneIndex,
+            undefined,
+            changedScenesRef.current.has(sceneIndex)
+          )
         )
+      )
+      
+      // 결과를 캐시에 저장
+      for (const result of ttsResults) {
+        const { sceneIndex, parts } = result
+        if (!parts || parts.length === 0) {
+          console.warn(`[useGroupPlayback] 씬 ${sceneIndex} parts가 비어있음`)
+          continue
+        }
         
         const markups = buildSceneMarkup(timeline!, sceneIndex)
-        for (let i = 0; i < result.parts.length; i++) {
-          const part = result.parts[i]
+        for (let i = 0; i < parts.length && i < markups.length; i++) {
+          const part = parts[i]
           const partMarkup = markups[i]
           if (part && partMarkup) {
             const partKey = makeTtsKey(voiceTemplate!, partMarkup)
@@ -110,6 +130,7 @@ export function useGroupPlayback({
           }
         }
       }
+      
       return true
     } catch (error) {
       console.error('[useGroupPlayback] TTS 생성 실패:', error)
@@ -121,7 +142,7 @@ export function useGroupPlayback({
   }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef, ensureSceneTtsParam, changedScenesRef, setIsPreparing, setIsTtsBootstrapping])
 
   // 그룹 TTS duration 계산
-  const calculateGroupTtsDuration = useCallback((sceneId: number, groupIndices: number[]): number => {
+  const calculateGroupTtsDuration = useCallback((sceneId: number | undefined, groupIndices: number[]): number => {
     // 항상 최신 TTS 캐시에서 직접 계산하여 정확한 duration 보장
     let duration = 0
     if (voiceTemplate && timeline) {
@@ -202,6 +223,27 @@ export function useGroupPlayback({
     stopTtsAudio()
   }, [stopTtsAudio])
 
+  // 그룹 재생 정지 함수
+  const stopGroup = useCallback(() => {
+    // 진행 중인 전환 효과 애니메이션 중지
+    // activeAnimationsRef는 useGroupPlaybackParams에 없으므로, 
+    // 필요시 파라미터로 추가해야 하지만, 일단 TTS와 상태만 정리
+    
+    // TTS 오디오 정지
+    stopTtsAudio()
+    
+    // 재생 중인 씬 인덱스 초기화
+    setPlayingSceneIndex(null)
+    playingSceneIndexRef.current = null
+    
+    // 재생 중인 그룹 sceneId 초기화
+    setPlayingGroupSceneId(null)
+    playingGroupSceneIdRef.current = null
+    
+    // 재생 상태 초기화
+    isPlayingRef.current = false
+  }, [stopTtsAudio, isPlayingRef])
+
   // 디버깅 함수: 중복 렌더링 확인
   const debugRenderState = useCallback((label: string, sceneIndex: number | null, partIndex?: number) => {
     if (sceneIndex === null) {
@@ -256,13 +298,47 @@ export function useGroupPlayback({
   /**
    * 그룹 재생 함수
    */
-  const playGroup = useCallback(async (sceneId: number, groupIndices: number[]) => {
+  const playGroup = useCallback(async (sceneId: number | undefined, groupIndices: number[]) => {
     if (!timeline || !voiceTemplate || !ensureSceneTtsParam) {
       return
     }
 
-    // 디버깅: 그룹 재생 시작
-    console.log(`[그룹재생] 그룹 재생 시작 | SceneId ${sceneId} | 그룹 인덱스: [${groupIndices.join(', ')}]`)
+    // 단일 씬 재생도 지원 (sceneId가 undefined이거나 groupIndices가 1개인 경우)
+    const isSingleScene = sceneId === undefined || groupIndices.length === 1
+    const firstSceneIndex = groupIndices[0]
+
+    // 단일 씬 재생인 경우: 이미 같은 씬이 재생 중이면 정지
+    if (isSingleScene && playingSceneIndexRef.current === firstSceneIndex && ttsAudioRef.current) {
+      stopGroup()
+      return
+    }
+    
+    // 그룹 재생인 경우: 이미 같은 그룹이 재생 중이면 정지
+    if (!isSingleScene && sceneId !== undefined && playingGroupSceneIdRef.current === sceneId && ttsAudioRef.current) {
+      stopGroup()
+      return
+    }
+
+    // 디버깅: 그룹 재생 시작 (단일 씬인 경우도 포함)
+    if (isSingleScene) {
+      console.log(`[씬재생] 씬 재생 시작 | SceneIndex ${firstSceneIndex}`)
+      // 재생 중인 씬 인덱스 설정
+      setPlayingSceneIndex(firstSceneIndex)
+      playingSceneIndexRef.current = firstSceneIndex
+      // 그룹 재생 상태 초기화
+      setPlayingGroupSceneId(null)
+      playingGroupSceneIdRef.current = null
+    } else {
+      console.log(`[그룹재생] 그룹 재생 시작 | SceneId ${sceneId} | 그룹 인덱스: [${groupIndices.join(', ')}]`)
+      // 그룹 재생인 경우 재생 중인 씬 인덱스 초기화
+      setPlayingSceneIndex(null)
+      playingSceneIndexRef.current = null
+      // 그룹 재생 상태 설정
+      if (sceneId !== undefined) {
+        setPlayingGroupSceneId(sceneId)
+        playingGroupSceneIdRef.current = sceneId
+      }
+    }
 
     // 1. 그룹화된 씬 확인
     const groupScenes = groupIndices.map(index => timeline.scenes[index]).filter(Boolean)
@@ -282,7 +358,6 @@ export function useGroupPlayback({
     const totalGroupTtsDuration = calculateGroupTtsDuration(sceneId, groupIndices)
 
     // 첫 번째 씬의 transitionDuration 업데이트
-    const firstSceneIndex = groupIndices[0]
     const firstScene = timeline.scenes[firstSceneIndex]
     const originalTransitionDuration = firstScene?.transitionDuration
     
@@ -751,8 +826,22 @@ export function useGroupPlayback({
       
       isPlayingRef.current = false
       
+      // 단일 씬 재생인 경우 재생 중인 씬 인덱스 초기화
+      if (isSingleScene) {
+        setPlayingSceneIndex(null)
+        playingSceneIndexRef.current = null
+      } else {
+        // 그룹 재생인 경우 재생 중인 그룹 sceneId 초기화
+        setPlayingGroupSceneId(null)
+        playingGroupSceneIdRef.current = null
+      }
+      
       // 디버깅: 그룹 재생 완료
-      console.log(`[그룹재생] 그룹 재생 완료 | SceneId ${sceneId}`)
+      if (isSingleScene) {
+        console.log(`[씬재생] 씬 재생 완료 | SceneIndex ${firstSceneIndex}`)
+      } else {
+        console.log(`[그룹재생] 그룹 재생 완료 | SceneId ${sceneId}`)
+      }
       debugRenderState('최종 상태', lastSceneIndex)
     }
   }, [
@@ -779,10 +868,15 @@ export function useGroupPlayback({
     findTextObject,
     cleanupAudio,
     debugRenderState,
+    stopGroup,
+    playingSceneIndexRef,
   ])
 
   return {
     playGroup,
+    stopGroup,
+    playingSceneIndex,
+    playingGroupSceneId,
   }
 }
 
