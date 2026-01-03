@@ -1,3 +1,7 @@
+import { createDebugger } from './debug'
+
+const playbackDebug = createDebugger('playback-controls')
+
 /**
  * 재생 버튼 핸들러 생성
  * 
@@ -29,14 +33,20 @@ export function createPlayButtonHandler({
   }
 }): () => void {
   return () => {
-    console.log(`[playback-controls] 재생 버튼 클릭 | videoPlayback.toggle: ${typeof videoPlayback.toggle}, isTtsBootstrapping: ${isTtsBootstrapping}, isBgmBootstrapping: ${isBgmBootstrapping}, isPreparing: ${isPreparing}`)
-    console.log(`[playback-controls] selectSceneRef.current: ${!!selectSceneRef.current}, sceneNavigation.selectScene: ${!!sceneNavigation?.selectScene}`)
+    playbackDebug.debug('재생 버튼 클릭', {
+      hasToggle: typeof videoPlayback.toggle,
+      isTtsBootstrapping,
+      isBgmBootstrapping,
+      isPreparing,
+      hasSelectSceneRef: !!selectSceneRef.current,
+      hasSceneNavigation: !!sceneNavigation?.selectScene,
+    })
 
     if (videoPlayback.toggle) {
-      console.log('[playback-controls] videoPlayback.toggle 호출')
+      playbackDebug.debug('videoPlayback.toggle 호출')
       videoPlayback.toggle()
     } else {
-      console.error('[playback-controls] videoPlayback.toggle이 없습니다!')
+      playbackDebug.error('videoPlayback.toggle이 없습니다!')
     }
   }
 }

@@ -20,6 +20,7 @@ interface SelectedProductsPanelProps {
 
 export default function SelectedProductsPanel({ 
   className = '',
+  productResponses = [],
   currentProducts = []
 }: SelectedProductsPanelProps) {
   const router = useRouter()
