@@ -1,7 +1,10 @@
-// Video API 함수
+/**
+ * Video API 함수
+ */
 
 import { api } from './client'
 import type { Video, VideoListItem } from '@/lib/types/api/video'
+import { isVideoListItemArray } from '@/lib/utils/type-guards/video'
 
 export const videosApi = {
   /**
@@ -10,9 +13,18 @@ export const videosApi = {
    * 정렬: 생성일자 기준 내림차순 (최신순)
    * 데이터가 없을 경우 [] (빈 배열)을 반환합니다.
    * GET /api/v1/videos
+   * 
+   * @throws {Error} API 응답이 유효하지 않은 경우
    */
   getMyVideos: async (): Promise<VideoListItem[]> => {
-    return api.get<VideoListItem[]>('/api/v1/videos')
+    const response = await api.get<VideoListItem[]>('/api/v1/videos')
+
+    // 타입 가드로 런타임 검증
+    if (!isVideoListItemArray(response)) {
+      throw new Error('API 응답이 유효한 VideoListItem 배열이 아닙니다.')
+    }
+
+    return response
   },
 
   /**

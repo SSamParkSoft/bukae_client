@@ -2,6 +2,9 @@ import { SceneScript, TimelineScene } from '@/store/useVideoCreateStore'
 import { getSceneDuration } from '@/utils/timeline'
 import { SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
 
+// "움직임" 효과 목록 (그룹 내 전환 효과 지속 대상)
+const MOVEMENT_EFFECTS = ['slide-left', 'slide-right', 'slide-up', 'slide-down', 'zoom-in', 'zoom-out']
+
 /**
  * `!`, `.`, `?` 기준으로 문장을 분리한다.
  * 구분 문자까지 포함한 형태로 반환하며, 공백/빈 문장은 제거한다.
@@ -100,7 +103,21 @@ export function splitSceneBySentences(params: {
     splitIndex: idx + 1, // 분할 인덱스 (1, 2, 3...)
   }))
 
+  // 원본 씬의 transition과 transitionDuration 저장
+  const originalTransition = timelineScene?.transition || 'none'
+  const originalTransitionDuration = timelineScene?.transitionDuration || 0.5
+  
+  // "움직임" 효과인지 확인
+  const isMovementEffect = MOVEMENT_EFFECTS.includes(originalTransition)
+  
+  // "움직임" 효과인 경우 그룹 내 모든 씬의 duration 합 계산
+  const totalGroupDuration = isMovementEffect 
+    ? durations.reduce((sum, d) => sum + d, 0)
+    : originalTransitionDuration
+
   const timelineScenes: TimelineScene[] = sentences.map((sentence, idx) => {
+    const isFirstSplit = idx === 0
+    const isLastSplit = idx === sentences.length - 1
     const base: TimelineScene = timelineScene
       ? {
           ...timelineScene,
@@ -122,20 +139,86 @@ export function splitSceneBySentences(params: {
           },
         }
 
-    return {
-      ...base,
-      sceneId: sceneScript.sceneId, // 원본 씬 번호 유지
-      duration: durations[idx],
-      transition: 'none', // 씬 분할 간에는 전환 효과 없음
-      transitionDuration: 0, // 씬 분할 간에는 전환 효과 없이 자막만 변경
-      text: {
-        ...base.text,
-        content: sentence,
-      },
+    // "움직임" 효과인 경우: 첫 번째 분할 씬에만 transition 적용, transitionDuration은 그룹 전체 duration 합
+    // "움직임" 효과가 아닌 경우: 기존 로직 유지 (마지막 분할 씬에만 transition 적용)
+    if (isMovementEffect) {
+      return {
+        ...base,
+        sceneId: sceneScript.sceneId, // 원본 씬 번호 유지
+        duration: durations[idx],
+        transition: isFirstSplit ? originalTransition : 'none',
+        transitionDuration: isFirstSplit ? totalGroupDuration : 0,
+        splitIndex: idx + 1, // 분할 인덱스 (1, 2, 3...)
+        text: {
+          ...base.text,
+          content: sentence,
+        },
+      }
+    } else {
+      return {
+        ...base,
+        sceneId: sceneScript.sceneId, // 원본 씬 번호 유지
+        duration: durations[idx],
+        // 마지막 분할 씬에만 원본 씬의 전환 효과 적용
+        transition: isLastSplit ? originalTransition : 'none',
+        transitionDuration: isLastSplit ? originalTransitionDuration : 0,
+        splitIndex: idx + 1, // 분할 인덱스 (1, 2, 3...)
+        text: {
+          ...base.text,
+          content: sentence,
+        },
+      }
     }
   })
 
   return { sceneScripts, timelineScenes }
+}
+
+/**
+ * 씬 스크립트에 ||| 구분자를 삽입하여 하나의 객체로 유지한다.
+ * - 문장을 `.`, `!`, `?` 기준으로 분할하고 각 문장 사이에 `|||` 구분자 삽입
+ * - 객체 분할 없이 하나의 SceneScript/TimelineScene으로 반환
+ */
+export function insertSceneDelimiters(params: {
+  sceneScript: SceneScript
+  timelineScene?: TimelineScene
+}): { sceneScript: SceneScript; timelineScene?: TimelineScene } {
+  const { sceneScript, timelineScene } = params
+  const sentences = splitScriptByPunctuation(sceneScript.script)
+
+  // 분할 가능한 문장이 1개 이하이면 그대로 반환
+  if (sentences.length <= 1) {
+    return {
+      sceneScript,
+      timelineScene,
+    }
+  }
+
+  // 각 문장 사이에 ||| 구분자 삽입
+  const scriptWithDelimiters = sentences.join(' ||| ')
+
+  // SceneScript 업데이트
+  const updatedSceneScript: SceneScript = {
+    ...sceneScript,
+    script: scriptWithDelimiters,
+  }
+
+  // TimelineScene 업데이트 (text.content에 구분자 포함, 다른 속성은 모두 유지)
+  const updatedTimelineScene: TimelineScene | undefined = timelineScene
+    ? {
+        ...timelineScene,
+        // 기존 속성 모두 유지 (imageFit, transition, duration 등)
+        text: {
+          ...timelineScene.text,
+          content: scriptWithDelimiters,
+        },
+      }
+    : undefined
+
+  return {
+    sceneScript: updatedSceneScript,
+    timelineScene: updatedTimelineScene,
+  }
 }
 
 

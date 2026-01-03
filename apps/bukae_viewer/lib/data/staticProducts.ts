@@ -24,7 +24,9 @@ const PRODUCT_URLS = {
   gomgom_pork_fried_rice:
     'https://www.coupang.com/vp/products/1310396683?itemId=2327020825&vendorItemId=70323614196&src=1139000&spec=10799999&addtag=400&ctag=1310396683&lptag=AF4647824&itime=20251229193512&pageType=PRODUCT&pageValue=1310396683&wPcid=17510469561163597660443&wRef=&wTime=20251229193512&redirect=landing&traceid=V0-181-6ffbe2ec47993f6b&mcid=aad30b5b4c65424096ad1c8d004b0417&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
   worldclean_bucket:
-    'https://www.coupang.com/vp/products/8481141329?itemId=24606557441&vendorItemId=91617952859&src=1139000&spec=10799999&addtag=400&ctag=8481141329&lptag=AF4647824&itime=20251229193542&pageType=PRODUCT&pageValue=8481141329&wPcid=17510469561163597660443&wRef=&wTime=20251229193542&redirect=landing&traceid=V0-181-d1e557b440f9abd5&mcid=73bdcb3433a94938914cccce50fe885d&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam='
+    'https://www.coupang.com/vp/products/8481141329?itemId=24606557441&vendorItemId=91617952859&src=1139000&spec=10799999&addtag=400&ctag=8481141329&lptag=AF4647824&itime=20251229193542&pageType=PRODUCT&pageValue=8481141329&wPcid=17510469561163597660443&wRef=&wTime=20251229193542&redirect=landing&traceid=V0-181-d1e557b440f9abd5&mcid=73bdcb3433a94938914cccce50fe885d&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
+  sinjimoru_glass_protector:
+    'https://www.coupang.com/vp/products/6131560742?itemId=19908948306&vendorItemId=87097760248&src=1139000&spec=10799999&addtag=400&ctag=6131560742&lptag=AF4647824&itime=20260104060319&pageType=PRODUCT&pageValue=6131560742&wPcid=17510469561163597660443&wRef=&wTime=20260104060319&redirect=landing&traceid=V0-181-14f6d5ff563c987b&mcid=b5d3b54dcc5b4116b8c80210faafc124&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam='
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -139,6 +141,15 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     order: 12,
     thumbnailUrl: '/dummy/worldclean_bucket.png',
     url: PRODUCT_URLS.worldclean_bucket,
+  },
+  {
+    id: 'sinjimoru-glass-protector',
+    productId: 1013,
+    name: '신지모루 풀커버 하이브리드 강화유리 액정보호필름 2매입',
+    description: '풀커버 · 하이브리드 · 강화유리 · 2매입',
+    order: 13,
+    thumbnailUrl: '/dummy/sinjimoru_glass_protector.png',
+    url: PRODUCT_URLS.sinjimoru_glass_protector,
   },
 ]
 

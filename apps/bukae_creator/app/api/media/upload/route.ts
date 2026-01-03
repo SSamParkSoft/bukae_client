@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-    const sceneIndex = formData.get('sceneIndex') as string | null
+    const sceneId = formData.get('sceneId') as string | null
 
     if (!file) {
       return NextResponse.json({ error: '파일이 필요합니다.' }, { status: 400 })
@@ -37,12 +37,19 @@ export async function POST(request: Request) {
     // 주의: 서비스 역할 키는 서버 사이드에서만 사용되어야 합니다.
     const supabase = getSupabaseServiceClient()
 
-    const filePath = `tts/${auth.userId}/${Date.now()}_scene_${sceneIndex}_${file.name}`
-    const { data, error: uploadError } = await supabase.storage
+    // TTS API 형식으로 파일 이름 생성: {timestamp}_scene_{sceneId}_scene_{sceneId}_voice.mp3
+    const timestamp = Date.now()
+    const sceneIdValue = sceneId || 'unknown'
+    const fileName = `${timestamp}_scene_${sceneIdValue}_scene_${sceneIdValue}_voice.mp3`
+    
+    // 경로 구성: userId 기반 경로 사용
+    // media/tts/{userId}/{timestamp}_scene_{sceneId}_scene_{sceneId}_voice.mp3
+    const filePath = `tts/${auth.userId}/${fileName}`
+    const { error: uploadError } = await supabase.storage
       .from('media')
       .upload(filePath, file, {
         cacheControl: '3600',
-        upsert: false,
+        upsert: true, // 같은 씬이면 덮어쓰기 (같은 파일 이름이 생성될 수 있음)
       })
 
     if (uploadError) {

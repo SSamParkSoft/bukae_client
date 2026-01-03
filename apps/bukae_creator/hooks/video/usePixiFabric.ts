@@ -152,8 +152,7 @@ export function usePixiFabric({
           currentApp.canvas.style.transform = 'translate(-50%, -50%)'
           container.appendChild(currentApp.canvas)
           
-          // 초기 렌더링 강제
-          currentApp.render()
+          // 렌더링은 ticker가 처리
           
           // Ticker가 자동으로 실행되도록 확인 (재생 중 전환 효과를 위해)
           // autoStart: true로 설정되어 있지만, 명시적으로 확인
@@ -161,19 +160,15 @@ export function usePixiFabric({
             currentApp.ticker.start()
           }
           
-          // Ticker에 기본 렌더링 콜백 추가
-          // 전환 효과 중일 때는 GSAP ticker가 렌더링하므로 PixiJS ticker는 건너뜀
+          // Ticker에 렌더링 콜백 추가 (유일한 렌더링 지점)
           const tickerCallback = () => {
             // appRef.current가 null이거나 destroy되었는지 확인
             if (!appRef.current || !appRef.current.canvas) {
               return
             }
             
-            // 이전 코드처럼 항상 렌더링 (onUpdate에서도 렌더링하지만 중복은 성능에 큰 영향 없음)
-            // Timeline의 onUpdate가 호출되지 않을 경우를 대비하여 PixiJS ticker도 렌더링
-            if (appRef.current && appRef.current.canvas) {
-              appRef.current.render()
-            }
+            // Canvas 렌더링 (유일한 렌더링 지점)
+            appRef.current.render()
           }
           app.ticker.add(tickerCallback)
           
@@ -199,11 +194,14 @@ export function usePixiFabric({
         if (appRef.current.ticker) {
           appRef.current.ticker.stop()
         }
-        // app이 유효한지 확인 후 destroy
-        try {
-          appRef.current.destroy(true, { children: true, texture: true })
-        } catch (error) {
-          console.error('usePixiFabric: Error destroying app', error)
+        // app이 유효한지 확인 후 destroy (destroy 호출 전에 다시 확인)
+        const app = appRef.current
+        if (app) {
+          try {
+            app.destroy(true, { children: true, texture: true })
+          } catch (error) {
+            console.error('usePixiFabric: Error destroying app', error)
+          }
         }
         appRef.current = null
         containerRef.current = null

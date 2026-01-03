@@ -56,10 +56,14 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '*.alicdn.com',
       },
-      // 쿠팡 이미지 도메인 (향후 사용)
+      // 쿠팡 이미지 도메인
       {
         protocol: 'https',
         hostname: '*.coupangcdn.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'ads-partners.coupang.com',
       },
       // 아마존 이미지 도메인 (향후 사용)
       {

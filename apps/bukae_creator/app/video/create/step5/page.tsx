@@ -20,6 +20,7 @@ import { useThemeStore } from '@/store/useThemeStore'
 import { studioMetaApi } from '@/lib/api/studio-meta'
 import { StudioJobWebSocket, type StudioJobUpdate } from '@/lib/api/websocket'
 import { websocketManager } from '@/lib/api/websocket-manager'
+import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
 import { authStorage } from '@/lib/api/auth-storage'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
@@ -46,6 +47,9 @@ function Step5PageContent() {
     reset,
   } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
+
+  // 토큰 검증
+  const { isValidatingToken } = useVideoCreateAuth()
   
   // 영상 렌더링 관련 상태
   // Hydration 오류 방지를 위해 초기값은 null로 설정하고, useEffect에서 클라이언트에서만 설정
@@ -1012,6 +1016,18 @@ function Step5PageContent() {
     setIsCompleteDialogOpen(false)
     setIsCompleting(false)
     router.push('/')
+  }
+
+  // 토큰 검증 중에는 로딩 표시
+  if (isValidatingToken) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-purple-600" />
+          <p className={theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>인증 확인 중...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

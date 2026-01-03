@@ -12,7 +12,7 @@ interface UseSceneHandlersParams {
   setTimeline: (timeline: TimelineData | null) => void
   currentSceneIndex: number
   setCurrentSceneIndex: (index: number) => void
-  updateCurrentScene: (skipAnimation?: boolean, explicitPreviousIndex?: number | null, forceTransition?: string) => void
+  updateCurrentScene: (explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, partIndex?: number | null, sceneIndex?: number, overrideTransitionDuration?: number) => void
   setIsPreviewingTransition: (val: boolean) => void
   isPreviewingTransition: boolean // 전환 효과 미리보기 중인지 확인용
   isManualSceneSelectRef: MutableRefObject<boolean>
@@ -22,6 +22,19 @@ interface UseSceneHandlersParams {
   containerRef: MutableRefObject<PIXI.Container | null>
   loadAllScenes: () => Promise<void>
   setPlaybackSpeed: (speed: number) => void
+  renderSceneContent?: (
+    sceneIndex: number,
+    partIndex?: number | null,
+    options?: {
+      skipAnimation?: boolean
+      forceTransition?: string
+      previousIndex?: number | null
+      onComplete?: () => void
+      updateTimeline?: boolean
+      prepareOnly?: boolean
+      isPlaying?: boolean
+    }
+  ) => void
 }
 
 export function useSceneHandlers({
@@ -41,6 +54,7 @@ export function useSceneHandlers({
   containerRef,
   loadAllScenes,
   setPlaybackSpeed,
+  renderSceneContent,
 }: UseSceneHandlersParams) {
   const handleSceneScriptChange = useCallback(
     (index: number, value: string) => {
@@ -119,18 +133,67 @@ export function useSceneHandlers({
         setTimeout(() => {
           // 전환 효과 변경 시에는 같은 씬에서 전환 효과만 변경하므로
           // previousIndex는 null로 설정하여 페이드 인 효과 적용
-            updateCurrentScene(false, null, value)
+          // 자막은 현재 씬의 첫 번째 구간만 표시 (구간이 나뉘어져 있으면)
+          const currentScene = nextTimeline.scenes[targetSceneIndex]
+          let firstPartText: string | null = null
+          if (currentScene?.text?.content) {
+            const scriptParts = currentScene.text.content.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+            if (scriptParts.length > 1) {
+              firstPartText = scriptParts[0]
+              // 구간이 나뉘어져 있으면 첫 번째 구간만 표시하도록 timeline 업데이트
+              const updatedTimeline: TimelineData = {
+                ...nextTimeline,
+                scenes: nextTimeline.scenes.map((scene, i) =>
+                  i === targetSceneIndex
+                    ? {
+                        ...scene,
+                        text: {
+                          ...scene.text,
+                          content: scriptParts[0], // 첫 번째 구간만 표시
+                        },
+                      }
+                    : scene
+                ),
+              }
+              setTimeline(updatedTimeline)
+            }
+          }
           
-          lastRenderedSceneIndexRef.current = targetSceneIndex
+          // renderSceneContent 사용 (통합 렌더링 함수)
+          if (renderSceneContent) {
+            renderSceneContent(targetSceneIndex, null, {
+              skipAnimation: false,
+              forceTransition: value,
+              previousIndex: null,
+              updateTimeline: false, // 이미 timeline 업데이트 완료
+              onComplete: () => {
+                lastRenderedSceneIndexRef.current = targetSceneIndex
+                const transitionDuration =
+                  nextTimeline.scenes[targetSceneIndex]?.transition === 'none'
+                    ? 0
+                    : nextTimeline.scenes[targetSceneIndex]?.transitionDuration || 0.5
+                setTimeout(() => {
+                  setIsPreviewingTransition(false)
+                  isManualSceneSelectRef.current = false
+                }, transitionDuration * 1000 + 200)
+              },
+            })
+          } else {
+            // fallback: 기존 방식
+            // skipAnimation 파라미터 제거: forceTransition으로 처리
+            updateCurrentScene(null, value, undefined, undefined, undefined, undefined, targetSceneIndex)
+            
+            lastRenderedSceneIndexRef.current = targetSceneIndex
 
-          const transitionDuration =
-            nextTimeline.scenes[targetSceneIndex]?.transition === 'none'
-              ? 0
-              : nextTimeline.scenes[targetSceneIndex]?.transitionDuration || 0.5
-          setTimeout(() => {
-            setIsPreviewingTransition(false)
-            isManualSceneSelectRef.current = false
-          }, transitionDuration * 1000 + 200)
+            const transitionDuration =
+              nextTimeline.scenes[targetSceneIndex]?.transition === 'none'
+                ? 0
+                : nextTimeline.scenes[targetSceneIndex]?.transitionDuration || 0.5
+            setTimeout(() => {
+              setIsPreviewingTransition(false)
+              isManualSceneSelectRef.current = false
+            }, transitionDuration * 1000 + 200)
+          }
         }, 50)
       })
     },
@@ -144,6 +207,7 @@ export function useSceneHandlers({
       timeline,
       updateCurrentScene,
       isPreviewingTransition,
+      renderSceneContent,
     ],
   )
 
@@ -151,14 +215,24 @@ export function useSceneHandlers({
     (index: number, value: 'cover' | 'contain' | 'fill') => {
       if (!timeline) return
       isManualSceneSelectRef.current = true
+      // imageFit이 변경되면 imageTransform을 제거하여 새로운 imageFit이 적용되도록 함
       const nextTimeline: TimelineData = {
         ...timeline,
-        scenes: timeline.scenes.map((scene, i) => (i === index ? { ...scene, imageFit: value } : scene)),
+        scenes: timeline.scenes.map((scene, i) => 
+          i === index 
+            ? { ...scene, imageFit: value, imageTransform: undefined } 
+            : scene
+        ),
       }
       setTimeline(nextTimeline)
 
       if (pixiReady && appRef.current && containerRef.current) {
         loadAllScenes().then(() => {
+          // 현재 씬이 변경된 씬이면 업데이트
+          if (index === currentSceneIndex) {
+            // skipAnimation 파라미터 제거: forceTransition === 'none'으로 처리
+            updateCurrentScene(null, 'none')
+          }
           setTimeout(() => {
             isManualSceneSelectRef.current = false
           }, 50)
@@ -169,7 +243,7 @@ export function useSceneHandlers({
         }, 50)
       }
     },
-    [appRef, containerRef, isManualSceneSelectRef, loadAllScenes, pixiReady, setTimeline, timeline],
+    [appRef, containerRef, currentSceneIndex, isManualSceneSelectRef, loadAllScenes, pixiReady, setTimeline, timeline, updateCurrentScene],
   )
 
   const handlePlaybackSpeedChange = useCallback(

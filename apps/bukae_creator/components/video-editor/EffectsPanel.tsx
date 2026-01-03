@@ -4,30 +4,6 @@ import { SubtitleSettings } from '@/components/video-editor/SubtitleSettings'
 import ChirpVoiceSelector from '@/components/ChirpVoiceSelector'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 
-type AdvancedEffectKey = 'glow' | 'glitch' | 'particles'
-
-type GlowEffect = {
-  enabled: boolean
-  distance?: number
-  outerStrength?: number
-  innerStrength?: number
-  color?: number
-}
-
-type GlitchEffect = {
-  enabled: boolean
-  intensity?: number
-}
-
-type ParticlesEffect = {
-  enabled: boolean
-  type?: 'sparkle' | 'snow' | 'confetti' | 'stars'
-  count?: number
-  duration?: number
-}
-
-type AdvancedEffectValue = GlowEffect | GlitchEffect | ParticlesEffect
-
 interface EffectsPanelProps {
   theme: string | undefined
   rightPanelTab: string
@@ -35,12 +11,9 @@ interface EffectsPanelProps {
   timeline: TimelineData | null
   currentSceneIndex: number
   allTransitions: Array<{ value: string; label: string }>
+  transitions?: Array<{ value: string; label: string }>
+  movements?: Array<{ value: string; label: string }>
   onTransitionChange: (sceneIndex: number, value: string) => void
-  onAdvancedEffectChange: (
-    sceneIndex: number,
-    effect: AdvancedEffectKey,
-    value: AdvancedEffectValue
-  ) => void
   bgmTemplate: string | null
   setBgmTemplate: (value: string | null) => void
   confirmedBgmTemplate: string | null
@@ -55,14 +28,18 @@ export function EffectsPanel({
   timeline,
   currentSceneIndex,
   allTransitions,
+  transitions,
+  movements,
   onTransitionChange,
-  onAdvancedEffectChange,
   bgmTemplate,
   setBgmTemplate,
   confirmedBgmTemplate,
   onBgmConfirm,
   setTimeline,
 }: EffectsPanelProps) {
+  // transitions와 movements가 제공되면 사용, 아니면 allTransitions 사용 (하위 호환성)
+  const displayTransitions = transitions || allTransitions
+  const displayMovements = movements || []
   return (
     <div
       className="w-full flex flex-col h-full overflow-hidden"
@@ -101,46 +78,92 @@ export function EffectsPanel({
 
           <div className="flex-1 overflow-y-auto min-h-0" style={{ width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden' }}>
             <TabsContent value="animation" className="space-y-4 h-full w-full max-w-full overflow-x-hidden">
-              <div>
-                <h3
-                  className="text-sm font-semibold mb-2"
-                  style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
-                >
-                  전환 효과
-                </h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {allTransitions.map((transition) => {
-                    const isSelected = timeline?.scenes[currentSceneIndex]?.transition === transition.value
-                    return (
-                      <button
-                        key={transition.value}
-                        onClick={() => {
-                          if (timeline && currentSceneIndex >= 0) {
-                            onTransitionChange(currentSceneIndex, transition.value)
-                          }
-                        }}
-                        className={`p-3 rounded-lg border text-sm transition-colors ${
-                          isSelected
-                            ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500'
-                            : 'hover:bg-purple-50 dark:hover:bg-purple-900/20'
-                        }`}
-                        style={{
-                          borderColor: isSelected
-                            ? '#8b5cf6'
-                            : theme === 'dark'
-                              ? '#374151'
-                              : '#e5e7eb',
-                          color: theme === 'dark' ? '#d1d5db' : '#374151',
-                        }}
-                      >
-                        {transition.label}
-                      </button>
-                    )
-                  })}
+              {/* 전환 효과 섹션 */}
+              {displayTransitions.length > 0 && (
+                <div>
+                  <h3
+                    className="text-sm font-semibold mb-2"
+                    style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
+                  >
+                    전환 효과
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {displayTransitions.map((transition) => {
+                      const isSelected = timeline?.scenes[currentSceneIndex]?.transition === transition.value
+                      return (
+                        <button
+                          key={transition.value}
+                          onClick={() => {
+                            if (timeline && currentSceneIndex >= 0) {
+                              onTransitionChange(currentSceneIndex, transition.value)
+                            }
+                          }}
+                          className={`p-3 rounded-lg border text-sm transition-colors ${
+                            isSelected
+                              ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500'
+                              : 'hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                          }`}
+                          style={{
+                            borderColor: isSelected
+                              ? '#8b5cf6'
+                              : theme === 'dark'
+                                ? '#374151'
+                                : '#e5e7eb',
+                            color: theme === 'dark' ? '#d1d5db' : '#374151',
+                          }}
+                        >
+                          {transition.label}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div>
+              {/* 움직임 섹션 */}
+              {displayMovements.length > 0 && (
+                <div>
+                  <h3
+                    className="text-sm font-semibold mb-2"
+                    style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
+                  >
+                    움직임
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {displayMovements.map((movement) => {
+                      const isSelected = timeline?.scenes[currentSceneIndex]?.transition === movement.value
+                      return (
+                        <button
+                          key={movement.value}
+                          onClick={() => {
+                            if (timeline && currentSceneIndex >= 0) {
+                              onTransitionChange(currentSceneIndex, movement.value)
+                            }
+                          }}
+                          className={`p-3 rounded-lg border text-sm transition-colors ${
+                            isSelected
+                              ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500'
+                              : 'hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                          }`}
+                          style={{
+                            borderColor: isSelected
+                              ? '#8b5cf6'
+                              : theme === 'dark'
+                                ? '#374151'
+                                : '#e5e7eb',
+                            color: theme === 'dark' ? '#d1d5db' : '#374151',
+                          }}
+                        >
+                          {movement.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 고급 효과 - 주석처리 */}
+              {/* <div>
               <h3
                 className="text-sm font-semibold mb-2"
                 style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
@@ -233,7 +256,7 @@ export function EffectsPanel({
                   </select>
                 </div>
               </div>
-            </div>
+            </div> */}
           </TabsContent>
 
           <TabsContent value="bgm" className="h-full w-full max-w-full overflow-x-hidden">

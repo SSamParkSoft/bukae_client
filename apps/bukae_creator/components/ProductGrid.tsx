@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Product, Platform, useVideoCreateStore } from '../store/useVideoCreateStore'
+import { useVideoCreateStore } from '../store/useVideoCreateStore'
+import type { Product, Platform } from '@/lib/types/domain/product'
 import { useThemeStore } from '../store/useThemeStore'
 import { SPAEL_PRODUCT } from '@/lib/data/spaelProduct'
 
@@ -19,6 +20,7 @@ const dummyProducts: Record<Platform, Product[]> = {
       name: '무선 이어폰 블루투스 5.0',
       price: 29900,
       image: 'https://via.placeholder.com/200',
+      images: ['https://via.placeholder.com/200'],
       platform: 'coupang',
       url: 'https://www.coupang.com/vp/products/c1',
       description: '고음질 무선 이어폰',
@@ -28,6 +30,7 @@ const dummyProducts: Record<Platform, Product[]> = {
       name: '스마트워치 피트니스 트래커',
       price: 49900,
       image: 'https://via.placeholder.com/200',
+      images: ['https://via.placeholder.com/200'],
       platform: 'coupang',
       url: 'https://www.coupang.com/vp/products/c2',
       description: '건강 관리 스마트워치',
@@ -37,6 +40,7 @@ const dummyProducts: Record<Platform, Product[]> = {
       name: 'USB-C 충전 케이블',
       price: 8900,
       image: 'https://via.placeholder.com/200',
+      images: ['https://via.placeholder.com/200'],
       platform: 'coupang',
       url: 'https://www.coupang.com/vp/products/c3',
       description: '고속 충전 케이블',
@@ -48,6 +52,7 @@ const dummyProducts: Record<Platform, Product[]> = {
       name: '에어컨 필터 세트',
       price: 15900,
       image: 'https://via.placeholder.com/200',
+      images: ['https://via.placeholder.com/200'],
       platform: 'naver',
       url: 'https://shopping.naver.com/products/n1',
       description: '에어컨 청정 필터',
@@ -57,6 +62,7 @@ const dummyProducts: Record<Platform, Product[]> = {
       name: '무선 마우스',
       price: 19900,
       image: 'https://via.placeholder.com/200',
+      images: ['https://via.placeholder.com/200'],
       platform: 'naver',
       url: 'https://shopping.naver.com/products/n2',
       description: '인체공학 무선 마우스',
@@ -68,6 +74,7 @@ const dummyProducts: Record<Platform, Product[]> = {
       name: 'LED 스트립 라이트',
       price: 12900,
       image: 'https://via.placeholder.com/200',
+      images: ['https://via.placeholder.com/200'],
       platform: 'aliexpress',
       url: 'https://www.aliexpress.com/item/a1',
       description: 'RGB LED 조명',
@@ -79,6 +86,7 @@ const dummyProducts: Record<Platform, Product[]> = {
       name: 'Bluetooth Speaker',
       price: 39900,
       image: 'https://via.placeholder.com/200',
+      images: ['https://via.placeholder.com/200'],
       platform: 'amazon',
       url: 'https://www.amazon.com/dp/am1',
       description: 'Portable wireless speaker',
@@ -88,6 +96,7 @@ const dummyProducts: Record<Platform, Product[]> = {
       name: 'Laptop Stand',
       price: 29900,
       image: 'https://via.placeholder.com/200',
+      images: ['https://via.placeholder.com/200'],
       platform: 'amazon',
       url: 'https://www.amazon.com/dp/am2',
       description: 'Ergonomic laptop stand',

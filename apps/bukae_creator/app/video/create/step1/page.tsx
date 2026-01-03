@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Loader2, AlertCircle, Send, ShoppingCart, ExternalLink } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { useVideoCreateStore, Product } from '../../../../store/useVideoCreateStore'
+import { useVideoCreateStore } from '../../../../store/useVideoCreateStore'
+import type { Product } from '@/lib/types/domain/product'
 import { useThemeStore } from '../../../../store/useThemeStore'
 import { useUserStore } from '../../../../store/useUserStore'
 import StepIndicator from '../../../../components/StepIndicator'
@@ -11,13 +13,14 @@ import SelectedProductsPanel from '../../../../components/SelectedProductsPanel'
 import { searchProducts } from '@/lib/api/products'
 import type { TargetMall, ProductResponse } from '@/lib/types/products'
 import { convertProductResponseToProduct } from '@/lib/types/products'
+import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
 
 type ThemeMode = 'light' | 'dark'
 
 // 플랫폼 정보
 const platformInfo: Record<TargetMall, { name: string; enabled: boolean }> = {
   ALI_EXPRESS: { name: '알리익스프레스', enabled: true },
-  COUPANG: { name: '쿠팡', enabled: false },
+  COUPANG: { name: '쿠팡', enabled: true },
   AMAZON: { name: '아마존', enabled: false },
 }
 
@@ -31,6 +34,7 @@ interface ChatMessage {
 }
 
 export default function Step1Page() {
+  const router = useRouter()
   const { removeProduct, addProduct, selectedProducts, clearProducts } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const { getPlatformTrackingId } = useUserStore()
@@ -44,6 +48,9 @@ export default function Step1Page() {
   const [currentProducts, setCurrentProducts] = useState<Product[]>([])
   const [currentProductResponses, setCurrentProductResponses] = useState<ProductResponse[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // 토큰 검증
+  const { isValidatingToken } = useVideoCreateAuth()
 
   // 메시지 스크롤
   useEffect(() => {
@@ -61,16 +68,14 @@ export default function Step1Page() {
     return selectedProducts.some((p) => p.id === productId)
   }
 
-  const handleProductToggle = (product: Product, index?: number) => {
+  const handleProductToggle = (product: Product) => {
     if (isProductSelected(product.id)) {
       // 이미 선택된 상품이면 선택 해제
       removeProduct(product.id)
     } else {
       // 새로운 상품 선택 시 기존 선택 모두 제거 후 새 상품만 선택
       clearProducts()
-      // 원본 ProductResponse 찾기
-      const productResponse = index !== undefined ? currentProductResponses[index] : undefined
-      addProduct(product, productResponse)
+      addProduct(product)
     }
   }
 
@@ -161,6 +166,18 @@ export default function Step1Page() {
   }
 
   const themeMode: ThemeMode = theme
+
+  // 토큰 검증 중에는 로딩 표시
+  if (isValidatingToken) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-purple-600" />
+          <p className={themeMode === 'dark' ? 'text-gray-400' : 'text-gray-600'}>인증 확인 중...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <motion.div
@@ -275,7 +292,7 @@ export default function Step1Page() {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="예: Spoon and Chopstick Set / 수저세트, 주방용품, 50000, 20"
+                  placeholder="예) 화장실에서 심심할 때 좋은 거, 캠핑 가서 먹기 좋은 밀키트, 여친한테 사랑받는 선물"
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   onKeyPress={handleKeyPress}
@@ -305,12 +322,12 @@ export default function Step1Page() {
               <p className={`mt-2 text-sm ${
                 themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
               }`}>
-                💡 <strong>영문 상품명 / 한글 상품명, 카테고리, 가격(원), 개수 순서로 입력하세요.</strong> 
+                💡 복잡한 검색어 고민 NO! 평소 말하는 것처럼 자연스럽게 적어주세요.
               </p>
               <p className={`mt-2 text-sm ${
                 themeMode === 'dark' ? 'text-gray-400' : 'text-gray-500'
               }`}>
-                💡 &quot;영문 상품명 / 한글 상품명&quot;으로 작성하면 검색 정확도가 높아져요!
+                💡 AI가 문맥을 파악해 지금 가장 잘 팔리는 &quot;인기 상품&quot;을 추천해 드릴게요.
               </p>
               {searchError && (
                 <div className="mt-4 flex items-center gap-2 text-red-500 text-sm">
@@ -393,7 +410,7 @@ export default function Step1Page() {
                     return (
                       <div
                         key={product.id}
-                        onClick={() => handleProductToggle(product, index)}
+                        onClick={() => handleProductToggle(product)}
                         className={`flex gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${
                           isSelected
                             ? themeMode === 'dark'

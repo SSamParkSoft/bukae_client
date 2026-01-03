@@ -12,6 +12,8 @@ interface UseTimelinePlayerParams {
   appRef: MutableRefObject<PIXI.Application | null>
   containerRef: MutableRefObject<PIXI.Container | null>
   pixiReady: boolean
+  onSceneChange?: (sceneIndex: number, skipStopPlaying?: boolean) => void // 재생 중 씬 변경 콜백
+  disableAutoTimeUpdateRef?: React.MutableRefObject<boolean> // 비디오 재생 중일 때 자동 시간 업데이트 비활성화 (ref로 동적 제어)
 }
 
 export function useTimelinePlayer({
@@ -22,6 +24,8 @@ export function useTimelinePlayer({
   containerRef,
   pixiReady,
   previousSceneIndexRef,
+  onSceneChange,
+  disableAutoTimeUpdateRef,
 }: UseTimelinePlayerParams & { previousSceneIndexRef: React.MutableRefObject<number | null> }) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPreviewingTransition, setIsPreviewingTransition] = useState(false)
@@ -36,11 +40,20 @@ export function useTimelinePlayer({
   const playStartTimeRef = useRef<number>(0) // 재생 시작 시간 (절대 시간)
   const currentTimeRef = useRef<number>(0) // currentTime의 최신 값을 ref로 저장
   const currentSceneIndexRef = useRef<number>(0) // currentSceneIndex의 최신 값을 ref로 저장
+  const lastUpdateTimeRef = useRef<number>(0) // 마지막 상태 업데이트 시간 (리렌더링 방지용)
 
   const totalDuration = useMemo(() => {
     if (!timeline || timeline.scenes.length === 0) return 0
-    return timeline.scenes.reduce((sum, scene) => {
-      const transitionDuration = scene.transitionDuration || 0.5
+    return timeline.scenes.reduce((sum, scene, index) => {
+      // 마지막 씬에는 transition이 없으므로 제외
+      const isLastScene = index === timeline.scenes.length - 1
+      if (isLastScene) {
+        return sum + scene.duration
+      }
+      // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
+      const nextScene = timeline.scenes[index + 1]
+      const isSameSceneId = nextScene && scene.sceneId === nextScene.sceneId
+      const transitionDuration = isSameSceneId ? 0 : (scene.transitionDuration || 0.5)
       return sum + scene.duration + transitionDuration
     }, 0)
   }, [timeline])
@@ -72,6 +85,17 @@ export function useTimelinePlayer({
   useEffect(() => {
     tickRef.current = (timestamp: number) => {
       if (!isPlaying || !timeline) return
+      
+      // 비디오 재생 중일 때는 자동 시간 업데이트와 씬 전환을 모두 건너뛰고 실제 오디오 재생 시간을 사용
+      // useVideoPlayback이 씬 전환을 담당하므로 여기서는 씬 전환을 하지 않음
+      if (disableAutoTimeUpdateRef?.current) {
+        // 시간 업데이트와 씬 전환은 useVideoPlayback에서 처리
+        // 여기서는 tick만 계속 실행하여 UI 업데이트는 유지
+        rafIdRef.current = requestAnimationFrame(tickRef.current!)
+        return
+      }
+      
+      // 일반 재생 모드 (자동 시간 업데이트)
       if (lastTimestampRef.current === null) {
         lastTimestampRef.current = timestamp
         // 첫 프레임에서는 delta 계산하지 않음 (ref는 이미 동기화됨)
@@ -89,9 +113,16 @@ export function useTimelinePlayer({
       const nextTime = currentT + deltaSec
       const clampedTime = Math.min(nextTime, totalDuration)
       
-      // 시간 업데이트 (항상 업데이트하여 부드러운 애니메이션)
-      setCurrentTime(clampedTime)
+      // ref는 항상 업데이트 (내부 로직용)
       currentTimeRef.current = clampedTime
+      
+      // 상태 업데이트는 0.1초마다만 (리렌더링 방지)
+      const now = timestamp
+      const timeSinceLastUpdate = now - lastUpdateTimeRef.current
+      if (timeSinceLastUpdate >= 100) { // 0.1초마다 업데이트
+        setCurrentTime(clampedTime)
+        lastUpdateTimeRef.current = now
+      }
 
       // 씬 계산은 currentTime 기준 (배속이 적용된 시간)
       const t = clampedTime
@@ -102,7 +133,13 @@ export function useTimelinePlayer({
       
       for (let i = 0; i < timeline.scenes.length; i++) {
         const scene = timeline.scenes[i]
-        const sceneDuration = scene.duration + (scene.transitionDuration || 0.5)
+        // 마지막 씬에는 transition이 없음
+        const isLastScene = i === timeline.scenes.length - 1
+        // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
+        const nextScene = !isLastScene ? timeline.scenes[i + 1] : null
+        const isSameSceneId = nextScene && scene.sceneId === nextScene.sceneId
+        const transitionDuration = isLastScene ? 0 : (isSameSceneId ? 0 : (scene.transitionDuration || 0.5))
+        const sceneDuration = scene.duration + transitionDuration
         const sceneStart = accumulated
         const sceneEnd = accumulated + sceneDuration
         
@@ -135,15 +172,24 @@ export function useTimelinePlayer({
         if (!isManualSceneSelectRef.current) {
           currentSceneIndexRef.current = targetSceneIndex
           setCurrentSceneIndex(targetSceneIndex)
+          // 씬 변경 시 시간도 즉시 업데이트 (타임라인 바 동기화)
+          setCurrentTime(clampedTime)
+          lastUpdateTimeRef.current = timestamp
+          // 재생 중 씬 변경 콜백 호출 (handleSceneSelect 등)
+          if (onSceneChange) {
+            onSceneChange(targetSceneIndex, true) // skipStopPlaying = true
+          }
         }
       }
 
       rafIdRef.current = requestAnimationFrame(tickRef.current!)
     }
 
-    if (isPlaying) {
+    // disableAutoTimeUpdateRef가 true이면 재생 루프를 시작하지 않음 (전체 재생 중에는 수동으로 관리)
+    if (isPlaying && !disableAutoTimeUpdateRef?.current) {
       // 재생 시작 시 lastTimestamp 리셋
       lastTimestampRef.current = null
+      lastUpdateTimeRef.current = 0 // 상태 업데이트 시간 초기화
       rafIdRef.current = requestAnimationFrame(tickRef.current!)
     } else if (rafIdRef.current) {
       cancelAnimationFrame(rafIdRef.current)
@@ -159,8 +205,11 @@ export function useTimelinePlayer({
     isPreviewingTransition,
     playbackSpeed,
     timeline,
+    disableAutoTimeUpdateRef,
     totalDuration,
     updateCurrentScene,
+    disableAutoTimeUpdateRef,
+    onSceneChange,
   ])
 
   // timeline의 playbackSpeed와 동기화
@@ -241,6 +290,7 @@ export function useTimelinePlayer({
     setCurrentSceneIndex,
     currentTime,
     setCurrentTime,
+    currentTimeRef, // export for useFullPlayback
     progressRatio,
     playbackSpeed,
     setPlaybackSpeed,

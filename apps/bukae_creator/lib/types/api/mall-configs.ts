@@ -1,6 +1,6 @@
 // 쇼핑몰 트래킹 ID 설정 관련 타입 정의
 
-import type { TargetMall } from '@/lib/types/products'
+import type { TargetMall } from './products'
 
 /**
  * 쇼핑몰 트래킹 ID 설정 정보

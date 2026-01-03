@@ -1,82 +1,33 @@
 import { useCallback } from 'react'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
-import { TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
-import { createGlowFilter, createGlitchFilter, createParticleSystem } from '@/utils/pixi'
+import { TimelineData } from '@/store/useVideoCreateStore'
+import { applyFadeTransition } from './effects/transitions/fade'
+import { applySlideTransition } from './effects/transitions/slide'
+import { applyZoomTransition } from './effects/transitions/zoom'
+import type { TransitionParams } from './effects/utils'
+import { MOVEMENT_EFFECTS, type TransitionEffect } from './types/effects'
 
 interface UsePixiEffectsParams {
   appRef: React.RefObject<PIXI.Application | null>
   containerRef: React.RefObject<PIXI.Container | null>
-  particlesRef: React.MutableRefObject<Map<number, PIXI.Container>>
   activeAnimationsRef: React.MutableRefObject<Map<number, gsap.core.Timeline>>
   stageDimensions: { width: number; height: number }
   timeline: TimelineData | null
   playbackSpeed?: number
   onAnimationComplete?: (sceneIndex: number) => void
+  isPlayingRef?: React.MutableRefObject<boolean> // 재생 중인지 확인용
 }
 
 export const usePixiEffects = ({
   appRef,
   containerRef,
-  particlesRef,
   activeAnimationsRef,
-  stageDimensions,
   timeline,
   playbackSpeed = 1.0,
   onAnimationComplete,
 }: UsePixiEffectsParams) => {
-  // 고급 효과 적용
-  const applyAdvancedEffects = useCallback((
-    sprite: PIXI.Sprite,
-    sceneIndex: number,
-    effects?: TimelineScene['advancedEffects']
-  ) => {
-    if (!effects || !appRef.current || !containerRef.current) return
-
-    const filters: PIXI.Filter[] = []
-
-    if (effects.glow?.enabled) {
-      const glowFilter = createGlowFilter(effects.glow.distance || 10)
-      filters.push(glowFilter)
-    }
-
-    if (effects.glitch?.enabled) {
-      const glitchFilter = createGlitchFilter(appRef.current, effects.glitch.intensity || 10)
-      if (glitchFilter) {
-        filters.push(glitchFilter)
-      }
-    }
-
-    sprite.filters = filters.length > 0 ? filters : null
-
-    if (effects.particles?.enabled && effects.particles.type) {
-      const existingParticles = particlesRef.current.get(sceneIndex)
-      if (existingParticles && existingParticles.parent) {
-        existingParticles.parent.removeChild(existingParticles)
-        particlesRef.current.delete(sceneIndex)
-      }
-
-      const particleSystem = createParticleSystem(
-        effects.particles.type,
-        effects.particles.count || 50,
-        stageDimensions.width,
-        stageDimensions.height,
-        effects.particles.duration || 2
-      )
-
-      containerRef.current.addChild(particleSystem)
-      particlesRef.current.set(sceneIndex, particleSystem)
-
-      setTimeout(() => {
-        if (particleSystem.parent) {
-          particleSystem.parent.removeChild(particleSystem)
-        }
-        particlesRef.current.delete(sceneIndex)
-      }, (effects.particles.duration || 2) * 1000)
-    }
-  }, [appRef, containerRef, particlesRef, stageDimensions])
-
-  // 전환 효과 적용 - 완전히 새로 작성
+  // 전환 효과 적용
   const applyEnterEffect = useCallback((
     toSprite: PIXI.Sprite | null,
     toText: PIXI.Text | null,
@@ -85,20 +36,26 @@ export const usePixiEffects = ({
     stageWidth: number,
     stageHeight: number,
     sceneIndex: number,
-    applyAdvancedEffectsFn: (sprite: PIXI.Sprite, sceneIndex: number, effects?: TimelineScene['advancedEffects']) => void,
     forceTransition?: string,
-    onComplete?: () => void,
-    _previousIndex?: number | null // 추가 (현재 미사용, 향후 확장용)
+    onComplete?: (toText?: PIXI.Text | null) => void,
+    _previousIndex?: number | null,
+    groupTransitionTimelinesRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>,
+    sceneId?: number,
+    isPlaying?: boolean // 재생 중인지 여부
   ) => {
-    // 현재는 사용하지 않지만, 향후 이전 씬 정보 활용을 위해 자리 유지
-    void _previousIndex
-    const actualTransition = (forceTransition || transition || 'none').trim().toLowerCase()
     if (!toSprite || !appRef.current || !containerRef.current) {
-      console.error(`[전환효과] 필수 요소 없음`)
       return
     }
     
-    // transition이 'none'이면 애니메이션 없이 즉시 표시
+    const actualTransition = (forceTransition || transition || 'none').trim().toLowerCase() as TransitionEffect
+    const isMovementEffect = sceneId !== undefined && MOVEMENT_EFFECTS.includes(actualTransition)
+    const actualDuration = duration
+    const isLastInGroup = isMovementEffect && timeline && sceneId !== undefined
+      ? !timeline.scenes.some((s, idx) => idx > sceneIndex && s.sceneId === sceneId)
+      : true
+    void _previousIndex
+    
+    // transition이 'none'이면 전환 효과 없이 즉시 표시
     if (actualTransition === 'none') {
       // 컨테이너에 추가
       if (toSprite.parent !== containerRef.current) {
@@ -114,17 +71,17 @@ export const usePixiEffects = ({
         containerRef.current.addChild(toText)
       }
       
-      // 즉시 표시
-      toSprite.visible = true
-      toSprite.alpha = 1
+      // 전환 효과가 없을 때: 재생 중이든 편집 모드든 이미지 표시
+        toSprite.visible = true
+        toSprite.alpha = 1
+      
+      // 자막도 항상 표시
       if (toText) {
         toText.visible = true
         toText.alpha = 1
       }
       
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 렌더링은 PixiJS ticker가 처리
       
       // onComplete 콜백 호출
       if (onComplete) {
@@ -158,7 +115,8 @@ export const usePixiEffects = ({
       }
         containerRef.current.addChild(toText)
     }
-    // 원래 위치 및 스케일 계산 (현재 스프라이트의 실제 스케일 사용)
+    // 원래 위치 및 스케일 계산 (렌더링되어 있는 스프라이트의 현재 상태를 우선 사용)
+    // 편집 모드에서 변경된 위치/스케일을 그대로 활용하여 전환 효과 적용
     let originalX = toSprite.x
     let originalY = toSprite.y
     // 스프라이트의 현재 실제 스케일을 읽어서 사용 (비율 유지)
@@ -168,55 +126,94 @@ export const usePixiEffects = ({
     const originalScale = originalScaleX // X 스케일을 기준으로 사용 (비율 유지)
     const scaleRatio = originalScaleY / originalScaleX // Y/X 비율 저장
     
+    // 타임라인의 transform이 있더라도, 이미 렌더링된 스프라이트의 현재 상태를 우선 사용
+    // 단, 스프라이트가 초기 위치(0, 0)에 있고 타임라인에 transform이 있으면 타임라인 값 사용
+    // (스프라이트가 아직 제대로 렌더링되지 않은 경우를 대비)
     if (timeline?.scenes[sceneIndex]?.imageTransform) {
       const transform = timeline.scenes[sceneIndex].imageTransform!
-      originalX = transform.x
-      originalY = transform.y
+      // 스프라이트가 초기 상태(0, 0)가 아니거나 이미 렌더링된 상태면 현재 상태 사용
+      // 스프라이트가 초기 상태면 타임라인 값 사용
+      if (toSprite.x === 0 && toSprite.y === 0 && originalScaleX === 1 && originalScaleY === 1) {
+        // 스프라이트가 초기 상태인 경우에만 타임라인 값 사용
+        originalX = transform.x
+        originalY = transform.y
+      }
+      // 그 외의 경우는 스프라이트의 현재 상태를 그대로 사용 (편집 모드에서 변경된 상태 유지)
     }
 
 
-    // 스프라이트 초기 상태 설정 (visible: true, alpha: 0)
-    // 이렇게 하면 검은 화면이 아닌 투명한 상태로 시작하여 전환 효과가 부드럽게 시작됨
-    toSprite.visible = true
-    toSprite.alpha = 0
-    if (toText) {
-      toText.visible = true
-      toText.alpha = 0
+    // 편집 모드면 전환 효과 없이 바로 이미지 표시, 재생 중이면 전환 효과 적용
+    if (!isPlaying) {
+      // 편집 모드: 즉시 이미지 표시
+      toSprite.visible = true
+      toSprite.alpha = 1
+      if (toText) {
+        toText.visible = true
+        toText.alpha = 1
+      }
+      // 편집 모드에서는 전환 효과를 건너뛰고 바로 onComplete 호출
+      if (onComplete) {
+        onComplete(toText)
+      }
+      return
     }
     
-    // 초기 상태 렌더링 (스프라이트가 visible: true, alpha: 0인 상태로 렌더링)
-    if (appRef.current) {
-      appRef.current.render()
+    // 재생 중: 전환 효과를 보여주려면 이미지가 필요하므로 항상 visible: true로 설정
+    // 전환 효과 완료 후에는 항상 숨김 (전환 효과를 통해서만 렌더링)
+    toSprite.visible = true
+    toSprite.alpha = 0 // 전환 효과 시작 시 alpha: 0
+    if (toText) {
+      toText.visible = true
+      toText.alpha = 1 // 자막은 항상 alpha: 1로 표시 (효과 없음)
     }
+    
+    // 초기 상태 설정 (렌더링은 PixiJS ticker가 처리)
 
-    // Timeline 생성 (이전 코드처럼 자동 재생되도록 - paused 옵션 없음)
+    // Timeline 생성
     const tl = gsap.timeline({
-      timeScale: playbackSpeed, // 배속에 맞게 애니메이션 속도 조정
-      onStart: () => {
-      },
+      timeScale: playbackSpeed,
       onComplete: () => {
         
         // 전환 효과 완료 후 이전 씬 숨기기
         // 이전 씬 인덱스는 updateCurrentScene에서 전달받아야 함
         // 하지만 현재는 직접 접근할 수 없으므로, onComplete 콜백에서 처리하도록 해야 함
         
-        if (toSprite) {
+        // 재생 중(isPlaying이 true)이면 전환 효과 완료 후에도 이미지를 유지
+        // 씬 재생과 그룹 재생 모두에서 전환 효과가 보이도록 함
+        if (toSprite && isPlaying) {
+          // 재생 중: 전환 효과 완료 후에도 이미지를 유지하여 전환 효과가 보이도록 함
           toSprite.visible = true
           toSprite.alpha = 1
+        } else if (toSprite) {
+            // 편집 모드: 이미지 유지
+            toSprite.visible = true
+            toSprite.alpha = 1
         }
+        
+        // 자막은 항상 alpha: 1로 표시 (효과 없음)
         if (toText) {
           toText.visible = true
           toText.alpha = 1
         }
-        if (appRef.current) {
-          appRef.current.render()
+        // 렌더링은 PixiJS ticker가 처리
+        
+        // "움직임" 효과이고 그룹의 마지막 씬이 아닌 경우
+        // Timeline을 완료하지 않고 계속 진행 (재생 중이든 아니든 상관없이)
+        const isLongDuration = isPlaying && duration >= 3.0 // 긴 duration으로 간주
+        if (isMovementEffect && !isLastInGroup && !isLongDuration) {
+          // Timeline을 완료하지 않고 계속 진행
+          // activeAnimationsRef에서 삭제하지 않음
+          // onComplete 콜백도 호출하지 않음 (자막 변경만 처리)
+          // 재생 중에는 시간 기반으로 씬이 변경되므로 onComplete는 재생 로직에서 처리
+          return
         }
+        
         activeAnimationsRef.current.delete(sceneIndex)
         
-        // 전달된 onComplete 콜백이 있으면 우선 호출 (재생 중 다음 씬으로 넘어갈 때 사용)
         if (onComplete) {
-          onComplete()
+          onComplete(toText)
         }
+        
         // 기존 onAnimationComplete도 호출 (다른 용도로 사용될 수 있음)
         if (onAnimationComplete) {
           onAnimationComplete(sceneIndex)
@@ -226,360 +223,66 @@ export const usePixiEffects = ({
     // Timeline을 즉시 activeAnimationsRef에 추가하여 updateCurrentScene(true)가 호출되어도 전환 효과를 건너뛰지 않도록 함
     activeAnimationsRef.current.set(sceneIndex, tl)
     
-    // 텍스트는 항상 페이드로 처리
+    // "움직임" 효과인 경우 그룹별 Timeline 추적에 저장
+    if (groupTransitionTimelinesRef && sceneId !== undefined && MOVEMENT_EFFECTS.includes(actualTransition)) {
+      groupTransitionTimelinesRef.current.set(sceneId, tl)
+    }
+    
+    // 텍스트는 효과 없이 항상 alpha: 1로 표시
     const applyTextFade = () => {
       if (!toText) return
-      const textFadeObj = { alpha: 0 }
-      toText.alpha = 0
+      // 자막은 항상 alpha: 1로 표시 (효과 없음)
+      toText.alpha = 1
       toText.visible = true
       if (toText.mask) {
         toText.mask = null
       }
-      tl.to(textFadeObj, {
-        alpha: 1,
-        duration,
-        onUpdate: function() {
-          if (toText) {
-            toText.alpha = textFadeObj.alpha
-          }
-          if (appRef.current) {
-            appRef.current.render()
-          }
-        }
-      }, 0)
     }
     
     // 전환 효과별 처리 (이미지만 적용, 텍스트는 항상 페이드)
+    const transitionParams: TransitionParams = {
+      toSprite,
+      toText,
+      containerRef,
+      originalX,
+      originalY,
+      originalScale,
+      originalScaleX,
+      originalScaleY,
+      scaleRatio,
+      stageWidth,
+      stageHeight,
+      duration: actualDuration,
+      timeline: tl,
+    }
+
     switch (actualTransition) {
       case 'fade':
-        {
-          // 이전 코드 패턴: 객체를 사용하고 onUpdate에서 직접 업데이트
-          const fadeObj = { alpha: 0 }
-          let hasWarnedAboutParent = false
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
-          
-          // 텍스트도 함께 페이드
-          if (toText) {
-            if (toText.mask) {
-              toText.mask = null
-            }
-          }
-          
-          // 이전 코드처럼 onUpdate에서 직접 업데이트하고 렌더링
-          tl.to(fadeObj, { 
-            alpha: 1, 
-            duration, 
-            onUpdate: function() {
-              // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
-              if (toSprite && containerRef.current) {
-                // parent가 null이거나 containerRef.current가 아니면 추가
-                if (!toSprite.parent || toSprite.parent !== containerRef.current) {
-                  // 경고는 한 번만 출력
-                  if (!hasWarnedAboutParent) {
-                    hasWarnedAboutParent = true
-                  }
-                  if (toSprite.parent) {
-                    toSprite.parent.removeChild(toSprite)
-                  }
-                  containerRef.current.addChild(toSprite)
-                }
-                
-                toSprite.alpha = fadeObj.alpha
-              }
-              
-              if (toText && containerRef.current) {
-                if (!toText.parent || toText.parent !== containerRef.current) {
-                  if (toText.parent) {
-                    toText.parent.removeChild(toText)
-                  }
-                  containerRef.current.addChild(toText)
-                }
-                toText.alpha = fadeObj.alpha
-              }
-              
-              // PixiJS 렌더링 강제 실행
-              if (appRef.current) {
-                appRef.current.render()
-              }
-            },
-            onComplete: function() {
-              // 최종 렌더링
-              if (appRef.current) {
-                appRef.current.render()
-              }
-            }
-          }, 0)
-        }
+        applyFadeTransition(transitionParams)
         break
 
       case 'slide-left':
-        {
-          // 이전 코드 패턴: 슬라이드 좌 (왼쪽에서 나타남) - 이미지만 적용
-          const toSlideLeftObj = { x: originalX - stageWidth, alpha: 0 }
-          toSprite.x = originalX - stageWidth
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
-          
-          tl.to(toSlideLeftObj, { 
-            x: originalX, 
-            alpha: 1, 
-            duration, 
-            onUpdate: function() {
-              // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
-              if (toSprite && containerRef.current) {
-                if (!toSprite.parent || toSprite.parent !== containerRef.current) {
-                  if (toSprite.parent) {
-                    toSprite.parent.removeChild(toSprite)
-                  }
-                  containerRef.current.addChild(toSprite)
-                }
-                toSprite.x = toSlideLeftObj.x
-                toSprite.alpha = toSlideLeftObj.alpha
-              }
-              
-              if (toText && containerRef.current) {
-                if (!toText.parent || toText.parent !== containerRef.current) {
-                  if (toText.parent) {
-                    toText.parent.removeChild(toText)
-                  }
-                  containerRef.current.addChild(toText)
-                }
-              }
-              
-              if (appRef.current) {
-                appRef.current.render()
-              }
-            }
-          }, 0)
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
-        }
+        applySlideTransition(transitionParams, 'left')
         break
 
       case 'slide-right':
-        {
-          // 이전 코드 패턴: 슬라이드 우 (오른쪽에서 나타남) - 이미지만 적용
-          const toSlideRightObj = { x: originalX + stageWidth, alpha: 0 }
-          toSprite.x = originalX + stageWidth
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
-          
-          tl.to(toSlideRightObj, { 
-            x: originalX, 
-            alpha: 1, 
-            duration, 
-            onUpdate: function() {
-              // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
-              if (toSprite && containerRef.current) {
-                if (!toSprite.parent || toSprite.parent !== containerRef.current) {
-                  if (toSprite.parent) {
-                    toSprite.parent.removeChild(toSprite)
-                  }
-                  containerRef.current.addChild(toSprite)
-                }
-                toSprite.x = toSlideRightObj.x
-                toSprite.alpha = toSlideRightObj.alpha
-              }
-              
-              if (toText && containerRef.current) {
-                if (!toText.parent || toText.parent !== containerRef.current) {
-                  if (toText.parent) {
-                    toText.parent.removeChild(toText)
-                  }
-                  containerRef.current.addChild(toText)
-                }
-              }
-              
-              if (appRef.current) {
-                appRef.current.render()
-              }
-            }
-          }, 0)
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
-        }
+        applySlideTransition(transitionParams, 'right')
         break
 
       case 'slide-up':
-        {
-          // 이전 코드 패턴: 슬라이드 상 (아래에서 나타남) - 이미지만 적용
-          const toSlideUpObj = { y: originalY + stageHeight, alpha: 0 }
-          toSprite.y = originalY + stageHeight
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
-          
-          tl.to(toSlideUpObj, { 
-            y: originalY, 
-            alpha: 1, 
-            duration, 
-            onUpdate: function() {
-              // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
-              if (toSprite && containerRef.current) {
-                if (!toSprite.parent || toSprite.parent !== containerRef.current) {
-                  if (toSprite.parent) {
-                    toSprite.parent.removeChild(toSprite)
-                  }
-                  containerRef.current.addChild(toSprite)
-                }
-                toSprite.y = toSlideUpObj.y
-                toSprite.alpha = toSlideUpObj.alpha
-              }
-              
-              if (toText && containerRef.current) {
-                if (!toText.parent || toText.parent !== containerRef.current) {
-                  if (toText.parent) {
-                    toText.parent.removeChild(toText)
-                  }
-                  containerRef.current.addChild(toText)
-                }
-              }
-              
-              if (appRef.current) {
-                appRef.current.render()
-              }
-            }
-          }, 0)
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
-        }
+        applySlideTransition(transitionParams, 'up')
         break
 
       case 'slide-down':
-        {
-          // 이전 코드 패턴: 슬라이드 하 (위에서 나타남) - 이미지만 적용
-          const toSlideDownObj = { y: originalY - stageHeight, alpha: 0 }
-          toSprite.y = originalY - stageHeight
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
-          
-          tl.to(toSlideDownObj, { 
-            y: originalY, 
-            alpha: 1, 
-            duration, 
-            onUpdate: function() {
-              // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
-              if (toSprite && containerRef.current) {
-                if (!toSprite.parent || toSprite.parent !== containerRef.current) {
-                  if (toSprite.parent) {
-                    toSprite.parent.removeChild(toSprite)
-                  }
-                  containerRef.current.addChild(toSprite)
-                }
-                toSprite.y = toSlideDownObj.y
-                toSprite.alpha = toSlideDownObj.alpha
-              }
-              
-              if (toText && containerRef.current) {
-                if (!toText.parent || toText.parent !== containerRef.current) {
-                  if (toText.parent) {
-                    toText.parent.removeChild(toText)
-                  }
-                  containerRef.current.addChild(toText)
-                }
-              }
-              
-              if (appRef.current) {
-                appRef.current.render()
-              }
-            }
-          }, 0)
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
-        }
+        applySlideTransition(transitionParams, 'down')
         break
 
       case 'zoom-in':
-        {
-          // 확대: 현재 크기에서 점점 커지게 (비율 유지)
-          const toZoomObj = { scale: originalScale, alpha: 0 }
-          // 현재 스케일에서 시작 (비율 유지)
-          toSprite.scale.set(originalScaleX, originalScaleY)
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
-          
-          // 중심점 계산 (스프라이트의 현재 중심)
-          const centerX = originalX + (toSprite.texture.width * originalScaleX) / 2
-          const centerY = originalY + (toSprite.texture.height * originalScaleY) / 2
-          
-          // 페이드 인과 확대를 동시에 진행
-          tl.to(toZoomObj, { 
-            alpha: 1,
-            scale: originalScale * 1.15, 
-            duration: duration, 
-            ease: 'power1.out',
-            onUpdate: function() {
-              if (toSprite && containerRef.current) {
-                if (!toSprite.parent || toSprite.parent !== containerRef.current) {
-                  if (toSprite.parent) {
-                    toSprite.parent.removeChild(toSprite)
-                  }
-                  containerRef.current.addChild(toSprite)
-                }
-                const scaleFactor = toZoomObj.scale
-                toSprite.alpha = toZoomObj.alpha
-                // 비율 유지하면서 스케일 적용
-                toSprite.scale.set(scaleFactor, scaleFactor * scaleRatio)
-                // 중심점 기준으로 위치 조정 (중심점 유지)
-                const newWidth = toSprite.texture.width * scaleFactor
-                const newHeight = toSprite.texture.height * scaleFactor * scaleRatio
-                toSprite.x = centerX - newWidth / 2
-                toSprite.y = centerY - newHeight / 2
-              }
-              if (appRef.current) {
-                appRef.current.render()
-              }
-            }
-          }, 0)
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
-        }
+        applyZoomTransition(transitionParams, 'in')
         break
 
       case 'zoom-out':
-        {
-          // 축소: 현재 크기에서 점점 작아지게 (비율 유지)
-          const toZoomOutObj = { scale: originalScale, alpha: 0 }
-          // 현재 스케일에서 시작 (비율 유지)
-          toSprite.scale.set(originalScaleX, originalScaleY)
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
-          
-          // 중심점 계산 (스프라이트의 현재 중심)
-          const centerX = originalX + (toSprite.texture.width * originalScaleX) / 2
-          const centerY = originalY + (toSprite.texture.height * originalScaleY) / 2
-          
-          // 페이드 인과 축소를 동시에 진행
-          tl.to(toZoomOutObj, { 
-            alpha: 1,
-            scale: originalScale * 0.85, 
-            duration: duration, 
-            ease: 'power1.out',
-            onUpdate: function() {
-              if (toSprite && containerRef.current) {
-                if (!toSprite.parent || toSprite.parent !== containerRef.current) {
-                  if (toSprite.parent) {
-                    toSprite.parent.removeChild(toSprite)
-                  }
-                  containerRef.current.addChild(toSprite)
-                }
-                const scaleFactor = toZoomOutObj.scale
-                toSprite.alpha = toZoomOutObj.alpha
-                // 비율 유지하면서 스케일 적용
-                toSprite.scale.set(scaleFactor, scaleFactor * scaleRatio)
-                // 중심점 기준으로 위치 조정 (중심점 유지)
-                const newWidth = toSprite.texture.width * scaleFactor
-                const newHeight = toSprite.texture.height * scaleFactor * scaleRatio
-                toSprite.x = centerX - newWidth / 2
-                toSprite.y = centerY - newHeight / 2
-              }
-              if (appRef.current) {
-                appRef.current.render()
-              }
-            }
-          }, 0)
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
-        }
+        applyZoomTransition(transitionParams, 'out')
         break
 
       case 'rotate':
@@ -612,10 +315,11 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toText)
                 }
+                // 자막은 항상 alpha: 1로 표시 (효과 없음)
+                toText.alpha = 1
+                toText.visible = true
               }
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
           
@@ -657,9 +361,7 @@ export const usePixiEffects = ({
                   containerRef.current.addChild(toText)
                 }
               }
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
           
@@ -686,9 +388,7 @@ export const usePixiEffects = ({
                 if (toSprite) {
                   toSprite.x = glitchObj.x
                 }
-                if (appRef.current) {
-                  appRef.current.render()
-                }
+                // 렌더링은 PixiJS ticker가 처리
               }
             })
           }
@@ -716,9 +416,7 @@ export const usePixiEffects = ({
                   containerRef.current.addChild(toText)
                 }
               }
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
           
@@ -754,9 +452,7 @@ export const usePixiEffects = ({
                 }
                 toSprite.alpha = toRippleObj.alpha
               }
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
           
@@ -790,9 +486,7 @@ export const usePixiEffects = ({
                   toSprite.x = centerX - newWidth / 2
                   toSprite.y = centerY - newHeight / 2
                 }
-                if (appRef.current) {
-                  appRef.current.render()
-                }
+                // 렌더링은 PixiJS ticker가 처리
               }
             }, waveStartTime)
             
@@ -814,9 +508,7 @@ export const usePixiEffects = ({
                   toSprite.x = centerX - newWidth / 2
                   toSprite.y = centerY - newHeight / 2
                 }
-                if (appRef.current) {
-                  appRef.current.render()
-                }
+                // 렌더링은 PixiJS ticker가 처리
               }
             }, waveStartTime + waveDuration * 0.5)
           }
@@ -828,12 +520,11 @@ export const usePixiEffects = ({
 
       case 'circle':
         {
-          // 이전 코드 패턴: 원형 마스크 확장 (중앙에서 원형으로 확장) - 이미지만 적용
+          // 원형 마스크 확장 (중앙에서 원형으로 확장) - 이미지만 적용
           // circle 케이스는 alpha: 1로 설정해야 함 (마스크로 보이기 때문)
           const circleMask = new PIXI.Graphics()
-          circleMask.beginFill(0xffffff)
-          circleMask.drawCircle(stageWidth / 2, stageHeight / 2, 0)
-          circleMask.endFill()
+          circleMask.fill({ color: 0xffffff })
+          circleMask.circle(stageWidth / 2, stageHeight / 2, 0)
           
           // 마스크를 컨테이너에 추가 (마스크가 표시되려면 컨테이너에 있어야 함)
           if (containerRef.current) {
@@ -872,9 +563,8 @@ export const usePixiEffects = ({
               }
               
               circleMask.clear()
-              circleMask.beginFill(0xffffff)
-              circleMask.drawCircle(stageWidth / 2, stageHeight / 2, maskRadius.value)
-              circleMask.endFill()
+              circleMask.fill({ color: 0xffffff })
+              circleMask.circle(stageWidth / 2, stageHeight / 2, maskRadius.value)
               
               if (toText && containerRef.current) {
                 if (!toText.parent || toText.parent !== containerRef.current) {
@@ -885,9 +575,7 @@ export const usePixiEffects = ({
                 }
               }
               
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             },
             onComplete: function() {
               // 전환 효과 완료 후 마스크 정리 (선택사항)
@@ -915,11 +603,9 @@ export const usePixiEffects = ({
                 toSprite.alpha = defaultFadeObj.alpha
               }
               if (toText) {
-                toText.alpha = defaultFadeObj.alpha
+                toText.alpha = 1 // 자막은 항상 alpha: 1로 표시 (효과 없음)
               }
-              if (appRef.current) {
-                appRef.current.render()
-              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
         }
@@ -928,18 +614,8 @@ export const usePixiEffects = ({
     // 이전 코드 패턴: 애니메이션 완료 후 정리
     tl.call(() => {
       activeAnimationsRef.current.delete(sceneIndex)
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 렌더링은 PixiJS ticker가 처리
     })
-
-    // 고급 효과 적용
-    if (toSprite && timeline) {
-      const scene = timeline.scenes[sceneIndex]
-      if (scene?.advancedEffects) {
-        applyAdvancedEffectsFn(toSprite, sceneIndex, scene.advancedEffects)
-      }
-    }
 
     // 이전 코드 패턴: Timeline은 자동으로 시작됨 (기본값이 paused: false)
     // 하지만 명시적으로 시작을 보장하기 위해 requestAnimationFrame에서 확인
@@ -949,15 +625,11 @@ export const usePixiEffects = ({
         tl.play()
       }
       
-      // 초기 상태 렌더링 (스프라이트가 visible: true, alpha: 0인 상태로 렌더링)
-      if (appRef.current) {
-        appRef.current.render()
-      }
+      // 초기 상태 설정 (렌더링은 PixiJS ticker가 처리)
     })
   }, [appRef, containerRef, activeAnimationsRef, timeline, playbackSpeed, onAnimationComplete])
 
   return {
-    applyAdvancedEffects,
     applyEnterEffect,
   }
 }
