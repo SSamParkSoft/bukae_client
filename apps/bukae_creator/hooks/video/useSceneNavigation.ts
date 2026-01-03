@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import { TimelineData, SceneScript } from '@/store/useVideoCreateStore'
+import { useTtsResources } from './useTtsResources'
 
 interface UseSceneNavigationParams {
   timeline: TimelineData | null
@@ -14,23 +15,17 @@ interface UseSceneNavigationParams {
   previousSceneIndexRef: React.MutableRefObject<number | null>
   lastRenderedSceneIndexRef: React.MutableRefObject<number | null>
   isManualSceneSelectRef: React.MutableRefObject<boolean>
-  updateCurrentScene: (skipAnimation?: boolean, prevIndex?: number | null, forceTransition?: string, onComplete?: () => void, isPlaying?: boolean, partIndex?: number | null, sceneIndex?: number) => void
+  updateCurrentScene: (explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, partIndex?: number | null, sceneIndex?: number, overrideTransitionDuration?: number) => void
   setTimeline: (timeline: TimelineData) => void
   isPlaying: boolean
   setIsPlaying: (playing: boolean) => void
   isPreviewingTransition: boolean
   setIsPreviewingTransition: (previewing: boolean) => void
   setCurrentTime: (time: number) => void
-  resetTtsSession: () => void
   voiceTemplate: string | null
   playbackSpeed: number
   buildSceneMarkup: (sceneIndex: number) => string[]
   makeTtsKey: (voice: string, markup: string) => string
-  ttsCacheRef: React.MutableRefObject<Map<string, { blob: Blob; durationSec: number; markup: string; url?: string | null }>>
-  stopTtsAudio: () => void
-  ttsAudioRef: React.MutableRefObject<HTMLAudioElement | null>
-  ttsAudioUrlRef: React.MutableRefObject<string | null>
-  playTimeoutRef: React.MutableRefObject<NodeJS.Timeout | null>
   isPlayingRef: React.MutableRefObject<boolean>
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
   spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>
@@ -81,7 +76,6 @@ interface UseSceneNavigationParams {
 
 export function useSceneNavigation({
   timeline,
-  scenes,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   currentSceneIndex,
   setCurrentSceneIndex,
@@ -97,22 +91,13 @@ export function useSceneNavigation({
   isPreviewingTransition: _isPreviewingTransition,
   setIsPreviewingTransition,
   setCurrentTime,
-  resetTtsSession,
   voiceTemplate,
   playbackSpeed,
   buildSceneMarkup,
   makeTtsKey,
-  ttsCacheRef,
-  stopTtsAudio,
-  ttsAudioRef,
-  ttsAudioUrlRef,
-  playTimeoutRef,
   isPlayingRef,
   textsRef,
-  spritesRef,
-  appRef,
   activeAnimationsRef,
-  loadAllScenes,
   setSelectedPart,
   renderSceneContent,
   renderSceneImage,
@@ -120,6 +105,12 @@ export function useSceneNavigation({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   prepareImageAndSubtitle: _prepareImageAndSubtitle,
 }: UseSceneNavigationParams) {
+  // TTS 리소스 가져오기
+  const { ttsCacheRef, ttsAudioRef, ttsAudioUrlRef, stopTtsAudio, resetTtsSession } = useTtsResources()
+  
+  // playTimeoutRef는 내부에서 생성 (씬 네비게이션 전용)
+  const playTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   // 씬 선택
   const selectScene = useCallback((
     index: number,
@@ -239,9 +230,6 @@ export function useSceneNavigation({
       }
     }
     
-    // 클릭한 씬의 렌더링을 즉시 시작하도록 우선순위 확보
-    lastRenderedSceneIndexRef.current = index
-    
     // 같은 그룹 내 다음 씬으로 자동 전환하는 함수
     const autoAdvanceToNextInGroup = (currentIdx: number) => {
       if (isPlayingRef.current) {
@@ -339,7 +327,8 @@ export function useSceneNavigation({
         // updateCurrentScene을 직접 호출하여 자막만 변경 (전환 효과 없음)
         // previousIndex는 currentIdx (현재 씬이 이전 씬이 됨)로 전달하여 같은 그룹으로 인식되도록 함
         // 전환 효과를 'none'으로 설정하여 자막만 변경되도록 함
-        updateCurrentScene(false, currentIdx, 'none', () => {
+        // skipAnimation 파라미터 제거: forceTransition === 'none'으로 처리
+        updateCurrentScene(currentIdx, 'none', () => {
           console.log(`[handleSceneSelect] updateCurrentScene 완료, 다음 씬으로 재귀 호출`)
           // 자막 변경 완료 후 재귀적으로 다음 씬 처리
           autoAdvanceToNextInGroup(nextIndex)
@@ -383,14 +372,15 @@ export function useSceneNavigation({
       // Timeline의 onComplete 콜백을 사용하여 전환 효과 완료 시점을 정확히 감지
       // 선택된 씬의 전환 효과를 forceTransition으로 전달하여 해당 씬의 전환 효과가 표시되도록 함
       // 재생 중/비재생 중 모두 renderSceneContent 사용 (통합 렌더링)
-      console.log(`[selectScene] 렌더링 경로 확인 | skipStopPlaying: ${skipStopPlaying}, renderSceneContent: ${!!renderSceneContent}`)
+      console.log(`[selectScene] 렌더링 경로 확인 | skipStopPlaying: ${skipStopPlaying}, renderSceneContent: ${!!renderSceneContent}, lastRenderedSceneIndexRef: ${lastRenderedSceneIndexRef.current}, prevIndex: ${prevIndex}`)
       if (renderSceneContent) {
         if (skipStopPlaying) {
           // 재생 중일 때: 최종 상태로 바로 렌더링하고 전환 효과 애니메이션만 적용
           // prepareOnly 단계 제거: 최종 상태로 바로 렌더링
           console.log(`[selectScene] 재생 중 렌더링 경로 사용 | transition: ${transition}, prevIndex: ${prevIndex}`)
+          // 전환 효과가 'none'이어도 렌더링은 수행 (skipAnimation: false로 설정하여 렌더링 보장)
           renderSceneContent(index, 0, {
-            skipAnimation: transition === 'none',
+            skipAnimation: false, // 전환 효과가 'none'이어도 렌더링은 수행
             forceTransition: transition,
             previousIndex: prevIndex,
             updateTimeline: false, // 재생 중에는 timeline 업데이트 안함 (다른 함수 영향 방지)
@@ -425,6 +415,8 @@ export function useSceneNavigation({
             }
           }
           
+          // renderSceneContent 호출 전에 lastRenderedSceneIndexRef를 업데이트하지 않음
+          // (prevIndex 계산에 영향을 주지 않도록)
           renderSceneContent(index, partIndexForScene, {
             skipAnimation: true, // 씬 클릭 시에는 전환 효과 없이 즉시 표시
             forceTransition: transition,
@@ -432,7 +424,11 @@ export function useSceneNavigation({
             updateTimeline: true, // 비재생 중에는 timeline 업데이트 가능
             prepareOnly: false,
             isPlaying: false, // 재생 중이 아니므로 자막 렌더링 필요
-            onComplete: transitionCompleteCallback,
+            onComplete: () => {
+              // renderSceneContent 완료 후 lastRenderedSceneIndexRef 업데이트
+              lastRenderedSceneIndexRef.current = index
+              transitionCompleteCallback()
+            },
           })
         }
       } else {
@@ -457,7 +453,8 @@ export function useSceneNavigation({
           })
         } else {
           // fallback: renderSceneImage가 없으면 updateCurrentScene 사용
-          updateCurrentScene(shouldSkipAnimation, prevIndex, transition, transitionCompleteCallback, skipStopPlaying, 0, index) // partIndex: 0 전달 (첫 번째 구간만 표시), sceneIndex: index 전달
+          // skipAnimation 파라미터 제거: forceTransition으로 처리
+          updateCurrentScene(prevIndex, transition, transitionCompleteCallback, skipStopPlaying, 0, index) // partIndex: 0 전달 (첫 번째 구간만 표시), sceneIndex: index 전달
         }
         // 렌더링은 PixiJS ticker가 처리
       }
@@ -579,7 +576,8 @@ export function useSceneNavigation({
     } else if (renderSubtitlePart) {
       // renderSceneContent가 없으면 updateCurrentScene 후 renderSubtitlePart 사용
       if (updateCurrentScene) {
-        updateCurrentScene(true, prevIndex, scene.transition, () => {
+        // skipAnimation 파라미터 제거: forceTransition으로 처리
+        updateCurrentScene(prevIndex, scene.transition, () => {
           renderSubtitlePart(sceneIndex, partIndex, {
             skipAnimation: true,
             onComplete: transitionCompleteCallback,

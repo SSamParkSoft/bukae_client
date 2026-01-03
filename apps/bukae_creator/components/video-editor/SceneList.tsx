@@ -26,6 +26,7 @@ interface SceneListProps {
   onDuplicateGroup?: (sceneId: number, groupIndices: number[]) => void
   onPlayGroup?: (sceneId: number, groupIndices: number[]) => Promise<void>
   onDeleteGroup?: (sceneId: number, groupIndices: number[]) => void
+  playingSceneIndex?: number | null // 현재 재생 중인 씬 인덱스
 }
 
 export function SceneList({
@@ -49,6 +50,7 @@ export function SceneList({
   onDuplicateGroup,
   onPlayGroup,
   onDeleteGroup,
+  playingSceneIndex,
 }: SceneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
@@ -509,9 +511,13 @@ export function SceneList({
                             console.error('씬 재생 실패:', error)
                           }
                         }}
-                        title="씬 재생"
+                        title={playingSceneIndex === index ? "씬 정지" : "씬 재생"}
                       >
-                        <Play className="w-3 h-3" />
+                        {playingSceneIndex === index ? (
+                          <Pause className="w-3 h-3" />
+                        ) : (
+                          <Play className="w-3 h-3" />
+                        )}
                       </Button>
                     )}
                     {onDeleteScene && (

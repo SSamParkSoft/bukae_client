@@ -1,10 +1,12 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, useEffect } from 'react'
 import * as PIXI from 'pixi.js'
+import { gsap } from 'gsap'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { useSingleScenePlayback } from './useSingleScenePlayback'
 import { useGroupPlayback } from './useGroupPlayback'
+import { useTtsResources } from './useTtsResources'
 import { formatTime } from '@/utils/timeline'
 
 interface UseFullPlaybackParams {
@@ -28,8 +30,7 @@ interface UseFullPlaybackParams {
   currentSceneIndexRef: React.MutableRefObject<number>
   lastRenderedSceneIndexRef: React.MutableRefObject<number | null>
   setCurrentTime?: (time: number) => void
-  setIsPlaying: (playing: boolean) => void
-  setTimelineIsPlaying: (playing: boolean) => void
+  setTimelineIsPlaying?: (playing: boolean) => void
   setIsPreparing?: (preparing: boolean) => void
   setIsTtsBootstrapping?: (bootstrapping: boolean) => void
   startBgmAudio: (templateId: string | null, speed: number, shouldPlay: boolean) => Promise<void>
@@ -77,16 +78,13 @@ interface UseFullPlaybackParams {
   ) => void
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
   spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>
-  ttsCacheRef: React.MutableRefObject<Map<string, { blob: Blob; durationSec: number; markup: string; url?: string | null }>>
-  ttsAudioRef: React.MutableRefObject<HTMLAudioElement | null>
-  ttsAudioUrlRef: React.MutableRefObject<string | null>
-  stopTtsAudio: () => void
   getMp3DurationSec: (blob: Blob) => Promise<number>
   setTimeline: (timeline: TimelineData) => void
   disableAutoTimeUpdateRef?: React.MutableRefObject<boolean>
   currentTimeRef?: React.MutableRefObject<number> // useTimelinePlayer의 currentTimeRef
   totalDuration?: number // 전체 재생 시간 (재생바 업데이트용)
   timelineBarRef?: React.RefObject<HTMLDivElement | null> // 재생바 DOM 요소 (직접 업데이트용)
+  activeAnimationsRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>
 }
 
 export function useFullPlayback({
@@ -101,7 +99,6 @@ export function useFullPlayback({
   currentSceneIndexRef,
   lastRenderedSceneIndexRef,
   setCurrentTime,
-  setIsPlaying,
   setTimelineIsPlaying,
   setIsPreparing,
   setIsTtsBootstrapping,
@@ -110,26 +107,39 @@ export function useFullPlayback({
   changedScenesRef,
   renderSceneContent,
   renderSceneImage,
-  renderSubtitlePart,
-  prepareImageAndSubtitle,
   textsRef,
   spritesRef,
-  ttsCacheRef,
-  ttsAudioRef,
-  ttsAudioUrlRef,
-  stopTtsAudio,
   getMp3DurationSec,
   setTimeline,
   disableAutoTimeUpdateRef,
+  activeAnimationsRef,
   currentTimeRef,
   totalDuration,
   timelineBarRef,
 }: UseFullPlaybackParams) {
+  // TTS 리소스 가져오기
+  const { ttsCacheRef, ttsAudioRef, ttsAudioUrlRef, stopTtsAudio, resetTtsSession } = useTtsResources()
+
   // 재생 상태 관리
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isPreparing, setIsPreparingLocal] = useState(false)
+  const isPlayingRef = useRef(false)
   const isPlayingAllRef = useRef(false)
   const playbackAbortControllerRef = useRef<AbortController | null>(null)
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const [isPlayingAll, setIsPlayingAll] = useState(false)
+
+  // isPlaying 상태와 ref 동기화
+  useEffect(() => {
+    isPlayingRef.current = isPlaying
+  }, [isPlaying])
+
+  // isPreparing 상태 동기화
+  useEffect(() => {
+    if (setIsPreparing) {
+      setIsPreparing(isPreparing)
+    }
+  }, [isPreparing, setIsPreparing])
 
   // 재생바 업데이트를 위한 상태
   const accumulatedTimeRef = useRef(0)
@@ -143,9 +153,6 @@ export function useFullPlayback({
     timeline,
     voiceTemplate,
     makeTtsKey,
-    ttsCacheRef,
-    ttsAudioRef,
-    ttsAudioUrlRef,
     setIsPreparing,
     setIsTtsBootstrapping,
     setCurrentSceneIndex,
@@ -163,7 +170,6 @@ export function useFullPlayback({
     voiceTemplate,
     buildSceneMarkup,
     makeTtsKey,
-    ttsCacheRef,
     ensureSceneTts,
     renderSceneContent,
     setTimeline,
@@ -171,8 +177,6 @@ export function useFullPlayback({
     lastRenderedSceneIndexRef,
     textsRef,
     spritesRef,
-    ttsAudioRef,
-    ttsAudioUrlRef,
     changedScenesRef,
     isPlayingRef: isPlayingAllRef,
     setIsPreparing,
@@ -189,6 +193,31 @@ export function useFullPlayback({
 
   // 재생 중지 함수
   const stopAllScenes = useCallback(() => {
+    // 진행 중인 전환 효과 애니메이션 중지
+    if (activeAnimationsRef) {
+      activeAnimationsRef.current.forEach((tl) => {
+        if (tl && tl.isActive()) {
+          tl.kill()
+        }
+      })
+      activeAnimationsRef.current.clear()
+    }
+    
+    // 현재 재생 중인 씬의 스프라이트와 텍스트를 alpha: 1로 복원
+    const currentSceneIndex = currentSceneIndexRef.current
+    if (currentSceneIndex !== null && spritesRef && textsRef) {
+      const currentSprite = spritesRef.current.get(currentSceneIndex)
+      const currentText = textsRef.current.get(currentSceneIndex)
+      if (currentSprite) {
+        currentSprite.alpha = 1
+        currentSprite.visible = true
+      }
+      if (currentText) {
+        currentText.alpha = 1
+        currentText.visible = true
+      }
+    }
+    
     // AbortController로 재생 중단
     if (playbackAbortControllerRef.current) {
       playbackAbortControllerRef.current.abort()
@@ -199,7 +228,9 @@ export function useFullPlayback({
     isPlayingAllRef.current = false
     setIsPlayingAll(false)
     setIsPlaying(false)
-    setTimelineIsPlaying(false)
+    if (setTimelineIsPlaying) {
+      setTimelineIsPlaying(false)
+    }
 
     // useTimelinePlayer의 자동 시간 업데이트 다시 활성화
     if (disableAutoTimeUpdateRef) {
@@ -218,7 +249,7 @@ export function useFullPlayback({
     currentGroupStartTimeRef.current = 0
     currentGroupDurationRef.current = 0
     bgmStartedRef.current = false
-  }, [setIsPlaying, setTimelineIsPlaying, stopBgmAudio, stopTtsAudio, cleanupProgressInterval, disableAutoTimeUpdateRef])
+  }, [setIsPlaying, setTimelineIsPlaying, stopBgmAudio, stopTtsAudio, cleanupProgressInterval, disableAutoTimeUpdateRef, activeAnimationsRef, spritesRef, textsRef, currentSceneIndexRef])
 
   // 전체 재생 함수
   const playAllScenes = useCallback(async () => {
@@ -243,7 +274,7 @@ export function useFullPlayback({
 
     // TTS가 준비되지 않은 씬이 있으면 합성
     if (scenesToSynthesize.length > 0 && ensureSceneTts) {
-      setIsPreparing?.(true)
+      setIsPreparingLocal(true)
       setIsTtsBootstrapping?.(true)
       
       try {
@@ -296,12 +327,12 @@ export function useFullPlayback({
         }
       } catch (error) {
         console.error('[useFullPlayback] TTS 합성 실패:', error)
-        setIsPreparing?.(false)
+        setIsPreparingLocal(false)
         setIsTtsBootstrapping?.(false)
         return
       }
       
-      setIsPreparing?.(false)
+      setIsPreparingLocal(false)
       setIsTtsBootstrapping?.(false)
     }
 
@@ -316,16 +347,18 @@ export function useFullPlayback({
     isPlayingAllRef.current = true
     setIsPlayingAll(true)
     setIsPlaying(true)
-    setTimelineIsPlaying(true)
+    if (setTimelineIsPlaying) {
+      setTimelineIsPlaying(true)
+    }
 
     // useTimelinePlayer의 자동 시간 업데이트 비활성화 (전체 재생 중에는 수동으로 관리)
     if (disableAutoTimeUpdateRef) {
       disableAutoTimeUpdateRef.current = true
     }
 
-    // 첫 번째 씬으로 이동
+    // 첫 번째 씬으로 이동 (ref만 업데이트, 상태는 업데이트하지 않아서 중복 렌더링 방지)
+    // setCurrentSceneIndex는 playGroup에서 자동으로 호출되므로 여기서는 호출하지 않음
     currentSceneIndexRef.current = 0
-    setCurrentSceneIndex(0)
 
     // 상태 초기화
     accumulatedTimeRef.current = 0
@@ -413,7 +446,9 @@ export function useFullPlayback({
           isPlayingAllRef.current = false
           setIsPlayingAll(false)
           setIsPlaying(false)
-          setTimelineIsPlaying(false)
+          if (setTimelineIsPlaying) {
+            setTimelineIsPlaying(false)
+          }
           
           // useTimelinePlayer의 자동 시간 업데이트 다시 활성화
           if (disableAutoTimeUpdateRef) {
@@ -542,7 +577,9 @@ export function useFullPlayback({
       isPlayingAllRef.current = false
       setIsPlayingAll(false)
       setIsPlaying(false)
-      setTimelineIsPlaying(false)
+      if (setTimelineIsPlaying) {
+        setTimelineIsPlaying(false)
+      }
       
       // useTimelinePlayer의 자동 시간 업데이트 다시 활성화
       if (disableAutoTimeUpdateRef) {
@@ -566,14 +603,12 @@ export function useFullPlayback({
     makeTtsKey,
     ensureSceneTts,
     changedScenesRef,
-    setIsPreparing,
     setIsTtsBootstrapping,
     startBgmAudio,
     stopBgmAudio,
     setIsPlaying,
     setTimelineIsPlaying,
     setCurrentTime,
-    setCurrentSceneIndex,
     currentSceneIndexRef,
     groupPlayback,
     singleScenePlayback,
@@ -588,6 +623,16 @@ export function useFullPlayback({
     playAllScenes: playAllScenes || (async () => {}),
     stopAllScenes: stopAllScenes || (() => {}),
     isPlayingAll: isPlayingAll || false,
+    isPlaying,
+    setIsPlaying,
+    isPreparing,
+    ttsCacheRef,
+    ttsAudioRef,
+    ttsAudioUrlRef,
+    stopTtsAudio,
+    resetTtsSession,
+    singleScenePlayback,
+    groupPlayback,
   }
 }
 

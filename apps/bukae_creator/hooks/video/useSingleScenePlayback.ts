@@ -1,18 +1,17 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useState, useRef } from 'react'
 import * as PIXI from 'pixi.js'
+import { gsap } from 'gsap'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
 import { authStorage } from '@/lib/api/auth-storage'
+import { useTtsResources } from './useTtsResources'
 
 interface UseSingleScenePlaybackParams {
   timeline: TimelineData | null
   voiceTemplate: string | null
   makeTtsKey: (voiceName: string, markup: string) => string
-  ttsCacheRef: React.MutableRefObject<Map<string, { blob: Blob; durationSec: number; markup: string; url?: string | null }>>
-  ttsAudioRef: React.MutableRefObject<HTMLAudioElement | null>
-  ttsAudioUrlRef: React.MutableRefObject<string | null>
   setIsPreparing?: (preparing: boolean) => void
   setIsTtsBootstrapping?: (bootstrapping: boolean) => void
   setCurrentSceneIndex: (index: number) => void
@@ -44,15 +43,14 @@ interface UseSingleScenePlaybackParams {
   ) => void
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
   getMp3DurationSec: (blob: Blob) => Promise<number>
+  activeAnimationsRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>
+  spritesRef?: React.MutableRefObject<Map<number, PIXI.Sprite>>
 }
 
 export function useSingleScenePlayback({
   timeline,
   voiceTemplate,
   makeTtsKey,
-  ttsCacheRef,
-  ttsAudioRef,
-  ttsAudioUrlRef,
   setIsPreparing,
   setIsTtsBootstrapping,
   setCurrentSceneIndex,
@@ -62,11 +60,73 @@ export function useSingleScenePlayback({
   renderSceneImage,
   textsRef,
   getMp3DurationSec,
+  activeAnimationsRef,
+  spritesRef,
 }: UseSingleScenePlaybackParams) {
+  // TTS 리소스 가져오기
+  const { ttsCacheRef, ttsAudioRef, ttsAudioUrlRef, stopTtsAudio } = useTtsResources()
+  // 현재 재생 중인 씬 인덱스 추적
+  const [playingSceneIndex, setPlayingSceneIndex] = useState<number | null>(null)
+  const playingSceneIndexRef = useRef<number | null>(null)
+  
+  // 씬 재생 정지 함수
+  const stopScene = useCallback(() => {
+    // 진행 중인 전환 효과 애니메이션 중지
+    if (activeAnimationsRef) {
+      activeAnimationsRef.current.forEach((tl) => {
+        if (tl && tl.isActive()) {
+          tl.kill()
+        }
+      })
+      activeAnimationsRef.current.clear()
+    }
+    
+    // 현재 재생 중인 씬의 스프라이트와 텍스트를 alpha: 1로 복원
+    const currentSceneIndex = playingSceneIndexRef.current
+    if (currentSceneIndex !== null) {
+      if (spritesRef) {
+        const currentSprite = spritesRef.current.get(currentSceneIndex)
+        if (currentSprite) {
+          currentSprite.alpha = 1
+          currentSprite.visible = true
+        }
+      }
+      if (textsRef) {
+        const currentText = textsRef.current.get(currentSceneIndex)
+        if (currentText) {
+          currentText.alpha = 1
+          currentText.visible = true
+        }
+      }
+    }
+    
+    // TTS 오디오 정지
+    stopTtsAudio()
+    
+    // 재생 중인 씬 인덱스 초기화
+    setPlayingSceneIndex(null)
+    playingSceneIndexRef.current = null
+  }, [stopTtsAudio, activeAnimationsRef, spritesRef, textsRef])
+  
   const playScene = useCallback(async (sceneIndex: number) => {
     if (!timeline || !voiceTemplate) {
       return
     }
+    
+    // 이미 같은 씬이 재생 중이면 정지
+    if (playingSceneIndexRef.current === sceneIndex && ttsAudioRef.current) {
+      stopScene()
+      return
+    }
+    
+    // 다른 씬이 재생 중이면 먼저 정지
+    if (playingSceneIndexRef.current !== null && playingSceneIndexRef.current !== sceneIndex) {
+      stopScene()
+    }
+    
+    // 재생 중인 씬 인덱스 설정
+    setPlayingSceneIndex(sceneIndex)
+    playingSceneIndexRef.current = sceneIndex
 
     const scene = timeline.scenes[sceneIndex]
     if (!scene) return
@@ -124,7 +184,17 @@ export function useSingleScenePlayback({
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || 'TTS 합성 실패')
+          const errorMessage = errorData.error || errorData.message || 'TTS 합성 실패'
+          
+          // 인증 오류인 경우 특별 처리
+          if (response.status === 401 || 
+              errorMessage.includes('인증') || 
+              errorMessage.includes('로그인') ||
+              errorMessage.includes('유효하지 않습니다')) {
+            throw new Error(errorMessage)
+          }
+          
+          throw new Error(errorMessage)
         }
 
         const blob = await response.blob()
@@ -145,6 +215,15 @@ export function useSingleScenePlayback({
         if (setIsTtsBootstrapping) {
           setIsTtsBootstrapping(false)
         }
+        
+        // 인증 오류인 경우 에러를 다시 throw하여 상위에서 처리할 수 있도록 함
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        if (errorMessage.includes('인증') || 
+            errorMessage.includes('로그인') ||
+            errorMessage.includes('유효하지 않습니다')) {
+          throw error
+        }
+        
         return
       }
       
@@ -160,28 +239,12 @@ export function useSingleScenePlayback({
     const ttsDuration = cached?.durationSec || scene.duration || 2.5
 
     // 이전 오디오 정리
-    const stopTtsAudio = () => {
-      const a = ttsAudioRef.current
-      if (a) {
-        try {
-          a.pause()
-          a.currentTime = 0
-          a.src = ''
-        } catch {
-          // ignore
-        }
-      }
-      ttsAudioRef.current = null
-      if (ttsAudioUrlRef.current) {
-        URL.revokeObjectURL(ttsAudioUrlRef.current)
-        ttsAudioUrlRef.current = null
-      }
-    }
     stopTtsAudio()
 
     // 씬리스트 패널 업데이트
+    // ref만 업데이트, 상태는 업데이트하지 않아서 중복 렌더링 방지
+    // renderSceneContent에서 렌더링이 처리되므로 setCurrentSceneIndex는 호출하지 않음
     currentSceneIndexRef.current = sceneIndex
-    setCurrentSceneIndex(sceneIndex)
 
     // 전환 효과 이미지 렌더링
     let previousSceneIndex: number | null = null
@@ -192,6 +255,7 @@ export function useSingleScenePlayback({
 
     // 이미지 전환 효과와 자막 렌더링 (비동기로 시작만 하고 await하지 않음)
     if (renderSceneContent) {
+      // 렌더링 경로 확인: 씬 재생에서 renderSceneContent 사용
       // renderSceneContent가 자막도 함께 렌더링하도록 호출
       // partIndex를 null로 전달하면 전체 자막을 표시
       // 이미지는 전환 효과를 통해서만 렌더링됨 (전환 효과 완료 후 항상 숨김)
@@ -244,17 +308,44 @@ export function useSingleScenePlayback({
 
         try {
           await new Promise<void>((resolve) => {
-            const handleEnded = () => {
-              audio.removeEventListener('ended', handleEnded)
-              audio.removeEventListener('error', handleError)
+            let isResolved = false
+            const resolveOnce = () => {
+              if (isResolved) return
+              isResolved = true
               resolve()
             }
 
+            const handleEnded = () => {
+              // 오디오가 이미 정리되었는지 확인
+              if (ttsAudioRef.current !== audio) {
+                resolveOnce()
+                return
+              }
+              try {
+                audio.removeEventListener('ended', handleEnded)
+                audio.removeEventListener('error', handleError)
+              } catch {
+                // ignore
+              }
+              resolveOnce()
+            }
+
             const handleError = () => {
-              console.error('[씬 재생] TTS 재생 오류')
-              audio.removeEventListener('ended', handleEnded)
-              audio.removeEventListener('error', handleError)
-              resolve()
+              // 오디오가 이미 정리되었는지 확인 (정지 버튼으로 인한 정지인 경우)
+              if (ttsAudioRef.current !== audio) {
+                // 정지 버튼으로 인한 정지인 경우 오류 로그 출력 안 함
+                resolveOnce()
+                return
+              }
+              // 실제 오류인 경우에만 로그 출력 (하지만 정지 시 발생하는 오류는 출력 안 함)
+              // 정지 시 발생하는 오류는 로그 출력하지 않음
+              try {
+                audio.removeEventListener('ended', handleEnded)
+                audio.removeEventListener('error', handleError)
+              } catch {
+                // ignore
+              }
+              resolveOnce()
             }
 
             audio.addEventListener('ended', handleEnded)
@@ -265,7 +356,13 @@ export function useSingleScenePlayback({
                 // 재생 시작 성공
               })
               .catch((error) => {
-                console.error('[씬 재생] TTS 재생 시작 실패:', error)
+                // 오디오가 이미 정리되었는지 확인 (정지 버튼으로 인한 정지인 경우)
+                if (ttsAudioRef.current !== audio) {
+                  // 정지 버튼으로 인한 정지인 경우 오류 로그 출력 안 함
+                  resolveOnce()
+                  return
+                }
+                // 실제 오류인 경우에만 로그 출력 (하지만 정지 시 발생하는 오류는 출력 안 함)
                 handleError()
               })
           })
@@ -273,6 +370,12 @@ export function useSingleScenePlayback({
           // 재생 완료 후 정리
           stopTtsAudio()
           lastRenderedSceneIndexRef.current = sceneIndex
+          
+          // 재생 중인 씬 인덱스 초기화
+          if (playingSceneIndexRef.current === sceneIndex) {
+            setPlayingSceneIndex(null)
+            playingSceneIndexRef.current = null
+          }
         }
       }
     }
@@ -283,6 +386,7 @@ export function useSingleScenePlayback({
     ttsCacheRef,
     ttsAudioRef,
     ttsAudioUrlRef,
+    stopTtsAudio,
     setIsPreparing,
     setIsTtsBootstrapping,
     setCurrentSceneIndex,
@@ -292,10 +396,13 @@ export function useSingleScenePlayback({
     renderSceneImage,
     textsRef,
     getMp3DurationSec,
+    stopScene,
   ])
 
   return {
     playScene,
+    stopScene,
+    playingSceneIndex,
   }
 }
 

@@ -24,7 +24,7 @@ interface UseTtsPreviewParams {
   }>
   stopScenePreviewAudio: () => void
   setTimeline: (timeline: TimelineData) => void
-  updateCurrentScene: (skipAnimation?: boolean, prevIndex?: number | null, forceTransition?: string, onComplete?: () => void) => void
+  updateCurrentScene: (explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, partIndex?: number | null, sceneIndex?: number, overrideTransitionDuration?: number) => void
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
   renderSceneContent?: (
     sceneIndex: number,
@@ -133,7 +133,8 @@ export function useTtsPreview({
         // 약간의 지연 후 updateCurrentScene 호출하여 timeline과 동기화
         setTimeout(() => {
           console.log(`[useTtsPreview] timeline 동기화 | sceneIndex: ${sceneIndex}`)
-          updateCurrentScene(true, null, undefined, undefined)
+          // skipAnimation 파라미터 제거: forceTransition === 'none'으로 처리
+          updateCurrentScene(null, 'none')
         }, TIMELINE_SYNC_DELAY_MS)
       }
     },

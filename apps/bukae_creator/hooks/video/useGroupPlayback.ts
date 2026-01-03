@@ -5,13 +5,13 @@ import * as PIXI from 'pixi.js'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
+import { useTtsResources } from './useTtsResources'
 
 interface UseGroupPlaybackParams {
   timeline: TimelineData | null
   voiceTemplate: string | null
   buildSceneMarkup: (timeline: TimelineData | null, sceneIndex: number) => string[]
   makeTtsKey: (voiceName: string, markup: string) => string
-  ttsCacheRef: React.MutableRefObject<Map<string, { blob: Blob; durationSec: number; markup: string; url?: string | null }>>
   ensureSceneTts?: (sceneIndex: number, signal?: AbortSignal, forceRegenerate?: boolean) => Promise<{ sceneIndex: number; parts: Array<{ blob: Blob; durationSec: number; url: string | null; partIndex: number; markup: string }> }>
   renderSceneContent: (
     sceneIndex: number,
@@ -32,8 +32,6 @@ interface UseGroupPlaybackParams {
   lastRenderedSceneIndexRef: React.MutableRefObject<number | null>
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
   spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>
-  ttsAudioRef: React.MutableRefObject<HTMLAudioElement | null>
-  ttsAudioUrlRef: React.MutableRefObject<string | null>
   changedScenesRef: React.MutableRefObject<Set<number>>
   isPlayingRef: React.MutableRefObject<boolean>
   setIsPreparing?: (preparing: boolean) => void
@@ -45,7 +43,6 @@ export function useGroupPlayback({
   voiceTemplate,
   buildSceneMarkup,
   makeTtsKey,
-  ttsCacheRef,
   ensureSceneTts: ensureSceneTtsParam,
   renderSceneContent,
   setTimeline,
@@ -53,13 +50,13 @@ export function useGroupPlayback({
   lastRenderedSceneIndexRef,
   textsRef,
   spritesRef,
-  ttsAudioRef,
-  ttsAudioUrlRef,
   changedScenesRef,
   isPlayingRef,
   setIsPreparing,
   setIsTtsBootstrapping,
 }: UseGroupPlaybackParams) {
+  // TTS 리소스 가져오기
+  const { ttsCacheRef, ttsAudioRef, ttsAudioUrlRef, stopTtsAudio } = useTtsResources()
   const { getSceneStructure } = useSceneStructureStore()
 
   // TTS 캐시 확인 및 필요한 씬 찾기
@@ -200,22 +197,8 @@ export function useGroupPlayback({
 
   // 오디오 정리
   const cleanupAudio = useCallback(() => {
-    const prevAudio = ttsAudioRef.current
-    if (prevAudio) {
-      try {
-        prevAudio.pause()
-        prevAudio.currentTime = 0
-        prevAudio.src = ''
-      } catch {
-        // ignore
-      }
-    }
-    ttsAudioRef.current = null
-    if (ttsAudioUrlRef.current) {
-      URL.revokeObjectURL(ttsAudioUrlRef.current)
-      ttsAudioUrlRef.current = null
-    }
-  }, [ttsAudioRef, ttsAudioUrlRef])
+    stopTtsAudio()
+  }, [stopTtsAudio])
 
   /**
    * 그룹 재생 함수
@@ -293,6 +276,7 @@ export function useGroupPlayback({
       const textToUpdate = findTextObject(firstSceneIndex, updatedTimeline)
       
       if (renderSceneContent) {
+        // 렌더링 경로 확인: 그룹 재생 시작에서 renderSceneContent 사용
         renderSceneContent(firstSceneIndexForRender, null, {
           skipAnimation: false,
           forceTransition: firstSceneForRender?.transition || 'none',
@@ -541,6 +525,7 @@ export function useGroupPlayback({
       
       // 마지막 씬을 다시 렌더링하여 이미지와 자막 유지
       if (renderSceneContent && lastSceneIndex !== undefined) {
+        // 렌더링 경로 확인: 그룹 재생 완료 후 마지막 씬 렌더링
         renderSceneContent(lastSceneIndex, null, {
           skipAnimation: true,
           forceTransition: 'none',
@@ -565,6 +550,8 @@ export function useGroupPlayback({
     buildSceneMarkup,
     makeTtsKey,
     ttsCacheRef,
+    ttsAudioRef,
+    ttsAudioUrlRef,
     ensureSceneTtsParam,
     renderSceneContent,
     setTimeline,
@@ -572,11 +559,7 @@ export function useGroupPlayback({
     lastRenderedSceneIndexRef,
     textsRef,
     spritesRef,
-    ttsAudioRef,
-    ttsAudioUrlRef,
-    changedScenesRef,
     isPlayingRef,
-    getSceneStructure,
     findScenesToSynthesize,
     synthesizeAndCacheTts,
     calculateGroupTtsDuration,

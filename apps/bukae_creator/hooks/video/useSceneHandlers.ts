@@ -12,7 +12,7 @@ interface UseSceneHandlersParams {
   setTimeline: (timeline: TimelineData | null) => void
   currentSceneIndex: number
   setCurrentSceneIndex: (index: number) => void
-  updateCurrentScene: (skipAnimation?: boolean, explicitPreviousIndex?: number | null, forceTransition?: string) => void
+  updateCurrentScene: (explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, partIndex?: number | null, sceneIndex?: number, overrideTransitionDuration?: number) => void
   setIsPreviewingTransition: (val: boolean) => void
   isPreviewingTransition: boolean // 전환 효과 미리보기 중인지 확인용
   isManualSceneSelectRef: MutableRefObject<boolean>
@@ -180,7 +180,8 @@ export function useSceneHandlers({
             })
           } else {
             // fallback: 기존 방식
-            updateCurrentScene(false, null, value, undefined, undefined, undefined, undefined, targetSceneIndex)
+            // skipAnimation 파라미터 제거: forceTransition으로 처리
+            updateCurrentScene(null, value, undefined, undefined, undefined, undefined, targetSceneIndex)
             
             lastRenderedSceneIndexRef.current = targetSceneIndex
 
@@ -229,7 +230,8 @@ export function useSceneHandlers({
         loadAllScenes().then(() => {
           // 현재 씬이 변경된 씬이면 업데이트
           if (index === currentSceneIndex) {
-            updateCurrentScene(true)
+            // skipAnimation 파라미터 제거: forceTransition === 'none'으로 처리
+            updateCurrentScene(null, 'none')
           }
           setTimeout(() => {
             isManualSceneSelectRef.current = false

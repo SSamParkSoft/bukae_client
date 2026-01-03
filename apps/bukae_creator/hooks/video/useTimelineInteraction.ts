@@ -9,7 +9,7 @@ interface UseTimelineInteractionParams {
   setIsPlaying: (playing: boolean) => void
   setCurrentTime: (time: number) => void
   setCurrentSceneIndex: (index: number) => void
-  updateCurrentScene: (skipAnimation?: boolean) => void
+  updateCurrentScene: (explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, partIndex?: number | null, sceneIndex?: number, overrideTransitionDuration?: number) => void
   lastRenderedSceneIndexRef: React.MutableRefObject<number | null>
   previousSceneIndexRef: React.MutableRefObject<number | null>
 }
@@ -47,7 +47,8 @@ export function useTimelineInteraction({
     const sceneIndex = calculateSceneIndexFromTime(timeline, targetTime)
     setCurrentSceneIndex(sceneIndex)
     // 타임라인 클릭 시 즉시 표시 (전환 효과 없이)
-    updateCurrentScene(true)
+    // skipAnimation 파라미터 제거: forceTransition === 'none'으로 처리
+    updateCurrentScene(null, 'none')
     lastRenderedSceneIndexRef.current = sceneIndex
     previousSceneIndexRef.current = sceneIndex
   }, [timeline, timelineBarRef, isPlaying, setIsPlaying, setCurrentTime, setCurrentSceneIndex, updateCurrentScene, lastRenderedSceneIndexRef, previousSceneIndexRef])
@@ -75,7 +76,8 @@ export function useTimelineInteraction({
         const sceneIndex = calculateSceneIndexFromTime(timeline, targetTime)
         setCurrentSceneIndex(sceneIndex)
         // 타임라인 드래그 시 즉시 표시 (전환 효과 없이)
-        updateCurrentScene(true)
+        // skipAnimation 파라미터 제거: forceTransition === 'none'으로 처리
+    updateCurrentScene(null, 'none')
         lastRenderedSceneIndexRef.current = sceneIndex
         previousSceneIndexRef.current = sceneIndex
       }
