@@ -481,9 +481,6 @@ export default function ProfilePage() {
                             theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
                           }`} />
                         )}
-                        <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center hover:bg-purple-700 transition-colors">
-                          <Upload className="w-4 h-4" />
-                        </button>
                       </div>
                       <div>
                         <h2 className={`text-2xl font-bold mb-1 ${

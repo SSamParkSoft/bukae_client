@@ -54,8 +54,10 @@ export default function Step3Page() {
   const [sceneScripts, setSceneScripts] = useState<Map<number, SceneScript>>(new Map())
   const [isGeneratingAll, setIsGeneratingAll] = useState(false)
   const [editedScripts, setEditedScripts] = useState<Map<number, string>>(new Map())
+  const [showTooltip, setShowTooltip] = useState(false)
   const selectedListRef = useRef<HTMLDivElement | null>(null)
   const prevSceneScriptsRef = useRef<string>('')
+  const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // sceneScripts를 직렬화하여 안정적인 dependency 생성
   const sceneScriptsSerialized = useMemo(() => {
@@ -120,6 +122,15 @@ export default function Step3Page() {
     }
   }, [sceneScriptsSerialized, setScenes])
 
+  // cleanup: 컴포넌트 언마운트 시 timeout 정리
+  useEffect(() => {
+    return () => {
+      if (tooltipTimeoutRef.current) {
+        clearTimeout(tooltipTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // ConceptType -> ScriptType 매핑
   const mapConceptToScriptType = (concept: typeof scriptStyle): ScriptType => {
     switch (concept) {
@@ -147,6 +158,23 @@ export default function Step3Page() {
 
     if (selectedImages.length === 0) {
       alert('이미지를 먼저 선택해주세요.')
+      return
+    }
+
+    if (selectedImages.length < 5) {
+      // 말풍선 UI 표시
+      setShowTooltip(true)
+      
+      // 기존 timeout 정리
+      if (tooltipTimeoutRef.current) {
+        clearTimeout(tooltipTimeoutRef.current)
+      }
+      
+      // 3초 후 자동으로 사라지게
+      tooltipTimeoutRef.current = setTimeout(() => {
+        setShowTooltip(false)
+      }, 3000)
+      
       return
     }
 
@@ -464,16 +492,44 @@ export default function Step3Page() {
                     선택된 이미지 및 대본 ({selectedImages.length}장)
                   </CardTitle>
                   {selectedImages.length > 0 && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="gap-2"
-                      onClick={handleGenerateAllScripts}
-                      disabled={isGeneratingAll}
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      {isGeneratingAll ? 'AI 스크립트 생성 중...' : 'AI 스크립트 생성'}
-                    </Button>
+                    <div className="relative">
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="gap-2"
+                        onClick={handleGenerateAllScripts}
+                        disabled={isGeneratingAll}
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        {isGeneratingAll ? 'AI 스크립트 생성 중...' : 'AI 스크립트 생성'}
+                      </Button>
+                      
+                      {/* 말풍선 UI */}
+                      {showTooltip && selectedImages.length < 5 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          className="absolute bottom-full right-0 mb-2 z-50"
+                        >
+                          <div className={`relative px-4 py-2 rounded-lg shadow-lg ${
+                            theme === 'dark' 
+                              ? 'bg-yellow-600 text-white' 
+                              : 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                          }`}>
+                            <p className="text-sm font-medium whitespace-nowrap">
+                              최소 5장 이상의 이미지를 선택해주세요 ({selectedImages.length}/5)
+                            </p>
+                            {/* 말풍선 꼬리 (아래쪽을 가리킴) */}
+                            <div className={`absolute top-full right-4 w-0 h-0 border-l-4 border-r-4 border-t-4 ${
+                              theme === 'dark'
+                                ? 'border-t-yellow-600'
+                                : 'border-t-yellow-100'
+                            }`} />
+                          </div>
+                        </motion.div>
+                      )}
+                    </div>
                   )}
                 </CardHeader>
                 <CardContent>
