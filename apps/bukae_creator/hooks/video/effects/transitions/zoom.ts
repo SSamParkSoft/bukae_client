@@ -30,8 +30,11 @@ export function applyZoomTransition(
 
   if (!containerRef.current || !toSprite) return
 
-  const toZoomObj = { scale: originalScale, alpha: 0 }
+  const toZoomObj = { scale: originalScale }
   toSprite.scale.set(originalScaleX, originalScaleY)
+  // 페이드 효과 제거: alpha를 항상 1로 설정
+  toSprite.alpha = 1
+  toSprite.visible = true
 
   const centerX = originalX + (toSprite.texture.width * originalScaleX) / 2
   const centerY = originalY + (toSprite.texture.height * originalScaleY) / 2
@@ -43,7 +46,6 @@ export function applyZoomTransition(
   timeline.to(
     toZoomObj,
     {
-      alpha: 1,
       scale: targetScale,
       duration,
       ease: 'power1.out',
@@ -52,7 +54,8 @@ export function applyZoomTransition(
           ensureInContainer(toSprite, toText, containerRef.current)
           const scaleFactor = toZoomObj.scale
           toSprite.visible = true
-          toSprite.alpha = toZoomObj.alpha
+          // 페이드 효과 제거: alpha를 항상 1로 유지
+          toSprite.alpha = 1
           toSprite.scale.set(scaleFactor, scaleFactor * scaleRatio)
 
           const newWidth = toSprite.texture.width * scaleFactor

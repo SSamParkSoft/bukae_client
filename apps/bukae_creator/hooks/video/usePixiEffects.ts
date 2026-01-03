@@ -72,8 +72,8 @@ export const usePixiEffects = ({
       }
       
       // 전환 효과가 없을 때: 재생 중이든 편집 모드든 이미지 표시
-      toSprite.visible = true
-      toSprite.alpha = 1
+        toSprite.visible = true
+        toSprite.alpha = 1
       
       // 자막도 항상 표시
       if (toText) {
@@ -185,9 +185,9 @@ export const usePixiEffects = ({
           toSprite.visible = true
           toSprite.alpha = 1
         } else if (toSprite) {
-          // 편집 모드: 이미지 유지
-          toSprite.visible = true
-          toSprite.alpha = 1
+            // 편집 모드: 이미지 유지
+            toSprite.visible = true
+            toSprite.alpha = 1
         }
         
         // 자막은 항상 alpha: 1로 표시 (효과 없음)

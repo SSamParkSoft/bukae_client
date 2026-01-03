@@ -251,7 +251,7 @@ export const useSceneManager = ({
           }
         }
       }
-      
+
       console.log(
         `[renderSceneContent] 렌더링 경로 확인 | sceneIndex: ${sceneIndex}, partIndex: ${partIndex}, isPlaying: ${isPlaying}, prepareOnly: ${prepareOnly}, shouldSkipAnimation: ${shouldSkipAnimation}, forceTransition: ${forceTransition}, previousIndex: ${previousIndex}`
       )

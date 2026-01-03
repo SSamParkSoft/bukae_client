@@ -312,7 +312,7 @@ export function SceneList({
                             ) : playingGroupSceneId === group.sceneId ? (
                               <Pause className="w-3 h-3" />
                             ) : (
-                              <Play className="w-3 h-3" />
+                            <Play className="w-3 h-3" />
                             )}
                           </Button>
                         )}
@@ -379,6 +379,9 @@ export function SceneList({
               const hasDelimiters = scriptParts.length > 1
               const isSplitScene = hasDelimiters || !!scene.splitIndex
               
+              // 현재 재생 중인 씬인지 확인
+              const isPlaying = playingSceneIndex === index || (playingGroupSceneId !== null && playingGroupSceneId === scene.sceneId)
+              
               return (
                 <div key={hasDelimiters ? `${scene.sceneId}-delimiter-${index}` : (scene.splitIndex ? `${scene.sceneId}-${scene.splitIndex}` : scene.sceneId ?? index)}>
                   {dragOver && dragOver.index === index && dragOver.position === 'before' && (
@@ -396,17 +399,21 @@ export function SceneList({
                     } ${
                       draggedIndex === index
                         ? 'opacity-50 border-purple-500'
-                        : currentSceneIndex === index
+                        : isPlaying
                           ? theme === 'dark'
-                            ? 'border-purple-500 bg-purple-900/20'
-                            : 'border-purple-500 bg-purple-50'
-                          : theme === 'dark'
-                            ? isGrouped
-                              ? 'border-gray-600 bg-gray-800/50 hover:border-purple-500'
-                              : 'border-gray-700 bg-gray-900 hover:border-purple-500'
-                            : isGrouped
-                              ? 'border-gray-300 bg-gray-50 hover:border-purple-500'
-                              : 'border-gray-200 bg-white hover:border-purple-500'
+                            ? 'border-purple-400 bg-purple-800/60 shadow-lg shadow-purple-500/50'
+                            : 'border-purple-400 bg-purple-100 shadow-lg shadow-purple-200'
+                          : currentSceneIndex === index
+                            ? theme === 'dark'
+                              ? 'border-purple-500 bg-purple-900/20 opacity-80'
+                              : 'border-purple-500 bg-purple-50 opacity-80'
+                            : theme === 'dark'
+                              ? isGrouped
+                                ? 'border-gray-600 bg-gray-800/50 hover:border-purple-500 opacity-70'
+                                : 'border-gray-700 bg-gray-900 hover:border-purple-500 opacity-70'
+                              : isGrouped
+                                ? 'border-gray-300 bg-gray-50 hover:border-purple-500 opacity-70'
+                                : 'border-gray-200 bg-white hover:border-purple-500 opacity-70'
                     }`}
                     onClick={(e) => {
                       // 버튼이나 입력 필드가 아닌 경우에만 씬 선택
@@ -574,21 +581,27 @@ export function SceneList({
                   <div className="space-y-2 mb-2">
                     {scriptParts.map((part, partIndex) => {
                       const isSelected = selectedPart?.sceneIndex === index && selectedPart?.partIndex === partIndex
+                      // 현재 재생 중인 씬인지 확인
+                      const isPartPlaying = isPlaying
                       return (
                       <div 
                         key={partIndex} 
                         className={`rounded-lg border p-3 cursor-pointer transition-all ${
-                          isSelected
+                          isPartPlaying
                             ? theme === 'dark'
-                              ? 'border-purple-400 bg-purple-800/40'
-                              : 'border-purple-400 bg-purple-100'
-                            : currentSceneIndex === index
+                              ? 'border-purple-400 bg-purple-800/60 shadow-lg shadow-purple-500/50'
+                              : 'border-purple-400 bg-purple-100 shadow-lg shadow-purple-200'
+                            : isSelected
                               ? theme === 'dark'
-                                ? 'border-purple-500 bg-purple-900/20'
-                                : 'border-purple-500 bg-purple-50'
+                                ? 'border-purple-400 bg-purple-800/40 opacity-80'
+                                : 'border-purple-400 bg-purple-100 opacity-80'
+                              : currentSceneIndex === index
+                                ? theme === 'dark'
+                                  ? 'border-purple-500 bg-purple-900/20 opacity-70'
+                                  : 'border-purple-500 bg-purple-50 opacity-70'
                               : theme === 'dark'
-                                ? 'border-gray-600 bg-gray-800/50 hover:border-purple-500'
-                                : 'border-gray-200 bg-white hover:border-purple-500'
+                                  ? 'border-gray-600 bg-gray-800/50 hover:border-purple-500 opacity-70'
+                                  : 'border-gray-200 bg-white hover:border-purple-500 opacity-70'
                         }`}
                         onClick={(e) => {
                           e.stopPropagation()

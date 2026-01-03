@@ -111,7 +111,7 @@ export function useSingleScenePlayback({
     playingSceneIndexRef.current = null
   }, [stopTtsAudio, activeAnimationsRef, spritesRef, textsRef])
   
-
+  
   const playScene = useCallback(async (sceneIndex: number) => {
     if (!timeline || !voiceTemplate) {
       return

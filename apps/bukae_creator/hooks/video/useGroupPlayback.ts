@@ -100,10 +100,10 @@ export function useGroupPlayback({
       const ttsResults = await Promise.all(
         scenesToSynthesize.map(sceneIndex =>
           ensureSceneTtsParam(
-            sceneIndex,
-            undefined,
-            changedScenesRef.current.has(sceneIndex)
-          )
+          sceneIndex,
+          undefined,
+          changedScenesRef.current.has(sceneIndex)
+        )
         )
       )
       
@@ -601,7 +601,7 @@ export function useGroupPlayback({
           currentTextToUpdate.visible = true
           currentTextToUpdate.alpha = 1
         }
-        
+
         // 오디오 재생
         await new Promise<void>((resolve) => {
           if (abortController.signal.aborted) {
@@ -755,7 +755,7 @@ export function useGroupPlayback({
       // 단, stopGroup이 호출된 경우는 예외 (명시적으로 정지)
       if (!isPlayingRef.current || isSingleScene) {
         // 전체 재생 중이 아니거나 단일 씬 재생인 경우에만 false로 설정
-        isPlayingRef.current = false
+      isPlayingRef.current = false
       }
       
       // 단일 씬 재생인 경우 재생 중인 씬 인덱스 초기화

@@ -547,9 +547,9 @@ export function useFullPlayback({
                 groupDuration += cached.durationSec
               } else {
                 // 캐시가 없으면 scene.duration 사용 (fallback)
-                const scene = timeline.scenes[sceneIndex]
-                if (scene) {
-                  groupDuration += scene.duration || 0
+            const scene = timeline.scenes[sceneIndex]
+            if (scene) {
+              groupDuration += scene.duration || 0
                 }
               }
             }
@@ -648,8 +648,8 @@ export function useFullPlayback({
               // 디버깅: 단일 씬 재생 완료
               console.log(`[전체재생] 단일 씬 재생 완료 | SceneIndex: ${sceneIndex}, 다음으로 진행`)
               debugRenderState(`단일 씬 재생 완료`, sceneIndex)
+              }
             }
-          }
           
           // 디버깅: 단일 씬 그룹 재생 완료
           console.log(`[전체재생] 단일 씬 그룹 ${groupIndex + 1} 재생 완료`)
@@ -671,8 +671,8 @@ export function useFullPlayback({
         // currentGroupStartTimeRef 업데이트 (다음 그룹 재생을 위해)
         currentGroupStartTimeRef.current = Date.now()
         
-        if (setCurrentTime) {
-          setCurrentTime(accumulatedTimeRef.current)
+          if (setCurrentTime) {
+            setCurrentTime(accumulatedTimeRef.current)
         }
         
         // ref 초기화

@@ -72,7 +72,7 @@ export function applySlideTransition(
 
   // 텍스트는 applyEnterEffect에서 이미 설정되므로 여기서는 스프라이트만 처리
   // 중복 렌더링 방지를 위해 텍스트 visible/alpha 설정 제거
-  
+
   timeline.to(
     slideObj,
     {

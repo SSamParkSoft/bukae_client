@@ -414,7 +414,7 @@ export function useSceneTransition({
               if (prevSprite) {
                 prevSprite.visible = false
                 prevSprite.alpha = 0
-              }
+                }
               if (prevText) {
                 prevText.visible = false
                 prevText.alpha = 0
