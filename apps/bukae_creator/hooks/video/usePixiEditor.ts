@@ -94,7 +94,7 @@ export const usePixiEditor = ({
   }, [])
 
   // 요소가 canvas 밖으로 나갔는지 체크
-  const isOutsideCanvas = useCallback((element: PIXI.Sprite | PIXI.Text, isText: boolean = false): boolean => {
+  const isOutsideCanvas = useCallback((element: PIXI.Sprite | PIXI.Text): boolean => {
     const bounds = element.getBounds()
     
     // canvas 밖으로 나갔는지 체크
@@ -267,6 +267,7 @@ export const usePixiEditor = ({
         // 핸들 클릭 플래그 설정
         if (clickedOnPixiElementRef) {
           clickedOnPixiElementRef.current = true
+          console.log('[이미지 핸들 클릭] 플래그 설정')
         }
         
         isResizingRef.current = true
@@ -350,7 +351,7 @@ export const usePixiEditor = ({
             }
             
             // canvas 밖으로 나갔는지 체크
-            if (isOutsideCanvas(currentSprite, false)) {
+            if (isOutsideCanvas(currentSprite)) {
               // 중앙 위치로 복귀
               resetToCenter(currentSprite, sceneIndex, false)
               // 복귀 후 핸들 다시 그리기
@@ -453,7 +454,7 @@ export const usePixiEditor = ({
       appRef.current.ticker.add(keepOnTop)
       // cleanup은 handlesContainer가 제거될 때 자동으로 처리됨
     }
-  }, [useFabricEditing, containerRef, editHandlesRef, spritesRef, appRef, isResizingRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, originalSpriteTransformRef, resizeStartPosRef, clickedOnPixiElementRef, editMode, setSelectedElementIndex, setSelectedElementType, getPixiCoordinates, isOutsideCanvas, resetToCenter, timeline, setTimeline])
+  }, [useFabricEditing, containerRef, editHandlesRef, spritesRef, appRef, isResizingRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, originalSpriteTransformRef, resizeStartPosRef, clickedOnPixiElementRef, editMode, setSelectedElementIndex, setSelectedElementType, getPixiCoordinates, isOutsideCanvas, resetToCenter, timeline])
 
   // drawEditHandles ref 업데이트
   useEffect(() => {
@@ -471,10 +472,6 @@ export const usePixiEditor = ({
       return
     }
 
-    // 기존 Transform의 크기 정보 유지 (드래그 시 크기 변경 방지)
-    const existingTransform = timeline.scenes[sceneIndex]?.imageTransform
-    const originalTransform = originalSpriteTransformRef.current.get(sceneIndex)
-    
     // 리사이즈 중이면 현재 크기 사용, 아니면 현재 스프라이트 크기 사용
     const isResizing = isResizingRef.current
     
@@ -530,7 +527,7 @@ export const usePixiEditor = ({
     setTimeout(() => {
       isSavingTransformRef.current = false
     }, 100)
-  }, [timeline, setTimeline, isSavingTransformRef, originalSpriteTransformRef, isResizingRef])
+  }, [timeline, setTimeline, isSavingTransformRef, isResizingRef])
 
   // saveImageTransform ref 업데이트
   useEffect(() => {
@@ -682,7 +679,7 @@ export const usePixiEditor = ({
     }
 
     // 렌더링은 PixiJS ticker가 처리
-  }, [isResizingRef, resizeHandleRef, originalTransformRef, spritesRef, appRef, editHandlesRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, timeline, setTimeline, saveImageTransform, editMode])
+  }, [isResizingRef, resizeHandleRef, originalTransformRef, spritesRef, appRef, editHandlesRef, getPixiCoordinates])
 
   // handleResize ref 업데이트
   useEffect(() => {
@@ -716,6 +713,7 @@ export const usePixiEditor = ({
         // 스프라이트 클릭 플래그 설정
         if (clickedOnPixiElementRef) {
           clickedOnPixiElementRef.current = true
+          console.log('[스프라이트 클릭] 플래그 설정')
         }
         
         // 자막 핸들 제거 (이미지 편집 모드로 전환)
@@ -819,7 +817,7 @@ export const usePixiEditor = ({
             const currentSprite = spritesRef.current.get(sceneIndex)
             if (currentSprite) {
               // canvas 밖으로 나갔는지 체크
-              if (isOutsideCanvas(currentSprite, false)) {
+              if (isOutsideCanvas(currentSprite)) {
                 // 중앙 위치로 복귀
                 resetToCenter(currentSprite, sceneIndex, false)
                 // 복귀 후 핸들 다시 그리기
@@ -857,7 +855,7 @@ export const usePixiEditor = ({
         // 핸들은 handleGlobalUp에서 유지됨
       })
     }
-  }, [editMode, useFabricEditing, drawEditHandles, saveImageTransform, handleResize, timeline, isDraggingRef, dragStartPosRef, originalSpriteTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingRef, appRef, spritesRef, setEditMode, draggingElementRef, editHandlesRef, textEditHandlesRef, clickedOnPixiElementRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, setTimeline])
+  }, [useFabricEditing, drawEditHandles, saveImageTransform, handleResize, isDraggingRef, dragStartPosRef, originalSpriteTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingRef, appRef, spritesRef, setEditMode, draggingElementRef, editHandlesRef, textEditHandlesRef, clickedOnPixiElementRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, timeline])
 
   // Transform 데이터 적용
   const applyImageTransform = useCallback((sprite: PIXI.Sprite | null, transform?: TimelineScene['imageTransform']) => {
@@ -954,7 +952,7 @@ export const usePixiEditor = ({
     setTimeout(() => {
       isSavingTransformRef.current = false
     }, 100)
-  }, [timeline, setTimeline, isSavingTransformRef, originalTextTransformRef, isResizingTextRef])
+  }, [timeline, setTimeline, isSavingTransformRef, isResizingTextRef])
 
   // saveTextTransform ref 업데이트
   useEffect(() => {
@@ -1194,7 +1192,7 @@ export const usePixiEditor = ({
 
     // 렌더링 (직접 호출 - requestAnimationFrame은 오히려 지연을 유발할 수 있음)
     // 렌더링은 PixiJS ticker가 처리
-  }, [isResizingTextRef, resizeHandleRef, originalTransformRef, resizeStartPosRef, textsRef, appRef, textEditHandlesRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, timeline, setTimeline, saveTextTransform, editMode])
+  }, [isResizingTextRef, resizeHandleRef, originalTransformRef, resizeStartPosRef, textsRef, appRef, textEditHandlesRef, getPixiCoordinates])
 
   // handleTextResize ref 업데이트
   useEffect(() => {
@@ -1278,6 +1276,7 @@ export const usePixiEditor = ({
         // 핸들 클릭 플래그 설정
         if (clickedOnPixiElementRef) {
           clickedOnPixiElementRef.current = true
+          console.log('[텍스트 핸들 클릭] 플래그 설정')
         }
         
         isResizingTextRef.current = true
@@ -1428,7 +1427,7 @@ export const usePixiEditor = ({
             }
             
             // canvas 밖으로 나갔는지 체크
-            if (isOutsideCanvas(currentText, true)) {
+            if (isOutsideCanvas(currentText)) {
               // 중앙 위치로 복귀
               resetToCenter(currentText, sceneIndex, true)
               // 핸들은 loadAllScenes 후 자동으로 다시 그려짐
@@ -1533,7 +1532,7 @@ export const usePixiEditor = ({
       appRef.current.ticker.add(keepOnTop)
       // cleanup은 handlesContainer가 제거될 때 자동으로 처리됨
     }
-  }, [useFabricEditing, containerRef, textEditHandlesRef, textsRef, appRef, isResizingTextRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, originalTextTransformRef, resizeStartPosRef, clickedOnPixiElementRef, editMode, setSelectedElementIndex, setSelectedElementType, getPixiCoordinates, handleTextResize, saveTextTransform, timeline, isOutsideCanvas, resetToCenter])
+  }, [useFabricEditing, containerRef, textEditHandlesRef, textsRef, appRef, isResizingTextRef, resizeHandleRef, isFirstResizeMoveRef, originalTransformRef, originalTextTransformRef, resizeStartPosRef, clickedOnPixiElementRef, editMode, setSelectedElementIndex, setSelectedElementType, getPixiCoordinates, handleTextResize, isOutsideCanvas, resetToCenter])
 
   // drawTextEditHandles ref 업데이트
   useEffect(() => {
@@ -1567,6 +1566,7 @@ export const usePixiEditor = ({
         // 텍스트 클릭 플래그 설정
         if (clickedOnPixiElementRef) {
           clickedOnPixiElementRef.current = true
+          console.log('[텍스트 클릭] 플래그 설정')
         }
         
         // 이미지 핸들 제거 (자막 편집 모드로 전환)
@@ -1677,7 +1677,7 @@ export const usePixiEditor = ({
           const currentText = textsRef.current.get(sceneIndex)
           if (currentText) {
             // canvas 밖으로 나갔는지 체크
-            if (isOutsideCanvas(currentText, true)) {
+            if (isOutsideCanvas(currentText)) {
               // 중앙 위치로 복귀
               resetToCenter(currentText, sceneIndex, true)
               // 복귀 후 핸들 다시 그리기
@@ -1715,7 +1715,7 @@ export const usePixiEditor = ({
         // 핸들은 handleGlobalUp에서 유지됨
       })
     }
-  }, [editMode, useFabricEditing, drawTextEditHandles, saveTextTransform, handleTextResize, timeline, isDraggingRef, dragStartPosRef, originalTextTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingTextRef, appRef, textsRef, setEditMode, draggingElementRef, textEditHandlesRef, editHandlesRef, clickedOnPixiElementRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, setTimeline])
+  }, [useFabricEditing, drawTextEditHandles, saveTextTransform, handleTextResize, isDraggingRef, dragStartPosRef, originalTextTransformRef, setSelectedElementIndex, setSelectedElementType, isResizingTextRef, appRef, textsRef, setEditMode, draggingElementRef, textEditHandlesRef, editHandlesRef, clickedOnPixiElementRef, getPixiCoordinates, isOutsideCanvas, resetToCenter, timeline])
 
   return {
     drawEditHandles,

@@ -1679,6 +1679,12 @@ export default function Step4Page() {
       setTimeout(() => {
         // 스프라이트나 텍스트나 핸들을 클릭했다면 빈 공간 클릭으로 처리하지 않음
         if (clickedOnPixiElementRef.current) {
+          console.log('[빈 공간 클릭 감지] 요소 클릭으로 인식되어 무시')
+          return
+        }
+
+        // 편집 모드가 'none'이면 처리하지 않음
+        if (editMode === 'none') {
           return
         }
 
@@ -1722,9 +1728,12 @@ export default function Step4Page() {
         
         if (!clickedOnHandle && !clickedOnSprite && !clickedOnText) {
           // 빈 공간 클릭: 선택 해제 및 편집 모드 종료
+          console.log('[빈 공간 클릭] 편집 모드 해제', { editMode, pixiX, pixiY })
           setSelectedElementIndex(null)
           setSelectedElementType(null)
           setEditMode('none')
+        } else {
+          console.log('[요소 클릭] 편집 모드 유지', { clickedOnHandle, clickedOnSprite, clickedOnText, editMode })
         }
       }, 50)
     }
@@ -1735,7 +1744,7 @@ export default function Step4Page() {
     return () => {
       canvas.removeEventListener('mousedown', handleCanvasClick, true)
     }
-  }, [containerRef, appRef, useFabricEditing, pixiReady, currentSceneIndexRef, spritesRef, textsRef, editHandlesRef, textEditHandlesRef, setSelectedElementIndex, setSelectedElementType, setEditMode])
+  }, [containerRef, appRef, useFabricEditing, pixiReady, currentSceneIndexRef, spritesRef, textsRef, editHandlesRef, textEditHandlesRef, clickedOnPixiElementRef, editMode, setSelectedElementIndex, setSelectedElementType, setEditMode])
 
   // Pixi 캔버스 포인터 이벤트 제어 및 Fabric 편집 시 숨김
   // 재생 중 또는 전환 효과 미리보기 중일 때는 PixiJS를 보여서 전환 효과가 보이도록 함
@@ -1811,9 +1820,10 @@ export default function Step4Page() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // ESC 키를 눌렀을 때 편집 모드 해제
       if (e.key === 'Escape' && editMode !== 'none') {
-        setEditMode('none')
+        console.log('[ESC 키] 편집 모드 해제')
         setSelectedElementIndex(null)
         setSelectedElementType(null)
+        setEditMode('none')
       }
     }
 
@@ -1895,6 +1905,7 @@ export default function Step4Page() {
 
     // 편집 모드가 종료되면 핸들 제거
     if (editMode === 'none') {
+      console.log('[편집 모드 해제] 핸들 제거')
       editHandlesRef.current.forEach((handles, index) => {
         if (handles.parent) {
           handles.parent.removeChild(handles)
