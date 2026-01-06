@@ -31,6 +31,12 @@ export function getSupabaseServerClient(): SupabaseClient {
 }
 
 export async function getUserFromAccessToken(accessToken: string) {
+  // 개발 환경에서는 Supabase 검증을 건너뛰고 백엔드 OAuth 토큰만 사용
+  // (구글 계정의 실제 토큰을 사용하므로 Supabase 검증 불필요)
+  if (process.env.NODE_ENV === 'development') {
+    return null // 개발 환경에서는 Supabase 토큰 검증 건너뛰기
+  }
+
   const supabase = getSupabaseServerClient()
   const { data, error } = await supabase.auth.getUser(accessToken)
   if (error || !data?.user) return null

@@ -48,6 +48,11 @@ function strEnv(name: string, fallback: string): string {
 const tokenCache = new Map<string, { userId: string | null; timestamp: number }>()
 
 async function getBackendUserIdFromAccessToken(accessToken: string): Promise<string | null> {
+  // 개발 환경에서 mock 테스트 계정 토큰 허용
+  if (isRunningOnLocalhost() && accessToken.startsWith('dev_test_admin_token_')) {
+    return 'dev-test-admin-id'
+  }
+
   // 캐시 확인 (1초 이내의 결과 재사용)
   const cached = tokenCache.get(accessToken)
   if (cached && Date.now() - cached.timestamp < 1000) {
@@ -124,6 +129,22 @@ export async function requireUser(request: Request): Promise<RequireUserResult |
     )
   }
 
+  // 개발 환경에서는 Supabase 검증을 건너뛰고 백엔드 OAuth 토큰만 사용
+  if (isRunningOnLocalhost()) {
+    // 백엔드 OAuth 토큰 검증만 수행 (구글 계정의 실제 토큰)
+    const backendUserId = await getBackendUserIdFromAccessToken(token)
+    if (backendUserId) {
+      return { userId: backendUserId, accessToken: token, authSource: 'backend' }
+    }
+    
+    // 개발 환경에서 백엔드 토큰 검증 실패 시 에러
+    return NextResponse.json(
+      { error: '인증 정보가 유효하지 않습니다. 다시 로그인해주세요.' },
+      { status: 401, headers: { 'WWW-Authenticate': 'Bearer error="invalid_token"' } }
+    )
+  }
+
+  // 프로덕션 환경에서는 기존 로직 유지
   // 1) Supabase 토큰 검증 우선
   const supabaseUser = await getUserFromAccessToken(token)
   if (supabaseUser) {

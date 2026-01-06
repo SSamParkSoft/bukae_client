@@ -11,6 +11,12 @@ export const loadPixiTexture = (
   textureCache: Map<string, PIXI.Texture>
 ): Promise<PIXI.Texture> => {
   return new Promise((resolve, reject) => {
+    // URL 유효성 검사
+    if (!url || typeof url !== 'string' || url.trim() === '') {
+      reject(new Error(`Invalid texture URL: empty or invalid URL`))
+      return
+    }
+
     if (textureCache.has(url)) {
       resolve(textureCache.get(url)!)
       return
@@ -24,6 +30,8 @@ export const loadPixiTexture = (
         return
       } catch (error) {
         console.error('Failed to load data/blob URL:', error)
+        reject(new Error(`Failed to load data/blob texture: ${url.substring(0, 50)}...`))
+        return
       }
     }
 
@@ -33,20 +41,20 @@ export const loadPixiTexture = (
           textureCache.set(url, texture)
           resolve(texture)
         } else {
-          reject(new Error(`Invalid texture: ${url}`))
+          reject(new Error(`Invalid texture: failed to load from URL (may be from different platform)`))
         }
       })
-      .catch(() => {
+      .catch((error) => {
         try {
           const fallbackTexture = PIXI.Texture.from(url)
           if (fallbackTexture) {
             textureCache.set(url, fallbackTexture)
             resolve(fallbackTexture)
           } else {
-            reject(new Error(`Failed to load: ${url}`))
+            reject(new Error(`Failed to load texture: ${url.substring(0, 50)}... (may be from different platform)`))
           }
         } catch {
-          reject(new Error(`Failed to load: ${url}`))
+          reject(new Error(`Failed to load texture: ${url.substring(0, 50)}... (may be from different platform)`))
         }
       })
   })

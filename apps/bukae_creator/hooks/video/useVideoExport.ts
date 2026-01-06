@@ -7,6 +7,7 @@ import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
 import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { SceneScript } from '@/lib/types/domain/script'
+import * as PIXI from 'pixi.js'
 
 interface UseVideoExportParams {
   timeline: TimelineData | null
@@ -28,6 +29,8 @@ interface UseVideoExportParams {
       markup: string
     }>
   }>
+  spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>
+  textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
 }
 
 /**
@@ -45,9 +48,65 @@ export function useVideoExport({
   selectedProducts,
   ttsCacheRef,
   ensureSceneTts,
+  spritesRef,
+  textsRef,
 }: UseVideoExportParams) {
   const router = useRouter()
   const [isExporting, setIsExporting] = useState(false)
+
+  /**
+   * 모든 씬의 캔버스 상태를 읽어서 transform 정보를 반환합니다.
+   * PixiJS의 실제 객체 상태를 읽어서 최신 위치/크기/회전 정보를 가져옵니다.
+   */
+  const getAllCanvasTransforms = useCallback((): Map<number, { imageTransform?: { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }; textTransform?: { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number } }> => {
+    const transforms = new Map<number, { imageTransform?: { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }; textTransform?: { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number } }>()
+    
+    if (!timeline) {
+      return transforms
+    }
+
+    // 모든 씬의 상태를 병렬로 읽기
+    timeline.scenes.forEach((scene, sceneIndex) => {
+      const sprite = spritesRef.current.get(sceneIndex)
+      const text = textsRef.current.get(sceneIndex)
+      
+      const sceneTransforms: { imageTransform?: { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }; textTransform?: { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number } } = {}
+      
+      // 이미지 transform 읽기
+      if (sprite && sprite.parent) {
+        const bounds = sprite.getBounds()
+        sceneTransforms.imageTransform = {
+          x: sprite.x,
+          y: sprite.y,
+          width: bounds.width,
+          height: bounds.height,
+          scaleX: sprite.scale.x,
+          scaleY: sprite.scale.y,
+          rotation: sprite.rotation,
+        }
+      }
+      
+      // 텍스트 transform 읽기
+      if (text && text.parent) {
+        const bounds = text.getBounds()
+        sceneTransforms.textTransform = {
+          x: text.x,
+          y: text.y,
+          width: bounds.width,
+          height: bounds.height,
+          scaleX: text.scale.x,
+          scaleY: text.scale.y,
+          rotation: text.rotation,
+        }
+      }
+      
+      if (sceneTransforms.imageTransform || sceneTransforms.textTransform) {
+        transforms.set(sceneIndex, sceneTransforms)
+      }
+    })
+    
+    return transforms
+  }, [timeline, spritesRef, textsRef])
 
   const handleExport = useCallback(async () => {
     // 이미 진행 중이면 중복 실행 방지
@@ -65,7 +124,13 @@ export function useVideoExport({
 
     if (!voiceTemplate || voiceTemplate.trim() === '') {
       console.warn('[useVideoExport] voiceTemplate이 없거나 빈 문자열입니다:', voiceTemplate)
-      alert('목소리를 먼저 선택해주세요.')
+      // 개발 환경에서는 alert를 비활성화하여 MCP 테스트 가능하도록 함
+      const isDevelopment = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      if (!isDevelopment) {
+        alert('목소리를 먼저 선택해주세요.')
+      } else {
+        console.error('[useVideoExport] 목소리를 먼저 선택해주세요.')
+      }
       return
     }
 
@@ -78,16 +143,20 @@ export function useVideoExport({
         throw new Error('로그인이 필요합니다.')
       }
 
+      // 0. 모든 씬의 캔버스 상태 읽기 (최신 transform 정보)
+      const canvasTransforms = getAllCanvasTransforms()
+      console.log('[useVideoExport] 캔버스 상태 읽기 완료:', canvasTransforms.size, '개 씬')
+
       // 1. 모든 씬의 TTS Blob을 가져와서 서버에 업로드
       // 캐시된 것과 합성이 필요한 것을 분리하여 레이트 리밋 방지
+      // 병렬 처리로 속도 향상
       const ttsResults: Array<{ sceneIndex: number; blob: Blob; durationSec: number } | null> = []
 
-      // 먼저 캐시된 것만 수집
-      for (let index = 0; index < timeline.scenes.length; index++) {
+      // 모든 씬의 캐시 상태를 병렬로 확인
+      const cacheCheckPromises = timeline.scenes.map(async (scene, index) => {
         const markups = buildSceneMarkup(timeline, index)
         if (markups.length === 0) {
-          ttsResults.push(null)
-          continue
+          return { sceneIndex: index, result: null }
         }
 
         // 모든 구간이 캐시되어 있는지 확인
@@ -109,19 +178,27 @@ export function useVideoExport({
           const firstCached = ttsCacheRef.current.get(firstKey)
           
           if (firstCached && firstCached.blob) {
-            ttsResults.push({ 
-              sceneIndex: index, 
-              blob: firstCached.blob,
-              durationSec: totalDuration || timeline.scenes[index]?.duration || 2.5
-            })
-          } else {
-            ttsResults.push(null)
+            return {
+              sceneIndex: index,
+              result: {
+                sceneIndex: index,
+                blob: firstCached.blob,
+                durationSec: totalDuration || timeline.scenes[index]?.duration || 2.5
+              }
+            }
           }
-        } else {
-          // 합성이 필요한 것들은 나중에 순차 처리
-          ttsResults.push(null)
         }
-      }
+        
+        return { sceneIndex: index, result: null }
+      })
+
+      const cacheCheckResults = await Promise.all(cacheCheckPromises)
+      
+      // 결과를 인덱스 순서대로 정렬하여 ttsResults에 추가
+      cacheCheckResults.sort((a, b) => a.sceneIndex - b.sceneIndex)
+      cacheCheckResults.forEach(({ result }) => {
+        ttsResults.push(result)
+      })
 
       // 합성이 필요한 씬들만 순차적으로 처리 (레이트 리밋 방지)
       const scenesToSynthesize: number[] = []
@@ -131,9 +208,13 @@ export function useVideoExport({
         }
       }
 
-      // 순차적으로 합성 (배치 처리 + 딜레이)
-      const batchSize = 2 // 한 번에 2개씩
-      const batchDelay = 1000 // 배치 간 1초 딜레이
+      // 순차적으로 합성 (배치 처리 + 동적 딜레이)
+      const batchSize = 4 // 한 번에 4개씩 (2 → 4로 증가)
+      let batchDelay = 500 // 배치 간 기본 딜레이 0.5초 (1초 → 0.5초로 감소)
+      let hasRateLimitError = false
+      
+      // 업로드 스트리밍: 합성 완료 즉시 업로드 시작
+      const uploadPromises: Map<number, Promise<string | null>> = new Map()
 
       for (let i = 0; i < scenesToSynthesize.length; i += batchSize) {
         const batch = scenesToSynthesize.slice(i, i + batchSize)
@@ -145,11 +226,40 @@ export function useVideoExport({
             // TODO: 각 구간별로 처리하도록 수정 필요
             const firstPart = result.parts[0]
             if (firstPart) {
-              ttsResults[sceneIndex] = { 
+              const ttsResult = { 
                 sceneIndex, 
                 blob: firstPart.blob,
                 durationSec: result.parts.reduce((sum, part) => sum + part.durationSec, 0) || timeline.scenes[sceneIndex]?.duration || 2.5
               }
+              ttsResults[sceneIndex] = ttsResult
+              
+              // 합성 완료 즉시 업로드 시작 (스트리밍)
+              const uploadPromise = (async () => {
+                const formData = new FormData()
+                formData.append('file', ttsResult.blob, `scene_${sceneIndex}_voice.mp3`)
+                formData.append('sceneIndex', String(sceneIndex))
+
+                try {
+                  const uploadRes = await fetch('/api/media/upload', {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                    body: formData,
+                  })
+
+                  if (!uploadRes.ok) {
+                    const errorData = await uploadRes.json().catch(() => ({}))
+                    throw new Error(`씬 ${sceneIndex + 1}의 음성 파일 업로드 실패: ${errorData.error || '알 수 없는 오류'}`)
+                  }
+
+                  const uploadData = await uploadRes.json()
+                  return uploadData.url // 서버에서 반환하는 URL
+                } catch (error) {
+                  console.error(`[useVideoExport] 씬 ${sceneIndex} 업로드 실패:`, error)
+                  return null
+                }
+              })()
+              
+              uploadPromises.set(sceneIndex, uploadPromise)
             }
           } catch (error) {
             // 레이트 리밋 에러인 경우 재시도
@@ -160,6 +270,8 @@ export function useVideoExport({
             ))
             
             if (isRateLimit) {
+              hasRateLimitError = true
+              batchDelay = 2000 // 레이트 리밋 발생 시 딜레이 2초로 증가
               // 1초 후 재시도
               await new Promise(resolve => setTimeout(resolve, 1000))
               try {
@@ -167,11 +279,40 @@ export function useVideoExport({
                 // TODO: 각 구간별로 처리하도록 수정 필요
                 const firstPart = result.parts[0]
                 if (firstPart) {
-                  ttsResults[sceneIndex] = { 
+                  const ttsResult = { 
                     sceneIndex, 
                     blob: firstPart.blob,
                     durationSec: result.parts.reduce((sum, part) => sum + part.durationSec, 0) || timeline.scenes[sceneIndex]?.duration || 2.5
                   }
+                  ttsResults[sceneIndex] = ttsResult
+                  
+                  // 재시도 성공 시 업로드 시작
+                  const uploadPromise = (async () => {
+                    const formData = new FormData()
+                    formData.append('file', ttsResult.blob, `scene_${sceneIndex}_voice.mp3`)
+                    formData.append('sceneIndex', String(sceneIndex))
+
+                    try {
+                      const uploadRes = await fetch('/api/media/upload', {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${accessToken}` },
+                        body: formData,
+                      })
+
+                      if (!uploadRes.ok) {
+                        const errorData = await uploadRes.json().catch(() => ({}))
+                        throw new Error(`씬 ${sceneIndex + 1}의 음성 파일 업로드 실패: ${errorData.error || '알 수 없는 오류'}`)
+                      }
+
+                      const uploadData = await uploadRes.json()
+                      return uploadData.url
+                    } catch (error) {
+                      console.error(`[useVideoExport] 씬 ${sceneIndex} 업로드 실패:`, error)
+                      return null
+                    }
+                  })()
+                  
+                  uploadPromises.set(sceneIndex, uploadPromise)
                 }
               } catch {
                 // 재시도 실패 시 무시
@@ -182,37 +323,61 @@ export function useVideoExport({
         
         await Promise.allSettled(batchPromises)
         
-        // 마지막 배치가 아니면 딜레이
-        if (i + batchSize < scenesToSynthesize.length) {
+        // 마지막 배치가 아니면 딜레이 (마지막 배치에서는 딜레이 제거)
+        const isLastBatch = i + batchSize >= scenesToSynthesize.length
+        if (!isLastBatch) {
           await new Promise(resolve => setTimeout(resolve, batchDelay))
+        }
+        
+        // 레이트 리밋 에러가 없으면 딜레이를 다시 기본값으로 복원
+        if (!hasRateLimitError && batchDelay > 500) {
+          batchDelay = 500
         }
       }
       
-      // 2. 각 TTS Blob을 서버에 업로드하고 URL 받기
-      const ttsUrlPromises = ttsResults.map(async (result, index) => {
-        if (!result || !result.blob) return null
+      // 2. 캐시된 씬들도 업로드 (이미 합성 완료된 것들)
+      for (let index = 0; index < timeline.scenes.length; index++) {
+        const result = ttsResults[index]
+        if (result && result.blob && !uploadPromises.has(index)) {
+          const uploadPromise = (async () => {
+            const formData = new FormData()
+            formData.append('file', result.blob, `scene_${index}_voice.mp3`)
+            formData.append('sceneIndex', String(index))
 
-        const formData = new FormData()
-        formData.append('file', result.blob, `scene_${index}_voice.mp3`)
-        formData.append('sceneIndex', String(index))
+            try {
+              const uploadRes = await fetch('/api/media/upload', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${accessToken}` },
+                body: formData,
+              })
 
-        // TTS 파일 업로드 API 호출
-        const uploadRes = await fetch('/api/media/upload', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}` },
-          body: formData,
-        })
+              if (!uploadRes.ok) {
+                const errorData = await uploadRes.json().catch(() => ({}))
+                throw new Error(`씬 ${index + 1}의 음성 파일 업로드 실패: ${errorData.error || '알 수 없는 오류'}`)
+              }
 
-        if (!uploadRes.ok) {
-          const errorData = await uploadRes.json().catch(() => ({}))
-          throw new Error(`씬 ${index + 1}의 음성 파일 업로드 실패: ${errorData.error || '알 수 없는 오류'}`)
+              const uploadData = await uploadRes.json()
+              return uploadData.url
+            } catch (error) {
+              console.error(`[useVideoExport] 씬 ${index} 업로드 실패:`, error)
+              return null
+            }
+          })()
+          
+          uploadPromises.set(index, uploadPromise)
         }
-
-        const uploadData = await uploadRes.json()
-        return uploadData.url // 서버에서 반환하는 URL
-      })
-
-      const ttsUrls = await Promise.all(ttsUrlPromises)
+      }
+      
+      // 모든 업로드 완료 대기
+      const ttsUrls: (string | null)[] = []
+      for (let index = 0; index < timeline.scenes.length; index++) {
+        const uploadPromise = uploadPromises.get(index)
+        if (uploadPromise) {
+          ttsUrls[index] = await uploadPromise
+        } else {
+          ttsUrls[index] = null
+        }
+      }
 
       // 3. resolution 파싱 (예: "1080x1920" -> {width: 1080, height: 1920})
       const [width, height] = timeline.resolution.split('x').map(Number)
@@ -271,9 +436,15 @@ export function useVideoExport({
             const actualSceneId = isTempId ? groupIndex + 1 : (sceneId as number) + 1
             
             // 같은 그룹 내에서는 첫 번째 씬의 이미지 사용
+            const firstSceneIndex = group[0].index
             const firstScene = group[0].scene
             // 마지막 씬의 정보 사용 (transition 등)
+            const lastSceneIndex = group[group.length - 1].index
             const lastScene = group[group.length - 1].scene
+            
+            // 캔버스에서 읽은 transform 사용 (없으면 timeline의 transform 사용)
+            const firstSceneCanvasTransform = canvasTransforms.get(firstSceneIndex)
+            const lastSceneCanvasTransform = canvasTransforms.get(lastSceneIndex)
             
             // 자막을 특수기호로 연결 (씬마다 자막을 |||로 구분)
             const mergedText = group
@@ -306,6 +477,17 @@ export function useVideoExport({
               throw new Error(`씬 ${actualSceneId}의 이미지 URL이 없습니다.`)
             }
 
+            // 이미지 transform: 캔버스 상태 우선, 없으면 timeline의 transform 사용
+            const imageTransform = firstSceneCanvasTransform?.imageTransform || firstScene.imageTransform || {
+              x: width / 2,
+              y: height / 2,
+              width: width,
+              height: height,
+              scaleX: 1,
+              scaleY: 1,
+              rotation: 0,
+            }
+
             return {
               sceneId: actualSceneId, // API는 1부터 시작
               order: groupIndex,
@@ -314,21 +496,12 @@ export function useVideoExport({
               image: {
                 url: firstScene.image, // 같은 그룹 내에서는 첫 번째 씬의 이미지 사용
                 fit: firstScene.imageFit || 'contain',
-                transform: firstScene.imageTransform ? {
-                  ...firstScene.imageTransform,
+                transform: {
+                  ...imageTransform,
                   anchor: {
                     x: 0.5,
                     y: 0.5,
                   },
-                } : {
-                  x: width / 2,
-                  y: height / 2,
-                  width: width,
-                  height: height,
-                  scaleX: 1,
-                  scaleY: 1,
-                  rotation: 0,
-                  anchor: { x: 0.5, y: 0.5 },
                 },
               },
               text: {
@@ -358,22 +531,40 @@ export function useVideoExport({
                   italic: lastScene.text.style?.italic || false,
                 },
                 alignment: lastScene.text.position || 'center',
-                transform: lastScene.text.transform ? {
-                  ...lastScene.text.transform,
-                  anchor: {
-                    x: 0.5,
-                    y: 0.5,
-                  },
-                } : {
-                  x: width / 2,
-                  y: height * 0.85,
-                  width: width * 0.75,
-                  height: height * 0.07,
-                  scaleX: 1,
-                  scaleY: 1,
-                  rotation: 0,
-                  anchor: { x: 0.5, y: 0.5 },
-                },
+                transform: (() => {
+                  // 캔버스 상태 우선, 없으면 timeline의 transform 사용
+                  const textTransform = lastSceneCanvasTransform?.textTransform || lastScene.text.transform
+                  
+                  if (textTransform) {
+                    return {
+                      ...textTransform,
+                      anchor: {
+                        x: 0.5,
+                        y: 0.5,
+                      },
+                    }
+                  }
+                  
+                  // transform이 없으면 position 기반으로 Y 좌표 계산
+                  const position = lastScene.text.position || 'center'
+                  let textY = height / 2 // center 기본값
+                  if (position === 'top') {
+                    textY = 200
+                  } else if (position === 'bottom') {
+                    textY = height - 200 // 1920 - 200 = 1720
+                  }
+                  
+                  return {
+                    x: width / 2,
+                    y: textY,
+                    width: width * 0.75,
+                    height: height * 0.07,
+                    scaleX: 1,
+                    scaleY: 1,
+                    rotation: 0,
+                    anchor: { x: 0.5, y: 0.5 },
+                  }
+                })(),
               },
               voice: {
                 enabled: !!mergedTtsUrl,
@@ -458,6 +649,7 @@ export function useVideoExport({
     videoDescription,
     ttsCacheRef,
     ensureSceneTts,
+    getAllCanvasTransforms,
     router,
   ])
 

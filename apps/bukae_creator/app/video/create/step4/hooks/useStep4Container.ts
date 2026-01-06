@@ -1424,6 +1424,8 @@ export function useStep4Container() {
     selectedProducts,
     ttsCacheRef: fullPlayback.ttsCacheRef,
     ensureSceneTts,
+    spritesRef,
+    textsRef,
   })
 
   // 씬 순서 변경 핸들러는 useSceneEditHandlers에서 제공
