@@ -55,12 +55,16 @@ export function useVideoExport({
       return
     }
 
+    // 디버깅: voiceTemplate 값 확인
+    console.log('[useVideoExport] voiceTemplate 값:', voiceTemplate, '타입:', typeof voiceTemplate)
+
     if (!timeline) {
       alert('타임라인 데이터가 없어요.')
       return
     }
 
-    if (!voiceTemplate) {
+    if (!voiceTemplate || voiceTemplate.trim() === '') {
+      console.warn('[useVideoExport] voiceTemplate이 없거나 빈 문자열입니다:', voiceTemplate)
       alert('목소리를 먼저 선택해주세요.')
       return
     }
@@ -255,8 +259,8 @@ export function useVideoExport({
             fadeOut: 2,
           },
           voice: {
-            enabled: !!voiceTemplate,
-            templateId: voiceTemplate || null,
+            enabled: !!voiceTemplate && voiceTemplate.trim() !== '',
+            templateId: voiceTemplate && voiceTemplate.trim() !== '' ? voiceTemplate : null,
             volume: 1,
           },
         },
@@ -404,6 +408,8 @@ export function useVideoExport({
 
       // 서버로 전송하는 JSON 바디 로그 출력
       console.log('=== 인코딩 요청 JSON 바디 ===')
+      console.log('voiceTemplate 원본 값:', voiceTemplate)
+      console.log('audio.voice 값:', encodingRequest.audio.voice)
       console.log(JSON.stringify(exportData, null, 2))
       console.log('===========================')
 

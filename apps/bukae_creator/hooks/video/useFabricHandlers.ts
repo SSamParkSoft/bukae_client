@@ -42,10 +42,7 @@ export function useFabricHandlers({
    */
   const saveImageTransform = useCallback(
     (target: fabric.Object, sceneIndex: number) => {
-      console.log(`[useFabricHandlers] 이미지 Transform 저장 | sceneIndex: ${sceneIndex}`)
-
       if (!timeline) {
-        console.warn('[useFabricHandlers] timeline이 없습니다.')
         return
       }
 
@@ -75,7 +72,6 @@ export function useFabricHandlers({
       }
 
       setTimeline(nextTimeline)
-      console.log(`[useFabricHandlers] 이미지 Transform 저장 완료 | sceneIndex: ${sceneIndex}`)
     },
     [timeline, setTimeline, fabricScaleRatioRef]
   )
@@ -85,10 +81,7 @@ export function useFabricHandlers({
    */
   const saveTextTransform = useCallback(
     (target: fabric.Textbox, sceneIndex: number, updateContent: boolean = false) => {
-      console.log(`[useFabricHandlers] 텍스트 Transform 저장 | sceneIndex: ${sceneIndex}, updateContent: ${updateContent}`)
-
       if (!timeline) {
-        console.warn('[useFabricHandlers] timeline이 없습니다.')
         return
       }
 
@@ -146,7 +139,6 @@ export function useFabricHandlers({
         fabricCanvasRef.current.requestRenderAll()
       }
 
-      console.log(`[useFabricHandlers] 텍스트 Transform 저장 완료 | sceneIndex: ${sceneIndex}`)
     },
     [timeline, setTimeline, fabricScaleRatioRef, fabricCanvasRef]
   )
@@ -155,11 +147,9 @@ export function useFabricHandlers({
    * 플래그 해제 (지연 후)
    */
   const clearFlags = useCallback(() => {
-    console.log('[useFabricHandlers] 플래그 해제 예약 | delay:', TRANSFORM_SAVE_DELAY_MS, 'ms')
     setTimeout(() => {
       isSavingTransformRef.current = false
       isManualSceneSelectRef.current = false
-      console.log('[useFabricHandlers] 플래그 해제 완료')
     }, TRANSFORM_SAVE_DELAY_MS)
   }, [isSavingTransformRef, isManualSceneSelectRef])
 
@@ -172,11 +162,8 @@ export function useFabricHandlers({
       const sceneIndex = currentSceneIndexRef.current
 
       if (!target) {
-        console.warn('[useFabricHandlers] handleModified: target이 없습니다.')
         return
       }
-
-      console.log(`[useFabricHandlers] 객체 수정 이벤트 | sceneIndex: ${sceneIndex}, dataType: ${target.dataType}`)
 
       // 씬 이동 방지: 현재 씬 인덱스 저장 및 플래그 설정
       const savedIndex = sceneIndex
@@ -207,15 +194,12 @@ export function useFabricHandlers({
       }
 
       const sceneIndex = currentSceneIndexRef.current
-      console.log(`[useFabricHandlers] 텍스트 내용 변경 | sceneIndex: ${sceneIndex}`)
-
       const savedIndex = sceneIndex
       isSavingTransformRef.current = true
       savedSceneIndexRef.current = savedIndex
       isManualSceneSelectRef.current = true
 
       if (!timeline) {
-        console.warn('[useFabricHandlers] timeline이 없습니다.')
         return
       }
 
@@ -243,8 +227,6 @@ export function useFabricHandlers({
       }
 
       setTimeline(nextTimeline)
-      console.log(`[useFabricHandlers] 텍스트 내용 저장 완료 | sceneIndex: ${sceneIndex}`)
-
       clearFlags()
     },
     [currentSceneIndexRef, isSavingTransformRef, savedSceneIndexRef, isManualSceneSelectRef, timeline, setTimeline, fabricScaleRatioRef, clearFlags]
@@ -261,8 +243,6 @@ export function useFabricHandlers({
       }
 
       const sceneIndex = currentSceneIndexRef.current
-      console.log(`[useFabricHandlers] 텍스트 편집 종료 | sceneIndex: ${sceneIndex}`)
-
       const savedIndex = sceneIndex
       isSavingTransformRef.current = true
       savedSceneIndexRef.current = savedIndex
@@ -281,10 +261,6 @@ export function useFabricHandlers({
    */
   const handleMouseDown = useCallback((e: any) => {
     // 현재는 사용하지 않지만 이벤트 리스너 등록을 위해 유지
-    const objects = fabricCanvasRef.current?.getObjects()
-    if (objects) {
-      console.log(`[useFabricHandlers] 마우스 다운 | objects: ${objects.length}`)
-    }
   }, [fabricCanvasRef])
 
   // Fabric.js 이벤트 리스너 등록
@@ -294,15 +270,12 @@ export function useFabricHandlers({
     }
 
     const fabricCanvas = fabricCanvasRef.current
-    console.log('[useFabricHandlers] Fabric.js 이벤트 리스너 등록')
-
     fabricCanvas.on('object:modified', handleModified as any)
     fabricCanvas.on('mouse:down', handleMouseDown as any)
     fabricCanvas.on('text:changed', handleTextChanged as any)
     fabricCanvas.on('text:editing:exited', handleTextEditingExited as any)
 
     return () => {
-      console.log('[useFabricHandlers] Fabric.js 이벤트 리스너 해제')
       fabricCanvas.off('object:modified', handleModified as any)
       fabricCanvas.off('mouse:down', handleMouseDown as any)
       fabricCanvas.off('text:changed', handleTextChanged as any)

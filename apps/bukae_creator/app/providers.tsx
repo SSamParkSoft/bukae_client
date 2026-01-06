@@ -10,6 +10,7 @@ import { useAppStore } from '@/store/useAppStore'
 import { authApi } from '@/lib/api/auth'
 import { ApiError } from '@/lib/api/client'
 import { getMallConfigs } from '@/lib/api/mall-configs'
+import { initMcpBrowserHelper } from '@/lib/utils/mcp-browser-helper'
 
 function AuthSync() {
   const router = useRouter()
@@ -107,6 +108,12 @@ function AuthSync() {
 
 export default function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(() => new QueryClient())
+  
+  // 개발 환경에서 MCP 브라우저 헬퍼 초기화
+  useEffect(() => {
+    initMcpBrowserHelper()
+  }, [])
+  
   return (
     <QueryClientProvider client={client}>
       <AuthSync />

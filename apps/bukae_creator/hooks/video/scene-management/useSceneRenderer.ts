@@ -134,11 +134,6 @@ export function useSceneRenderer({
       // 깜빡임 확인
       const spriteAlphaChanged = prevSpriteAlpha !== currentSprite.alpha
       const spriteVisibleChanged = prevSpriteVisible !== currentSprite.visible
-      if (!spriteAlphaChanged && !spriteVisibleChanged) {
-        console.warn(
-          `[렌더링-이미지] 씬${sceneIndex} 중복호출 감지! (값 변경 없음) | alpha: ${currentSprite.alpha}, visible: ${currentSprite.visible}`
-        )
-      }
 
       if (onComplete) {
         onComplete()
@@ -151,15 +146,11 @@ export function useSceneRenderer({
   const renderSubtitlePart = useCallback(
     (sceneIndex: number, partIndex: number | null, options?: RenderSubtitlePartOptions) => {
       if (!timeline || !appRef.current) {
-        console.warn(`[renderSubtitlePart] timeline 또는 appRef가 없습니다.`)
         return
       }
 
       const scene = timeline.scenes[sceneIndex]
       if (!scene) {
-        console.warn(
-          `[renderSubtitlePart] 씬 ${sceneIndex}을 찾을 수 없습니다. (총 ${timeline.scenes.length}개 씬)`
-        )
         return
       }
 
@@ -184,9 +175,6 @@ export function useSceneRenderer({
         if (partIndex >= 0 && partIndex < scriptParts.length) {
           partText = scriptParts[partIndex]?.trim() || null
         } else {
-          console.warn(
-            `[renderSubtitlePart] partIndex ${partIndex}가 범위를 벗어났습니다. (0~${scriptParts.length - 1})`
-          )
           if (scriptParts.length > 0) {
             partText = scriptParts[0]?.trim() || null
           } else {
