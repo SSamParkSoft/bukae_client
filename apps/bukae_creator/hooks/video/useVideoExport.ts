@@ -375,10 +375,11 @@ export function useVideoExport({
                   anchor: { x: 0.5, y: 0.5 },
                 },
               },
-              tts: {
+              voice: {
                 enabled: !!mergedTtsUrl,
                 url: mergedTtsUrl,
-                voiceText: mergedVoiceText || ' ', // 빈 텍스트도 공백으로 처리
+                text: mergedVoiceText || ' ', // 빈 텍스트도 공백으로 처리
+                startTime: 0, // TTS 시작 시간 (초)
               },
             }
           })
