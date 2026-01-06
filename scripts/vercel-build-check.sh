@@ -50,47 +50,49 @@ if [ "$APP_NAME" = "viewer" ]; then
   # viewer 관련 파일이 변경되었는지 확인
   if echo "$CHANGED_FILES" | grep -qE "^apps/bukae_viewer/"; then
     echo "Building viewer: apps/bukae_viewer/ files changed"
-    exit 0
+    # Ignored Build Step에서는 0이 스킵, 1이 빌드 진행
+    exit 1
   fi
   
   # 공유 패키지 변경 확인
   if echo "$CHANGED_FILES" | grep -qE "^packages/shared/"; then
     echo "Building viewer: packages/shared/ files changed"
-    exit 0
+    exit 1
   fi
   
   # 루트 설정 파일 변경 확인 (의존성 변경 등)
   if echo "$CHANGED_FILES" | grep -qE "^package\.json$|^pnpm-workspace\.yaml$|^pnpm-lock\.yaml$|^tsconfig\.json$"; then
     echo "Building viewer: root config files changed"
-    exit 0
+    exit 1
   fi
   
   # viewer 관련 파일이 변경되지 않았으면 스킵
   echo "Skipping viewer build: No relevant files changed"
-  exit 1
+  exit 0
 
 elif [ "$APP_NAME" = "creator" ]; then
   # creator 관련 파일이 변경되었는지 확인
   if echo "$CHANGED_FILES" | grep -qE "^apps/bukae_creator/"; then
     echo "Building creator: apps/bukae_creator/ files changed"
-    exit 0
+    # Ignored Build Step에서는 0이 스킵, 1이 빌드 진행
+    exit 1
   fi
   
   # 공유 패키지 변경 확인
   if echo "$CHANGED_FILES" | grep -qE "^packages/shared/"; then
     echo "Building creator: packages/shared/ files changed"
-    exit 0
+    exit 1
   fi
   
   # 루트 설정 파일 변경 확인
   if echo "$CHANGED_FILES" | grep -qE "^package\.json$|^pnpm-workspace\.yaml$|^pnpm-lock\.yaml$|^tsconfig\.json$"; then
     echo "Building creator: root config files changed"
-    exit 0
+    exit 1
   fi
   
   # creator 관련 파일이 변경되지 않았으면 스킵
   echo "Skipping creator build: No relevant files changed"
-  exit 1
+  exit 0
 
 else
   echo "Error: Unknown app name: $APP_NAME"
