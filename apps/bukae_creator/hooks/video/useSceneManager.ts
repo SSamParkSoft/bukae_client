@@ -113,7 +113,7 @@ export const useSceneManager = ({
   const renderSceneContent = useCallback(
     (
       sceneIndex: number,
-      partIndex?: number | null,
+      partIndex?: number | null, 
       options?: {
         skipAnimation?: boolean
         forceTransition?: string
