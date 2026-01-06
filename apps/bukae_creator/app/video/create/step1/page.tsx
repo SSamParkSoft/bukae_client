@@ -69,13 +69,18 @@ export default function Step1Page() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
 
-  // 상품/이미지 초기화 헬퍼 함수
+  // 상품/이미지 초기화 헬퍼 함수 (검색 결과는 유지)
   const resetProductData = useCallback(() => {
     // 선택된 이미지 초기화
     setSelectedImages([])
     // 타임라인 및 씬 데이터 초기화 (다른 플랫폼의 이미지가 남아있지 않도록)
     setTimeline(null)
     setScenes([])
+    // 검색 결과는 유지 (플랫폼 변경 시에만 초기화)
+  }, [setSelectedImages, setTimeline, setScenes])
+
+  // 플랫폼 변경 시 검색 결과도 함께 초기화하는 함수
+  const resetSearchData = useCallback(() => {
     // 검색 결과 초기화
     setCurrentProducts([])
     setCurrentProductResponses([])
@@ -83,7 +88,7 @@ export default function Step1Page() {
     setPrompt('')
     // 채팅 메시지 초기화
     setChatMessages([])
-  }, [setSelectedImages, setTimeline, setScenes])
+  }, [])
 
   // 플랫폼 선택 핸들러
   const handlePlatformSelect = (platform: TargetMall | 'all') => {
@@ -93,6 +98,8 @@ export default function Step1Page() {
       clearProducts()
       // 상품 관련 데이터 초기화
       resetProductData()
+      // 검색 결과도 초기화 (플랫폼 변경 시에만)
+      resetSearchData()
     }
     prevPlatformRef.current = platform
     setSelectedPlatform(platform)
@@ -109,7 +116,7 @@ export default function Step1Page() {
       // 이미 선택된 상품이면 선택 해제
       removeProduct(product.id)
       setHasUnsavedChanges(true)
-      // 선택 해제 시 이미지도 초기화
+      // 선택 해제 시 이미지/타임라인/씬만 초기화 (검색 결과는 유지)
       resetProductData()
     } else {
       const currentProduct = selectedProducts[0]
@@ -120,11 +127,20 @@ export default function Step1Page() {
       const shouldPreserveData = isSameProduct && autoSaveEnabled && !hasUnsavedChanges
       
       if (!shouldPreserveData) {
-        // 새로운 상품이거나 임시저장하지 않은 경우 초기화
+        // 새로운 상품이거나 임시저장하지 않은 경우 이미지/타임라인/씬만 초기화 (검색 결과는 유지)
         clearProducts()
         resetProductData()
       }
       
+      console.log('[Step1] 상품 선택:', {
+        product: {
+          id: product.id,
+          name: product.name,
+          image: product.image,
+          images: product.images,
+          imagesLength: product.images.length,
+        }
+      })
       addProduct(product)
       setHasUnsavedChanges(true)
     }
@@ -176,7 +192,40 @@ export default function Step1Page() {
 
       // 상품 목록 수신
       const convertedProducts = products.map((p) => {
-        return convertProductResponseToProduct(p, selectedPlatform)
+        // 실제 API 응답의 모든 필드 확인
+        console.log('[Step1] API 응답 원본 (모든 필드):', {
+          allKeys: Object.keys(p),
+          fullResponse: JSON.stringify(p, null, 2), // 전체 응답을 JSON 문자열로 출력
+        })
+        
+        const converted = convertProductResponseToProduct(p, selectedPlatform)
+        console.log('[Step1] 상품 변환 결과:', {
+          original: {
+            id: p.id,
+            productId: p.productId,
+            imageURL: p.imageURL,
+            thumbnailUrl: p.thumbnailUrl,
+            productMainImageUrl: p.productMainImageUrl,
+            image: p.image,
+            imageUrls: (p as any).imageUrls,
+            images: (p as any).images,
+            // 모든 이미지 관련 필드 확인
+            allImageFields: Object.keys(p).filter(key => 
+              key.toLowerCase().includes('image') || 
+              key.toLowerCase().includes('img') ||
+              key.toLowerCase().includes('photo') ||
+              key.toLowerCase().includes('picture')
+            ),
+          },
+          converted: {
+            id: converted.id,
+            name: converted.name,
+            image: converted.image,
+            images: converted.images,
+            imagesLength: converted.images.length,
+          }
+        })
+        return converted
       })
       setCurrentProducts(convertedProducts)
       setCurrentProductResponses(products) // 원본 데이터도 저장

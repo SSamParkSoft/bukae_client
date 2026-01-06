@@ -15,6 +15,11 @@ import { useThemeStore } from '@/store/useThemeStore'
 import { studioScriptApi } from '@/lib/api/studio-script'
 import type { ScriptType } from '@/lib/types/api/studio-script'
 import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
+import { 
+  requestCoupangExtensionStorage, 
+  extractImagesFromStorage,
+  type CoupangExtensionStorageData 
+} from '@/lib/utils/coupang-extension-storage'
 
 export default function Step3Page() {
   const router = useRouter()
@@ -34,20 +39,140 @@ export default function Step3Page() {
   // 토큰 검증
   const { isValidatingToken } = useVideoCreateAuth()
   
+  // Extension Storage에서 가져온 이미지
+  const [extensionImages, setExtensionImages] = useState<string[]>([])
+
+  // 상품이 변경될 때 extensionImages와 sceneScripts 초기화
+  useEffect(() => {
+    setExtensionImages([])
+    setSceneScripts(new Map())
+    setEditedScripts(new Map())
+    setGeneratingScenes(new Set())
+  }, [selectedProduct?.id])
+
+  // Extension Storage에서 이미지 로드
+  useEffect(() => {
+    const isDev = process.env.NODE_ENV === 'development'
+    if (isDev) {
+      console.log('[Step3] Extension Storage 로드 시작')
+    }
+    
+    const loadExtensionImages = async () => {
+      try {
+        // Extension Storage 접근 가능 여부 테스트
+        const { testExtensionStorageAccess } = await import('@/lib/utils/coupang-extension-storage')
+        const canAccess = await testExtensionStorageAccess()
+        
+        if (!canAccess) {
+          if (isDev) {
+            console.warn('[Step3] ⚠️ Extension Storage 접근 불가 - 확장프로그램이 응답하지 않습니다')
+          }
+          return
+        }
+        
+        const storageData = await requestCoupangExtensionStorage()
+        if (storageData) {
+          const productId = selectedProduct?.id
+          const images = extractImagesFromStorage(storageData, productId)
+          if (isDev) {
+            console.log('[Step3] Extension Storage 이미지 로드:', {
+              productId,
+              imagesCount: images.length,
+            })
+          }
+          setExtensionImages(images)
+        }
+      } catch (error) {
+        console.error('[Step3] Extension Storage 이미지 로드 실패:', error)
+      }
+    }
+
+    // 확장프로그램이 자동으로 전송하는 메시지 감지
+    const autoMessageHandler = (event: MessageEvent) => {
+      // storage 데이터가 포함된 메시지 감지
+      if (event.data?.products || event.data?.productimages || event.data?.productDetaillmages || event.data?.productDetailImages) {
+        const storageData: CoupangExtensionStorageData = {
+          products: event.data.products || {},
+          productimages: event.data.productimages || {},
+          productDetaillmages: event.data.productDetaillmages || event.data.productDetailImages || {},
+          lastUpdated: event.data.lastUpdated || Date.now()
+        }
+        const productId = selectedProduct?.id
+        const images = extractImagesFromStorage(storageData, productId)
+        if (images.length > 0) {
+          setExtensionImages(images)
+        }
+      }
+    }
+    
+    window.addEventListener('message', autoMessageHandler)
+    loadExtensionImages()
+    
+    return () => {
+      window.removeEventListener('message', autoMessageHandler)
+    }
+  }, [selectedProduct?.id])
+  
+  // 전역에서 테스트할 수 있도록 window 객체에 함수 추가
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).testExtensionStorage = async () => {
+        const { testExtensionStorageAccess, requestCoupangExtensionStorage } = await import('@/lib/utils/coupang-extension-storage')
+        console.log('=== Extension Storage 테스트 시작 ===')
+        const canAccess = await testExtensionStorageAccess()
+        if (canAccess) {
+          const data = await requestCoupangExtensionStorage()
+          console.log('Storage 데이터:', data)
+        }
+        console.log('=== Extension Storage 테스트 완료 ===')
+      }
+    }
+  }, [])
+  
   // 사용 가능한 이미지 목록
   const availableImages = useMemo(() => {
-    // Product 도메인 모델의 images 필드 사용
-    if (selectedProduct?.images && selectedProduct.images.length > 0) {
-      return selectedProduct.images
+    const isDev = process.env.NODE_ENV === 'development'
+    const imageSet = new Set<string>()
+    
+    if (isDev) {
+      console.log('[Step3] availableImages 생성:', {
+        selectedProduct: selectedProduct ? {
+          id: selectedProduct.id,
+          name: selectedProduct.name,
+          image: selectedProduct.image,
+          imagesLength: selectedProduct.images?.length || 0,
+        } : null,
+        extensionImagesLength: extensionImages.length,
+      })
+    }
+    
+    // Product 도메인 모델의 images 필드 사용 (먼저 추가)
+    if (selectedProduct?.images?.length) {
+      selectedProduct.images.forEach((img) => {
+        if (img) imageSet.add(img)
+      })
     }
     
     // images가 없으면 대표 이미지 사용
     if (selectedProduct?.image) {
-      return [selectedProduct.image]
+      imageSet.add(selectedProduct.image)
     }
     
-    return []
-  }, [selectedProduct])
+    // Extension Storage에서 가져온 이미지 뒤에 추가
+    extensionImages.forEach((img) => {
+      if (img) imageSet.add(img)
+    })
+    
+    const images = Array.from(imageSet)
+    if (isDev) {
+      console.log('[Step3] 최종 availableImages:', {
+        count: images.length,
+        images: images.slice(0, 5) // 처음 5개만 로그
+      })
+    }
+    
+    return images
+  }, [selectedProduct, extensionImages])
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
@@ -67,7 +192,11 @@ export default function Step3Page() {
     for (let i = 0; i < selectedImages.length; i++) {
       const script = sceneScripts.get(i)
       if (script) {
-        scenesArray.push(script)
+        // imageUrl이 없으면 selectedImages에서 가져오기
+        scenesArray.push({
+          ...script,
+          imageUrl: script.imageUrl || selectedImages[i],
+        })
       } else {
         // 대본이 없더라도 선택한 이미지 순서를 유지하기 위해 빈 씬을 포함
         scenesArray.push({
@@ -79,7 +208,7 @@ export default function Step3Page() {
       }
     }
     return JSON.stringify(scenesArray)
-  }, [sceneScripts, selectedImages.length])
+  }, [sceneScripts, selectedImages])
 
   // store의 scenes와 selectedImages가 복원되면 로컬 state 동기화
   useEffect(() => {

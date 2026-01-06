@@ -87,16 +87,24 @@ const convertProductResponseToProductInternal: ConverterFunction<
     throw new Error('ProductResponse에 이미지 정보가 없습니다.')
   }
 
-  // 모든 이미지 URL 수집
-  const images: string[] = []
+  // 모든 이미지 URL 수집 (Set을 사용하여 O(1) 중복 체크)
+  const imageSet = new Set<string>()
+  
+  // 대표 이미지 먼저 추가 (있으면)
+  if (image) {
+    imageSet.add(image)
+  }
   
   // imageURL 필드 처리 (배열 또는 문자열)
   if (productResponse.imageURL) {
-    if (Array.isArray(productResponse.imageURL)) {
-      images.push(...productResponse.imageURL.filter(Boolean))
-    } else if (typeof productResponse.imageURL === 'string') {
-      images.push(productResponse.imageURL)
-    }
+    const urls = Array.isArray(productResponse.imageURL) 
+      ? productResponse.imageURL 
+      : [productResponse.imageURL]
+    urls.forEach((url) => {
+      if (url && typeof url === 'string') {
+        imageSet.add(url)
+      }
+    })
   }
   
   // 다른 가능한 이미지 필드들 확인
@@ -107,26 +115,46 @@ const convertProductResponseToProductInternal: ConverterFunction<
     'images',
     'productImages',
     'product_images',
+    'productImageUrls',
+    'product_image_urls',
   ]
   
   for (const field of possibleImageFields) {
     const value = (productResponse as Record<string, unknown>)[field]
-    if (value) {
-      if (Array.isArray(value)) {
-        images.push(...value.filter((v): v is string => typeof v === 'string' && Boolean(v)))
-      } else if (typeof value === 'string') {
-        images.push(value)
+    if (!value) continue
+    
+    const urls = Array.isArray(value) ? value : [value]
+    urls.forEach((v) => {
+      if (v && typeof v === 'string') {
+        imageSet.add(v)
       }
+    })
+  }
+  
+  // 대표 이미지가 없으면 맨 앞에 추가
+  if (image && !imageSet.has(image)) {
+    imageSet.add(image)
+  }
+  
+  // Set을 배열로 변환하고 빈 문자열 제거
+  const uniqueImages = Array.from(imageSet).filter(Boolean)
+  
+  // 대표 이미지를 맨 앞으로 이동 (이미 있으면 그대로 유지)
+  if (image && uniqueImages[0] !== image) {
+    const imageIndex = uniqueImages.indexOf(image)
+    if (imageIndex > 0) {
+      uniqueImages.splice(imageIndex, 1)
+      uniqueImages.unshift(image)
     }
   }
   
-  // 대표 이미지가 images에 없으면 추가
-  if (image && !images.includes(image)) {
-    images.unshift(image) // 맨 앞에 추가
-  }
-  
-  // 중복 제거
-  const uniqueImages = Array.from(new Set(images))
+  console.log('[Product Converter] 이미지 변환:', {
+    originalImage: image,
+    foundImages: uniqueImages.length,
+    images: uniqueImages.slice(0, 3), // 처음 3개만 로그
+    hasImageURL: !!productResponse.imageURL,
+    imageURLType: productResponse.imageURL ? (Array.isArray(productResponse.imageURL) ? 'array' : 'string') : 'none',
+  })
 
   // URL 처리: affiliateLink, detailUrl, productUrl, url 순서로 확인
   const url =
