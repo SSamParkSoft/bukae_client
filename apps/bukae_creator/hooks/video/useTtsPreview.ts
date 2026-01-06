@@ -67,7 +67,6 @@ export function useTtsPreview({
    * 씬 미리보기 오디오 정지
    */
   const stopPreviewAudio = useCallback(() => {
-    console.log('[useTtsPreview] 미리보기 오디오 정지')
     const a = scenePreviewAudioRef.current
     if (a) {
       try {
@@ -92,8 +91,6 @@ export function useTtsPreview({
    */
   const updateSubtitleForPreview = useCallback(
     (sceneIndex: number, currentPartIndex: number, currentPartText: string, totalParts: number) => {
-      console.log(`[useTtsPreview] 자막 업데이트 | sceneIndex: ${sceneIndex}, partIndex: ${currentPartIndex + 1}/${totalParts}, text: "${currentPartText.substring(0, 30)}..."`)
-
       if (renderSceneContent) {
         renderSceneContent(sceneIndex, currentPartIndex, {
           skipAnimation: true,
@@ -132,7 +129,6 @@ export function useTtsPreview({
 
         // 약간의 지연 후 updateCurrentScene 호출하여 timeline과 동기화
         setTimeout(() => {
-          console.log(`[useTtsPreview] timeline 동기화 | sceneIndex: ${sceneIndex}`)
           // skipAnimation 파라미터 제거: forceTransition === 'none'으로 처리
           updateCurrentScene(null, 'none')
         }, TIMELINE_SYNC_DELAY_MS)
@@ -156,21 +152,16 @@ export function useTtsPreview({
         markup: string
       }
     ): Promise<void> => {
-      console.log(`[useTtsPreview] 오디오 재생 시작 | sceneIndex: ${sceneIndex}, partIndex: ${currentPartIndex + 1}, duration: ${part.durationSec}초`)
-
       // 저장소 URL 우선 사용, 없으면 blob에서 URL 생성
       let audioUrl: string | null = null
       if (part.url) {
         audioUrl = part.url
-        console.log(`[useTtsPreview] 저장소 URL 사용 | sceneIndex: ${sceneIndex}, partIndex: ${currentPartIndex + 1}, url: ${part.url.substring(0, 50)}...`)
       } else if (part.blob) {
         audioUrl = URL.createObjectURL(part.blob)
-        console.log(`[useTtsPreview] blob URL 생성 | sceneIndex: ${sceneIndex}, partIndex: ${currentPartIndex + 1}`)
       }
 
       // 텍스트가 표시될 시간을 주기 위해 약간의 지연
       await new Promise((resolve) => {
-        console.log(`[useTtsPreview] 텍스트 표시 대기 | delay: ${PREVIEW_DELAY_MS}ms`)
         setTimeout(resolve, PREVIEW_DELAY_MS)
       })
 
@@ -193,12 +184,10 @@ export function useTtsPreview({
             resolved = true
             if (timeoutId) clearTimeout(timeoutId)
             if (checkInterval) clearInterval(checkInterval)
-            console.log(`[useTtsPreview] 오디오 재생 완료 | sceneIndex: ${sceneIndex}, partIndex: ${currentPartIndex + 1}`)
             resolve()
           }
 
           audio.onended = () => {
-            console.log(`[useTtsPreview] 오디오 종료 이벤트 | sceneIndex: ${sceneIndex}, partIndex: ${currentPartIndex + 1}`)
             finish()
           }
 
@@ -219,7 +208,6 @@ export function useTtsPreview({
           // duration이 지나면 자동으로 다음 구간으로 (오디오가 끝나지 않아도)
           timeoutId = setTimeout(() => {
             if (!resolved && audio && !audio.ended) {
-              console.log(`[useTtsPreview] duration 타임아웃 | sceneIndex: ${sceneIndex}, partIndex: ${currentPartIndex + 1}`)
               audio.pause()
               finish()
             }
@@ -228,7 +216,6 @@ export function useTtsPreview({
           // 미리듣기 중지 확인을 위한 인터벌
           checkInterval = setInterval(() => {
             if (!isPreviewingRef.current || previewingSceneIndexRef.current !== sceneIndex) {
-              console.log(`[useTtsPreview] 미리듣기 중지 감지 | sceneIndex: ${sceneIndex}, partIndex: ${currentPartIndex + 1}`)
               if (audio && !audio.ended) {
                 audio.pause()
               }
@@ -276,7 +263,6 @@ export function useTtsPreview({
 
       if (currentPartIndex >= result.parts.length) {
         // 모든 구간 재생 완료
-        console.log(`[useTtsPreview] 모든 구간 재생 완료 | sceneIndex: ${sceneIndex}`)
         stopPreviewAudio()
         return
       }
@@ -297,7 +283,6 @@ export function useTtsPreview({
 
       // 특정 구간만 재생하는 경우 여기서 종료
       if (partIndex !== undefined) {
-        console.log(`[useTtsPreview] 특정 구간 재생 완료 | sceneIndex: ${sceneIndex}, partIndex: ${partIndex}`)
         stopPreviewAudio()
         return
       }
@@ -313,22 +298,17 @@ export function useTtsPreview({
    */
   const handleSceneTtsPreview = useCallback(
     async (sceneIndex: number, partIndex?: number) => {
-      console.log(`[useTtsPreview] 씬 미리보기 시작 | sceneIndex: ${sceneIndex}, partIndex: ${partIndex ?? '전체'}`)
-
       if (!timeline) {
-        console.warn('[useTtsPreview] timeline이 없습니다.')
         return
       }
 
       if (!voiceTemplate) {
-        console.warn('[useTtsPreview] 목소리를 선택해주세요.')
         alert('목소리를 선택해주세요.')
         return
       }
 
       // 이미 같은 씬/구간을 미리듣기 중이면 정지
       if (isPreviewingRef.current && previewingSceneIndexRef.current === sceneIndex && previewingPartIndexRef.current === (partIndex ?? null)) {
-        console.log(`[useTtsPreview] 이미 미리듣기 중인 씬/구간 정지 | sceneIndex: ${sceneIndex}, partIndex: ${partIndex ?? null}`)
         stopPreviewAudio()
         return
       }
@@ -348,14 +328,11 @@ export function useTtsPreview({
 
         // TTS 합성 (변경된 씬이면 강제 재생성)
         const forceRegenerate = changedScenesRef.current.has(sceneIndex)
-        console.log(`[useTtsPreview] TTS 합성 시작 | sceneIndex: ${sceneIndex}, forceRegenerate: ${forceRegenerate}`)
         const result = await ensureSceneTts(sceneIndex, undefined, forceRegenerate)
 
         if (result.parts.length === 0) {
           throw new Error('TTS 구간이 없습니다.')
         }
-
-        console.log(`[useTtsPreview] TTS 합성 완료 | sceneIndex: ${sceneIndex}, parts: ${result.parts.length}`)
 
         // 특정 구간만 재생하거나 첫 번째 구간부터 재생 시작
         const startIndex = partIndex !== undefined ? partIndex : 0

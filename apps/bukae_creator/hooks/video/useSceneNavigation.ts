@@ -273,27 +273,22 @@ export function useSceneNavigation({
           
           const sceneDuration = durationSec > 0 ? durationSec : currentScene.duration
           waitTime = (sceneDuration * 1000) / speed
-          console.log(`[handleSceneSelect] TTS 캐시 사용: duration=${durationSec}, waitTime=${waitTime}`)
         } else {
           // 캐시에 없으면 fallback duration 사용
           const fallbackDuration = currentScene.duration
           waitTime = (fallbackDuration * 1000) / speed
-          console.log(`[handleSceneSelect] TTS 캐시 없음, fallback duration 사용: waitTime=${waitTime}`)
         }
       } else {
         // voiceTemplate이 없으면 fallback duration 사용
         const fallbackDuration = currentScene.duration
         waitTime = (fallbackDuration * 1000) / speed
-        console.log(`[handleSceneSelect] voiceTemplate 없음, fallback duration 사용: waitTime=${waitTime}`)
       }
       
       if (waitTime <= 0) {
-        console.log(`[handleSceneSelect] waitTime이 0 이하이므로 즉시 전환`)
         waitTime = 1000 // 최소 1초 대기
       }
       
       playTimeoutRef.current = setTimeout(() => {
-        console.log(`[handleSceneSelect] setTimeout 실행: currentIdx=${currentIdx} -> nextIndex=${currentIdx + 1}`)
         // 같은 그룹 내의 다음 씬으로 넘어갈 때는 자막만 변경
         const nextIndex = currentIdx + 1
         const nextScene = timeline.scenes[nextIndex]
@@ -330,7 +325,6 @@ export function useSceneNavigation({
         // 전환 효과를 'none'으로 설정하여 자막만 변경되도록 함
         // skipAnimation 파라미터 제거: forceTransition === 'none'으로 처리
         updateCurrentScene(currentIdx, 'none', () => {
-          console.log(`[handleSceneSelect] updateCurrentScene 완료, 다음 씬으로 재귀 호출`)
           // 자막 변경 완료 후 재귀적으로 다음 씬 처리
           autoAdvanceToNextInGroup(nextIndex)
         }, false, 0, nextIndex) // partIndex: 0 전달 (첫 번째 구간만 표시), sceneIndex: nextIndex 전달
@@ -362,7 +356,6 @@ export function useSceneNavigation({
         // 수동으로 씬을 클릭한 경우(!skipStopPlaying)에는 자동 전환하지 않음
         // 재생 중일 때만 자동 전환 (skipStopPlaying이 true일 때)
         if (skipStopPlaying && !isPlayingRef.current) {
-          console.log(`[handleSceneSelect] transitionCompleteCallback에서 autoAdvanceToNextInGroup 호출: index=${index}`)
           // 약간의 지연을 두고 호출하여 전환 효과가 완전히 완료된 후 자동 전환 시작
           setTimeout(() => {
             autoAdvanceToNextInGroup(index)
@@ -373,12 +366,10 @@ export function useSceneNavigation({
       // Timeline의 onComplete 콜백을 사용하여 전환 효과 완료 시점을 정확히 감지
       // 선택된 씬의 전환 효과를 forceTransition으로 전달하여 해당 씬의 전환 효과가 표시되도록 함
       // 재생 중/비재생 중 모두 renderSceneContent 사용 (통합 렌더링)
-      console.log(`[selectScene] 렌더링 경로 확인 | skipStopPlaying: ${skipStopPlaying}, renderSceneContent: ${!!renderSceneContent}, lastRenderedSceneIndexRef: ${lastRenderedSceneIndexRef.current}, prevIndex: ${prevIndex}`)
       if (renderSceneContent) {
         if (skipStopPlaying) {
           // 재생 중일 때: 최종 상태로 바로 렌더링하고 전환 효과 애니메이션만 적용
           // prepareOnly 단계 제거: 최종 상태로 바로 렌더링
-          console.log(`[selectScene] 재생 중 렌더링 경로 사용 | transition: ${transition}, prevIndex: ${prevIndex}`)
           // 전환 효과가 'none'이어도 렌더링은 수행 (skipAnimation: false로 설정하여 렌더링 보장)
           renderSceneContent(index, 0, {
             skipAnimation: false, // 전환 효과가 'none'이어도 렌더링은 수행
@@ -408,11 +399,9 @@ export function useSceneNavigation({
             if (scriptParts.length > 1) {
               // 구간이 있으면 첫 번째 구간(0)만 표시
               partIndexForScene = 0
-              console.log(`[selectScene] 구간이 있으므로 첫 번째 구간(0)만 표시 | 씬 ${index}, 구간 수: ${scriptParts.length}`)
             } else {
               // 구간이 없으면 전체 자막 표시
               partIndexForScene = null
-              console.log(`[selectScene] 구간이 없으므로 전체 자막 표시 | 씬 ${index}`)
             }
           }
           
@@ -473,7 +462,6 @@ export function useSceneNavigation({
           // 움직임 효과이고 같은 그룹 내 다음 씬이 있으면, 전환 효과 시작 후 자동 전환 시도
           // onComplete가 호출되지 않을 수 있으므로 약간의 지연 후 직접 호출
           setTimeout(() => {
-            console.log(`[handleSceneSelect] 움직임 효과 자동 전환 시도 (fallback): index=${index}`)
             // transitionCompleteCallback이 이미 호출되었는지 확인하고, 호출되지 않았으면 직접 호출
             if (lastRenderedSceneIndexRef.current === index) {
               autoAdvanceToNextInGroup(index)
@@ -520,8 +508,6 @@ export function useSceneNavigation({
     const scene = timeline.scenes[sceneIndex]
     if (!scene) return
     
-    console.log(`[selectPart] 구간 선택 | 씬 ${sceneIndex}, 구간 ${partIndex}`)
-    
     // setSelectedPart 호출
     if (setSelectedPart) {
       setSelectedPart({ sceneIndex, partIndex })
@@ -554,7 +540,6 @@ export function useSceneNavigation({
     
     // 같은 씬 내 구간 전환인 경우: 자막만 업데이트
     if (isSameScene && renderSubtitlePart) {
-      console.log(`[selectPart] 같은 씬 내 구간 전환: 자막만 업데이트 | 씬 ${sceneIndex}, 구간 ${partIndex}`)
       renderSubtitlePart(sceneIndex, partIndex, {
         skipAnimation: true,
         onComplete: transitionCompleteCallback,

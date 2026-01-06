@@ -32,6 +32,7 @@ import { useFabricHandlers } from '@/hooks/video/useFabricHandlers'
 import { applyShortsTemplateToScenes } from '@/lib/utils/scene-template'
 import { transitionLabels, transitions, movements, allTransitions } from '@/lib/data/transitions'
 import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
+import { calculateTotalDuration } from '@/utils/timeline'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import * as fabric from 'fabric'
@@ -994,34 +995,56 @@ export function useStep4Container() {
     []
   )
 
-  // Timeline의 duration을 TTS 캐시의 실제 duration으로 업데이트 (제한 없이 실제 길이 사용)
+  // Timeline의 duration을 TTS 캐시의 실제 duration으로 업데이트 (모든 part의 실제 duration 합산)
   useEffect(() => {
     if (!timeline || !voiceTemplate) return
     
     const updatedScenes = timeline.scenes.map((scene, index) => {
       const markups = buildSceneMarkup(timeline, index)
-      let ttsDuration = 0
-      let hasCachedTts = false
+      if (markups.length === 0) return scene
       
+      let totalTtsDuration = 0
+      let cachedPartsCount = 0
+      let cachedPartsTotalDuration = 0
+      
+      // 모든 part의 TTS duration 합산
       for (let partIndex = 0; partIndex < markups.length; partIndex++) {
         const markup = markups[partIndex]
         const key = makeTtsKey(voiceTemplate, markup)
         const cached = ttsCacheRef.current.get(key)
         if (cached && cached.durationSec > 0) {
-          ttsDuration += cached.durationSec
-          hasCachedTts = true
+          totalTtsDuration += cached.durationSec
+          cachedPartsTotalDuration += cached.durationSec
+          cachedPartsCount++
         }
       }
       
-      // TTS 캐시에 실제 duration이 있으면 사용 (제한 없이)
-      if (hasCachedTts && ttsDuration > 0 && Math.abs(ttsDuration - scene.duration) > 0.05) {
-        return { ...scene, duration: ttsDuration }
+      // 모든 part가 캐시에 있으면 정확한 합계 사용
+      if (cachedPartsCount === markups.length && totalTtsDuration > 0) {
+        if (Math.abs(totalTtsDuration - scene.duration) > 0.01) {
+          return { ...scene, duration: totalTtsDuration }
+        }
+      } 
+      // 일부 part만 캐시에 있는 경우: 캐시된 part의 평균 duration으로 추정
+      else if (cachedPartsCount > 0 && cachedPartsTotalDuration > 0) {
+        const avgCachedDuration = cachedPartsTotalDuration / cachedPartsCount
+        const uncachedPartsCount = markups.length - cachedPartsCount
+        const estimatedUncachedDuration = avgCachedDuration * uncachedPartsCount
+        const estimatedTotal = totalTtsDuration + estimatedUncachedDuration
+        
+        // 추정값이 합리적인 범위 내에 있으면 사용 (기존 duration의 0.3배 ~ 3배)
+        if (estimatedTotal > scene.duration * 0.3 && estimatedTotal < scene.duration * 3) {
+          if (Math.abs(estimatedTotal - scene.duration) > 0.01) {
+            return { ...scene, duration: estimatedTotal }
+          }
+        }
       }
+      
       return scene
     })
     
     const hasDurationUpdate = updatedScenes.some((scene, index) => 
-      scene.duration !== timeline.scenes[index]?.duration
+      Math.abs(scene.duration - (timeline.scenes[index]?.duration ?? 0)) > 0.01
     )
     
     if (hasDurationUpdate) {
@@ -1036,26 +1059,42 @@ export function useStep4Container() {
 
   const setSceneDurationFromAudio = useCallback(
     (sceneIndex: number, durationSec: number) => {
-      if (!timeline) {
+      if (!timeline || !voiceTemplate) {
         return
       }
       if (!Number.isFinite(durationSec) || durationSec <= 0) {
         return
       }
+      
+      // TTS 캐시에서 모든 part의 실제 duration을 다시 계산하여 정확성 보장
+      const markups = buildSceneMarkup(timeline, sceneIndex)
+      let totalTtsDuration = 0
+      let allPartsCached = true
+      
+      for (let partIndex = 0; partIndex < markups.length; partIndex++) {
+        const markup = markups[partIndex]
+        const key = makeTtsKey(voiceTemplate, markup)
+        const cached = ttsCacheRef.current.get(key)
+        if (cached && cached.durationSec > 0) {
+          totalTtsDuration += cached.durationSec
+        } else {
+          allPartsCached = false
+        }
+      }
+      
+      // 모든 part가 캐시에 있으면 정확한 합계 사용, 없으면 전달받은 durationSec 사용
+      const finalDuration = allPartsCached && totalTtsDuration > 0 ? totalTtsDuration : durationSec
+      
       const prev = timeline.scenes[sceneIndex]?.duration ?? 0
-      if (Math.abs(prev - durationSec) <= 0.05) {
+      if (Math.abs(prev - finalDuration) <= 0.01) {
         return
       }
 
       // 실제 duration 사용 (최소 0.5초만 유지, 최대 제한 없음)
-      const clamped = Math.max(0.5, durationSec)
+      const clamped = Math.max(0.5, finalDuration)
       
-      // 이전 totalDuration 계산 (마지막 씬의 transition 제외)
-      const prevTotalDuration = timeline.scenes.reduce((sum, scene, index) => {
-        const isLastScene = index === timeline.scenes.length - 1
-        const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
-        return sum + scene.duration + transitionDuration
-      }, 0)
+      // 이전 totalDuration 계산 (같은 sceneId를 가진 씬들 사이의 transition 제외)
+      const prevTotalDuration = calculateTotalDuration(timeline)
       
       // 새로운 timeline 생성
       const newTimeline = {
@@ -1063,12 +1102,8 @@ export function useStep4Container() {
         scenes: timeline.scenes.map((s, i) => (i === sceneIndex ? { ...s, duration: clamped } : s)),
       }
       
-      // 새로운 totalDuration 계산 (마지막 씬의 transition 제외)
-      const newTotalDuration = newTimeline.scenes.reduce((sum, scene, index) => {
-        const isLastScene = index === newTimeline.scenes.length - 1
-        const transitionDuration = isLastScene ? 0 : (scene.transitionDuration || 0.5)
-        return sum + scene.duration + transitionDuration
-      }, 0)
+      // 새로운 totalDuration 계산 (같은 sceneId를 가진 씬들 사이의 transition 제외)
+      const newTotalDuration = calculateTotalDuration(newTimeline)
       
       // 재생 중일 때 currentTime을 비례적으로 조정하여 재생바 튕김 방지
       if (isPlaying && prevTotalDuration > 0 && newTotalDuration > 0) {
@@ -1082,7 +1117,7 @@ export function useStep4Container() {
       
       setTimeline(newTimeline)
     },
-    [setTimeline, timeline, isPlaying, setCurrentTime]
+    [setTimeline, timeline, isPlaying, setCurrentTime, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef]
   )
 
   // ensureSceneTts를 유틸리티 함수로 래핑
@@ -2185,4 +2220,5 @@ export function useStep4Container() {
     groupPlayback.playingGroupSceneId,
   ])
 }
+
 

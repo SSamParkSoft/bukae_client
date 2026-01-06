@@ -1,9 +1,9 @@
 'use client'
 
-import React, { memo } from 'react'
+import React, { memo, useMemo } from 'react'
 import { Play, Pause, Clock, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { formatTime } from '@/utils/timeline'
+import { formatTime, calculateTotalDuration } from '@/utils/timeline'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 
 interface PreviewPanelProps {
@@ -52,9 +52,24 @@ export const PreviewPanel = memo(function PreviewPanel({
   onPlaybackSpeedChange,
 }: PreviewPanelProps) {
   const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
+  
+  // 최신 timeline의 totalDuration 계산 (TTS 합성으로 duration이 업데이트되었을 수 있음)
+  const latestTotalDuration = useMemo(() => {
+    if (timeline) {
+      return calculateTotalDuration(timeline)
+    }
+    return totalDuration
+  }, [timeline, totalDuration])
+  
+  // 최신 totalDuration을 사용한 progressRatio 계산
+  const latestProgressRatio = useMemo(() => {
+    if (latestTotalDuration === 0) return 0
+    return Math.min(1, currentTime / latestTotalDuration)
+  }, [currentTime, latestTotalDuration])
+  
   const actualTime = currentTime / speed
-  const actualDuration = totalDuration / speed
-  const totalTime = totalDuration / speed
+  const actualDuration = latestTotalDuration / speed
+  const totalTime = latestTotalDuration / speed
 
   const speedValue = (() => {
     if (speed === 1 || speed === 1.0) return "1"
@@ -178,7 +193,7 @@ export const PreviewPanel = memo(function PreviewPanel({
             <div
               className="h-full rounded-full"
               style={{
-                width: `${progressRatio * 100}%`,
+                width: `${latestProgressRatio * 100}%`,
                 backgroundColor: '#8b5cf6',
                 transition: isPlaying ? 'none' : 'width 0.1s ease-out'
               }}

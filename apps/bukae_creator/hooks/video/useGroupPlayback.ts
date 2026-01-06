@@ -459,20 +459,11 @@ export function useGroupPlayback({
           currentTextToUpdate.visible = true
           currentTextToUpdate.alpha = 1
           
-          // 텍스트가 실제로 표시되는지 확인 및 로깅
+          // 텍스트가 실제로 표시되는지 확인
           const isInContainer = containerRef.current && currentTextToUpdate.parent === containerRef.current
           const isVisible = currentTextToUpdate.visible && currentTextToUpdate.alpha > 0
-          console.log(
-            `[그룹재생] 구간 ${globalPartIndex + 1} 텍스트 상태 확인 | ` +
-            `컨테이너에 있음: ${isInContainer}, ` +
-            `표시됨: ${isVisible}, ` +
-            `visible: ${currentTextToUpdate.visible}, ` +
-            `alpha: ${currentTextToUpdate.alpha}, ` +
-            `텍스트: "${currentPartText.substring(0, 30)}..."`
-          )
           
           if (!isInContainer) {
-            console.warn(`[그룹재생] 구간 ${globalPartIndex + 1} 텍스트가 컨테이너에 없습니다! 다시 추가합니다.`)
             if (containerRef.current) {
               if (currentTextToUpdate.parent) {
                 currentTextToUpdate.parent.removeChild(currentTextToUpdate)
@@ -483,14 +474,9 @@ export function useGroupPlayback({
           }
           
           if (!isVisible) {
-            console.warn(`[그룹재생] 구간 ${globalPartIndex + 1} 텍스트가 숨김 상태입니다. 다시 표시합니다.`)
             currentTextToUpdate.visible = true
             currentTextToUpdate.alpha = 1
           }
-        } else if (!currentTextToUpdate) {
-          console.warn(`[그룹재생] 구간 ${globalPartIndex + 1} 텍스트 객체를 찾을 수 없습니다. targetSceneIndex: ${targetSceneIndex}`)
-        } else if (!currentPartText) {
-          console.warn(`[그룹재생] 구간 ${globalPartIndex + 1} 텍스트가 비어있습니다.`)
         }
 
         // 마크업 가져오기
