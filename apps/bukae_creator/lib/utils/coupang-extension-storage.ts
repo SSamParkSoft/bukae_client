@@ -22,11 +22,6 @@ export interface CoupangExtensionStorageData {
  */
 export function testExtensionStorageAccess(): Promise<boolean> {
   return new Promise((resolve) => {
-    const isDev = process.env.NODE_ENV === 'development'
-    if (isDev) {
-      console.log('[Extension Storage] 접근 테스트 시작')
-    }
-    
     // 테스트 메시지 전송
     window.postMessage(
       {
@@ -40,9 +35,6 @@ export function testExtensionStorageAccess(): Promise<boolean> {
     let responded = false
     const timeout = setTimeout(() => {
       if (!responded) {
-        if (isDev) {
-          console.log('[Extension Storage] ❌ 접근 불가 - 확장프로그램 응답 없음')
-        }
         window.removeEventListener('message', testHandler)
         resolve(false)
       }
@@ -55,9 +47,6 @@ export function testExtensionStorageAccess(): Promise<boolean> {
         responded = true
         clearTimeout(timeout)
         window.removeEventListener('message', testHandler)
-        if (isDev) {
-          console.log('[Extension Storage] ✅ 접근 가능 - 확장프로그램 응답 확인')
-        }
         resolve(true)
       }
     }

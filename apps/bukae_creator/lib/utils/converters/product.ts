@@ -147,14 +147,6 @@ const convertProductResponseToProductInternal: ConverterFunction<
       uniqueImages.unshift(image)
     }
   }
-  
-  console.log('[Product Converter] 이미지 변환:', {
-    originalImage: image,
-    foundImages: uniqueImages.length,
-    images: uniqueImages.slice(0, 3), // 처음 3개만 로그
-    hasImageURL: !!productResponse.imageURL,
-    imageURLType: productResponse.imageURL ? (Array.isArray(productResponse.imageURL) ? 'array' : 'string') : 'none',
-  })
 
   // URL 처리: affiliateLink, detailUrl, productUrl, url 순서로 확인
   const url =

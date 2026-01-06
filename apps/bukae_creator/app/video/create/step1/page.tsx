@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { Loader2, AlertCircle, Send, ShoppingCart, ExternalLink } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useVideoCreateStore } from '../../../../store/useVideoCreateStore'
@@ -14,6 +14,11 @@ import { searchProducts } from '@/lib/api/products'
 import type { TargetMall, ProductResponse } from '@/lib/types/products'
 import { convertProductResponseToProduct } from '@/lib/types/products'
 import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
+import { 
+  requestCoupangExtensionStorage, 
+  extractImagesFromStorage,
+  testExtensionStorageAccess 
+} from '@/lib/utils/coupang-extension-storage'
 
 type ThemeMode = 'light' | 'dark'
 
@@ -34,10 +39,10 @@ interface ChatMessage {
 }
 
 export default function Step1Page() {
-  const router = useRouter()
   const { 
     removeProduct, 
-    addProduct, 
+    addProduct,
+    updateProduct,
     selectedProducts, 
     clearProducts, 
     setHasUnsavedChanges, 
@@ -68,6 +73,170 @@ export default function Step1Page() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
+
+  // Extension Storage에서 크롤링된 이미지 확인 및 업데이트
+  useEffect(() => {
+    const coupangProducts = selectedProducts.filter(p => p.platform === 'coupang')
+    if (coupangProducts.length === 0) {
+      return
+    }
+
+    // 이미 크롤링된 이미지가 있는 상품은 제외
+    const productsNeedingImages = coupangProducts.filter(p => {
+      const hasCrawledImages = p.images?.some(img => img.includes('coupangcdn.com'))
+      return !hasCrawledImages
+    })
+
+    if (productsNeedingImages.length === 0) {
+      return
+    }
+
+    let hasExtensionAccess = false
+    let checkCount = 0
+    const maxChecks = 10 // 최대 10번만 시도 (약 30초)
+    let isStopped = false
+
+    const loadCrawledImages = async () => {
+      // 이미 모든 상품에 이미지가 있으면 중단
+      const stillNeeding = selectedProducts.filter(p => 
+        p.platform === 'coupang' && 
+        !p.images?.some(img => img.includes('coupangcdn.com'))
+      )
+      if (stillNeeding.length === 0) {
+        isStopped = true
+        return
+      }
+
+      checkCount++
+      if (checkCount > maxChecks) {
+        isStopped = true
+        return
+      }
+
+      // 한 번 실패하면 더 이상 시도하지 않음
+      if (!hasExtensionAccess && checkCount > 3) {
+        isStopped = true
+        return
+      }
+
+      try {
+        // Extension Storage 접근 가능 여부 테스트 (첫 3번만)
+        if (checkCount <= 3) {
+          const canAccess = await testExtensionStorageAccess()
+          if (!canAccess) {
+            return
+          }
+          hasExtensionAccess = true
+        }
+
+        const storageData = await requestCoupangExtensionStorage()
+        if (!storageData) {
+          return
+        }
+
+        // 각 쿠팡 상품에 대해 크롤링된 이미지 확인 및 업데이트
+        for (const product of stillNeeding) {
+          const crawledImages = extractImagesFromStorage(storageData, product.id)
+          
+          // 크롤링된 이미지가 있고, 기존 images와 다르면 업데이트
+          if (crawledImages.length > 0) {
+            const existingImages = product.images || []
+            const hasNewImages = crawledImages.some(img => 
+              img.includes('coupangcdn.com') && !existingImages.includes(img)
+            )
+
+            if (hasNewImages) {
+              // 기존 이미지와 크롤링된 이미지 합치기 (중복 제거)
+              const allImages = [...new Set([...existingImages, ...crawledImages])]
+              updateProduct(product.id, { images: allImages })
+            }
+          }
+        }
+      } catch {
+        // 에러는 무시 (크롤링이 안 되어 있을 수 있음)
+      }
+    }
+
+    // 주기적으로 확인 (5초마다, 첫 3번은 3초마다)
+    const initialDelay = 1000
+    const normalInterval = 5000
+    const quickInterval = 3000
+
+    let timeoutId: NodeJS.Timeout
+
+    const scheduleNext = (delay: number) => {
+      if (isStopped) {
+        return
+      }
+
+      timeoutId = setTimeout(() => {
+        loadCrawledImages().then(() => {
+          // loadCrawledImages에서 이미 isStopped를 설정했으므로 확인만 하면 됨
+          if (isStopped) {
+            return
+          }
+
+          if (checkCount < 3) {
+            scheduleNext(quickInterval)
+          } else {
+            scheduleNext(normalInterval)
+          }
+        })
+      }, delay)
+    }
+
+    // 첫 실행은 1초 후
+    scheduleNext(initialDelay)
+
+    return () => {
+      isStopped = true
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
+  }, [selectedProducts, updateProduct])
+
+  // 확장프로그램이 자동으로 전송하는 메시지 감지
+  useEffect(() => {
+    const messageHandler = async (event: MessageEvent) => {
+      // Extension Storage 응답 메시지 확인
+      if (
+        event.data?.type === 'COUPANG_STORAGE_RESPONSE' ||
+        event.data?.products ||
+        event.data?.productimages ||
+        event.data?.productDetaillmages ||
+        event.data?.productDetailImages
+      ) {
+        const coupangProducts = selectedProducts.filter(p => p.platform === 'coupang')
+        if (coupangProducts.length === 0) {
+          return
+        }
+
+        try {
+          const storageData = event.data.data || event.data
+          if (!storageData) {
+            return
+          }
+
+          // 각 쿠팡 상품에 대해 크롤링된 이미지 확인 및 업데이트
+          for (const product of coupangProducts) {
+            const crawledImages = extractImagesFromStorage(storageData, product.id)
+            
+            if (crawledImages.length > 0) {
+              const existingImages = product.images || []
+              const allImages = [...new Set([...existingImages, ...crawledImages])]
+              updateProduct(product.id, { images: allImages })
+            }
+          }
+        } catch {
+          // 에러는 무시
+        }
+      }
+    }
+
+    window.addEventListener('message', messageHandler)
+    return () => window.removeEventListener('message', messageHandler)
+  }, [selectedProducts, updateProduct])
 
   // 상품/이미지 초기화 헬퍼 함수 (검색 결과는 유지)
   const resetProductData = useCallback(() => {
@@ -132,15 +301,6 @@ export default function Step1Page() {
         resetProductData()
       }
       
-      console.log('[Step1] 상품 선택:', {
-        product: {
-          id: product.id,
-          name: product.name,
-          image: product.image,
-          images: product.images,
-          imagesLength: product.images.length,
-        }
-      })
       addProduct(product)
       setHasUnsavedChanges(true)
     }
@@ -192,40 +352,7 @@ export default function Step1Page() {
 
       // 상품 목록 수신
       const convertedProducts = products.map((p) => {
-        // 실제 API 응답의 모든 필드 확인
-        console.log('[Step1] API 응답 원본 (모든 필드):', {
-          allKeys: Object.keys(p),
-          fullResponse: JSON.stringify(p, null, 2), // 전체 응답을 JSON 문자열로 출력
-        })
-        
-        const converted = convertProductResponseToProduct(p, selectedPlatform)
-        console.log('[Step1] 상품 변환 결과:', {
-          original: {
-            id: p.id,
-            productId: p.productId,
-            imageURL: p.imageURL,
-            thumbnailUrl: p.thumbnailUrl,
-            productMainImageUrl: p.productMainImageUrl,
-            image: p.image,
-            imageUrls: (p as any).imageUrls,
-            images: (p as any).images,
-            // 모든 이미지 관련 필드 확인
-            allImageFields: Object.keys(p).filter(key => 
-              key.toLowerCase().includes('image') || 
-              key.toLowerCase().includes('img') ||
-              key.toLowerCase().includes('photo') ||
-              key.toLowerCase().includes('picture')
-            ),
-          },
-          converted: {
-            id: converted.id,
-            name: converted.name,
-            image: converted.image,
-            images: converted.images,
-            imagesLength: converted.images.length,
-          }
-        })
-        return converted
+        return convertProductResponseToProduct(p, selectedPlatform)
       })
       setCurrentProducts(convertedProducts)
       setCurrentProductResponses(products) // 원본 데이터도 저장
@@ -466,6 +593,17 @@ export default function Step1Page() {
                     : 'bg-white border-gray-200'
                 }`}
               >
+                {selectedPlatform === 'COUPANG' && (
+                  <div className={`mb-4 p-3 rounded-lg border ${
+                    themeMode === 'dark'
+                      ? 'bg-yellow-900/20 border-yellow-700 text-yellow-300'
+                      : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+                  }`}>
+                    <p className="text-sm">
+                      ⚠️ 쿠팡 상품의 이미지를 가져오려면 크롤러 확장 프로그램 설치가 필요해요.
+                    </p>
+                  </div>
+                )}
                 <h2
                   className={`text-xl font-bold mb-6 ${
                     themeMode === 'dark' ? 'text-white' : 'text-gray-900'
@@ -525,10 +663,13 @@ export default function Step1Page() {
                           themeMode === 'dark' ? 'bg-gray-700' : 'bg-gray-100'
                         }`}>
                           {product.image ? (
-                            <img
+                            <Image
                               src={product.image}
                               alt={product.name || '제품 이미지'}
+                              width={96}
+                              height={96}
                               className="w-full h-full object-cover"
+                              unoptimized
                             />
                           ) : (
                             <ShoppingCart className="w-8 h-8 text-gray-400" />

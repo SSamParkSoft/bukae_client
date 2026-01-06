@@ -58,6 +58,7 @@ interface VideoCreateState {
   setHasUnsavedChanges: (hasChanges: boolean) => void
   setCurrentStep: (step: number) => void
   addProduct: (product: Product) => void
+  updateProduct: (productId: string, updates: Partial<Product>) => void
   removeProduct: (productId: string) => void
   clearProducts: () => void
   setVideoEditData: (data: VideoEditData) => void
@@ -163,6 +164,25 @@ export const useVideoCreateStore = create<VideoCreateState>()(
             productVideos: existingVideos ? { ...state.productVideos, [product.id]: existingVideos } : state.productVideos,
             productImages: existingImages ? { ...state.productImages, [product.id]: existingImages } : state.productImages,
             productDetailImages: existingDetailImages ? { ...state.productDetailImages, [product.id]: existingDetailImages } : state.productDetailImages,
+          }
+        }),
+      updateProduct: (productId, updates) =>
+        set((state) => {
+          const productIndex = state.selectedProducts.findIndex((p) => p.id === productId)
+          if (productIndex === -1) {
+            return state
+          }
+
+          const updatedProduct = {
+            ...state.selectedProducts[productIndex],
+            ...updates,
+          }
+
+          const newProducts = [...state.selectedProducts]
+          newProducts[productIndex] = updatedProduct
+
+          return {
+            selectedProducts: newProducts,
           }
         }),
       removeProduct: (productId) =>
