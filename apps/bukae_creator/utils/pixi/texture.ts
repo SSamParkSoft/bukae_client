@@ -149,9 +149,12 @@ export const loadPixiTexture = (
     }
     
     function tryDirectLoad(isCoupangFallback: boolean) {
-      const loadOptions = isCoupangImage ? { crossOrigin: 'anonymous' } : {}
+      // PIXI.Assets.load는 옵션을 객체 형태로 전달해야 함
+      const assetConfig = isCoupangImage 
+        ? { src: url, crossOrigin: 'anonymous' }
+        : url
       
-      PIXI.Assets.load(url, loadOptions)
+      PIXI.Assets.load(assetConfig)
         .then((texture) => {
           if (texture) {
             textureCache.set(url, texture)

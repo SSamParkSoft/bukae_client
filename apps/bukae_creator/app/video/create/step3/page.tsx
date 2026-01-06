@@ -20,6 +20,7 @@ import {
   extractImagesFromStorage,
   type CoupangExtensionStorageData 
 } from '@/lib/utils/coupang-extension-storage'
+import { PRODUCT_PLACEHOLDER } from '@/lib/utils/placeholder-image'
 
 export default function Step3Page() {
   const router = useRouter()
