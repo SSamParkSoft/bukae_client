@@ -162,21 +162,7 @@ export const useSceneManager = ({
         const currentSprite = spritesRef?.current.get(sceneIndex)
         const currentText = textsRef.current.get(sceneIndex)
         
-        console.log(
-          `[렌더링] ${label} | Scene ${sceneIndex} | ` +
-          `스프라이트: ${currentSprite?.visible && currentSprite?.alpha > 0 ? '표시' : '숨김'} | ` +
-          `텍스트: ${currentText?.visible && currentText?.alpha > 0 ? '표시' : '숨김'} | ` +
-          `표시 중인 스프라이트: [${visibleSprites.join(', ')}] | ` +
-          `표시 중인 텍스트: [${visibleTexts.join(', ')}]`
-        )
-        
-        // 중복 렌더링 경고
-        if (visibleSprites.length > 1) {
-          console.warn(`⚠️ 중복 스프라이트 감지! ${visibleSprites.length}개가 동시에 표시됨: [${visibleSprites.join(', ')}]`)
-        }
-        if (visibleTexts.length > 1) {
-          console.warn(`⚠️ 중복 텍스트 감지! ${visibleTexts.length}개가 동시에 표시됨: [${visibleTexts.join(', ')}]`)
-        }
+        // 중복 렌더링 체크 (로그는 제거)
       }
       
       // 재생 중일 때는 렌더링 시작 전에 이전 씬 정리 (중복 렌더링 방지)

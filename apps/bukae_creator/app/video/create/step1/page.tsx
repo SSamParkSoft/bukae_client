@@ -35,7 +35,18 @@ interface ChatMessage {
 
 export default function Step1Page() {
   const router = useRouter()
-  const { removeProduct, addProduct, selectedProducts, clearProducts, setHasUnsavedChanges } = useVideoCreateStore()
+  const { 
+    removeProduct, 
+    addProduct, 
+    selectedProducts, 
+    clearProducts, 
+    setHasUnsavedChanges, 
+    setSelectedImages,
+    setTimeline,
+    setScenes,
+    autoSaveEnabled,
+    hasUnsavedChanges
+  } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const { getPlatformTrackingId } = useUserStore()
 
@@ -48,6 +59,7 @@ export default function Step1Page() {
   const [currentProducts, setCurrentProducts] = useState<Product[]>([])
   const [currentProductResponses, setCurrentProductResponses] = useState<ProductResponse[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const prevPlatformRef = useRef<TargetMall | 'all'>('all')
 
   // 토큰 검증
   const { isValidatingToken } = useVideoCreateAuth()
@@ -57,8 +69,32 @@ export default function Step1Page() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [chatMessages])
 
+  // 상품/이미지 초기화 헬퍼 함수
+  const resetProductData = useCallback(() => {
+    // 선택된 이미지 초기화
+    setSelectedImages([])
+    // 타임라인 및 씬 데이터 초기화 (다른 플랫폼의 이미지가 남아있지 않도록)
+    setTimeline(null)
+    setScenes([])
+    // 검색 결과 초기화
+    setCurrentProducts([])
+    setCurrentProductResponses([])
+    // 검색어 초기화
+    setPrompt('')
+    // 채팅 메시지 초기화
+    setChatMessages([])
+  }, [setSelectedImages, setTimeline, setScenes])
+
   // 플랫폼 선택 핸들러
   const handlePlatformSelect = (platform: TargetMall | 'all') => {
+    // 플랫폼이 실제로 변경된 경우에만 초기화
+    if (prevPlatformRef.current !== platform && prevPlatformRef.current !== 'all') {
+      // 선택된 상품 초기화
+      clearProducts()
+      // 상품 관련 데이터 초기화
+      resetProductData()
+    }
+    prevPlatformRef.current = platform
     setSelectedPlatform(platform)
     setSearchError(null)
   }
@@ -73,9 +109,22 @@ export default function Step1Page() {
       // 이미 선택된 상품이면 선택 해제
       removeProduct(product.id)
       setHasUnsavedChanges(true)
+      // 선택 해제 시 이미지도 초기화
+      resetProductData()
     } else {
-      // 새로운 상품 선택 시 기존 선택 모두 제거 후 새 상품만 선택
-      clearProducts()
+      const currentProduct = selectedProducts[0]
+      const isSameProduct = currentProduct?.id === product.id
+      
+      // 같은 상품이더라도 임시저장하지 않은 경우 초기화
+      // 임시저장한 경우만 유지 (autoSaveEnabled === true && hasUnsavedChanges === false)
+      const shouldPreserveData = isSameProduct && autoSaveEnabled && !hasUnsavedChanges
+      
+      if (!shouldPreserveData) {
+        // 새로운 상품이거나 임시저장하지 않은 경우 초기화
+        clearProducts()
+        resetProductData()
+      }
+      
       addProduct(product)
       setHasUnsavedChanges(true)
     }

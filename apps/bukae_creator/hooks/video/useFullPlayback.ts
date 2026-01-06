@@ -7,7 +7,7 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 import { useSingleScenePlayback } from './useSingleScenePlayback'
 import { useGroupPlayback } from './useGroupPlayback'
 import { useTtsResources } from './useTtsResources'
-import { formatTime } from '@/utils/timeline'
+import { formatTime, calculateTotalDuration } from '@/utils/timeline'
 
 interface UseFullPlaybackParams {
   timeline: TimelineData | null
@@ -124,6 +124,12 @@ export function useFullPlayback({
   
   // 타임라인 동기화를 위한 ref
   const groupPlaybackStartTimeRef = useRef<number | null>(null)
+  const timelineRef = useRef<TimelineData | null>(timeline)
+
+  // timeline ref 동기화
+  useEffect(() => {
+    timelineRef.current = timeline
+  }, [timeline])
 
   // 재생 상태 관리
   const [isPlaying, setIsPlaying] = useState(false)
@@ -405,11 +411,15 @@ export function useFullPlayback({
         currentTimeRef.current = currentTime
       }
       
+      // 최신 timeline의 totalDuration 계산 (TTS 합성으로 duration이 업데이트되었을 수 있음)
+      const latestTimeline = timelineRef.current
+      const latestTotalDuration = latestTimeline ? calculateTotalDuration(latestTimeline) : (totalDuration || 0)
+      
       // 재생바 DOM을 직접 업데이트 (리렌더링 없이)
-      if (timelineBarRef?.current && totalDuration && totalDuration > 0) {
+      if (timelineBarRef?.current && latestTotalDuration > 0) {
         const progressBar = timelineBarRef.current.querySelector('div[style*="width"]') as HTMLElement
         if (progressBar) {
-          const progressRatio = Math.min(1, currentTime / totalDuration)
+          const progressRatio = Math.min(1, currentTime / latestTotalDuration)
           progressBar.style.width = `${progressRatio * 100}%`
         }
         
@@ -417,7 +427,15 @@ export function useFullPlayback({
         const timeContainer = timelineBarRef.current.parentElement?.querySelector('div.flex.items-center.justify-between') as HTMLElement
         if (timeContainer) {
           const timeSpans = timeContainer.querySelectorAll('span')
-          if (timeSpans.length >= 1) {
+          if (timeSpans.length >= 2) {
+            const speed = playbackSpeed ?? 1.0
+            const actualTime = currentTime / speed
+            const actualDuration = latestTotalDuration / speed
+            const formattedCurrentTime = formatTime(actualTime)
+            const formattedTotalTime = formatTime(actualDuration)
+            timeSpans[0].textContent = formattedCurrentTime
+            timeSpans[1].textContent = formattedTotalTime
+          } else if (timeSpans.length >= 1) {
             const speed = playbackSpeed ?? 1.0
             const actualTime = currentTime / speed
             const formattedTime = formatTime(actualTime)

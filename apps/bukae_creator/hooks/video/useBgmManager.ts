@@ -3,7 +3,7 @@ import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
 
 interface UseBgmManagerParams {
   bgmTemplate: string | null
-  playbackSpeed?: number // 사용되지 않지만 인터페이스 호환성을 위해 유지
+  playbackSpeed?: number // 배속 설정 (재생 중인 BGM의 playbackRate 업데이트에 사용)
   isPlaying?: boolean // 사용되지 않지만 인터페이스 호환성을 위해 유지
 }
 
@@ -13,7 +13,6 @@ interface UseBgmManagerParams {
  */
 export function useBgmManager({
   bgmTemplate,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   playbackSpeed,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isPlaying,
@@ -32,6 +31,13 @@ export function useBgmManager({
       // 사용자가 직접 확정한 경우는 유지
     }
   }, [bgmTemplate, confirmedBgmTemplate])
+
+  // 배속 변경 시 재생 중인 BGM의 playbackRate 업데이트
+  useEffect(() => {
+    if (playbackSpeed !== undefined && bgmAudioRef.current) {
+      bgmAudioRef.current.playbackRate = playbackSpeed
+    }
+  }, [playbackSpeed])
 
   const stopBgmAudio = useCallback(() => {
     const a = bgmAudioRef.current

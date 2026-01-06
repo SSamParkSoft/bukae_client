@@ -232,7 +232,6 @@ export function useSceneTransition({
 
       // 스프라이트 없음 처리
       if (!currentSprite) {
-        console.warn(`[updateCurrentScene] 씬 ${actualSceneIndex} 스프라이트를 찾을 수 없음`)
         onAnimationComplete?.(actualSceneIndex)
         previousSceneIndexRef.current = actualSceneIndex
         return
@@ -766,12 +765,7 @@ export function useSceneTransition({
               (child) => child instanceof PIXI.Sprite && child !== spriteToUse
             ) as PIXI.Sprite[]
             
-            // 디버깅: 컨테이너에 있는 스프라이트 확인
-            if (spritesInContainer.length > 0) {
-              console.warn(
-                `[전환효과] 컨테이너에 spriteToUse 외 ${spritesInContainer.length}개의 스프라이트가 있습니다. 제거합니다.`
-              )
-            }
+            // 컨테이너에 있는 다른 스프라이트 확인
             
             // spriteToUse가 아닌 모든 스프라이트를 컨테이너에서 제거
             spritesInContainer.forEach((sprite) => {

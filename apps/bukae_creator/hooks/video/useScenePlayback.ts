@@ -94,7 +94,6 @@ export async function playSceneLogic({
 }): Promise<void> {
   const scene = timeline.scenes[sceneIndex]
   if (!scene) {
-    console.warn(`[playSceneLogic] 씬 ${sceneIndex}을 찾을 수 없습니다.`)
     if (onComplete) onComplete()
     return
   }
@@ -337,18 +336,6 @@ export async function playSceneLogic({
         }
 
         if (!cached) {
-          console.warn(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS 캐시 없음 - 동적 생성 시도`)
-          console.warn(`[playSceneLogic] 생성된 키 전체: "${key}"`)
-          console.warn(`[playSceneLogic] 캐시된 키 목록 (총 ${ttsCacheRef.current.size}개):`)
-          const cacheKeys = Array.from(ttsCacheRef.current.keys())
-          cacheKeys.forEach((cacheKey, idx) => {
-            console.warn(`[playSceneLogic] 캐시 키 ${idx + 1}: "${cacheKey.substring(0, 200)}..."`)
-            // 키가 비슷한지 확인 (voiceTemplate 부분만 비교)
-            if (cacheKey.includes(voiceTemplate)) {
-              console.warn(`[playSceneLogic] 같은 voiceTemplate 발견: "${cacheKey.substring(0, 200)}..."`)
-            }
-          })
-          
           // ensureSceneTts가 있으면 동적으로 TTS 생성 시도
           if (ensureSceneTts && changedScenesRef) {
             try {
@@ -411,7 +398,6 @@ export async function playSceneLogic({
         }
 
         if (!part || (!part.blob && !part.url)) {
-          console.warn(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} TTS 데이터 없음`)
           // 다음 구간으로
           if (partIndex < scriptParts.length - 1) {
             await playPart(partIndex + 1)
@@ -500,7 +486,6 @@ export async function playSceneLogic({
           })
         } else {
           // 오디오가 없어도 duration만큼 대기
-          console.warn(`[playSceneLogic] 씬 ${sceneIndex} 구간 ${partIndex + 1} 재생할 오디오 없음, duration만큼 대기`)
           await new Promise(resolve => setTimeout(resolve, targetDuration))
         }
 
@@ -700,7 +685,6 @@ export function useScenePlayback({
    */
   const playScene = useCallback(async (): Promise<void> => {
     if (!timeline || !voiceTemplate) {
-      console.warn('[useScenePlayback] timeline 또는 voiceTemplate이 없습니다.')
       if (onComplete) onComplete()
       return
     }

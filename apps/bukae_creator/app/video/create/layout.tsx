@@ -47,8 +47,27 @@ export default function VideoCreateLayout({ children }: { children: React.ReactN
   }, [isVideoCreatePage])
   
   // 브라우저 이탈 감지 (beforeunload)
+  // 개발 환경에서는 MCP 브라우저 접근을 위해 비활성화
   useEffect(() => {
     if (!isVideoCreatePage) return
+    
+    // 개발 환경에서는 beforeunload 다이얼로그 비활성화
+    // 빌드 타임과 런타임 모두 체크
+    const isDev = process.env.NODE_ENV === 'development' || 
+                  (typeof window !== 'undefined' && window.location.hostname === 'localhost')
+    
+    if (isDev) {
+      // 개발 환경에서는 기존 beforeunload 리스너도 제거
+      const removeAllBeforeUnload = () => {
+        // 모든 beforeunload 이벤트 리스너 제거를 시도
+        const newWindow = window.open('', '_blank')
+        if (newWindow) {
+          newWindow.close()
+        }
+      }
+      removeAllBeforeUnload()
+      return
+    }
     
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges && autoSaveEnabled) {

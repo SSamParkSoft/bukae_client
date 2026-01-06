@@ -1,15 +1,45 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Loader2, AlertCircle, ArrowRight } from 'lucide-react'
+import { Loader2, AlertCircle, ArrowRight, TestTube } from 'lucide-react'
 import { authApi } from '@/lib/api/auth'
+import { useUserStore } from '@/store/useUserStore'
+
+const mapSupabaseUser = (user: {
+  id: string
+  email?: string
+  created_at?: string
+  user_metadata?: Record<string, unknown>
+}) => {
+  const fullName = (user.user_metadata?.full_name as string | undefined) ?? ''
+  const fallbackName = user.email?.split('@')[0] ?? '사용자'
+
+  return {
+    id: user.id,
+    name: fullName || fallbackName,
+    email: user.email ?? '',
+    profileImage: user.user_metadata?.avatar_url as string | undefined,
+    createdAt: user.created_at ?? new Date().toISOString(),
+    accountStatus: 'active' as const,
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isDev, setIsDev] = useState(false)
+  const setUser = useUserStore((state) => state.setUser)
+
+  useEffect(() => {
+    // 개발 환경 확인
+    setIsDev(
+      process.env.NODE_ENV === 'development' &&
+      (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+    )
+  }, [])
 
   const handleGoogleLogin = async () => {
     setError(null)
@@ -17,6 +47,22 @@ export default function LoginPage() {
     try {
       await authApi.loginWithGoogle()
       // 실제 리다이렉트는 Supabase가 처리
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : '구글 로그인 시작 중 오류가 발생했어요.'
+      setError(message)
+      setIsLoading(false)
+    }
+  }
+
+  const handleTestAdminLogin = async () => {
+    setError(null)
+    setIsLoading(true)
+    try {
+      // 개발 환경에서는 구글 OAuth를 통해 실제 토큰 획득
+      // OAuth 콜백에서 자동으로 처리됨
+      await authApi.loginAsTestAdmin()
+      // OAuth 리다이렉트가 발생하므로 여기서는 아무것도 하지 않음
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : '구글 로그인 시작 중 오류가 발생했어요.'
@@ -130,6 +176,38 @@ export default function LoginPage() {
         <p className="text-white/80 text-xs text-center px-4">
           로그인 시 서비스 이용약관 및 개인정보 처리방침에 동의하게 됩니다.
         </p>
+
+        {/* 개발 환경 구글 로그인 버튼 (Supabase 우회) */}
+        {isDev && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="pt-4 border-t border-white/20"
+          >
+            <button
+              type="button"
+              onClick={handleTestAdminLogin}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-yellow-500/20 backdrop-blur-sm border border-yellow-300/30 text-yellow-100 text-sm font-medium hover:bg-yellow-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>구글로 이동 중...</span>
+                </>
+              ) : (
+                <>
+                  <TestTube className="w-4 h-4" />
+                  <span>구글 계정으로 로그인 (개발용, Supabase 우회)</span>
+                </>
+              )}
+            </button>
+            <p className="text-yellow-200/70 text-xs text-center mt-2 px-4">
+              개발 환경에서만 표시됩니다. 실제 구글 계정으로 로그인합니다.
+            </p>
+          </motion.div>
+        )}
       </motion.div>
     </div>
   )

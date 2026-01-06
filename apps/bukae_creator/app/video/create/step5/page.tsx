@@ -18,8 +18,7 @@ import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { studioMetaApi } from '@/lib/api/studio-meta'
-import { StudioJobWebSocket, type StudioJobUpdate } from '@/lib/api/websocket'
-import { websocketManager } from '@/lib/api/websocket-manager'
+import { type StudioJobUpdate } from '@/lib/api/websocket'
 import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
 import { authStorage } from '@/lib/api/auth-storage'
 import { getSupabaseClient } from '@/lib/supabase/client'
@@ -92,13 +91,6 @@ function Step5PageContent() {
   const [encodingSceneIndex, setEncodingSceneIndex] = useState<number | null>(null)
   const [resultVideoUrl, setResultVideoUrl] = useState<string | null>(null)
   const jobStatusCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const websocketRef = useRef<StudioJobWebSocket | null>(null)
-  // 전역 매니저에서 구독 해제를 위한 콜백 참조
-  const websocketCallbacksRef = useRef<{
-    onUpdate?: (update: StudioJobUpdate) => void
-    onError?: (error: Error) => void
-    onClose?: () => void
-  }>({})
   const [isInitializing, setIsInitializing] = useState(false) // 초기 상태 로딩 중
   
   // 영상 제목 선택 관련 상태
@@ -187,13 +179,6 @@ function Step5PageContent() {
       const errorText = detailError || statusData.errorMessage || '알 수 없는 오류가 발생했습니다.'
       console.log('[handleStatusUpdate] 실패 처리:', errorText)
       alert(`영상 생성이 실패했어요.\n\n${errorText}`)
-      // 전역 매니저에서 구독 해제
-      if (currentJobId && websocketCallbacksRef.current) {
-        const { onUpdate, onError, onClose } = websocketCallbacksRef.current
-        websocketManager.disconnect(currentJobId, onUpdate, onError, onClose)
-        websocketRef.current = null
-        websocketCallbacksRef.current = {}
-      }
       setCurrentJobId(null)
       setJobStatus('FAILED')
       setJobProgress('')
@@ -278,13 +263,6 @@ function Step5PageContent() {
         clearTimeout(jobStatusCheckTimeoutRef.current)
         jobStatusCheckTimeoutRef.current = null
       }
-      // 전역 매니저에서 구독 해제 (완료되었으므로 더 이상 업데이트가 필요 없음)
-      if (currentJobId && websocketCallbacksRef.current) {
-        const { onUpdate, onError, onClose } = websocketCallbacksRef.current
-        websocketManager.disconnect(currentJobId, onUpdate, onError, onClose)
-        websocketRef.current = null
-        websocketCallbacksRef.current = {}
-      }
       console.log('[handleStatusUpdate] 완료 처리 완료, jobStatus:', newStatus)
     } else if (newStatus === 'FAILED') {
       const errorMessages = [
@@ -326,13 +304,6 @@ function Step5PageContent() {
       userMessage += '자세한 내용은 브라우저 콘솔(F12)을 확인해주세요.'
       
       alert(userMessage)
-      // 전역 매니저에서 구독 해제
-      if (currentJobId && websocketCallbacksRef.current) {
-        const { onUpdate, onError, onClose } = websocketCallbacksRef.current
-        websocketManager.disconnect(currentJobId, onUpdate, onError, onClose)
-        websocketRef.current = null
-        websocketCallbacksRef.current = {}
-      }
       setCurrentJobId(null)
       setJobStatus(null)
       setJobProgress('')
@@ -372,15 +343,6 @@ function Step5PageContent() {
     }
     
     const checkJobStatus = async () => {
-      if (websocketRef.current?.isConnected()) {
-        console.log('[HTTP Polling] WebSocket 연결됨, 폴링 중단')
-        if (jobStatusCheckTimeoutRef.current) {
-          clearTimeout(jobStatusCheckTimeoutRef.current)
-          jobStatusCheckTimeoutRef.current = null
-        }
-        return
-      }
-      
       checkCount++
       console.log(`[HTTP Polling] 상태 확인 시도 #${checkCount}, jobId: ${jobId}`)
       
@@ -501,40 +463,6 @@ function Step5PageContent() {
     jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 1000)
   }, [handleStatusUpdate])
 
-  // WebSocket 연결 함수 (전역 매니저 사용)
-  const connectWebSocket = useCallback(async (jobId: string, startTime: number) => {
-    try {
-      console.log('[WebSocket] 전역 매니저를 통한 연결 시도, jobId:', jobId)
-      
-      const onUpdate = (update: StudioJobUpdate) => {
-        console.log('[WebSocket] 메시지 수신:', update)
-        handleStatusUpdate(update)
-      }
-
-      const onError = (error: Error) => {
-        console.warn('[WebSocket] 연결 에러 (HTTP 폴링 계속 사용):', error.message)
-      }
-
-      const onClose = () => {
-        console.log('[WebSocket] 연결 끊어짐, HTTP 폴링으로 폴백')
-        setJobStatus((currentStatus) => {
-          if (currentStatus !== 'COMPLETED' && currentStatus !== 'FAILED') {
-            startHttpPolling(jobId, startTime)
-          }
-          return currentStatus
-        })
-      }
-
-      // 콜백을 ref에 저장하여 나중에 구독 해제 시 사용
-      websocketCallbacksRef.current = { onUpdate, onError, onClose }
-
-      const ws = await websocketManager.connect(jobId, onUpdate, onError, onClose)
-      websocketRef.current = ws
-      console.log('[WebSocket] 연결 성공 (전역 매니저)')
-    } catch (error) {
-      console.warn('[WebSocket] 연결 실패 (HTTP 폴링 계속 사용):', error instanceof Error ? error.message : error)
-    }
-  }, [handleStatusUpdate, startHttpPolling])
   // 페이지 가시성 변경 감지 (다른 탭/사이트로 이동했다가 돌아올 때)
   useEffect(() => {
     const handleVisibilityChange = async () => {
@@ -543,9 +471,9 @@ function Step5PageContent() {
         const targetJobId = urlJobId || currentJobId
         if (!targetJobId) return
 
-        // 진행 중인 작업이면 상태 확인 및 웹소켓 재연결
+        // 진행 중인 작업이면 상태 확인 및 HTTP 폴링 재시작
         if (jobStatus === 'PENDING' || jobStatus === 'PROCESSING' || !jobStatus) {
-          console.log('[Visibility] 페이지가 다시 보임, 상태 확인 및 웹소켓 재연결, jobId:', targetJobId)
+          console.log('[Visibility] 페이지가 다시 보임, 상태 확인 및 HTTP 폴링 재시작, jobId:', targetJobId)
           
           // 먼저 현재 상태 확인
           try {
@@ -577,7 +505,7 @@ function Step5PageContent() {
                 return
               }
               
-              // 진행 중이면 상태는 그대로 유지하고 웹소켓만 재연결
+              // 진행 중이면 상태는 그대로 유지하고 HTTP 폴링만 재시작
               if (statusData.status === 'PENDING' || statusData.status === 'PROCESSING') {
                 // 상태가 없으면 업데이트, 있으면 유지
                 if (!jobStatus) {
@@ -597,14 +525,7 @@ function Step5PageContent() {
                   : jobStartTimeRef.current || Date.now()
                 jobStartTimeRef.current = startTime
                 
-                // 웹소켓 연결 확인 및 재연결
-                const existingConnection = websocketManager.getConnection(targetJobId)
-                if (!existingConnection || !existingConnection.isConnected()) {
-                  // 연결이 끊어졌으면 재연결 (상태 메시지 없이)
-                  connectWebSocket(targetJobId, startTime)
-                }
-                
-                // HTTP 폴링도 재시작 (웹소켓이 없을 경우를 대비)
+                // HTTP 폴링 재시작
                 if (!jobStatusCheckTimeoutRef.current) {
                   startHttpPolling(targetJobId, startTime)
                 }
@@ -612,11 +533,10 @@ function Step5PageContent() {
             }
           } catch (error) {
             console.error('[Visibility] 상태 확인 실패:', error)
-            // 에러가 나도 웹소켓 재연결 시도
-            const existingConnection = websocketManager.getConnection(targetJobId)
-            if (!existingConnection || !existingConnection.isConnected()) {
-              const startTime = jobStartTimeRef.current || Date.now()
-              connectWebSocket(targetJobId, startTime)
+            // 에러가 나도 HTTP 폴링 재시작 시도
+            const startTime = jobStartTimeRef.current || Date.now()
+            if (!jobStatusCheckTimeoutRef.current) {
+              startHttpPolling(targetJobId, startTime)
             }
           }
         }
@@ -715,19 +635,9 @@ function Step5PageContent() {
               setJobProgress('영상 생성 중...')
             }
             
-            // 웹소켓 연결 확인 및 재연결
-            // 다른 step으로 이동했다가 돌아온 경우, 웹소켓이 끊어졌을 수 있으므로 항상 확인
-            const existingConnection = websocketManager.getConnection(targetJobId)
-            if (!existingConnection || !existingConnection.isConnected()) {
-              console.log('[Main] 웹소켓 연결 시작 (다른 step에서 돌아옴)')
+            // HTTP 폴링 시작
+            if (!jobStatusCheckTimeoutRef.current) {
               startHttpPolling(targetJobId, startTime)
-              connectWebSocket(targetJobId, startTime)
-            } else {
-              // 이미 연결되어 있으면 HTTP 폴링만 확인
-              console.log('[Main] 기존 웹소켓 연결 사용')
-              if (!jobStatusCheckTimeoutRef.current) {
-                startHttpPolling(targetJobId, startTime)
-              }
             }
           }
         }
@@ -739,7 +649,6 @@ function Step5PageContent() {
         setJobStatus('PENDING')
         setJobProgress('영상 생성 중...')
         startHttpPolling(targetJobId, startTime)
-        connectWebSocket(targetJobId, startTime)
       } finally {
         setIsInitializing(false)
       }
@@ -748,20 +657,14 @@ function Step5PageContent() {
     checkInitialStatus()
     
     return () => {
-      // HTTP 폴링만 중단 (웹소켓은 전역 매니저에서 관리되므로 다른 step으로 가도 유지됨)
+      // HTTP 폴링 중단
       if (jobStatusCheckTimeoutRef.current) {
         clearTimeout(jobStatusCheckTimeoutRef.current)
         jobStatusCheckTimeoutRef.current = null
       }
-      // 웹소켓 연결은 유지 - 다른 step으로 이동해도 백그라운드에서 계속 제작 진행
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlJobId, currentJobId])
-
-  // 컴포넌트 언마운트 시 구독 해제하지 않음 (페이지를 떠나도 웹소켓 유지)
-  // 웹소켓 연결은 전역 매니저에서 관리되므로, 페이지를 떠나도 계속 상태 업데이트를 받을 수 있음
-  // 완료/실패 시에만 구독 해제됨
-  // 주의: 이렇게 하면 메모리 누수가 발생할 수 있으므로, 완료/실패 시 반드시 구독 해제해야 함
 
   // 경과 시간 업데이트
   useEffect(() => {
@@ -999,13 +902,6 @@ function Step5PageContent() {
     setJobProgress('')
     setResultVideoUrl(null)
     
-    // 웹소켓 연결 정리
-    if (currentJobId && websocketCallbacksRef.current) {
-      const { onUpdate, onError, onClose } = websocketCallbacksRef.current
-      websocketManager.disconnect(currentJobId, onUpdate, onError, onClose)
-      websocketCallbacksRef.current = {}
-    }
-    
     // HTTP 폴링 정리
     if (jobStatusCheckTimeoutRef.current) {
       clearTimeout(jobStatusCheckTimeoutRef.current)
@@ -1110,11 +1006,6 @@ function Step5PageContent() {
                                 if (jobStatusCheckTimeoutRef.current) {
                                   clearTimeout(jobStatusCheckTimeoutRef.current)
                                   jobStatusCheckTimeoutRef.current = null
-                                }
-                                if (currentJobId && websocketCallbacksRef.current) {
-                                  const { onUpdate, onError, onClose } = websocketCallbacksRef.current
-                                  websocketManager.disconnect(currentJobId, onUpdate, onError, onClose)
-                                  websocketCallbacksRef.current = {}
                                 }
                                 setJobStatus(null)
                                 setJobProgress('')

@@ -209,5 +209,22 @@ export const authApi = {
       createdAt: string
     }>('/api/v1/users/me')
   },
+
+  /**
+   * 개발 환경에서만 사용 가능한 테스트 계정 자동 로그인
+   * Supabase 대신 구글 OAuth를 사용하여 실제 토큰 획득
+   */
+  loginAsTestAdmin: async (): Promise<void> => {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('프로덕션 환경에서는 사용할 수 없습니다.')
+    }
+
+    if (!isRunningOnLocalhost()) {
+      throw new Error('localhost 환경에서만 사용할 수 있습니다.')
+    }
+
+    // 개발 환경에서는 구글 OAuth를 통해 실제 토큰 획득 (Supabase 우회)
+    await authApi.loginWithGoogle()
+  },
 }
 
