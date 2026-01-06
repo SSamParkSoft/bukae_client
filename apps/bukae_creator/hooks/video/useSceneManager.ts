@@ -114,7 +114,7 @@ export const useSceneManager = ({
     (
       sceneIndex: number,
       partIndex?: number | null, 
-      options?: {
+      options?: { 
         skipAnimation?: boolean
         forceTransition?: string
         previousIndex?: number | null
