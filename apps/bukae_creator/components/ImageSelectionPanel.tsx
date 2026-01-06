@@ -12,21 +12,12 @@ interface ImageSelectionPanelProps {
   maxSelection?: number
 }
 
-// 더미 상품 이미지 데이터 (서버에 저장된 이미지 목록)
-const dummyProductImages = [
-  'https://via.placeholder.com/300x300?text=Product+Image+1',
-  'https://via.placeholder.com/300x300?text=Product+Image+2',
-  'https://via.placeholder.com/300x300?text=Product+Image+3',
-  'https://via.placeholder.com/300x300?text=Product+Image+4',
-  'https://via.placeholder.com/300x300?text=Product+Image+5',
-  'https://via.placeholder.com/300x300?text=Product+Image+6',
-  'https://via.placeholder.com/300x300?text=Product+Image+7',
-  'https://via.placeholder.com/300x300?text=Product+Image+8',
-  'https://via.placeholder.com/300x300?text=Product+Image+9',
-  'https://via.placeholder.com/300x300?text=Product+Image+10',
-  'https://via.placeholder.com/300x300?text=Product+Image+11',
-  'https://via.placeholder.com/300x300?text=Product+Image+12',
-]
+import { createPlaceholderImageUrl } from '@/lib/utils/placeholder-image'
+
+// 더미 상품 이미지 데이터 (로컬 placeholder 사용)
+const dummyProductImages = Array.from({ length: 12 }, (_, i) =>
+  createPlaceholderImageUrl(300, 300, '#a78bfa', '#ffffff', `Image ${i + 1}`)
+)
 
 export default function ImageSelectionPanel({
   onSelectionChange,

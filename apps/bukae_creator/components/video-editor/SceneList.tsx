@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 import type { SceneScript } from '@/lib/types/domain/script'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
+import { getScenePlaceholder } from '@/lib/utils/placeholder-image'
 
 interface SceneListProps {
   scenes: SceneScript[]
@@ -239,7 +240,7 @@ export function SceneList({
                         ? `https:${thumbnailUrl}`
                         : thumbnailUrl.startsWith('/')
                         ? thumbnailUrl
-                        : `https://via.placeholder.com/200x200/a78bfa/ffffff?text=Scene${firstSceneIndex + 1}`
+                        : getScenePlaceholder(firstSceneIndex)
                       
                       return (
                         <Image
@@ -251,7 +252,7 @@ export function SceneList({
                           unoptimized
                           onError={(e) => {
                             const target = e.target as HTMLImageElement
-                            target.src = `https://via.placeholder.com/200x200/a78bfa/ffffff?text=Scene${firstSceneIndex + 1}`
+                            target.src = getScenePlaceholder(firstSceneIndex)
                           }}
                         />
                       )
@@ -436,7 +437,7 @@ export function SceneList({
                               ? `https:${thumbnailUrl}`
                               : thumbnailUrl.startsWith('/')
                               ? thumbnailUrl
-                              : `https://via.placeholder.com/200x200/a78bfa/ffffff?text=Scene${index + 1}`
+                              : getScenePlaceholder(index)
                             
                             return (
                               <Image
@@ -449,7 +450,7 @@ export function SceneList({
                                 onError={(e) => {
                                   // 이미지 로드 실패 시 기본 placeholder 사용
                                   const target = e.target as HTMLImageElement
-                                  target.src = `https://via.placeholder.com/200x200/a78bfa/ffffff?text=Scene${index + 1}`
+                                  target.src = getScenePlaceholder(index)
                                 }}
                               />
                             )

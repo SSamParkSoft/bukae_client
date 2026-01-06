@@ -33,6 +33,7 @@ import { applyShortsTemplateToScenes } from '@/lib/utils/scene-template'
 import { transitionLabels, transitions, movements, allTransitions } from '@/lib/data/transitions'
 import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
 import { calculateTotalDuration } from '@/utils/timeline'
+import { getScenePlaceholder } from '@/lib/utils/placeholder-image'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import * as fabric from 'fabric'
@@ -2027,7 +2028,7 @@ export function useStep4Container() {
         return url // 상대 경로는 그대로 사용
       }
       // 잘못된 URL인 경우 기본 placeholder 반환
-      return `https://via.placeholder.com/200x200/a78bfa/ffffff?text=Scene${index + 1}`
+      return getScenePlaceholder(index)
     }),
     [scenes, selectedImages]
   )

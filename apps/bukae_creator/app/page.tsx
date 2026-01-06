@@ -13,6 +13,7 @@ import { TrendingUp, ShoppingCart, Eye, Loader2, Youtube, Users, Store, DollarSi
 import HomeShortcut from '@/components/HomeShortcut'
 import PageHeader from '@/components/PageHeader'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
+import { getTextPlaceholder } from '@/lib/utils/placeholder-image'
 
 const formatNumber = (num: number): string => {
   if (num >= 1000000) {
@@ -448,7 +449,7 @@ export default function HomePage() {
                                         ? product.thumbnailUrl
                                         : product.thumbnailUrl.startsWith('//')
                                         ? `https:${product.thumbnailUrl}`
-                                        : `https://via.placeholder.com/200x200/a78bfa/ffffff?text=${encodeURIComponent(product.name.substring(0, 2))}`
+                                        : getTextPlaceholder(product.name.substring(0, 2))
                                     }
                                     alt={product.name}
                                     className="w-full h-full object-cover"

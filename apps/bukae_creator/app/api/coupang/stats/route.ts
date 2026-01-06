@@ -100,10 +100,11 @@ export async function GET(request: Request) {
         const commissionRate = Math.random() > 0.5 ? 3 : 5
         const commission = Math.floor((gmv * commissionRate) / 100)
         
-        // 더미 썸네일 이미지 URL 생성 (placeholder.com 사용)
-        // URL이 올바르게 생성되도록 전체 URL을 명시적으로 구성
+        // 더미 썸네일 이미지 URL 생성 (로컬 placeholder 사용)
         const productText = productNames[productIndex].substring(0, 2)
-        const thumbnailUrl = `https://via.placeholder.com/200x200/a78bfa/ffffff?text=${encodeURIComponent(productText)}`
+        // 동적 import는 서버 사이드에서 사용할 수 없으므로 직접 생성
+        const svg = `<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" fill="#a78bfa"/><text x="50%" y="50%" font-family="Arial, sans-serif" font-size="33" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">${productText}</text></svg>`
+        const thumbnailUrl = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
 
         dailyOrders.push({
           date: formatDate(date),

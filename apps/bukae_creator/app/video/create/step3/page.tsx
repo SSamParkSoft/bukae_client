@@ -595,7 +595,7 @@ export default function Step3Page() {
                             sizes="140px"
                             className="object-cover"
                             onError={(e) => {
-                              e.currentTarget.src = 'https://via.placeholder.com/200'
+                              e.currentTarget.src = PRODUCT_PLACEHOLDER
                             }}
                           />
                           {isSelected && (
@@ -710,7 +710,7 @@ export default function Step3Page() {
                                   sizes="80px"
                                   className="object-cover"
                                   onError={(e) => {
-                                    e.currentTarget.src = 'https://via.placeholder.com/200'
+                                    e.currentTarget.src = PRODUCT_PLACEHOLDER
                                   }}
                                 />
                               </div>
