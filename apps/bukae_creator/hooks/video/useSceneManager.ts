@@ -148,23 +148,6 @@ export const useSceneManager = ({
 
       const shouldSkipAnimation = forceTransition === 'none'
 
-      // 디버깅 함수: 중복 렌더링 확인
-      const debugRenderState = (label: string) => {
-        // visible: true인 스프라이트/텍스트 개수 확인
-    const visibleSprites = Array.from(spritesRef?.current.entries() || [])
-      .filter(([, sprite]) => sprite?.visible && sprite?.alpha > 0)
-      .map(([idx]) => idx)
-    
-    const visibleTexts = Array.from(textsRef.current.entries())
-      .filter(([, text]) => text?.visible && text?.alpha > 0)
-      .map(([idx]) => idx)
-        
-        const currentSprite = spritesRef?.current.get(sceneIndex)
-        const currentText = textsRef.current.get(sceneIndex)
-        
-        // 중복 렌더링 체크 (로그는 제거)
-      }
-      
       // 재생 중일 때는 렌더링 시작 전에 이전 씬 정리 (중복 렌더링 방지)
       if (isPlaying) {
         const lastRenderedIndex = previousSceneIndexRef.current
@@ -241,9 +224,6 @@ export const useSceneManager = ({
       console.log(
         `[renderSceneContent] 렌더링 경로 확인 | sceneIndex: ${sceneIndex}, partIndex: ${partIndex}, isPlaying: ${isPlaying}, prepareOnly: ${prepareOnly}, shouldSkipAnimation: ${shouldSkipAnimation}, forceTransition: ${forceTransition}, previousIndex: ${previousIndex}`
       )
-      
-      // 디버깅: 렌더링 시작 (이전 씬 정리 후)
-      debugRenderState('렌더링 시작')
 
       // 구간 인덱스가 있으면 해당 구간의 텍스트 추출
       let partText: string | null = null
@@ -384,9 +364,6 @@ export const useSceneManager = ({
         effectivePreviousIndex,
         forceTransition,
         () => {
-          // 디버깅: 렌더링 완료
-          debugRenderState('렌더링 완료')
-          
           if (onComplete) {
             onComplete()
           }
@@ -396,11 +373,6 @@ export const useSceneManager = ({
         sceneIndex,
         overrideTransitionDuration
       )
-      
-      // 디버깅: 렌더링 호출 직후
-      setTimeout(() => {
-        debugRenderState('렌더링 호출 직후')
-      }, 100)
     },
     [
       timeline,
