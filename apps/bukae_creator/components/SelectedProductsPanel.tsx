@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { X, ArrowRight, ShoppingCart } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -27,11 +28,49 @@ export default function SelectedProductsPanel({
   const { selectedProducts, removeProduct, addProduct } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const [imageError, setImageError] = useState<Record<string, boolean>>({})
+  const [showTooltip, setShowTooltip] = useState(false)
 
   const handleNext = () => {
-    if (selectedProducts.length > 0) {
-      router.push('/video/create/step2')
+    if (selectedProducts.length === 0) {
+      return
     }
+
+    // 쿠팡 상품이 있고 크롤링된 이미지가 없으면 말풍선 표시
+    if (!hasCrawledImages()) {
+      setShowTooltip(true)
+      // 3초 후 자동으로 사라지게
+      setTimeout(() => {
+        setShowTooltip(false)
+      }, 3000)
+      return
+    }
+
+    // 이미지가 있으면 다음 단계로 이동
+    router.push('/video/create/step2')
+  }
+
+  // 쿠팡 상품의 크롤링된 이미지가 있는지 확인
+  const hasCrawledImages = () => {
+    const coupangProducts = selectedProducts.filter(p => p.platform === 'coupang')
+    if (coupangProducts.length === 0) {
+      // 쿠팡 상품이 없으면 통과
+      return true
+    }
+    
+    // 쿠팡 상품이 있으면 모든 쿠팡 상품에 크롤링된 이미지가 있어야 함
+    // 쿠팡의 경우 coupangcdn.com을 포함하는 실제 크롤링된 이미지가 있어야 함
+    // 단순 썸네일만 있는 것은 크롤링된 이미지가 아님
+    return coupangProducts.every(p => {
+      if (!p.images || p.images.length === 0) {
+        return false
+      }
+      
+      // 쿠팡 크롤링된 이미지는 coupangcdn.com을 포함해야 함
+      // 썸네일만 있는 경우는 크롤링된 이미지가 아님
+      return p.images.some(img => 
+        img && img.includes('coupangcdn.com')
+      )
+    })
   }
 
   const handleDrop = (e: React.DragEvent) => {
@@ -193,7 +232,7 @@ export default function SelectedProductsPanel({
       </CardContent>
 
       {/* 다음 단계 버튼 */}
-      <div className="p-4">
+      <div className="p-4 relative">
         <Button
           onClick={handleNext}
           disabled={selectedProducts.length === 0}
@@ -202,6 +241,38 @@ export default function SelectedProductsPanel({
           <span>다음 단계</span>
           <ArrowRight className="h-5 w-5" />
         </Button>
+        
+        {/* 말풍선 UI */}
+        <AnimatePresence>
+          {showTooltip && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="absolute bottom-full left-1/2 transform -translate-x-1/2 z-50 mb-2"
+              style={{ pointerEvents: 'none' }}
+            >
+              <div
+                className={`px-4 py-3 rounded-lg shadow-lg relative ${
+                  theme === 'dark'
+                    ? 'bg-yellow-600 text-white'
+                    : 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                }`}
+              >
+                {/* 말풍선 꼬리 (아래쪽을 가리킴) */}
+                <div className={`absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 ${
+                  theme === 'dark'
+                    ? 'border-t-yellow-600'
+                    : 'border-t-yellow-100'
+                }`} />
+                <p className="text-sm font-medium whitespace-nowrap relative z-10">
+                  상품 이미지가 필요해요
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </Card>
   )

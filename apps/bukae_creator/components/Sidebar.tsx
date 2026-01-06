@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { Home, Video, BarChart3, User, LogIn, LogOut } from 'lucide-react'
@@ -55,10 +56,13 @@ export default function Sidebar() {
       }`}>
         <Link href="/" className="block">
           <div className="flex items-center ">
-            <img 
+            <Image 
               src="/logo-typography.svg" 
               alt="부캐 타이포" 
+              width={120}
+              height={28}
               className="h-7 w-auto -ml-1 mt-2"
+              unoptimized
             />
           </div>
           <p className={`text-sm ml-3 mt-2 ${

@@ -11,7 +11,16 @@ const getEmailRedirectUrl = () => {
       process.env.NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL ?? `${window.location.origin}/login`
     )
   }
-  return process.env.NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL ?? 'http://localhost:3000/login'
+  // 서버 사이드에서 실행되는 경우 (SSR)
+  // 환경 변수 또는 기본값 사용
+  const envBaseUrl = process.env.NEXT_PUBLIC_BASE_URL?.trim()
+  if (envBaseUrl) {
+    return process.env.NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL ?? `${envBaseUrl}/login`
+  }
+  // 개발 환경에서만 localhost 사용
+  const isLocal = typeof process !== 'undefined' && process.env.NODE_ENV === 'development'
+  return process.env.NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL ?? 
+    (isLocal ? 'http://localhost:3000/login' : '/login')
 }
 
 const mapErrorMessage = (message: string) => {
@@ -148,7 +157,18 @@ export const authApi = {
     } else if (typeof window !== 'undefined' && window.location.origin) {
       redirectUri = `${window.location.origin}/oauth/callback`
     } else {
-      redirectUri = 'http://localhost:3000/oauth/callback'
+      // 서버 사이드에서 실행되는 경우 (SSR)
+      // 환경 변수 또는 기본값 사용
+      const envBaseUrl = process.env.NEXT_PUBLIC_BASE_URL?.trim()
+      if (envBaseUrl) {
+        redirectUri = `${envBaseUrl}/oauth/callback`
+      } else {
+        // 개발 환경에서만 localhost 사용
+        const isLocal = typeof process !== 'undefined' && process.env.NODE_ENV === 'development'
+        redirectUri = isLocal 
+          ? 'http://localhost:3000/oauth/callback'
+          : '/oauth/callback' // 상대 경로로 fallback (실제로는 window가 있어야 하므로 거의 사용되지 않음)
+      }
     }
     
     // 백엔드 OAuth2 엔드포인트로 리다이렉트 (redirect_uri 파라미터 포함)
