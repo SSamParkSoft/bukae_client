@@ -26,7 +26,11 @@ const PRODUCT_URLS = {
   worldclean_bucket:
     'https://www.coupang.com/vp/products/8481141329?itemId=24606557441&vendorItemId=91617952859&src=1139000&spec=10799999&addtag=400&ctag=8481141329&lptag=AF4647824&itime=20251229193542&pageType=PRODUCT&pageValue=8481141329&wPcid=17510469561163597660443&wRef=&wTime=20251229193542&redirect=landing&traceid=V0-181-d1e557b440f9abd5&mcid=73bdcb3433a94938914cccce50fe885d&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
   sinjimoru_glass_protector:
-    'https://www.coupang.com/vp/products/6131560742?itemId=19908948306&vendorItemId=87097760248&src=1139000&spec=10799999&addtag=400&ctag=6131560742&lptag=AF4647824&itime=20260104060319&pageType=PRODUCT&pageValue=6131560742&wPcid=17510469561163597660443&wRef=&wTime=20260104060319&redirect=landing&traceid=V0-181-14f6d5ff563c987b&mcid=b5d3b54dcc5b4116b8c80210faafc124&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam='
+    'https://www.coupang.com/vp/products/6131560742?itemId=19908948306&vendorItemId=87097760248&src=1139000&spec=10799999&addtag=400&ctag=6131560742&lptag=AF4647824&itime=20260104060319&pageType=PRODUCT&pageValue=6131560742&wPcid=17510469561163597660443&wRef=&wTime=20260104060319&redirect=landing&traceid=V0-181-14f6d5ff563c987b&mcid=b5d3b54dcc5b4116b8c80210faafc124&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
+  bibigo_samchi:
+    'https://www.coupang.com/vp/products/6011993543?itemId=24451885314&vendorItemId=91465703325&src=1139000&spec=10799999&addtag=400&ctag=6011993543&lptag=AF4647824&itime=20260107162225&pageType=PRODUCT&pageValue=6011993543&wPcid=17510469561163597660443&wRef=&wTime=20260107162225&redirect=landing&traceid=V0-181-e76981e4e1a69962&mcid=4d5c6205d54946a69906a625dddfe8fa&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
+  rush_massage_bar:
+    'https://www.coupang.com/vp/products/8906749731?itemId=26013724094&vendorItemId=92995575781&src=1139000&spec=10799999&addtag=400&ctag=8906749731&lptag=AF4647824&itime=20260107162443&pageType=PRODUCT&pageValue=8906749731&wPcid=17510469561163597660443&wRef=&wTime=20260107162443&redirect=landing&traceid=V0-181-695a1da0528ef960&mcid=cf0c8ea7072b44cead2b733ece78a541&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam='
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -107,11 +111,29 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     url: PRODUCT_URLS.dashu_nipple_band,
   },
   {
+    id: 'bibigo-samchi',
+    productId: 1014,
+    name: '비비고 순살 삼치구이, 60g, 6개',
+    description: '순살 삼치구이 · 60g · 6개',
+    order: 9,
+    thumbnailUrl: '/dummy/bibigo_samchi.png',
+    url: PRODUCT_URLS.bibigo_samchi,
+  },
+  {
+    id: 'rush-massage-bar',
+    productId: 1015,
+    name: '러쉬 트루 로맨스 마사지 바',
+    description: '트루 로맨스 · 마사지 바',
+    order: 10,
+    thumbnailUrl: '/dummy/rush_massage_bar.png',
+    url: PRODUCT_URLS.rush_massage_bar,
+  },
+  {
     id: 'pork-belly',
     productId: 1009,
     name: '미국산 왕건 돈전지 불고기용 두께 0.3cm (냉동), 3kg, 1개',
     description: '미국산 · 냉동 · 3kg · 불고기용',
-    order: 9,
+    order: 11,
     thumbnailUrl: '/dummy/pork_belly.png',
     url: PRODUCT_URLS.pork_belly,
   },
@@ -120,7 +142,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     productId: 1010,
     name: '에스트라 더마 UV 365 레드진정 톤업 선크림 SPF50+ PA++++',
     description: 'SPF50+ PA++++ · 레드진정 · 톤업',
-    order: 10,
+    order: 12,
     thumbnailUrl: '/dummy/estra_sunscreen.png',
     url: PRODUCT_URLS.estra_sunscreen,
   },
@@ -129,7 +151,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     productId: 1011,
     name: '곰곰 대패삼겹 볶음밥 (냉동), 300g, 6개',
     description: '냉동 · 300g · 6개 구성',
-    order: 11,
+    order: 13,
     thumbnailUrl: '/dummy/gomgom_pork_fried_rice.png',
     url: PRODUCT_URLS.gomgom_pork_fried_rice,
   },
@@ -138,7 +160,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     productId: 1012,
     name: '월드크린 다용도 휴대용 버킷',
     description: '다용도 · 휴대용 · 버킷',
-    order: 12,
+    order: 14,
     thumbnailUrl: '/dummy/worldclean_bucket.png',
     url: PRODUCT_URLS.worldclean_bucket,
   },
@@ -147,7 +169,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     productId: 1013,
     name: '신지모루 풀커버 하이브리드 강화유리 액정보호필름 2매입',
     description: '풀커버 · 하이브리드 · 강화유리 · 2매입',
-    order: 13,
+    order: 15,
     thumbnailUrl: '/dummy/sinjimoru_glass_protector.png',
     url: PRODUCT_URLS.sinjimoru_glass_protector,
   },
