@@ -257,7 +257,7 @@ export default function AutoModeSection({
                 이미지 선택과 스크립트 수정을 마치면 다음 단계로 이동할 수 있어요.
               </p>
               <p className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                최소 {minScenes}장 이상 선택해야 하며, 컷 순서는 나중에 STEP3에서도 그대로 활용됩니다.
+                최소 {minScenes}장 이상 선택해야 하며, 컷 순서는 나중에 STEP2에서도 그대로 활용됩니다.
               </p>
             </div>
           </div>

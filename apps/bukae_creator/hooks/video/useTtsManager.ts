@@ -13,7 +13,7 @@ interface UseTtsManagerParams {
  * TTS 캐시 관리, TTS 생성 및 업로드, 미리보기 핸들러를 담당합니다.
  * 
  * Note: 이 hook은 기본 구조만 제공하며, 실제 TTS 생성 로직은
- * step4/page.tsx에 남아있습니다. 향후 점진적으로 이 hook으로 이동할 수 있습니다.
+ * step3/page.tsx에 남아있습니다. 향후 점진적으로 이 hook으로 이동할 수 있습니다.
  */
 export function useTtsManager({
   timeline,

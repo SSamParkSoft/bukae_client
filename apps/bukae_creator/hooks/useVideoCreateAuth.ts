@@ -8,7 +8,7 @@ import { ApiError } from '@/lib/api/client'
 
 /**
  * 비디오 생성 페이지에서 사용하는 공통 인증 hook
- * 모든 step(step1~step5)에서 동일하게 사용
+ * 모든 step(step1~step4)에서 동일하게 사용
  * 
  * @returns isValidatingToken - 토큰 검증 중인지 여부
  */

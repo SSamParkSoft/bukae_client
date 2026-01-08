@@ -17,10 +17,9 @@ interface BukaeTopProps {
 
 const defaultSteps: Step[] = [
   { number: 1, label: '상품 선택', path: '/video/create/step1' },
-  { number: 2, label: '제작 방식', path: '/video/create/step2' },
-  { number: 3, label: '이미지 및 대본', path: '/video/create/step3' },
-  { number: 4, label: '미리보기 및 편집', path: '/video/create/step4' },
-  { number: 5, label: '영상 생성', path: '/video/create/step5' },
+  { number: 2, label: '대본 및 이미지', path: '/video/create/step2' },
+  { number: 3, label: '미리보기 및 편집', path: '/video/create/step3' },
+  { number: 4, label: '영상 생성', path: '/video/create/step4' },
 ]
 
 export default function BukaeTop({
@@ -50,7 +49,6 @@ export default function BukaeTop({
   const getCurrentStep = (): number => {
     if (currentStep !== undefined) return currentStep
 
-    if (pathname.includes('/step5')) return 5
     if (pathname.includes('/step4')) return 4
     if (pathname.includes('/step3')) return 3
     if (pathname.includes('/step2')) return 2

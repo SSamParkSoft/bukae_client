@@ -29,7 +29,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
     const raw = (currentScene?.text?.font || SUBTITLE_DEFAULT_FONT_ID).trim()
     if (raw === 'Pretendard-Bold' || raw === 'Pretendard') return 'pretendard'
     if (isSubtitleFontId(raw)) return raw
-    // 기존 데이터(시스템 폰트 문자열 등)는 Step4 자막 폰트 UI에선 기본 폰트로 정규화
+    // 기존 데이터(시스템 폰트 문자열 등)는 Step3 자막 폰트 UI에선 기본 폰트로 정규화
     return SUBTITLE_DEFAULT_FONT_ID
   }, [currentScene?.text?.font])
   const currentFontFamily = useMemo(

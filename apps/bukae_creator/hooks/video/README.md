@@ -70,7 +70,7 @@
 다음과 같은 훅은 이 디렉토리에 포함하지 **않습니다**:
 
 - ❌ 특정 페이지에만 사용되는 통합/컨테이너 훅
-  - 예: `app/video/create/step4/hooks/useStep4Container.ts`
+  - 예: `app/video/create/step3/hooks/useStep3Container.ts`
 - ❌ 페이지별 UI 상태 관리
 - ❌ 페이지별 이벤트 핸들러 통합
 
@@ -121,8 +121,8 @@ import { usePixiEditor } from '@/hooks/video/editing/usePixiEditor'
 
 ### 잘못된 사용
 ```typescript
-// ❌ step4 전용 통합 훅을 여기에 두면 안 됨
-// 대신 app/video/create/step4/hooks/에 위치해야 함
+// ❌ step3 전용 통합 훅을 여기에 두면 안 됨
+// 대신 app/video/create/step3/hooks/에 위치해야 함
 ```
 
 ## 새 훅 추가 시 체크리스트
@@ -138,6 +138,6 @@ import { usePixiEditor } from '@/hooks/video/editing/usePixiEditor'
 
 ## 관련 문서
 
-- 페이지 전용 훅: `app/video/create/step4/hooks/README.md`
+- 페이지 전용 훅: `app/video/create/step3/hooks/README.md`
 - 전체 리팩토링 계획: `.cursor/plans/video_hooks_리팩토링_및_최적화_*.plan.md`
 

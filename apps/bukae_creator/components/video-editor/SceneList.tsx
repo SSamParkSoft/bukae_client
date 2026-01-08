@@ -154,7 +154,7 @@ export function SceneList({
         className="text-center py-8 text-sm"
         style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}
       >
-        Step3에서 이미지와 스크립트를 먼저 생성해주세요.
+        Step2에서 이미지와 스크립트를 먼저 생성해주세요.
       </div>
     )
   }
