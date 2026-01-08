@@ -3,7 +3,6 @@
 import { memo } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 
 interface NextStepButtonProps {
   onClick: () => void
@@ -18,15 +17,23 @@ export const NextStepButton = memo(function NextStepButton({
       animate={{ opacity: 1, y: 0 }}
       className="flex justify-end pt-4"
     >
-      <Button
+      <button
+        type="button"
         onClick={onClick}
-        size="lg"
-        className="gap-2"
+        className="w-full h-[82px] rounded-2xl bg-[#5e8790] text-white hover:bg-[#5e8790]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-[var(--shadow-card-default)]"
         data-next-step-button
       >
-        다음 단계
+        <span 
+          className="font-bold tracking-[-0.48px]"
+          style={{ 
+            fontSize: 'var(--font-size-24)',
+            lineHeight: '33.6px'
+          }}
+        >
+          다음 단계
+        </span>
         <ArrowRight className="w-5 h-5" />
-      </Button>
+      </button>
     </motion.div>
   )
 })

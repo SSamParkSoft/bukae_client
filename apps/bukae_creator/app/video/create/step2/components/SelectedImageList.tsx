@@ -44,7 +44,7 @@ export const SelectedImageList = memo(function SelectedImageList({
   return (
     <Card
       ref={selectedListRef}
-      className="bg-white border-gray-200"
+      className="bg-white/40 border-white/10 shadow-[var(--shadow-container)]"
     >
       <CardContent>
         {/* AI 스크립트 생성 버튼 */}

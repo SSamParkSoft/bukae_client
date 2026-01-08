@@ -60,7 +60,7 @@ export const SceneItem = memo(function SceneItem({
           onDrop(e)
         }}
         onDragEnd={onDragEnd}
-        className={`p-4 rounded-lg transition-all shadow-[var(--shadow-card-default)] ${
+        className={`p-4 rounded-lg transition-all shadow-[var(--shadow-card-default)] border-0 ${
           draggedIndex === index
             ? 'opacity-50'
             : 'bg-white/80'

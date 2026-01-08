@@ -30,16 +30,13 @@ export default function AppShell({ children }: AppShellProps) {
       case 1:
         // Step1: 상단 배치
         return {
-          position1: { top: '0%', left: '15%', transform: 'translateY(-50%)' },
-          position2: { top: '5%', left: '-20%', transform: 'translateY(-50%)' },
-          position3: { top: '0%', right: '-15%', transform: 'translateY(-50%)' },
+          position1: { top: '65%', left: '15%', transform: 'translateY(-50%)' },
         }
       case 2:
         // Step2: 중앙 배치
         return {
-          position1: { top: '50%', left: '15%', transform: 'translate(-50%, -50%)' },
-          position2: { top: '50%', left: '-20%', transform: 'translate(0, -50%)' },
-          position3: { top: '50%', right: '-15%', transform: 'translate(0, -50%)' },
+          position1: { top: '70%', left: '15%', transform: 'translate(-50%, -50%)' },
+          position3: { top: '80%', right: '-15%', transform: 'translate(0, -50%)' },
         }
       case 3:
         // Step3: 하단 배치
@@ -94,52 +91,60 @@ export default function AppShell({ children }: AppShellProps) {
             filter: 'blur(100px)',
           }}
         />
-        {/* 왼쪽 중앙 타원 */}
-        {showEllipseBorder && (
-          <div 
-            className="absolute rounded-full"
-            style={{
-              ...ellipseConfig.position2,
-              width: '705px',
-              height: '591px',
-              border: '12px solid #234b60',
-              opacity: 0.5,
-            }}
-          />
+        {/* 왼쪽 중앙 타원 (position2가 있는 경우만 표시) */}
+        {ellipseConfig.position2 && (
+          <>
+            {showEllipseBorder && (
+              <div 
+                className="absolute rounded-full"
+                style={{
+                  ...ellipseConfig.position2,
+                  width: '705px',
+                  height: '591px',
+                  border: '12px solid #234b60',
+                  opacity: 0.5,
+                }}
+              />
+            )}
+            <div 
+              className="absolute rounded-full bg-[#234b60]"
+              style={{
+                ...ellipseConfig.position2,
+                width: '705px',
+                height: '591px',
+                opacity: 0.3,
+                filter: 'blur(100px)',
+              }}
+            />
+          </>
         )}
-        <div 
-          className="absolute rounded-full bg-[#234b60]"
-          style={{
-            ...ellipseConfig.position2,
-            width: '705px',
-            height: '591px',
-            opacity: 0.3,
-            filter: 'blur(100px)',
-          }}
-        />
-        {/* 오른쪽 타원 */}
-        {showEllipseBorder && (
-          <div 
-            className="absolute rounded-full"
-            style={{
-              ...ellipseConfig.position3,
-              width: '741px',
-              height: '591px',
-              border: '12px solid #234b60',
-              opacity: 0.5,
-            }}
-          />
+        {/* 오른쪽 타원 (position3가 있는 경우만 표시) */}
+        {ellipseConfig.position3 && (
+          <>
+            {showEllipseBorder && (
+              <div 
+                className="absolute rounded-full"
+                style={{
+                  ...ellipseConfig.position3,
+                  width: '741px',
+                  height: '591px',
+                  border: '12px solid #234b60',
+                  opacity: 0.5,
+                }}
+              />
+            )}
+            <div 
+              className="absolute rounded-full bg-[#234b60]"
+              style={{
+                ...ellipseConfig.position3,
+                width: '741px',
+                height: '591px',
+                opacity: 0.3,
+                filter: 'blur(100px)',
+              }}
+            />
+          </>
         )}
-        <div 
-          className="absolute rounded-full bg-[#234b60]"
-          style={{
-            ...ellipseConfig.position3,
-            width: '741px',
-            height: '591px',
-            opacity: 0.3,
-            filter: 'blur(100px)',
-          }}
-        />
       </div>
       
       <BukaeTop />

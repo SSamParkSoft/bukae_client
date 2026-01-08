@@ -28,10 +28,14 @@ export const ProductCard = memo(function ProductCard({
 
   return (
     <div
-      className="rounded-2xl bg-white p-4 cursor-pointer shadow-[var(--shadow-card-default)] hover:shadow-lg transition-all"
+      className={`rounded-2xl p-4 cursor-pointer shadow-[var(--shadow-card-default)] hover:shadow-lg transition-all ${
+        isSelected
+          ? 'bg-[#f0f7f8] border-2 border-[#5E8790]'
+          : 'bg-white border-2 border-transparent'
+      }`}
       onClick={() => onToggle(product)}
     >
-      <div className="flex gap-4">
+      <div className="flex gap-4 items-end">
         <div className="flex-1 flex gap-4">
           <div className="w-24 h-24 shrink-0 rounded-lg overflow-hidden bg-[#a6a6a6]">
             {product.image ? (
@@ -106,48 +110,29 @@ export const ProductCard = memo(function ProductCard({
                   <p className="text-[12px] font-medium text-[#5d5d5d] leading-[16.8px]">
                     * 수익 기준은 실제 금액 기준이라 예상 수익과 다를 수 있습니다
                   </p>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onToggle(product)
-                    }}
-                    className={`mt-1 px-4 h-8 rounded-lg font-bold transition-colors ${
-                      isSelected
-                        ? 'bg-[#e4eeed] text-[#111111]'
-                        : 'bg-[#e4eeed] text-[#111111] hover:bg-[#d4e0df]'
-                    }`}
-                    style={{ 
-                      fontSize: 'var(--font-size-12)',
-                      lineHeight: 'var(--line-height-12-140)'
-                    }}
-                  >
-                    선택
-                  </button>
                 </div>
               </div>
             )}
-            {priceInfo.expectedRevenue === null && (
-              <div className="mt-auto flex justify-end">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onToggle(product)
-                  }}
-                  className={`px-4 h-8 rounded-lg font-bold transition-colors ${
-                    isSelected
-                      ? 'bg-[#e4eeed] text-[#111111]'
-                      : 'bg-[#e4eeed] text-[#111111] hover:bg-[#d4e0df]'
-                  }`}
-                  style={{ 
-                    fontSize: 'var(--font-size-12)',
-                    lineHeight: 'var(--line-height-12-140)'
-                  }}
-                >
-                  선택
-                </button>
-              </div>
-            )}
           </div>
+        </div>
+        <div className="shrink-0 flex items-end">
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggle(product)
+            }}
+            className={`px-4 h-8 rounded-lg font-bold transition-colors ${
+              isSelected
+                ? 'bg-[#5E8790] text-white'
+                : 'bg-[#e4eeed] text-[#111111] hover:bg-[#d4e0df]'
+            }`}
+            style={{ 
+              fontSize: 'var(--font-size-12)',
+              lineHeight: 'var(--line-height-12-140)'
+            }}
+          >
+            {isSelected ? '선택됨' : '선택'}
+          </button>
         </div>
       </div>
     </div>
