@@ -57,7 +57,7 @@ export function useStep4Container() {
 
   // 토큰 검증
   const { isValidatingToken } = useVideoCreateAuth()
-  
+
   // 영상 렌더링 관련 상태
   // Hydration 오류 방지를 위해 초기값은 null로 설정하고, useEffect에서 클라이언트에서만 설정
   const [currentJobId, setCurrentJobId] = useState<string | null>(null)
@@ -301,9 +301,9 @@ export function useStep4Container() {
   // HTTP 폴링 함수
   const startHttpPolling = useCallback((jobId: string, startTime: number) => {
     if (jobStatusCheckTimeoutRef.current) {
-      return
-    }
-    
+                  return
+                }
+                
     const MAX_WAIT_TIME = 10 * 60 * 1000 // 10분으로 단축 (기존 30분)
     const MAX_PROCESSING_TIME = 5 * 60 * 1000 // PROCESSING 상태 최대 5분
     let checkCount = 0
@@ -323,7 +323,7 @@ export function useStep4Container() {
           return videoUrl
         }
         return null
-      } catch (error) {
+                  } catch (error) {
         console.warn('[HTTP Polling] 비디오 파일 확인 실패:', error)
         return null
       }
@@ -370,9 +370,9 @@ export function useStep4Container() {
               errorMessage: errorMsg
             })
             jobStatusCheckTimeoutRef.current = null
-            return
-          }
-          
+      return
+    }
+    
           const currentStatus = statusData.status || 'PENDING'
           if (currentStatus !== lastStatus) {
             lastStatusUpdateTime = Date.now()
@@ -563,8 +563,8 @@ export function useStep4Container() {
     // 중복 실행 방지: 이미 초기화 중이면 제외
     // 다른 step으로 이동했다가 돌아온 경우는 항상 상태 확인 필요
     if (isInitializing) {
-      return
-    }
+        return
+      }
     
     const checkInitialStatus = async () => {
       setIsInitializing(true)
@@ -572,9 +572,9 @@ export function useStep4Container() {
         const accessToken = authStorage.getAccessToken()
         if (!accessToken) {
           setIsInitializing(false)
-          return
-        }
-        
+        return
+      }
+
         const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
         const statusUrl = `${API_BASE_URL}/api/v1/studio/jobs/${targetJobId}`
         
@@ -592,17 +592,17 @@ export function useStep4Container() {
             setResultVideoUrl(statusData.resultVideoUrl || null)
             setJobProgress('영상 생성이 완료되었어요!')
             setIsInitializing(false)
-            return
-          }
-          
+      return
+    }
+    
           // 실패한 작업
           if (statusData.status === 'FAILED') {
             setJobStatus('FAILED')
             setJobProgress(statusData.errorMessage || '영상 생성이 실패했어요.')
             setIsInitializing(false)
-            return
-          }
-          
+      return
+    }
+
           // 진행 중인 작업 - 현재 상태를 그대로 표시
           if (statusData.status === 'PENDING' || statusData.status === 'PROCESSING') {
             const startTime = statusData.updatedAt 
@@ -822,7 +822,7 @@ export function useStep4Container() {
         tag.startsWith('#') ? tag : `#${tag}`
       )
       setVideoHashtags(normalizedHashtags)
-    } catch (error) {
+        } catch (error) {
       console.error('해시태그 생성 오류:', error)
       alert('해시태그 생성 중 오류가 발생했어요.')
       // 에러 발생 시 기본 추천 해시태그로 폴백
@@ -843,9 +843,9 @@ export function useStep4Container() {
   const handleNext = useCallback(() => {
     if (!videoTitle) {
       alert('영상 제목을 선택하거나 입력해주세요.')
-      return
-    }
-
+        return
+      }
+      
     setIsCompleteDialogOpen(true)
   }, [videoTitle])
 

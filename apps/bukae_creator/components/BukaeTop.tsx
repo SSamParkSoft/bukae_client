@@ -96,14 +96,12 @@ export default function BukaeTop({
             clipPath: 'inset(0 0 -20px 0)'
           }}
         >
-          <div className="max-w-[1194px] mx-auto px-6 pb-4">
-            <div className="flex justify-center">
-              <StepNavigation
-                steps={steps || defaultSteps}
-                currentStep={detectedCurrentStep}
-                onStepClick={onStepClick}
-              />
-            </div>
+          <div className="max-w-[1194px] mx-auto pb-4" style={{ paddingLeft: 'calc(1.5rem + 12px)', paddingRight: 'calc(1.5rem + 12px)' }}>
+            <StepNavigation
+              steps={steps || defaultSteps}
+              currentStep={detectedCurrentStep}
+              onStepClick={onStepClick}
+            />
           </div>
         </div>
       )}

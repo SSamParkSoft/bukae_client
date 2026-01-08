@@ -176,7 +176,9 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
 ]
 
 export function getStaticProducts(channelId?: string): Product[] {
-  const products = (channelId === 'ssambak' || channelId === '4rmy3px9') ? [...STATIC_PRODUCTS, ...SSAMBAK_EXTRA_PRODUCTS] : [...STATIC_PRODUCTS]
+  // 채널 ID에 관계없이 기본 제품 목록 반환
+  // 추가 제품은 백엔드 API에서 가져오도록 변경
+  const products = [...STATIC_PRODUCTS]
   products.sort((a, b) => a.order - b.order)
   return products
 }
