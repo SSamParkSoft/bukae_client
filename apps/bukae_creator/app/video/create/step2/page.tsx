@@ -28,7 +28,7 @@ export default function Step2Page() {
         transition={{ duration: 0.3 }}
         className="flex justify-center"
       >
-        <div className="flex w-full max-w-[1194px] mx-auto px-6 py-8">
+        <div className="flex w-full max-w-[1194px] mx-auto px-4 sm:px-6 py-8">
           <div className="flex-1 overflow-y-auto min-w-0">
             <div className="max-w-5xl mx-auto space-y-6">
               {/* 헤더 섹션 */}

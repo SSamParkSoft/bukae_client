@@ -33,7 +33,7 @@ export const SearchInput = memo(function SearchInput({
           onChange={(e) => onChange(e.target.value)}
           onKeyPress={onKeyPress}
           disabled={disabled}
-          className="w-full h-[72px] pl-6 pr-16 rounded-[60px] bg-white/80 font-semibold text-[#2c2c2c] placeholder:text-[#2c2c2c] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed tracking-[-0.36px] shadow-[var(--shadow-card-default)]"
+          className="w-full h-[72px] pl-4 sm:pl-6 pr-12 sm:pr-16 rounded-[60px] bg-white/80 font-semibold text-[#2c2c2c] placeholder:text-[#2c2c2c] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed tracking-[-0.36px] shadow-[var(--shadow-card-default)]"
           style={{ 
             fontSize: 'var(--font-size-18)',
             lineHeight: '25.2px'
@@ -42,7 +42,7 @@ export const SearchInput = memo(function SearchInput({
         <button
           onClick={onSearch}
           disabled={disabled || !value.trim()}
-          className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+          className="absolute right-3 sm:right-4 top-1/2 transform -translate-y-1/2 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSearching ? (
             <Loader2 className="w-6 h-6 animate-spin text-[#2c2c2c]" />

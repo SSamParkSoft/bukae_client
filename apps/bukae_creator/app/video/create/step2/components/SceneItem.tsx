@@ -69,12 +69,12 @@ export const SceneItem = memo(function SceneItem({
         <div className="flex items-center gap-4">
           <GripVertical className="w-5 h-5 cursor-move text-text-tertiary shrink-0" />
           
-          <div className="relative w-[120px] h-[120px] rounded-lg overflow-hidden bg-bg-gray-placeholder shrink-0">
+          <div className="relative w-20 h-20 sm:w-[120px] sm:h-[120px] rounded-lg overflow-hidden bg-bg-gray-placeholder shrink-0">
             <Image
               src={imageUrl}
               alt={`Image ${index + 1}`}
               fill
-              sizes="80px"
+              sizes="(max-width: 640px) 80px, 120px"
               className="object-cover"
               onError={(e) => {
                 e.currentTarget.src = PRODUCT_PLACEHOLDER

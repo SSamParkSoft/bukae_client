@@ -50,7 +50,7 @@ export default function Step1Page() {
 
   return (
     <div>
-      <div className="max-w-[1194px] mx-auto px-6 py-8">
+      <div className="w-full max-w-[1194px] mx-auto px-4 sm:px-6 py-8">
         {/* 헤더 섹션 */}
         <div className="mb-20 mt-[96px]">
           <div className="flex items-center justify-center mb-4">
@@ -183,7 +183,7 @@ export default function Step1Page() {
               </span>
             </div>
             <div className="rounded-2xl bg-white/20 border border-white/10 p-6 shadow-[var(--shadow-card-default)]">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {container.currentProducts.map((product, index) => {
                   const productResponse = container.currentProductResponses[index]
                   return (

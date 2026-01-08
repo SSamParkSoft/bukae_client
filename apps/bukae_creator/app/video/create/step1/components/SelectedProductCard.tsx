@@ -37,13 +37,14 @@ export const SelectedProductCard = memo(function SelectedProductCard({
       >
         <X className="w-5 h-5" />
       </button>
-      <div className="w-[148px] h-[148px] shrink-0 rounded-lg overflow-hidden bg-[#a6a6a6]">
+      <div className="w-24 h-24 sm:w-[148px] sm:h-[148px] shrink-0 rounded-lg overflow-hidden bg-[#a6a6a6]">
         {product.image ? (
           <Image
             src={product.image}
             alt={product.name || '제품 이미지'}
             width={148}
             height={148}
+            sizes="(max-width: 640px) 96px, 148px"
             className="w-full h-full object-cover"
             unoptimized
           />

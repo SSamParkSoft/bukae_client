@@ -13,10 +13,9 @@ export const PlatformSelector = memo(function PlatformSelector({
   onPlatformSelect,
 }: PlatformSelectorProps) {
   return (
-    <div className="mb-8 flex items-center gap-4">
+    <div className="mb-8 flex flex-col lg:flex-row items-start lg:items-center gap-4">
       <div 
-        className="rounded-[20px] bg-white/20 border border-white/10 shadow-[var(--shadow-container)] p-6"
-        style={{ width: '660px', height: '130px' }}
+        className="rounded-[20px] bg-white/20 border border-white/10 shadow-[var(--shadow-container)] p-6 w-full lg:w-[660px] lg:h-[130px]"
       >
         <div className="flex items-center gap-4 h-full">
           <button
