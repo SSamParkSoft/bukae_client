@@ -452,23 +452,56 @@ function Step4PageContent() {
 
       {/* 완료 확인 팝업 */}
       <Dialog open={container.isCompleteDialogOpen} onOpenChange={container.setIsCompleteDialogOpen}>
-        <DialogContent className={container.theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}>
-          <DialogHeader>
-            <DialogTitle className={container.theme === 'dark' ? 'text-white' : 'text-gray-900'}>
+        <DialogContent 
+          className={`max-w-md ${container.theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+          style={{ width: '100%', maxWidth: '448px' }}
+        >
+          <DialogHeader className="text-left" style={{ width: '100%' }}>
+            <DialogTitle 
+              className={container.theme === 'dark' ? 'text-white' : 'text-gray-900'}
+              style={{
+                fontSize: '18px',
+                lineHeight: '25.2px',
+                fontWeight: '600',
+                display: 'block',
+                width: '100%',
+                whiteSpace: 'normal',
+                wordBreak: 'keep-all'
+              }}
+            >
               영상제작을 완료하시겠어요?
             </DialogTitle>
-            <DialogDescription className={container.theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>
+            <DialogDescription 
+              className={container.theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}
+              style={{
+                fontSize: '14px',
+                lineHeight: '19.6px',
+                display: 'block',
+                width: '100%',
+                whiteSpace: 'normal',
+                wordBreak: 'keep-all'
+              }}
+            >
               업로드 기능은 추가 예정이에요.
             </DialogDescription>
           </DialogHeader>
-          <div className={`rounded-lg border px-4 py-3 text-sm ${
-            container.theme === 'dark'
-              ? 'bg-gray-900 border-gray-700 text-gray-100'
-              : 'bg-[#e4eeed] border-[#88a9ac] text-[#234b60]'
-          }`}>
+          <div 
+            className={`rounded-lg border px-4 py-3 text-sm ${
+              container.theme === 'dark'
+                ? 'bg-gray-900 border-gray-700 text-gray-100'
+                : 'bg-[#e4eeed] border-[#88a9ac] text-[#234b60]'
+            }`}
+            style={{
+              fontSize: '14px',
+              lineHeight: '19.6px',
+              width: '100%',
+              whiteSpace: 'normal',
+              wordBreak: 'keep-all'
+            }}
+          >
             제작된 영상은 30일간 보관 후 자동 삭제됩니다. <br />기한 내 필요한 파일은 다운로드해 주세요!
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0" style={{ width: '100%' }}>
             <Button
               variant="outline"
               onClick={() => container.setIsCompleteDialogOpen(false)}

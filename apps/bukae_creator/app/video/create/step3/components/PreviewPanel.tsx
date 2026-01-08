@@ -1,7 +1,7 @@
 'use client'
 
 import React, { memo, useMemo, useState, useEffect } from 'react'
-import { Play, Pause, Clock, Loader2, Grid3x3, Edit2, Download, ChevronDown } from 'lucide-react'
+import { Play, Pause, Clock, Loader2, Grid3x3, Edit2, Upload, ChevronDown } from 'lucide-react'
 import { formatTime, calculateTotalDuration } from '@/utils/timeline'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -427,7 +427,7 @@ export const PreviewPanel = memo(function PreviewPanel({
               </>
             ) : (
               <>
-                <Download className="w-4 h-4" />
+                <Upload className="w-4 h-4" />
                 <span 
                   className="font-bold tracking-[-0.32px] text-xs"
                   style={{ 

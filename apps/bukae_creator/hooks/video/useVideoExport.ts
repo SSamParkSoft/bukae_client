@@ -124,13 +124,8 @@ export function useVideoExport({
 
     if (!voiceTemplate || voiceTemplate.trim() === '') {
       console.warn('[useVideoExport] voiceTemplate이 없거나 빈 문자열입니다:', voiceTemplate)
-      // 개발 환경에서는 alert를 비활성화하여 MCP 테스트 가능하도록 함
-      const isDevelopment = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-      if (!isDevelopment) {
+      console.error('[useVideoExport] 목소리를 먼저 선택해주세요.')
       alert('목소리를 먼저 선택해주세요.')
-      } else {
-        console.error('[useVideoExport] 목소리를 먼저 선택해주세요.')
-      }
       return
     }
 

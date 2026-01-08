@@ -853,6 +853,50 @@ export function useStep4Container() {
     if (isCompleting) return
     setIsCompleting(true)
 
+    // 영상 메타데이터 저장 (jobId와 함께)
+    const targetJobId = urlJobId || currentJobId
+    if (targetJobId && videoTitle) {
+      try {
+        let accessToken = authStorage.getAccessToken()
+        if (!accessToken) {
+          const supabase = getSupabaseClient()
+          const { data } = await supabase.auth.getSession()
+          accessToken = data.session?.access_token ?? null
+        }
+
+        if (accessToken) {
+          const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+          
+          // 영상 메타데이터 저장 API 호출
+          // 백엔드 API가 jobId를 기반으로 영상을 생성하고 메타데이터를 저장하도록 요청
+          const videoMetadataResponse = await fetch(`${API_BASE_URL}/api/v1/videos`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              studioJobId: targetJobId,
+              title: videoTitle,
+              titleCandidates: videoTitleCandidates,
+              description: videoDescription,
+              hashtags: videoHashtags,
+            }),
+          })
+
+          if (!videoMetadataResponse.ok) {
+            console.warn('[handleComplete] Video metadata save failed', videoMetadataResponse.status)
+            // 실패해도 계속 진행 (메타데이터 저장 실패는 치명적이지 않음)
+          } else {
+            console.log('[handleComplete] Video metadata saved successfully')
+          }
+        }
+      } catch (error) {
+        console.error('[handleComplete] Video metadata save error', error)
+        // 에러가 나도 계속 진행
+      }
+    }
+
     // TTS 정리 시도 (실패해도 나머지 플로우는 진행)
     try {
       let accessToken = authStorage.getAccessToken()
@@ -899,7 +943,7 @@ export function useStep4Container() {
     setIsCompleteDialogOpen(false)
     setIsCompleting(false)
     router.push('/')
-  }, [isCompleting, reset, router])
+  }, [isCompleting, reset, router, urlJobId, currentJobId, videoTitle, videoTitleCandidates, videoDescription, videoHashtags])
 
   // 중단하기 핸들러
   const handleCancel = useCallback(() => {
