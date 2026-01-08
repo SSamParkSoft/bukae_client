@@ -272,7 +272,6 @@ export function useFullPlayback({
     if (!timeline || !voiceTemplate) {
       return
     }
-    
     // 모든 씬의 TTS가 준비되었는지 확인
     const scenesToSynthesize: number[] = []
     for (let i = 0; i < timeline.scenes.length; i++) {

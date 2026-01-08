@@ -124,6 +124,7 @@ export function useStep3Container() {
   const [isTtsBootstrapping, setIsTtsBootstrapping] = useState(false) // 첫 씬 TTS 로딩 상태
   const isTtsBootstrappingRef = useRef(false) // 클로저에서 최신 값 참조용
   const [showReadyMessage, setShowReadyMessage] = useState(false) // "재생이 가능해요!" 메시지 표시 여부
+  const [showVoiceRequiredMessage, setShowVoiceRequiredMessage] = useState(false) // "음성을 먼저 선택해주세요" 메시지 표시 여부
   const [isPreparing, setIsPreparing] = useState(false) // 모든 TTS 합성 준비 중인지 여부
   // 스크립트가 변경된 씬 추적 (재생 시 강제 재생성)
   const changedScenesRef = useRef<Set<number>>(new Set())
@@ -1552,20 +1553,25 @@ export function useStep3Container() {
 
   // 그룹 재생 핸들러 (useGroupPlayback 훅 사용)
   const handleGroupPlay = useCallback(async (sceneId: number, groupIndices: number[]) => {
+    console.log('[handleGroupPlay] 호출됨', { sceneId, groupIndices, groupPlayback: !!groupPlayback })
     // 이미 같은 그룹이 재생 중이면 정지
     if (groupPlayback.playingGroupSceneId === sceneId) {
+      console.log('[handleGroupPlay] 정지 호출')
       groupPlayback.stopGroup()
       return
     }
     
+    console.log('[handleGroupPlay] 재생 호출')
     await groupPlayback.playGroup(sceneId, groupIndices)
   }, [groupPlayback])
 
   // 씬 재생 핸들러 (useGroupPlayback 훅 사용 - 단일 씬도 그룹으로 처리)
   const handleScenePlay = useCallback(async (sceneIndex: number) => {
+    console.log('[handleScenePlay] 호출됨', { sceneIndex, groupPlayback: !!groupPlayback, timeline: !!timeline })
     try {
       // 이미 같은 씬이 재생 중이면 정지
       if (groupPlayback.playingSceneIndex === sceneIndex) {
+        console.log('[handleScenePlay] 정지 호출')
         groupPlayback.stopGroup()
         return
       }
@@ -1574,6 +1580,7 @@ export function useStep3Container() {
       // sceneId는 undefined로 전달하고, groupIndices는 [sceneIndex]로 전달
       const scene = timeline?.scenes[sceneIndex]
       const sceneId = scene?.sceneId
+      console.log('[handleScenePlay] 재생 호출', { sceneId, sceneIndex })
       await groupPlayback.playGroup(sceneId, [sceneIndex])
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -1602,7 +1609,7 @@ export function useStep3Container() {
       // 기타 오류는 콘솔에만 출력
       console.error('[씬 재생] 오류:', error)
     }
-  }, [singleScenePlayback, router])
+  }, [groupPlayback, timeline, router])
 
   // 그룹 삭제 핸들러
   const handleGroupDelete = useCallback((sceneId: number, groupIndices: number[]) => {
@@ -2109,6 +2116,7 @@ export function useStep3Container() {
     isBgmBootstrapping,
     isPreparing,
     showReadyMessage,
+    showVoiceRequiredMessage,
     isExporting,
     isPreviewingTransition,
     

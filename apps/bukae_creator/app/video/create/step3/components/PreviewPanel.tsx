@@ -18,6 +18,7 @@ interface PreviewPanelProps {
   progressRatio: number
   isPlaying: boolean
   showReadyMessage: boolean
+  showVoiceRequiredMessage?: boolean
   isTtsBootstrapping: boolean
   isBgmBootstrapping: boolean
   isPreparing: boolean
@@ -42,6 +43,7 @@ export const PreviewPanel = memo(function PreviewPanel({
   totalDuration,
   isPlaying,
   showReadyMessage,
+  showVoiceRequiredMessage = false,
   isTtsBootstrapping,
   isBgmBootstrapping,
   isPreparing,
@@ -235,6 +237,12 @@ export const PreviewPanel = memo(function PreviewPanel({
               <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs px-2 py-1.5 rounded-lg shadow-lg whitespace-nowrap z-50 animate-bounce">
                 재생이 가능해요!
                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-purple-600"></div>
+              </div>
+            )}
+            {showVoiceRequiredMessage && (
+              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-red-500 text-white text-xs px-2 py-1.5 rounded-lg shadow-lg whitespace-nowrap z-50 animate-bounce">
+                음성을 먼저 선택해주세요
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-red-500"></div>
               </div>
             )}
             <button

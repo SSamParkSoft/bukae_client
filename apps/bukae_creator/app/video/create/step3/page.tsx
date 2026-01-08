@@ -35,6 +35,7 @@ export default function Step3Page() {
             progressRatio={container.progressRatio}
             isPlaying={container.isPlaying}
             showReadyMessage={container.showReadyMessage}
+            showVoiceRequiredMessage={container.showVoiceRequiredMessage}
             isTtsBootstrapping={container.isTtsBootstrapping}
             isBgmBootstrapping={container.isBgmBootstrapping}
             isPreparing={container.isPreparing}
