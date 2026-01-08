@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Volume2, Play, Pause } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -87,7 +86,13 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
     }
   }
 
-  const handleCardClick = (templateId: string) => {
+  const handleCardClick = (templateId: string | null) => {
+    if (templateId === 'none' || templateId === null) {
+      // 배경음악 없음은 바로 적용
+      onBgmConfirm(null)
+      setBgmTemplate(null)
+      return
+    }
     setPendingTemplateId(templateId)
     setConfirmOpen(true)
   }
@@ -108,23 +113,69 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
 
   return (
     <div className="flex flex-col h-full">
-      <h3
-        className="text-sm font-semibold mb-3 shrink-0"
-        style={{
-          color: theme === 'dark' ? '#ffffff' : '#111827',
+      <h3 
+        className="font-bold text-text-dark mb-4 tracking-[-0.4px] shrink-0"
+        style={{ 
+          fontSize: 'var(--font-size-20)',
+          lineHeight: '28px'
         }}
       >
         배경음악 선택
       </h3>
-      <div 
-        className="flex-1 overflow-y-auto space-y-2 border rounded-lg min-h-0"
-        style={{
-          borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-          boxShadow: theme === 'dark' 
-            ? 'inset 0 2px 4px rgba(0, 0, 0, 0.3)' 
-            : 'inset 0 2px 4px rgba(0, 0, 0, 0.05)',
-        }}
-      >
+      <div className="h-0.5 bg-[#bbc9c9] mb-6 shrink-0" />
+      <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+        {/* 배경음악 없음 옵션 */}
+        <div
+          onClick={() => handleCardClick('none')}
+          className="flex items-center gap-4 h-[59px] cursor-pointer transition-all hover:opacity-90"
+        >
+          <div className="w-6 h-6 flex items-center justify-center shrink-0">
+            <Image src="/mute.svg" alt="mute" width={24} height={24} />
+          </div>
+          <div className={`flex-1 rounded-lg border h-[59px] flex items-center ${
+            bgmTemplate === null
+              ? 'bg-[#5e8790] border-[#5e8790]'
+              : 'bg-[#e3e3e3] border-[#88a9ac]'
+          }`}>
+            <div className="px-6 flex flex-col justify-center">
+              <span 
+                className={`font-bold tracking-[-0.32px] ${
+                  bgmTemplate === null ? 'text-white' : 'text-[#2c2c2c]'
+                }`}
+                style={{ 
+                  fontSize: 'var(--font-size-16)',
+                  lineHeight: '22.4px'
+                }}
+              >
+                배경음악 없음
+              </span>
+              <span 
+                className={`font-medium ${
+                  bgmTemplate === null ? 'text-white' : 'text-[#2c2c2c]'
+                }`}
+                style={{ 
+                  fontSize: '12px',
+                  lineHeight: '16.8px'
+                }}
+              >
+                배경음악을 설정하지 않습니다
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              // 배경음악 없음은 재생할 수 없음
+            }}
+            className="w-[65px] h-8 rounded-lg flex items-center justify-center gap-1 shrink-0 opacity-0 pointer-events-none"
+          >
+            <Image src="/play.svg" alt="play" width={12} height={14} />
+            <span className="font-semibold tracking-[-0.14px] text-black" style={{ fontSize: '14px', lineHeight: '19.6px' }}>듣기</span>
+          </button>
+        </div>
+
+        {/* 배경음악 템플릿 목록 */}
         {bgmTemplates.map((template) => {
           const isSelected = bgmTemplate === template.id
           const isPlaying = playingTemplateId === template.id
@@ -142,84 +193,53 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
               <PopoverTrigger asChild>
                 <div
                   onClick={() => handleCardClick(template.id)}
-                  className={`p-1 m-2 rounded-lg border cursor-pointer transition-all hover:scale-105 ${
-                    isSelected
-                      ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500'
-                      : isPlaying
-                        ? theme === 'dark'
-                          ? 'bg-gray-800 border-gray-600'
-                          : 'bg-gray-300 border-gray-400'
-                        : theme === 'dark'
-                          ? 'border-gray-700 bg-gray-900 hover:border-gray-600'
-                          : 'border-gray-200 bg-white hover:border-gray-300'
-                  }`}
-                  style={{
-                    borderColor: isSelected
-                      ? '#8b5cf6'
-                      : isPlaying
-                        ? theme === 'dark'
-                          ? '#4b5563'
-                          : '#9ca3af'
-                        : theme === 'dark'
-                          ? '#374151'
-                          : '#e5e7eb',
-                    backgroundColor: isPlaying
-                      ? theme === 'dark'
-                        ? '#1f2937'
-                        : '#d1d5db'
-                      : undefined,
-                    transform: 'scale(1)',
-                  }}
+                  className="flex items-center gap-4 h-[59px] cursor-pointer transition-all hover:opacity-90"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Volume2 className="w-4 h-4 flex-shrink-0" style={{ color: theme === 'dark' ? '#d1d5db' : '#374151' }} />
-                        <span
-                          className={`font-semibold text-sm truncate ${
-                            theme === 'dark' ? 'text-white' : 'text-gray-900'
-                          }`}
-                        >
-                          {template.name}
-                        </span>
-                        <Badge
-                          variant={template.tier === 'LIGHT' ? 'default' : 'secondary'}
-                          className="text-xs flex-shrink-0"
-                        >
-                          {template.tier}
-                        </Badge>
-                      </div>
-                      <p
-                        className={`text-xs mb-2 ${
-                          theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                  <div className="w-6 h-6 flex items-center justify-center shrink-0">
+                    <Image src="/sound.svg" alt="sound" width={24} height={24} />
+                  </div>
+                  <div className={`flex-1 rounded-lg border h-[59px] flex items-center ${
+                    isSelected
+                      ? 'bg-[#5e8790] border-[#5e8790]'
+                      : 'bg-white border-[#88a9ac]'
+                  }`}>
+                    <div className="px-6 flex flex-col justify-center">
+                      <span 
+                        className={`font-bold tracking-[-0.32px] ${
+                          isSelected ? 'text-white' : 'text-[#2c2c2c]'
                         }`}
+                        style={{ 
+                          fontSize: 'var(--font-size-16)',
+                          lineHeight: '22.4px'
+                        }}
+                      >
+                        {template.name}
+                      </span>
+                      <span 
+                        className={`font-medium ${
+                          isSelected ? 'text-white' : 'text-[#2c2c2c]'
+                        }`}
+                        style={{ 
+                          fontSize: '12px',
+                          lineHeight: '16.8px'
+                        }}
                       >
                         {template.description}
-                      </p>
+                      </span>
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="flex-shrink-0 h-8 px-2"
-                      onClick={(e) => handlePreview(template, e)}
-                      style={{
-                        color: theme === 'dark' ? '#d1d5db' : '#374151',
-                      }}
-                    >
-                      {isPlaying ? (
-                        <>
-                          <Pause className="w-3 h-3 mr-1" />
-                          <span className="text-xs">정지</span>
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-3 h-3 mr-1" />
-                          <span className="text-xs">듣기</span>
-                        </>
-                      )}
-                    </Button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={(e) => handlePreview(template, e)}
+                    className="w-[65px] h-8 rounded-lg flex items-center justify-center gap-1 shrink-0 hover:bg-gray-100 transition-all"
+                  >
+                    {isPlaying ? (
+                      <Image src="/mute.svg" alt="pause" width={15} height={18} />
+                    ) : (
+                      <Image src="/play.svg" alt="play" width={12} height={14} />
+                    )}
+                    <span className="font-semibold tracking-[-0.14px] text-black" style={{ fontSize: '14px', lineHeight: '19.6px' }}>듣기</span>
+                  </button>
                 </div>
               </PopoverTrigger>
               
@@ -228,38 +248,37 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
                 side="top"
                 align="center"
                 sideOffset={12}
-                className={`w-80 p-4 relative ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+                className="w-80 p-5 relative bg-white border-gray-200"
+                onClick={(e) => e.stopPropagation()}
               >
-                <div className="space-y-3">
-                  <div>
-                    <div className={`text-sm font-semibold mb-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                      배경음악 확정
-                    </div>
-                    <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                      배경음악을 확정하시겠어요?
-                    </div>
+                <div className="space-y-4">
+                  <div 
+                    className="font-semibold text-text-dark tracking-[-0.32px]"
+                    style={{ 
+                      fontSize: 'var(--font-size-16)',
+                      lineHeight: 'var(--line-height-16-140)'
+                    }}
+                  >
+                    배경음악을 확정하시겠어요?
                   </div>
-
-                  <div className="flex gap-2 justify-end">
+                  
+                  <div className="flex gap-2 pt-1">
                     <Button
                       type="button"
-                      variant="outline"
                       size="sm"
+                      variant="outline"
                       onClick={handleCancel}
-                      className={theme === 'dark' ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : ''}
+                      className="flex-1 bg-white border-gray-300 text-text-dark hover:bg-gray-50"
                     >
-                      아니요
+                      다시 선택하기
                     </Button>
                     <Button
                       type="button"
                       size="sm"
                       onClick={handleConfirm}
-                      style={{
-                        backgroundColor: '#8b5cf6',
-                        color: '#ffffff',
-                      }}
+                      className="flex-1 bg-brand-teal hover:bg-brand-teal-dark text-white"
                     >
-                      확정
+                      확정하기
                     </Button>
                   </div>
                 </div>
@@ -271,7 +290,7 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
                     bottom: '-8px',
                     borderLeft: '8px solid transparent',
                     borderRight: '8px solid transparent',
-                    borderTop: `8px solid ${theme === 'dark' ? '#1f2937' : '#ffffff'}`,
+                    borderTop: '8px solid #ffffff',
                   }}
                 />
                 <div
@@ -280,29 +299,13 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
                     bottom: '-9px',
                     borderLeft: '9px solid transparent',
                     borderRight: '9px solid transparent',
-                    borderTop: `9px solid ${theme === 'dark' ? '#374151' : '#e5e7eb'}`,
+                    borderTop: '9px solid #e5e7eb',
                   }}
                 />
               </PopoverContent>
             </Popover>
           )
         })}
-        <button
-          onClick={() => setBgmTemplate(null)}
-          className={`w-full p-3 rounded-lg border text-sm text-left transition-colors ${
-            bgmTemplate === null
-              ? 'bg-gray-100 dark:bg-gray-800 border-gray-400 dark:border-gray-600'
-              : 'hover:bg-gray-50 dark:hover:bg-gray-900/20'
-          }`}
-          style={{
-            borderColor: bgmTemplate === null
-              ? theme === 'dark' ? '#6b7280' : '#9ca3af'
-              : theme === 'dark' ? '#374151' : '#e5e7eb',
-            color: theme === 'dark' ? '#d1d5db' : '#374151',
-          }}
-        >
-          배경음악 없음
-        </button>
       </div>
     </div>
   )

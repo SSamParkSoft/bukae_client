@@ -1,8 +1,7 @@
 'use client'
 
-import React, { memo, useMemo } from 'react'
-import { Play, Pause, Clock, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import React, { memo, useMemo, useState, useEffect } from 'react'
+import { Play, Pause, Clock, Loader2, Grid3x3, Edit2, Download } from 'lucide-react'
 import { formatTime, calculateTotalDuration } from '@/utils/timeline'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 
@@ -23,14 +22,16 @@ interface PreviewPanelProps {
   isBgmBootstrapping: boolean
   isPreparing: boolean
   isExporting: boolean
+  showGrid?: boolean
   onTimelineMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void
   onPlayPause: () => void
   onExport: () => void
   onPlaybackSpeedChange: (speed: number) => void
+  onToggleGrid?: () => void
+  onResizeTemplate?: () => void
 }
 
 export const PreviewPanel = memo(function PreviewPanel({
-  theme,
   pixiContainerRef,
   canvasDisplaySize,
   gridOverlaySize,
@@ -39,17 +40,19 @@ export const PreviewPanel = memo(function PreviewPanel({
   playbackSpeed,
   currentTime,
   totalDuration,
-  progressRatio,
   isPlaying,
   showReadyMessage,
   isTtsBootstrapping,
   isBgmBootstrapping,
   isPreparing,
   isExporting,
+  showGrid = false,
   onTimelineMouseDown,
   onPlayPause,
   onExport,
   onPlaybackSpeedChange,
+  onToggleGrid,
+  onResizeTemplate,
 }: PreviewPanelProps) {
   const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
   
@@ -72,39 +75,49 @@ export const PreviewPanel = memo(function PreviewPanel({
   const totalTime = latestTotalDuration / speed
 
   const speedValue = (() => {
-    if (speed === 1 || speed === 1.0) return "1"
-    if (speed === 2 || speed === 2.0) return "2"
-    return String(speed)
+    if (speed === 1 || speed === 1.0) return "1.00"
+    if (speed === 2 || speed === 2.0) return "2.00"
+    return speed.toFixed(2)
   })()
 
-  return (
-    <>
-      <div className="p-4 border-b shrink-0 flex items-center" style={{
-        borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-        minHeight: '64px',
-        marginTop: '7px',
-      }}>
-        <div className="flex items-center justify-between w-full">
-          <h2 className="text-lg font-semibold" style={{
-            color: theme === 'dark' ? '#ffffff' : '#111827'
-          }}>
-            미리보기
-          </h2>
-        </div>
-      </div>
+  // 캔버스의 실제 너비를 측정
+  const [canvasActualWidth, setCanvasActualWidth] = useState<number | null>(null)
 
-      <div className="flex-1 flex flex-col p-4 gap-4 overflow-hidden min-h-0">
+  useEffect(() => {
+    if (!pixiContainerRef.current) return
+
+    const updateCanvasWidth = () => {
+      if (pixiContainerRef.current) {
+        const width = pixiContainerRef.current.offsetWidth
+        setCanvasActualWidth(width)
+      }
+    }
+
+    // 초기 측정
+    updateCanvasWidth()
+
+    // ResizeObserver로 크기 변경 감지
+    const resizeObserver = new ResizeObserver(updateCanvasWidth)
+    resizeObserver.observe(pixiContainerRef.current)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [pixiContainerRef, canvasDisplaySize])
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         {/* PixiJS 미리보기 - 9:16 비율 고정 (1080x1920) */}
         <div 
-          className="flex-1 flex items-center justify-center rounded-lg overflow-hidden min-h-0"
+          className="flex-1 flex items-center justify-center overflow-hidden min-h-0 shrink-0"
         >
           <div
             ref={pixiContainerRef}
-            className="relative bg-black"
+            className="relative bg-black mx-auto"
             style={{ 
-              width: canvasDisplaySize ? `${canvasDisplaySize.width}px` : '100%',
+              width: canvasDisplaySize ? `${canvasDisplaySize.width}px` : 'auto',
               height: canvasDisplaySize ? `${canvasDisplaySize.height}px` : '100%',
-              aspectRatio: canvasDisplaySize ? undefined : '9 / 16',
+              aspectRatio: '9 / 16',
               maxWidth: '100%',
               maxHeight: '100%',
             }}
@@ -171,116 +184,240 @@ export const PreviewPanel = memo(function PreviewPanel({
         </div>
 
         {/* 재생 컨트롤 */}
-        <div className="space-y-2">
-          <div 
-            className="flex items-center justify-between text-xs" 
-            style={{
-              color: theme === 'dark' ? '#9ca3af' : '#6b7280'
-            }}
-          >
-            <span>{formatTime(actualTime)}</span>
-            <span>{formatTime(actualDuration)}</span>
-          </div>
-          
-          <div
-            ref={timelineBarRef}
-            className="w-full h-2 rounded-full cursor-pointer relative"
-            style={{
-              backgroundColor: theme === 'dark' ? '#374151' : '#e5e7eb'
-            }}
-            onMouseDown={onTimelineMouseDown}
-          >
+        <div 
+          className="px-3 py-2 space-y-2 shrink-0 mx-auto"
+          style={{
+            width: canvasActualWidth ? `${canvasActualWidth}px` : '100%',
+            maxWidth: '100%',
+          }}
+        >
+          {/* 타임라인 시간 표시 및 바 */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span 
+                className="font-medium text-[#2c2c2c] tracking-[-0.32px] text-xs"
+                style={{ 
+                  fontSize: '11px',
+                  lineHeight: '15px'
+                }}
+              >
+                {formatTime(actualTime)}
+              </span>
+              <span 
+                className="font-medium text-[#2c2c2c] tracking-[-0.32px] text-xs"
+                style={{ 
+                  fontSize: '11px',
+                  lineHeight: '15px'
+                }}
+              >
+                {formatTime(actualDuration)}
+              </span>
+            </div>
+            
             <div
-              className="h-full rounded-full"
-              style={{
-                width: `${latestProgressRatio * 100}%`,
-                backgroundColor: '#8b5cf6',
-                transition: isPlaying ? 'none' : 'width 0.1s ease-out'
-              }}
-            />
+              ref={timelineBarRef}
+              className="w-full h-1 bg-white rounded-full cursor-pointer relative"
+              onMouseDown={onTimelineMouseDown}
+            >
+              <div
+                className="h-full rounded-full bg-brand-teal"
+                style={{
+                  width: `${latestProgressRatio * 100}%`,
+                  transition: isPlaying ? 'none' : 'width 0.1s ease-out'
+                }}
+              />
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 relative">
+          {/* 버튼들: 재생, 격자, 크기 조정 */}
+          <div className="flex items-center gap-1 relative">
             {showReadyMessage && (
-              <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs px-3 py-2 rounded-lg shadow-lg whitespace-nowrap z-50 animate-bounce">
+              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs px-2 py-1.5 rounded-lg shadow-lg whitespace-nowrap z-50 animate-bounce">
                 재생이 가능해요!
                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-purple-600"></div>
               </div>
             )}
-            <Button
+            <button
               onClick={onPlayPause}
-              variant="outline"
-              size="sm"
-              className="flex-1"
               disabled={isTtsBootstrapping || isBgmBootstrapping || isPreparing}
+              className="flex-1 h-7 bg-white border border-[#d6d6d6] rounded-lg flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-gray-50"
             >
               {isTtsBootstrapping || isBgmBootstrapping || isPreparing ? (
                 <>
-                  <Clock className="w-4 h-4 mr-2" />
-                  로딩중…
+                  <Clock className="w-6 h-6 text-[#111111]" />
+                  <span 
+                    className="font-medium text-[#111111] tracking-[-0.14px] text-xs"
+                    style={{ 
+                      fontSize: '12px',
+                      lineHeight: '16px'
+                    }}
+                  >
+                    로딩중…
+                  </span>
                 </>
               ) : isPlaying ? (
                 <>
-                  <Pause className="w-4 h-4 mr-2" />
-                  일시정지
+                  <Pause className="w-4 h-4 text-[#111111]" />
+                  <span 
+                    className="font-medium text-[#111111] tracking-[-0.14px] text-xs"
+                    style={{ 
+                      fontSize: '11px',
+                      lineHeight: '15px'
+                    }}
+                  >
+                    일시정지
+                  </span>
                 </>
               ) : (
                 <>
-                  <Play className="w-4 h-4 mr-2" />
-                  재생
+                  <Play className="w-4 h-4 text-[#111111]" />
+                  <span 
+                    className="font-medium text-[#111111] tracking-[-0.14px] text-xs"
+                    style={{ 
+                      fontSize: '11px',
+                      lineHeight: '15px'
+                    }}
+                  >
+                    재생
+                  </span>
                 </>
               )}
-            </Button>
-            <Button
-              onClick={onExport}
-              disabled={isExporting}
-              size="sm"
-              className="flex-1"
-            >
-              {isExporting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            </button>
+            {onToggleGrid && (
+              <button
+                onClick={onToggleGrid}
+                className={`flex-1 h-7 rounded-lg flex items-center justify-center gap-1 transition-all ${
+                  showGrid 
+                    ? 'bg-brand-teal text-white' 
+                    : 'bg-white border border-[#d6d6d6] text-[#111111] hover:bg-gray-50'
+                }`}
+              >
+                <Grid3x3 className="w-4 h-4" />
+                <span 
+                  className="font-medium tracking-[-0.14px] text-xs"
+                  style={{ 
+                    fontSize: '11px',
+                    lineHeight: '15px'
+                  }}
+                >
+                  격자
+                </span>
+              </button>
+            )}
+            {onResizeTemplate && (
+              <button
+                onClick={onResizeTemplate}
+                className="flex-1 h-7 bg-white border border-[#d6d6d6] rounded-lg flex items-center justify-center gap-1 transition-all hover:bg-gray-50"
+              >
+                <Edit2 className="w-4 h-4 text-[#111111]" />
+                <span 
+                  className="font-medium text-[#111111] tracking-[-0.14px] text-xs"
+                  style={{ 
+                    fontSize: '11px',
+                    lineHeight: '15px'
+                  }}
+                >
+                  크기 조정
+                </span>
+              </button>
+            )}
+          </div>
+
+          {/* 배속 선택 및 실제 재생 시간 */}
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1">
+              <span 
+                className="font-medium text-[#2c2c2c] tracking-[-0.32px] text-xs"
+                style={{ 
+                  fontSize: '11px',
+                  lineHeight: '15px'
+                }}
+              >
+                배속:
+              </span>
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
+                    const currentIndex = speeds.findIndex(s => Math.abs(s - speed) < 0.01)
+                    const nextIndex = (currentIndex + 1) % speeds.length
+                    onPlaybackSpeedChange(speeds[nextIndex])
+                  }}
+                  className="w-[60px] h-6 bg-[#e3e3e3] border border-[#d6d6d6] rounded-lg flex items-center justify-between px-1.5 hover:bg-gray-200 transition-all"
+                >
+                  <span 
+                    className="font-medium text-[#5d5d5d] tracking-[-0.14px] text-xs"
+                    style={{ 
+                      fontSize: '11px',
+                      lineHeight: '15px'
+                    }}
+                  >
+                    {speedValue}x
+                  </span>
+                  <svg className="w-3 h-3 text-[#5d5d5d]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <span 
+                className="font-medium text-[#2c2c2c] tracking-[-0.32px] text-xs"
+                style={{ 
+                  fontSize: '11px',
+                  lineHeight: '15px'
+                }}
+              >
+                실제 재생:
+              </span>
+              <span 
+                className="font-medium text-[#2c2c2c] tracking-[-0.32px] text-xs"
+                style={{ 
+                  fontSize: '11px',
+                  lineHeight: '15px'
+                }}
+              >
+                {formatTime(totalTime)}
+              </span>
+            </div>
+          </div>
+
+          {/* 내보내기 버튼 */}
+          <button
+            onClick={onExport}
+            disabled={isExporting}
+            className="w-full h-9 bg-[#5e8790] text-white rounded-lg flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-[#5e8790]/90"
+          >
+            {isExporting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span 
+                  className="font-bold tracking-[-0.32px] text-xs"
+                  style={{ 
+                    fontSize: '12px',
+                    lineHeight: '16px'
+                  }}
+                >
                   제작 시작 중...
-                </>
-              ) : (
-                '내보내기'
-              )}
-            </Button>
-          </div>
-        
-          {/* 배속 선택 */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs" style={{
-              color: theme === 'dark' ? '#9ca3af' : '#6b7280'
-            }}>
-              배속:
-            </label>
-            <select
-              value={speedValue}
-              onChange={(e) => onPlaybackSpeedChange(parseFloat(e.target.value))}
-              className="flex-1 px-2 py-1 rounded border text-xs"
-              style={{
-                backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff',
-                borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                color: theme === 'dark' ? '#ffffff' : '#111827'
-              }}
-            >
-              <option value="0.5">0.5x</option>
-              <option value="0.75">0.75x</option>
-              <option value="1">1x</option>
-              <option value="1.25">1.25x</option>
-              <option value="1.5">1.5x</option>
-              <option value="2">2x</option>
-            </select>
-            <span className="text-xs" style={{
-              color: theme === 'dark' ? '#9ca3af' : '#6b7280'
-            }}>
-              실제 재생: {formatTime(totalTime)}
-            </span>
-          </div>
+                </span>
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                <span 
+                  className="font-bold tracking-[-0.32px] text-xs"
+                  style={{ 
+                    fontSize: '12px',
+                    lineHeight: '16px'
+                  }}
+                >
+                  내보내기
+                </span>
+              </>
+            )}
+          </button>
         </div>
-      </div>
-    </>
+    </div>
   )
 })
 

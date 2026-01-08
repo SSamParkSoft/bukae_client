@@ -1,4 +1,4 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { BgmSelector } from '@/components/video-editor/BgmSelector'
 import { SubtitleSettings } from '@/components/video-editor/SubtitleSettings'
 import ChirpVoiceSelector from '@/components/ChirpVoiceSelector'
@@ -41,81 +41,173 @@ export function EffectsPanel({
   const displayTransitions = transitions || allTransitions
   const displayMovements = movements || []
   return (
-    <div
-      className="w-full flex flex-col h-full overflow-hidden"
-      style={{ 
-        backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-        maxWidth: '100%',
-        boxSizing: 'border-box',
-      }}
-    >
-      <div
-        className="p-4 border-b shrink-0 flex items-center"
-        style={{
-          borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-          minHeight: '64px',
-          marginTop: '7px',
-        }}
-      >
-        <div className="flex items-center justify-between w-full">
-          <h2
-            className="text-lg font-semibold"
-            style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
-          >
-            효과
-          </h2>
-        </div>
-      </div>
-
+    <div className="w-full flex flex-col h-full overflow-hidden">
       <div className="flex-1 overflow-hidden min-h-0 flex flex-col" style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
-        <Tabs value={rightPanelTab} onValueChange={setRightPanelTab} className="p-2 sm:p-4 h-full flex flex-col" style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
-          <TabsList className="grid w-full grid-cols-4 mb-2 sm:mb-4 shrink-0 gap-1 sm:gap-0" style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
-            <TabsTrigger value="animation" className="text-[10px] sm:text-sm px-1 sm:px-3 py-1.5 sm:py-2">애니메이션</TabsTrigger>
-            <TabsTrigger value="bgm" className="text-[10px] sm:text-sm px-1 sm:px-3 py-1.5 sm:py-2">배경음악</TabsTrigger>
-            <TabsTrigger value="subtitle" className="text-[10px] sm:text-sm px-1 sm:px-3 py-1.5 sm:py-2">자막</TabsTrigger>
-            <TabsTrigger value="voice" className="text-[10px] sm:text-sm px-1 sm:px-3 py-1.5 sm:py-2">음성</TabsTrigger>
-          </TabsList>
+        <Tabs value={rightPanelTab} onValueChange={setRightPanelTab} className="h-full flex flex-col" style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+          {/* 탭바와 내용을 하나의 박스로 연결 */}
+          <div className="px-4 pt-0 pb-0 flex-1 overflow-hidden min-h-0 flex flex-col">
+            <div className="bg-white/60 rounded-2xl flex flex-col h-full overflow-hidden">
+              {/* 탭바 */}
+              <div className="p-1 shrink-0">
+                <div className="bg-white rounded-2xl p-1 shadow-[var(--shadow-container)]">
+                  <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setRightPanelTab('animation')}
+                  className={`flex-1 rounded-xl px-3 py-2 transition-all font-bold tracking-[-0.14px] ${
+                    rightPanelTab === 'animation'
+                      ? 'bg-[#5e8790] text-white'
+                      : 'text-[#5d5d5d] font-medium'
+                  }`}
+                  style={{ 
+                    fontSize: 'var(--font-size-14)',
+                    lineHeight: rightPanelTab === 'animation' ? '22.4px' : '19.6px'
+                  }}
+                >
+                  애니메이션
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightPanelTab('bgm')}
+                  className={`flex-1 rounded-xl px-3 py-2 transition-all font-bold tracking-[-0.14px] ${
+                    rightPanelTab === 'bgm'
+                      ? 'bg-[#5e8790] text-white'
+                      : 'text-[#5d5d5d] font-medium'
+                  }`}
+                  style={{ 
+                    fontSize: 'var(--font-size-14)',
+                    lineHeight: rightPanelTab === 'bgm' ? '22.4px' : '19.6px'
+                  }}
+                >
+                  배경음악
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightPanelTab('subtitle')}
+                  className={`flex-1 rounded-xl px-3 py-2 transition-all font-bold tracking-[-0.14px] ${
+                    rightPanelTab === 'subtitle'
+                      ? 'bg-[#5e8790] text-white'
+                      : 'text-[#5d5d5d] font-medium'
+                  }`}
+                  style={{ 
+                    fontSize: 'var(--font-size-14)',
+                    lineHeight: rightPanelTab === 'subtitle' ? '22.4px' : '19.6px'
+                  }}
+                >
+                  자막
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightPanelTab('voice')}
+                  className={`flex-1 rounded-xl px-3 py-2 transition-all font-bold tracking-[-0.14px] ${
+                    rightPanelTab === 'voice'
+                      ? 'bg-[#5e8790] text-white'
+                      : 'text-[#5d5d5d] font-medium'
+                  }`}
+                  style={{ 
+                    fontSize: 'var(--font-size-14)',
+                    lineHeight: rightPanelTab === 'voice' ? '22.4px' : '19.6px'
+                  }}
+                >
+                  음성
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightPanelTab('template')}
+                  className={`flex-1 rounded-xl px-3 py-2 transition-all font-bold tracking-[-0.14px] ${
+                    rightPanelTab === 'template'
+                      ? 'bg-[#5e8790] text-white'
+                      : 'text-[#5d5d5d] font-medium'
+                  }`}
+                  style={{ 
+                    fontSize: 'var(--font-size-14)',
+                    lineHeight: rightPanelTab === 'template' ? '22.4px' : '19.6px'
+                  }}
+                >
+                  템플릿
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRightPanelTab('sound')}
+                  className={`flex-1 rounded-xl px-3 py-2 transition-all font-bold tracking-[-0.14px] ${
+                    rightPanelTab === 'sound'
+                      ? 'bg-[#5e8790] text-white'
+                      : 'text-[#5d5d5d] font-medium'
+                  }`}
+                  style={{ 
+                    fontSize: 'var(--font-size-14)',
+                    lineHeight: rightPanelTab === 'sound' ? '22.4px' : '19.6px'
+                  }}
+                >
+                  효과음
+                </button>
+                  </div>
+                </div>
+              </div>
 
-          <div className="flex-1 overflow-y-auto min-h-0" style={{ width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden' }}>
-            <TabsContent value="animation" className="space-y-4 h-full w-full max-w-full overflow-x-hidden">
+              {/* 내용 영역 */}
+              <div className="flex-1 overflow-y-auto min-h-0" style={{ width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden' }}>
+                <TabsContent value="animation" className="space-y-6 px-6 pt-6 w-full max-w-full overflow-x-hidden">
               {/* 전환 효과 섹션 */}
               {displayTransitions.length > 0 && (
                 <div>
-                  <h3
-                    className="text-sm font-semibold mb-2"
-                    style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
+                  <h3 
+                    className="font-bold text-text-dark mb-4 tracking-[-0.4px]"
+                    style={{ 
+                      fontSize: 'var(--font-size-20)',
+                      lineHeight: '28px'
+                    }}
                   >
                     전환 효과
                   </h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {displayTransitions.map((transition) => {
-                      const isSelected = timeline?.scenes[currentSceneIndex]?.transition === transition.value
-                      return (
-                        <button
-                          key={transition.value}
-                          onClick={() => {
-                            if (timeline && currentSceneIndex >= 0) {
-                              onTransitionChange(currentSceneIndex, transition.value)
-                            }
-                          }}
-                          className={`p-3 rounded-lg border text-sm transition-colors ${
-                            isSelected
-                              ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500'
-                              : 'hover:bg-purple-50 dark:hover:bg-purple-900/20'
-                          }`}
-                          style={{
-                            borderColor: isSelected
-                              ? '#8b5cf6'
-                              : theme === 'dark'
-                                ? '#374151'
-                                : '#e5e7eb',
-                            color: theme === 'dark' ? '#d1d5db' : '#374151',
-                          }}
-                        >
-                          {transition.label}
-                        </button>
-                      )
-                    })}
+                  <div className="h-0.5 bg-[#bbc9c9] mb-6" />
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* 첫 번째 카드: 없음 */}
+                    <button
+                      onClick={() => {
+                        if (timeline && currentSceneIndex >= 0) {
+                          onTransitionChange(currentSceneIndex, 'none')
+                        }
+                      }}
+                      className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
+                        timeline?.scenes[currentSceneIndex]?.transition === 'none' || !timeline?.scenes[currentSceneIndex]?.transition
+                          ? 'bg-[#5e8790] text-white border-[#5e8790]'
+                          : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
+                      }`}
+                      style={{ 
+                        fontSize: 'var(--font-size-14)',
+                        lineHeight: '22.4px'
+                      }}
+                    >
+                      없음
+                    </button>
+                    {/* 나머지 전환 효과들 */}
+                    {displayTransitions
+                      .filter(transition => transition.value !== 'none')
+                      .map((transition) => {
+                        const isSelected = timeline?.scenes[currentSceneIndex]?.transition === transition.value
+                        return (
+                          <button
+                            key={transition.value}
+                            onClick={() => {
+                              if (timeline && currentSceneIndex >= 0) {
+                                onTransitionChange(currentSceneIndex, transition.value)
+                              }
+                            }}
+                            className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
+                              isSelected
+                                ? 'bg-[#5e8790] text-white border-[#5e8790]'
+                                : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
+                            }`}
+                            style={{ 
+                              fontSize: 'var(--font-size-14)',
+                              lineHeight: '22.4px'
+                            }}
+                          >
+                            {transition.label}
+                          </button>
+                        )
+                      })}
                   </div>
                 </div>
               )}
@@ -123,13 +215,17 @@ export function EffectsPanel({
               {/* 움직임 섹션 */}
               {displayMovements.length > 0 && (
                 <div>
-                  <h3
-                    className="text-sm font-semibold mb-2"
-                    style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
+                  <h3 
+                    className="font-bold text-text-dark mb-4 tracking-[-0.4px]"
+                    style={{ 
+                      fontSize: 'var(--font-size-20)',
+                      lineHeight: '28px'
+                    }}
                   >
                     움직임
                   </h3>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="h-0.5 bg-[#bbc9c9] mb-6" />
+                  <div className="grid grid-cols-3 gap-2">
                     {displayMovements.map((movement) => {
                       const isSelected = timeline?.scenes[currentSceneIndex]?.transition === movement.value
                       return (
@@ -140,18 +236,14 @@ export function EffectsPanel({
                               onTransitionChange(currentSceneIndex, movement.value)
                             }
                           }}
-                          className={`p-3 rounded-lg border text-sm transition-colors ${
+                          className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
                             isSelected
-                              ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-500'
-                              : 'hover:bg-purple-50 dark:hover:bg-purple-900/20'
+                              ? 'bg-[#5e8790] border-[#5e8790] text-white'
+                              : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
                           }`}
-                          style={{
-                            borderColor: isSelected
-                              ? '#8b5cf6'
-                              : theme === 'dark'
-                                ? '#374151'
-                                : '#e5e7eb',
-                            color: theme === 'dark' ? '#d1d5db' : '#374151',
+                          style={{ 
+                            fontSize: 'var(--font-size-14)',
+                            lineHeight: '22.4px'
                           }}
                         >
                           {movement.label}
@@ -257,41 +349,43 @@ export function EffectsPanel({
                 </div>
               </div>
             </div> */}
-          </TabsContent>
+                </TabsContent>
 
-          <TabsContent value="bgm" className="h-full w-full max-w-full overflow-x-hidden">
-              <div className="w-full max-w-full overflow-x-hidden box-border">
-                <BgmSelector 
-                  bgmTemplate={bgmTemplate} 
-                  theme={theme ?? 'light'} 
-                  setBgmTemplate={setBgmTemplate}
-                  confirmedBgmTemplate={confirmedBgmTemplate}
-                  onBgmConfirm={onBgmConfirm}
-                />
-              </div>
-            </TabsContent>
+                <TabsContent value="bgm" className="px-6 pt-6 w-full max-w-full overflow-x-hidden">
+                  <div className="w-full max-w-full overflow-x-hidden box-border">
+                    <BgmSelector 
+                      bgmTemplate={bgmTemplate} 
+                      theme={theme ?? 'light'} 
+                      setBgmTemplate={setBgmTemplate}
+                      confirmedBgmTemplate={confirmedBgmTemplate}
+                      onBgmConfirm={onBgmConfirm}
+                    />
+                  </div>
+                </TabsContent>
 
-            <TabsContent value="subtitle" className="space-y-4 h-full" style={{ width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden' }}>
-              <div style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
-                <SubtitleSettings
-                  timeline={timeline}
-                  currentSceneIndex={currentSceneIndex}
-                  theme={theme ?? 'light'}
-                  setTimeline={setTimeline}
-                />
-              </div>
-            </TabsContent>
+                <TabsContent value="subtitle" className="px-6 pt-6 space-y-4" style={{ width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden' }}>
+                  <div style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
+                    <SubtitleSettings
+                      timeline={timeline}
+                      currentSceneIndex={currentSceneIndex}
+                      theme={theme ?? 'light'}
+                      setTimeline={setTimeline}
+                    />
+                  </div>
+                </TabsContent>
 
-            <TabsContent value="voice" className="space-y-4 h-full w-full max-w-full overflow-x-hidden">
-              <div className="w-full max-w-full overflow-x-hidden box-border">
-                <ChirpVoiceSelector
-                  theme={theme ?? 'light'}
-                  title="목소리 선택"
-                  disabled={!timeline || currentSceneIndex < 0}
-                  layout="panel"
-                />
+                <TabsContent value="voice" className="px-6 pt-6 space-y-4 w-full max-w-full overflow-x-hidden">
+                  <div className="w-full max-w-full overflow-x-hidden box-border">
+                    <ChirpVoiceSelector
+                      theme={theme ?? 'light'}
+                      title="목소리 선택"
+                      disabled={!timeline || currentSceneIndex < 0}
+                      layout="panel"
+                    />
+                  </div>
+                </TabsContent>
               </div>
-            </TabsContent>
+            </div>
           </div>
         </Tabs>
       </div>

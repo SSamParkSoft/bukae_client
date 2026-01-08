@@ -14,19 +14,14 @@ export default function Step3Page() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex-1 flex overflow-hidden"
-        style={{ width: '100%', maxWidth: '100vw', boxSizing: 'border-box' }}
+        className="flex h-full overflow-hidden w-full px-[100px]"
       >
-        <div className="flex-1 flex overflow-hidden h-full" style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
-          {/* 왼쪽 패널: 미리보기 + 타임라인 */}
-        <div className="w-[30%] border-r flex flex-col h-full overflow-hidden" style={{
-          borderColor: container.theme === 'dark' ? '#374151' : '#e5e7eb',
-          backgroundColor: container.theme === 'dark' ? '#111827' : '#ffffff'
-        }}>
+        {/* 왼쪽 패널: 미리보기 + 타임라인 */}
+        <div className="flex-[0_0_25%] min-w-[200px] max-w-[350px] border-r border-white flex flex-col overflow-hidden h-full">
           <PreviewPanel
             theme={container.theme}
             pixiContainerRef={container.pixiContainerRef}
@@ -44,18 +39,18 @@ export default function Step3Page() {
             isBgmBootstrapping={container.isBgmBootstrapping}
             isPreparing={container.isPreparing}
             isExporting={container.isExporting}
+            showGrid={container.showGrid}
             onTimelineMouseDown={container.handleTimelineMouseDown}
             onPlayPause={container.handlePlayPause}
             onExport={container.handleExport}
             onPlaybackSpeedChange={container.handlePlaybackSpeedChange}
+            onToggleGrid={() => container.setShowGrid(!container.showGrid)}
+            onResizeTemplate={container.handleResizeTemplate}
           />
         </div>
 
         {/* 중앙 패널: 씬 리스트 */}
-        <div className="w-[40%] border-r flex flex-col h-full overflow-hidden" style={{
-          borderColor: container.theme === 'dark' ? '#374151' : '#e5e7eb',
-          backgroundColor: container.theme === 'dark' ? '#111827' : '#ffffff'
-        }}>
+        <div className="flex-[0_0_45%] min-w-[400px] border-r border-white flex flex-col overflow-hidden h-full mr-6">
           <SceneListPanel
             theme={container.theme}
             scenes={container.scenes}
@@ -63,15 +58,11 @@ export default function Step3Page() {
             sceneThumbnails={container.sceneThumbnails}
             currentSceneIndex={container.currentSceneIndex}
             selectedPart={container.selectedPart}
-            showGrid={container.showGrid}
-            stageDimensions={container.stageDimensions}
             transitionLabels={container.transitionLabels}
             playingSceneIndex={container.playingSceneIndex}
             playingGroupSceneId={container.playingGroupSceneId}
             isPreparing={container.isPreparing}
             isTtsBootstrapping={container.isTtsBootstrapping}
-            onToggleGrid={() => container.setShowGrid(!container.showGrid)}
-            onResizeTemplate={container.handleResizeTemplate}
             onSelect={container.handleSceneSelect}
             onScriptChange={container.handleSceneScriptChange}
             onImageFitChange={container.handleSceneImageFitChange}
@@ -89,13 +80,7 @@ export default function Step3Page() {
         </div>
 
         {/* 오른쪽 패널: 효과 설정 */}
-        <div className="w-[30%] flex flex-col h-full overflow-hidden" style={{
-          borderColor: container.theme === 'dark' ? '#374151' : '#e5e7eb',
-          backgroundColor: container.theme === 'dark' ? '#111827' : '#ffffff',
-          maxWidth: '30%',
-          minWidth: 0,
-          boxSizing: 'border-box',
-        }}>
+        <div className="flex-[0_0_40%] min-w-[300px] max-w-[580px] flex flex-col overflow-hidden h-full">
           <EffectsPanel
             theme={container.theme}
             rightPanelTab={container.rightPanelTab}
@@ -112,7 +97,6 @@ export default function Step3Page() {
             onBgmConfirm={container.handleBgmConfirm}
             setTimeline={container.setTimeline}
           />
-        </div>
         </div>
       </motion.div>
     </div>

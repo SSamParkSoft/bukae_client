@@ -92,8 +92,10 @@ export default function BukaeTop({
         <div 
           className="w-full relative"
           style={{
-            boxShadow: '0px 4px 16px 0px rgba(94, 135, 144, 0.2)',
-            clipPath: 'inset(0 0 -20px 0)'
+            ...(detectedCurrentStep !== 3 && {
+              boxShadow: '0px 4px 16px 0px rgba(94, 135, 144, 0.2)',
+              clipPath: 'inset(0 0 -20px 0)'
+            })
           }}
         >
           <div className="max-w-[1194px] mx-auto pb-4" style={{ paddingLeft: 'calc(1.5rem + 12px)', paddingRight: 'calc(1.5rem + 12px)' }}>

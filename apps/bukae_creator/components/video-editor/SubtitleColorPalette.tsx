@@ -31,13 +31,7 @@ export function SubtitleColorPalette({ value, onChange, theme }: SubtitleColorPa
   const current = useMemo(() => normalizeHex(value), [value])
 
   return (
-    <div
-      className="mt-2 rounded-lg border p-3 w-full"
-      style={{
-        backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-        borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-      }}
-    >
+    <div className="mt-2 rounded-lg border border-gray-200 p-3 w-full bg-white">
       <div className="grid grid-cols-10 gap-1.5">
         {PRESET_COLORS.map((c) => {
           const isActive = current.toLowerCase() === c.toLowerCase()
@@ -49,7 +43,7 @@ export function SubtitleColorPalette({ value, onChange, theme }: SubtitleColorPa
               className="h-6 w-6 rounded border"
               style={{
                 backgroundColor: c,
-                borderColor: isActive ? '#8b5cf6' : theme === 'dark' ? '#374151' : '#e5e7eb',
+                borderColor: isActive ? '#8b5cf6' : '#e5e7eb',
                 boxShadow: isActive ? '0 0 0 2px rgba(139, 92, 246, 0.35)' : undefined,
               }}
               aria-label={`색상 ${c}`}
@@ -61,14 +55,13 @@ export function SubtitleColorPalette({ value, onChange, theme }: SubtitleColorPa
       <div className="mt-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <div
-            className="h-8 w-8 rounded border shrink-0"
+            className="h-8 w-8 rounded border border-gray-200 shrink-0"
             style={{
               backgroundColor: current,
-              borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
             }}
             aria-label="현재 색상"
           />
-          <div className="text-xs truncate" style={{ color: theme === 'dark' ? '#d1d5db' : '#374151' }}>
+          <div className="text-xs truncate text-text-dark">
             {current.toUpperCase()}
           </div>
         </div>
@@ -77,11 +70,7 @@ export function SubtitleColorPalette({ value, onChange, theme }: SubtitleColorPa
           type="color"
           value={current}
           onChange={(e) => onChange(e.target.value)}
-          className="h-9 w-12 rounded border shrink-0"
-          style={{
-            backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-            borderColor: theme === 'dark' ? '#374151' : '#e5e7eb',
-          }}
+          className="h-9 w-12 rounded border border-gray-200 shrink-0 bg-white"
           aria-label="커스텀 색상 선택"
         />
       </div>

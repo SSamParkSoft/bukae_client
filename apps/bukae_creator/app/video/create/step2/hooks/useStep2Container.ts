@@ -272,7 +272,8 @@ export function useStep2Container() {
             restoredSceneScripts.set(index, {
               ...scene,
               imageUrl,
-              sceneId: index + 1,
+              // sceneId가 이미 있으면 유지, 없으면 새로 할당 (그룹 정보 보존)
+              sceneId: scene.sceneId || index + 1,
             })
           }
         })
