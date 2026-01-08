@@ -71,7 +71,7 @@ export default function BukaeTop({
   return (
     <div className={cn('w-full', className)}>
       <div className="max-w-[1194px] mx-auto px-6 pt-4 pb-0">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-12">
           {/* 로고 */}
           <Link href="/" className="shrink-0">
             <Image
@@ -87,18 +87,28 @@ export default function BukaeTop({
           {/* Top Navigation */}
           <TopNavigation activeTab={activeTab} />
         </div>
-
-        {/* Step Navigation (제작 페이지에서만 표시, 0단계 제외) */}
-        {showStepNavigation && (
-          <div className="flex justify-center">
-            <StepNavigation
-              steps={steps || defaultSteps}
-              currentStep={detectedCurrentStep}
-              onStepClick={onStepClick}
-            />
-          </div>
-        )}
       </div>
+
+      {/* Step Navigation 영역 (제작 페이지에서만 표시, 0단계 제외) */}
+      {showStepNavigation && (
+        <div 
+          className="w-full relative"
+          style={{
+            boxShadow: '0px 4px 16px 0px rgba(94, 135, 144, 0.2)',
+            clipPath: 'inset(0 0 -20px 0)'
+          }}
+        >
+          <div className="max-w-[1194px] mx-auto px-6 pb-4">
+            <div className="flex justify-center">
+              <StepNavigation
+                steps={steps || defaultSteps}
+                currentStep={detectedCurrentStep}
+                onStepClick={onStepClick}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

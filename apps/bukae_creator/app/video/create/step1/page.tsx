@@ -30,16 +30,25 @@ export default function Step1Page() {
     <div>
       <div className="max-w-container-xl mx-auto px-6 py-8">
         {/* 헤더 섹션 */}
-        <div className="mb-8">
+        <div className="mb-8 mt-[96px]">
           <div className="flex items-center justify-center mb-4">
-            <span className="text-[var(--font-size-28)] font-bold bg-gradient-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.56px] leading-[var(--line-height-28-140)]">
+            <span 
+              className="font-bold bg-gradient-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.56px] leading-[var(--line-height-28-140)]"
+              style={{ fontSize: 'var(--font-size-28)' }}
+            >
               STEP 1
             </span>
           </div>
-          <h1 className="text-center text-[var(--font-size-32)] font-bold mb-2 bg-gradient-to-r from-text-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.64px] leading-[var(--line-height-32-140)]">
+          <h1 
+            className="text-center font-bold mb-2 bg-gradient-to-r from-text-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.64px] leading-[var(--line-height-32-140)]"
+            style={{ fontSize: 'var(--font-size-32)' }}
+          >
             무엇을 제작해볼까요?
           </h1>
-          <p className="text-center text-[var(--font-size-18)] font-semibold text-brand-teal-dark tracking-[-0.36px] leading-[var(--line-height-18-140)]">
+          <p 
+            className="text-center font-semibold text-brand-teal-dark tracking-[-0.36px] leading-[var(--line-height-18-140)]"
+            style={{ fontSize: 'var(--font-size-18)' }}
+          >
             원하는 플랫폼과 상품을 선택하세요
           </p>
         </div>
@@ -95,7 +104,7 @@ export default function Step1Page() {
           <div className="text-[var(--font-size-16)] font-medium text-text-muted leading-[var(--line-height-16-140)] tracking-[-0.16px]">
             💡 복잡한 검색어 고민 NO! 평소 말하는 것처럼 자연스럽게 적어주세요.
             <br />
-            💡 AI가 문맥을 파악해 지금 가장 잘 팔리는 '인기 상품'을 추천해 드릴게요.
+            💡 AI가 문맥을 파악해 지금 가장 잘 팔리는 &apos;인기 상품&apos;을 추천해 드릴게요.
             <br />
             💡 예) 화장실에서 심심할 때 좋은 거, 캠핑 가서 먹기 좋은 밀키트
           </div>

@@ -176,7 +176,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
 ]
 
 export function getStaticProducts(channelId?: string): Product[] {
-  const products = channelId === 'ssambak' ? [...STATIC_PRODUCTS, ...SSAMBAK_EXTRA_PRODUCTS] : [...STATIC_PRODUCTS]
+  const products = (channelId === 'ssambak' || channelId === '4rmy3px9') ? [...STATIC_PRODUCTS, ...SSAMBAK_EXTRA_PRODUCTS] : [...STATIC_PRODUCTS]
   products.sort((a, b) => a.order - b.order)
   return products
 }

@@ -3,6 +3,16 @@ import { ChannelInfo } from '@/lib/types/viewer'
 
 // 더미 채널 데이터 (추후 DB 연동)
 const DUMMY_CHANNELS: Record<string, ChannelInfo> = {
+  '4rmy3px9': {
+    id: '4rmy3px9',
+    name: '쌈박한 소프트',
+    profileImage: '/ssambak_profile.png',
+    description: '가성비 좋은 제품을 찾아드립니다',
+    youtubeChannelId: 'UC1234567890',
+    youtubeChannelName: 'ssambak',
+    subscriberCount: 50000,
+    businessEmail: 'business@example.com',
+  },
   ssambak: {
     id: 'ssambak',
     name: '쌈박한 소프트',
