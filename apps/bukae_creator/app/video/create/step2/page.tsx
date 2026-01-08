@@ -1,15 +1,14 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { ArrowRight } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { useStep2Container } from './hooks/useStep2Container'
 import {
   HeaderSection,
   LoadingIndicator,
-  ConceptCard,
-  ImageSelector,
+  ScriptStyleSection,
+  ImageSelectionSection,
   SelectedImageList,
+  NextStepButton,
 } from './components'
 
 export default function Step2Page() {
@@ -36,100 +35,35 @@ export default function Step2Page() {
               <HeaderSection />
 
               {/* 대본 및 스크립트 스타일 선택 */}
-              <section className="space-y-6">
-                <div className="flex gap-4">
-                  <h1 
-                    className="font-bold mb-2 text-text-dark tracking-[-0.48px]"
-                    style={{ 
-                      fontSize: 'var(--font-size-24)',
-                      lineHeight: 'var(--line-height-24-140)'
-                    }}
-                  >
-                    대본 및 스크립트 스타일 선택
-                  </h1>
-                  <p 
-                    className="mt-2 font-bold text-text-dark tracking-[-0.32px]"
-                    style={{ 
-                      fontSize: 'var(--font-size-16)',
-                      lineHeight: 'var(--line-height-16-140)'
-                    }}
-                  >
-                    원하는 대본 및 스크립트 스타일과 말투를 선택해주세요
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-white/40 border border-white/10 p-6 shadow-[var(--shadow-container)]">
-                  <div className="space-y-6">
-                    {container.conceptOptions.map((conceptOption) => {
-                      const tones = container.conceptTones[conceptOption.id]
-                      return (
-                        <ConceptCard
-                          key={conceptOption.id}
-                          conceptOption={conceptOption}
-                          tones={tones}
-                          selectedScriptStyle={container.selectedScriptStyle}
-                          selectedTone={container.selectedTone}
-                          expandedConceptId={container.expandedConceptId}
-                          openToneExampleId={container.openToneExampleId}
-                          showConfirmPopover={container.showConfirmPopover}
-                          confirmPopoverToneId={container.confirmPopoverToneId}
-                          toneExamples={container.toneExamples}
-                          onConceptToggle={container.handleConceptToggle}
-                          onToneSelect={container.handleScriptStyleSelect}
-                          onToneExampleToggle={container.handleToneExampleToggle}
-                          onConfirm={container.handleConfirmStyle}
-                          onReselect={container.handleReselect}
-                          onConfirmPopoverChange={(open) => {
-                            if (!open) {
-                              container.setShowConfirmPopover(false)
-                              container.setConfirmPopoverToneId(null)
-                            }
-                          }}
-                        />
-                      )
-                    })}
-                  </div>
-                </div>
-              </section>
+              <ScriptStyleSection
+                conceptOptions={container.conceptOptions}
+                conceptTones={container.conceptTones}
+                selectedScriptStyle={container.selectedScriptStyle}
+                selectedTone={container.selectedTone}
+                expandedConceptId={container.expandedConceptId}
+                openToneExampleId={container.openToneExampleId}
+                showConfirmPopover={container.showConfirmPopover}
+                confirmPopoverToneId={container.confirmPopoverToneId}
+                toneExamples={container.toneExamples}
+                onConceptToggle={container.handleConceptToggle}
+                onToneSelect={container.handleScriptStyleSelect}
+                onToneExampleToggle={container.handleToneExampleToggle}
+                onConfirm={container.handleConfirmStyle}
+                onReselect={container.handleReselect}
+                onConfirmPopoverChange={(open: boolean) => {
+                  if (!open) {
+                    container.setShowConfirmPopover(false)
+                    container.setConfirmPopoverToneId(null)
+                  }
+                }}
+              />
 
               {/* 이미지 선택 및 대본 생성 - 대본 스타일 선택 후 표시 */}
               {container.selectedScriptStyle && container.selectedTone && (
                 <>
                   {/* 이미지 선택 섹션 */}
-                  <div className="mt-20">
-                    <div className="flex items-center gap-4 mb-4">
-                      <h2 
-                        className="font-bold text-text-dark tracking-[-0.64px]"
-                        style={{ 
-                          fontSize: 'var(--font-size-24)',
-                          lineHeight: 'var(--line-height-32-140)'
-                        }}
-                      >
-                        이미지 선택
-                      </h2>
-                      <p 
-                        className="font-bold text-text-primary tracking-[-0.32px]"
-                        style={{ 
-                          fontSize: 'var(--font-size-16)',
-                          lineHeight: 'var(--line-height-16-140)'
-                        }}
-                      >
-                        5개 이상 선택 가능해요
-                      </p>
-                    </div>
-                    <p 
-                      className="font-bold text-text-primary tracking-[-0.32px] mb-6"
-                      style={{ 
-                        fontSize: 'var(--font-size-16)',
-                        lineHeight: 'var(--line-height-16-140)'
-                      }}
-                    >
-                      💡 최소 5장 이상의 이미지를 선택해주세요. ({container.selectedImages.length}/5)
-                    </p>
-                  </div>
-
-                  {/* 사용 가능한 이미지 목록 */}
-                  <ImageSelector
+                  <ImageSelectionSection
+                    selectedImagesCount={container.selectedImages.length}
                     availableImages={container.availableImages}
                     selectedImages={container.selectedImages}
                     onImageSelect={container.handleImageSelect}
@@ -157,27 +91,12 @@ export default function Step2Page() {
                     />
                   )}
 
-                {/* 다음 단계 버튼 */}
-                {container.selectedImages.length >= 5 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="flex justify-end pt-4"
-                  >
-                    <Button
-                      onClick={container.handleNext}
-                      size="lg"
-                      className="gap-2"
-                      data-next-step-button
-                    >
-                      다음 단계
-                      <ArrowRight className="w-5 h-5" />
-                    </Button>
-                  </motion.div>
-                )}
-
-              </>
-            )}
+                  {/* 다음 단계 버튼 */}
+                  {container.selectedImages.length >= 5 && (
+                    <NextStepButton onClick={container.handleNext} />
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>
