@@ -45,6 +45,9 @@ export function useStep2Container() {
   
   // Extension Storage에서 가져온 이미지
   const [extensionImages, setExtensionImages] = useState<string[]>([])
+  
+  // 사용자가 직접 업로드한 이미지
+  const [uploadedImages, setUploadedImages] = useState<string[]>([])
 
   // 이미지 및 스크립트 관련 상태
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -72,6 +75,7 @@ export function useStep2Container() {
   // 상품이 변경될 때 extensionImages와 sceneScripts 초기화
   useEffect(() => {
     setExtensionImages([])
+    setUploadedImages([])
     setSceneScripts(new Map())
     setEditedScripts(new Map())
     setGeneratingScenes(new Set())
@@ -168,6 +172,7 @@ export function useStep2Container() {
           name: selectedProduct.name,
           image: selectedProduct.image,
           imagesLength: selectedProduct.images?.length || 0,
+          platform: selectedProduct.platform,
         } : null,
         extensionImagesLength: extensionImages.length,
       })
@@ -185,8 +190,17 @@ export function useStep2Container() {
       imageSet.add(selectedProduct.image)
     }
     
-    // Extension Storage에서 가져온 이미지 뒤에 추가
-    extensionImages.forEach((img) => {
+    // Extension Storage에서 가져온 이미지는 쿠팡 익스텐션에서만 오므로
+    // 알리 익스프레스 상품인 경우에는 제외
+    // 쿠팡 상품인 경우에만 extensionImages 추가
+    if (selectedProduct?.platform === 'coupang') {
+      extensionImages.forEach((img) => {
+        if (img) imageSet.add(img)
+      })
+    }
+    
+    // 사용자가 직접 업로드한 이미지 추가 (항상 마지막에)
+    uploadedImages.forEach((img) => {
       if (img) imageSet.add(img)
     })
     
@@ -194,12 +208,20 @@ export function useStep2Container() {
     if (isDev) {
       console.log('[Step2] 최종 availableImages:', {
         count: images.length,
+        platform: selectedProduct?.platform,
+        extensionImagesIncluded: selectedProduct?.platform === 'coupang',
         images: images.slice(0, 5) // 처음 5개만 로그
       })
     }
     
     return images
-  }, [selectedProduct, extensionImages])
+  }, [selectedProduct, extensionImages, uploadedImages])
+  
+  // 이미지 업로드 핸들러
+  const handleImageUpload = useCallback((imageUrl: string) => {
+    setUploadedImages((prev) => [...prev, imageUrl])
+    setHasUnsavedChanges(true)
+  }, [setHasUnsavedChanges])
 
   // sceneScripts를 직렬화하여 안정적인 dependency 생성
   const sceneScriptsSerialized = useMemo(() => {
@@ -484,17 +506,36 @@ export function useStep2Container() {
 
   // 드롭 위치 계산
   const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>, index: number) => {
+    if (draggedIndex === null) return
+    if (draggedIndex === index) return
+    
     event.preventDefault()
+    event.stopPropagation()
     const rect = event.currentTarget.getBoundingClientRect()
     const offsetY = event.clientY - rect.top
     const position: 'before' | 'after' = offsetY < rect.height / 2 ? 'before' : 'after'
     setDragOver({ index, position })
-  }, [])
+  }, [draggedIndex])
 
   // 드롭
   const handleDrop = useCallback((event?: DragEvent<HTMLDivElement>) => {
-    event?.preventDefault()
-    if (draggedIndex === null || !dragOver) return
+    if (event) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+    
+    if (draggedIndex === null || !dragOver) {
+      setDraggedIndex(null)
+      setDragOver(null)
+      return
+    }
+
+    // 같은 위치에 드롭하면 아무것도 하지 않음
+    if (draggedIndex === dragOver.index) {
+      setDraggedIndex(null)
+      setDragOver(null)
+      return
+    }
 
     const newImages = [...selectedImages]
     const [removed] = newImages.splice(draggedIndex, 1)
@@ -651,6 +692,7 @@ export function useStep2Container() {
     availableImages,
     selectedImages,
     handleImageSelect,
+    handleImageUpload,
     
     // Drag & Drop
     draggedIndex,
