@@ -5,7 +5,6 @@ import { motion } from 'framer-motion'
 import { ArrowRight, GripVertical, X, Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import StepIndicator from '@/components/StepIndicator'
 import ChirpVoiceSelector from '@/components/ChirpVoiceSelector'
 import { useStep3Container } from './hooks/useStep3Container'
 import { PRODUCT_PLACEHOLDER } from '@/lib/utils/placeholder-image'
@@ -26,17 +25,17 @@ export default function Step3Page() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      transition={{ duration: 0.3 }}
-      className="flex min-h-screen justify-center"
-    >
-      <div className="flex w-full max-w-[1600px]">
-        <StepIndicator />
-        <div className="flex-1 p-4 md:p-8 overflow-y-auto min-w-0">
-          <div className="max-w-5xl mx-auto space-y-6">
+    <div>
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        transition={{ duration: 0.3 }}
+        className="flex justify-center"
+      >
+        <div className="flex w-full max-w-container-xl mx-auto px-6 py-8">
+          <div className="flex-1 overflow-y-auto min-w-0">
+            <div className="max-w-5xl mx-auto space-y-6">
             <div>
               <h1 className={`text-3xl font-bold mb-2 ${
                 container.theme === 'dark' ? 'text-white' : 'text-gray-900'
@@ -301,9 +300,10 @@ export default function Step3Page() {
                 </p>
               </div>
             )}
+            </div>
           </div>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
+    </div>
   )
 }

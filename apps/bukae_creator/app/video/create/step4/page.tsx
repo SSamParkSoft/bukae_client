@@ -1,7 +1,6 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import StepIndicator from '@/components/StepIndicator'
 import { useStep4Container } from './hooks/useStep4Container'
 import { PreviewPanel } from './components/PreviewPanel'
 import { SceneListPanel } from './components/SceneListPanel'
@@ -15,15 +14,15 @@ export default function Step4Page() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="flex h-screen overflow-hidden"
-      style={{ width: '100%', maxWidth: '100vw', boxSizing: 'border-box' }}
-    >
-      <StepIndicator />
-      <div className="flex-1 flex overflow-hidden h-full" style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
-        {/* 왼쪽 패널: 미리보기 + 타임라인 */}
+    <div className="flex flex-col h-screen overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex-1 flex overflow-hidden"
+        style={{ width: '100%', maxWidth: '100vw', boxSizing: 'border-box' }}
+      >
+        <div className="flex-1 flex overflow-hidden h-full" style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+          {/* 왼쪽 패널: 미리보기 + 타임라인 */}
         <div className="w-[30%] border-r flex flex-col h-full overflow-hidden" style={{
           borderColor: container.theme === 'dark' ? '#374151' : '#e5e7eb',
           backgroundColor: container.theme === 'dark' ? '#111827' : '#ffffff'
@@ -114,7 +113,8 @@ export default function Step4Page() {
             setTimeline={container.setTimeline}
           />
         </div>
-      </div>
-    </motion.div>
+        </div>
+      </motion.div>
+    </div>
   )
 }

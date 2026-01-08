@@ -127,7 +127,7 @@ export function useVideoExport({
       // 개발 환경에서는 alert를 비활성화하여 MCP 테스트 가능하도록 함
       const isDevelopment = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
       if (!isDevelopment) {
-        alert('목소리를 먼저 선택해주세요.')
+      alert('목소리를 먼저 선택해주세요.')
       } else {
         console.error('[useVideoExport] 목소리를 먼저 선택해주세요.')
       }
@@ -181,9 +181,9 @@ export function useVideoExport({
             return {
               sceneIndex: index,
               result: {
-                sceneIndex: index,
-                blob: firstCached.blob,
-                durationSec: totalDuration || timeline.scenes[index]?.duration || 2.5
+              sceneIndex: index, 
+              blob: firstCached.blob,
+              durationSec: totalDuration || timeline.scenes[index]?.duration || 2.5
               }
             }
           }
@@ -340,23 +340,23 @@ export function useVideoExport({
         const result = ttsResults[index]
         if (result && result.blob && !uploadPromises.has(index)) {
           const uploadPromise = (async () => {
-            const formData = new FormData()
-            formData.append('file', result.blob, `scene_${index}_voice.mp3`)
-            formData.append('sceneIndex', String(index))
+        const formData = new FormData()
+        formData.append('file', result.blob, `scene_${index}_voice.mp3`)
+        formData.append('sceneIndex', String(index))
 
             try {
-              const uploadRes = await fetch('/api/media/upload', {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${accessToken}` },
-                body: formData,
-              })
+        const uploadRes = await fetch('/api/media/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: formData,
+        })
 
-              if (!uploadRes.ok) {
-                const errorData = await uploadRes.json().catch(() => ({}))
-                throw new Error(`씬 ${index + 1}의 음성 파일 업로드 실패: ${errorData.error || '알 수 없는 오류'}`)
-              }
+        if (!uploadRes.ok) {
+          const errorData = await uploadRes.json().catch(() => ({}))
+          throw new Error(`씬 ${index + 1}의 음성 파일 업로드 실패: ${errorData.error || '알 수 없는 오류'}`)
+        }
 
-              const uploadData = await uploadRes.json()
+        const uploadData = await uploadRes.json()
               return uploadData.url
             } catch (error) {
               console.error(`[useVideoExport] 씬 ${index} 업로드 실패:`, error)
@@ -538,10 +538,10 @@ export function useVideoExport({
                   if (textTransform) {
                     return {
                       ...textTransform,
-                      anchor: {
-                        x: 0.5,
-                        y: 0.5,
-                      },
+                  anchor: {
+                    x: 0.5,
+                    y: 0.5,
+                  },
                     }
                   }
                   
@@ -555,14 +555,14 @@ export function useVideoExport({
                   }
                   
                   return {
-                    x: width / 2,
+                  x: width / 2,
                     y: textY,
-                    width: width * 0.75,
-                    height: height * 0.07,
-                    scaleX: 1,
-                    scaleY: 1,
-                    rotation: 0,
-                    anchor: { x: 0.5, y: 0.5 },
+                  width: width * 0.75,
+                  height: height * 0.07,
+                  scaleX: 1,
+                  scaleY: 1,
+                  rotation: 0,
+                  anchor: { x: 0.5, y: 0.5 },
                   }
                 })(),
               },

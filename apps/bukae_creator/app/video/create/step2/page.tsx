@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Input } from '@/components/ui/input'
-import StepIndicator from '@/components/StepIndicator'
 import { useStep2Container } from './hooks/useStep2Container'
 import type { ConceptType } from '@/lib/data/templates'
 
@@ -27,17 +26,17 @@ export default function Step2Page() {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      transition={{ duration: 0.3 }}
-      className="flex min-h-screen justify-center"
-    >
-      <div className="flex w-full max-w-[1600px]">
-        <StepIndicator />
-        <div className="flex-1 p-4 md:p-8 overflow-y-auto min-w-0">
-          <div className="max-w-5xl mx-auto space-y-6">
+    <div>
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        transition={{ duration: 0.3 }}
+        className="flex justify-center"
+      >
+        <div className="flex w-full max-w-container-xl mx-auto px-6 py-8">
+          <div className="flex-1 overflow-y-auto min-w-0">
+            <div className="max-w-5xl mx-auto space-y-6">
             {/* 제작 방식 선택 */}
             <section className="space-y-4">
               <div>
@@ -450,9 +449,10 @@ export default function Step2Page() {
                 </Button>
               </motion.div>
             )}
+            </div>
           </div>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
+    </div>
   )
 }

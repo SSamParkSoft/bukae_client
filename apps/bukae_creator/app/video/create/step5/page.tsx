@@ -13,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import BukaeTop from '@/components/BukaeTop'
 import { useStep5Container } from './hooks/useStep5Container'
 
 function Step5PageContent() {
@@ -39,7 +38,6 @@ function Step5PageContent() {
       transition={{ duration: 0.3 }}
       className="flex min-h-screen flex-col"
     >
-      <BukaeTop variant="make" />
       <div className="flex-1 p-4 md:p-8 overflow-y-auto min-w-0">
           <div className="max-w-5xl mx-auto space-y-6 pt-8">
             {/* 영상 렌더링 진행 상황 */}
@@ -451,7 +449,6 @@ function Step5PageContent() {
             )}
           </div>
         </div>
-      </div>
 
       {/* 완료 확인 팝업 */}
       <Dialog open={container.isCompleteDialogOpen} onOpenChange={container.setIsCompleteDialogOpen}>

@@ -45,7 +45,6 @@ export default function BukaeTop({
   }
 
   const detectedVariant = getVariant()
-  const showStepNavigation = detectedVariant === 'make'
 
   // currentStep이 제공되지 않으면 pathname 기반으로 자동 감지
   const getCurrentStep = (): number => {
@@ -57,8 +56,12 @@ export default function BukaeTop({
     if (pathname.includes('/step2')) return 2
     if (pathname.includes('/step1')) return 1
 
-    return 1
+    return 0 // 0단계 페이지
   }
+
+  const detectedCurrentStep = getCurrentStep()
+  // Step Navigation은 제작 페이지에서만 표시하되, 0단계에서는 숨김
+  const showStepNavigation = detectedVariant === 'make' && detectedCurrentStep > 0
 
   const activeTab: TopNavTab | undefined = detectedVariant === 'login' ? 'login' :
     detectedVariant === 'make' ? 'make' :
@@ -66,17 +69,17 @@ export default function BukaeTop({
     detectedVariant === 'data' ? 'data' : undefined
 
   return (
-    <div className={cn('w-full bg-white border-b border-[#d6d6d6]', className)}>
-      <div className="max-w-7xl mx-auto px-6 py-4">
+    <div className={cn('w-full', className)}>
+      <div className="max-w-[1194px] mx-auto px-6 pt-4 pb-0">
         <div className="flex items-center justify-between mb-6">
           {/* 로고 */}
           <Link href="/" className="shrink-0">
             <Image
-              src="/logo-typography.svg"
+              src="/bukae-logo.svg"
               alt="부캐 로고"
-              width={200}
-              height={48}
-              className="h-12 w-auto"
+              width={189}
+              height={34}
+              className="h-[34px] w-auto"
               priority
             />
           </Link>
@@ -85,12 +88,12 @@ export default function BukaeTop({
           <TopNavigation activeTab={activeTab} />
         </div>
 
-        {/* Step Navigation (제작 페이지에서만 표시) */}
+        {/* Step Navigation (제작 페이지에서만 표시, 0단계 제외) */}
         {showStepNavigation && (
           <div className="flex justify-center">
             <StepNavigation
               steps={steps || defaultSteps}
-              currentStep={getCurrentStep()}
+              currentStep={detectedCurrentStep}
               onStepClick={onStepClick}
             />
           </div>
