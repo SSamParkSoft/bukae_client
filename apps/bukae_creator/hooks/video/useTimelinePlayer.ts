@@ -217,7 +217,7 @@ export function useTimelinePlayer({
     }
   }, [playbackSpeed, isPlaying])
 
-  // 씬 인덱스 변경 시 전환 처리는 step4/page.tsx의 useEffect에서 처리
+  // 씬 인덱스 변경 시 전환 처리는 step3/page.tsx의 useEffect에서 처리
   // (previousSceneIndexRef를 공유하므로 중복 제거)
 
   // 재생 시작 시 현재 씬 인덱스와 시간 저장

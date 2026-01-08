@@ -17,14 +17,23 @@ export const videosApi = {
    * @throws {Error} API 응답이 유효하지 않은 경우
    */
   getMyVideos: async (): Promise<VideoListItem[]> => {
-    const response = await api.get<VideoListItem[]>('/api/v1/videos')
+    try {
+      const response = await api.get<VideoListItem[]>('/api/v1/videos')
 
-    // 타입 가드로 런타임 검증
-    if (!isVideoListItemArray(response)) {
-      throw new Error('API 응답이 유효한 VideoListItem 배열이 아닙니다.')
+      // 빈 배열인 경우 그대로 반환
+      if (Array.isArray(response) && response.length === 0) {
+        return []
+      }
+
+      // 타입 가드로 런타임 검증
+      if (!isVideoListItemArray(response)) {
+        throw new Error('API 응답이 유효한 VideoListItem 배열이 아닙니다.')
+      }
+
+      return response
+    } catch (error) {
+      throw error
     }
-
-    return response
   },
 
   /**

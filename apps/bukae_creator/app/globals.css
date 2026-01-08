@@ -1,29 +1,117 @@
 @import "tailwindcss";
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
+  --background: 165 33% 96%;
+  --foreground: 0 0% 7%;
   --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
+  --card-foreground: 0 0% 7%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 262.1 83.3% 57.8%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
+  --popover-foreground: 0 0% 7%;
+  --primary: 190 21% 47%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 186 20% 60%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 175 20% 91%;
+  --muted-foreground: 0 0% 36%;
+  --accent: 175 20% 91%;
+  --accent-foreground: 0 0% 7%;
   --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 262.1 83.3% 57.8%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 186 20% 60%;
+  --input: 0 0% 84%;
+  --ring: 190 21% 47%;
   --radius: 0.5rem;
-  --brand-purple: #a78bfa;
-  --brand-purple-light: #c4b5fd;
-  --brand-purple-dark: #ab8cf4;
+  --brand-teal: #5e8790;
+  --brand-teal-light: #88a9ac;
+  --brand-teal-dark: #3b6574;
+  --brand-teal-deep-dark: #234B60;
+  --brand-background: #f2f9f7;
+  --brand-background-start: #f8fcfb;
+  --brand-background-end: #f2f9f7;
+  --brand-hover: #e4eeed;
+  --brand-selected: #88a9ac;
+  --text-primary: #111111;
+  --text-secondary: #2c2c2c;
+  --text-tertiary: #5d5d5d;
+  --text-muted: #454545;
+  --text-dark: #15252c;
+  --bg-gray-light: #e3e3e3;
+  --bg-gray-placeholder: #a6a6a6;
+  
+  /* Typography - Font Sizes (Figma Text Styles) */
+  --font-size-10: 10px;
+  --font-size-12: 12px;
+  --font-size-14: 14px;
+  --font-size-16: 16px;
+  --font-size-18: 18px;
+  --font-size-20: 20px;
+  --font-size-24: 24px;
+  --font-size-28: 28px;
+  --font-size-32: 32px;
+  
+  /* Typography - Line Heights (Figma Text Styles: fontSize/lineHeight%) */
+  /* Heading styles - 140% line height */
+  --line-height-32-140: 44.8px; /* 32px * 1.4 = 44.8px */
+  --line-height-28-140: 39.2px; /* 28px * 1.4 = 39.2px */
+  --line-height-24-140: 33.6px; /* 24px * 1.4 = 33.6px */
+  --line-height-20-140: 28px; /* 20px * 1.4 = 28px */
+  --line-height-18-140: 25.2px; /* 18px * 1.4 = 25.2px */
+  --line-height-16-140: 22.4px; /* 16px * 1.4 = 22.4px */
+  --line-height-14-140: 19.6px; /* 14px * 1.4 = 19.6px */
+  --line-height-12-140: 16.8px; /* 12px * 1.4 = 16.8px */
+  /* Body/Caption styles - 160% line height */
+  --line-height-14-160: 22.4px; /* 14px * 1.6 = 22.4px */
+  --line-height-10-160: 16px; /* 10px * 1.6 = 16px */
+  
+  /* Typography - Font Weights */
+  --font-weight-regular: 400; /* R */
+  --font-weight-medium: 500; /* M */
+  --font-weight-semibold: 600; /* SB */
+  --font-weight-bold: 700; /* B */
+  
+  /* Typography - Letter Spacing (legacy, keep for backward compatibility) */
+  --letter-spacing-xs: -0.14px;
+  --letter-spacing-sm: -0.16px;
+  --letter-spacing-base: -0.32px;
+  --letter-spacing-lg: -0.36px;
+  --letter-spacing-xl: -0.4px;
+  --letter-spacing-2xl: -0.48px;
+  --letter-spacing-3xl: -0.56px;
+  --letter-spacing-4xl: -0.64px;
+  
+  /* Spacing */
+  --spacing-xs: 0.25rem; /* 4px */
+  --spacing-sm: 0.5rem; /* 8px */
+  --spacing-base: 1rem; /* 16px */
+  --spacing-md: 1.5rem; /* 24px */
+  --spacing-lg: 2rem; /* 32px */
+  --spacing-xl: 2.5rem; /* 40px */
+  --spacing-2xl: 3rem; /* 48px */
+  --spacing-3xl: 4rem; /* 64px */
+  --spacing-header-gap: 232px; /* BukaeTop과 메인 콘텐츠 간격 */
+  --spacing-card-gap: 25px; /* 트랙 선택 카드 간격 */
+  --spacing-card-padding: 25px; /* 트랙 선택 카드 컨테이너 패딩 */
+  
+  /* Component Sizes */
+  --size-track-card-width: 560px;
+  --size-track-card-height: 125px;
+  --size-track-card-radius: 60px;
+  --size-track-container-radius: 120px;
+  
+  /* Shadow Values */
+  --shadow-card-default: 0px 2px 10px rgba(0, 0, 0, 0.08), 0px 0px 20px rgba(0, 0, 0, 0.04);
+  --shadow-card-hover: 0px 4px 20px rgba(0, 0, 0, 0.12), 0px 0px 30px rgba(0, 0, 0, 0.06);
+  --shadow-card-teal: 0px 2px 10px rgba(94, 135, 144, 0.3), 0px 0px 20px rgba(94, 135, 144, 0.2), 0px 4px 15px rgba(94, 135, 144, 0.25);
+  --shadow-card-teal-hover: 0px 3px 15px rgba(94, 135, 144, 0.35), 0px 0px 25px rgba(94, 135, 144, 0.25), 0px 5px 20px rgba(94, 135, 144, 0.3);
+  --shadow-container: 0px 4px 20px rgba(0, 0, 0, 0.1), 0px 0px 40px rgba(0, 0, 0, 0.05);
+  --shadow-step-navigation: 0px 4px 16px 0px rgba(94, 135, 144, 0.2);
+  
+  /* Container Max Widths */
+  --container-sm: 640px;
+  --container-md: 768px;
+  --container-lg: 1024px;
+  --container-xl: 1194px;
+  --container-2xl: 1600px;
 }
 
 @theme inline {
@@ -48,63 +136,128 @@
   --color-ring: hsl(var(--ring));
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-[data-theme="dark"] {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 262.1 83.3% 57.8%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 262.1 83.3% 57.8%;
+  
+  /* Brand Colors */
+  --color-brand-teal: var(--brand-teal);
+  --color-brand-teal-light: var(--brand-teal-light);
+  --color-brand-teal-dark: var(--brand-teal-dark);
+  --color-brand-background: var(--brand-background);
+  --color-brand-background-start: var(--brand-background-start);
+  --color-brand-background-end: var(--brand-background-end);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-selected: var(--brand-selected);
+  
+  /* Text Colors */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-muted: var(--text-muted);
+  --color-text-dark: var(--text-dark);
+  
+  /* Background Colors */
+  --color-bg-gray-light: var(--bg-gray-light);
+  --color-bg-gray-placeholder: var(--bg-gray-placeholder);
+  
+  /* Typography - Font Sizes (Figma Text Styles) */
+  --font-size-10: 10px;
+  --font-size-12: 12px;
+  --font-size-14: 14px;
+  --font-size-16: 16px;
+  --font-size-18: 18px;
+  --font-size-20: 20px;
+  --font-size-24: 24px;
+  --font-size-28: 28px;
+  --font-size-32: 32px;
+  
+  /* Typography - Line Heights (Figma Text Styles: fontSize/lineHeight%) */
+  /* Heading styles - 140% line height */
+  --line-height-32-140: 44.8px; /* 32px * 1.4 = 44.8px */
+  --line-height-28-140: 39.2px; /* 28px * 1.4 = 39.2px */
+  --line-height-24-140: 33.6px; /* 24px * 1.4 = 33.6px */
+  --line-height-20-140: 28px; /* 20px * 1.4 = 28px */
+  --line-height-18-140: 25.2px; /* 18px * 1.4 = 25.2px */
+  --line-height-16-140: 22.4px; /* 16px * 1.4 = 22.4px */
+  --line-height-14-140: 19.6px; /* 14px * 1.4 = 19.6px */
+  --line-height-12-140: 16.8px; /* 12px * 1.4 = 16.8px */
+  /* Body/Caption styles - 160% line height */
+  --line-height-14-160: 22.4px; /* 14px * 1.6 = 22.4px */
+  --line-height-10-160: 16px; /* 10px * 1.6 = 16px */
+  
+  /* Typography - Font Weights */
+  --font-weight-regular: 400; /* R */
+  --font-weight-medium: 500; /* M */
+  --font-weight-semibold: 600; /* SB */
+  --font-weight-bold: 700; /* B */
+  
+  /* Typography - Letter Spacing (legacy, keep for backward compatibility) */
+  --letter-spacing-xs: -0.14px;
+  --letter-spacing-sm: -0.16px;
+  --letter-spacing-base: -0.32px;
+  --letter-spacing-lg: -0.36px;
+  --letter-spacing-xl: -0.4px;
+  --letter-spacing-2xl: -0.48px;
+  --letter-spacing-3xl: -0.56px;
+  --letter-spacing-4xl: -0.64px;
+  
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-base: 1rem;
+  --spacing-md: 1.5rem;
+  --spacing-lg: 2rem;
+  --spacing-xl: 2.5rem;
+  --spacing-2xl: 3rem;
+  --spacing-3xl: 4rem;
+  --spacing-header-gap: 232px;
+  --spacing-card-gap: 25px;
+  --spacing-card-padding: 25px;
+  
+  /* Component Sizes */
+  --size-track-card-width: 560px;
+  --size-track-card-height: 125px;
+  --size-track-card-radius: 60px;
+  --size-track-container-radius: 120px;
+  
+  /* Container Max Widths */
+  --container-sm: 640px;
+  --container-md: 768px;
+  --container-lg: 1024px;
+  --container-xl: 1194px;
+  --container-2xl: 1600px;
 }
 
 html, body {
   overflow-x: hidden;
   max-width: 100vw;
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   width: 100%;
   max-width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
-[data-theme="dark"] body {
-  background: #0a0a0a;
-  color: #ededed;
-}
-
-@keyframes purple-glow {
+@keyframes teal-glow {
   0%, 100% {
-    box-shadow: 0 0 0.5rem rgba(168, 85, 247, 0.4), 0 0 0.3rem rgba(168, 85, 247, 0.3), 0 0 0.3rem rgba(168, 85, 247, 0.2);
+    box-shadow: 0 0 0.5rem rgba(94, 135, 144, 0.4), 0 0 0.3rem rgba(94, 135, 144, 0.3), 0 0 0.3rem rgba(94, 135, 144, 0.2);
   }
   50% {
-    box-shadow: 0 0 0.5rem rgba(195, 130, 255, 0.6), 0 0 0.3rem rgba(168, 85, 247, 0.5), 0 0 0.3rem rgba(168, 85, 247, 0.4);
+    box-shadow: 0 0 0.5rem rgba(136, 169, 172, 0.6), 0 0 0.3rem rgba(94, 135, 144, 0.5), 0 0 0.3rem rgba(94, 135, 144, 0.4);
   }
 }
 
-.animate-purple-glow {
-  animation: purple-glow 2s ease-in-out infinite;
+.animate-teal-glow {
+  animation: teal-glow 2s ease-in-out infinite;
 }
 
 /* Google Identity Services Material Button */
@@ -112,7 +265,9 @@ body {
   -moz-user-select: none;
   -webkit-user-select: none;
   -ms-user-select: none;
+  user-select: none;
   -webkit-appearance: none;
+  appearance: none;
   background-color: white;
   background-image: none;
   border: 1px solid #747775;
@@ -243,3 +398,15 @@ video:-ms-fullscreen {
   max-height: 100vh !important;
 }
 
+/* Step Navigation 하단 쉐도우 */
+.step-navigation-shadow::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 1px;
+  box-shadow: var(--shadow-step-navigation);
+  pointer-events: none;
+}

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import Image from 'next/image'
-import { GripVertical, Copy, Trash2, Play, Pause, Loader2 } from 'lucide-react'
+import { GripVertical, Copy, Trash2, Play, Pause, Loader2, ChevronDown, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 import type { SceneScript } from '@/lib/types/domain/script'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
@@ -64,6 +65,7 @@ export function SceneList({
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
   const [previewingSceneIndex, setPreviewingSceneIndex] = useState<number | null>(null)
   const [previewingPartIndex, setPreviewingPartIndex] = useState<number | null>(null)
+  const [draggedGroupId, setDraggedGroupId] = useState<number | null>(null) // 드래그 중인 그룹의 sceneId
 
   // 씬 구조 정보 store
   const sceneStructureStore = useSceneStructureStore()
@@ -71,6 +73,24 @@ export function SceneList({
   // 드래그 시작
   const handleDragStart = (index: number) => {
     setDraggedIndex(index)
+    const scene = scenes[index]
+    if (scene) {
+      const groupScenes = scenes.filter(s => s.sceneId === scene.sceneId)
+      if (groupScenes.length > 1) {
+        setDraggedGroupId(scene.sceneId)
+      } else {
+        setDraggedGroupId(null)
+      }
+    }
+  }
+
+  // 그룹 드래그 시작
+  const handleGroupDragStart = (groupSceneId: number) => {
+    const groupScenes = scenes.filter(s => s.sceneId === groupSceneId)
+    if (groupScenes.length > 0) {
+      setDraggedIndex(groupScenes[0].sceneId ? scenes.findIndex(s => s.sceneId === groupSceneId) : 0)
+      setDraggedGroupId(groupSceneId)
+    }
   }
 
   // 드롭 위치 계산
@@ -82,13 +102,21 @@ export function SceneList({
     const draggedScene = scenes[draggedIndex]
     const targetScene = scenes[index]
     
-    // 같은 sceneId를 가진 씬들 찾기 (같은 그룹)
-    const draggedGroupScenes = scenes.filter(s => s.sceneId === draggedScene.sceneId)
-    
-    // 그룹화된 씬은 같은 그룹 내에서만 이동 가능
-    if (draggedGroupScenes.length > 1 && draggedScene.sceneId !== targetScene.sceneId) {
-      // 다른 그룹으로 드래그하면 드롭 위치 표시 안 함
-      return
+    // 그룹 드래그인 경우
+    if (draggedGroupId !== null) {
+      // 같은 그룹으로 드래그하는 것은 허용하지 않음
+      if (targetScene.sceneId === draggedGroupId) {
+        return
+      }
+    } else {
+      // 개별 씬 드래그인 경우
+      const draggedGroupScenes = scenes.filter(s => s.sceneId === draggedScene.sceneId)
+      
+      // 그룹화된 씬은 같은 그룹 내에서만 이동 가능
+      if (draggedGroupScenes.length > 1 && draggedScene.sceneId !== targetScene.sceneId) {
+        // 다른 그룹으로 드래그하면 드롭 위치 표시 안 함
+        return
+      }
     }
     
     const rect = event.currentTarget.getBoundingClientRect()
@@ -97,11 +125,80 @@ export function SceneList({
     setDragOver({ index, position })
   }
 
+  // 그룹 드롭 위치 계산
+  const handleGroupDragOver = (event: React.DragEvent<HTMLDivElement>, targetGroupSceneId: number) => {
+    event.preventDefault()
+    
+    if (draggedGroupId === null) return
+    
+    // 같은 그룹으로 드래그하는 것은 허용하지 않음
+    if (targetGroupSceneId === draggedGroupId) {
+      return
+    }
+    
+    const targetGroupScenes = scenes.filter(s => s.sceneId === targetGroupSceneId)
+    if (targetGroupScenes.length === 0) return
+    
+    const targetIndex = targetGroupScenes[0].sceneId ? scenes.findIndex(s => s.sceneId === targetGroupSceneId) : 0
+    
+    const rect = event.currentTarget.getBoundingClientRect()
+    const offsetY = event.clientY - rect.top
+    const position: 'before' | 'after' = offsetY < rect.height / 2 ? 'before' : 'after'
+    setDragOver({ index: targetIndex, position })
+  }
+
   // 드롭
   const handleDrop = (event?: React.DragEvent<HTMLDivElement>) => {
     event?.preventDefault()
     if (draggedIndex === null || !dragOver) return
 
+    // 그룹 드래그인 경우
+    if (draggedGroupId !== null) {
+      const draggedGroupScenes = scenes.filter(s => s.sceneId === draggedGroupId)
+      const draggedIndices = draggedGroupScenes.map(s => scenes.indexOf(s)).filter(idx => idx !== -1).sort((a, b) => a - b)
+      
+      if (draggedIndices.length === 0) {
+        setDraggedIndex(null)
+        setDraggedGroupId(null)
+        setDragOver(null)
+        return
+      }
+
+      const targetScene = scenes[dragOver.index]
+      
+      // 같은 그룹으로 드롭하려고 하면 무시
+      if (targetScene.sceneId === draggedGroupId) {
+        setDraggedIndex(null)
+        setDraggedGroupId(null)
+        setDragOver(null)
+        return
+      }
+
+      // 순서 변경 - 그룹의 모든 씬을 함께 이동
+      const newOrder = scenes.map((_, idx) => idx)
+      
+      // 드래그된 그룹의 모든 인덱스 제거
+      for (let i = draggedIndices.length - 1; i >= 0; i--) {
+        newOrder.splice(draggedIndices[i], 1)
+      }
+
+      let targetIndex = dragOver.position === 'after' ? dragOver.index + 1 : dragOver.index
+      
+      // 제거된 인덱스 개수만큼 조정
+      const removedBeforeTarget = draggedIndices.filter(idx => idx < targetIndex).length
+      targetIndex -= removedBeforeTarget
+
+      // 그룹의 모든 씬을 새로운 위치에 삽입
+      newOrder.splice(targetIndex, 0, ...draggedIndices)
+      onReorder(newOrder)
+
+      setDraggedIndex(null)
+      setDraggedGroupId(null)
+      setDragOver(null)
+      return
+    }
+
+    // 개별 씬 드래그인 경우
     const draggedScene = scenes[draggedIndex]
     const targetScene = scenes[dragOver.index]
     
@@ -112,6 +209,7 @@ export function SceneList({
     if (draggedGroupScenes.length > 1 && draggedScene.sceneId !== targetScene.sceneId) {
       // 다른 그룹으로 드롭하려고 하면 무시
       setDraggedIndex(null)
+      setDraggedGroupId(null)
       setDragOver(null)
       return
     }
@@ -130,6 +228,7 @@ export function SceneList({
       const finalTargetScene = scenes[targetIndex]
       if (finalTargetScene.sceneId !== draggedScene.sceneId) {
         setDraggedIndex(null)
+        setDraggedGroupId(null)
         setDragOver(null)
         return
       }
@@ -139,22 +238,69 @@ export function SceneList({
     onReorder(newOrder)
 
     setDraggedIndex(null)
+    setDraggedGroupId(null)
+    setDragOver(null)
+  }
+
+  // 그룹 드롭
+  const handleGroupDrop = (event?: React.DragEvent<HTMLDivElement>) => {
+    event?.preventDefault()
+    if (draggedGroupId === null || !dragOver) return
+
+    const draggedGroupScenes = scenes.filter(s => s.sceneId === draggedGroupId)
+    const draggedIndices = draggedGroupScenes.map(s => scenes.indexOf(s)).filter(idx => idx !== -1).sort((a, b) => a - b)
+    
+    if (draggedIndices.length === 0) {
+      setDraggedIndex(null)
+      setDraggedGroupId(null)
+      setDragOver(null)
+      return
+    }
+
+    const targetScene = scenes[dragOver.index]
+    
+    // 같은 그룹으로 드롭하려고 하면 무시
+    if (targetScene.sceneId === draggedGroupId) {
+      setDraggedIndex(null)
+      setDraggedGroupId(null)
+      setDragOver(null)
+      return
+    }
+
+    // 순서 변경 - 그룹의 모든 씬을 함께 이동
+    const newOrder = scenes.map((_, idx) => idx)
+    
+    // 드래그된 그룹의 모든 인덱스 제거
+    for (let i = draggedIndices.length - 1; i >= 0; i--) {
+      newOrder.splice(draggedIndices[i], 1)
+    }
+
+    let targetIndex = dragOver.position === 'after' ? dragOver.index + 1 : dragOver.index
+    
+    // 제거된 인덱스 개수만큼 조정
+    const removedBeforeTarget = draggedIndices.filter(idx => idx < targetIndex).length
+    targetIndex -= removedBeforeTarget
+
+    // 그룹의 모든 씬을 새로운 위치에 삽입
+    newOrder.splice(targetIndex, 0, ...draggedIndices)
+    onReorder(newOrder)
+
+    setDraggedIndex(null)
+    setDraggedGroupId(null)
     setDragOver(null)
   }
 
   // 드래그 종료
   const handleDragEnd = () => {
     setDraggedIndex(null)
+    setDraggedGroupId(null)
     setDragOver(null)
   }
 
   if (scenes.length === 0) {
     return (
-      <div
-        className="text-center py-8 text-sm"
-        style={{ color: theme === 'dark' ? '#9ca3af' : '#6b7280' }}
-      >
-        Step3에서 이미지와 스크립트를 먼저 생성해주세요.
+      <div className="text-center py-8 text-sm text-text-muted">
+        Step2에서 이미지와 스크립트를 먼저 생성해주세요.
       </div>
     )
   }
@@ -170,20 +316,24 @@ export function SceneList({
 
   return (
     <div className="space-y-3">
-      {sceneGroups.map((group) => {
+      {sceneGroups.map((group, groupIndex) => {
         const isGrouped = group.indices.length > 1
         const firstSceneIndex = group.indices[0]
         // 그룹의 첫 번째 씬 선택 (splitIndex가 없거나 0인 씬, 없으면 group.indices[0])
         const firstSceneIndexInGroup = group.indices.find(idx => scenes[idx] && !scenes[idx].splitIndex) ?? group.indices[0]
+        // 씬 순서 번호 (1부터 시작)
+        const sceneOrderNumber = groupIndex + 1
         
         return (
           <div 
             key={`group-${group.sceneId}`} 
-            className={isGrouped ? `space-y-1 rounded-lg p-2 cursor-pointer hover:opacity-90 transition-opacity ${
-              theme === 'dark' 
-                ? 'bg-gray-800/30 border border-gray-700' 
-                : 'bg-purple-50/50 border border-purple-200'
-            }` : ''}
+            draggable={isGrouped}
+            onDragStart={() => isGrouped && handleGroupDragStart(group.sceneId)}
+            onDragOver={(e) => isGrouped && handleGroupDragOver(e, group.sceneId)}
+            onDrop={isGrouped ? handleGroupDrop : undefined}
+            onDragLeave={() => setDragOver(null)}
+            onDragEnd={handleDragEnd}
+            className={isGrouped ? 'space-y-1 rounded-lg p-2 cursor-pointer hover:opacity-90 transition-opacity bg-[#5e8790]/10 border border-[#5e8790]/30' : ''}
             onClick={(e) => {
               // 그룹화된 경우에만 클릭 이벤트 처리
               // 자식 요소(헤더, 씬 카드 등)를 클릭한 경우는 각각의 핸들러가 처리하므로 stopPropagation 호출
@@ -220,16 +370,81 @@ export function SceneList({
             {isGrouped && (() => {
               return (
                 <div 
-                  className="mb-2 pb-2 border-b cursor-pointer hover:opacity-80 transition-opacity" 
-                  style={{
-                    borderColor: theme === 'dark' ? '#374151' : '#e5e7eb'
-                  }}
+                  className="relative mb-2 pb-2 border-b border-gray-200 cursor-pointer hover:opacity-80 transition-opacity" 
                   onClick={(e) => {
                     e.stopPropagation()
                     onSelect(firstSceneIndexInGroup)
                   }}
                 >
+                  {/* 오른쪽 상단 버튼들 */}
+                  <div className="absolute top-0 right-0 flex flex-col items-end gap-2 z-10">
+                    {/* 삭제 버튼 */}
+                    {onDeleteGroup && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (confirm('그룹의 모든 씬을 삭제하시겠습니까?')) {
+                            onDeleteGroup(group.sceneId, group.indices)
+                          }
+                        }}
+                        className="w-6 h-6 flex items-center justify-center transition-all hover:opacity-70"
+                        title="그룹 삭제"
+                      >
+                        <X className="w-5 h-5 text-gray-600" />
+                      </button>
+                    )}
+                    
+                    {/* 복사, 재생 버튼들 */}
+                    <div className="flex items-center gap-2">
+                      {onDuplicateGroup && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onDuplicateGroup(group.sceneId, group.indices)
+                          }}
+                          className="w-8 h-7 rounded-lg bg-white border border-[#88a9ac] flex items-center justify-center hover:bg-gray-50 transition-all"
+                          title="그룹 복사"
+                        >
+                          <Copy className="w-4 h-4 text-[#2c2c2c]" />
+                        </button>
+                      )}
+                      {onPlayGroup && (
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            if (onPlayGroup) {
+                              await onPlayGroup(group.sceneId, group.indices)
+                            }
+                          }}
+                          disabled={isPreparing || isTtsBootstrapping}
+                          className="w-8 h-7 rounded-lg bg-white border border-[#88a9ac] flex items-center justify-center hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={
+                            isPreparing || isTtsBootstrapping
+                              ? "준비 중..."
+                              : playingGroupSceneId === group.sceneId
+                              ? "그룹 정지"
+                              : "그룹 재생"
+                          }
+                        >
+                          {isPreparing || isTtsBootstrapping ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-[#2c2c2c]" />
+                          ) : playingGroupSceneId === group.sceneId ? (
+                            <Pause className="w-4 h-4 text-[#2c2c2c]" />
+                          ) : (
+                          <Play className="w-4 h-4 text-[#2c2c2c]" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
                   <div className="flex items-start gap-3">
+                  {/* 드래그 핸들 */}
+                  <GripVertical className="w-5 h-5 cursor-move text-text-tertiary shrink-0 mt-6" />
+                  
                   {/* 썸네일 - 왼쪽 */}
                   <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-200 shrink-0">
                     {sceneThumbnails[firstSceneIndex] && (() => {
@@ -261,110 +476,76 @@ export function SceneList({
                   
                   {/* 오른쪽: Scene 번호와 전환 효과/이미지 비율 */}
                   <div className="flex flex-col gap-2 flex-1">
-                    {/* Scene 번호와 그룹 액션 버튼 - 위쪽 */}
+                    {/* Scene 번호 */}
                     <div className="flex items-center justify-between">
-                      <span
-                        className="text-sm font-semibold"
-                        style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
-                      >
-                        Scene {group.sceneId}
+                      <span className="text-sm font-semibold text-text-dark">
+                        Scene {sceneOrderNumber}
                       </span>
-                      
-                      {/* 그룹 액션 버튼들 */}
-                      <div className="flex items-center gap-1">
-                        {onDuplicateGroup && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xs"
-                            className="text-[11px] px-2 py-0 h-6"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onDuplicateGroup(group.sceneId, group.indices)
-                            }}
-                            title="그룹 복사"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </Button>
-                        )}
-                        {onPlayGroup && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xs"
-                            className="text-[11px] px-2 py-0 h-6"
-                            onClick={async (e) => {
-                              e.stopPropagation()
-                              if (onPlayGroup) {
-                                await onPlayGroup(group.sceneId, group.indices)
-                              }
-                            }}
-                            disabled={isPreparing || isTtsBootstrapping}
-                            title={
-                              isPreparing || isTtsBootstrapping
-                                ? "준비 중..."
-                                : playingGroupSceneId === group.sceneId
-                                ? "그룹 정지"
-                                : "그룹 재생"
-                            }
-                          >
-                            {isPreparing || isTtsBootstrapping ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : playingGroupSceneId === group.sceneId ? (
-                              <Pause className="w-3 h-3" />
-                            ) : (
-                            <Play className="w-3 h-3" />
-                            )}
-                          </Button>
-                        )}
-                        {onDeleteGroup && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xs"
-                            className="text-[11px] px-2 py-0 h-6 text-red-500 hover:text-red-600 hover:border-red-500"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              if (confirm('그룹의 모든 씬을 삭제하시겠습니까?')) {
-                                onDeleteGroup(group.sceneId, group.indices)
-                              }
-                            }}
-                            title="그룹 삭제"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        )}
-                      </div>
                     </div>
                     
-                    {/* 전환 효과 및 이미지 비율 - 아래쪽 */}
-                    <div className="flex items-center gap-2 text-xs flex-wrap">
-                      <span
-                        className="px-2 py-1 rounded border text-xs"
-                        style={{
-                          backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb',
-                          borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                          color: theme === 'dark' ? '#9ca3af' : '#6b7280',
-                        }}
-                      >
-                        {transitionLabels[timeline?.scenes[firstSceneIndex]?.transition || 'none'] || '없음'}
-                      </span>
-                      <select
-                        value={timeline?.scenes[firstSceneIndex]?.imageFit || 'contain'}
-                        onChange={(e) => onImageFitChange(firstSceneIndex, e.target.value as 'cover' | 'contain' | 'fill')}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={(e) => e.stopPropagation()}
-                        className="px-2 py-1 rounded border text-xs"
-                        style={{
-                          backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-                          borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                          color: theme === 'dark' ? '#ffffff' : '#111827',
-                        }}
-                      >
-                        <option value="cover">꽉 채우기</option>
-                        <option value="contain">비율 유지</option>
-                        <option value="fill">늘려 채우기</option>
-                      </select>
+                    {/* 이미지 비율 - 아래쪽 */}
+                    <div className="flex items-center gap-2 text-xs flex-wrap justify-start">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-2.5 py-1.5 rounded-lg bg-white border border-[#88a9ac] text-text-dark hover:bg-gray-50 transition-all font-bold tracking-[-0.14px] flex items-center gap-1"
+                            style={{ 
+                              fontSize: 'var(--font-size-12)',
+                              lineHeight: 'var(--line-height-12-140)'
+                            }}
+                          >
+                            {timeline?.scenes[firstSceneIndex]?.imageFit === 'cover' ? '꽉 채우기' : 
+                             timeline?.scenes[firstSceneIndex]?.imageFit === 'fill' ? '늘려 채우기' : 
+                             '비율 유지'}
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent 
+                          className="w-40 p-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex flex-col">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onImageFitChange(firstSceneIndex, 'cover')
+                              }}
+                              className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                                timeline?.scenes[firstSceneIndex]?.imageFit === 'cover' ? 'bg-gray-100 font-semibold' : ''
+                              }`}
+                            >
+                              꽉 채우기
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onImageFitChange(firstSceneIndex, 'contain')
+                              }}
+                              className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                                timeline?.scenes[firstSceneIndex]?.imageFit === 'contain' ? 'bg-gray-100 font-semibold' : ''
+                              }`}
+                            >
+                              비율 유지
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onImageFitChange(firstSceneIndex, 'fill')
+                              }}
+                              className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                                timeline?.scenes[firstSceneIndex]?.imageFit === 'fill' ? 'bg-gray-100 font-semibold' : ''
+                              }`}
+                            >
+                              늘려 채우기
+                            </button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
                 </div>
@@ -372,13 +553,17 @@ export function SceneList({
               )
             })()}
             
-            {group.indices.map((index) => {
+            {dragOver && draggedGroupId !== null && dragOver.index === firstSceneIndex && (
+              <div className="h-0.5 bg-brand-teal rounded-full mb-2" />
+            )}
+            {group.indices.map((index, groupSceneIndex) => {
               const scene = scenes[index]
               if (!scene) return null
               // ||| 구분자로 분할된 구간 확인 (공백 유무와 관계없이 분할)
               const scriptParts = (scene.script || '').split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
               const hasDelimiters = scriptParts.length > 1
-              const isSplitScene = hasDelimiters || !!scene.splitIndex
+              // 그룹 내 씬의 순서 번호 (splitIndex가 있으면 사용, 없으면 그룹 내 인덱스 + 1)
+              const groupSceneOrderNumber = scene.splitIndex || groupSceneIndex + 1
               
               // 현재 재생 중인 씬인지 확인
               const isPlaying = playingSceneIndex === index || (playingGroupSceneId !== null && playingGroupSceneId === scene.sceneId)
@@ -386,7 +571,7 @@ export function SceneList({
               return (
                 <div key={hasDelimiters ? `${scene.sceneId}-delimiter-${index}` : (scene.splitIndex ? `${scene.sceneId}-${scene.splitIndex}` : scene.sceneId ?? index)}>
                   {dragOver && dragOver.index === index && dragOver.position === 'before' && (
-                    <div className="h-0.5 bg-blue-500 rounded-full" />
+                    <div className="h-0.5 bg-brand-teal rounded-full" />
                   )}
                   <div
                     draggable
@@ -395,26 +580,18 @@ export function SceneList({
                     onDrop={handleDrop}
                     onDragLeave={() => setDragOver(null)}
                     onDragEnd={handleDragEnd}
-                    className={`rounded-lg border p-3 transition-all cursor-pointer ${
-                      isGrouped ? 'ml-6 border-l-2 border-l-purple-400' : ''
+                    className={`relative rounded-2xl p-4 transition-all cursor-pointer shadow-[var(--shadow-card-default)] ${
+                      isGrouped ? 'ml-6' : ''
                     } ${
                       draggedIndex === index
-                        ? 'opacity-50 border-purple-500'
+                        ? 'opacity-50'
                         : isPlaying
-                          ? theme === 'dark'
-                            ? 'border-purple-400 bg-purple-800/60 shadow-lg shadow-purple-500/50'
-                            : 'border-purple-400 bg-purple-100 shadow-lg shadow-purple-200'
+                          ? 'bg-[#5e8790]/20 shadow-lg shadow-[#5e8790]/30'
                           : currentSceneIndex === index
-                            ? theme === 'dark'
-                              ? 'border-purple-500 bg-purple-900/20 opacity-80'
-                              : 'border-purple-500 bg-purple-50 opacity-80'
-                            : theme === 'dark'
-                              ? isGrouped
-                                ? 'border-gray-600 bg-gray-800/50 hover:border-purple-500 opacity-70'
-                                : 'border-gray-700 bg-gray-900 hover:border-purple-500 opacity-70'
-                              : isGrouped
-                                ? 'border-gray-300 bg-gray-50 hover:border-purple-500 opacity-70'
-                                : 'border-gray-200 bg-white hover:border-purple-500 opacity-70'
+                            ? 'bg-[#5e8790]/40'
+                            : isGrouped
+                              ? 'bg-gray-50/80'
+                              : 'bg-white/80'
                     }`}
                     onClick={(e) => {
                       // 버튼이나 입력 필드가 아닌 경우에만 씬 선택
@@ -424,10 +601,29 @@ export function SceneList({
                       }
                     }}
                   >
-                    <div className="flex gap-3">
+                    {/* 삭제 버튼 - 오른쪽 상단 */}
+                    {onDeleteScene && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (confirm('이 씬을 삭제하시겠습니까?')) {
+                            onDeleteScene(index)
+                          }
+                        }}
+                        className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center transition-all z-10 hover:opacity-70"
+                        title="씬 삭제"
+                      >
+                        <X className="w-5 h-5 text-gray-600" />
+                      </button>
+                    )}
+                    <div className="flex items-center gap-4">
+                      {/* 드래그 핸들 */}
+                      <GripVertical className="w-5 h-5 cursor-move text-text-tertiary shrink-0" />
+                      
                       {/* 썸네일 - 그룹화되지 않은 경우에만 표시 */}
                       {!isGrouped && (
-                        <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-200 shrink-0">
+                        <div className="w-[120px] h-[120px] rounded-lg overflow-hidden bg-bg-gray-placeholder shrink-0">
                           {sceneThumbnails[index] && (() => {
                             const thumbnailUrl = sceneThumbnails[index] as string
                             // URL 검증 및 수정
@@ -443,8 +639,8 @@ export function SceneList({
                               <Image
                                 src={validUrl}
                                 alt={`Scene ${index + 1}`}
-                                width={64}
-                                height={64}
+                                width={120}
+                                height={120}
                                 className="w-full h-full object-cover"
                                 unoptimized
                                 onError={(e) => {
@@ -459,125 +655,26 @@ export function SceneList({
                       )}
 
                       {/* 씬 정보 */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <GripVertical
-                              className={`w-5 h-5 cursor-move ${
-                                theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                              }`}
-                            />
-                            <span
-                              className="text-sm font-semibold"
-                              style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
-                            >
-                              {hasDelimiters
-                                ? `Scene ${scene.sceneId} (${scriptParts.length}개 구간)`
-                                : scene.splitIndex
-                                ? `Scene ${scene.sceneId}-${scene.splitIndex}`
-                                : `Scene ${scene.sceneId}`}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            {onSplitScene && !hasDelimiters && !scene.splitIndex && (
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="xs"
-                                className="text-[11px] px-2 py-0 h-6"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onSplitScene(index)
-                                }}
-                              >
-                                자막 씬 분할
-                              </Button>
-                            )}
-                    {onDuplicateScene && isGrouped && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        className="text-[11px] px-2 py-0 h-6"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onDuplicateScene(index)
-                        }}
-                        title="Scene 복사 (같은 그룹 내에서만 가능)"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </Button>
-                    )}
-                    {/* 씬 복사 버튼 - 항상 표시 */}
-                    {onDuplicateScene && !isGrouped && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        className="text-[11px] px-2 py-0 h-6"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onDuplicateScene(index)
-                        }}
-                        title="씬 복사"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </Button>
-                    )}
-                    {/* 전체 씬 재생 버튼 - 씬 분할되지 않은 경우에만 표시 */}
-                    {onPlayScene && !isSplitScene && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        className="text-[11px] px-2 py-0 h-6"
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          try {
-                            await onPlayScene(index)
-                          } catch (error) {
-                            console.error('씬 재생 실패:', error)
-                          }
-                        }}
-                        disabled={isPreparing || isTtsBootstrapping}
-                        title={
-                          isPreparing || isTtsBootstrapping
-                            ? "준비 중..."
-                            : playingSceneIndex === index
-                            ? "씬 정지"
-                            : "씬 재생"
-                        }
-                      >
-                        {isPreparing || isTtsBootstrapping ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : playingSceneIndex === index ? (
-                          <Pause className="w-3 h-3" />
-                        ) : (
-                          <Play className="w-3 h-3" />
-                        )}
-                      </Button>
-                    )}
-                    {onDeleteScene && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        className="text-[11px] px-2 py-0 h-6 text-red-500 hover:text-red-600 hover:border-red-500"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          if (confirm('이 씬을 삭제하시겠습니까?')) {
-                            onDeleteScene(index)
-                          }
-                        }}
-                        title="Scene 삭제"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* 텍스트 입력 - ||| 구분자가 있으면 각 구간별로 카드 형태로 표시 */}
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p 
+                            className="font-bold text-text-dark tracking-[-0.36px]"
+                            style={{ 
+                              fontSize: 'var(--font-size-18)',
+                              lineHeight: 'var(--line-height-18-140)'
+                            }}
+                          >
+                            {hasDelimiters
+                              ? `Scene ${sceneOrderNumber} (${scriptParts.length}개 구간)`
+                              : !isGrouped
+                              ? `Scene ${sceneOrderNumber}`
+                              : scene.splitIndex
+                              ? `Scene ${sceneOrderNumber}-${groupSceneOrderNumber}`
+                              : `Scene ${sceneOrderNumber}`}
+                          </p>
+                        </div>
+                        
+                        {/* 텍스트 입력 - ||| 구분자가 있으면 각 구간별로 카드 형태로 표시 */}
                 {hasDelimiters ? (
                   <div className="space-y-2 mb-2">
                     {scriptParts.map((part, partIndex) => {
@@ -589,20 +686,12 @@ export function SceneList({
                         key={partIndex} 
                         className={`rounded-lg border p-3 cursor-pointer transition-all ${
                           isPartPlaying
-                            ? theme === 'dark'
-                              ? 'border-purple-400 bg-purple-800/60 shadow-lg shadow-purple-500/50'
-                              : 'border-purple-400 bg-purple-100 shadow-lg shadow-purple-200'
+                            ? 'border-[#5e8790] bg-[#5e8790]/20 shadow-lg shadow-[#5e8790]/30'
                             : isSelected
-                              ? theme === 'dark'
-                                ? 'border-purple-400 bg-purple-800/40 opacity-80'
-                                : 'border-purple-400 bg-purple-100 opacity-80'
+                              ? 'border-[#5e8790] bg-[#5e8790]/20'
                               : currentSceneIndex === index
-                                ? theme === 'dark'
-                                  ? 'border-purple-500 bg-purple-900/20 opacity-70'
-                                  : 'border-purple-500 bg-purple-50 opacity-70'
-                              : theme === 'dark'
-                                  ? 'border-gray-600 bg-gray-800/50 hover:border-purple-500 opacity-70'
-                                  : 'border-gray-200 bg-white hover:border-purple-500 opacity-70'
+                                ? 'border-[#5e8790] bg-[#5e8790]/10'
+                                : 'border-gray-200 bg-white/80 hover:border-[#5e8790]'
                         }`}
                         onClick={(e) => {
                           e.stopPropagation()
@@ -614,11 +703,8 @@ export function SceneList({
                         }}
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span
-                            className="text-xs font-semibold"
-                            style={{ color: theme === 'dark' ? '#ffffff' : '#111827' }}
-                          >
-                            Scene {scene.sceneId}-{partIndex + 1}
+                          <span className="text-xs font-semibold text-text-dark">
+                            Scene {sceneOrderNumber}-{partIndex + 1}
                           </span>
                           <div className="flex items-center gap-1 shrink-0">
                             {onDuplicateScene && (
@@ -698,7 +784,7 @@ export function SceneList({
                           </div>
                         </div>
                         <textarea
-                          rows={2}
+                          rows={3}
                           value={part}
                           onChange={(e) => {
                             // 해당 구간만 업데이트
@@ -709,11 +795,10 @@ export function SceneList({
                           }}
                           onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => e.stopPropagation()}
-                          className="w-full text-sm rounded-md border px-2 py-1 resize-none mt-2"
-                          style={{
-                            backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-                            borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                            color: theme === 'dark' ? '#ffffff' : '#111827',
+                          className="w-full p-2 rounded-lg border resize-none bg-white border-gray-300 text-text-dark focus:outline-none focus:ring-2 focus:ring-brand-teal tracking-[-0.28px] shadow-[var(--shadow-card-default)]"
+                          style={{ 
+                            fontSize: 'var(--font-size-14)',
+                            lineHeight: 'var(--line-height-14-140)'
                           }}
                           placeholder={`구간 ${partIndex + 1} 텍스트 입력...`}
                         />
@@ -722,101 +807,160 @@ export function SceneList({
                     })}
                   </div>
                 ) : (
-                  <div className="flex items-start gap-2 mb-2">
-                    <div className="flex-1 relative">
-                      <textarea
-                        rows={2}
-                        value={scene.script.replace(/\s*\|\|\|\s*/g, ' ')}
-                        onChange={(e) => {
-                          // 사용자가 입력한 값에서 ||| 제거 (실수로 입력한 경우 방지)
-                          const cleaned = e.target.value.replace(/\s*\|\|\|\s*/g, ' ')
-                          onScriptChange(index, cleaned.trim())
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full text-sm rounded-md border px-2 py-1 pr-8 resize-none"
-                        style={{
-                          backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-                          borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                          color: theme === 'dark' ? '#ffffff' : '#111827',
-                        }}
-                        placeholder="Scene 텍스트 입력..."
-                      />
-                      {onTtsPreview && scene.script.trim() && (
-                        <Button
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <textarea
+                      value={scene.script.replace(/\s*\|\|\|\s*/g, ' ')}
+                      onChange={(e) => {
+                        // 사용자가 입력한 값에서 ||| 제거 (실수로 입력한 경우 방지)
+                        const cleaned = e.target.value.replace(/\s*\|\|\|\s*/g, ' ')
+                        onScriptChange(index, cleaned.trim())
+                      }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 p-2 max-w-[520px] rounded-lg border resize-none bg-white border-gray-300 text-text-dark focus:outline-none focus:ring-2 focus:ring-brand-teal tracking-[-0.28px] shadow-[var(--shadow-card-default)]"
+                      style={{ 
+                        fontSize: 'var(--font-size-14)',
+                        lineHeight: 'var(--line-height-14-140)',
+                        height: '64px' // h-7(28px) + gap-2(8px) + h-7(28px) = 64px
+                      }}
+                      placeholder="Scene 텍스트 입력..."
+                    />
+                    {/* 오른쪽 버튼들 (세로 배치) */}
+                    <div className="flex flex-col gap-2 shrink-0">
+                      {onDuplicateScene && (
+                        <button
                           type="button"
-                          variant="ghost"
-                          size="xs"
-                          className="absolute right-2 top-2 h-6 w-6 p-0 z-10"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onDuplicateScene(index)
+                          }}
+                          className="w-8 h-7 rounded-lg bg-white border border-[#88a9ac] flex items-center justify-center hover:bg-gray-50 transition-all"
+                          title="씬 복사"
+                        >
+                          <Copy className="w-4 h-4 text-[#2c2c2c]" />
+                        </button>
+                      )}
+                      {onPlayScene && !isGrouped && !hasDelimiters && (
+                        <button
+                          type="button"
                           onClick={async (e) => {
                             e.stopPropagation()
-                            if (previewingSceneIndex === index && previewingPartIndex === null) {
-                              // 재생 중이면 정지
-                              setPreviewingSceneIndex(null)
-                              setPreviewingPartIndex(null)
-                            } else {
-                              setPreviewingSceneIndex(index)
-                              setPreviewingPartIndex(null) // 전체 재생
-                              try {
-                                await onTtsPreview(index)
-                              } catch (error) {
-                                console.error('TTS 미리듣기 실패:', error)
-                              } finally {
-                                setPreviewingSceneIndex(null)
-                                setPreviewingPartIndex(null)
-                              }
+                            try {
+                              await onPlayScene(index)
+                            } catch (error) {
+                              console.error('씬 재생 실패:', error)
                             }
                           }}
-                          disabled={previewingSceneIndex === index && previewingPartIndex === null}
-                          title="전체 씬 TTS 미리듣기"
+                          disabled={isPreparing || isTtsBootstrapping}
+                          className="w-8 h-7 rounded-lg bg-white border border-[#88a9ac] flex items-center justify-center hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={
+                            isPreparing || isTtsBootstrapping
+                              ? "준비 중..."
+                              : playingSceneIndex === index
+                              ? "씬 정지"
+                              : "씬 재생"
+                          }
                         >
-                          {previewingSceneIndex === index && previewingPartIndex === null ? (
-                            <Pause className="w-3 h-3" />
+                          {isPreparing || isTtsBootstrapping ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-[#2c2c2c]" />
+                          ) : playingSceneIndex === index ? (
+                            <Pause className="w-4 h-4 text-[#2c2c2c]" />
                           ) : (
-                            <Play className="w-3 h-3" />
+                            <Play className="w-4 h-4 text-[#2c2c2c]" />
                           )}
-                        </Button>
+                        </button>
                       )}
                     </div>
                   </div>
                 )}
 
-                {/* 설정 - 분할된 씬이 아닌 경우에만 표시 */}
-                {!isSplitScene && (
-                  <div className="flex items-center gap-2 text-xs flex-wrap">
-                    <span
-                      className="px-2 py-1 rounded border text-xs"
-                      style={{
-                        backgroundColor: theme === 'dark' ? '#111827' : '#f9fafb',
-                        borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                        color: theme === 'dark' ? '#9ca3af' : '#6b7280',
-                      }}
-                    >
-                      {transitionLabels[timeline?.scenes[index]?.transition || 'none'] || '없음'}
-                    </span>
-                    <select
-                      value={timeline?.scenes[index]?.imageFit || 'contain'}
-                      onChange={(e) => onImageFitChange(index, e.target.value as 'cover' | 'contain' | 'fill')}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => e.stopPropagation()}
-                      className="px-2 py-1 rounded border text-xs"
-                      style={{
-                        backgroundColor: theme === 'dark' ? '#111827' : '#ffffff',
-                        borderColor: theme === 'dark' ? '#374151' : '#d1d5db',
-                        color: theme === 'dark' ? '#ffffff' : '#111827',
-                      }}
-                    >
-                      <option value="cover">꽉 채우기</option>
-                      <option value="contain">비율 유지</option>
-                      <option value="fill">늘려 채우기</option>
-                    </select>
+                {/* 설정 - 분할된 씬이 아닌 경우에만 표시 (그룹이 아닐 때만 표시) */}
+                {!isGrouped && !hasDelimiters && (
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
+                    {onSplitScene && !hasDelimiters && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onSplitScene(index)
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg bg-white border border-[#88a9ac] text-text-dark hover:bg-gray-50 transition-all font-bold tracking-[-0.14px]"
+                        style={{ 
+                          fontSize: 'var(--font-size-12)',
+                          lineHeight: 'var(--line-height-12-140)'
+                        }}
+                      >
+                        자막 장면 분할
+                      </button>
+                    )}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-2.5 py-1.5 rounded-lg bg-white border border-[#88a9ac] text-text-dark hover:bg-gray-50 transition-all font-bold tracking-[-0.14px] flex items-center gap-1"
+                          style={{ 
+                            fontSize: 'var(--font-size-12)',
+                            lineHeight: 'var(--line-height-12-140)'
+                          }}
+                        >
+                          {timeline?.scenes[index]?.imageFit === 'cover' ? '꽉 채우기' : 
+                           timeline?.scenes[index]?.imageFit === 'fill' ? '늘려 채우기' : 
+                           '비율 유지'}
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent 
+                        className="w-40 p-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex flex-col">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onImageFitChange(index, 'cover')
+                            }}
+                            className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                              timeline?.scenes[index]?.imageFit === 'cover' ? 'bg-gray-100 font-semibold' : ''
+                            }`}
+                          >
+                            꽉 채우기
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onImageFitChange(index, 'contain')
+                            }}
+                            className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                              timeline?.scenes[index]?.imageFit === 'contain' ? 'bg-gray-100 font-semibold' : ''
+                            }`}
+                          >
+                            비율 유지
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onImageFitChange(index, 'fill')
+                            }}
+                            className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                              timeline?.scenes[index]?.imageFit === 'fill' ? 'bg-gray-100 font-semibold' : ''
+                            }`}
+                          >
+                            늘려 채우기
+                          </button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 )}
                       </div>
                     </div>
                   </div>
                   {dragOver && dragOver.index === index && dragOver.position === 'after' && (
-                    <div className="h-0.5 bg-blue-500 rounded-full" />
+                    <div className="h-0.5 bg-brand-teal rounded-full" />
                   )}
                 </div>
               )

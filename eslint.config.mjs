@@ -15,8 +15,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // TODO: remove after step4 refactor 완료
-    "apps/bukae_creator/app/video/create/step4/page.tsx",
+    // TODO: remove after step3 refactor 완료
+    "apps/bukae_creator/app/video/create/step3/page.tsx",
   ]),
 ]);
 

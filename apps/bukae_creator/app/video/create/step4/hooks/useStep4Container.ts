@@ -1,2227 +1,1003 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { useVideoCreateStore, TimelineData, TimelineScene, SceneScript } from '@/store/useVideoCreateStore'
-import { useSceneStructureStore } from '@/store/useSceneStructureStore'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
-import { useSceneHandlers } from '@/hooks/video/useSceneHandlers'
-import { useTimelinePlayer } from '@/hooks/video/useTimelinePlayer'
-import { usePixiFabric } from '@/hooks/video/usePixiFabric'
-import { usePixiEffects } from '@/hooks/video/usePixiEffects'
-import { useSceneManager } from '@/hooks/video/useSceneManager'
-import { usePixiEditor } from '@/hooks/video/usePixiEditor'
-import { useSceneNavigation } from '@/hooks/video/useSceneNavigation'
-import { useFullPlayback } from '@/hooks/video/useFullPlayback'
-import { useTimelineInitializer } from '@/hooks/video/useTimelineInitializer'
-import { useGridManager } from '@/hooks/video/useGridManager'
-import { useCanvasSize } from '@/hooks/video/useCanvasSize'
-import { useFontLoader } from '@/hooks/video/useFontLoader'
-import { useBgmManager } from '@/hooks/video/useBgmManager'
-import { useTimelineInteraction } from '@/hooks/video/useTimelineInteraction'
-import { usePlaybackStateSync } from '@/hooks/video/usePlaybackStateSync'
-import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
-import { getMp3DurationSec } from '@/lib/utils/audio'
-import { useSceneEditHandlers } from '@/hooks/video/useSceneEditHandlers'
-import { useVideoExport } from '@/hooks/video/useVideoExport'
-import { ensureSceneTts as ensureSceneTtsUtil } from '@/lib/utils/tts-synthesis'
-import { loadPixiTexture } from '@/utils/pixi'
-import { showScene as showSceneUtil } from '@/lib/utils/scene-renderer'
-import { useTtsPreview } from '@/hooks/video/useTtsPreview'
-import { useFabricHandlers } from '@/hooks/video/useFabricHandlers'
-import { applyShortsTemplateToScenes } from '@/lib/utils/scene-template'
-import { transitionLabels, transitions, movements, allTransitions } from '@/lib/data/transitions'
+import { studioMetaApi } from '@/lib/api/studio-meta'
+import { type StudioJobUpdate } from '@/lib/api/websocket'
 import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
-import { calculateTotalDuration } from '@/utils/timeline'
-import { getScenePlaceholder } from '@/lib/utils/placeholder-image'
-import * as PIXI from 'pixi.js'
-import { gsap } from 'gsap'
-import * as fabric from 'fabric'
+import { authStorage } from '@/lib/api/auth-storage'
+import { getSupabaseClient } from '@/lib/supabase/client'
+
+type RichProgressDetail = {
+  step?: string | number
+  percent?: number
+  msg?: string
+  message?: string
+  progress?: number
+  error?: string
+  errorMessage?: string
+  currentScene?: number
+  sceneIndex?: number
+  currentSceneIndex?: number
+  scene?: number
+}
+
+type ProgressDetail = RichProgressDetail | string
+
+type ExtendedStudioJobUpdate = StudioJobUpdate & {
+  progressDetail?: ProgressDetail
+  message?: string | Record<string, unknown>
+}
 
 export function useStep4Container() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const jobIdFromUrl = searchParams.get('jobId')
   
-  // Zustand selector 최적화: 필요한 값만 선택
-  const scenes = useVideoCreateStore((state) => state.scenes)
-  const selectedImages = useVideoCreateStore((state) => state.selectedImages)
-  const timeline = useVideoCreateStore((state) => state.timeline)
-  const setTimeline = useVideoCreateStore((state) => state.setTimeline)
-  const setScenes = useVideoCreateStore((state) => state.setScenes)
-  const setSelectedImages = useVideoCreateStore((state) => state.setSelectedImages)
-  const subtitlePosition = useVideoCreateStore((state) => state.subtitlePosition)
-  const subtitleFont = useVideoCreateStore((state) => state.subtitleFont)
-  const subtitleColor = useVideoCreateStore((state) => state.subtitleColor)
-  const bgmTemplate = useVideoCreateStore((state) => state.bgmTemplate)
-  const transitionTemplate = useVideoCreateStore((state) => state.transitionTemplate)
-  const voiceTemplate = useVideoCreateStore((state) => state.voiceTemplate)
-  const setSubtitlePosition = useVideoCreateStore((state) => state.setSubtitlePosition)
-  const setSubtitleFont = useVideoCreateStore((state) => state.setSubtitleFont)
-  const setSubtitleColor = useVideoCreateStore((state) => state.setSubtitleColor)
-  const setBgmTemplate = useVideoCreateStore((state) => state.setBgmTemplate)
-  const setTransitionTemplate = useVideoCreateStore((state) => state.setTransitionTemplate)
-  const setVoiceTemplate = useVideoCreateStore((state) => state.setVoiceTemplate)
-  const selectedProducts = useVideoCreateStore((state) => state.selectedProducts)
-  const videoTitle = useVideoCreateStore((state) => state.videoTitle)
-  const videoDescription = useVideoCreateStore((state) => state.videoDescription)
+  // URL에서 jobId 가져오기 (의존성 배열을 위해 메모이제이션) - 먼저 선언
+  const urlJobId = useMemo(() => searchParams.get('jobId'), [searchParams])
   
+  const { 
+    selectedProducts,
+    scenes,
+    videoTitle,
+    videoTitleCandidates,
+    videoDescription,
+    videoHashtags,
+    timeline,
+    setVideoTitle,
+    setVideoTitleCandidates,
+    setVideoDescription,
+    setVideoHashtags,
+    reset,
+  } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
-  const sceneStructureStore = useSceneStructureStore()
-  
-  // PixiJS refs
-  const pixiContainerRef = useRef<HTMLDivElement>(null)
-  const appRef = useRef<PIXI.Application | null>(null)
-  const containerRef = useRef<PIXI.Container | null>(null)
-  const texturesRef = useRef<Map<string, PIXI.Texture>>(new Map())
-  const spritesRef = useRef<Map<number, PIXI.Sprite>>(new Map())
-  const textsRef = useRef<Map<number, PIXI.Text>>(new Map())
-  const handlesRef = useRef<PIXI.Graphics | null>(null)
-  const isDraggingRef = useRef(false)
-  const draggingElementRef = useRef<'image' | 'text' | null>(null) // 현재 드래그 중인 요소 타입
-  const dragStartPosRef = useRef<{ x: number; y: number; boundsWidth?: number; boundsHeight?: number }>({ x: 0, y: 0 })
-  const editHandlesRef = useRef<Map<number, PIXI.Container>>(new Map()) // 편집 핸들 컨테이너 (씬별)
-  const isResizingRef = useRef(false)
-  const resizeHandleRef = useRef<'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' | null>(null)
-  const resizeStartPosRef = useRef<{ x: number; y: number } | null>(null)
-  const isFirstResizeMoveRef = useRef(true)
-  const originalTransformRef = useRef<{ x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number; baseWidth?: number; baseHeight?: number } | null>(null)
-  const originalSpriteTransformRef = useRef<Map<number, { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }>>(new Map()) // 편집 시작 시 원래 Transform 저장
-  const originalTextTransformRef = useRef<Map<number, { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }>>(new Map()) // 텍스트 편집 시작 시 원래 Transform 저장
-  const isSavingTransformRef = useRef(false) // Transform 저장 중 플래그 (loadAllScenes 재호출 방지)
-  const savedSceneIndexRef = useRef<number | null>(null) // 편집 종료 시 씬 인덱스 저장
-  const textEditHandlesRef = useRef<Map<number, PIXI.Container>>(new Map()) // 텍스트 편집 핸들 컨테이너 (씬별)
-  const isResizingTextRef = useRef(false) // 텍스트 리사이즈 중 플래그
-  const currentSceneIndexRef = useRef(0)
-  const previousSceneIndexRef = useRef<number | null>(null) // useTimelinePlayer와 공유
-  const disableAutoTimeUpdateRef = useRef<boolean>(false) // 비디오 재생 중일 때 자동 시간 업데이트 비활성화
-  const lastRenderedSceneIndexRef = useRef<number | null>(null) // 전환 효과 추적용 (로컬)
-  const updateCurrentSceneRef = useRef<(explicitPreviousIndex?: number | null, forceTransition?: string, onAnimationComplete?: (sceneIndex: number) => void, isPlaying?: boolean, partIndex?: number | null, sceneIndex?: number, overrideTransitionDuration?: number) => void>(() => {})
-  // Fabric.js refs
-  const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
-  const fabricCanvasElementRef = useRef<HTMLCanvasElement | null>(null)
-  
-  // State
-  const [rightPanelTab, setRightPanelTab] = useState('animation')
-  const [editMode, setEditMode] = useState<'none' | 'image' | 'text'>('none')
-  const editModeRef = useRef(editMode)
-  // 빈 공간 클릭 감지를 위한 플래그 (스프라이트/텍스트/핸들 클릭 여부 추적)
-  const clickedOnPixiElementRef = useRef(false)
-  
-  // editMode 변경 시 ref 업데이트
-  useEffect(() => {
-    editModeRef.current = editMode
-  }, [editMode])
-  
-  // PixiJS 편집 모드일 때는 Fabric.js 편집 비활성화
-  const useFabricEditing = false // PixiJS 편집 사용
-  const [selectedElementIndex, setSelectedElementIndex] = useState<number | null>(null)
-  const [selectedElementType, setSelectedElementType] = useState<'image' | 'text' | null>(null)
-  const [showGrid, setShowGrid] = useState(false) // 격자 표시 여부
-  const timelineBarRef = useRef<HTMLDivElement>(null)
-  const [pixiReady, setPixiReady] = useState(false)
-  const [fabricReady, setFabricReady] = useState(false)
-  const fabricScaleRatioRef = useRef<number>(1) // Fabric.js 좌표 스케일 비율
-  const [mounted, setMounted] = useState(false)
-  const [isTtsBootstrapping, setIsTtsBootstrapping] = useState(false) // 첫 씬 TTS 로딩 상태
-  const isTtsBootstrappingRef = useRef(false) // 클로저에서 최신 값 참조용
-  const [showReadyMessage, setShowReadyMessage] = useState(false) // "재생이 가능해요!" 메시지 표시 여부
-  const [isPreparing, setIsPreparing] = useState(false) // 모든 TTS 합성 준비 중인지 여부
-  // 스크립트가 변경된 씬 추적 (재생 시 강제 재생성)
-  const changedScenesRef = useRef<Set<number>>(new Set())
-  // 선택된 구간 추적 (씬 인덱스, 구간 인덱스)
-  const [selectedPart, setSelectedPartState] = useState<{ sceneIndex: number; partIndex: number } | null>(null)
-  const selectedPartRef = useRef<{ sceneIndex: number; partIndex: number } | null>(null)
-  
-  // setSelectedPart를 래핑하여 selectedPartRef도 함께 업데이트
-  const setSelectedPart = useCallback((part: { sceneIndex: number; partIndex: number } | null) => {
-    selectedPartRef.current = part
-    setSelectedPartState(part)
-  }, [])
 
   // 토큰 검증
   const { isValidatingToken } = useVideoCreateAuth()
 
-  // 클라이언트에서만 렌더링 (SSR/Hydration mismatch 방지)
+  // 영상 렌더링 관련 상태
+  // Hydration 오류 방지를 위해 초기값은 null로 설정하고, useEffect에서 클라이언트에서만 설정
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
+  const [isMounted, setIsMounted] = useState(false)
+  
+  // 클라이언트 마운트 후 localStorage에서 복원
   useEffect(() => {
-    setMounted(true)
+    setIsMounted(true)
+    if (urlJobId) {
+      setCurrentJobId(urlJobId)
+    } else if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('currentVideoJobId')
+      if (saved) {
+        setCurrentJobId(saved)
+      } else if (jobIdFromUrl) {
+        setCurrentJobId(jobIdFromUrl)
+      }
+    }
+  }, [urlJobId, jobIdFromUrl])
+  
+  // currentJobId가 변경될 때 localStorage에 저장
+  useEffect(() => {
+    if (isMounted && typeof window !== 'undefined') {
+      if (currentJobId) {
+        localStorage.setItem('currentVideoJobId', currentJobId)
+      } else {
+        localStorage.removeItem('currentVideoJobId')
+      }
+    }
+  }, [currentJobId, isMounted])
+  
+  // UI 렌더링용 jobId (urlJobId가 없으면 currentJobId 사용)
+  // Hydration 오류 방지를 위해 isMounted가 true일 때만 렌더링
+  const jobId = isMounted ? (urlJobId || currentJobId) : urlJobId
+  const [jobStatus, setJobStatus] = useState<'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | null>(null)
+  const [jobProgress, setJobProgress] = useState<string>('')
+  const jobStartTimeRef = useRef<number | null>(null)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [encodingSceneIndex, setEncodingSceneIndex] = useState<number | null>(null)
+  const [resultVideoUrl, setResultVideoUrl] = useState<string | null>(null)
+  const jobStatusCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [isInitializing, setIsInitializing] = useState(false) // 초기 상태 로딩 중
+  
+  // 영상 제목 선택 관련 상태
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false)
+  const [isGeneratingHashtags, setIsGeneratingHashtags] = useState(false)
+  const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false)
+  const [isCompleting, setIsCompleting] = useState(false)
+  const product = selectedProducts[0]
+  const descriptionInitialized = useRef(false)
+  const hashtagsInitialized = useRef(false)
+  const initialHashtags = useRef(videoHashtags)
+
+  const formatElapsed = useCallback((seconds: number) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}분 ${secs.toString().padStart(2, '0')}초`
   }, [])
 
+  // 다운로드 함수
+  const handleDownload = useCallback(async () => {
+    if (!resultVideoUrl || !currentJobId) return
+    
+    try {
+      const response = await fetch(resultVideoUrl)
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `video-${currentJobId}.mp4`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error('다운로드 실패:', error)
+      alert('다운로드 중 오류가 발생했어요.')
+    }
+  }, [resultVideoUrl, currentJobId])
 
-  // 스테이지 크기 계산 (9:16 고정)
-  const stageDimensions = useMemo(() => {
-    const baseSize = 1080
-    const ratio = 9 / 16
-    return { width: baseSize, height: baseSize / ratio }
-  }, [])
-
-
-  // 타임라인 초기화
-  useTimelineInitializer({
-    scenes,
-    selectedImages,
-    subtitleFont,
-    subtitleColor,
-    subtitlePosition,
-    timeline,
-    setTimeline,
-  })
-
-  // Canvas 크기 관리
-  const { canvasSize, setCanvasSize, recalculateCanvasSize } = useCanvasSize({
-    appRef,
-    pixiContainerRef,
-    stageDimensions,
-  })
-
-  // 격자 관리
-  const { gridOverlaySize, canvasDisplaySize } = useGridManager({
-    showGrid,
-    pixiReady,
-    appRef,
-    stageDimensions,
-    canvasSize,
-    pixiContainerRef,
-    timelineScenesLength: timeline?.scenes.length,
-  })
-
-  // 진행 중인 애니메이션 추적 (usePixiFabric보다 먼저 선언)
-  const activeAnimationsRef = useRef<Map<number, gsap.core.Timeline>>(new Map())
-  // 수동 씬 선택 중 플래그 (handleScenePartSelect에서 사용)
-  const isManualSceneSelectRef = useRef(false)
-
-  // mounted 상태와 pixiContainerRef가 준비된 후에만 PixiJS 초기화
-  usePixiFabric({
-    pixiContainerRef,
-    appRef,
-    containerRef,
-    fabricCanvasRef,
-    fabricCanvasElementRef,
-    setPixiReady,
-    setFabricReady,
-    useFabricEditing,
-    stageDimensions,
-    fabricScaleRatioRef,
-    editMode,
-    mounted, // mounted 상태 전달
-    setCanvasSize, // Canvas 크기 상태 업데이트 함수 전달
-    activeAnimationsRef, // 전환 효과 중인지 확인용
-  })
-
-  // Fabric 포인터 활성화 상태 갱신 (upper/lower 모두)
-  useEffect(() => {
-    const lower = fabricCanvasElementRef.current
-    const upper = fabricCanvasRef.current?.upperCanvasEl
-    const pointer = useFabricEditing ? 'auto' : 'none'
-    if (lower) lower.style.pointerEvents = pointer
-    if (upper) upper.style.pointerEvents = pointer
-  }, [editMode, useFabricEditing])
-
-
-  // Fabric 오브젝트 선택 가능 여부를 편집 모드에 맞춰 갱신
-  useEffect(() => {
-    if (!fabricReady || !fabricCanvasRef.current || !useFabricEditing) return
-    const fabricCanvas = fabricCanvasRef.current
-    // 항상 선택 가능 (커서가 올라가면 바로 편집 가능)
-    fabricCanvas.selection = true
-    fabricCanvas.forEachObject((obj: fabric.Object & { dataType?: 'image' | 'text' }) => {
-      obj.set({
-        selectable: true,
-        evented: true,
-        lockScalingFlip: true,
-        hoverCursor: 'move',
-        moveCursor: 'move',
-      })
+  // 상태 업데이트 처리 함수
+  const handleStatusUpdate = useCallback((statusData: ExtendedStudioJobUpdate) => {
+    console.log('[handleStatusUpdate] 상태 업데이트 받음:', statusData)
+    
+    const newStatus = statusData.status
+    
+    // 이미 완료/실패 처리된 경우 추가 업데이트 무시
+    setJobStatus((prevStatus) => {
+      if (prevStatus === 'COMPLETED' || prevStatus === 'FAILED') {
+        console.log('[handleStatusUpdate] 이미 완료/실패 상태라 무시:', prevStatus)
+        return prevStatus
+      }
+      console.log('[handleStatusUpdate] 상태 업데이트:', prevStatus, '->', newStatus)
+      return newStatus
     })
-    fabricCanvas.discardActiveObject()
-    fabricCanvas.renderAll()
-  }, [fabricReady, editMode, useFabricEditing])
 
-  // 텍스처 로드 래퍼 (texturesRef 사용)
-  const loadPixiTextureWithCache = (url: string): Promise<PIXI.Texture> => {
-    return loadPixiTexture(url, texturesRef.current)
-  }
-
-  // 재생 상태 ref (usePixiEditor에서 사용하기 위해 먼저 선언)
-  const isPlayingRef = useRef(false)
-
-  // 편집 핸들러 hook (먼저 선언하여 콜백에서 사용 가능하도록)
-  const {
-    drawEditHandles,
-    saveImageTransform,
-    saveAllImageTransforms,
-    handleResize,
-    setupSpriteDrag,
-    applyImageTransform,
-    saveTextTransform,
-    applyTextTransform,
-    handleTextResize,
-    drawTextEditHandles,
-    setupTextDrag,
-  } = usePixiEditor({
-    appRef,
-    containerRef,
-    spritesRef,
-    textsRef,
-    editHandlesRef,
-    textEditHandlesRef,
-    isDraggingRef,
-    draggingElementRef,
-    dragStartPosRef,
-    isResizingRef,
-    resizeHandleRef,
-    resizeStartPosRef,
-    isFirstResizeMoveRef,
-    originalTransformRef,
-    originalSpriteTransformRef,
-    originalTextTransformRef,
-    isResizingTextRef,
-    currentSceneIndexRef,
-    isSavingTransformRef,
-    clickedOnPixiElementRef,
-    editMode,
-    setEditMode,
-    selectedElementIndex,
-    setSelectedElementIndex,
-    selectedElementType,
-    setSelectedElementType,
-    timeline,
-    setTimeline,
-    useFabricEditing,
-    isPlayingRef, // 재생 중인지 여부 전달 (ref)
-  })
-
-  // 애니메이션 완료 후 드래그 설정 재적용
-  const handleAnimationComplete = useCallback((sceneIndex: number) => {
-    const sprite = spritesRef.current.get(sceneIndex)
-    const text = textsRef.current.get(sceneIndex)
-    
-    if (sprite && sprite.visible) {
-      setupSpriteDrag(sprite, sceneIndex)
+    // progressDetail에 에러 정보가 있으면 즉시 실패 처리
+    const detailError =
+      typeof statusData.progressDetail === 'object'
+        ? statusData.progressDetail?.error || statusData.progressDetail?.errorMessage
+        : typeof statusData.progressDetail === 'string'
+          ? statusData.progressDetail
+          : ''
+    if (detailError && newStatus !== 'COMPLETED') {
+      const errorText = detailError || statusData.errorMessage || '알 수 없는 오류가 발생했습니다.'
+      console.log('[handleStatusUpdate] 실패 처리:', errorText)
+      alert(`영상 생성이 실패했어요.\n\n${errorText}`)
+      setCurrentJobId(null)
+      setJobStatus('FAILED')
+      setJobProgress('')
+      setEncodingSceneIndex(null)
+      return
     }
-    
-    if (text && text.visible) {
-      setupTextDrag(text, sceneIndex)
-    }
-  }, [setupSpriteDrag, setupTextDrag])
 
-  // 로드 완료 후 드래그 설정 재적용 및 핸들 표시
-  const handleLoadComplete = useCallback((sceneIndex: number) => {
-    const sprite = spritesRef.current.get(sceneIndex)
-    const text = textsRef.current.get(sceneIndex)
+    // progressDetail이 객체인 경우 처리
+    let progressText = ''
+    let sceneIndex: number | null = null
     
-    // 편집 모드일 때 스프라이트와 텍스트를 먼저 표시 (핸들을 그리기 전에)
-    const currentEditMode = editModeRef.current
-    // isPlaying은 useTimelinePlayer에서 가져오므로 여기서는 ref를 직접 사용
-    // 재생 중이 아니라고 가정 (편집 모드이므로)
-    const isPlaying = false
-    
-    if (currentEditMode === 'image' || currentEditMode === 'text') {
-      // 재생 중이 아니면 스프라이트와 텍스트를 표시
-      if (!isPlaying) {
-        if (sprite) {
-          sprite.visible = true
-          sprite.alpha = 1
+    const isRichProgressDetail = (detail: ProgressDetail): detail is RichProgressDetail =>
+      typeof detail === 'object' && detail !== null
+
+    const toText = (...values: Array<string | number | undefined | null>) => {
+      const first = values.find((v) => v !== undefined && v !== null)
+      return typeof first === 'number' ? first.toString() : first
+    }
+
+    if (statusData.progressDetail) {
+      if (typeof statusData.progressDetail === 'string') {
+        progressText = statusData.progressDetail
+      } else if (isRichProgressDetail(statusData.progressDetail)) {
+        const detail = statusData.progressDetail
+        const detailText = toText(
+          detail.msg,
+          detail.message,
+          detail.step,
+          detail.progress,
+          detail.percent
+        )
+        progressText = detailText || JSON.stringify(detail)
+        const parsedScene =
+          detail.currentScene ??
+          detail.sceneIndex ??
+          detail.currentSceneIndex ??
+          detail.scene ??
+          null
+        if (typeof parsedScene === 'number') {
+          sceneIndex = parsedScene
+          setEncodingSceneIndex(parsedScene)
         }
-        if (text) {
-          text.visible = true
-          text.alpha = 1
+      }
+    } else if (statusData.message) {
+      progressText = typeof statusData.message === 'string' 
+        ? statusData.message 
+        : JSON.stringify(statusData.message)
+    }
+    
+    // progressText에서 씬 인덱스 파싱
+    if (sceneIndex === null && progressText && timeline) {
+      const sceneMatch = progressText.match(/\((\d+)\/(\d+)\)|(\d+)\/(\d+)/)
+      if (sceneMatch) {
+        const currentSceneNum = parseInt(sceneMatch[1] || sceneMatch[3] || '0', 10)
+        sceneIndex = currentSceneNum > 0 ? currentSceneNum - 1 : null
+        if (typeof sceneIndex === 'number' && sceneIndex >= 0) {
+          console.log('[handleStatusUpdate] progressText에서 씬 인덱스 파싱:', sceneIndex, 'from:', progressText)
+          setEncodingSceneIndex(sceneIndex)
         }
       }
     }
     
-    if (sprite) {
-      setupSpriteDrag(sprite, sceneIndex)
+    // 경과 시간 계산 및 표시
+    if (jobStartTimeRef.current) {
+      const elapsedMs = Date.now() - jobStartTimeRef.current
+      const elapsed = Math.floor(elapsedMs / 1000)
+      setElapsedSeconds(elapsed)
     }
     
-    if (text) {
-      setupTextDrag(text, sceneIndex)
-    }
+    setJobProgress(progressText)
     
-    // 편집 모드일 때 핸들 표시 (updateCurrentScene 완료 후)
-    if (currentEditMode === 'image') {
-      // 이미지 편집 모드일 때는 이미지 핸들만 표시하고 자막 핸들은 제거
-      const existingTextHandles = textEditHandlesRef.current.get(sceneIndex)
-      if (existingTextHandles && existingTextHandles.parent) {
-        existingTextHandles.parent.removeChild(existingTextHandles)
-        textEditHandlesRef.current.delete(sceneIndex)
-      }
+    if (newStatus === 'COMPLETED') {
+      console.log('[handleStatusUpdate] 완료 처리 시작')
+      const videoUrl = statusData.resultVideoUrl || null
+      console.log('[handleStatusUpdate] 비디오 URL:', videoUrl)
+      setResultVideoUrl(videoUrl)
+      setJobProgress('영상 생성이 완료되었어요!')
+      setEncodingSceneIndex(null)
       
-      // 스프라이트가 visible하고 alpha가 0보다 클 때만 핸들 그리기
-      if (sprite && sprite.visible && sprite.alpha > 0) {
-        const existingHandles = editHandlesRef.current.get(sceneIndex)
-        if (!existingHandles || !existingHandles.parent) {
-          try {
-            drawEditHandles(sprite, sceneIndex, handleResize, saveImageTransform)
-          } catch (error) {
-            // 이미지 핸들 그리기 실패
-          }
+      // 상태 확인 중단
+      if (jobStatusCheckTimeoutRef.current) {
+        clearTimeout(jobStatusCheckTimeoutRef.current)
+        jobStatusCheckTimeoutRef.current = null
+      }
+      console.log('[handleStatusUpdate] 완료 처리 완료, jobStatus:', newStatus)
+    } else if (newStatus === 'FAILED') {
+      const errorMessages = [
+        statusData.errorMessage,
+        statusData.error?.message,
+        statusData.error,
+      ].filter(Boolean)
+      
+      if (statusData.progressDetail) {
+        if (typeof statusData.progressDetail === 'string') {
+          errorMessages.push(statusData.progressDetail)
+        } else if (typeof statusData.progressDetail === 'object') {
+          const detailMsg = statusData.progressDetail.msg || 
+                          statusData.progressDetail.message ||
+                          statusData.progressDetail.error
+          if (detailMsg) errorMessages.push(detailMsg)
         }
       }
-    } else if (currentEditMode === 'text') {
-      // 자막 편집 모드일 때는 자막 핸들만 표시하고 이미지 핸들은 제거
-      const existingHandles = editHandlesRef.current.get(sceneIndex)
-      if (existingHandles && existingHandles.parent) {
-        existingHandles.parent.removeChild(existingHandles)
-        editHandlesRef.current.delete(sceneIndex)
+      
+      const errorText = errorMessages.length > 0 
+        ? errorMessages.join('\n\n') 
+        : '알 수 없는 오류'
+      
+      const isFfmpegError = errorText.includes('ffmpeg') || 
+                           errorText.includes('Composition Failed') ||
+                           errorText.includes('frame=')
+      
+      let userMessage = '영상 생성이 실패했어요.\n\n'
+      if (isFfmpegError) {
+        userMessage += '비디오 인코딩 과정에서 오류가 발생했어요.\n'
+        userMessage += '백엔드 서버의 ffmpeg 처리 중 문제가 발생한 것으로 보입니다.\n\n'
+        userMessage += '가능한 원인:\n'
+        userMessage += '- 서버 리소스 부족\n'
+        userMessage += '- 비디오 파일 형식 문제\n'
+        userMessage += '- ffmpeg 설정 오류\n\n'
+        userMessage += '잠시 후 다시 시도해주시거나, 백엔드 관리자에게 문의해주세요.\n\n'
       }
+      userMessage += `에러 상세:\n${errorText.substring(0, 500)}${errorText.length > 500 ? '...' : ''}\n\n`
+      userMessage += '자세한 내용은 브라우저 콘솔(F12)을 확인해주세요.'
       
-      // 텍스트가 visible하고 alpha가 0보다 클 때만 핸들 그리기
-      if (text && text.visible && text.alpha > 0) {
-        const existingTextHandles = textEditHandlesRef.current.get(sceneIndex)
-        if (!existingTextHandles || !existingTextHandles.parent) {
-          try {
-            drawTextEditHandles(text, sceneIndex, handleTextResize, saveTextTransform)
-          } catch (error) {
-            // 자막 핸들 그리기 실패
-          }
-        }
-      }
+      alert(userMessage)
+      setCurrentJobId(null)
+      setJobStatus(null)
+      setJobProgress('')
+      setEncodingSceneIndex(null)
     }
-  }, [setupSpriteDrag, setupTextDrag, drawEditHandles, drawTextEditHandles, handleResize, saveImageTransform, handleTextResize, saveTextTransform])
+  }, [timeline, currentJobId])
 
-  // PixiJS 효과 적용 hook (playbackSpeed는 timeline에서 가져옴)
-  const { applyEnterEffect } = usePixiEffects({
-    appRef,
-    containerRef,
-    activeAnimationsRef,
-    stageDimensions,
-    timeline,
-    playbackSpeed: timeline?.playbackSpeed ?? 1.0,
-    onAnimationComplete: handleAnimationComplete,
-    isPlayingRef, // 재생 중인지 확인용
-  })
-
-  // 씬 관리 hook (setCurrentSceneIndex는 useTimelinePlayer 이후에 설정됨)
-  // 임시로 undefined로 설정하고, 나중에 업데이트
-  const sceneManagerResult1 = useSceneManager({
-    appRef,
-    containerRef,
-    spritesRef,
-    textsRef,
-    currentSceneIndexRef,
-    previousSceneIndexRef,
-    activeAnimationsRef,
-    fabricCanvasRef,
-    fabricScaleRatioRef,
-    isSavingTransformRef,
-    isManualSceneSelectRef,
-    timeline,
-    stageDimensions,
-    useFabricEditing,
-    loadPixiTextureWithCache,
-    applyEnterEffect,
-    onLoadComplete: handleLoadComplete,
-    setTimeline,
-    setCurrentSceneIndex: undefined as any, // 나중에 설정됨
-  })
-  
-  let { updateCurrentScene, syncFabricWithScene, loadAllScenes } = sceneManagerResult1
-  
-  // loadAllScenes가 항상 정의되도록 보장 (초기화되지 않은 경우를 대비)
-  const loadAllScenesStable = loadAllScenes || (async () => {})
-  
-  // updateCurrentScene을 ref로 감싸서 안정적인 참조 유지
-  updateCurrentSceneRef.current = updateCurrentScene
-
-  // selectScene 함수를 나중에 연결하기 위한 ref
-  const selectSceneRef = useRef<((index: number, skipStopPlaying?: boolean, onTransitionComplete?: () => void) => void) | null>(null)
-
-  // Fabric 변경사항을 타임라인에 반영 (hook 사용)
-  useFabricHandlers({
-    fabricReady,
-    fabricCanvasRef,
-    timeline,
-    setTimeline,
-    currentSceneIndexRef,
-    fabricScaleRatioRef,
-    isSavingTransformRef,
-    savedSceneIndexRef,
-    isManualSceneSelectRef,
-  })
-
-
-  // timeline의 scenes 배열 길이나 구조가 변경될 때만 loadAllScenes 호출
-  const timelineScenesLengthRef = useRef<number>(0)
-  const timelineScenesRef = useRef<any[]>([])
-  const loadAllScenesCompletedRef = useRef<boolean>(false) // loadAllScenes 완료 여부 추적
-
-  // Pixi와 타임라인이 모두 준비되면 씬 로드
-  useEffect(() => {
-    if (!pixiReady || !appRef.current || !containerRef.current || !timeline || timeline.scenes.length === 0 || !loadAllScenesStable) {
-      return
-    }
-    
-    // Transform 저장 중일 때는 loadAllScenes를 호출하지 않음
-    if (isSavingTransformRef.current) {
-      return
-    }
-    
-    // 수동 씬 선택 중일 때는 loadAllScenes를 호출하지 않음 (handleScenePartSelect가 처리 중)
-    if (isManualSceneSelectRef.current) {
-      return
-    }
-
-    // scenes 배열의 길이나 구조가 변경되었는지 확인 (Transform만 변경된 경우는 제외)
-    const scenesLength = timeline.scenes.length
-    const scenesChanged = timelineScenesLengthRef.current !== scenesLength || 
-      timeline.scenes.some((scene, i) => {
-        const prevScene = timelineScenesRef.current[i]
-        if (!prevScene) return true
-        // 이미지나 텍스트 내용이 변경되었는지 확인 (Transform 제외)
-        return prevScene.image !== scene.image || 
-               prevScene.text?.content !== scene.text?.content ||
-               prevScene.text?.position !== scene.text?.position ||
-               prevScene.duration !== scene.duration ||
-               prevScene.transition !== scene.transition
-      })
-
-    if (!scenesChanged && timelineScenesLengthRef.current > 0) {
-      return
-    }
-
-    // scenes 정보 업데이트
-    timelineScenesLengthRef.current = scenesLength
-    timelineScenesRef.current = timeline.scenes.map(scene => ({
-      image: scene.image,
-      text: scene.text ? { content: scene.text.content, position: scene.text.position } : null,
-      duration: scene.duration,
-      transition: scene.transition,
-    }))
-
-    // 다음 프레임에 실행하여 ref가 확실히 설정된 후 실행
-    requestAnimationFrame(async () => {
-      // loadAllScenesStable은 이미 위에서 체크했으므로 안전하게 사용 가능
-      loadAllScenesCompletedRef.current = false
-      await loadAllScenesStable()
-      
-      // loadAllScenes 완료 후 spritesRef와 textsRef 상태 확인
-      const sceneIndex = currentSceneIndexRef.current
-      const spriteAfterLoad = spritesRef.current.get(sceneIndex)
-      const textAfterLoad = textsRef.current.get(sceneIndex)
-      
-      loadAllScenesCompletedRef.current = true
-      
-      // loadAllScenes 완료 후 updateCurrentScene이 호출되므로, 
-      // updateCurrentScene 완료를 기다린 후 핸들을 그려야 함
-      // useSceneManager의 loadAllScenes는 requestAnimationFrame 내부에서 updateCurrentScene을 호출하므로
-      // 여러 프레임을 기다려야 함
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (appRef.current && containerRef.current) {
-              // 재생 중이면 이미지 렌더링 스킵 (그룹 재생 중일 수 있음)
-              const isPlaying = isPlayingRef?.current || false
-              
-              // 재생 중이 아니면 현재 씬만 표시
-              if (!isPlaying) {
-                const currentSprite = spritesRef.current.get(sceneIndex)
-                const currentText = textsRef.current.get(sceneIndex)
-                
-                if (currentSprite) {
-                  currentSprite.visible = true
-                  currentSprite.alpha = 1
-                }
-                if (currentText) {
-                  currentText.visible = true
-                  currentText.alpha = 1
-                }
-              }
-              // 렌더링은 PixiJS ticker가 처리
-              
-              // lastRenderedSceneIndexRef 초기화 (전환 효과 추적용)
-              lastRenderedSceneIndexRef.current = sceneIndex
-              previousSceneIndexRef.current = sceneIndex
-              
-              // 편집 모드일 때 핸들 다시 표시 (editMode는 ref로 확인)
-              // updateCurrentScene 호출 후 핸들을 그리도록 함
-              const currentEditMode = editModeRef.current
-              if (currentEditMode === 'image') {
-                // 이미지 편집 모드일 때는 이미지 핸들만 표시하고 자막 핸들은 제거
-                const currentSprite = spritesRef.current.get(sceneIndex)
-                const currentText = textsRef.current.get(sceneIndex)
-                
-                // 자막 핸들 제거
-                const existingTextHandles = textEditHandlesRef.current.get(sceneIndex)
-                if (existingTextHandles && existingTextHandles.parent) {
-                  existingTextHandles.parent.removeChild(existingTextHandles)
-                  textEditHandlesRef.current.delete(sceneIndex)
-                }
-                
-                if (!currentSprite) {
+  // HTTP 폴링 함수
+  const startHttpPolling = useCallback((jobId: string, startTime: number) => {
+    if (jobStatusCheckTimeoutRef.current) {
                   return
                 }
                 
-                const existingHandles = editHandlesRef.current.get(sceneIndex)
-                if (!existingHandles || !existingHandles.parent) {
-                  try {
-                    drawEditHandlesRef.current(currentSprite, sceneIndex, handleResizeRef.current, saveImageTransformRef.current)
+    const MAX_WAIT_TIME = 10 * 60 * 1000 // 10분으로 단축 (기존 30분)
+    const MAX_PROCESSING_TIME = 5 * 60 * 1000 // PROCESSING 상태 최대 5분
+    let checkCount = 0
+    let lastStatusUpdateTime = startTime
+    let lastStatus = 'PENDING'
+    let processingStartTime = startTime
+    
+    const checkVideoFileExists = async (jobId: string): Promise<string | null> => {
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        if (!supabaseUrl) return null
+        
+        const videoUrl = `${supabaseUrl}/storage/v1/object/public/videos/${jobId}/result.mp4`
+        const headResponse = await fetch(videoUrl, { method: 'HEAD' })
+        if (headResponse.ok) {
+          console.log('[HTTP Polling] Supabase Storage에서 비디오 파일 발견:', videoUrl)
+          return videoUrl
+        }
+        return null
                   } catch (error) {
-                    // 이미지 핸들 그리기 실패
-                  }
-                }
-                try {
-                  setupSpriteDragRef.current(currentSprite, sceneIndex)
-                } catch (error) {
-                  // 이미지 드래그 설정 실패
-                }
-              } else if (currentEditMode === 'text') {
-                // 자막 편집 모드일 때는 자막 핸들만 표시하고 이미지 핸들은 제거
-                const currentSprite = spritesRef.current.get(sceneIndex)
-                const currentText = textsRef.current.get(sceneIndex)
-                
-                // 이미지 핸들 제거
-                const existingHandles = editHandlesRef.current.get(sceneIndex)
-                if (existingHandles && existingHandles.parent) {
-                  existingHandles.parent.removeChild(existingHandles)
-                  editHandlesRef.current.delete(sceneIndex)
-                }
-                
-                if (!currentText) {
-                  return
-                }
-                
-                const existingTextHandles = textEditHandlesRef.current.get(sceneIndex)
-                if (!existingTextHandles || !existingTextHandles.parent) {
-                  try {
-                    drawTextEditHandlesRef.current(currentText, sceneIndex, handleTextResizeRef.current, saveTextTransformRef.current)
-                  } catch (error) {
-                    // 자막 핸들 그리기 실패
-                  }
-                }
-                try {
-                  setupTextDragRef.current(currentText, sceneIndex)
-                } catch (error) {
-                  // 자막 드래그 설정 실패
-                }
-              }
-            }
-          })
+        console.warn('[HTTP Polling] 비디오 파일 확인 실패:', error)
+        return null
+      }
+    }
+    
+    const checkJobStatus = async () => {
+      checkCount++
+      console.log(`[HTTP Polling] 상태 확인 시도 #${checkCount}, jobId: ${jobId}`)
+      
+      const elapsed = Date.now() - startTime
+      if (elapsed > MAX_WAIT_TIME) {
+        alert(`영상 생성이 30분을 초과했습니다. 백엔드 서버에 문제가 있을 수 있습니다.\n\n작업 ID: ${jobId}\n\n나중에 다시 확인해주세요.`)
+        setCurrentJobId(null)
+        setJobStatus(null)
+        if (jobStatusCheckTimeoutRef.current) {
+          clearTimeout(jobStatusCheckTimeoutRef.current)
+          jobStatusCheckTimeoutRef.current = null
+        }
+        return
+      }
+      
+      try {
+        const accessToken = authStorage.getAccessToken()
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+        const statusUrl = `${API_BASE_URL}/api/v1/studio/jobs/${jobId}`
+        console.log('[HTTP Polling] 요청 URL:', statusUrl)
+        
+        const statusResponse = await fetch(statusUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
         })
-      })
-    })
-  }, [pixiReady, timeline, loadAllScenesStable])
-
-  // Fabric 씬 동기화
-  useEffect(() => {
-    if (!fabricReady || !timeline || timeline.scenes.length === 0) return
-    syncFabricWithScene()
-  }, [fabricReady, timeline, editMode, syncFabricWithScene])
-  
-  // timeline 변경 시 저장된 씬 인덱스 복원 (더 이상 필요 없음 - 편집 종료 버튼에서 직접 처리)
-
-  // 현재 씬의 시작 시간 계산
-  const getSceneStartTime = useCallback((sceneIndex: number) => {
-    if (!timeline) {
-      return 0
-    }
-    let time = 0
-    for (let i = 0; i < sceneIndex; i++) {
-      const currentScene = timeline.scenes[i]
-      const nextScene = timeline.scenes[i + 1]
-      // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
-      const isSameSceneId = nextScene && currentScene.sceneId === nextScene.sceneId
-      const transitionDuration = isSameSceneId ? 0 : (currentScene.transitionDuration || 0.5)
-      time += currentScene.duration + transitionDuration
-    }
-    return time
-  }, [timeline])
-
-  // 씬을 표시하는 공통 함수 (씬 선택과 재생 모두에서 사용)
-  const showScene = useCallback((index: number) => {
-    showSceneUtil(index, appRef, containerRef, spritesRef, textsRef)
-  }, [appRef, containerRef, spritesRef, textsRef])
-
-
-  // useTimelinePlayer (재생 루프 관리) - 먼저 선언하여 currentSceneIndex 등을 얻음
-  const {
-    isPlaying: timelineIsPlaying,
-    setIsPlaying: setTimelineIsPlaying,
-    isPreviewingTransition: timelineIsPreviewingTransition,
-    setIsPreviewingTransition: setTimelineIsPreviewingTransition,
-    currentSceneIndex: timelineCurrentSceneIndex,
-    setCurrentSceneIndex: setTimelineCurrentSceneIndex,
-    currentTime,
-    setCurrentTime,
-    currentTimeRef: timelineCurrentTimeRef,
-    progressRatio,
-    playbackSpeed,
-    setPlaybackSpeed,
-    totalDuration,
-    selectScene: timelineSelectScene,
-    togglePlay,
-    getStageDimensions,
-  } = useTimelinePlayer({
-    timeline,
-    updateCurrentScene: () => {
-      // useTimelinePlayer는 skipAnimation만 받지만, 새로운 시그니처는 explicitPreviousIndex를 받음
-      // 빈 함수로 래핑 (실제로는 사용되지 않음)
-    },
-    loadAllScenes,
-    appRef,
-    containerRef,
-    pixiReady,
-    previousSceneIndexRef,
-    onSceneChange: (index: number) => {
-      // 임시로 빈 함수, 나중에 sceneNavigation.selectScene으로 업데이트
-      if (selectSceneRef.current) {
-        selectSceneRef.current(index, true)
-      }
-    },
-    disableAutoTimeUpdateRef,
-  })
-
-  // 통합된 상태 사용
-  const isPlaying = timelineIsPlaying
-  const setIsPlaying = setTimelineIsPlaying
-  const currentSceneIndex = timelineCurrentSceneIndex
-  const setCurrentSceneIndex = setTimelineCurrentSceneIndex
-
-  // BGM 관리
-  const {
-    confirmedBgmTemplate,
-    setConfirmedBgmTemplate,
-    isBgmBootstrapping,
-    setIsBgmBootstrapping,
-    isBgmBootstrappingRef,
-    bgmAudioRef,
-    bgmStartTimeRef,
-    stopBgmAudio,
-    startBgmAudio,
-    handleBgmConfirm,
-  } = useBgmManager({
-    bgmTemplate,
-    playbackSpeed,
-    isPlaying,
-  })
-
-  // 타임라인 인터랙션
-  const { isDraggingTimeline, handleTimelineClick, handleTimelineMouseDown } = useTimelineInteraction({
-    timeline,
-    timelineBarRef,
-    isPlaying,
-    setIsPlaying,
-    setCurrentTime,
-    setCurrentSceneIndex,
-    updateCurrentScene,
-    lastRenderedSceneIndexRef,
-    previousSceneIndexRef,
-  })
-  
-  // useSceneManager를 setCurrentSceneIndex와 함께 다시 생성
-  const sceneManagerResult2 = useSceneManager({
-    appRef,
-    containerRef,
-    spritesRef,
-    textsRef,
-    currentSceneIndexRef,
-    previousSceneIndexRef,
-    activeAnimationsRef,
-    fabricCanvasRef,
-    fabricScaleRatioRef,
-    isSavingTransformRef,
-    isManualSceneSelectRef,
-    timeline,
-    stageDimensions,
-    useFabricEditing,
-    loadPixiTextureWithCache,
-    applyEnterEffect,
-    onLoadComplete: handleLoadComplete,
-    setTimeline,
-    setCurrentSceneIndex,
-  })
-  
-  const { 
-    updateCurrentScene: updateCurrentScene2,
-    renderSceneContent: renderSceneContentFromManager,
-    renderSceneImage,
-    renderSubtitlePart,
-    prepareImageAndSubtitle,
-  } = sceneManagerResult2
-  
-  // updateCurrentScene2를 ref로 감싸서 안정적인 참조 유지
-  updateCurrentSceneRef.current = updateCurrentScene2
-  
-  // renderSceneContent를 setCurrentSceneIndex와 함께 래핑
-  const renderSceneContent = useCallback((
-    sceneIndex: number,
-    partIndex?: number | null,
-    options?: {
-      skipAnimation?: boolean
-      forceTransition?: string
-      previousIndex?: number | null
-      onComplete?: () => void
-      updateTimeline?: boolean
-      prepareOnly?: boolean
-      isPlaying?: boolean
-    }
-  ) => {
-    if (renderSceneContentFromManager) {
-      // renderSceneContent를 직접 사용
-      renderSceneContentFromManager(sceneIndex, partIndex, options)
+        
+        console.log('[HTTP Polling] 응답 상태:', statusResponse.status)
+        
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json()
+          console.log('[HTTP Polling] 상태 데이터:', statusData)
+          
+          if (statusData.progressDetail?.error || statusData.progressDetail?.errorMessage) {
+            const errorMsg = statusData.progressDetail.error || statusData.progressDetail.errorMessage
+            console.log('[HTTP Polling] 에러 감지:', errorMsg)
+            handleStatusUpdate({
+              ...statusData,
+              status: 'FAILED',
+              errorMessage: errorMsg
+            })
+            jobStatusCheckTimeoutRef.current = null
       return
     }
     
-    // fallback: renderSceneContent가 없는 경우 직접 구현
-    {
-      
-      // 같은 씬 내 구간 전환인지 확인
-      const isSameSceneTransition = currentSceneIndexRef.current === sceneIndex
-      
-      // timeline 업데이트 (필요한 경우)
-      if (options?.updateTimeline && partIndex !== undefined && partIndex !== null && timeline) {
-        const scene = timeline.scenes[sceneIndex]
-        if (scene) {
-          const originalText = scene.text?.content || ''
-          const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
-          const partText = scriptParts[partIndex]?.trim()
-          
-          if (partText && setTimeline) {
-            const updatedTimeline = {
-              ...timeline,
-              scenes: timeline.scenes.map((s, i) =>
-                i === sceneIndex
-                  ? {
-                      ...s,
-                      text: {
-                        ...s.text,
-                        content: partText,
-                      },
-                    }
-                  : s
-              ),
+          const currentStatus = statusData.status || 'PENDING'
+          if (currentStatus !== lastStatus) {
+            lastStatusUpdateTime = Date.now()
+            lastStatus = currentStatus
+            if (currentStatus === 'PROCESSING') {
+              processingStartTime = Date.now()
             }
-            setTimeline(updatedTimeline)
           }
-        }
-      }
-      
-      // 텍스트 객체 업데이트
-      if (partIndex !== undefined && partIndex !== null) {
-        const scene = timeline?.scenes[sceneIndex]
-        if (scene) {
-          const originalText = scene.text?.content || ''
-          const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
-          const partText = scriptParts[partIndex]?.trim()
           
-          if (partText) {
-            let targetTextObj: PIXI.Text | null = textsRef.current.get(sceneIndex) || null
-            
-            // 같은 그룹 내 첫 번째 씬의 텍스트 사용 (필요한 경우)
-            if (!targetTextObj || (!targetTextObj.visible && targetTextObj.alpha === 0)) {
-              const sceneId = scene.sceneId
-              if (sceneId !== undefined && timeline) {
-                const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
-                if (firstSceneIndexInGroup >= 0) {
-                  targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
-                }
-              }
+          // PROCESSING 상태가 5분 이상 지속되면 타임아웃 처리
+          const processingElapsed = Date.now() - processingStartTime
+          if (currentStatus === 'PROCESSING' && processingElapsed > MAX_PROCESSING_TIME) {
+            console.error('[HTTP Polling] PROCESSING 상태가 5분 초과, 타임아웃 처리')
+            alert(`영상 생성이 5분 이상 진행 중입니다. 서버에 문제가 있을 수 있습니다.\n\n작업 ID: ${jobId}\n\n나중에 다시 확인해주세요.`)
+            setCurrentJobId(null)
+            setJobStatus('FAILED')
+            setJobProgress('영상 생성이 시간 초과되었습니다.')
+            if (jobStatusCheckTimeoutRef.current) {
+              clearTimeout(jobStatusCheckTimeoutRef.current)
+              jobStatusCheckTimeoutRef.current = null
             }
+            return
+          }
+          
+          const timeSinceLastUpdate = Date.now() - lastStatusUpdateTime
+          const STALE_PROCESSING_THRESHOLD = 30000 // 30초
+          
+          if (
+            currentStatus === 'PROCESSING' && 
+            timeSinceLastUpdate > STALE_PROCESSING_THRESHOLD &&
+            checkCount >= 6
+          ) {
+            console.log('[HTTP Polling] PROCESSING 상태가 오래 지속됨, 파일 존재 여부 확인 시도')
+            const videoUrl = await checkVideoFileExists(jobId)
             
-            if (targetTextObj) {
-              targetTextObj.text = partText
-              targetTextObj.visible = true
-              targetTextObj.alpha = 1
-            }
-            
-            // 이미지는 전환 효과를 통해서만 렌더링되므로 여기서는 처리하지 않음
-            
-            // 같은 씬 내 구간 전환인 경우: 자막만 업데이트 (전환 효과 없음)
-            if (isSameSceneTransition) {
-              // 렌더링은 PixiJS ticker가 처리
-              if (options?.onComplete) {
-                options.onComplete()
-              }
+            if (videoUrl) {
+              console.log('[HTTP Polling] 파일 발견, 완료 상태로 처리')
+              handleStatusUpdate({
+                ...statusData,
+                status: 'COMPLETED',
+                resultVideoUrl: videoUrl
+              })
+              jobStatusCheckTimeoutRef.current = null
               return
             }
           }
+          
+          console.log('[HTTP Polling] handleStatusUpdate 호출 전, status:', statusData.status)
+          handleStatusUpdate(statusData)
+          console.log('[HTTP Polling] handleStatusUpdate 호출 후')
+          
+          if (statusData.status !== 'COMPLETED' && statusData.status !== 'FAILED') {
+            const pollingInterval = 5000
+            console.log(`[HTTP Polling] 다음 확인까지 ${pollingInterval}ms 대기 (현재 상태: ${statusData.status})`)
+            jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, pollingInterval)
+          } else {
+            console.log('[HTTP Polling] 완료/실패 상태 도달, 폴링 중단. status:', statusData.status)
+            if (jobStatusCheckTimeoutRef.current) {
+              clearTimeout(jobStatusCheckTimeoutRef.current)
+              jobStatusCheckTimeoutRef.current = null
+            }
+          }
+        } else {
+          const errorText = await statusResponse.text().catch(() => '')
+          console.error('[HTTP Polling] HTTP 에러:', statusResponse.status, errorText)
+          setJobProgress(`상태 확인 실패 (${statusResponse.status})`)
+          jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 2000)
         }
+      } catch (error) {
+        console.error('[HTTP Polling] 네트워크 에러:', error)
+        jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 2000)
       }
-      
-      // 다른 씬으로 이동하는 경우: 씬 전환
-      // 재생 중일 때는 setCurrentSceneIndex를 호출하지 않아서 중복 렌더링 방지
-      if (!isSameSceneTransition && setCurrentSceneIndex && !options?.isPlaying) {
-        currentSceneIndexRef.current = sceneIndex
-        setCurrentSceneIndex(sceneIndex)
-      } else if (!isSameSceneTransition) {
-        // 재생 중일 때는 ref만 업데이트
-        currentSceneIndexRef.current = sceneIndex
-      }
-      
-      // updateCurrentScene 호출하여 씬 전환
-      // skipAnimation 파라미터 제거: forceTransition === 'none'으로 처리
-      updateCurrentScene(
-        options?.previousIndex !== undefined ? options.previousIndex : currentSceneIndexRef.current,
-        options?.forceTransition || (options?.skipAnimation ? 'none' : undefined),
-        () => {
-          // 전환 완료 후 구간 텍스트가 올바르게 표시되었는지 확인
-          if (partIndex !== undefined && partIndex !== null && timeline) {
-            const scene = timeline.scenes[sceneIndex]
-            if (scene) {
-              const originalText = scene.text?.content || ''
-              const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
-              const partText = scriptParts[partIndex]?.trim()
+    }
+    
+    jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, 1000)
+  }, [handleStatusUpdate])
+
+  // 페이지 가시성 변경 감지 (다른 탭/사이트로 이동했다가 돌아올 때)
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        // 페이지가 다시 보일 때 상태 확인 및 웹소켓 재연결
+        const targetJobId = urlJobId || currentJobId
+        if (!targetJobId) return
+
+        // 진행 중인 작업이면 상태 확인 및 HTTP 폴링 재시작
+        if (jobStatus === 'PENDING' || jobStatus === 'PROCESSING' || !jobStatus) {
+          console.log('[Visibility] 페이지가 다시 보임, 상태 확인 및 HTTP 폴링 재시작, jobId:', targetJobId)
+          
+          // 먼저 현재 상태 확인
+          try {
+            const accessToken = authStorage.getAccessToken()
+            if (!accessToken) return
+
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+            const statusUrl = `${API_BASE_URL}/api/v1/studio/jobs/${targetJobId}`
+            
+            const statusResponse = await fetch(statusUrl, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            })
+            
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json()
               
-              if (partText) {
-                const finalText = textsRef.current.get(sceneIndex)
-                if (finalText && finalText.text !== partText) {
-                  finalText.text = partText
-                  // 렌더링은 PixiJS ticker가 처리
+              // 완료된 경우 상태 업데이트
+              if (statusData.status === 'COMPLETED') {
+                setJobStatus('COMPLETED')
+                setResultVideoUrl(statusData.resultVideoUrl || null)
+                setJobProgress('영상 생성이 완료되었어요!')
+                return
+              }
+              
+              // 실패한 경우 상태 업데이트
+              if (statusData.status === 'FAILED') {
+                setJobStatus('FAILED')
+                setJobProgress(statusData.errorMessage || '영상 생성이 실패했어요.')
+                return
+              }
+              
+              // 진행 중이면 상태는 그대로 유지하고 HTTP 폴링만 재시작
+              if (statusData.status === 'PENDING' || statusData.status === 'PROCESSING') {
+                // 상태가 없으면 업데이트, 있으면 유지
+                if (!jobStatus) {
+                  setJobStatus(statusData.status)
+                  if (statusData.progressDetail) {
+                    if (typeof statusData.progressDetail === 'string') {
+                      setJobProgress(statusData.progressDetail)
+                    } else if (typeof statusData.progressDetail === 'object') {
+                      setJobProgress(statusData.progressDetail.msg || statusData.progressDetail.message || '')
+                    }
+                  }
+                }
+                
+                // 시작 시간 업데이트
+                const startTime = statusData.updatedAt 
+                  ? new Date(statusData.updatedAt).getTime()
+                  : jobStartTimeRef.current || Date.now()
+                jobStartTimeRef.current = startTime
+                
+                // HTTP 폴링 재시작
+                if (!jobStatusCheckTimeoutRef.current) {
+                  startHttpPolling(targetJobId, startTime)
                 }
               }
             }
-          }
-          if (options?.onComplete) {
-            options.onComplete()
-          }
-        },
-        options?.isPlaying ?? false, // isPlaying 옵션 전달
-        partIndex, // partIndex 전달
-        sceneIndex // sceneIndex 전달
-      )
-    }
-  }, [timeline, setTimeline, setCurrentSceneIndex, textsRef, spritesRef, currentSceneIndexRef, updateCurrentScene, renderSceneContentFromManager])
-  const isPreviewingTransition = timelineIsPreviewingTransition
-  const setIsPreviewingTransition = setTimelineIsPreviewingTransition
-
-
-
-
-  useEffect(() => {
-    currentSceneIndexRef.current = currentSceneIndex
-  }, [currentSceneIndex])
-
-
-  // 선택한 폰트가 Pixi(Canvas)에서 fallback으로 고정되지 않도록 선로딩 후 강제 리로드
-  useFontLoader({
-    pixiReady,
-    timeline,
-    currentSceneIndex,
-    onFontLoaded: async () => {
-      if (!isSavingTransformRef.current) {
-        await loadAllScenes()
-      }
-    },
-  })
-
-  // 재생/일시정지 (씬 선택 로직을 그대로 사용)
-  const playTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const bgmStopTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  // isPlayingRef는 위에서 이미 선언됨
-  const currentPlayIndexRef = useRef<number>(0)
-
-  // -----------------------------
-  // TTS 재생/프리페치/캐시 (Chirp3 HD: speakingRate + markup pause 지원)
-  // -----------------------------
-  const ttsCacheRef = useRef(
-    new Map<string, { blob: Blob; durationSec: number; markup: string; url?: string | null }>()
-  )
-  const ttsInFlightRef = useRef(
-    new Map<string, Promise<{ blob: Blob; durationSec: number; markup: string; url?: string | null }>>()
-  )
-  const ttsAbortRef = useRef<AbortController | null>(null)
-  const ttsAudioRef = useRef<HTMLAudioElement | null>(null)
-  const ttsAudioUrlRef = useRef<string | null>(null)
-  const scenePreviewAudioRef = useRef<HTMLAudioElement | null>(null)
-  const scenePreviewAudioUrlRef = useRef<string | null>(null)
-  const bgmAudioUrlRef = useRef<string | null>(null)
-  const previewingSceneIndexRef = useRef<number | null>(null)
-  const previewingPartIndexRef = useRef<number | null>(null)
-  const isPreviewingRef = useRef<boolean>(false)
-
-  const stopTtsAudio = useCallback(() => {
-    const a = ttsAudioRef.current
-    if (a) {
-      try {
-        a.pause()
-        a.currentTime = 0
-      } catch {
-        // ignore
-      }
-    }
-    ttsAudioRef.current = null
-    if (ttsAudioUrlRef.current) {
-      URL.revokeObjectURL(ttsAudioUrlRef.current)
-      ttsAudioUrlRef.current = null
-    }
-  }, [])
-
-  const stopScenePreviewAudio = useCallback(() => {
-    const a = scenePreviewAudioRef.current
-    if (a) {
-      try {
-        a.pause()
-        a.currentTime = 0
-      } catch {
-        // ignore
-      }
-    }
-    scenePreviewAudioRef.current = null
-    if (scenePreviewAudioUrlRef.current) {
-      URL.revokeObjectURL(scenePreviewAudioUrlRef.current)
-      scenePreviewAudioUrlRef.current = null
-    }
-    previewingSceneIndexRef.current = null
-    previewingPartIndexRef.current = null
-    isPreviewingRef.current = false
-  }, [])
-
-  const resetTtsSession = useCallback(() => {
-    stopTtsAudio()
-    stopScenePreviewAudio()
-    ttsAbortRef.current?.abort()
-    ttsAbortRef.current = null
-    ttsInFlightRef.current.clear()
-    ttsCacheRef.current.clear()
-  }, [stopTtsAudio, stopScenePreviewAudio])
-
-
-  // voice/speakingRate/pausePreset이 바뀌면 합성 결과가 바뀌므로 캐시를 초기화
-  // 목소리 변경 시 모든 캐시와 저장소 URL이 무효화되어 재업로드됨
-  useEffect(() => {
-    if (voiceTemplate) {
-      resetTtsSession()
-    }
-  }, [voiceTemplate, resetTtsSession])
-
-  // TTS 유틸리티 함수들 (lib/utils/tts.ts에서 import)
-  // buildSceneMarkup과 makeTtsKey는 유틸리티 함수로 직접 사용
-  // 다른 hook에 전달하기 위한 래퍼 함수
-  const buildSceneMarkupWrapper = useCallback(
-    (sceneIndex: number) => buildSceneMarkup(timeline, sceneIndex),
-    [timeline]
-  )
-  
-  // useGroupPlayback용 래퍼 (timeline을 파라미터로 받음)
-  const buildSceneMarkupWithTimeline = useCallback(
-    (timelineParam: TimelineData | null, sceneIndex: number) => buildSceneMarkup(timelineParam, sceneIndex),
-    []
-  )
-
-  // Timeline의 duration을 TTS 캐시의 실제 duration으로 업데이트 (모든 part의 실제 duration 합산)
-  useEffect(() => {
-    if (!timeline || !voiceTemplate) return
-    
-    const updatedScenes = timeline.scenes.map((scene, index) => {
-      const markups = buildSceneMarkup(timeline, index)
-      if (markups.length === 0) return scene
-      
-      let totalTtsDuration = 0
-      let cachedPartsCount = 0
-      let cachedPartsTotalDuration = 0
-      
-      // 모든 part의 TTS duration 합산
-      for (let partIndex = 0; partIndex < markups.length; partIndex++) {
-        const markup = markups[partIndex]
-        const key = makeTtsKey(voiceTemplate, markup)
-        const cached = ttsCacheRef.current.get(key)
-        if (cached && cached.durationSec > 0) {
-          totalTtsDuration += cached.durationSec
-          cachedPartsTotalDuration += cached.durationSec
-          cachedPartsCount++
-        }
-      }
-      
-      // 모든 part가 캐시에 있으면 정확한 합계 사용
-      if (cachedPartsCount === markups.length && totalTtsDuration > 0) {
-        if (Math.abs(totalTtsDuration - scene.duration) > 0.01) {
-          return { ...scene, duration: totalTtsDuration }
-        }
-      } 
-      // 일부 part만 캐시에 있는 경우: 캐시된 part의 평균 duration으로 추정
-      else if (cachedPartsCount > 0 && cachedPartsTotalDuration > 0) {
-        const avgCachedDuration = cachedPartsTotalDuration / cachedPartsCount
-        const uncachedPartsCount = markups.length - cachedPartsCount
-        const estimatedUncachedDuration = avgCachedDuration * uncachedPartsCount
-        const estimatedTotal = totalTtsDuration + estimatedUncachedDuration
-        
-        // 추정값이 합리적인 범위 내에 있으면 사용 (기존 duration의 0.3배 ~ 3배)
-        if (estimatedTotal > scene.duration * 0.3 && estimatedTotal < scene.duration * 3) {
-          if (Math.abs(estimatedTotal - scene.duration) > 0.01) {
-            return { ...scene, duration: estimatedTotal }
+          } catch (error) {
+            console.error('[Visibility] 상태 확인 실패:', error)
+            // 에러가 나도 HTTP 폴링 재시작 시도
+            const startTime = jobStartTimeRef.current || Date.now()
+            if (!jobStatusCheckTimeoutRef.current) {
+              startHttpPolling(targetJobId, startTime)
+            }
           }
         }
       }
-      
-      return scene
-    })
-    
-    const hasDurationUpdate = updatedScenes.some((scene, index) => 
-      Math.abs(scene.duration - (timeline.scenes[index]?.duration ?? 0)) > 0.01
-    )
-    
-    if (hasDurationUpdate) {
-      setTimeline({
-        ...timeline,
-        scenes: updatedScenes,
-      })
-    }
-  }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, setTimeline, ttsCacheRef])
-
-  // getMp3DurationSec는 lib/utils/audio.ts에서 import하여 사용
-
-  const setSceneDurationFromAudio = useCallback(
-    (sceneIndex: number, durationSec: number) => {
-      if (!timeline || !voiceTemplate) {
-        return
-      }
-      if (!Number.isFinite(durationSec) || durationSec <= 0) {
-        return
-      }
-      
-      // TTS 캐시에서 모든 part의 실제 duration을 다시 계산하여 정확성 보장
-      const markups = buildSceneMarkup(timeline, sceneIndex)
-      let totalTtsDuration = 0
-      let allPartsCached = true
-      
-      for (let partIndex = 0; partIndex < markups.length; partIndex++) {
-        const markup = markups[partIndex]
-        const key = makeTtsKey(voiceTemplate, markup)
-        const cached = ttsCacheRef.current.get(key)
-        if (cached && cached.durationSec > 0) {
-          totalTtsDuration += cached.durationSec
-        } else {
-          allPartsCached = false
-        }
-      }
-      
-      // 모든 part가 캐시에 있으면 정확한 합계 사용, 없으면 전달받은 durationSec 사용
-      const finalDuration = allPartsCached && totalTtsDuration > 0 ? totalTtsDuration : durationSec
-      
-      const prev = timeline.scenes[sceneIndex]?.duration ?? 0
-      if (Math.abs(prev - finalDuration) <= 0.01) {
-        return
-      }
-
-      // 실제 duration 사용 (최소 0.5초만 유지, 최대 제한 없음)
-      const clamped = Math.max(0.5, finalDuration)
-      
-      // 이전 totalDuration 계산 (같은 sceneId를 가진 씬들 사이의 transition 제외)
-      const prevTotalDuration = calculateTotalDuration(timeline)
-      
-      // 새로운 timeline 생성
-      const newTimeline = {
-        ...timeline,
-        scenes: timeline.scenes.map((s, i) => (i === sceneIndex ? { ...s, duration: clamped } : s)),
-      }
-      
-      // 새로운 totalDuration 계산 (같은 sceneId를 가진 씬들 사이의 transition 제외)
-      const newTotalDuration = calculateTotalDuration(newTimeline)
-      
-      // 재생 중일 때 currentTime을 비례적으로 조정하여 재생바 튕김 방지
-      if (isPlaying && prevTotalDuration > 0 && newTotalDuration > 0) {
-        const ratio = newTotalDuration / prevTotalDuration
-        setCurrentTime((prevTime) => {
-          const adjustedTime = prevTime * ratio
-          // 조정된 시간이 새로운 totalDuration을 넘지 않도록
-          return Math.min(adjustedTime, newTotalDuration)
-        })
-      }
-      
-      setTimeline(newTimeline)
-    },
-    [setTimeline, timeline, isPlaying, setCurrentTime, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef]
-  )
-
-  // ensureSceneTts를 유틸리티 함수로 래핑
-  const ensureSceneTts = useCallback(
-    async (      sceneIndex: number, signal?: AbortSignal, forceRegenerate: boolean = false): Promise<{
-      sceneIndex: number
-      parts: Array<{
-        blob: Blob
-        durationSec: number
-        url: string | null
-        partIndex: number
-        markup: string
-      }>
-    }> => {
-      if (!timeline) {
-        throw new Error('timeline이 없습니다.')
-      }
-      if (!voiceTemplate) {
-        throw new Error('목소리를 먼저 선택해주세요.')
-      }
-
-      return ensureSceneTtsUtil({
-        timeline,
-        sceneIndex,
-        voiceTemplate,
-        ttsCacheRef,
-        ttsInFlightRef,
-        changedScenesRef,
-        setSceneDurationFromAudio,
-        signal,
-        forceRegenerate,
-      })
-    },
-    [
-      timeline,
-      voiceTemplate,
-      setSceneDurationFromAudio,
-      ttsCacheRef,
-      ttsInFlightRef,
-      changedScenesRef,
-    ]
-  )
-
-  const prefetchWindow = useCallback(
-    (baseIndex: number) => {
-      if (!timeline) {
-        return
-      }
-      if (!voiceTemplate) {
-        return
-      }
-
-      ttsAbortRef.current?.abort()
-      const controller = new AbortController()
-      ttsAbortRef.current = controller
-
-      const candidates = [baseIndex + 1, baseIndex + 2].filter(
-        (i) => i >= 0 && i < timeline.scenes.length
-      )
-
-      // 간단 동시성 제한: 2개까지만 (현재 창 +2)
-      candidates.forEach((i) => {
-        ensureSceneTts(i, controller.signal).catch(() => {})
-      })
-    },
-    [timeline, voiceTemplate, ensureSceneTts]
-  )
-
-  // TTS 미리보기 hook 사용
-  const { handleSceneTtsPreview } = useTtsPreview({
-    timeline,
-    voiceTemplate,
-    ensureSceneTts,
-    stopScenePreviewAudio,
-    setTimeline,
-    updateCurrentScene,
-    textsRef,
-    renderSceneContent,
-    changedScenesRef,
-  })
-
-  // 전체 재생 훅 (먼저 선언하여 리소스 가져오기)
-  const fullPlayback = useFullPlayback({
-    timeline,
-    voiceTemplate,
-    bgmTemplate: confirmedBgmTemplate,
-    playbackSpeed: timeline?.playbackSpeed ?? 1.0,
-    buildSceneMarkup: buildSceneMarkupWithTimeline,
-    makeTtsKey,
-    ensureSceneTts,
-    setCurrentSceneIndex,
-    currentSceneIndexRef,
-    lastRenderedSceneIndexRef,
-    setCurrentTime,
-    setTimelineIsPlaying,
-    setIsPreparing,
-    setIsTtsBootstrapping,
-    startBgmAudio,
-    stopBgmAudio,
-    changedScenesRef,
-    renderSceneContent,
-    renderSceneImage,
-    renderSubtitlePart,
-    prepareImageAndSubtitle,
-    textsRef,
-    spritesRef,
-    containerRef,
-    getMp3DurationSec,
-    setTimeline,
-    disableAutoTimeUpdateRef,
-    currentTimeRef: timelineCurrentTimeRef,
-    totalDuration,
-    timelineBarRef,
-    activeAnimationsRef,
-  })
-
-  // 씬 네비게이션 훅 (씬 선택/전환 로직)
-  const sceneNavigation = useSceneNavigation({
-    timeline,
-    scenes,
-    currentSceneIndex,
-    setCurrentSceneIndex,
-    currentSceneIndexRef,
-    previousSceneIndexRef,
-    lastRenderedSceneIndexRef,
-    isManualSceneSelectRef,
-    updateCurrentScene,
-    setTimeline,
-    isPlaying: fullPlayback.isPlaying,
-    setIsPlaying: fullPlayback.setIsPlaying,
-    isPreviewingTransition,
-    setIsPreviewingTransition,
-    setCurrentTime,
-    voiceTemplate,
-    playbackSpeed: timeline?.playbackSpeed ?? 1.0,
-    buildSceneMarkup: buildSceneMarkupWrapper,
-    makeTtsKey,
-    isPlayingRef,
-    textsRef,
-    spritesRef,
-    appRef,
-    activeAnimationsRef,
-    loadAllScenes,
-    setSelectedPart,
-    renderSceneContent,
-    renderSceneImage,
-    renderSubtitlePart,
-    prepareImageAndSubtitle,
-  })
-
-  // selectSceneRef 업데이트 및 useTimelinePlayer의 onSceneChange 업데이트
-  useEffect(() => {
-    selectSceneRef.current = sceneNavigation.selectScene
-  }, [sceneNavigation.selectScene])
-  
-  // isPlaying 상태와 ref 동기화
-  useEffect(() => {
-    isPlayingRef.current = isPlaying
-  }, [isPlaying])
-  
-  // 재생 상태 동기화
-  usePlaybackStateSync({
-    videoPlaybackIsPlaying: fullPlayback.isPlaying,
-    timelineIsPlaying,
-    setTimelineIsPlaying,
-    videoPlaybackSetIsPlaying: fullPlayback.setIsPlaying,
-  })
-
-  // 비디오 재생 중일 때 useTimelinePlayer의 자동 시간 업데이트 비활성화
-  useEffect(() => {
-    disableAutoTimeUpdateRef.current = fullPlayback.isPlaying || fullPlayback.isPlayingAll
-  }, [fullPlayback.isPlaying, fullPlayback.isPlayingAll])
-
-  // 재생 시작 로직을 별도 함수로 분리
-  
-  // 재생 중지 시 timeout 정리
-  useEffect(() => {
-    if (!isPlaying && playTimeoutRef.current) {
-      clearTimeout(playTimeoutRef.current)
-      playTimeoutRef.current = null
-    }
-  }, [isPlaying])
-
-  // 특정 씬의 TTS 캐시 무효화 (저장소 URL도 제거하여 재업로드 유도)
-  const invalidateSceneTtsCache = useCallback((sceneIndex: number) => {
-    if (!timeline) {
-      return
-    }
-    
-    const scene = timeline.scenes[sceneIndex]
-    if (!scene) {
-      return
     }
 
-    const keysToInvalidate: string[] = []
-    
-    // 현재 캐시의 모든 키를 순회하면서 해당 씬(sceneId 또는 sceneIndex)의 캐시 찾기
-    ttsCacheRef.current.forEach((value, key) => {
-      // 캐시 값이 객체인지 확인
-      if (value && typeof value === 'object') {
-        const cached = value as any
-        // sceneId가 일치하거나 sceneIndex가 일치하면 무효화
-        // 기존 캐시에는 sceneId/sceneIndex가 없을 수 있으므로, 
-        // 해당 씬의 현재 스크립트로 생성된 키인지도 확인
-        const shouldInvalidate = 
-          cached.sceneId === scene.sceneId || 
-          cached.sceneIndex === sceneIndex
-        
-        if (shouldInvalidate) {
-          keysToInvalidate.push(key)
-        }
-      }
-    })
-    
-    // sceneId나 sceneIndex로 찾지 못한 경우, 
-    // 해당 씬의 현재 스크립트로 생성된 모든 키를 찾아서 무효화
-    // (스크립트가 변경되었을 때 이전 캐시를 찾기 위함)
-    if (keysToInvalidate.length === 0) {
-      const markups = buildSceneMarkup(timeline, sceneIndex)
-      markups.forEach((markup) => {
-        const key = makeTtsKey(voiceTemplate || '', markup)
-        if (ttsCacheRef.current.has(key)) {
-          keysToInvalidate.push(key)
-        }
-      })
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-    
-    // 찾은 키들의 캐시 삭제 (URL 포함하여 완전히 무효화)
-    keysToInvalidate.forEach(key => {
-      const cached = ttsCacheRef.current.get(key)
-      if (cached) {
-        ttsCacheRef.current.delete(key)
-      }
-    })
-  }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey])
-
-  // 씬 편집 핸들러들
-  const {
-    handleSceneScriptChange: originalHandleSceneScriptChange,
-    handleSceneDurationChange,
-    handleSceneTransitionChange: originalHandleSceneTransitionChange,
-    handleSceneImageFitChange,
-    handlePlaybackSpeedChange,
-  } = useSceneHandlers({
-    scenes,
-    timeline,
-    setScenes,
-    setTimeline,
-    currentSceneIndex,
-    setCurrentSceneIndex,
-    updateCurrentScene,
-    setIsPreviewingTransition,
-    isPreviewingTransition, // 전환 효과 미리보기 중인지 확인용
-    isManualSceneSelectRef,
-    lastRenderedSceneIndexRef, // 전환 효과 미리보기용
-    pixiReady,
-    appRef,
-    containerRef,
-    loadAllScenes,
-    setPlaybackSpeed,
-    renderSceneContent,
-  })
-
-  // 씬 편집 핸들러들
-  const {
-    handleSceneScriptChange,
-    handleSceneSplit,
-    handleSceneDelete,
-    handleSceneDuplicate,
-    handleSceneReorder: handleSceneReorderFromHook,
-  } = useSceneEditHandlers({
-    scenes,
-    timeline,
-    setScenes,
-    setTimeline,
-    currentSceneIndex,
-    setCurrentSceneIndex,
-    currentSceneIndexRef,
-    voiceTemplate,
-    invalidateSceneTtsCache,
-    changedScenesRef,
-    originalHandleSceneScriptChange,
-    ttsCacheRef,
-    selectedImages,
-    setSelectedImages,
-  })
-
-  // 전환 효과 변경 핸들러 래핑: currentSceneIndexRef를 먼저 설정
-  const handleSceneTransitionChange = useCallback((index: number, value: string) => {
-    // currentSceneIndexRef를 먼저 설정하여 updateCurrentScene이 올바른 씬 인덱스를 사용하도록 함
-    currentSceneIndexRef.current = index
-    originalHandleSceneTransitionChange(index, value)
-  }, [originalHandleSceneTransitionChange])
-
-  // 비디오 내보내기 hook
-  const { isExporting, handleExport } = useVideoExport({
-    timeline,
-    scenes,
-    videoTitle,
-    videoDescription,
-    voiceTemplate,
-    bgmTemplate,
-    subtitleFont,
-    selectedProducts,
-    ttsCacheRef: fullPlayback.ttsCacheRef,
-    ensureSceneTts,
-    spritesRef,
-    textsRef,
-  })
-
-  // 씬 순서 변경 핸들러는 useSceneEditHandlers에서 제공
-  const handleSceneReorder = handleSceneReorderFromHook
-
-  // useGroupPlayback과 useSingleScenePlayback은 useFullPlayback 내부에서 생성됨
-  // 외부에서 접근하기 위해 fullPlayback에서 가져옴
-  const { singleScenePlayback, groupPlayback } = fullPlayback
-
-  // 씬 구조 정보 자동 업데이트
-  useEffect(() => {
-    if (!scenes.length || !timeline) return
-    
-    sceneStructureStore.updateStructure({
-      scenes,
-      timeline,
-      ttsCacheRef: fullPlayback.ttsCacheRef,
-      voiceTemplate,
-      buildSceneMarkup: buildSceneMarkupWithTimeline,
-      makeTtsKey,
-    })
-    
-    // // 구조 정보 콘솔 출력
-    // console.log('=== 씬 구조 정보 ===')
-    // console.log('전체 씬 수:', sceneStructureStore.sceneStructures.length)
-    // console.log('그룹 수:', sceneStructureStore.groups.size)
-    
-    // // 각 씬의 구조 정보
-    // sceneStructureStore.sceneStructures.forEach((structure) => {
-    //   console.log(`\n씬 ${structure.index}:`, {
-    //     sceneId: structure.sceneId,
-    //     splitIndex: structure.splitIndex,
-    //     isSplit: structure.isSplit,
-    //     fullSubtitle: structure.fullSubtitle.substring(0, 50) + (structure.fullSubtitle.length > 50 ? '...' : ''),
-    //     subtitleParts: structure.subtitleParts,
-    //     hasSubtitleSegments: structure.hasSubtitleSegments,
-    //     groupStartIndex: structure.groupStartIndex,
-    //     groupEndIndex: structure.groupEndIndex,
-    //     groupSize: structure.groupSize,
-    //     ttsDuration: structure.ttsDuration,
-    //     hasTtsCache: structure.hasTtsCache,
-    //   })
-    // })
-    
-    // // 그룹 정보
-    // console.log('\n=== 그룹 정보 ===')
-    // sceneStructureStore.groups.forEach((groupInfo, sceneId) => {
-    //   console.log(`그룹 sceneId ${sceneId}:`, {
-    //     indices: groupInfo.indices,
-    //     firstSceneIndex: groupInfo.firstSceneIndex,
-    //     lastSceneIndex: groupInfo.lastSceneIndex,
-    //     size: groupInfo.size,
-    //     totalTtsDuration: groupInfo.totalTtsDuration,
-    //     hasAllTtsCache: groupInfo.hasAllTtsCache,
-    //   })
-    // })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scenes, timeline, voiceTemplate])
+  }, [urlJobId, currentJobId, jobStatus, startHttpPolling])
 
-  // 그룹 복사 핸들러
-  const handleGroupDuplicate = useCallback((sceneId: number, groupIndices: number[]) => {
-    if (!timeline || scenes.length === 0) return
-
-    // 새로운 sceneId 할당
-    const maxSceneId = Math.max(...scenes.map(s => s.sceneId || 0), ...timeline.scenes.map(s => s.sceneId || 0))
-    const newSceneId = maxSceneId + 1
-
-    // 그룹 내 모든 씬 복사
-    const duplicatedScenes: SceneScript[] = []
-    const duplicatedTimelineScenes: TimelineScene[] = []
+  // 초기 작업 상태 확인 (페이지 마운트 시 또는 jobId 변경 시)
+  useEffect(() => {
+    const targetJobId = urlJobId || currentJobId
     
-    groupIndices.forEach((index, idx) => {
-      const originalScene = scenes[index]
-      const originalTimelineScene = timeline.scenes[index]
-      
-      duplicatedScenes.push({
-        ...originalScene,
-        sceneId: newSceneId, // 새로운 그룹의 sceneId
-        splitIndex: idx + 1, // splitIndex 재할당 (1부터 시작)
-      })
-      
-      duplicatedTimelineScenes.push({
-        ...originalTimelineScene,
-        sceneId: newSceneId, // 새로운 그룹의 sceneId
-        splitIndex: idx + 1, // splitIndex 재할당
-      })
-    })
-
-    // 그룹의 마지막 씬 다음에 삽입
-    const lastGroupIndex = Math.max(...groupIndices)
-    const insertIndex = lastGroupIndex + 1
-
-    // scenes 배열에 삽입
-    const newScenes = [
-      ...scenes.slice(0, insertIndex),
-      ...duplicatedScenes,
-      ...scenes.slice(insertIndex),
-    ]
-
-    // timeline.scenes 배열에도 삽입
-    const newTimelineScenes = [
-      ...timeline.scenes.slice(0, insertIndex),
-      ...duplicatedTimelineScenes,
-      ...timeline.scenes.slice(insertIndex),
-    ]
-
-    setScenes(newScenes)
-    setTimeline({
-      ...timeline,
-      scenes: newTimelineScenes,
-    })
-
-    // 복사된 그룹의 첫 번째 씬 선택
-    setCurrentSceneIndex(insertIndex)
-    currentSceneIndexRef.current = insertIndex
-
-    // 복사된 씬들을 변경 상태로 표시
-    duplicatedScenes.forEach((_, idx) => {
-      changedScenesRef.current.add(insertIndex + idx)
-      invalidateSceneTtsCache(insertIndex + idx)
-    })
-  }, [scenes, timeline, setScenes, setTimeline, setCurrentSceneIndex, currentSceneIndexRef, invalidateSceneTtsCache, changedScenesRef])
-
-  // 그룹 재생 핸들러 (useGroupPlayback 훅 사용)
-  const handleGroupPlay = useCallback(async (sceneId: number, groupIndices: number[]) => {
-    // 이미 같은 그룹이 재생 중이면 정지
-    if (groupPlayback.playingGroupSceneId === sceneId) {
-      groupPlayback.stopGroup()
+    if (!targetJobId) {
+      if (currentJobId) {
+        setCurrentJobId(null)
+        setJobStatus(null)
+        setJobProgress('')
+        setResultVideoUrl(null)
+        setIsInitializing(false)
+      }
       return
     }
     
-    await groupPlayback.playGroup(sceneId, groupIndices)
-  }, [groupPlayback])
+    // URL의 jobId와 currentJobId가 다르면 업데이트
+    if (urlJobId && urlJobId !== currentJobId) {
+      setCurrentJobId(urlJobId)
+      setJobStatus(null)
+      setJobProgress('')
+      setResultVideoUrl(null)
+    }
+    
+    // 중복 실행 방지: 이미 초기화 중이면 제외
+    // 다른 step으로 이동했다가 돌아온 경우는 항상 상태 확인 필요
+    if (isInitializing) {
+        return
+      }
+    
+    const checkInitialStatus = async () => {
+      setIsInitializing(true)
+      try {
+        const accessToken = authStorage.getAccessToken()
+        if (!accessToken) {
+          setIsInitializing(false)
+        return
+      }
 
-  // 씬 재생 핸들러 (useGroupPlayback 훅 사용 - 단일 씬도 그룹으로 처리)
-  const handleScenePlay = useCallback(async (sceneIndex: number) => {
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+        const statusUrl = `${API_BASE_URL}/api/v1/studio/jobs/${targetJobId}`
+        
+        const statusResponse = await fetch(statusUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+        
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json()
+          console.log('[Initial Status] 상태 데이터:', statusData)
+          
+          // 완료된 작업
+          if (statusData.status === 'COMPLETED') {
+            setJobStatus('COMPLETED')
+            setResultVideoUrl(statusData.resultVideoUrl || null)
+            setJobProgress('영상 생성이 완료되었어요!')
+            setIsInitializing(false)
+      return
+    }
+    
+          // 실패한 작업
+          if (statusData.status === 'FAILED') {
+            setJobStatus('FAILED')
+            setJobProgress(statusData.errorMessage || '영상 생성이 실패했어요.')
+            setIsInitializing(false)
+      return
+    }
+
+          // 진행 중인 작업 - 현재 상태를 그대로 표시
+          if (statusData.status === 'PENDING' || statusData.status === 'PROCESSING') {
+            const startTime = statusData.updatedAt 
+              ? new Date(statusData.updatedAt).getTime()
+              : jobStartTimeRef.current || Date.now()
+            jobStartTimeRef.current = startTime
+            
+            // 현재 상태 설정 (제작 시작 메시지 없이)
+            setJobStatus(statusData.status)
+            if (statusData.progressDetail) {
+              if (typeof statusData.progressDetail === 'string') {
+                setJobProgress(statusData.progressDetail)
+              } else if (typeof statusData.progressDetail === 'object') {
+                setJobProgress(statusData.progressDetail.msg || statusData.progressDetail.message || '영상 생성 중...')
+              }
+            } else {
+              setJobProgress('영상 생성 중...')
+            }
+            
+            // HTTP 폴링 시작
+            if (!jobStatusCheckTimeoutRef.current) {
+              startHttpPolling(targetJobId, startTime)
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[Initial Status] 상태 확인 실패:', error)
+        // 에러가 나도 기본 상태 설정
+        const startTime = jobStartTimeRef.current || Date.now()
+        jobStartTimeRef.current = startTime
+        setJobStatus('PENDING')
+        setJobProgress('영상 생성 중...')
+        startHttpPolling(targetJobId, startTime)
+      } finally {
+        setIsInitializing(false)
+      }
+    }
+    
+    checkInitialStatus()
+    
+    return () => {
+      // HTTP 폴링 중단
+      if (jobStatusCheckTimeoutRef.current) {
+        clearTimeout(jobStatusCheckTimeoutRef.current)
+        jobStatusCheckTimeoutRef.current = null
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlJobId, currentJobId, startHttpPolling])
+
+  // 경과 시간 업데이트
+  useEffect(() => {
+    if (!jobStartTimeRef.current || jobStatus === 'COMPLETED' || jobStatus === 'FAILED') return
+    
+    const interval = setInterval(() => {
+      if (jobStartTimeRef.current) {
+        const elapsedMs = Date.now() - jobStartTimeRef.current
+        const elapsed = Math.floor(elapsedMs / 1000)
+        setElapsedSeconds(elapsed)
+      }
+    }, 1000)
+    
+    return () => clearInterval(interval)
+  }, [jobStatus])
+
+  const recommendedDescription = useMemo(() => {
+    const productName = product?.name || '제품명'
+    const productUrl = product?.url || 'https://link.coupang.com/'
+    const priceText = product?.price
+      ? `🔥특가 : ${product.price.toLocaleString()}원 (업로드 시점 기준)`
+      : '🔥특가 : 가격 정보는 업로드 시점 기준으로 변동될 수 있어요.'
+
+    return [
+      '👉 이 영상은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받아요.',
+      '👉 제품에 대하여 채널은 책임을 지지 않으며, 제품 관련은 쿠팡 고객센터로 연락 바랍니다.',
+      '',
+      '## 상품마다 내용이 달라지는 부분',
+      productName,
+      productUrl,
+      priceText,
+      '',
+      '👉 본 영상에는 채널의 주관적인 생각이 포함되어 있어요.',
+      '👉 본 영상에 표시된 가격 정보는 영상 업로드일 당시 원화 기준이며, 가격은 수시로 변동 가능합니다.',
+    ].join('\n')
+  }, [product])
+
+  const recommendedHashtags = useMemo(() => {
+    const productName = product?.name?.replace(/\s+/g, '') || '제품명'
+    const platformTag = product?.platform
+      ? `#${product.platform === 'coupang' ? '쿠팡' : product.platform}`
+      : '#쇼핑'
+
+    const baseTags = [
+      '#쿠팡파트너스',
+      platformTag,
+      '#제품리뷰',
+      '#언박싱',
+      '#추천템',
+      '#가성비',
+      '#핫딜',
+      `#${productName}`,
+      '#쇼츠',
+    ]
+
+    return Array.from(new Set(baseTags)).slice(0, 9)
+  }, [product])
+
+  // 공통 유효성 검사 함수
+  const getProductAndScript = useCallback(() => {
+    if (!selectedProducts[0] || scenes.length === 0) {
+      alert('상품과 대본 정보가 필요합니다.')
+      return null
+    }
+
+    const product = selectedProducts[0]
+    const fullScript = scenes.map((scene) => scene.script).join('\n')
+
+    // 유효성 검사: script가 비어있으면 에러
+    if (!fullScript || fullScript.trim().length === 0) {
+      alert('대본 내용이 없습니다. 대본을 먼저 생성해주세요.')
+      return null
+    }
+
+    // productDescription이 없으면 product.name 사용
+    const productDescription = product.description?.trim() || product.name || ''
+
+    // productDescription도 비어있으면 에러
+    if (!productDescription) {
+      alert('상품 정보가 없습니다.')
+      return null
+    }
+
+    return { productDescription, script: fullScript }
+  }, [selectedProducts, scenes])
+
+  // 제목 AI 생성
+  const handleGenerateTitles = useCallback(async () => {
+    const data = getProductAndScript()
+    if (!data) return
+
+    setIsGenerating(true)
+
     try {
-      // 이미 같은 씬이 재생 중이면 정지
-      if (groupPlayback.playingSceneIndex === sceneIndex) {
-        groupPlayback.stopGroup()
-        return
-      }
-      
-      // 단일 씬도 useGroupPlayback을 사용하여 재생
-      // sceneId는 undefined로 전달하고, groupIndices는 [sceneIndex]로 전달
-      const scene = timeline?.scenes[sceneIndex]
-      const sceneId = scene?.sceneId
-      await groupPlayback.playGroup(sceneId, [sceneIndex])
+      const response = await studioMetaApi.createTitle(data)
+      setVideoTitle(response.title)
+      setVideoTitleCandidates([response.title])
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      
-      // 인증 오류인 경우 처리
-      if (errorMessage.includes('인증') || 
-          errorMessage.includes('로그인') ||
-          errorMessage.includes('유효하지 않습니다')) {
-        // 토큰 정리
-        if (typeof window !== 'undefined') {
-          const { authStorage } = await import('@/lib/api/auth-storage')
-          authStorage.clearTokens()
-          
-          // 인증 만료 이벤트 발생 (providers.tsx에서 로그인 페이지로 리다이렉트)
-          window.dispatchEvent(new CustomEvent('auth:expired'))
-          
-          // UI에 에러 메시지 표시
-          alert('인증 시간이 만료되었어요.\n다시 로그인해주세요.')
-          
-          // 로그인 페이지로 리다이렉트
-          router.replace('/login')
-        }
-        return
-      }
-      
-      // 기타 오류는 콘솔에만 출력
-      console.error('[씬 재생] 오류:', error)
+      console.error('제목 생성 오류:', error)
+      alert('제목 생성 중 오류가 발생했어요.')
+    } finally {
+      setIsGenerating(false)
     }
-  }, [singleScenePlayback, router])
+  }, [getProductAndScript, setVideoTitle, setVideoTitleCandidates])
 
-  // 그룹 삭제 핸들러
-  const handleGroupDelete = useCallback((sceneId: number, groupIndices: number[]) => {
-    if (!timeline || scenes.length === 0) return
-
-    // 그룹 내 모든 씬 삭제 (역순으로 삭제하여 인덱스 변경 문제 방지)
-    const sortedIndices = [...groupIndices].sort((a, b) => b - a)
-    
-    let newScenes = [...scenes]
-    let newTimelineScenes = [...timeline.scenes]
-
-    sortedIndices.forEach(index => {
-      newScenes = newScenes.filter((_, i) => i !== index)
-      newTimelineScenes = newTimelineScenes.filter((_, i) => i !== index)
-    })
-
-    setScenes(newScenes)
-    setTimeline({
-      ...timeline,
-      scenes: newTimelineScenes,
-    })
-  }, [timeline, scenes, setScenes, setTimeline])
-
-  // PixiJS 컨테이너에 빈 공간 클릭 감지 추가 (canvas 요소에 직접 이벤트 추가)
+  // 컴포넌트 마운트 시 자동 생성 (렌더링 완료 후에만)
   useEffect(() => {
-    if (!containerRef.current || !appRef.current || useFabricEditing || !pixiReady) return
-
-    const app = appRef.current
-    const canvas = app.canvas
-
-    // canvas 요소에 직접 클릭 이벤트 추가 (스프라이트/텍스트의 stopPropagation과 무관하게 작동)
-    const handleCanvasClick = (e: MouseEvent) => {
-      // 플래그 초기화
-      clickedOnPixiElementRef.current = false
-      
-      // 약간의 지연을 두어 스프라이트/텍스트/핸들 클릭 이벤트가 먼저 처리되도록 함
-      setTimeout(() => {
-        // 스프라이트나 텍스트나 핸들을 클릭했다면 빈 공간 클릭으로 처리하지 않음
-        if (clickedOnPixiElementRef.current) {
-          return
-        }
-
-        // 편집 모드가 'none'이면 처리하지 않음
-        if (editMode === 'none') {
-          return
-        }
-
-        // 마우스 좌표를 PixiJS 좌표로 변환
-        const rect = canvas.getBoundingClientRect()
-        const scaleX = app.screen.width / rect.width
-        const scaleY = app.screen.height / rect.height
-        const pixiX = (e.clientX - rect.left) * scaleX
-        const pixiY = (e.clientY - rect.top) * scaleY
-
-        const clickedSprite = spritesRef.current.get(currentSceneIndexRef.current)
-        const clickedText = textsRef.current.get(currentSceneIndexRef.current)
-        
-        // 핸들 클릭인지 확인
-        const clickedOnHandle = editHandlesRef.current.get(currentSceneIndexRef.current)?.children.some(handle => {
-          if (handle instanceof PIXI.Graphics) {
-            const handleBounds = handle.getBounds()
-            return pixiX >= handleBounds.x && pixiX <= handleBounds.x + handleBounds.width &&
-                   pixiY >= handleBounds.y && pixiY <= handleBounds.y + handleBounds.height
-          }
-          return false
-        }) || textEditHandlesRef.current.get(currentSceneIndexRef.current)?.children.some(handle => {
-          if (handle instanceof PIXI.Graphics) {
-            const handleBounds = handle.getBounds()
-            return pixiX >= handleBounds.x && pixiX <= handleBounds.x + handleBounds.width &&
-                   pixiY >= handleBounds.y && pixiY <= handleBounds.y + handleBounds.height
-          }
-          return false
-        })
-
-        // 스프라이트나 텍스트를 클릭하지 않고, 핸들도 클릭하지 않은 경우 (빈 공간)
-        const spriteBounds = clickedSprite?.getBounds()
-        const clickedOnSprite = clickedSprite && spriteBounds && clickedSprite.visible && clickedSprite.alpha > 0 &&
-          pixiX >= spriteBounds.x && pixiX <= spriteBounds.x + spriteBounds.width &&
-          pixiY >= spriteBounds.y && pixiY <= spriteBounds.y + spriteBounds.height
-        
-        const textBounds = clickedText?.getBounds()
-        const clickedOnText = clickedText && textBounds && clickedText.visible && clickedText.alpha > 0 &&
-          pixiX >= textBounds.x && pixiX <= textBounds.x + textBounds.width &&
-          pixiY >= textBounds.y && pixiY <= textBounds.y + textBounds.height
-        
-        if (!clickedOnHandle && !clickedOnSprite && !clickedOnText) {
-          // 빈 공간 클릭: 선택 해제 및 편집 모드 종료
-          setSelectedElementIndex(null)
-          setSelectedElementType(null)
-          setEditMode('none')
-        }
-      }, 50)
+    if (jobStatus === 'COMPLETED' && videoTitleCandidates.length === 0 && !isGenerating) {
+      handleGenerateTitles()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobStatus])
 
-    // canvas 요소에 직접 이벤트 리스너 추가 (capture phase에서 처리)
-    canvas.addEventListener('mousedown', handleCanvasClick, true)
-
-    return () => {
-      canvas.removeEventListener('mousedown', handleCanvasClick, true)
-    }
-  }, [containerRef, appRef, useFabricEditing, pixiReady, currentSceneIndexRef, spritesRef, textsRef, editHandlesRef, textEditHandlesRef, clickedOnPixiElementRef, editMode, setSelectedElementIndex, setSelectedElementType, setEditMode])
-
-  // Pixi 캔버스 포인터 이벤트 제어 및 Fabric 편집 시 숨김
-  // 재생 중 또는 전환 효과 미리보기 중일 때는 PixiJS를 보여서 전환 효과가 보이도록 함
+  // 기본 추천 상세 설명/해시태그 세팅
   useEffect(() => {
-    if (!pixiContainerRef.current) return
-    const pixiCanvas = pixiContainerRef.current.querySelector('canvas:not([data-fabric])') as HTMLCanvasElement
-    if (!pixiCanvas) return
-    
-    // 재생 중이거나 전환 효과 미리보기 중이면 항상 PixiJS 보이기
-    // 재생 중에는 isPreviewingTransition이 false여도 PixiJS를 보여야 함
-    // 재생 중일 때는 다른 상태 변경에 영향받지 않도록 먼저 체크
-    if (isPlaying || isPreviewingTransition) {
-      pixiCanvas.style.opacity = '1'
-      pixiCanvas.style.pointerEvents = 'none'
-      pixiCanvas.style.zIndex = '10'
-      return // 재생 중이면 여기서 종료하여 다른 조건에 영향받지 않도록 함
-    }
-    
-    // 재생 중이 아닐 때만 편집 모드에 따라 canvas 표시/숨김 처리
-    if (useFabricEditing && fabricReady) {
-      // Fabric.js 편집 활성화 시 PixiJS 캔버스 숨김
-      pixiCanvas.style.opacity = '0'
-      pixiCanvas.style.pointerEvents = 'none'
-      pixiCanvas.style.zIndex = '1'
-    } else {
-      // PixiJS 편집 모드: editMode가 'none'이 아니어도 보임 (편집 중에도 보여야 함)
-      pixiCanvas.style.opacity = '1'
-      pixiCanvas.style.pointerEvents = 'auto'
-      pixiCanvas.style.zIndex = '10'
-    }
-  }, [useFabricEditing, fabricReady, pixiReady, isPlaying, isPreviewingTransition, editMode])
+    if (descriptionInitialized.current || jobStatus !== 'COMPLETED') return
 
-  // 재생 중 또는 전환 효과 미리보기 중일 때 Fabric.js 캔버스 숨기기
+    if (!videoDescription) {
+      setVideoDescription(recommendedDescription)
+    }
+    descriptionInitialized.current = true
+  }, [videoDescription, recommendedDescription, setVideoDescription, jobStatus])
+
   useEffect(() => {
-    if (!fabricCanvasRef.current) return
-    const fabricCanvas = fabricCanvasRef.current
-    
-    if (isPlaying || isPreviewingTransition) {
-      // 재생 중 또는 전환 효과 미리보기 중일 때 Fabric 캔버스 숨기기
-      if (fabricCanvas.wrapperEl) {
-        fabricCanvas.wrapperEl.style.opacity = '0'
-        fabricCanvas.wrapperEl.style.pointerEvents = 'none'
-      }
-    } else {
-      // 재생 중이 아닐 때 Fabric 캔버스 보이기
-      if (fabricCanvas.wrapperEl) {
-        fabricCanvas.wrapperEl.style.opacity = '1'
-        fabricCanvas.wrapperEl.style.pointerEvents = 'auto'
-      }
+    if (hashtagsInitialized.current || jobStatus !== 'COMPLETED') return
+
+    if (!initialHashtags.current || initialHashtags.current.length === 0) {
+      setVideoHashtags(recommendedHashtags)
     }
-  }, [isPlaying, isPreviewingTransition, fabricReady, useFabricEditing])
+    hashtagsInitialized.current = true
+  }, [recommendedHashtags, setVideoHashtags, jobStatus])
 
-  // 선택된 요소에 따라 편집 모드 자동 설정
-  useEffect(() => {
-    // 선택이 해제되면 편집 모드도 해제
-    if (selectedElementIndex === null && selectedElementType === null) {
-      if (editMode !== 'none') {
-        setEditMode('none')
-      }
-      return
+  const handleCustomTitle = useCallback((title: string) => {
+    setVideoTitle(title)
+  }, [setVideoTitle])
+
+  // 상세설명 AI 생성
+  const handleGenerateDescription = useCallback(async () => {
+    const data = getProductAndScript()
+    if (!data) return
+
+    setIsGeneratingDescription(true)
+
+    try {
+      const response = await studioMetaApi.createDescription(data)
+      setVideoDescription(response.description)
+    } catch (error) {
+      console.error('상세설명 생성 오류:', error)
+      alert('상세설명 생성 중 오류가 발생했어요.')
+      // 에러 발생 시 기본 추천 설명으로 폴백
+      setVideoDescription(recommendedDescription)
+    } finally {
+      setIsGeneratingDescription(false)
     }
-    
-    // 선택된 요소 타입에 따라 편집 모드 설정
-    if (selectedElementType === 'image' && editMode !== 'image') {
-      setEditMode('image')
-    } else if (selectedElementType === 'text' && editMode !== 'text') {
-      setEditMode('text')
-    }
-  }, [selectedElementIndex, selectedElementType, editMode])
+  }, [getProductAndScript, setVideoDescription, recommendedDescription])
 
-  // ESC 키로 편집 모드 해제
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // ESC 키를 눌렀을 때 편집 모드 해제
-      if (e.key === 'Escape' && editMode !== 'none') {
-        setSelectedElementIndex(null)
-        setSelectedElementType(null)
-        setEditMode('none')
-      }
-    }
+  // 해시태그 AI 생성
+  const handleGenerateHashtags = useCallback(async () => {
+    const data = getProductAndScript()
+    if (!data) return
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [editMode, setEditMode, setSelectedElementIndex, setSelectedElementType])
+    setIsGeneratingHashtags(true)
 
-  // 현재 씬 변경 시 드래그 설정 재적용
-  useEffect(() => {
-    if (!containerRef.current || !timeline) {
-      return
-    }
-
-    // 재생 중일 때는 드래그 설정을 하지 않음 (전환 효과가 보이도록)
-    if (isPlaying) {
-      return
-    }
-
-    // 재생 중이 아닐 때만 드래그 설정
-    const setupDrag = () => {
-      const currentSprite = spritesRef.current.get(currentSceneIndexRef.current)
-      const currentText = textsRef.current.get(currentSceneIndexRef.current)
-      
-      if (currentSprite) {
-        setupSpriteDrag(currentSprite, currentSceneIndexRef.current)
-      }
-      
-      if (currentText) {
-        setupTextDrag(currentText, currentSceneIndexRef.current)
-      }
-
-      if (appRef.current) {
-        // 렌더링은 PixiJS ticker가 처리
-      }
-    }
-
-    // 전환 효과 미리보기 중일 때는 약간의 지연
-    if (isPreviewingTransition) {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setupDrag()
-        })
-      })
-    } else {
-      // 일반적인 경우 즉시 실행
-      setupDrag()
-    }
-  }, [currentSceneIndex, timeline, setupSpriteDrag, setupTextDrag, isPlaying, isPreviewingTransition])
-
-  // 편집 핸들러 함수들을 ref로 저장 (dependency array 크기 일정하게 유지)
-  const drawEditHandlesRef = useRef(drawEditHandles)
-  const setupSpriteDragRef = useRef(setupSpriteDrag)
-  const handleResizeRef = useRef(handleResize)
-  const saveImageTransformRef = useRef(saveImageTransform)
-  const drawTextEditHandlesRef = useRef(drawTextEditHandles)
-  const setupTextDragRef = useRef(setupTextDrag)
-  const handleTextResizeRef = useRef(handleTextResize)
-  const saveTextTransformRef = useRef(saveTextTransform)
-  const loadAllScenesRef = useRef(loadAllScenes)
-
-  // 함수 참조가 변경될 때마다 ref 업데이트
-  useEffect(() => {
-    drawEditHandlesRef.current = drawEditHandles
-    setupSpriteDragRef.current = setupSpriteDrag
-    handleResizeRef.current = handleResize
-    saveImageTransformRef.current = saveImageTransform
-    drawTextEditHandlesRef.current = drawTextEditHandles
-    setupTextDragRef.current = setupTextDrag
-    handleTextResizeRef.current = handleTextResize
-    saveTextTransformRef.current = saveTextTransform
-    loadAllScenesRef.current = loadAllScenes
-  }, [drawEditHandles, setupSpriteDrag, handleResize, saveImageTransform, drawTextEditHandles, setupTextDrag, handleTextResize, saveTextTransform, loadAllScenes])
-
-  // 편집 모드 변경 시 핸들 표시/숨김
-  useEffect(() => {
-    if (!containerRef.current || !timeline || !pixiReady) return
-
-    // 편집 모드가 종료되면 핸들 제거
-    if (editMode === 'none') {
-      editHandlesRef.current.forEach((handles, index) => {
-        if (handles.parent) {
-          handles.parent.removeChild(handles)
-        }
-      })
-      editHandlesRef.current.clear()
-      textEditHandlesRef.current.forEach((handles, index) => {
-        if (handles.parent) {
-          handles.parent.removeChild(handles)
-        }
-      })
-      textEditHandlesRef.current.clear()
-      // 편집 모드가 none이면 선택도 해제 (단, 이미 null이 아닐 때만 - 무한 루프 방지)
-      if (selectedElementIndex !== null || selectedElementType !== null) {
-        setSelectedElementIndex(null)
-        setSelectedElementType(null)
-      }
-    } else if (editMode === 'image') {
-      // 이미지 편집 모드일 때는 이미지 핸들만 표시하고 자막 핸들은 제거
-      const currentSceneIndex = timelineCurrentSceneIndex
-      
-      // 자막 핸들 제거
-      const existingTextHandles = textEditHandlesRef.current.get(currentSceneIndex)
-      if (existingTextHandles && existingTextHandles.parent) {
-        existingTextHandles.parent.removeChild(existingTextHandles)
-        textEditHandlesRef.current.delete(currentSceneIndex)
-      }
-      
-      // 스프라이트가 실제로 존재하는지 확인
-      const sprite = spritesRef.current.get(currentSceneIndex)
-      
-      if (!sprite) {
-        // loadAllScenes가 완료되지 않았으면 나중에 handleLoadComplete에서 처리됨
-        if (!loadAllScenesCompletedRef.current) {
-          return
-        }
-        // loadAllScenes가 완료되었는데도 스프라이트가 없으면 핸들이 이미 그려져 있는지 확인
-        const existingHandles = editHandlesRef.current.get(currentSceneIndex)
-        if (existingHandles?.parent) {
-          // 핸들이 이미 있으면 정상 (handleLoadComplete에서 이미 처리됨)
-          return
-        }
-        return
-      }
-      
-      // 현재 씬의 이미지 핸들 표시
-      // 편집 모드에서는 스프라이트를 먼저 표시한 후 핸들 그리기
-      sprite.visible = true
-      sprite.alpha = 1
-      
-      const existingHandles = editHandlesRef.current.get(currentSceneIndex)
-      if (!existingHandles || !existingHandles.parent) {
-        try {
-          drawEditHandlesRef.current(sprite, currentSceneIndex, handleResizeRef.current, saveImageTransformRef.current)
+    try {
+      const response = await studioMetaApi.createHashtags(data)
+      // 해시태그가 #으로 시작하지 않으면 추가
+      const normalizedHashtags = response.hashtags.map((tag) =>
+        tag.startsWith('#') ? tag : `#${tag}`
+      )
+      setVideoHashtags(normalizedHashtags)
         } catch (error) {
-          // 이미지 핸들 그리기 실패
-        }
-      } else {
-      }
-      try {
-        setupSpriteDragRef.current(sprite, currentSceneIndex)
-      } catch (error) {
-        // 이미지 드래그 설정 실패
-      }
-    } else if (editMode === 'text') {
-      // 자막 편집 모드일 때는 자막 핸들만 표시하고 이미지 핸들은 제거
-      const currentSceneIndex = timelineCurrentSceneIndex
-      
-      // 이미지 핸들 제거
-      const existingHandles = editHandlesRef.current.get(currentSceneIndex)
-      if (existingHandles && existingHandles.parent) {
-        existingHandles.parent.removeChild(existingHandles)
-        editHandlesRef.current.delete(currentSceneIndex)
-      }
-      
-      // 텍스트가 실제로 존재하는지 확인
-      const text = textsRef.current.get(currentSceneIndex)
-      
-      if (!text) {
-        // loadAllScenes가 완료되지 않았으면 나중에 handleLoadComplete에서 처리됨
-        if (!loadAllScenesCompletedRef.current) {
-          return
-        }
-        // loadAllScenes가 완료되었는데도 텍스트가 없으면 핸들이 이미 그려져 있는지 확인
-        const existingTextHandles = textEditHandlesRef.current.get(currentSceneIndex)
-        if (existingTextHandles?.parent) {
-          // 핸들이 이미 있으면 정상 (handleLoadComplete에서 이미 처리됨)
-          return
-        }
+      console.error('해시태그 생성 오류:', error)
+      alert('해시태그 생성 중 오류가 발생했어요.')
+      // 에러 발생 시 기본 추천 해시태그로 폴백
+      setVideoHashtags(recommendedHashtags)
+    } finally {
+      setIsGeneratingHashtags(false)
+    }
+  }, [getProductAndScript, setVideoHashtags, recommendedHashtags])
+
+  const handleHashtagChange = useCallback((value: string) => {
+    const normalized = value
+      .split(/[\s,]+/)
+      .filter(Boolean)
+      .map((tag) => (tag.startsWith('#') ? tag : `#${tag}`))
+    setVideoHashtags(normalized)
+  }, [setVideoHashtags])
+
+  const handleNext = useCallback(() => {
+    if (!videoTitle) {
+      alert('영상 제목을 선택하거나 입력해주세요.')
         return
       }
       
-      // 현재 씬의 자막 핸들 표시
-      // 편집 모드에서는 텍스트를 먼저 표시한 후 핸들 그리기
-      text.visible = true
-      text.alpha = 1
-      
-      const existingTextHandles = textEditHandlesRef.current.get(currentSceneIndex)
-      if (!existingTextHandles || !existingTextHandles.parent) {
-        try {
-          drawTextEditHandlesRef.current(text, currentSceneIndex, handleTextResizeRef.current, saveTextTransformRef.current)
-        } catch (error) {
-          // 자막 핸들 그리기 실패
-        }
-      } else {
-      }
+    setIsCompleteDialogOpen(true)
+  }, [videoTitle])
+
+  const handleComplete = useCallback(async () => {
+    if (isCompleting) return
+    setIsCompleting(true)
+
+    // 영상 메타데이터 저장 (jobId와 함께)
+    const targetJobId = urlJobId || currentJobId
+    if (targetJobId && videoTitle) {
       try {
-        setupTextDragRef.current(text, currentSceneIndex)
+        let accessToken = authStorage.getAccessToken()
+        if (!accessToken) {
+          const supabase = getSupabaseClient()
+          const { data } = await supabase.auth.getSession()
+          accessToken = data.session?.access_token ?? null
+        }
+
+        if (accessToken) {
+          const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+          
+          // 영상 메타데이터 저장 API 호출
+          // 백엔드 API가 jobId를 기반으로 영상을 생성하고 메타데이터를 저장하도록 요청
+          const videoMetadataResponse = await fetch(`${API_BASE_URL}/api/v1/videos`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              studioJobId: targetJobId,
+              title: videoTitle,
+              titleCandidates: videoTitleCandidates,
+              description: videoDescription,
+              hashtags: videoHashtags,
+            }),
+          })
+
+          if (!videoMetadataResponse.ok) {
+            console.warn('[handleComplete] Video metadata save failed', videoMetadataResponse.status)
+            // 실패해도 계속 진행 (메타데이터 저장 실패는 치명적이지 않음)
+          } else {
+            console.log('[handleComplete] Video metadata saved successfully')
+          }
+        }
       } catch (error) {
-        // 자막 드래그 설정 실패
+        console.error('[handleComplete] Video metadata save error', error)
+        // 에러가 나도 계속 진행
       }
     }
 
-    if (appRef.current) {
-      // 렌더링은 PixiJS ticker가 처리
-    }
-  }, [editMode, selectedElementIndex, selectedElementType, timeline, timelineCurrentSceneIndex, pixiReady])
+    // TTS 정리 시도 (실패해도 나머지 플로우는 진행)
+    try {
+      let accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        const supabase = getSupabaseClient()
+        const { data } = await supabase.auth.getSession()
+        accessToken = data.session?.access_token ?? null
+      }
 
-  // 재생 시작 시 편집 모드 해제
-  useEffect(() => {
-    // isPlaying은 나중에 선언되므로 timelineIsPlaying 사용
-    const playing = timelineIsPlaying
-    if (playing && editMode !== 'none') {
-      // 재생 중에는 편집 모드 해제
-      setEditMode('none')
-      setSelectedElementIndex(null)
-      setSelectedElementType(null)
-      
-      // 모든 편집 핸들 제거
-      editHandlesRef.current.forEach((handles, index) => {
-        if (handles.parent) {
-          handles.parent.removeChild(handles)
-        }
+      const headers: Record<string, string> = {}
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`
+      }
+
+      const res = await fetch('/api/media/tts/cleanup', {
+        method: 'POST',
+        headers,
       })
-      editHandlesRef.current.clear()
-      textEditHandlesRef.current.forEach((handles, index) => {
-        if (handles.parent) {
-          handles.parent.removeChild(handles)
-        }
-      })
-      textEditHandlesRef.current.clear()
+      if (!res.ok) {
+        console.warn('[handleComplete] TTS cleanup failed', res.status)
+      }
+    } catch (error) {
+      console.error('[handleComplete] TTS cleanup error', error)
     }
-  }, [timelineIsPlaying, editMode, setEditMode, setSelectedElementIndex, setSelectedElementType])
 
-
-
-
-  // handleExport는 useVideoExport hook에서 제공됨
-
-  const sceneThumbnails = useMemo(
-    () => scenes.map((scene, index) => {
-      const url = scene.imageUrl || selectedImages[index] || ''
-      if (!url) return ''
-      
-      // URL 검증 및 수정
-      if (url.startsWith('http://') || url.startsWith('https://')) {
-        return url
-      }
-      if (url.startsWith('//')) {
-        return `https:${url}`
-      }
-      if (url.startsWith('/')) {
-        return url // 상대 경로는 그대로 사용
-      }
-      // 잘못된 URL인 경우 기본 placeholder 반환
-      return getScenePlaceholder(index)
-    }),
-    [scenes, selectedImages]
-  )
-
-  // 재생/일시정지 핸들러
-  const handlePlayPause = useCallback(() => {
-    if (isPlaying) {
-      fullPlayback?.stopAllScenes()
-    } else {
-      void fullPlayback?.playAllScenes()
-    }
-  }, [isPlaying, fullPlayback])
-
-  // 크기 조정하기 핸들러
-  const handleResizeTemplate = useCallback(() => {
-    if (!timeline || scenes.length === 0) {
-      return
+    // localStorage에서 jobId 제거
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('currentVideoJobId')
     }
     
-    // 쇼츠용 추천 템플릿 적용
-    const nextTimeline = applyShortsTemplateToScenes(timeline, stageDimensions)
-    setTimeline(nextTimeline)
+    // 상태 초기화
+    setCurrentJobId(null)
+    setJobStatus(null)
+    setJobProgress('')
+    setResultVideoUrl(null)
     
-    // 모든 씬을 다시 로드하여 Transform 적용
-    setTimeout(() => {
-      loadAllScenes()
-      // Canvas 크기 재계산
-      recalculateCanvasSize()
-    }, 100)
-  }, [timeline, scenes.length, stageDimensions, setTimeline, loadAllScenes, recalculateCanvasSize])
-
-  // 씬 선택 핸들러
-  const handleSceneSelect = useCallback((index: number) => {
-    // 씬 재생 중일 때는 씬 선택 무시 (중복 렌더링 방지)
-    if (groupPlayback.playingSceneIndex !== null) {
-      return
+    // HTTP 폴링 정리
+    if (jobStatusCheckTimeoutRef.current) {
+      clearTimeout(jobStatusCheckTimeoutRef.current)
+      jobStatusCheckTimeoutRef.current = null
     }
-    sceneNavigation.selectScene(index)
-  }, [groupPlayback.playingSceneIndex, sceneNavigation])
-
-  // 반환값 최적화
-  return useMemo(() => ({
-    // Refs
-    pixiContainerRef,
-    timelineBarRef,
     
+    reset()
+    setIsCompleteDialogOpen(false)
+    setIsCompleting(false)
+    router.push('/')
+  }, [isCompleting, reset, router, urlJobId, currentJobId, videoTitle, videoTitleCandidates, videoDescription, videoHashtags])
+
+  // 중단하기 핸들러
+  const handleCancel = useCallback(() => {
+    if (confirm('영상 생성을 중단하시겠습니까? 나중에 다시 확인할 수 있습니다.')) {
+      if (jobStatusCheckTimeoutRef.current) {
+        clearTimeout(jobStatusCheckTimeoutRef.current)
+        jobStatusCheckTimeoutRef.current = null
+      }
+      setJobStatus(null)
+      setJobProgress('')
+      router.push('/')
+    }
+  }, [router])
+
+  return {
     // State
     theme,
-    mounted,
-    rightPanelTab,
-    setRightPanelTab,
-    showGrid,
-    setShowGrid,
+    isValidatingToken,
     
-    // Store values
-    scenes,
-    timeline,
-    selectedImages,
-    bgmTemplate,
-    setBgmTemplate,
-    subtitlePosition,
-    subtitleFont,
-    subtitleColor,
-    voiceTemplate,
-    selectedProducts,
+    // Job Status
+    jobId,
+    jobStatus,
+    jobProgress,
+    isInitializing,
+    elapsedSeconds,
+    encodingSceneIndex,
+    resultVideoUrl,
+    formatElapsed,
+    handleDownload,
+    handleCancel,
+    
+    // Video Metadata
     videoTitle,
+    videoTitleCandidates,
     videoDescription,
+    videoHashtags,
+    isGenerating,
+    isGeneratingDescription,
+    isGeneratingHashtags,
+    handleCustomTitle,
+    handleGenerateTitles,
+    handleGenerateDescription,
+    handleGenerateHashtags,
+    handleHashtagChange,
+    setVideoDescription,
     
-    // Playback state
-    isPlaying,
-    currentTime,
-    totalDuration,
-    progressRatio,
-    playbackSpeed,
-    currentSceneIndex,
-    selectedPart,
-    isTtsBootstrapping,
-    isBgmBootstrapping,
-    isPreparing,
-    showReadyMessage,
-    isExporting,
-    isPreviewingTransition,
+    // Complete Dialog
+    isCompleteDialogOpen,
+    setIsCompleteDialogOpen,
+    isCompleting,
+    handleNext,
+    handleComplete,
     
-    // Canvas & Grid
-    canvasDisplaySize,
-    gridOverlaySize,
-    stageDimensions,
-    
-    // Handlers
-    handleTimelineMouseDown,
-    handlePlayPause,
-    handleExport,
-    handlePlaybackSpeedChange,
-    handleSceneSelect,
-    handleSceneScriptChange,
-    handleSceneImageFitChange,
-    handleSceneReorder,
-    handleSceneSplit,
-    handleSceneDelete,
-    handleSceneDuplicate,
-    handleSceneTtsPreview,
-    handleSceneTransitionChange,
-    handleGroupDuplicate,
-    handleGroupPlay,
-    handleGroupDelete,
-    handleScenePlay,
-    handleResizeTemplate,
-    onSelectPart: sceneNavigation.selectPart,
-    
-    // Scene data
-    sceneThumbnails,
-    transitionLabels,
-    allTransitions,
-    transitions,
-    movements,
-    
-    // Playback
-    fullPlayback,
-    singleScenePlayback,
-    playingSceneIndex: groupPlayback.playingSceneIndex,
-    playingGroupSceneId: groupPlayback.playingGroupSceneId,
-    confirmedBgmTemplate,
-    handleBgmConfirm,
-    setTimeline,
-  }), [
-    pixiContainerRef,
-    timelineBarRef,
-    theme,
-    mounted,
-    rightPanelTab,
-    setRightPanelTab,
-    showGrid,
-    setShowGrid,
-    scenes,
+    // Timeline
     timeline,
-    selectedImages,
-    bgmTemplate,
-    setBgmTemplate,
-    subtitlePosition,
-    subtitleFont,
-    subtitleColor,
-    voiceTemplate,
-    selectedProducts,
-    videoTitle,
-    videoDescription,
-    isPlaying,
-    currentTime,
-    totalDuration,
-    progressRatio,
-    playbackSpeed,
-    currentSceneIndex,
-    selectedPart,
-    isTtsBootstrapping,
-    isBgmBootstrapping,
-    isPreparing,
-    showReadyMessage,
-    isExporting,
-    isPreviewingTransition,
-    canvasDisplaySize,
-    gridOverlaySize,
-    stageDimensions,
-    handleTimelineMouseDown,
-    handlePlayPause,
-    handleExport,
-    handlePlaybackSpeedChange,
-    handleSceneSelect,
-    handleSceneScriptChange,
-    handleSceneImageFitChange,
-    handleSceneReorder,
-    handleSceneSplit,
-    handleSceneDelete,
-    handleSceneDuplicate,
-    handleSceneTtsPreview,
-    handleSceneTransitionChange,
-    handleGroupDuplicate,
-    handleGroupPlay,
-    handleGroupDelete,
-    handleScenePlay,
-    handleResizeTemplate,
-    sceneNavigation.selectPart,
-    sceneThumbnails,
-    transitionLabels,
-    allTransitions,
-    transitions,
-    movements,
-    fullPlayback,
-    singleScenePlayback,
-    confirmedBgmTemplate,
-    handleBgmConfirm,
-    setTimeline,
-    groupPlayback.playingSceneIndex,
-    groupPlayback.playingGroupSceneId,
-  ])
+  }
 }
-
-

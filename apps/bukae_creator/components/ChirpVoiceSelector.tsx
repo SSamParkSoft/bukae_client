@@ -9,7 +9,8 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
-import { CheckCircle2, ChevronDown, ChevronUp, Headphones, Pause } from 'lucide-react'
+import Image from 'next/image'
+import { Loader2 } from 'lucide-react'
 
 type GenderGroup = 'MALE' | 'FEMALE' | 'OTHER'
 
@@ -79,7 +80,6 @@ export default function ChirpVoiceSelector({
   const [error, setError] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [playingVoiceName, setPlayingVoiceName] = useState<string | null>(null)
-  const [isExpanded, setIsExpanded] = useState<boolean>(() => !voiceTemplate)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingVoiceName, setPendingVoiceName] = useState<string | null>(null)
 
@@ -127,9 +127,6 @@ export default function ChirpVoiceSelector({
     return () => stop()
   }, [loadVoices, stop])
 
-  useEffect(() => {
-    setIsExpanded(!voiceTemplate)
-  }, [voiceTemplate])
 
   const toDemoSlug = useCallback((voiceName: string) => {
     // 예: ko-KR-Chirp3-HD-Achernar -> chirp3-hd-achernar
@@ -219,8 +216,6 @@ export default function ChirpVoiceSelector({
     setConfirmOpen(false)
   }, [pendingVoiceName, setVoiceTemplate])
 
-  const isDark = theme === 'dark'
-  const isPanel = layout === 'panel'
   const getShortName = useCallback((voiceName: string) => {
     // 예: ko-KR-Chirp3-HD-Achernar -> Achernar
     const cleaned = voiceName.replace(/^ko-KR[-_]/i, '')
@@ -270,417 +265,61 @@ export default function ChirpVoiceSelector({
   }, [getShortName, voiceTemplate])
 
   return (
-    <div
-      className="rounded-lg border p-3 space-y-3"
-      style={{
-        borderColor: isDark ? '#374151' : '#e5e7eb',
-        backgroundColor: isDark ? '#111827' : '#ffffff',
-      }}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <div
-          className="text-sm sm:text-lg md:text-xl font-semibold"
-          style={{ color: isDark ? '#ffffff' : '#111827' }}
+    <div className="space-y-4 mb-6">
+      {/* 헤더 */}
+      <div>
+        <h3 
+          className="font-bold text-[#111111] tracking-[-0.4px]"
+          style={{ 
+            fontSize: 'var(--font-size-20)',
+            lineHeight: '28px'
+          }}
         >
           {title}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setIsExpanded((v) => !v)}
-            disabled={disabled}
-            className="gap-1"
-          >
-            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            {isExpanded ? '접기' : '펼치기'}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={loadVoices}
-            disabled={disabled || isLoadingVoices}
-          >
-            {isLoadingVoices ? '불러오는 중...' : '목록 새로고침'}
-          </Button>
-        </div>
+        </h3>
       </div>
 
-      <div className="text-xs" style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
-        현재 선택: <span className="font-medium">{currentLabel}</span>
-      </div>
+      {/* 선택된 목소리 표시 */}
+      {voiceTemplate && (
+        <div 
+          className="font-medium text-[#3b6574] tracking-[-0.32px]"
+          style={{ 
+            fontSize: 'var(--font-size-16)',
+            lineHeight: '22.4px'
+          }}
+        >
+          선택된 목소리: {currentLabel}
+        </div>
+      )}
 
-      {isExpanded && (
-        <div className="space-y-2">
-          {voices.length === 0 && !isLoadingVoices ? (
-            <div className="text-sm" style={{ color: isDark ? '#d1d5db' : '#374151' }}>
-              사용 가능한 목소리가 없어요.
-            </div>
-          ) : (
-            <div
-              className={
-                isPanel
-                  ? 'grid grid-cols-2 gap-4'
-                  : 'grid grid-cols-1 lg:grid-cols-2 gap-4'
-              }
-            >
-              <div className="space-y-2 p-2 ">
-                <div className="text-lg font-semibold" style={{ color: isDark ? '#ffffff' : '#111827' }}>
-                  여자 목소리
-                </div>
-                <div className={isPanel ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 lg:grid-cols-2 gap-3'}>
-                  {groupedVoices.female.map((v) => {
-                    const isSelected = voiceTemplate === v.name
-                    const isThisPlaying = isPlaying && playingVoiceName === v.name
-                    const label = getShortName(v.name)
-                    const isThisConfirmOpen = confirmOpen && pendingVoiceName === v.name
-                    return (
-                      <Popover key={v.name} open={isThisConfirmOpen} onOpenChange={(open) => {
-                        if (open) {
-                          openConfirm(v.name)
-                        } else {
-                          setConfirmOpen(false)
-                        }
-                      }}>
-                        <PopoverTrigger asChild>
-                          <div
-                            role="button"
-                            tabIndex={disabled ? -1 : 0}
-                            aria-disabled={disabled}
-                            onClick={() => {
-                              if (disabled) return
-                              openConfirm(v.name)
-                            }}
-                            onKeyDown={(e) => {
-                              if (disabled) return
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault()
-                                openConfirm(v.name)
-                              }
-                            }}
-                            className={[
-                              'group relative text-left rounded-lg border p-4 transition-all',
-                              'shadow-sm hover:shadow-md hover:-translate-y-0.5',
-                              'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2',
-                              isDark ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white',
-                            ].join(' ')}
-                            style={{
-                              borderColor: isSelected
-                                ? '#a855f7'
-                                : isThisPlaying
-                                  ? isDark
-                                    ? '#4b5563'
-                                    : '#9ca3af'
-                                  : isDark
-                                    ? '#374151'
-                                    : '#d1d5db',
-                              backgroundColor: isSelected
-                                ? isDark
-                                  ? 'rgba(168,85,247,0.12)'
-                                  : 'rgba(168,85,247,0.08)'
-                                : isThisPlaying
-                                  ? isDark
-                                    ? '#111827'
-                                    : '#f3f4f6'
-                                  : isDark
-                                    ? '#0b1220'
-                                    : '#ffffff',
-                              color: isDark ? '#ffffff' : '#111827',
-                              opacity: disabled ? 0.6 : 1,
-                            }}
-                          >
-                            {isSelected && (
-                              <div className="absolute right-3 top-3 flex items-center gap-1 text-xs font-semibold">
-                                <CheckCircle2 className="w-4 h-4 text-purple-400" />
-                                <span className={isDark ? 'text-purple-200' : 'text-purple-700'}>선택됨</span>
-                              </div>
-                            )}
-
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-semibold truncate whitespace-nowrap">{label}</div>
-                              </div>
-
-                              <div className="shrink-0 flex items-center">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    playDemo(v.name)
-                                  }}
-                                  disabled={disabled}
-                                  aria-label="미리듣기"
-                                  title="미리듣기"
-                                  className="opacity-80 group-hover:opacity-100 h-8 w-8 sm:h-9 sm:w-9"
-                                >
-                                  {isThisPlaying ? (
-                                    <Pause className="w-4 h-4" />
-                                  ) : (
-                                    <Headphones className="w-4 h-4" />
-                                  )}
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        </PopoverTrigger>
-                        
-                        {/* 말풍선 Popover */}
-                        <PopoverContent
-                          side="top"
-                          align="center"
-                          sideOffset={12}
-                          className={`w-80 p-4 relative ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
-                        >
-                          <div className="space-y-3">
-                            <div>
-                              <div className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                이 목소리로 확정하시겠어요?
-                              </div>
-                              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                다음 단계에서 수정도 가능해요!
-                              </div>
-                            </div>
-
-                            <div className={`rounded-md border p-3 text-sm ${isDark ? 'border-gray-700 bg-gray-900 text-gray-200' : 'border-gray-200 bg-gray-50 text-gray-900'}`}>
-                              {label}
-                            </div>
-
-                            <div className="flex gap-2 justify-end">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setConfirmOpen(false)}
-                                className={isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : ''}
-                              >
-                                다시 선택하기
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={confirmSelection}
-                                style={{
-                                  backgroundColor: '#8b5cf6',
-                                  color: '#ffffff',
-                                }}
-                              >
-                                확정하기
-                              </Button>
-                            </div>
-                          </div>
-                          
-                          {/* 말풍선 화살표 */}
-                          <div
-                            className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
-                            style={{
-                              bottom: '-8px',
-                              borderLeft: '8px solid transparent',
-                              borderRight: '8px solid transparent',
-                              borderTop: `8px solid ${isDark ? '#1f2937' : '#ffffff'}`,
-                            }}
-                          />
-                          <div
-                            className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
-                            style={{
-                              bottom: '-9px',
-                              borderLeft: '9px solid transparent',
-                              borderRight: '9px solid transparent',
-                              borderTop: `9px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-                            }}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="space-y-2 p-2">
-                <div className="text-lg font-semibold" style={{ color: isDark ? '#ffffff' : '#111827' }}>
-                  남자 목소리
-                </div>
-                <div className={isPanel ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 lg:grid-cols-2 gap-3'}>
-                  {groupedVoices.male.map((v) => {
-                    const isSelected = voiceTemplate === v.name
-                    const isThisPlaying = isPlaying && playingVoiceName === v.name
-                    const label = getShortName(v.name)
-                    const isThisConfirmOpen = confirmOpen && pendingVoiceName === v.name
-                    return (
-                      <Popover key={v.name} open={isThisConfirmOpen} onOpenChange={(open) => {
-                        if (open) {
-                          openConfirm(v.name)
-                        } else {
-                          setConfirmOpen(false)
-                        }
-                      }}>
-                        <PopoverTrigger asChild>
-                          <div
-                            role="button"
-                            tabIndex={disabled ? -1 : 0}
-                            aria-disabled={disabled}
-                            onClick={() => {
-                              if (disabled) return
-                              openConfirm(v.name)
-                            }}
-                            onKeyDown={(e) => {
-                              if (disabled) return
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault()
-                                openConfirm(v.name)
-                              }
-                            }}
-                            className={[
-                              'group relative text-left rounded-lg border p-4 transition-all',
-                              'shadow-sm hover:shadow-md hover:-translate-y-0.5',
-                              'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2',
-                              isDark ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white',
-                            ].join(' ')}
-                            style={{
-                              borderColor: isSelected
-                                ? '#a855f7'
-                                : isThisPlaying
-                                  ? isDark
-                                    ? '#4b5563'
-                                    : '#9ca3af'
-                                  : isDark
-                                    ? '#374151'
-                                    : '#d1d5db',
-                              backgroundColor: isSelected
-                                ? isDark
-                                  ? 'rgba(168,85,247,0.12)'
-                                  : 'rgba(168,85,247,0.08)'
-                                : isThisPlaying
-                                  ? isDark
-                                    ? '#111827'
-                                    : '#f3f4f6'
-                                  : isDark
-                                    ? '#0b1220'
-                                    : '#ffffff',
-                              color: isDark ? '#ffffff' : '#111827',
-                              opacity: disabled ? 0.6 : 1,
-                            }}
-                          >
-                            {isSelected && (
-                              <div className="absolute right-3 top-3 flex items-center gap-1 text-xs font-semibold">
-                                <CheckCircle2 className="w-4 h-4 text-purple-400" />
-                                <span className={isDark ? 'text-purple-200' : 'text-purple-700'}>선택됨</span>
-                              </div>
-                            )}
-
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-semibold truncate whitespace-nowrap">{label}</div>
-                              </div>
-
-                              <div className="shrink-0 flex items-center">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => {
-                                    e.preventDefault()
-                                    e.stopPropagation()
-                                    playDemo(v.name)
-                                  }}
-                                  disabled={disabled}
-                                  aria-label="미리듣기"
-                                  title="미리듣기"
-                                  className="opacity-80 group-hover:opacity-100 h-8 w-8 sm:h-9 sm:w-9"
-                                >
-                                  {isThisPlaying ? (
-                                    <Pause className="w-4 h-4" />
-                                  ) : (
-                                    <Headphones className="w-4 h-4" />
-                                  )}
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        </PopoverTrigger>
-                        
-                        {/* 말풍선 Popover */}
-                        <PopoverContent
-                          side="top"
-                          align="center"
-                          sideOffset={12}
-                          className={`w-80 p-4 relative ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
-                        >
-                          <div className="space-y-3">
-                            <div>
-                              <div className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                이 목소리로 확정하시겠어요?
-                              </div>
-                              <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                다음 단계에서 수정도 가능해요!
-                              </div>
-                            </div>
-
-                            <div className={`rounded-md border p-3 text-sm ${isDark ? 'border-gray-700 bg-gray-900 text-gray-200' : 'border-gray-200 bg-gray-50 text-gray-900'}`}>
-                              {label}
-                            </div>
-
-                            <div className="flex gap-2 justify-end">
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setConfirmOpen(false)}
-                                className={isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : ''}
-                              >
-                                다시 선택하기
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={confirmSelection}
-                                style={{
-                                  backgroundColor: '#8b5cf6',
-                                  color: '#ffffff',
-                                }}
-                              >
-                                확정하기
-                              </Button>
-                            </div>
-                          </div>
-                          
-                          {/* 말풍선 화살표 */}
-                          <div
-                            className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
-                            style={{
-                              bottom: '-8px',
-                              borderLeft: '8px solid transparent',
-                              borderRight: '8px solid transparent',
-                              borderTop: `8px solid ${isDark ? '#1f2937' : '#ffffff'}`,
-                            }}
-                          />
-                          <div
-                            className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
-                            style={{
-                              bottom: '-9px',
-                              borderLeft: '9px solid transparent',
-                              borderRight: '9px solid transparent',
-                              borderTop: `9px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-                            }}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {groupedVoices.other.length > 0 && (
-                <div className={isPanel ? 'space-y-2 col-span-2' : 'space-y-2 lg:col-span-2'}>
-                  <div className="text-sm font-semibold" style={{ color: isDark ? '#ffffff' : '#111827' }}>
-                    기타
+      <div className="space-y-6">
+        {isLoadingVoices ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-[#5e8790]" />
+          </div>
+        ) : voices.length === 0 ? (
+          <div className="text-sm text-text-dark">
+            사용 가능한 목소리가 없어요.
+          </div>
+        ) : (
+          <>
+            {/* 여성 목소리 섹션 */}
+            {groupedVoices.female.length > 0 && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 
+                      className="font-bold text-text-dark text-center tracking-[-0.36px]"
+                      style={{ 
+                        fontSize: 'var(--font-size-18)',
+                        lineHeight: '25.2px'
+                      }}
+                    >
+                      여성 목소리
+                    </h4>
+                    <div className="h-0.5 bg-[#bbc9c9] mt-2" />
                   </div>
-                  <div className={isPanel ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 lg:grid-cols-2 gap-3'}>
-                    {groupedVoices.other.map((v) => {
+                  <div className="grid grid-cols-2 gap-4">
+                    {groupedVoices.female.map((v) => {
                       const isSelected = voiceTemplate === v.name
                       const isThisPlaying = isPlaying && playingVoiceName === v.name
                       const label = getShortName(v.name)
@@ -709,103 +348,74 @@ export default function ChirpVoiceSelector({
                                   openConfirm(v.name)
                                 }
                               }}
-                          className={[
-                            'group relative text-left rounded-lg border p-4 transition-all',
-                            'shadow-sm hover:shadow-md hover:-translate-y-0.5',
-                            'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2',
-                            isDark ? 'focus:ring-offset-gray-900' : 'focus:ring-offset-white',
-                          ].join(' ')}
-                          style={{
-                            borderColor: isSelected
-                              ? '#a855f7'
-                              : isThisPlaying
-                                ? isDark
-                                  ? '#4b5563'
-                                  : '#9ca3af'
-                                : isDark
-                                  ? '#374151'
-                                  : '#d1d5db',
-                            backgroundColor: isSelected
-                              ? isDark
-                                ? 'rgba(168,85,247,0.12)'
-                                : 'rgba(168,85,247,0.08)'
-                              : isThisPlaying
-                                ? isDark
-                                  ? '#111827'
-                                  : '#f3f4f6'
-                                : isDark
-                                  ? '#0b1220'
-                                  : '#ffffff',
-                            color: isDark ? '#ffffff' : '#111827',
-                            opacity: disabled ? 0.6 : 1,
-                          }}
-                        >
-                          {isSelected && (
-                            <div className="absolute right-3 top-3 flex items-center gap-1 text-xs font-semibold">
-                              <CheckCircle2 className="w-4 h-4 text-purple-400" />
-                              <span className={isDark ? 'text-purple-200' : 'text-purple-700'}>선택됨</span>
-                            </div>
-                          )}
-
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-semibold truncate whitespace-nowrap">{label}</div>
-                            </div>
-
-                            <div className="shrink-0 flex items-center">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
+                              className="flex items-center gap-4 h-[46px] transition-all hover:opacity-90"
+                            >
+                              <div 
+                                className="w-6 h-6 flex items-center justify-center shrink-0 cursor-pointer"
                                 onClick={(e) => {
-                                  e.preventDefault()
                                   e.stopPropagation()
+                                  if (disabled) return
                                   playDemo(v.name)
                                 }}
-                                disabled={disabled}
-                                aria-label="미리듣기"
-                                title="미리듣기"
-                                className="opacity-80 group-hover:opacity-100 h-8 w-8 sm:h-9 sm:w-9"
                               >
-                                {isThisPlaying ? (
-                                  <Pause className="w-4 h-4" />
-                                ) : (
-                                  <Headphones className="w-4 h-4" />
-                                )}
-                              </Button>
+                                <Image 
+                                  src="/voiceplay.svg" 
+                                  alt="재생" 
+                                  width={18} 
+                                  height={19}
+                                  className="w-[18px] h-[19px]"
+                                />
+                              </div>
+                              <div 
+                                className={`flex-1 rounded-lg border h-[46px] flex items-center cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[#5e8790] border-[#5e8790]'
+                                  : 'bg-white border-[#88a9ac]'
+                              }`}
+                              >
+                                <div className="px-4 flex items-center">
+                                  <span 
+                                    className={`font-medium tracking-[-0.32px] ${
+                                      isSelected ? 'text-white' : 'text-[#2c2c2c]'
+                                    }`}
+                                    style={{ 
+                                      fontSize: 'var(--font-size-16)',
+                                      lineHeight: '22.4px'
+                                    }}
+                                  >
+                                    {label}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
                           </PopoverTrigger>
-                          
+                        
                           {/* 말풍선 Popover */}
                           <PopoverContent
                             side="top"
                             align="center"
                             sideOffset={12}
-                            className={`w-80 p-4 relative ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
+                            className="w-80 p-5 relative bg-white border-gray-200"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <div className="space-y-3">
-                              <div>
-                                <div className={`text-sm font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                                  이 목소리로 확정하시겠어요?
-                                </div>
-                                <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                                  다음 단계에서 수정도 가능해요!
-                                </div>
+                            <div className="space-y-4">
+                              <div 
+                                className="font-semibold text-text-dark tracking-[-0.32px]"
+                                style={{ 
+                                  fontSize: 'var(--font-size-16)',
+                                  lineHeight: 'var(--line-height-16-140)'
+                                }}
+                              >
+                                이 목소리로 확정하시겠어요?
                               </div>
-
-                              <div className={`rounded-md border p-3 text-sm ${isDark ? 'border-gray-700 bg-gray-900 text-gray-200' : 'border-gray-200 bg-gray-50 text-gray-900'}`}>
-                                {label}
-                              </div>
-
-                              <div className="flex gap-2 justify-end">
+                              
+                              <div className="flex gap-2 pt-1">
                                 <Button
                                   type="button"
-                                  variant="outline"
                                   size="sm"
+                                  variant="outline"
                                   onClick={() => setConfirmOpen(false)}
-                                  className={isDark ? 'border-gray-600 text-gray-300 hover:bg-gray-700' : ''}
+                                  className="flex-1 bg-white border-gray-300 text-text-dark hover:bg-gray-50"
                                 >
                                   다시 선택하기
                                 </Button>
@@ -813,10 +423,7 @@ export default function ChirpVoiceSelector({
                                   type="button"
                                   size="sm"
                                   onClick={confirmSelection}
-                                  style={{
-                                    backgroundColor: '#8b5cf6',
-                                    color: '#ffffff',
-                                  }}
+                                  className="flex-1 bg-brand-teal hover:bg-brand-teal-dark text-white"
                                 >
                                   확정하기
                                 </Button>
@@ -830,7 +437,7 @@ export default function ChirpVoiceSelector({
                                 bottom: '-8px',
                                 borderLeft: '8px solid transparent',
                                 borderRight: '8px solid transparent',
-                                borderTop: `8px solid ${isDark ? '#1f2937' : '#ffffff'}`,
+                                borderTop: '8px solid #ffffff',
                               }}
                             />
                             <div
@@ -839,7 +446,7 @@ export default function ChirpVoiceSelector({
                                 bottom: '-9px',
                                 borderLeft: '9px solid transparent',
                                 borderRight: '9px solid transparent',
-                                borderTop: `9px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+                                borderTop: '9px solid #e5e7eb',
                               }}
                             />
                           </PopoverContent>
@@ -849,13 +456,166 @@ export default function ChirpVoiceSelector({
                   </div>
                 </div>
               )}
-            </div>
-          )}
-        </div>
-      )}
+
+              {/* 남성 목소리 섹션 */}
+              {groupedVoices.male.length > 0 && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 
+                      className="font-bold text-text-dark text-center tracking-[-0.36px]"
+                      style={{ 
+                        fontSize: 'var(--font-size-18)',
+                        lineHeight: '25.2px'
+                      }}
+                    >
+                      남성 목소리
+                    </h4>
+                    <div className="h-0.5 bg-[#bbc9c9] mt-2" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {groupedVoices.male.map((v) => {
+                      const isSelected = voiceTemplate === v.name
+                      const isThisPlaying = isPlaying && playingVoiceName === v.name
+                      const label = getShortName(v.name)
+                      const isThisConfirmOpen = confirmOpen && pendingVoiceName === v.name
+                      return (
+                        <Popover key={v.name} open={isThisConfirmOpen} onOpenChange={(open) => {
+                          if (open) {
+                            openConfirm(v.name)
+                          } else {
+                            setConfirmOpen(false)
+                          }
+                        }}>
+                          <PopoverTrigger asChild>
+                            <div
+                              role="button"
+                              tabIndex={disabled ? -1 : 0}
+                              aria-disabled={disabled}
+                              onClick={() => {
+                                if (disabled) return
+                                openConfirm(v.name)
+                              }}
+                              onKeyDown={(e) => {
+                                if (disabled) return
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  openConfirm(v.name)
+                                }
+                              }}
+                              className="flex items-center gap-4 h-[46px] transition-all hover:opacity-90"
+                            >
+                              <div 
+                                className="w-6 h-6 flex items-center justify-center shrink-0 cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  if (disabled) return
+                                  playDemo(v.name)
+                                }}
+                              >
+                                <Image 
+                                  src="/voiceplay.svg" 
+                                  alt="재생" 
+                                  width={18} 
+                                  height={19}
+                                  className="w-[18px] h-[19px]"
+                                />
+                              </div>
+                              <div 
+                                className={`flex-1 rounded-lg border h-[46px] flex items-center cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[#5e8790] border-[#5e8790]'
+                                  : 'bg-white border-[#88a9ac]'
+                              }`}
+                              >
+                                <div className="px-4 flex items-center">
+                                  <span 
+                                    className={`font-medium tracking-[-0.32px] ${
+                                      isSelected ? 'text-white' : 'text-[#2c2c2c]'
+                                    }`}
+                                    style={{ 
+                                      fontSize: 'var(--font-size-16)',
+                                      lineHeight: '22.4px'
+                                    }}
+                                  >
+                                    {label}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </PopoverTrigger>
+                          
+                          {/* 말풍선 Popover */}
+                          <PopoverContent
+                            side="top"
+                            align="center"
+                            sideOffset={12}
+                            className="w-80 p-5 relative bg-white border-gray-200"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="space-y-4">
+                              <div 
+                                className="font-semibold text-text-dark tracking-[-0.32px]"
+                                style={{ 
+                                  fontSize: 'var(--font-size-16)',
+                                  lineHeight: 'var(--line-height-16-140)'
+                                }}
+                              >
+                                이 목소리로 확정하시겠어요?
+                              </div>
+                              
+                              <div className="flex gap-2 pt-1">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setConfirmOpen(false)}
+                                  className="flex-1 bg-white border-gray-300 text-text-dark hover:bg-gray-50"
+                                >
+                                  다시 선택하기
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={confirmSelection}
+                                  className="flex-1 bg-brand-teal hover:bg-brand-teal-dark text-white"
+                                >
+                                  확정하기
+                                </Button>
+                              </div>
+                            </div>
+                            
+                            {/* 말풍선 화살표 */}
+                            <div
+                              className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
+                              style={{
+                                bottom: '-8px',
+                                borderLeft: '8px solid transparent',
+                                borderRight: '8px solid transparent',
+                                borderTop: '8px solid #ffffff',
+                              }}
+                            />
+                            <div
+                              className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
+                              style={{
+                                bottom: '-9px',
+                                borderLeft: '9px solid transparent',
+                                borderRight: '9px solid transparent',
+                                borderTop: '9px solid #e5e7eb',
+                              }}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      )
+                    })}
+                  </div>
+                </div>
+            )}
+          </>
+        )}
+      </div>
 
       {error && (
-        <div className="text-xs" style={{ color: isDark ? '#fca5a5' : '#b91c1c' }}>
+        <div className="text-sm text-red-600">
           {error}
         </div>
       )}

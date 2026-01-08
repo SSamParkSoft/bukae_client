@@ -99,6 +99,7 @@ export interface TimelineScene {
   duration: number
   transition: string
   transitionDuration?: number // 전환 시간 (초), 기본값 0.5
+  actualPlaybackDuration?: number // 실제 재생 시간 (초), 재생 완료 후 저장됨
   image: string // base64 또는 URL
   imageFit?: ImageFit // 이미지 표시 방식
   splitIndex?: number // 씬 분할 시 하위 번호 (1, 2, 3...), 있으면 독립적인 씬으로 처리

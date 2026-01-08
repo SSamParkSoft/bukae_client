@@ -46,6 +46,7 @@ interface UseSingleScenePlaybackParams {
   getMp3DurationSec: (blob: Blob) => Promise<number>
   activeAnimationsRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>
   spritesRef?: React.MutableRefObject<Map<number, PIXI.Sprite>>
+  setTimeline?: (timeline: TimelineData) => void
 }
 
 export function useSingleScenePlayback({
@@ -65,6 +66,7 @@ export function useSingleScenePlayback({
   getMp3DurationSec,
   activeAnimationsRef,
   spritesRef,
+  setTimeline,
 }: UseSingleScenePlaybackParams) {
   // TTS 리소스 가져오기
   const { ttsCacheRef, ttsAudioRef, ttsAudioUrlRef, stopTtsAudio } = useTtsResources()
@@ -359,6 +361,7 @@ export function useSingleScenePlayback({
         ttsAudioRef.current = audio
 
         try {
+          const playbackStartTime = Date.now()
           await new Promise<void>((resolve) => {
             let isResolved = false
             const resolveOnce = () => {
@@ -373,6 +376,19 @@ export function useSingleScenePlayback({
                 resolveOnce()
                 return
               }
+              
+              // 실제 재생 시간 계산 및 저장
+              const actualPlaybackDuration = (Date.now() - playbackStartTime) / 1000
+              if (timeline && setTimeline && actualPlaybackDuration > 0) {
+                const updatedScenes = timeline.scenes.map((s, idx) => {
+                  if (idx === sceneIndex) {
+                    return { ...s, actualPlaybackDuration }
+                  }
+                  return s
+                })
+                setTimeline({ ...timeline, scenes: updatedScenes })
+              }
+              
               try {
                 audio.removeEventListener('ended', handleEnded)
                 audio.removeEventListener('error', handleError)
@@ -441,6 +457,7 @@ export function useSingleScenePlayback({
     stopTtsAudio,
     setIsPreparing,
     setIsTtsBootstrapping,
+    setTimeline,
     currentSceneIndexRef,
     lastRenderedSceneIndexRef,
     renderSceneContent,

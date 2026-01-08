@@ -60,7 +60,26 @@ const formatDateTime = (dateString: string) => {
 // 영상 목록 컴포넌트
 function VideoList() {
   const theme = useThemeStore((state) => state.theme)
+  const { isAuthenticated } = useUserStore()
   const { data: videos, isLoading, error } = useMyVideos()
+
+
+  // 로그인하지 않은 경우
+  if (!isAuthenticated) {
+    return (
+      <div className={`p-8 rounded-lg border-2 border-dashed text-center ${
+        theme === 'dark' 
+          ? 'border-gray-700 bg-gray-800/50 text-gray-400' 
+          : 'border-gray-200 bg-gray-50 text-gray-500'
+      }`}>
+        <Video className={`w-12 h-12 mx-auto mb-3 ${
+          theme === 'dark' ? 'text-gray-600' : 'text-gray-400'
+        }`} />
+        <p className="font-medium">로그인이 필요해요</p>
+        <p className="text-sm mt-1">로그인 후 영상 목록을 확인할 수 있어요.</p>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -78,13 +97,27 @@ function VideoList() {
   }
 
   if (error) {
+    const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류'
+    const isAuthError = errorMessage.includes('인증') || errorMessage.includes('로그인') || errorMessage.includes('401')
+    
     return (
       <div className={`p-6 rounded-lg border text-center ${
         theme === 'dark' 
           ? 'border-red-500/50 bg-red-900/20 text-red-300' 
           : 'border-red-200 bg-red-50 text-red-700'
       }`}>
-        영상 목록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.
+        <p className="font-medium mb-2">영상 목록을 불러오지 못했어요.</p>
+        {isAuthError ? (
+          <>
+            <p className="text-sm opacity-75">로그인이 필요하거나 인증이 만료되었어요.</p>
+            <p className="text-xs mt-2 opacity-60">다시 로그인해주세요.</p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm opacity-75">{errorMessage}</p>
+            <p className="text-xs mt-2 opacity-60">자세한 내용은 브라우저 콘솔을 확인해주세요.</p>
+          </>
+        )}
       </div>
     )
   }
@@ -105,9 +138,16 @@ function VideoList() {
     )
   }
 
+  // 날짜순 정렬 (오래된순)
+  const sortedVideos = [...videos].sort((a, b) => {
+    const dateA = new Date(a.createdAt).getTime()
+    const dateB = new Date(b.createdAt).getTime()
+    return dateA - dateB // 오름차순 (오래된순)
+  })
+
   return (
     <div className="space-y-4">
-      {videos.map((video) => (
+      {sortedVideos.map((video) => (
         <motion.div
           key={video.id}
           initial={{ opacity: 0, y: 10 }}
@@ -194,7 +234,11 @@ function VideoList() {
                       ? 'bg-gray-700 text-gray-300'
                       : 'bg-gray-100 text-gray-700'
                   }`}>
-                    {video.platformType === 'COUPANG' ? '쿠팡' : video.platformType}
+                    {video.platformType === 'COUPANG' 
+                      ? '쿠팡' 
+                      : video.platformType === 'ETC' 
+                      ? '알리' 
+                      : video.platformType}
                   </span>
                 </div>
 
@@ -395,14 +439,67 @@ export default function ProfilePage() {
           description="프로필 정보와 설정을 관리하세요"
         />
 
-        <Tabs defaultValue="profile" className="w-full">
-          <TabsList className={`grid w-full grid-cols-4 max-w-2xl mb-6 ${
-            theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'
-          }`}>
-            <TabsTrigger value="profile">프로필</TabsTrigger>
-            <TabsTrigger value="services">연동 서비스</TabsTrigger>
-            <TabsTrigger value="activity">활동 내역</TabsTrigger>
-            <TabsTrigger value="settings">설정</TabsTrigger>
+        <Tabs defaultValue="profile" className="w-full" style={{ width: '100%' }}>
+          <TabsList 
+            className={`grid w-full grid-cols-4 max-w-2xl mb-6 ${
+              theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'
+            }`}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              width: '100%',
+              maxWidth: '672px',
+              marginBottom: '24px'
+            }}
+          >
+            <TabsTrigger 
+              value="profile"
+              style={{
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%'
+              }}
+            >
+              프로필
+            </TabsTrigger>
+            <TabsTrigger 
+              value="services"
+              style={{
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%'
+              }}
+            >
+              연동 서비스
+            </TabsTrigger>
+            <TabsTrigger 
+              value="activity"
+              style={{
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%'
+              }}
+            >
+              활동 내역
+            </TabsTrigger>
+            <TabsTrigger 
+              value="settings"
+              style={{
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '100%'
+              }}
+            >
+              설정
+            </TabsTrigger>
           </TabsList>
 
           {/* 프로필 탭 */}

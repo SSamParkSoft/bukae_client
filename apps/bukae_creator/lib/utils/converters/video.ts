@@ -16,8 +16,8 @@ export interface VideoDomain {
   title: string
   description: string
   fileUrl: string
-  partnersLink: string
-  platformType: 'coupang' | 'naver' | 'aliexpress' | 'amazon'
+  partnersLink: string | null
+  platformType: 'coupang' | 'naver' | 'aliexpress' | 'amazon' | 'etc'
   posts: Array<{
     channel: 'youtube' | 'tiktok' | 'instagram'
     postUrl: string
@@ -30,16 +30,17 @@ export interface VideoDomain {
  * PlatformType을 내부 형식으로 변환
  */
 function convertPlatformType(
-  platformType: 'COUPANG' | 'NAVER' | 'ALIEXPRESS' | 'AMAZON'
-): 'coupang' | 'naver' | 'aliexpress' | 'amazon' {
+  platformType: 'COUPANG' | 'NAVER' | 'ALIEXPRESS' | 'AMAZON' | 'ETC'
+): 'coupang' | 'naver' | 'aliexpress' | 'amazon' | 'etc' {
   const map: Record<
-    'COUPANG' | 'NAVER' | 'ALIEXPRESS' | 'AMAZON',
-    'coupang' | 'naver' | 'aliexpress' | 'amazon'
+    'COUPANG' | 'NAVER' | 'ALIEXPRESS' | 'AMAZON' | 'ETC',
+    'coupang' | 'naver' | 'aliexpress' | 'amazon' | 'etc'
   > = {
     COUPANG: 'coupang',
     NAVER: 'naver',
     ALIEXPRESS: 'aliexpress',
     AMAZON: 'amazon',
+    ETC: 'etc',
   }
   return map[platformType] || 'coupang'
 }
