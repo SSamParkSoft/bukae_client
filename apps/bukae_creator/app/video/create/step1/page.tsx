@@ -32,14 +32,14 @@ export default function Step1Page() {
         {/* 헤더 섹션 */}
         <div className="mb-8">
           <div className="flex items-center justify-center mb-4">
-            <span className="text-[var(--font-size-3xl)] font-bold bg-gradient-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[var(--letter-spacing-3xl)] leading-[var(--line-height-4xl)]">
+            <span className="text-[var(--font-size-28)] font-bold bg-gradient-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.56px] leading-[var(--line-height-28-140)]">
               STEP 1
             </span>
           </div>
-          <h1 className="text-center text-[var(--font-size-4xl)] font-bold mb-2 bg-gradient-to-r from-text-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[var(--letter-spacing-4xl)] leading-[var(--line-height-5xl)]">
+          <h1 className="text-center text-[var(--font-size-32)] font-bold mb-2 bg-gradient-to-r from-text-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.64px] leading-[var(--line-height-32-140)]">
             무엇을 제작해볼까요?
           </h1>
-          <p className="text-center text-[var(--font-size-lg)] font-semibold text-brand-teal-dark tracking-[var(--letter-spacing-lg)] leading-[var(--line-height-lg)]">
+          <p className="text-center text-[var(--font-size-18)] font-semibold text-brand-teal-dark tracking-[-0.36px] leading-[var(--line-height-18-140)]">
             원하는 플랫폼과 상품을 선택하세요
           </p>
         </div>
@@ -49,7 +49,7 @@ export default function Step1Page() {
           <div className="inline-flex rounded-[60px] bg-bg-gray-light p-2">
             <button
               onClick={() => setSearchMode('search')}
-              className={`px-6 py-3 rounded-[60px] text-[var(--font-size-2xl)] font-bold transition-all tracking-[var(--letter-spacing-2xl)] leading-[var(--line-height-3xl)] ${
+              className={`px-6 py-3 rounded-[60px] text-[var(--font-size-24)] font-bold transition-all tracking-[-0.48px] leading-[var(--line-height-24-140)] ${
                 searchMode === 'search'
                   ? 'bg-white text-text-dark'
                   : 'bg-transparent text-text-tertiary'
@@ -59,7 +59,7 @@ export default function Step1Page() {
             </button>
             <button
               onClick={() => setSearchMode('url')}
-              className={`px-6 py-3 rounded-[60px] text-[var(--font-size-2xl)] font-bold transition-all tracking-[var(--letter-spacing-2xl)] leading-[var(--line-height-3xl)] ${
+              className={`px-6 py-3 rounded-[60px] text-[var(--font-size-24)] font-bold transition-all tracking-[-0.48px] leading-[var(--line-height-24-140)] ${
                 searchMode === 'url'
                   ? 'bg-white text-text-dark'
                   : 'bg-transparent text-text-tertiary'
@@ -81,7 +81,7 @@ export default function Step1Page() {
                   key={platform}
                   onClick={() => container.handlePlatformSelect(platform)}
                   disabled={!info.enabled}
-                  className={`px-6 py-4 rounded-lg text-[var(--font-size-2xl)] font-bold transition-all tracking-[var(--letter-spacing-2xl)] leading-[var(--line-height-3xl)] ${
+                  className={`px-6 py-4 rounded-lg text-[var(--font-size-24)] font-bold transition-all tracking-[-0.48px] leading-[var(--line-height-24-140)] ${
                     isSelected
                       ? 'bg-brand-teal text-brand-background'
                       : 'bg-white text-brand-teal-dark'
@@ -92,7 +92,7 @@ export default function Step1Page() {
               )
             })}
           </div>
-          <div className="text-[var(--font-size-base)] font-medium text-text-muted leading-[var(--line-height-2xl)] tracking-[var(--letter-spacing-sm)]">
+          <div className="text-[var(--font-size-16)] font-medium text-text-muted leading-[var(--line-height-16-140)] tracking-[-0.16px]">
             💡 복잡한 검색어 고민 NO! 평소 말하는 것처럼 자연스럽게 적어주세요.
             <br />
             💡 AI가 문맥을 파악해 지금 가장 잘 팔리는 '인기 상품'을 추천해 드릴게요.
@@ -111,7 +111,7 @@ export default function Step1Page() {
               onChange={(e) => container.setPrompt(e.target.value)}
               onKeyPress={container.handleKeyPress}
               disabled={container.isSearching || container.selectedPlatform === 'all'}
-              className="w-full pl-6 pr-14 py-4 rounded-[60px] bg-white/80 text-[var(--font-size-lg)] font-semibold text-text-secondary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-teal disabled:opacity-50 disabled:cursor-not-allowed tracking-[var(--letter-spacing-lg)] leading-[var(--line-height-lg)]"
+              className="w-full pl-6 pr-14 py-4 rounded-[60px] bg-white/80 text-[var(--font-size-18)] font-semibold text-text-secondary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-teal disabled:opacity-50 disabled:cursor-not-allowed tracking-[-0.36px] leading-[var(--line-height-18-140)]"
             />
             <button
               onClick={container.handleSearch}
@@ -131,7 +131,7 @@ export default function Step1Page() {
         {container.isSearching && (
           <div className="mb-6 flex items-center justify-center gap-3">
             <Loader2 className="w-6 h-6 animate-spin text-[#15252c]" />
-            <span className="text-[32px] font-bold text-[#15252c] tracking-[-0.64px] leading-[44.8px]">
+            <span className="text-[var(--font-size-32)] font-bold text-[#15252c] tracking-[-0.64px] leading-[var(--line-height-32-140)]">
               AI가 상품을 분석중이에요
             </span>
           </div>
@@ -141,10 +141,10 @@ export default function Step1Page() {
         {selectedCount > 0 && (
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-4">
-              <h2 className="text-[32px] font-bold text-[#15252c] tracking-[-0.64px] leading-[44.8px]">
+              <h2 className="text-[var(--font-size-32)] font-bold text-[#15252c] tracking-[-0.64px] leading-[var(--line-height-32-140)]">
                 선택된 상품
               </h2>
-              <span className="text-[16px] font-bold text-[#111111] tracking-[-0.32px] leading-[22.4px]">
+              <span className="text-[var(--font-size-16)] font-bold text-[#111111] tracking-[-0.32px] leading-[var(--line-height-16-140)]">
                 {selectedCount}개 선택됨
               </span>
             </div>
@@ -196,7 +196,7 @@ export default function Step1Page() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-[18px] font-semibold text-[#111111] mb-2 line-clamp-2 tracking-[-0.36px] leading-[25.2px]">
+                      <h3 className="text-[var(--font-size-18)] font-semibold text-[#111111] mb-2 line-clamp-2 tracking-[-0.36px] leading-[var(--line-height-18-140)]">
                         {product.name || '제품명 없음'}
                       </h3>
                       <div className="mb-2">
@@ -205,7 +205,7 @@ export default function Step1Page() {
                             <span className="text-[14px] font-medium text-[#a6a6a6] line-through tracking-[-0.14px] leading-[19.6px]">
                               {originalPrice.toLocaleString()} {currency}
                             </span>
-                            <span className="text-[24px] font-bold text-[#111111] tracking-[-0.48px] leading-[33.6px]">
+                            <span className="text-[var(--font-size-24)] font-bold text-[#111111] tracking-[-0.48px] leading-[var(--line-height-24-140)]">
                               {salePrice.toLocaleString()} {currency}
                             </span>
                             {displayDiscount && (
@@ -215,13 +215,13 @@ export default function Step1Page() {
                             )}
                           </div>
                         ) : (
-                          <span className="text-[24px] font-bold text-[#111111] tracking-[-0.48px] leading-[33.6px]">
+                          <span className="text-[var(--font-size-24)] font-bold text-[#111111] tracking-[-0.48px] leading-[var(--line-height-24-140)]">
                             {salePrice ? `${salePrice.toLocaleString()} ${currency}` : '가격 정보 없음'}
                           </span>
                         )}
                       </div>
                       {commissionRate && (
-                        <p className="text-[14px] font-bold text-[#5e8790] mb-2 tracking-[-0.14px] leading-[22.4px]">
+                        <p className="text-[var(--font-size-14)] font-bold text-[#5e8790] mb-2 tracking-[-0.14px] leading-[var(--line-height-14-140)]">
                           수수료율: {commissionRate}
                         </p>
                       )}
@@ -229,7 +229,7 @@ export default function Step1Page() {
                         <div className="mt-3 pt-3 border-t border-[#a6a6a6]">
                           <div className="flex items-end justify-end gap-2">
                             <span className="text-[12px] font-medium text-[#111111] leading-[16.8px]">예상 수익</span>
-                            <span className="text-[20px] font-bold text-[#111111] tracking-[-0.4px] leading-[28px]">
+                            <span className="text-[var(--font-size-20)] font-bold text-[#111111] tracking-[-0.4px] leading-[var(--line-height-20-140)]">
                               {Math.round(expectedRevenue).toLocaleString()} {currency}
                             </span>
                           </div>
@@ -241,7 +241,7 @@ export default function Step1Page() {
                     </div>
                     <button
                       onClick={() => container.handleProductToggle(product)}
-                      className="shrink-0 px-4 py-2 rounded-lg bg-[#e4eeed] text-[#111111] text-[12px] font-bold hover:bg-[#d4e0df] transition-colors leading-[16.8px]"
+                      className="shrink-0 px-4 py-2 rounded-lg bg-[#e4eeed] text-[#111111] text-[var(--font-size-12)] font-bold hover:bg-[#d4e0df] transition-colors leading-[var(--line-height-12-140)]"
                     >
                       선택
                     </button>
@@ -250,7 +250,7 @@ export default function Step1Page() {
               })}
               <button
                 onClick={() => router.push('/video/create/step2')}
-                className="w-full mt-4 py-4 rounded-2xl bg-[#5e8790] text-white text-[24px] font-bold flex items-center justify-center gap-2 hover:bg-[#3b6574] transition-colors tracking-[-0.48px] leading-[33.6px]"
+                className="w-full mt-4 py-4 rounded-2xl bg-[#5e8790] text-white text-[var(--font-size-24)] font-bold flex items-center justify-center gap-2 hover:bg-[#3b6574] transition-colors tracking-[-0.48px] leading-[var(--line-height-24-140)]"
               >
                 다음 단계
                 <ArrowRight className="w-6 h-6" />
@@ -263,10 +263,10 @@ export default function Step1Page() {
         {container.currentProducts.length > 0 && (
           <div className="mb-6">
             <div className="flex items-center gap-3 mb-4">
-              <h2 className="text-[32px] font-bold text-[#15252c] tracking-[-0.64px] leading-[44.8px]">
+              <h2 className="text-[var(--font-size-32)] font-bold text-[#15252c] tracking-[-0.64px] leading-[var(--line-height-32-140)]">
                 {container.currentProducts.length}개를 찾았습니다!
               </h2>
-              <span className="text-[16px] font-bold text-[#111111] tracking-[-0.32px] leading-[22.4px]">
+              <span className="text-[var(--font-size-16)] font-bold text-[#111111] tracking-[-0.32px] leading-[var(--line-height-16-140)]">
                 정확한 가격은 링크에서 확인해주세요!
               </span>
             </div>
@@ -322,7 +322,7 @@ export default function Step1Page() {
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-[16px] font-medium text-[#111111] mb-2 line-clamp-2 tracking-[-0.32px] leading-[22.4px]">
+                          <h3 className="text-[var(--font-size-16)] font-medium text-[#111111] mb-2 line-clamp-2 tracking-[-0.32px] leading-[var(--line-height-16-140)]">
                             {product.name || '제품명 없음'}
                           </h3>
                           <div className="mb-2">
@@ -331,7 +331,7 @@ export default function Step1Page() {
                                 <span className="text-[14px] font-medium text-[#a6a6a6] line-through tracking-[-0.14px] leading-[19.6px]">
                                   {originalPrice.toLocaleString()} {currency}
                                 </span>
-                                <span className="text-[24px] font-bold text-[#111111] tracking-[-0.48px] leading-[33.6px]">
+                                <span className="text-[var(--font-size-24)] font-bold text-[#111111] tracking-[-0.48px] leading-[var(--line-height-24-140)]">
                                   {salePrice.toLocaleString()} {currency}
                                 </span>
                                 {displayDiscount && (
@@ -341,13 +341,13 @@ export default function Step1Page() {
                                 )}
                               </div>
                             ) : (
-                              <span className="text-[24px] font-bold text-[#111111] tracking-[-0.48px] leading-[33.6px]">
+                              <span className="text-[var(--font-size-24)] font-bold text-[#111111] tracking-[-0.48px] leading-[var(--line-height-24-140)]">
                                 {salePrice ? `${salePrice.toLocaleString()} ${currency}` : '가격 정보 없음'}
                               </span>
                             )}
                           </div>
                           {commissionRate && (
-                            <p className="text-[14px] font-bold text-[#5e8790] mb-2 tracking-[-0.14px] leading-[22.4px]">
+                            <p className="text-[var(--font-size-14)] font-bold text-[#5e8790] mb-2 tracking-[-0.14px] leading-[var(--line-height-14-140)]">
                               수수료율: {commissionRate}
                             </p>
                           )}
@@ -357,7 +357,7 @@ export default function Step1Page() {
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center gap-1 text-[16px] font-bold text-[#234b60] hover:underline tracking-[-0.32px] leading-[22.4px]"
+                              className="inline-flex items-center gap-1 text-[var(--font-size-16)] font-bold text-[#234b60] hover:underline tracking-[-0.32px] leading-[var(--line-height-16-140)]"
                             >
                               상품 보기
                               <ExternalLink className="w-4 h-4" />
@@ -367,7 +367,7 @@ export default function Step1Page() {
                             <div className="mt-3 pt-3 border-t border-[#a6a6a6]">
                               <div className="flex items-end justify-end gap-2">
                                 <span className="text-[12px] font-medium text-[#111111] leading-[16.8px]">예상 수익</span>
-                                <span className="text-[20px] font-bold text-[#111111] tracking-[-0.4px] leading-[28px]">
+                                <span className="text-[var(--font-size-20)] font-bold text-[#111111] tracking-[-0.4px] leading-[var(--line-height-20-140)]">
                                   {Math.round(expectedRevenue).toLocaleString()} {currency}
                                 </span>
                               </div>
@@ -379,7 +379,7 @@ export default function Step1Page() {
                         </div>
                         <button
                           onClick={() => container.handleProductToggle(product)}
-                          className={`shrink-0 px-4 py-2 rounded-lg text-[12px] font-bold transition-colors leading-[16.8px] ${
+                          className={`shrink-0 px-4 py-2 rounded-lg text-[var(--font-size-12)] font-bold transition-colors leading-[var(--line-height-12-140)] ${
                             isSelected
                               ? 'bg-[#e4eeed] text-[#111111]'
                               : 'bg-[#e4eeed] text-[#111111] hover:bg-[#d4e0df]'
