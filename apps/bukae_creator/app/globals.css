@@ -1,29 +1,36 @@
 @import "tailwindcss";
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
+  --background: 165 33% 96%;
+  --foreground: 0 0% 7%;
   --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
+  --card-foreground: 0 0% 7%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: 262.1 83.3% 57.8%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
+  --popover-foreground: 0 0% 7%;
+  --primary: 190 21% 47%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 186 20% 60%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 175 20% 91%;
+  --muted-foreground: 0 0% 36%;
+  --accent: 175 20% 91%;
+  --accent-foreground: 0 0% 7%;
   --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 262.1 83.3% 57.8%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 186 20% 60%;
+  --input: 0 0% 84%;
+  --ring: 190 21% 47%;
   --radius: 0.5rem;
-  --brand-purple: #a78bfa;
-  --brand-purple-light: #c4b5fd;
-  --brand-purple-dark: #ab8cf4;
+  --brand-teal: #5e8790;
+  --brand-teal-light: #88a9ac;
+  --brand-teal-dark: #3b6574;
+  --brand-background: #f2f9f7;
+  --brand-hover: #e4eeed;
+  --brand-selected: #88a9ac;
+  --text-primary: #111111;
+  --text-secondary: #2c2c2c;
+  --text-tertiary: #5d5d5d;
+  --text-muted: #454545;
 }
 
 @theme inline {
@@ -57,10 +64,10 @@
   --card-foreground: 210 40% 98%;
   --popover: 222.2 84% 4.9%;
   --popover-foreground: 210 40% 98%;
-  --primary: 262.1 83.3% 57.8%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
+  --primary: 190 21% 47%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 186 20% 60%;
+  --secondary-foreground: 0 0% 100%;
   --muted: 217.2 32.6% 17.5%;
   --muted-foreground: 215 20.2% 65.1%;
   --accent: 217.2 32.6% 17.5%;
@@ -69,7 +76,7 @@
   --destructive-foreground: 210 40% 98%;
   --border: 217.2 32.6% 17.5%;
   --input: 217.2 32.6% 17.5%;
-  --ring: 262.1 83.3% 57.8%;
+  --ring: 190 21% 47%;
 }
 
 html, body {
@@ -81,7 +88,7 @@ html, body {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -94,17 +101,17 @@ body {
   color: #ededed;
 }
 
-@keyframes purple-glow {
+@keyframes teal-glow {
   0%, 100% {
-    box-shadow: 0 0 0.5rem rgba(168, 85, 247, 0.4), 0 0 0.3rem rgba(168, 85, 247, 0.3), 0 0 0.3rem rgba(168, 85, 247, 0.2);
+    box-shadow: 0 0 0.5rem rgba(94, 135, 144, 0.4), 0 0 0.3rem rgba(94, 135, 144, 0.3), 0 0 0.3rem rgba(94, 135, 144, 0.2);
   }
   50% {
-    box-shadow: 0 0 0.5rem rgba(195, 130, 255, 0.6), 0 0 0.3rem rgba(168, 85, 247, 0.5), 0 0 0.3rem rgba(168, 85, 247, 0.4);
+    box-shadow: 0 0 0.5rem rgba(136, 169, 172, 0.6), 0 0 0.3rem rgba(94, 135, 144, 0.5), 0 0 0.3rem rgba(94, 135, 144, 0.4);
   }
 }
 
-.animate-purple-glow {
-  animation: purple-glow 2s ease-in-out infinite;
+.animate-teal-glow {
+  animation: teal-glow 2s ease-in-out infinite;
 }
 
 /* Google Identity Services Material Button */
@@ -112,7 +119,9 @@ body {
   -moz-user-select: none;
   -webkit-user-select: none;
   -ms-user-select: none;
+  user-select: none;
   -webkit-appearance: none;
+  appearance: none;
   background-color: white;
   background-image: none;
   border: 1px solid #747775;

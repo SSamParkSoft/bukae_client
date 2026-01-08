@@ -18,6 +18,9 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        effect: "border border-[#88a9ac] bg-white text-[#2c2c2c] hover:bg-[#e4eeed] rounded-lg",
+        "effect-selected": "bg-[#88a9ac] text-white border border-[#88a9ac] rounded-lg",
+        "effect-hover": "bg-[#e4eeed] border border-[#88a9ac] text-[#2c2c2c] rounded-lg",
       },
       size: {
         default: "h-10 px-4 py-2",
@@ -25,6 +28,7 @@ const buttonVariants = cva(
         sm: "h-9 rounded-md px-3",
         lg: "h-11 rounded-md px-8",
         icon: "h-10 w-10",
+        "small": "h-12 w-12 rounded-lg",
       },
     },
     defaultVariants: {
@@ -38,8 +42,8 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean
-  size?: "default" | "xs" | "sm" | "lg" | "icon"
-  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link"
+  size?: "default" | "xs" | "sm" | "lg" | "icon" | "small"
+  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | "effect" | "effect-selected" | "effect-hover"
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(

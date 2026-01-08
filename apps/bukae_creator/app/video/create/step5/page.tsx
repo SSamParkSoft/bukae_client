@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import StepIndicator from '@/components/StepIndicator'
+import BukaeTop from '@/components/BukaeTop'
 import { useStep5Container } from './hooks/useStep5Container'
 
 function Step5PageContent() {
@@ -24,7 +24,7 @@ function Step5PageContent() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-purple-600" />
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-[#5e8790]" />
           <p className={container.theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}>인증 확인 중...</p>
         </div>
       </div>
@@ -37,12 +37,11 @@ function Step5PageContent() {
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.3 }}
-      className="flex min-h-screen justify-center"
+      className="flex min-h-screen flex-col"
     >
-      <div className="flex w-full max-w-[1600px]">
-        <StepIndicator />
-        <div className="flex-1 p-4 md:p-8 overflow-y-auto min-w-0">
-          <div className="max-w-5xl mx-auto space-y-6">
+      <BukaeTop variant="make" />
+      <div className="flex-1 p-4 md:p-8 overflow-y-auto min-w-0">
+          <div className="max-w-5xl mx-auto space-y-6 pt-8">
             {/* 영상 렌더링 진행 상황 */}
             {container.jobId && (
               <div>
@@ -269,7 +268,7 @@ function Step5PageContent() {
                           container.theme === 'dark'
                             ? 'bg-gray-900 border-gray-700 text-white placeholder-gray-400'
                             : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500'
-                        } focus:outline-none focus:ring-2 focus:ring-purple-500`}
+                        } focus:outline-none focus:ring-2 focus:ring-[#5e8790]`}
                       />
                       <p className={`text-sm ${
                         container.theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
@@ -279,10 +278,10 @@ function Step5PageContent() {
                     </div>
 
                     {container.isGenerating && (
-                      <div className="flex items-center gap-2 rounded-md px-3 py-2 border border-dashed border-purple-400/60 bg-purple-50 dark:bg-purple-900/20">
-                        <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                      <div className="flex items-center gap-2 rounded-md px-3 py-2 border border-dashed border-[#88a9ac]/60 bg-[#e4eeed] dark:bg-[#5e8790]/20">
+                        <Loader2 className="w-4 h-4 animate-spin text-[#5e8790]" />
                         <p className={`text-sm ${
-                          container.theme === 'dark' ? 'text-purple-200' : 'text-purple-800'
+                          container.theme === 'dark' ? 'text-[#88a9ac]' : 'text-[#234b60]'
                         }`}>
                           AI가 제목을 생성하고 있어요...
                         </p>
@@ -292,10 +291,10 @@ function Step5PageContent() {
                     {container.videoTitleCandidates[0] && (
                       <div className={`flex items-center gap-2 rounded-md px-3 py-2 border ${
                         container.theme === 'dark'
-                          ? 'border-purple-700 bg-purple-900/20 text-purple-200'
-                          : 'border-purple-200 bg-purple-50 text-purple-800'
+                          ? 'border-[#88a9ac] bg-[#5e8790]/20 text-[#88a9ac]'
+                          : 'border-[#88a9ac] bg-[#e4eeed] text-[#234b60]'
                       }`}>
-                        <CheckCircle2 className="w-4 h-4 text-purple-500" />
+                        <CheckCircle2 className="w-4 h-4 text-[#5e8790]" />
                         <p className="text-sm">
                           AI 추천 제목: {container.videoTitleCandidates[0]}
                         </p>
@@ -306,14 +305,14 @@ function Step5PageContent() {
 
                 {/* 선택된 제목 표시 */}
                 {container.videoTitle && (
-                  <Card className={container.theme === 'dark' ? 'bg-purple-900/20 border-purple-700' : 'bg-purple-50 border-purple-200'}>
+                  <Card className={container.theme === 'dark' ? 'bg-[#5e8790]/20 border-[#88a9ac]' : 'bg-[#e4eeed] border-[#88a9ac]'}>
                     <CardContent className="pt-6">
                       <div className="flex items-center gap-2">
                         <CheckCircle2 className={`w-5 h-5 ${
-                          container.theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
+                          container.theme === 'dark' ? 'text-[#88a9ac]' : 'text-[#5e8790]'
                         }`} />
                         <p className={`font-medium ${
-                          container.theme === 'dark' ? 'text-purple-300' : 'text-purple-800'
+                          container.theme === 'dark' ? 'text-[#88a9ac]' : 'text-[#234b60]'
                         }`}>
                           선택된 제목: {container.videoTitle}
                         </p>
@@ -468,7 +467,7 @@ function Step5PageContent() {
           <div className={`rounded-lg border px-4 py-3 text-sm ${
             container.theme === 'dark'
               ? 'bg-gray-900 border-gray-700 text-gray-100'
-              : 'bg-purple-50 border-purple-200 text-purple-900'
+              : 'bg-[#e4eeed] border-[#88a9ac] text-[#234b60]'
           }`}>
             제작된 영상은 30일간 보관 후 자동 삭제됩니다. <br />기한 내 필요한 파일은 다운로드해 주세요!
           </div>

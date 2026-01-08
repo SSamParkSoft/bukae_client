@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "TalkToFigma": {
+      "command": "bunx",
+      "args": [
+        "cursor-talk-to-figma-mcp@latest"
+      ],
+      "env": {
+        "FIGMA_MCP_PORT": "3055"
+      }
+    }
+  }
+}
