@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { videosApi } from '@/lib/api/videos'
 import type { VideoListItem } from '@/lib/types/api/video'
+import { authStorage } from '@/lib/api/auth-storage'
 
 export const useVideos = () => {
   return useQuery({
@@ -13,9 +14,13 @@ export const useVideos = () => {
 }
 
 export const useMyVideos = () => {
+  // 인증 토큰이 있을 때만 API 호출
+  const hasToken = authStorage.hasTokens()
+  
   return useQuery<VideoListItem[]>({
     queryKey: ['my-videos'],
     queryFn: () => videosApi.getMyVideos(),
+    enabled: hasToken, // 인증 토큰이 있을 때만 활성화
     staleTime: 30 * 1000, // 30초
   })
 }

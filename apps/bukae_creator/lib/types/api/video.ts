@@ -67,7 +67,7 @@ export interface VideoListItem {
   title: string
   description: string
   fileUrl: string
-  partnersLink: string
+  partnersLink: string | null // null 허용
   platformType: PlatformType
   posts: VideoPost[]
   sequence: number
