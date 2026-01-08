@@ -14,7 +14,6 @@ interface ConceptOption {
 interface ToneOption {
   id: string
   label: string
-  tier: string
 }
 
 interface ConceptCardProps {

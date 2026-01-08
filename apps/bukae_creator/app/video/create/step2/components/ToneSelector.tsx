@@ -9,7 +9,6 @@ import type { ConceptType } from '@/lib/data/templates'
 interface ToneOption {
   id: string
   label: string
-  tier: string
 }
 
 interface ToneSelectorProps {

@@ -52,7 +52,7 @@ export interface Video {
 }
 
 // 내 영상 목록 조회 API 응답 타입
-export type PlatformType = 'COUPANG' | 'NAVER' | 'ALIEXPRESS' | 'AMAZON'
+export type PlatformType = 'COUPANG' | 'NAVER' | 'ALIEXPRESS' | 'AMAZON' | 'ETC'
 
 export type ChannelType = 'YOUTUBE' | 'TIKTOK' | 'INSTAGRAM'
 
