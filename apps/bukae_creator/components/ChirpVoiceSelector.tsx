@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
+import { Loader2 } from 'lucide-react'
 
 type GenderGroup = 'MALE' | 'FEMALE' | 'OTHER'
 
@@ -292,7 +293,11 @@ export default function ChirpVoiceSelector({
       )}
 
       <div className="space-y-6">
-        {voices.length === 0 && !isLoadingVoices ? (
+        {isLoadingVoices ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-[#5e8790]" />
+          </div>
+        ) : voices.length === 0 ? (
           <div className="text-sm text-text-dark">
             사용 가능한 목소리가 없어요.
           </div>

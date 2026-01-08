@@ -176,6 +176,7 @@ export function useFullPlayback({
     textsRef,
     containerRef,
     getMp3DurationSec,
+    setTimeline,
   })
 
   // useGroupPlayback 인스턴스 생성
@@ -614,15 +615,47 @@ export function useFullPlayback({
 
         // 그룹 재생 완료 후 누적 시간 업데이트 및 재생바 업데이트
         // 실제 재생된 시간을 정확히 계산
+        let actualGroupDuration = 0
         if (groupPlaybackStartTimeRef.current !== null) {
           // 실제 재생된 시간 계산 (재생 시작 시점부터 현재까지)
           const actualElapsed = (Date.now() - groupPlaybackStartTimeRef.current) / 1000
           // groupDuration과 실제 경과 시간 중 작은 값 사용 (정확한 동기화)
-          const actualDuration = Math.min(actualElapsed, groupDuration)
-          accumulatedTimeRef.current += actualDuration
+          actualGroupDuration = Math.min(actualElapsed, groupDuration)
+          accumulatedTimeRef.current += actualGroupDuration
         } else {
           // fallback: 계산된 duration 사용
-          accumulatedTimeRef.current += groupDuration
+          actualGroupDuration = groupDuration
+          accumulatedTimeRef.current += actualGroupDuration
+        }
+        
+        // 전체 재생 시 각 씬의 실제 재생 시간 저장
+        if (timeline && setTimeline && actualGroupDuration > 0) {
+          if (sceneId !== undefined && groupIndices.length > 1) {
+            // 그룹 재생: 그룹 내 각 씬에 실제 재생 시간 저장
+            const durationPerScene = actualGroupDuration / groupIndices.length
+            const updatedScenes = timeline.scenes.map((s, idx) => {
+              if (groupIndices.includes(idx)) {
+                return { ...s, actualPlaybackDuration: durationPerScene }
+              }
+              return s
+            })
+            setTimeline({ ...timeline, scenes: updatedScenes })
+          } else {
+            // 단일 씬 재생: 각 씬에 실제 재생 시간 저장
+            for (const sceneIndex of groupIndices) {
+              const scene = timeline.scenes[sceneIndex]
+              if (scene) {
+                // 단일 씬 재생 시간은 그룹 duration과 동일
+                const updatedScenes = timeline.scenes.map((s, idx) => {
+                  if (idx === sceneIndex) {
+                    return { ...s, actualPlaybackDuration: actualGroupDuration }
+                  }
+                  return s
+                })
+                setTimeline({ ...timeline, scenes: updatedScenes })
+              }
+            }
+          }
         }
         
         // currentGroupStartTimeRef 업데이트 (다음 그룹 재생을 위해)

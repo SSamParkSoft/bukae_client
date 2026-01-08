@@ -1,9 +1,10 @@
 'use client'
 
 import React, { memo, useMemo, useState, useEffect } from 'react'
-import { Play, Pause, Clock, Loader2, Grid3x3, Edit2, Download } from 'lucide-react'
+import { Play, Pause, Clock, Loader2, Grid3x3, Edit2, Download, ChevronDown } from 'lucide-react'
 import { formatTime, calculateTotalDuration } from '@/utils/timeline'
 import type { TimelineData } from '@/store/useVideoCreateStore'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 interface PreviewPanelProps {
   theme: string | undefined
@@ -18,7 +19,6 @@ interface PreviewPanelProps {
   progressRatio: number
   isPlaying: boolean
   showReadyMessage: boolean
-  showVoiceRequiredMessage?: boolean
   isTtsBootstrapping: boolean
   isBgmBootstrapping: boolean
   isPreparing: boolean
@@ -43,7 +43,6 @@ export const PreviewPanel = memo(function PreviewPanel({
   totalDuration,
   isPlaying,
   showReadyMessage,
-  showVoiceRequiredMessage = false,
   isTtsBootstrapping,
   isBgmBootstrapping,
   isPreparing,
@@ -194,22 +193,22 @@ export const PreviewPanel = memo(function PreviewPanel({
           }}
         >
           {/* 타임라인 시간 표시 및 바 */}
-          <div className="space-y-1">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span 
-                className="font-medium text-[#2c2c2c] tracking-[-0.32px] text-xs"
+                className="font-medium text-[#2c2c2c] tracking-[-0.32px]"
                 style={{ 
-                  fontSize: '11px',
-                  lineHeight: '15px'
+                  fontSize: 'var(--font-size-12)',
+                  lineHeight: 'var(--line-height-16-140)'
                 }}
               >
                 {formatTime(actualTime)}
               </span>
               <span 
-                className="font-medium text-[#2c2c2c] tracking-[-0.32px] text-xs"
+                className="font-medium text-[#2c2c2c] tracking-[-0.32px]"
                 style={{ 
-                  fontSize: '11px',
-                  lineHeight: '15px'
+                  fontSize: 'var(--font-size-12)',
+                  lineHeight: 'var(--line-height-16-140)'
                 }}
               >
                 {formatTime(actualDuration)}
@@ -218,14 +217,21 @@ export const PreviewPanel = memo(function PreviewPanel({
             
             <div
               ref={timelineBarRef}
-              className="w-full h-1 bg-white rounded-full cursor-pointer relative"
+              className="w-full h-1 bg-white rounded-full cursor-pointer relative shadow-sm hover:shadow-md transition-shadow group"
               onMouseDown={onTimelineMouseDown}
             >
               <div
-                className="h-full rounded-full bg-brand-teal"
+                className="h-full rounded-full bg-brand-teal transition-all"
                 style={{
                   width: `${latestProgressRatio * 100}%`,
                   transition: isPlaying ? 'none' : 'width 0.1s ease-out'
+                }}
+              />
+              {/* 진행 위치 표시 핸들 */}
+              <div
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-brand-teal rounded-full border-2 border-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{
+                  left: `${latestProgressRatio * 100}%`,
                 }}
               />
             </div>
@@ -237,12 +243,6 @@ export const PreviewPanel = memo(function PreviewPanel({
               <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-purple-600 text-white text-xs px-2 py-1.5 rounded-lg shadow-lg whitespace-nowrap z-50 animate-bounce">
                 재생이 가능해요!
                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-purple-600"></div>
-              </div>
-            )}
-            {showVoiceRequiredMessage && (
-              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-red-500 text-white text-xs px-2 py-1.5 rounded-lg shadow-lg whitespace-nowrap z-50 animate-bounce">
-                음성을 먼저 선택해주세요
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-red-500"></div>
               </div>
             )}
             <button
@@ -343,30 +343,46 @@ export const PreviewPanel = memo(function PreviewPanel({
               >
                 배속:
               </span>
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
-                    const currentIndex = speeds.findIndex(s => Math.abs(s - speed) < 0.01)
-                    const nextIndex = (currentIndex + 1) % speeds.length
-                    onPlaybackSpeedChange(speeds[nextIndex])
-                  }}
-                  className="w-[60px] h-6 bg-[#e3e3e3] border border-[#d6d6d6] rounded-lg flex items-center justify-between px-1.5 hover:bg-gray-200 transition-all"
-                >
-                  <span 
-                    className="font-medium text-[#5d5d5d] tracking-[-0.14px] text-xs"
-                    style={{ 
-                      fontSize: '11px',
-                      lineHeight: '15px'
-                    }}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-[60px] h-6 bg-[#e3e3e3] border border-[#d6d6d6] rounded-lg flex items-center justify-between px-1.5 hover:bg-gray-200 transition-all"
                   >
-                    {speedValue}x
-                  </span>
-                  <svg className="w-3 h-3 text-[#5d5d5d]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-              </div>
+                    <span 
+                      className="font-medium text-[#5d5d5d] tracking-[-0.14px] text-xs"
+                      style={{ 
+                        fontSize: '11px',
+                        lineHeight: '15px'
+                      }}
+                    >
+                      {speedValue}x
+                    </span>
+                    <ChevronDown className="w-3 h-3 text-[#5d5d5d]" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent 
+                  className="w-32 p-1"
+                  align="start"
+                >
+                  <div className="flex flex-col">
+                    {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((speedOption) => (
+                      <button
+                        key={speedOption}
+                        type="button"
+                        onClick={() => {
+                          onPlaybackSpeedChange(speedOption)
+                        }}
+                        className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                          Math.abs(speed - speedOption) < 0.01 ? 'bg-gray-100 font-semibold' : ''
+                        }`}
+                      >
+                        {speedOption === 1.0 ? '1.00' : speedOption === 2.0 ? '2.00' : speedOption.toFixed(2)}x
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="flex items-center gap-1">
               <span 

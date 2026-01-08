@@ -997,48 +997,97 @@ export function useStep3Container() {
     []
   )
 
-  // Timeline의 duration을 TTS 캐시의 실제 duration으로 업데이트 (모든 part의 실제 duration 합산)
+  // Timeline의 duration을 계산 (실제 재생 시간 우선, 없으면 TTS 캐시 기반 계산)
+  // 실제 재생 시간이 있으면 그것을 사용하고, 없으면 한 번만 TTS 캐시 기반으로 계산
+  // 스크립트가 변경되지 않았고 actualPlaybackDuration이 있으면 재계산하지 않음
   useEffect(() => {
     if (!timeline || !voiceTemplate) return
     
+    // 변경된 씬이 있는지 확인 (스크립트가 변경된 씬은 재계산 필요)
+    const hasChangedScenes = changedScenesRef.current.size > 0
+    
     const updatedScenes = timeline.scenes.map((scene, index) => {
+      // 실제 재생 시간이 있고, 해당 씬이 변경되지 않았으면 그것을 사용 (가장 정확함)
+      if (scene.actualPlaybackDuration && scene.actualPlaybackDuration > 0 && !changedScenesRef.current.has(index)) {
+        return { ...scene, duration: scene.actualPlaybackDuration }
+      }
+      
+      // 실제 재생 시간이 없으면 TTS 캐시 기반으로 계산 (한 번만)
       const markups = buildSceneMarkup(timeline, index)
       if (markups.length === 0) return scene
       
       let totalTtsDuration = 0
       let cachedPartsCount = 0
       let cachedPartsTotalDuration = 0
+      let uncachedPartsTextLength = 0
+      let cachedPartsTextLength = 0
       
-      // 모든 part의 TTS duration 합산
+      // 모든 part의 TTS duration 합산 및 텍스트 길이 계산
       for (let partIndex = 0; partIndex < markups.length; partIndex++) {
         const markup = markups[partIndex]
         const key = makeTtsKey(voiceTemplate, markup)
         const cached = ttsCacheRef.current.get(key)
+        
+        // 텍스트 길이 계산 (공백 제거)
+        const textLength = markup.replace(/\s+/g, '').length
+        
         if (cached && cached.durationSec > 0) {
           totalTtsDuration += cached.durationSec
           cachedPartsTotalDuration += cached.durationSec
           cachedPartsCount++
+          cachedPartsTextLength += textLength
+        } else {
+          uncachedPartsTextLength += textLength
         }
       }
       
       // 모든 part가 캐시에 있으면 정확한 합계 사용
       if (cachedPartsCount === markups.length && totalTtsDuration > 0) {
-        if (Math.abs(totalTtsDuration - scene.duration) > 0.01) {
-          return { ...scene, duration: totalTtsDuration }
-        }
+        // TTS 캐시에서 계산된 duration이 더 정확하므로 항상 업데이트
+        return { ...scene, duration: totalTtsDuration }
       } 
-      // 일부 part만 캐시에 있는 경우: 캐시된 part의 평균 duration으로 추정
+      // 일부 part만 캐시에 있는 경우: 더 정확한 추정
       else if (cachedPartsCount > 0 && cachedPartsTotalDuration > 0) {
+        // 방법 1: 캐시된 part의 평균 duration으로 추정
         const avgCachedDuration = cachedPartsTotalDuration / cachedPartsCount
         const uncachedPartsCount = markups.length - cachedPartsCount
-        const estimatedUncachedDuration = avgCachedDuration * uncachedPartsCount
-        const estimatedTotal = totalTtsDuration + estimatedUncachedDuration
+        const estimatedByAvg = totalTtsDuration + (avgCachedDuration * uncachedPartsCount)
         
-        // 추정값이 합리적인 범위 내에 있으면 사용 (기존 duration의 0.3배 ~ 3배)
-        if (estimatedTotal > scene.duration * 0.3 && estimatedTotal < scene.duration * 3) {
-          if (Math.abs(estimatedTotal - scene.duration) > 0.01) {
-            return { ...scene, duration: estimatedTotal }
-          }
+        // 방법 2: 텍스트 길이 기반 추정 (더 정확)
+        let estimatedByText = totalTtsDuration
+        if (cachedPartsTextLength > 0 && uncachedPartsTextLength > 0) {
+          // 캐시된 part의 초당 글자 수 계산
+          const charsPerSecond = cachedPartsTextLength / cachedPartsTotalDuration
+          // 캐시되지 않은 part의 duration 추정
+          const estimatedUncachedDuration = uncachedPartsTextLength / charsPerSecond
+          estimatedByText = totalTtsDuration + estimatedUncachedDuration
+        }
+        
+        // 두 방법 중 더 신뢰할 수 있는 방법 선택
+        // 텍스트 길이 기반 추정이 더 정확하므로 우선 사용
+        const estimatedTotal = estimatedByText > 0 ? estimatedByText : estimatedByAvg
+        
+        // 추정값이 합리적인 범위 내에 있으면 사용
+        // 캐시된 part가 많을수록 더 신뢰할 수 있으므로 조건 완화
+        const cacheRatio = cachedPartsCount / markups.length
+        const minRatio = cacheRatio >= 0.7 ? 0.2 : (cacheRatio >= 0.5 ? 0.3 : 0.4)
+        const maxRatio = cacheRatio >= 0.7 ? 2.0 : (cacheRatio >= 0.5 ? 3.0 : 4.0)
+        
+        if (estimatedTotal > 0 && estimatedTotal >= scene.duration * minRatio && estimatedTotal <= scene.duration * maxRatio) {
+          return { ...scene, duration: estimatedTotal }
+        }
+        // 추정값이 범위를 벗어나도 캐시 비율이 높으면 사용
+        else if (cacheRatio >= 0.7 && estimatedTotal > 0) {
+          return { ...scene, duration: estimatedTotal }
+        }
+      }
+      // 캐시가 전혀 없는 경우: 텍스트 길이 기반 추정 (초당 8글자)
+      else if (uncachedPartsTextLength > 0) {
+        const estimatedByTextLength = uncachedPartsTextLength / 8
+        // 최소 1초, 기존 duration과 비교하여 합리적인 범위 내에 있으면 사용
+        const estimatedTotal = Math.max(1, estimatedByTextLength)
+        if (estimatedTotal >= scene.duration * 0.3 && estimatedTotal <= scene.duration * 3) {
+          return { ...scene, duration: estimatedTotal }
         }
       }
       
@@ -2044,10 +2093,23 @@ export function useStep3Container() {
   const handlePlayPause = useCallback(() => {
     if (isPlaying) {
       fullPlayback?.stopAllScenes()
+      setShowVoiceRequiredMessage(false)
     } else {
+      // 음성 선택 여부 확인 (null, undefined, 빈 문자열 모두 체크)
+      if (!voiceTemplate || voiceTemplate.trim() === '') {
+        setShowVoiceRequiredMessage(true)
+        // 음성 탭으로 자동 이동
+        setRightPanelTab('voice')
+        // 3초 후 자동으로 숨김
+        setTimeout(() => {
+          setShowVoiceRequiredMessage(false)
+        }, 3000)
+        return
+      }
+      setShowVoiceRequiredMessage(false)
       void fullPlayback?.playAllScenes()
     }
-  }, [isPlaying, fullPlayback])
+  }, [isPlaying, fullPlayback, voiceTemplate, setRightPanelTab])
 
   // 크기 조정하기 핸들러
   const handleResizeTemplate = useCallback(() => {

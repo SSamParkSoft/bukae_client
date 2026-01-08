@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { GripVertical, Copy, Trash2, Play, Pause, Loader2, ChevronDown, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 import type { SceneScript } from '@/lib/types/domain/script'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
@@ -64,6 +65,7 @@ export function SceneList({
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
   const [previewingSceneIndex, setPreviewingSceneIndex] = useState<number | null>(null)
   const [previewingPartIndex, setPreviewingPartIndex] = useState<number | null>(null)
+  const [draggedGroupId, setDraggedGroupId] = useState<number | null>(null) // 드래그 중인 그룹의 sceneId
 
   // 씬 구조 정보 store
   const sceneStructureStore = useSceneStructureStore()
@@ -71,6 +73,24 @@ export function SceneList({
   // 드래그 시작
   const handleDragStart = (index: number) => {
     setDraggedIndex(index)
+    const scene = scenes[index]
+    if (scene) {
+      const groupScenes = scenes.filter(s => s.sceneId === scene.sceneId)
+      if (groupScenes.length > 1) {
+        setDraggedGroupId(scene.sceneId)
+      } else {
+        setDraggedGroupId(null)
+      }
+    }
+  }
+
+  // 그룹 드래그 시작
+  const handleGroupDragStart = (groupSceneId: number) => {
+    const groupScenes = scenes.filter(s => s.sceneId === groupSceneId)
+    if (groupScenes.length > 0) {
+      setDraggedIndex(groupScenes[0].sceneId ? scenes.findIndex(s => s.sceneId === groupSceneId) : 0)
+      setDraggedGroupId(groupSceneId)
+    }
   }
 
   // 드롭 위치 계산
@@ -82,13 +102,21 @@ export function SceneList({
     const draggedScene = scenes[draggedIndex]
     const targetScene = scenes[index]
     
-    // 같은 sceneId를 가진 씬들 찾기 (같은 그룹)
-    const draggedGroupScenes = scenes.filter(s => s.sceneId === draggedScene.sceneId)
-    
-    // 그룹화된 씬은 같은 그룹 내에서만 이동 가능
-    if (draggedGroupScenes.length > 1 && draggedScene.sceneId !== targetScene.sceneId) {
-      // 다른 그룹으로 드래그하면 드롭 위치 표시 안 함
-      return
+    // 그룹 드래그인 경우
+    if (draggedGroupId !== null) {
+      // 같은 그룹으로 드래그하는 것은 허용하지 않음
+      if (targetScene.sceneId === draggedGroupId) {
+        return
+      }
+    } else {
+      // 개별 씬 드래그인 경우
+      const draggedGroupScenes = scenes.filter(s => s.sceneId === draggedScene.sceneId)
+      
+      // 그룹화된 씬은 같은 그룹 내에서만 이동 가능
+      if (draggedGroupScenes.length > 1 && draggedScene.sceneId !== targetScene.sceneId) {
+        // 다른 그룹으로 드래그하면 드롭 위치 표시 안 함
+        return
+      }
     }
     
     const rect = event.currentTarget.getBoundingClientRect()
@@ -97,11 +125,80 @@ export function SceneList({
     setDragOver({ index, position })
   }
 
+  // 그룹 드롭 위치 계산
+  const handleGroupDragOver = (event: React.DragEvent<HTMLDivElement>, targetGroupSceneId: number) => {
+    event.preventDefault()
+    
+    if (draggedGroupId === null) return
+    
+    // 같은 그룹으로 드래그하는 것은 허용하지 않음
+    if (targetGroupSceneId === draggedGroupId) {
+      return
+    }
+    
+    const targetGroupScenes = scenes.filter(s => s.sceneId === targetGroupSceneId)
+    if (targetGroupScenes.length === 0) return
+    
+    const targetIndex = targetGroupScenes[0].sceneId ? scenes.findIndex(s => s.sceneId === targetGroupSceneId) : 0
+    
+    const rect = event.currentTarget.getBoundingClientRect()
+    const offsetY = event.clientY - rect.top
+    const position: 'before' | 'after' = offsetY < rect.height / 2 ? 'before' : 'after'
+    setDragOver({ index: targetIndex, position })
+  }
+
   // 드롭
   const handleDrop = (event?: React.DragEvent<HTMLDivElement>) => {
     event?.preventDefault()
     if (draggedIndex === null || !dragOver) return
 
+    // 그룹 드래그인 경우
+    if (draggedGroupId !== null) {
+      const draggedGroupScenes = scenes.filter(s => s.sceneId === draggedGroupId)
+      const draggedIndices = draggedGroupScenes.map(s => scenes.indexOf(s)).filter(idx => idx !== -1).sort((a, b) => a - b)
+      
+      if (draggedIndices.length === 0) {
+        setDraggedIndex(null)
+        setDraggedGroupId(null)
+        setDragOver(null)
+        return
+      }
+
+      const targetScene = scenes[dragOver.index]
+      
+      // 같은 그룹으로 드롭하려고 하면 무시
+      if (targetScene.sceneId === draggedGroupId) {
+        setDraggedIndex(null)
+        setDraggedGroupId(null)
+        setDragOver(null)
+        return
+      }
+
+      // 순서 변경 - 그룹의 모든 씬을 함께 이동
+      const newOrder = scenes.map((_, idx) => idx)
+      
+      // 드래그된 그룹의 모든 인덱스 제거
+      for (let i = draggedIndices.length - 1; i >= 0; i--) {
+        newOrder.splice(draggedIndices[i], 1)
+      }
+
+      let targetIndex = dragOver.position === 'after' ? dragOver.index + 1 : dragOver.index
+      
+      // 제거된 인덱스 개수만큼 조정
+      const removedBeforeTarget = draggedIndices.filter(idx => idx < targetIndex).length
+      targetIndex -= removedBeforeTarget
+
+      // 그룹의 모든 씬을 새로운 위치에 삽입
+      newOrder.splice(targetIndex, 0, ...draggedIndices)
+      onReorder(newOrder)
+
+      setDraggedIndex(null)
+      setDraggedGroupId(null)
+      setDragOver(null)
+      return
+    }
+
+    // 개별 씬 드래그인 경우
     const draggedScene = scenes[draggedIndex]
     const targetScene = scenes[dragOver.index]
     
@@ -112,6 +209,7 @@ export function SceneList({
     if (draggedGroupScenes.length > 1 && draggedScene.sceneId !== targetScene.sceneId) {
       // 다른 그룹으로 드롭하려고 하면 무시
       setDraggedIndex(null)
+      setDraggedGroupId(null)
       setDragOver(null)
       return
     }
@@ -130,6 +228,7 @@ export function SceneList({
       const finalTargetScene = scenes[targetIndex]
       if (finalTargetScene.sceneId !== draggedScene.sceneId) {
         setDraggedIndex(null)
+        setDraggedGroupId(null)
         setDragOver(null)
         return
       }
@@ -139,12 +238,62 @@ export function SceneList({
     onReorder(newOrder)
 
     setDraggedIndex(null)
+    setDraggedGroupId(null)
+    setDragOver(null)
+  }
+
+  // 그룹 드롭
+  const handleGroupDrop = (event?: React.DragEvent<HTMLDivElement>) => {
+    event?.preventDefault()
+    if (draggedGroupId === null || !dragOver) return
+
+    const draggedGroupScenes = scenes.filter(s => s.sceneId === draggedGroupId)
+    const draggedIndices = draggedGroupScenes.map(s => scenes.indexOf(s)).filter(idx => idx !== -1).sort((a, b) => a - b)
+    
+    if (draggedIndices.length === 0) {
+      setDraggedIndex(null)
+      setDraggedGroupId(null)
+      setDragOver(null)
+      return
+    }
+
+    const targetScene = scenes[dragOver.index]
+    
+    // 같은 그룹으로 드롭하려고 하면 무시
+    if (targetScene.sceneId === draggedGroupId) {
+      setDraggedIndex(null)
+      setDraggedGroupId(null)
+      setDragOver(null)
+      return
+    }
+
+    // 순서 변경 - 그룹의 모든 씬을 함께 이동
+    const newOrder = scenes.map((_, idx) => idx)
+    
+    // 드래그된 그룹의 모든 인덱스 제거
+    for (let i = draggedIndices.length - 1; i >= 0; i--) {
+      newOrder.splice(draggedIndices[i], 1)
+    }
+
+    let targetIndex = dragOver.position === 'after' ? dragOver.index + 1 : dragOver.index
+    
+    // 제거된 인덱스 개수만큼 조정
+    const removedBeforeTarget = draggedIndices.filter(idx => idx < targetIndex).length
+    targetIndex -= removedBeforeTarget
+
+    // 그룹의 모든 씬을 새로운 위치에 삽입
+    newOrder.splice(targetIndex, 0, ...draggedIndices)
+    onReorder(newOrder)
+
+    setDraggedIndex(null)
+    setDraggedGroupId(null)
     setDragOver(null)
   }
 
   // 드래그 종료
   const handleDragEnd = () => {
     setDraggedIndex(null)
+    setDraggedGroupId(null)
     setDragOver(null)
   }
 
@@ -167,15 +316,23 @@ export function SceneList({
 
   return (
     <div className="space-y-3">
-      {sceneGroups.map((group) => {
+      {sceneGroups.map((group, groupIndex) => {
         const isGrouped = group.indices.length > 1
         const firstSceneIndex = group.indices[0]
         // 그룹의 첫 번째 씬 선택 (splitIndex가 없거나 0인 씬, 없으면 group.indices[0])
         const firstSceneIndexInGroup = group.indices.find(idx => scenes[idx] && !scenes[idx].splitIndex) ?? group.indices[0]
+        // 씬 순서 번호 (1부터 시작)
+        const sceneOrderNumber = groupIndex + 1
         
         return (
           <div 
             key={`group-${group.sceneId}`} 
+            draggable={isGrouped}
+            onDragStart={() => isGrouped && handleGroupDragStart(group.sceneId)}
+            onDragOver={(e) => isGrouped && handleGroupDragOver(e, group.sceneId)}
+            onDrop={isGrouped ? handleGroupDrop : undefined}
+            onDragLeave={() => setDragOver(null)}
+            onDragEnd={handleDragEnd}
             className={isGrouped ? 'space-y-1 rounded-lg p-2 cursor-pointer hover:opacity-90 transition-opacity bg-[#5e8790]/10 border border-[#5e8790]/30' : ''}
             onClick={(e) => {
               // 그룹화된 경우에만 클릭 이벤트 처리
@@ -285,6 +442,9 @@ export function SceneList({
                   </div>
                   
                   <div className="flex items-start gap-3">
+                  {/* 드래그 핸들 */}
+                  <GripVertical className="w-5 h-5 cursor-move text-text-tertiary shrink-0 mt-6" />
+                  
                   {/* 썸네일 - 왼쪽 */}
                   <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-200 shrink-0">
                     {sceneThumbnails[firstSceneIndex] && (() => {
@@ -319,26 +479,73 @@ export function SceneList({
                     {/* Scene 번호 */}
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-text-dark">
-                        Scene {group.sceneId}
+                        Scene {sceneOrderNumber}
                       </span>
                     </div>
                     
-                    {/* 전환 효과 및 이미지 비율 - 아래쪽 */}
-                    <div className="flex items-center gap-2 text-xs flex-wrap">
-                      <span className="px-2 py-1 rounded border border-gray-300 text-xs bg-gray-50 text-text-muted">
-                        {transitionLabels[timeline?.scenes[firstSceneIndex]?.transition || 'none'] || '없음'}
-                      </span>
-                      <select
-                        value={timeline?.scenes[firstSceneIndex]?.imageFit || 'contain'}
-                        onChange={(e) => onImageFitChange(firstSceneIndex, e.target.value as 'cover' | 'contain' | 'fill')}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={(e) => e.stopPropagation()}
-                        className="px-2 py-1 rounded border border-gray-300 text-xs bg-white text-text-dark"
-                      >
-                        <option value="cover">꽉 채우기</option>
-                        <option value="contain">비율 유지</option>
-                        <option value="fill">늘려 채우기</option>
-                      </select>
+                    {/* 이미지 비율 - 아래쪽 */}
+                    <div className="flex items-center gap-2 text-xs flex-wrap justify-start">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-2.5 py-1.5 rounded-lg bg-white border border-[#88a9ac] text-text-dark hover:bg-gray-50 transition-all font-bold tracking-[-0.14px] flex items-center gap-1"
+                            style={{ 
+                              fontSize: 'var(--font-size-12)',
+                              lineHeight: 'var(--line-height-12-140)'
+                            }}
+                          >
+                            {timeline?.scenes[firstSceneIndex]?.imageFit === 'cover' ? '꽉 채우기' : 
+                             timeline?.scenes[firstSceneIndex]?.imageFit === 'fill' ? '늘려 채우기' : 
+                             '비율 유지'}
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent 
+                          className="w-40 p-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex flex-col">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onImageFitChange(firstSceneIndex, 'cover')
+                              }}
+                              className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                                timeline?.scenes[firstSceneIndex]?.imageFit === 'cover' ? 'bg-gray-100 font-semibold' : ''
+                              }`}
+                            >
+                              꽉 채우기
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onImageFitChange(firstSceneIndex, 'contain')
+                              }}
+                              className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                                timeline?.scenes[firstSceneIndex]?.imageFit === 'contain' ? 'bg-gray-100 font-semibold' : ''
+                              }`}
+                            >
+                              비율 유지
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onImageFitChange(firstSceneIndex, 'fill')
+                              }}
+                              className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                                timeline?.scenes[firstSceneIndex]?.imageFit === 'fill' ? 'bg-gray-100 font-semibold' : ''
+                              }`}
+                            >
+                              늘려 채우기
+                            </button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
                 </div>
@@ -346,13 +553,17 @@ export function SceneList({
               )
             })()}
             
-            {group.indices.map((index) => {
+            {dragOver && draggedGroupId !== null && dragOver.index === firstSceneIndex && (
+              <div className="h-0.5 bg-brand-teal rounded-full mb-2" />
+            )}
+            {group.indices.map((index, groupSceneIndex) => {
               const scene = scenes[index]
               if (!scene) return null
               // ||| 구분자로 분할된 구간 확인 (공백 유무와 관계없이 분할)
               const scriptParts = (scene.script || '').split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
               const hasDelimiters = scriptParts.length > 1
-              const isSplitScene = hasDelimiters || !!scene.splitIndex
+              // 그룹 내 씬의 순서 번호 (splitIndex가 있으면 사용, 없으면 그룹 내 인덱스 + 1)
+              const groupSceneOrderNumber = scene.splitIndex || groupSceneIndex + 1
               
               // 현재 재생 중인 씬인지 확인
               const isPlaying = playingSceneIndex === index || (playingGroupSceneId !== null && playingGroupSceneId === scene.sceneId)
@@ -454,10 +665,12 @@ export function SceneList({
                             }}
                           >
                             {hasDelimiters
-                              ? `Scene ${scene.sceneId} (${scriptParts.length}개 구간)`
+                              ? `Scene ${sceneOrderNumber} (${scriptParts.length}개 구간)`
+                              : !isGrouped
+                              ? `Scene ${sceneOrderNumber}`
                               : scene.splitIndex
-                              ? `Scene ${scene.sceneId}-${scene.splitIndex}`
-                              : `Scene ${scene.sceneId}`}
+                              ? `Scene ${sceneOrderNumber}-${groupSceneOrderNumber}`
+                              : `Scene ${sceneOrderNumber}`}
                           </p>
                         </div>
                         
@@ -491,7 +704,7 @@ export function SceneList({
                       >
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-xs font-semibold text-text-dark">
-                            Scene {scene.sceneId}-{partIndex + 1}
+                            Scene {sceneOrderNumber}-{partIndex + 1}
                           </span>
                           <div className="flex items-center gap-1 shrink-0">
                             {onDuplicateScene && (
@@ -627,7 +840,7 @@ export function SceneList({
                           <Copy className="w-4 h-4 text-[#2c2c2c]" />
                         </button>
                       )}
-                      {onPlayScene && !isSplitScene && (
+                      {onPlayScene && !isGrouped && !hasDelimiters && (
                         <button
                           type="button"
                           onClick={async (e) => {
@@ -661,10 +874,10 @@ export function SceneList({
                   </div>
                 )}
 
-                {/* 설정 - 분할된 씬이 아닌 경우에만 표시 */}
-                {!isSplitScene && (
+                {/* 설정 - 분할된 씬이 아닌 경우에만 표시 (그룹이 아닐 때만 표시) */}
+                {!isGrouped && !hasDelimiters && (
                   <div className="flex items-center gap-2 flex-wrap justify-end">
-                    {onSplitScene && !hasDelimiters && !scene.splitIndex && (
+                    {onSplitScene && !hasDelimiters && (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -680,23 +893,67 @@ export function SceneList({
                         자막 장면 분할
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        const currentFit = timeline?.scenes[index]?.imageFit || 'contain'
-                        const nextFit = currentFit === 'cover' ? 'contain' : currentFit === 'contain' ? 'fill' : 'cover'
-                        onImageFitChange(index, nextFit)
-                      }}
-                      className="px-2.5 py-1.5 rounded-lg bg-white border border-[#88a9ac] text-text-dark hover:bg-gray-50 transition-all font-bold tracking-[-0.14px] flex items-center gap-1"
-                      style={{ 
-                        fontSize: 'var(--font-size-12)',
-                        lineHeight: 'var(--line-height-12-140)'
-                      }}
-                    >
-                      비율 유지
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-2.5 py-1.5 rounded-lg bg-white border border-[#88a9ac] text-text-dark hover:bg-gray-50 transition-all font-bold tracking-[-0.14px] flex items-center gap-1"
+                          style={{ 
+                            fontSize: 'var(--font-size-12)',
+                            lineHeight: 'var(--line-height-12-140)'
+                          }}
+                        >
+                          {timeline?.scenes[index]?.imageFit === 'cover' ? '꽉 채우기' : 
+                           timeline?.scenes[index]?.imageFit === 'fill' ? '늘려 채우기' : 
+                           '비율 유지'}
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent 
+                        className="w-40 p-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex flex-col">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onImageFitChange(index, 'cover')
+                            }}
+                            className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                              timeline?.scenes[index]?.imageFit === 'cover' ? 'bg-gray-100 font-semibold' : ''
+                            }`}
+                          >
+                            꽉 채우기
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onImageFitChange(index, 'contain')
+                            }}
+                            className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                              timeline?.scenes[index]?.imageFit === 'contain' ? 'bg-gray-100 font-semibold' : ''
+                            }`}
+                          >
+                            비율 유지
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onImageFitChange(index, 'fill')
+                            }}
+                            className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
+                              timeline?.scenes[index]?.imageFit === 'fill' ? 'bg-gray-100 font-semibold' : ''
+                            }`}
+                          >
+                            늘려 채우기
+                          </button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 )}
                       </div>

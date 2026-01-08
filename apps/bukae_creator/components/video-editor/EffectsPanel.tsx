@@ -19,6 +19,7 @@ interface EffectsPanelProps {
   confirmedBgmTemplate: string | null
   onBgmConfirm: (templateId: string | null) => void
   setTimeline: (value: TimelineData) => void
+  showVoiceRequiredMessage?: boolean
 }
 
 export function EffectsPanel({
@@ -36,6 +37,7 @@ export function EffectsPanel({
   confirmedBgmTemplate,
   onBgmConfirm,
   setTimeline,
+  showVoiceRequiredMessage = false,
 }: EffectsPanelProps) {
   // transitions와 movements가 제공되면 사용, 아니면 allTransitions 사용 (하위 호환성)
   const displayTransitions = transitions || allTransitions
@@ -374,7 +376,13 @@ export function EffectsPanel({
                   </div>
                 </TabsContent>
 
-                <TabsContent value="voice" className="px-6 pt-6 space-y-4 w-full max-w-full overflow-x-hidden">
+                <TabsContent value="voice" className="px-6 pt-6 space-y-4 w-full max-w-full overflow-x-hidden relative">
+                  {/* 음성 선택 안 했을 때 말풍선 UI */}
+                  {showVoiceRequiredMessage && rightPanelTab === 'voice' && (
+                    <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-red-500 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg whitespace-nowrap z-50 animate-bounce">
+                      음성을 먼저 선택해주세요
+                    </div>
+                  )}
                   <div className="w-full max-w-full overflow-x-hidden box-border">
                     <ChirpVoiceSelector
                       theme={theme ?? 'light'}
