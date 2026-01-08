@@ -173,289 +173,44 @@ export function SceneList({
         // 그룹의 첫 번째 씬 선택 (splitIndex가 없거나 0인 씬, 없으면 group.indices[0])
         const firstSceneIndexInGroup = group.indices.find(idx => scenes[idx] && !scenes[idx].splitIndex) ?? group.indices[0]
         
-        // 그룹이 1개만 남았을 때는 일반 씬카드로 렌더링
-        if (!isGrouped) {
-          return group.indices.map((index) => {
-            const scene = scenes[index]
-            if (!scene) return null
-            // ||| 구분자로 분할된 구간 확인 (공백 유무와 관계없이 분할)
-            const scriptParts = (scene.script || '').split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
-            const hasDelimiters = scriptParts.length > 1
-            const isSplitScene = hasDelimiters || !!scene.splitIndex
-            
-            // 현재 재생 중인 씬인지 확인
-            const isPlaying = playingSceneIndex === index || (playingGroupSceneId !== null && playingGroupSceneId === scene.sceneId)
-            
-            return (
-              <div key={hasDelimiters ? `${scene.sceneId}-delimiter-${index}` : (scene.splitIndex ? `${scene.sceneId}-${scene.splitIndex}` : scene.sceneId ?? index)}>
-                {dragOver && dragOver.index === index && dragOver.position === 'before' && (
-                  <div className="h-0.5 bg-brand-teal rounded-full" />
-                )}
-                <div
-                  draggable
-                  onDragStart={() => handleDragStart(index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDrop={handleDrop}
-                  onDragLeave={() => setDragOver(null)}
-                  onDragEnd={handleDragEnd}
-                  className={`relative rounded-2xl p-4 transition-all cursor-pointer shadow-[var(--shadow-card-default)] ${
-                    draggedIndex === index
-                      ? 'opacity-50'
-                      : isPlaying
-                        ? 'bg-[#5e8790]/20 shadow-lg shadow-[#5e8790]/30'
-                        : currentSceneIndex === index
-                          ? 'bg-[#5e8790]/40'
-                          : 'bg-white/80'
-                  }`}
-                  onClick={(e) => {
-                    // 버튼이나 입력 필드가 아닌 경우에만 씬 선택
-                    const target = e.target as HTMLElement
-                    if (target.tagName !== 'BUTTON' && target.tagName !== 'TEXTAREA' && !target.closest('button') && !target.closest('textarea')) {
-                      onSelect(index)
-                    }
-                  }}
-                >
-                  <div className="flex items-start gap-4">
-                    {/* 드래그 핸들 */}
-                    <GripVertical className="w-5 h-5 cursor-move text-text-tertiary shrink-0 mt-2" />
-                    
-                    {/* 썸네일 */}
-                    <div className="w-[120px] h-[120px] rounded-lg overflow-hidden bg-bg-gray-placeholder shrink-0">
-                      {sceneThumbnails[index] && (() => {
-                        const thumbnailUrl = sceneThumbnails[index] as string
-                        // URL 검증 및 수정
-                        const validUrl = thumbnailUrl.startsWith('http://') || thumbnailUrl.startsWith('https://')
-                          ? thumbnailUrl
-                          : thumbnailUrl.startsWith('//')
-                          ? `https:${thumbnailUrl}`
-                          : thumbnailUrl.startsWith('/')
-                          ? thumbnailUrl
-                          : getScenePlaceholder(index)
-                        
-                        return (
-                          <Image
-                            src={validUrl}
-                            alt={`Scene ${index + 1}`}
-                            width={120}
-                            height={120}
-                            className="w-full h-full object-cover"
-                            unoptimized
-                            onError={(e) => {
-                              // 이미지 로드 실패 시 기본 placeholder 사용
-                              const target = e.target as HTMLImageElement
-                              target.src = getScenePlaceholder(index)
-                            }}
-                          />
-                        )
-                      })()}
-                    </div>
-
-                    {/* 씬 정보 */}
-                    <div className="flex-1 min-w-0 space-y-2 relative">
-                      {/* 삭제 버튼 - 씬 정보 영역의 오른쪽 상단 */}
-                      {onDeleteScene && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            if (confirm('이 씬을 삭제하시겠습니까?')) {
-                              onDeleteScene(index)
-                            }
-                          }}
-                          className="absolute top-0 right-0 w-6 h-6 flex items-center justify-center transition-all z-20 hover:opacity-70"
-                          title="씬 삭제"
-                        >
-                          <X className="w-5 h-5 text-gray-600" />
-                        </button>
-                      )}
-                      
-                      <div className="flex items-center justify-between">
-                        <p 
-                          className="font-bold text-text-dark tracking-[-0.36px]"
-                          style={{ 
-                            fontSize: 'var(--font-size-18)',
-                            lineHeight: 'var(--line-height-18-140)'
-                          }}
-                        >
-                          {hasDelimiters
-                            ? `Scene ${scene.sceneId} (${scriptParts.length}개 구간)`
-                            : `Scene ${scene.sceneId || index + 1}`}
-                        </p>
-                      </div>
-                      
-                      {/* 텍스트 영역과 복사/재생 버튼을 justify-between으로 배치 */}
-                      <div className="flex items-start justify-between gap-4">
-                        <textarea
-                          value={scene.script || ''}
-                          onChange={(e) => onScriptChange(index, e.target.value)}
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => e.stopPropagation()}
-                          placeholder="씬 대본을 입력하세요..."
-                          className="flex-1 bg-white shadow-[var(--shadow-card-default)] rounded-lg p-3 border-none resize-none focus:outline-none focus:ring-2 focus:ring-brand-teal/50 transition-all"
-                          style={{
-                            fontSize: 'var(--font-size-14)',
-                            lineHeight: 'var(--line-height-14-140)',
-                            minHeight: '64px',
-                          }}
-                        />
-                        
-                        {/* 복사, 재생 버튼들 - textarea 옆에 세로로 배치 */}
-                        <div className="flex flex-col gap-2 shrink-0">
-                          {onDuplicateScene && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onDuplicateScene(index)
-                              }}
-                              className="w-8 h-7 rounded-lg bg-white border border-[#88a9ac] flex items-center justify-center hover:bg-gray-50 transition-all"
-                              title="씬 복사"
-                            >
-                              <Copy className="w-4 h-4 text-[#2c2c2c]" />
-                            </button>
-                          )}
-                          {onPlayScene && (
-                            <button
-                              type="button"
-                              onClick={async (e) => {
-                                e.stopPropagation()
-                                if (onPlayScene) {
-                                  await onPlayScene(index)
-                                }
-                              }}
-                              disabled={isPreparing || isTtsBootstrapping}
-                              className="w-8 h-7 rounded-lg bg-white border border-[#88a9ac] flex items-center justify-center hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                              title={
-                                isPreparing || isTtsBootstrapping
-                                  ? "준비 중..."
-                                  : isPlaying
-                                  ? "씬 정지"
-                                  : "씬 재생"
-                              }
-                            >
-                              {isPreparing || isTtsBootstrapping ? (
-                                <Loader2 className="w-4 h-4 animate-spin text-[#2c2c2c]" />
-                              ) : isPlaying ? (
-                                <Pause className="w-4 h-4 text-[#2c2c2c]" />
-                              ) : (
-                                <Play className="w-4 h-4 text-[#2c2c2c]" />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {/* 자막 장면 분할, 비율 유지 버튼 */}
-                      <div className="flex items-center justify-end gap-2">
-                        {onSplitScene && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onSplitScene(index)
-                            }}
-                            className="px-2.5 py-1.5 rounded-lg bg-white border border-[#88a9ac] text-text-dark hover:bg-gray-50 transition-all"
-                            style={{
-                              fontSize: 'var(--font-size-12)',
-                              lineHeight: 'var(--line-height-14-140)',
-                            }}
-                          >
-                            자막 장면 분할
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            const currentFit = timeline?.scenes[index]?.imageFit || 'contain'
-                            const nextFit = currentFit === 'cover' ? 'contain' : currentFit === 'contain' ? 'fill' : 'cover'
-                            onImageFitChange(index, nextFit)
-                          }}
-                          className="px-2.5 py-1.5 rounded-lg bg-white border border-[#88a9ac] text-text-dark hover:bg-gray-50 transition-all flex items-center gap-1"
-                          style={{
-                            fontSize: 'var(--font-size-12)',
-                            lineHeight: 'var(--line-height-14-140)',
-                          }}
-                        >
-                          비율 유지
-                          <ChevronDown className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* 구간별 자막 부분들 */}
-                  {hasDelimiters && scriptParts.map((part, partIndex) => {
-                    const isSelected = selectedPart?.sceneIndex === index && selectedPart?.partIndex === partIndex
-                    const isPartPlaying = isPlaying
-                    return (
-                    <div 
-                      key={partIndex} 
-                      className={`rounded-lg border p-3 cursor-pointer transition-all ${
-                        isPartPlaying
-                          ? 'border-[#5e8790] bg-[#5e8790]/20 shadow-lg shadow-[#5e8790]/30'
-                          : isSelected
-                            ? 'border-[#5e8790] bg-[#5e8790]/20'
-                            : currentSceneIndex === index
-                              ? 'border-[#5e8790] bg-[#5e8790]/10'
-                              : 'border-gray-200 bg-white/80 hover:border-[#5e8790]'
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (onSelectPart) {
-                          onSelectPart(index, partIndex)
-                        } else {
-                          onSelect(index)
-                        }
-                      }}
-                    >
-                      <p className="text-sm text-text-dark">{part}</p>
-                    </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })
-        }
-        
-        // 그룹이 2개 이상일 때만 그룹 컨테이너 사용
         return (
           <div 
             key={`group-${group.sceneId}`} 
-            className="space-y-1 rounded-lg p-2 cursor-pointer hover:opacity-90 transition-opacity bg-[#5e8790]/10 border border-[#5e8790]/30"
+            className={isGrouped ? 'space-y-1 rounded-lg p-2 cursor-pointer hover:opacity-90 transition-opacity bg-[#5e8790]/10 border border-[#5e8790]/30' : ''}
             onClick={(e) => {
               // 그룹화된 경우에만 클릭 이벤트 처리
               // 자식 요소(헤더, 씬 카드 등)를 클릭한 경우는 각각의 핸들러가 처리하므로 stopPropagation 호출
               // 그룹 컨테이너의 빈 공간(패딩 영역)을 클릭한 경우에만 선택
-              const target = e.target as HTMLElement
-              // 클릭한 요소가 그룹 컨테이너 자체이거나, 클릭 가능한 자식 요소가 아닌 경우
-              // (버튼, 텍스트 영역, 셀렉트, 드래그 가능한 요소가 아닌 경우)
-              if (target === e.currentTarget || 
-                  (!target.closest('button') && 
-                   !target.closest('textarea') && 
-                   !target.closest('select') &&
-                   !target.closest('[draggable]') &&
-                   !target.closest('.cursor-pointer'))) {
-                // 첫 번째 씬의 첫 번째 구간만 표시
-                const firstScene = scenes[firstSceneIndexInGroup]
-                if (firstScene) {
-                  const scriptParts = firstScene.script.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
-                  if (scriptParts.length > 1 && onSelectPart) {
-                    // 구간이 나뉘어져 있으면 첫 번째 구간만 선택
-                    onSelectPart(firstSceneIndexInGroup, 0)
+              if (isGrouped) {
+                const target = e.target as HTMLElement
+                // 클릭한 요소가 그룹 컨테이너 자체이거나, 클릭 가능한 자식 요소가 아닌 경우
+                // (버튼, 텍스트 영역, 셀렉트, 드래그 가능한 요소가 아닌 경우)
+                if (target === e.currentTarget || 
+                    (!target.closest('button') && 
+                     !target.closest('textarea') && 
+                     !target.closest('select') &&
+                     !target.closest('[draggable]') &&
+                     !target.closest('.cursor-pointer'))) {
+                  // 첫 번째 씬의 첫 번째 구간만 표시
+                  const firstScene = scenes[firstSceneIndexInGroup]
+                  if (firstScene) {
+                    const scriptParts = firstScene.script.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+                    if (scriptParts.length > 1 && onSelectPart) {
+                      // 구간이 나뉘어져 있으면 첫 번째 구간만 선택
+                      onSelectPart(firstSceneIndexInGroup, 0)
+                    } else {
+                      // 구간이 없으면 첫 번째 씬 선택
+                      onSelect(firstSceneIndexInGroup)
+                    }
                   } else {
-                    // 구간이 없으면 첫 번째 씬 선택
                     onSelect(firstSceneIndexInGroup)
                   }
-                } else {
-                  onSelect(firstSceneIndexInGroup)
                 }
               }
             }}
           >
             {/* 그룹화된 경우 그룹 헤더에 사진, 전환 효과, 이미지 비율 표시 */}
-            {(() => {
+            {isGrouped && (() => {
               return (
                 <div 
                   className="relative mb-2 pb-2 border-b border-gray-200 cursor-pointer hover:opacity-80 transition-opacity" 
