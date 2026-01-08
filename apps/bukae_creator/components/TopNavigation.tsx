@@ -60,13 +60,13 @@ export default function TopNavigation({ activeTab, className }: TopNavigationPro
   }
 
   return (
-    <div className={cn('flex items-center gap-2', className)}>
+    <div className={cn('flex items-center', className)}>
       {tabs.map((tab) => {
         // 로그인 버튼은 로그인 상태에 따라 다르게 표시
         if (tab.id === 'login') {
           if (isAuthenticated && user) {
             return (
-              <div key="profile-section" className="flex items-center gap-2">
+              <div key="profile-section" className="flex items-center">
                 {/* 프로필 사진과 사용자 이름 (로그인 버튼 왼쪽) */}
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg">
                   {user.profileImage ? (
@@ -90,7 +90,7 @@ export default function TopNavigation({ activeTab, className }: TopNavigationPro
                 <button
                   onClick={handleLogout}
                   className={cn(
-                    'px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2',
+                    'w-[140px] px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 justify-center',
                     'bg-transparent text-text-muted hover:bg-brand-hover'
                   )}
                 >
@@ -108,7 +108,7 @@ export default function TopNavigation({ activeTab, className }: TopNavigationPro
                 key={tab.id}
                 onClick={() => handleTabClick(tab.path)}
                 className={cn(
-                  'px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2',
+                  'w-[140px] px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 justify-center',
                   isActive
                     ? 'bg-brand-teal text-white'
                     : 'bg-transparent text-text-muted hover:bg-brand-hover'
@@ -130,7 +130,7 @@ export default function TopNavigation({ activeTab, className }: TopNavigationPro
             key={tab.id}
             onClick={() => handleTabClick(tab.path)}
             className={cn(
-              'px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2',
+              'w-[140px] px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2 justify-center',
               isActive
                 ? 'bg-brand-teal text-white'
                 : 'bg-transparent text-text-muted hover:bg-brand-hover'

@@ -18,9 +18,9 @@ export default function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-brand-background-start to-brand-background-end">
+    <div className="flex flex-col h-screen bg-gradient-to-b from-brand-background-start to-brand-background-end overflow-hidden">
       <BukaeTop />
-      <main>{children}</main>
+      <main className="flex-1 overflow-y-auto">{children}</main>
     </div>
   )
 }

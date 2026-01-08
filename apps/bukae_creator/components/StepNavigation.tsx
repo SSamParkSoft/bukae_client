@@ -35,59 +35,64 @@ export default function StepNavigation({
   }
 
   return (
-    <div className={cn('flex items-center gap-2', className)}>
+    <div className={cn('flex items-center', className)}>
       {steps.map((step, index) => {
         const isActive = currentStep === step.number
         const isCompleted = currentStep > step.number
         const isPending = currentStep < step.number
 
         return (
-          <div key={step.number} className="flex items-center gap-2">
+          <div key={step.number} className="flex items-center">
             <button
               onClick={() => handleStepClick(step)}
-              className="flex items-center gap-4 group"
+              className="flex items-center gap-10 group"
             >
-              {/* 스텝 번호/아이콘 */}
-              <div className="flex flex-col items-center gap-2">
-                <div
-                  className={cn(
-                    'flex items-center justify-center rounded-full font-bold transition-all',
-                    isActive
-                      ? 'w-16 h-16 bg-[#5e8790] text-white text-[32px] leading-[44.8px]'
-                      : isCompleted
-                        ? 'w-12 h-12 bg-[#d2dedd] text-[#111111]'
-                        : 'w-12 h-12 bg-[#e3e3e3] text-[#5d5d5d] text-2xl leading-[33.6px]'
-                  )}
-                >
-                  {isCompleted ? (
-                    <Check className="w-6 h-6 text-[#111111]" />
-                  ) : (
-                    <span>{step.number}</span>
-                  )}
-                </div>
-                {/* 스텝 라벨 */}
-                <span
-                  className={cn(
-                    'text-center font-bold whitespace-nowrap',
-                    isActive
-                      ? 'text-2xl leading-[33.6px] text-[#111111]'
-                      : 'text-xl leading-7 text-[#111111]'
-                  )}
-                >
-                  {step.label}
-                </span>
+              {/* 원형 스텝 번호/아이콘 */}
+              <div
+                className={cn(
+                  'flex items-center justify-center rounded-full font-bold transition-all w-12 h-12',
+                  isActive
+                    ? 'bg-[#5e8790] text-white'
+                    : isCompleted
+                      ? 'bg-[#d2dedd] text-[#111111]'
+                      : 'bg-[#e3e3e3] text-[#5d5d5d]'
+                )}
+                style={{
+                  fontSize: 'var(--font-size-20)',
+                  fontWeight: 'var(--font-weight-bold)',
+                  boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)'
+                }}
+              >
+                {isCompleted ? (
+                  <Check className="w-6 h-6 text-[#111111]" />
+                ) : (
+                  <span>{step.number}</span>
+                )}
               </div>
+              {/* 스텝 라벨 (원형 옆) */}
+              <span
+                className="font-bold whitespace-nowrap"
+                style={{
+                  fontSize: 'var(--font-size-20)',
+                  fontWeight: 'var(--font-weight-bold)'
+                }}
+              >
+                {step.label}
+              </span>
             </button>
 
-            {/* 스텝 사이 연결선 */}
+            {/* 스텝 사이 연결선 (진행된 단계: " - ", 진행 남은 단계: " > ") */}
             {index < steps.length - 1 && (
-              <div className="flex items-center mx-2">
-                <div
-                  className={cn(
-                    'h-0.5 w-16',
-                    isCompleted ? 'bg-[#234b60]' : 'bg-transparent'
-                  )}
-                />
+              <div className="flex items-center mx-10">
+                <span
+                  className="text-[#111111]"
+                  style={{
+                    fontSize: 'var(--font-size-20)',
+                    fontWeight: 'var(--font-weight-bold)'
+                  }}
+                >
+                  {isCompleted ? ' - ' : ' > '}
+                </span>
               </div>
             )}
           </div>
