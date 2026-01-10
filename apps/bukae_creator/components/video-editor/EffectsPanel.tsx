@@ -48,15 +48,15 @@ export function EffectsPanel({
         <Tabs value={rightPanelTab} onValueChange={setRightPanelTab} className="h-full flex flex-col" style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
           {/* 탭바와 내용을 하나의 박스로 연결 */}
           <div className="px-4 pt-0 pb-0 flex-1 overflow-hidden min-h-0 flex flex-col">
-            <div className="bg-white/60 rounded-2xl flex flex-col h-full overflow-hidden">
+            <div className="bg-white/60 rounded-2xl flex flex-col h-full" style={{ overflowY: 'hidden', overflowX: 'visible' }}>
               {/* 탭바 */}
-              <div className="p-1 shrink-0">
-                <div className="bg-white rounded-2xl p-1 shadow-[var(--shadow-container)]">
-                  <div className="flex items-center gap-1">
+              <div className="p-1 shrink-0 -mx-1" style={{ overflowX: 'auto', overflowY: 'hidden' }}>
+                <div className="bg-white rounded-2xl p-1 shadow-[var(--shadow-container)] scrollbar-hide" style={{ minWidth: 'max-content' }}>
+                  <div className="flex items-center gap-1 md:flex">
                 <button
                   type="button"
                   onClick={() => setRightPanelTab('animation')}
-                  className={`flex-1 rounded-xl px-3 py-2 transition-all font-bold tracking-[-0.14px] ${
+                  className={`shrink-0 md:flex-1 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 transition-all font-bold tracking-[-0.14px] whitespace-nowrap ${
                     rightPanelTab === 'animation'
                       ? 'bg-[#5e8790] text-white'
                       : 'text-[#5d5d5d] font-medium'
@@ -71,7 +71,7 @@ export function EffectsPanel({
                 <button
                   type="button"
                   onClick={() => setRightPanelTab('bgm')}
-                  className={`flex-1 rounded-xl px-3 py-2 transition-all font-bold tracking-[-0.14px] ${
+                  className={`shrink-0 md:flex-1 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 transition-all font-bold tracking-[-0.14px] whitespace-nowrap ${
                     rightPanelTab === 'bgm'
                       ? 'bg-[#5e8790] text-white'
                       : 'text-[#5d5d5d] font-medium'
@@ -86,7 +86,7 @@ export function EffectsPanel({
                 <button
                   type="button"
                   onClick={() => setRightPanelTab('subtitle')}
-                  className={`flex-1 rounded-xl px-3 py-2 transition-all font-bold tracking-[-0.14px] ${
+                  className={`shrink-0 md:flex-1 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 transition-all font-bold tracking-[-0.14px] whitespace-nowrap ${
                     rightPanelTab === 'subtitle'
                       ? 'bg-[#5e8790] text-white'
                       : 'text-[#5d5d5d] font-medium'
@@ -101,7 +101,7 @@ export function EffectsPanel({
                 <button
                   type="button"
                   onClick={() => setRightPanelTab('voice')}
-                  className={`flex-1 rounded-xl px-3 py-2 transition-all font-bold tracking-[-0.14px] ${
+                  className={`shrink-0 md:flex-1 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 transition-all font-bold tracking-[-0.14px] whitespace-nowrap ${
                     rightPanelTab === 'voice'
                       ? 'bg-[#5e8790] text-white'
                       : 'text-[#5d5d5d] font-medium'
@@ -116,7 +116,7 @@ export function EffectsPanel({
                 <button
                   type="button"
                   onClick={() => setRightPanelTab('template')}
-                  className={`flex-1 rounded-xl px-3 py-2 transition-all font-bold tracking-[-0.14px] ${
+                  className={`shrink-0 md:flex-1 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 transition-all font-bold tracking-[-0.14px] whitespace-nowrap ${
                     rightPanelTab === 'template'
                       ? 'bg-[#5e8790] text-white'
                       : 'text-[#5d5d5d] font-medium'
@@ -131,7 +131,7 @@ export function EffectsPanel({
                 <button
                   type="button"
                   onClick={() => setRightPanelTab('sound')}
-                  className={`flex-1 rounded-xl px-3 py-2 transition-all font-bold tracking-[-0.14px] ${
+                  className={`shrink-0 md:flex-1 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 transition-all font-bold tracking-[-0.14px] whitespace-nowrap ${
                     rightPanelTab === 'sound'
                       ? 'bg-[#5e8790] text-white'
                       : 'text-[#5d5d5d] font-medium'
@@ -163,7 +163,7 @@ export function EffectsPanel({
                     전환 효과
                   </h3>
                   <div className="h-0.5 bg-[#bbc9c9] mb-6" />
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {/* 첫 번째 카드: 없음 */}
                     <button
                       onClick={() => {
@@ -227,7 +227,7 @@ export function EffectsPanel({
                     움직임
                   </h3>
                   <div className="h-0.5 bg-[#bbc9c9] mb-6" />
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {displayMovements.map((movement) => {
                       const isSelected = timeline?.scenes[currentSceneIndex]?.transition === movement.value
                       return (
