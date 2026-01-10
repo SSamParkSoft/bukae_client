@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { Product } from '@/lib/types/viewer'
 
-// 더미 제품 데이터 (bookae_creator 구조 참고)
+// 더미 제품 데이터 (bukae_creator 구조 참고)
 type ProductTemplate = {
   name: string
   price: number
