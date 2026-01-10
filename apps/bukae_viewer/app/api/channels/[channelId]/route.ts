@@ -13,6 +13,10 @@ export async function GET(
       id: channelId,
       name: channelId,
       description: `${channelId}의 미니홈페이지`,
+      // ssambak 채널의 경우 프로필 이미지 추가
+      ...(channelId === 'ssambak' && {
+        profileImage: '/ssambak_profile.png',
+      }),
     }
 
     return NextResponse.json(channel, {
