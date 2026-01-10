@@ -30,7 +30,13 @@ const PRODUCT_URLS = {
   bibigo_samchi:
     'https://www.coupang.com/vp/products/6011993543?itemId=24451885314&vendorItemId=91465703325&src=1139000&spec=10799999&addtag=400&ctag=6011993543&lptag=AF4647824&itime=20260107162225&pageType=PRODUCT&pageValue=6011993543&wPcid=17510469561163597660443&wRef=&wTime=20260107162225&redirect=landing&traceid=V0-181-e76981e4e1a69962&mcid=4d5c6205d54946a69906a625dddfe8fa&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
   rush_massage_bar:
-    'https://www.coupang.com/vp/products/8906749731?itemId=26013724094&vendorItemId=92995575781&src=1139000&spec=10799999&addtag=400&ctag=8906749731&lptag=AF4647824&itime=20260107162443&pageType=PRODUCT&pageValue=8906749731&wPcid=17510469561163597660443&wRef=&wTime=20260107162443&redirect=landing&traceid=V0-181-695a1da0528ef960&mcid=cf0c8ea7072b44cead2b733ece78a541&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam='
+    'https://www.coupang.com/vp/products/8906749731?itemId=26013724094&vendorItemId=92995575781&src=1139000&spec=10799999&addtag=400&ctag=8906749731&lptag=AF4647824&itime=20260107162443&pageType=PRODUCT&pageValue=8906749731&wPcid=17510469561163597660443&wRef=&wTime=20260107162443&redirect=landing&traceid=V0-181-695a1da0528ef960&mcid=cf0c8ea7072b44cead2b733ece78a541&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
+  biorecipe_hairpack:
+    'https://www.coupang.com/vp/products/7357768723?itemId=18949358758&vendorItemId=86075655733&src=1139000&spec=10799999&addtag=400&ctag=7357768723&lptag=AF4647824&itime=20260110175805&pageType=PRODUCT&pageValue=7357768723&wPcid=17510469561163597660443&wRef=&wTime=20260110175805&redirect=landing&traceid=V0-181-60d38c5d32d4c700&mcid=69d5b3bc0a364b4d9b7e5ef8efaa7e77&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
+  nangmomil:
+    'https://www.coupang.com/vp/products/8248204570?itemId=23742416658&vendorItemId=90767010073&src=1139000&spec=10799999&addtag=400&ctag=8248204570&lptag=AF4647824&itime=20260110175800&pageType=PRODUCT&pageValue=8248204570&wPcid=17510469561163597660443&wRef=&wTime=20260110175800&redirect=landing&traceid=V0-181-a2a1d9205d4759bf&mcid=d93b484d21ca44f7b7e48149c83934d0&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
+  pepsi_zerocoke:
+    'https://www.coupang.com/vp/products/9274048526?itemId=23665748009&vendorItemId=74157319832&src=1139000&spec=10799999&addtag=400&ctag=9274048526&lptag=AF4647824&itime=20260110180730&pageType=PRODUCT&pageValue=9274048526&wPcid=17510469561163597660443&wRef=&wTime=20260110180730&redirect=landing&traceid=V0-181-f2d39e29bec12616&mcid=75a2b38404634e8daf4f49583c1b5a2d&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam='
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -129,49 +135,31 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     url: PRODUCT_URLS.rush_massage_bar,
   },
   {
-    id: 'pork-belly',
-    productId: 1009,
-    name: '미국산 왕건 돈전지 불고기용 두께 0.3cm (냉동), 3kg, 1개',
-    description: '미국산 · 냉동 · 3kg · 불고기용',
+    id: 'biorecipe-hairpack',
+    productId: 1016,
+    name: '바이오레시피 1초 데미지케어 4 In 1 system 헤어팩, 300g, 1개',
+    description: '데미지케어 · 4 In 1 system · 300g',
     order: 11,
-    thumbnailUrl: '/dummy/pork_belly.png',
-    url: PRODUCT_URLS.pork_belly,
+    thumbnailUrl: '/dummy/biorecipe_hairpack.png',
+    url: PRODUCT_URLS.biorecipe_hairpack,
   },
   {
-    id: 'estra-sunscreen',
-    productId: 1010,
-    name: '에스트라 더마 UV 365 레드진정 톤업 선크림 SPF50+ PA++++',
-    description: 'SPF50+ PA++++ · 레드진정 · 톤업',
+    id: 'nangmomil',
+    productId: 1017,
+    name: '100g당 20kcal 바로먹는 발효곤약 냉모밀, 12개, 350g',
+    description: '100g당 20kcal · 발효곤약 · 12개',
     order: 12,
-    thumbnailUrl: '/dummy/estra_sunscreen.png',
-    url: PRODUCT_URLS.estra_sunscreen,
+    thumbnailUrl: '/dummy/nangmomil.png',
+    url: PRODUCT_URLS.nangmomil,
   },
   {
-    id: 'gomgom-pork-fried-rice',
-    productId: 1011,
-    name: '곰곰 대패삼겹 볶음밥 (냉동), 300g, 6개',
-    description: '냉동 · 300g · 6개 구성',
+    id: 'pepsi-zerocoke',
+    productId: 1018,
+    name: '펩시 제로슈거 라임향, 210ml, 30개',
+    description: '제로슈거 · 라임향 · 210ml · 30개',
     order: 13,
-    thumbnailUrl: '/dummy/gomgom_pork_fried_rice.png',
-    url: PRODUCT_URLS.gomgom_pork_fried_rice,
-  },
-  {
-    id: 'worldclean-bucket',
-    productId: 1012,
-    name: '월드크린 다용도 휴대용 버킷',
-    description: '다용도 · 휴대용 · 버킷',
-    order: 14,
-    thumbnailUrl: '/dummy/worldclean_bucket.png',
-    url: PRODUCT_URLS.worldclean_bucket,
-  },
-  {
-    id: 'sinjimoru-glass-protector',
-    productId: 1013,
-    name: '신지모루 풀커버 하이브리드 강화유리 액정보호필름 2매입',
-    description: '풀커버 · 하이브리드 · 강화유리 · 2매입',
-    order: 15,
-    thumbnailUrl: '/dummy/sinjimoru_glass_protector.png',
-    url: PRODUCT_URLS.sinjimoru_glass_protector,
+    thumbnailUrl: '/dummy/pepsi_zerocoke.png',
+    url: PRODUCT_URLS.pepsi_zerocoke,
   },
 ]
 
