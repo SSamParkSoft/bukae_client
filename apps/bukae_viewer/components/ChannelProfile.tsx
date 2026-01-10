@@ -16,7 +16,7 @@ export default function ChannelProfile({ channel }: ChannelProfileProps) {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${channel.name} - Bookae`,
+          title: `${channel.name} - Bukae`,
           text: `${channel.name}의 미니홈페이지`,
           url,
         })

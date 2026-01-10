@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ChannelStats, TopProduct } from '@/lib/types/viewer'
 
-// 쿠팡 통계 더미 데이터 (bookae_creator의 구조 참고)
+// 쿠팡 통계 더미 데이터 (bukae_creator의 구조 참고)
 const generateDummyStats = (): ChannelStats => {
   // 더미 주문 데이터 (새로운 30가지 제품 목록 기준)
   const dummyOrders = [

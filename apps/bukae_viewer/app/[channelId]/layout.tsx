@@ -6,7 +6,7 @@ export async function generateMetadata({
   params: Promise<{ channelId: string }>
 }): Promise<Metadata> {
   const { channelId } = await params
-  const title = `${channelId}_bookae`
+  const title = `${channelId}_bukae`
 
   const metadata: Metadata = {
     title,
