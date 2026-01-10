@@ -9,15 +9,15 @@
   "scripts": {
     "dev": "pnpm --filter bookae_creator dev",
     "dev:creator": "pnpm --filter bookae_creator dev",
-    "dev:viewer": "pnpm --filter bookae_viewer dev",
+    "dev:viewer": "pnpm --filter bukae_viewer dev",
     "dev:all": "pnpm --parallel --filter './apps/*' dev",
     "build": "pnpm --filter bookae_creator build",
     "build:creator": "pnpm --filter bookae_creator build",
-    "build:viewer": "pnpm --filter bookae_viewer build",
+    "build:viewer": "pnpm --filter bukae_viewer build",
     "build:all": "pnpm --filter './apps/*' build",
     "start": "pnpm --filter bookae_creator start",
     "start:creator": "pnpm --filter bookae_creator start",
-    "start:viewer": "pnpm --filter bookae_viewer start",
+    "start:viewer": "pnpm --filter bukae_viewer start",
     "lint": "pnpm --filter './apps/*' lint",
     "seed-demo": "pnpm --filter bookae_creator run seed-demo"
   },
