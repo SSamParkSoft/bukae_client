@@ -410,3 +410,13 @@ video:-ms-fullscreen {
   box-shadow: var(--shadow-step-navigation);
   pointer-events: none;
 }
+
+/* Scrollbar hide utility */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}

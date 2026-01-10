@@ -18,10 +18,10 @@ export default function Step3Page() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="flex h-full overflow-hidden w-full px-[100px]"
+        className="flex h-full overflow-hidden w-full px-4 sm:px-8 md:px-12 lg:px-16 xl:px-[100px]"
       >
         {/* 왼쪽 패널: 미리보기 + 타임라인 */}
-        <div className="flex-[0_0_25%] min-w-[200px] max-w-[350px] border-r-2 border-white flex flex-col overflow-hidden h-full">
+        <div className="w-[25%] min-w-[180px] sm:min-w-[200px] max-w-[350px] border-r-2 border-white flex flex-col overflow-hidden h-full shrink-0">
           <PreviewPanel
             theme={container.theme}
             pixiContainerRef={container.pixiContainerRef}
@@ -50,7 +50,7 @@ export default function Step3Page() {
         </div>
 
         {/* 중앙 패널: 씬 리스트 */}
-        <div className="flex-[0_0_45%] min-w-[400px] border-r-2 border-white flex flex-col overflow-hidden h-full mr-6">
+        <div className="w-[45%] min-w-[300px] sm:min-w-[350px] md:min-w-[400px] border-r-2 border-white flex flex-col overflow-hidden h-full mr-2 sm:mr-4 md:mr-6 shrink-0">
           <SceneListPanel
             theme={container.theme}
             scenes={container.scenes}
@@ -80,7 +80,7 @@ export default function Step3Page() {
         </div>
 
         {/* 오른쪽 패널: 효과 설정 */}
-        <div className="flex-[0_0_40%] min-w-[300px] max-w-[580px] flex flex-col overflow-hidden h-full">
+        <div className="w-[30%] sm:w-[35%] md:w-[30%] min-w-[250px] sm:min-w-[280px] md:min-w-[300px] max-w-[580px] flex flex-col overflow-hidden h-full shrink-0">
           <EffectsPanel
             theme={container.theme}
             rightPanelTab={container.rightPanelTab}
