@@ -182,7 +182,7 @@ export async function ensureSceneTts({
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
           signal,
           body: JSON.stringify({
-            voiceName: voiceTemplate,
+            voiceTemplate: voiceTemplate,
             mode: 'markup',
             markup,
           }),

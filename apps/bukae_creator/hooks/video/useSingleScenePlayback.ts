@@ -213,7 +213,7 @@ export function useSingleScenePlayback({
             'Authorization': `Bearer ${accessToken}`,
           },
           body: JSON.stringify({
-            voiceName: voiceTemplate,
+            voiceTemplate: voiceTemplate,
             mode: 'markup',
             markup: markup,
           }),

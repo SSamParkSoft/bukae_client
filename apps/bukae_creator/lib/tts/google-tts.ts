@@ -1,15 +1,9 @@
 import { TextToSpeechClient, protos } from '@google-cloud/text-to-speech'
+import type { PublicVoiceInfo } from '@/lib/types/tts'
 
 export const TTS_LANGUAGE_CODE = 'ko-KR' as const
 
 export type GoogleTtsVoice = protos.google.cloud.texttospeech.v1.IVoice
-
-export type PublicVoiceInfo = {
-  name: string
-  languageCodes: string[]
-  ssmlGender?: string
-  naturalSampleRateHertz?: number
-}
 
 let clientSingleton: TextToSpeechClient | null = null
 
@@ -114,6 +108,7 @@ export function toPublicVoiceInfo(v: GoogleTtsVoice): PublicVoiceInfo | null {
     languageCodes: (v.languageCodes ?? []).filter(Boolean) as string[],
     ssmlGender: v.ssmlGender ? String(v.ssmlGender) : undefined,
     naturalSampleRateHertz: v.naturalSampleRateHertz ?? undefined,
+    provider: 'google',
   }
 }
 

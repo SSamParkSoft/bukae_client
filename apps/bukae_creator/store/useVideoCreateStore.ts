@@ -308,3 +308,26 @@ export type { SceneScript } from '@/lib/types/domain/script'
 export type { CreationMode } from '@/lib/types/domain/video'
 export type { TimelineData, TimelineScene } from '@/lib/types/domain/timeline'
 
+// VoiceTemplate Helper 함수들
+import type { VoiceInfo } from '@/lib/types/tts'
+import { deserializeVoiceInfo, parseLegacyVoiceTemplate, serializeVoiceInfo } from '@/lib/types/tts'
+
+export const voiceTemplateHelpers = {
+  // voiceTemplate 문자열에서 VoiceInfo 추출
+  getVoiceInfo: (voiceTemplate: string | null): VoiceInfo | null => {
+    if (!voiceTemplate) return null
+    
+    // 먼저 새로운 형식 시도
+    const parsed = deserializeVoiceInfo(voiceTemplate)
+    if (parsed) return parsed
+    
+    // 기존 형식으로 fallback
+    return parseLegacyVoiceTemplate(voiceTemplate)
+  },
+  
+  // VoiceInfo를 voiceTemplate 문자열로 변환
+  setVoiceInfo: (voiceInfo: VoiceInfo | null): string | null => {
+    if (!voiceInfo) return null
+    return serializeVoiceInfo(voiceInfo)
+  },
+}

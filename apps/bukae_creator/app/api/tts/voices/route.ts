@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { filterChirpKoreanVoices, getTextToSpeechClient, toPublicVoiceInfo, TTS_LANGUAGE_CODE } from '@/lib/tts/google-tts'
+import { listElevenLabsVoices, filterKoreanVoices, toPublicVoiceInfo as toElevenLabsVoiceInfo } from '@/lib/tts/elevenlabs-tts'
 import { requireUser } from '@/lib/api/route-guard'
 import { enforceRateLimit } from '@/lib/api/rate-limit'
 
@@ -15,18 +16,38 @@ export async function GET(request: Request) {
     const rl = await enforceRateLimit(request, { endpoint: 'tts:voices', userId: auth.userId })
     if (rl instanceof NextResponse) return rl
 
-    const client = getTextToSpeechClient()
-    const [result] = await client.listVoices({ languageCode: TTS_LANGUAGE_CODE })
+    const allVoices: Array<ReturnType<typeof toPublicVoiceInfo> | ReturnType<typeof toElevenLabsVoiceInfo>> = []
 
-    const voices = result.voices ?? []
-    const filtered = filterChirpKoreanVoices(voices)
-      .map(toPublicVoiceInfo)
-      .filter(Boolean)
+    // Google TTS 목소리
+    try {
+      const client = getTextToSpeechClient()
+      const [result] = await client.listVoices({ languageCode: TTS_LANGUAGE_CODE })
+      const voices = result.voices ?? []
+      const filtered = filterChirpKoreanVoices(voices)
+        .map(toPublicVoiceInfo)
+        .filter(Boolean)
+      allVoices.push(...filtered)
+    } catch (error) {
+      console.error('[TTS] Google voices error:', error)
+      // Google TTS 실패해도 일레븐랩스는 계속 진행
+    }
+
+    // ElevenLabs 목소리
+    try {
+      const elevenLabsVoices = await listElevenLabsVoices()
+      const filtered = filterKoreanVoices(elevenLabsVoices)
+        .map(toElevenLabsVoiceInfo)
+        .filter(Boolean)
+      allVoices.push(...filtered)
+    } catch (error) {
+      console.error('[TTS] ElevenLabs voices error:', error)
+      // ElevenLabs 실패해도 Google은 이미 추가됨
+    }
 
     return NextResponse.json(
       {
         languageCode: TTS_LANGUAGE_CODE,
-        voices: filtered,
+        voices: allVoices,
       },
       {
         headers: {
