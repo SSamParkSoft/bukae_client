@@ -2,7 +2,7 @@ import type { TtsProviderInterface } from '@/lib/tts/core/provider.interface'
 import type { SynthesizeParams, SynthesizeResult } from '@/lib/tts/core/synthesizer.interface'
 import type { PublicVoiceInfo, VoiceInfo, ElevenLabsVoiceInfo } from '@/lib/types/tts'
 import { getElevenLabsClient } from './client'
-import { listVoices, filterKoreanVoices, toPublicVoiceInfo } from './voices'
+import { listVoices, toPublicVoiceInfo } from './voices'
 import { synthesize as synthesizeElevenLabs } from './synthesizer'
 import { publicVoiceInfoToVoiceInfo } from '@/lib/types/tts'
 
@@ -18,10 +18,12 @@ export const ElevenLabsProvider: TtsProviderInterface = {
    */
   async listVoices(): Promise<PublicVoiceInfo[]> {
     const voices = await listVoices()
-    const filtered = filterKoreanVoices(voices)
-      .map(toPublicVoiceInfo)
-      .filter(Boolean) as PublicVoiceInfo[]
-    return filtered
+    console.log(`[ElevenLabs Provider] Raw voices count: ${voices.length}`)
+    const mapped = voices.map(toPublicVoiceInfo)
+    console.log(`[ElevenLabs Provider] After toPublicVoiceInfo mapping: ${mapped.length} (nulls: ${mapped.filter(v => v === null).length})`)
+    const result = mapped.filter(Boolean) as PublicVoiceInfo[]
+    console.log(`[ElevenLabs Provider] Final result: ${result.length}`)
+    return result
   },
 
   /**
@@ -67,6 +69,6 @@ export const ElevenLabsProvider: TtsProviderInterface = {
 
 // 기존 export 유지 (하위 호환성)
 export { getElevenLabsClient } from './client'
-export { listVoices as listElevenLabsVoices, filterKoreanVoices, toPublicVoiceInfo } from './voices'
+export { listVoices as listElevenLabsVoices, toPublicVoiceInfo } from './voices'
 export { synthesize as synthesizeSpeech } from './synthesizer'
 export type { ElevenLabsVoice } from './types'

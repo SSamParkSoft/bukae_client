@@ -5,7 +5,6 @@ import { useVideoCreateStore, voiceTemplateHelpers } from '@/store/useVideoCreat
 import { authStorage } from '@/lib/api/auth-storage'
 import type { PublicVoiceInfo } from '@/lib/types/tts'
 import { publicVoiceInfoToVoiceInfo } from '@/lib/types/tts'
-import { getDemoFilePathFromVoiceInfo } from '@/lib/data/demo-voices'
 import {
   Popover,
   PopoverContent,
@@ -79,7 +78,7 @@ export default function VoiceSelector({
   const initialTab = useMemo(() => {
     if (!voiceTemplate) return 'standard'
     const voiceInfo = voiceTemplateHelpers.getVoiceInfo(voiceTemplate)
-    return voiceInfo?.provider === 'elevenlabs' || voiceInfo?.provider === 'demo' ? 'premium' : 'standard'
+    return voiceInfo?.provider === 'elevenlabs' ? 'premium' : 'standard'
   }, [voiceTemplate])
   
   const [voiceTab, setVoiceTab] = useState<'standard' | 'premium'>(initialTab)
@@ -88,7 +87,7 @@ export default function VoiceSelector({
   useEffect(() => {
     const voiceInfo = voiceTemplateHelpers.getVoiceInfo(voiceTemplate)
     if (voiceInfo) {
-      setVoiceTab(voiceInfo.provider === 'elevenlabs' || voiceInfo.provider === 'demo' ? 'premium' : 'standard')
+      setVoiceTab(voiceInfo.provider === 'elevenlabs' ? 'premium' : 'standard')
     }
   }, [voiceTemplate])
 
@@ -127,11 +126,9 @@ export default function VoiceSelector({
           // 디버깅: Provider별 목소리 확인
           const googleVoices = voicesList.filter((v: PublicVoiceInfo) => v.provider === 'google' || !v.provider)
           const elevenlabsVoices = voicesList.filter((v: PublicVoiceInfo) => v.provider === 'elevenlabs')
-          const demoVoices = voicesList.filter((v: PublicVoiceInfo) => v.provider === 'demo')
           console.log('[VoiceSelector] Total voices:', voicesList.length)
           console.log('[VoiceSelector] Google voices:', googleVoices.length)
           console.log('[VoiceSelector] ElevenLabs voices:', elevenlabsVoices.length)
-          console.log('[VoiceSelector] Demo voices:', demoVoices.length)
         }
       } catch (err) {
         if (!cancelled) {
@@ -198,32 +195,44 @@ export default function VoiceSelector({
     try {
       const voice = voices.find(v => v.name === voiceName)
       
-      // 데모 목소리인 경우 데모 파일만 재생
-      if (voice?.provider === 'demo') {
-        const demoPath = getDemoFilePathFromVoiceInfo(voice)
-        if (demoPath) {
-          const audio = new Audio(demoPath)
-          audioRef.current = audio
+      // Premium 목소리 (ElevenLabs)인 경우 정적 파일 재생
+      if (voice?.provider === 'elevenlabs') {
+        const displayName = voice.displayName || voice.voiceId || voiceName.replace(/^elevenlabs:/, '')
+        const fileName = `${displayName.toLowerCase()}_test.wav`
+        const demoPath = `/voice-demos/premium/${fileName}`
+        
+        try {
+          const response = await fetch(demoPath, { 
+            method: 'HEAD',
+            cache: 'no-cache' 
+          })
+          if (response.ok) {
+            const audio = new Audio(demoPath)
+            audioRef.current = audio
 
-          audio.onended = () => {
-            setIsPlaying(false)
-            setPlayingVoiceName(null)
+            audio.onended = () => {
+              setIsPlaying(false)
+              setPlayingVoiceName(null)
+            }
+
+            audio.onerror = () => {
+              setIsPlaying(false)
+              setPlayingVoiceName(null)
+            }
+
+            setPlayingVoiceName(voiceName)
+            setIsPlaying(true)
+            await audio.play()
+            return // 정적 파일 재생 성공
           }
-
-          audio.onerror = () => {
-            setIsPlaying(false)
-            setPlayingVoiceName(null)
-          }
-
-          setPlayingVoiceName(voiceName)
-          setIsPlaying(true)
-          await audio.play()
-          return // 데모 파일 재생 성공
+        } catch {
+          // 파일이 없으면 재생 실패 (조용히 처리)
+          return
         }
       }
       
-      // Google TTS인 경우 데모 파일 먼저 시도
-      const isGoogleVoice = !voice || (voice.provider !== 'elevenlabs' && voice.provider !== 'demo')
+      // Google TTS인 경우 정적 파일 재생
+      const isGoogleVoice = !voice || voice.provider !== 'elevenlabs'
       
       if (isGoogleVoice) {
         // voiceName을 슬러그 형식으로 변환 (예: ko-KR-Chirp3-HD-Achernar → chirp3-hd-achernar)
@@ -275,58 +284,8 @@ export default function VoiceSelector({
         }
       }
 
-      // 데모 파일이 없거나 ElevenLabs인 경우 API 호출
-      const token = authStorage.getAccessToken()
-      if (!token) return
-
-      const res = await fetch('/api/tts/synthesize', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          voiceTemplate: voiceName,
-          mode: 'text',
-          text: '안녕하세요, 테스트 음성입니다.',
-        }),
-      })
-
-      if (!res.ok) {
-        // API 응답에서 오류 메시지 추출 시도
-        let errorMessage = '음성 생성에 실패했습니다.'
-        try {
-          const errorData = await res.json()
-          if (errorData.error) {
-            errorMessage = errorData.error
-          }
-        } catch {
-          // JSON 파싱 실패 시 기본 메시지 사용
-        }
-        throw new Error(errorMessage)
-      }
-
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-
-      const audio = new Audio(url)
-      audioRef.current = audio
-
-      audio.onended = () => {
-        setIsPlaying(false)
-        setPlayingVoiceName(null)
-        URL.revokeObjectURL(url)
-      }
-
-      audio.onerror = () => {
-        setIsPlaying(false)
-        setPlayingVoiceName(null)
-        URL.revokeObjectURL(url)
-      }
-
-      setPlayingVoiceName(voiceName)
-      setIsPlaying(true)
-      await audio.play()
+      // 정적 파일이 없으면 재생 실패 (조용히 처리)
+      return
     } catch (err) {
       console.error('음성 재생 실패:', err)
       setIsPlaying(false)
@@ -335,10 +294,6 @@ export default function VoiceSelector({
   }, [isPlaying, playingVoiceName, voices])
 
   const getShortName = useCallback((voiceName: string, voice?: PublicVoiceInfo) => {
-    // 데모 목소리인 경우 - displayName 사용
-    if (voice?.provider === 'demo' && voice.displayName) {
-      return voice.displayName
-    }
     // 일레븐랩스인 경우 - 실제 이름 사용
     if (voice?.provider === 'elevenlabs' && voice.displayName) {
       return voice.displayName
@@ -349,6 +304,15 @@ export default function VoiceSelector({
   }, [])
 
   const getGenderGroup = useCallback((v: PublicVoiceInfo): GenderGroup => {
+    // Premium 목소리 (ElevenLabs)인 경우 ssmlGender를 우선적으로 사용
+    if (v.provider === 'elevenlabs') {
+      const g = (v.ssmlGender ?? '').toUpperCase()
+      if (g === 'MALE') return 'MALE'
+      if (g === 'FEMALE') return 'FEMALE'
+      return 'OTHER'
+    }
+    
+    // Google TTS인 경우 기존 로직 사용
     const short = getShortName(v.name, v).toLowerCase()
     const mapped = GENDER_BY_SHORT_NAME[short]
     if (mapped) return mapped
@@ -359,17 +323,14 @@ export default function VoiceSelector({
     return 'OTHER'
   }, [getShortName])
 
-  // Provider별로 그룹화 (Google TTS / ElevenLabs / Demo)
+  // Provider별로 그룹화 (Google TTS / ElevenLabs)
   const groupedByProvider = useMemo(() => {
     const google: PublicVoiceInfo[] = []
     const elevenlabs: PublicVoiceInfo[] = []
-    const demo: PublicVoiceInfo[] = []
 
     for (const v of voices) {
       if (v.provider === 'elevenlabs') {
         elevenlabs.push(v)
-      } else if (v.provider === 'demo') {
-        demo.push(v)
       } else {
         google.push(v)
       }
@@ -380,9 +341,8 @@ export default function VoiceSelector({
 
     google.sort(byShortName)
     elevenlabs.sort(byShortName)
-    demo.sort(byShortName)
 
-    return { google, elevenlabs, demo }
+    return { google, elevenlabs }
   }, [getShortName, voices])
 
   // 각 Provider 내에서 성별로 그룹화
@@ -426,11 +386,9 @@ export default function VoiceSelector({
     const currentVoiceInfo = voiceTemplateHelpers.getVoiceInfo(voiceTemplate)
     const isSelected = currentVoiceInfo
       ? (currentVoiceInfo.provider === (v.provider || 'google') && 
-         (v.provider === 'elevenlabs' 
-           ? currentVoiceInfo.voiceId === v.voiceId
-           : v.provider === 'demo'
-           ? currentVoiceInfo.voiceId === v.voiceId
-           : currentVoiceInfo.voiceId === v.name))
+        (v.provider === 'elevenlabs' 
+          ? currentVoiceInfo.voiceId === v.voiceId
+          : currentVoiceInfo.voiceId === v.name))
       : voiceTemplate === v.name
     const isThisPlaying = isPlaying && playingVoiceName === v.name
     const label = getShortName(v.name, v)
@@ -674,15 +632,15 @@ export default function VoiceSelector({
               )}
             </TabsContent>
 
-            {/* Premium 탭: 데모 목소리 (ElevenLabs는 제외) */}
+            {/* Premium 탭: ElevenLabs 목소리 */}
             <TabsContent value="premium" className="space-y-6 mt-0">
-              {groupedByProvider.demo.length > 0 ? (() => {
-                const demoByGender = groupByGender(groupedByProvider.demo)
+              {groupedByProvider.elevenlabs.length > 0 ? (() => {
+                const elevenlabsByGender = groupByGender(groupedByProvider.elevenlabs)
                 return (
                   <>
-                    {renderGenderGroup(demoByGender.female, '여성 목소리')}
-                    {renderGenderGroup(demoByGender.male, '남성 목소리')}
-                    {renderGenderGroup(demoByGender.other, '기타')}
+                    {renderGenderGroup(elevenlabsByGender.female, '여성 목소리')}
+                    {renderGenderGroup(elevenlabsByGender.male, '남성 목소리')}
+                    {renderGenderGroup(elevenlabsByGender.other, '기타')}
                     {/* Powered by ElevenLabs */}
                     <div className="text-center pt-2">
                       <span className="text-gray-400 text-xs tracking-[-0.14px]">
@@ -693,8 +651,11 @@ export default function VoiceSelector({
                 )
               })() : (
                 <>
-                  <div className="text-sm text-text-dark text-center py-8">
-                    Premium 목소리가 없어요.
+                  <div className="text-sm text-text-dark text-center py-8 space-y-2">
+                    <div>Premium 목소리가 없어요.</div>
+                    <div className="text-xs text-gray-500">
+                      ElevenLabs API 키가 설정되어 있는지 확인해주세요.
+                    </div>
                   </div>
                   {/* Powered by ElevenLabs */}
                   <div className="text-center pt-2">

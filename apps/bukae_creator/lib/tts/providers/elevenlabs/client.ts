@@ -14,12 +14,22 @@ function getApiKeyFromEnv(): string {
  * ElevenLabs 클라이언트 싱글톤 인스턴스 반환
  */
 export function getElevenLabsClient(): ElevenLabsClient {
-  if (clientSingleton) return clientSingleton
+  if (clientSingleton) {
+    console.log('[ElevenLabs] Returning existing client singleton')
+    return clientSingleton
+  }
 
-  const apiKey = getApiKeyFromEnv()
-  clientSingleton = new ElevenLabsClient({
-    apiKey,
-  })
-
-  return clientSingleton
+  console.log('[ElevenLabs] Creating new client instance...')
+  try {
+    const apiKey = getApiKeyFromEnv()
+    console.log('[ElevenLabs] API key found, creating client')
+    clientSingleton = new ElevenLabsClient({
+      apiKey,
+    })
+    console.log('[ElevenLabs] Client created successfully')
+    return clientSingleton
+  } catch (error) {
+    console.error('[ElevenLabs] Failed to create client:', error)
+    throw error
+  }
 }

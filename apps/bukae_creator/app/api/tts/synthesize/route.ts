@@ -42,6 +42,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '유효하지 않은 목소리 정보입니다.' }, { status: 400 })
     }
 
+    // Demo provider는 더 이상 지원하지 않음
+    if (voiceInfo.provider === 'demo') {
+      return NextResponse.json({ error: 'Demo 목소리는 더 이상 지원하지 않습니다. Standard 또는 Premium 목소리를 선택해주세요.' }, { status: 400 })
+    }
+
+    // Provider 정보 로깅
+    console.log(`[TTS Synthesize] Provider: ${voiceInfo.provider}, VoiceId: ${voiceInfo.voiceId}, DisplayName: ${voiceInfo.displayName}`)
+
     const mode = body.mode === 'markup' ? 'markup' : 'text'
     const text = String(body.text ?? '').trim()
     const markup = String(body.markup ?? '').trim()
@@ -79,6 +87,7 @@ export async function POST(request: Request) {
 
     // Provider 팩토리를 사용하여 적절한 Provider 선택
     const provider = getProvider(voiceInfo.provider)
+    console.log(`[TTS Synthesize] Selected provider: ${provider.name} (${provider.displayName})`)
 
     // Provider의 synthesize 메서드 호출
     const speakingRate = typeof body.speakingRate === 'number' ? body.speakingRate : undefined

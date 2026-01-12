@@ -2,7 +2,6 @@ import type { TtsProviderInterface } from './provider.interface'
 import type { TtsProvider } from '@/lib/types/tts'
 import { GoogleProvider } from '../providers/google'
 import { ElevenLabsProvider } from '../providers/elevenlabs'
-import { DemoProvider } from '../providers/demo'
 
 /**
  * Provider 팩토리
@@ -14,8 +13,6 @@ export function getProvider(provider: TtsProvider): TtsProviderInterface {
       return GoogleProvider
     case 'elevenlabs':
       return ElevenLabsProvider
-    case 'demo':
-      return DemoProvider
     default:
       throw new Error(`Unknown provider: ${provider}`)
   }
@@ -25,5 +22,5 @@ export function getProvider(provider: TtsProvider): TtsProviderInterface {
  * 모든 Provider 목록 반환
  */
 export function getAllProviders(): TtsProviderInterface[] {
-  return [GoogleProvider, ElevenLabsProvider, DemoProvider]
+  return [GoogleProvider, ElevenLabsProvider]
 }
