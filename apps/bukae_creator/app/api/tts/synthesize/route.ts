@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
 import type { VoiceInfo } from '@/lib/types/tts'
-import { isGoogleVoice, isElevenLabsVoice, isDemoVoice } from '@/lib/types/tts'
-import { getTextToSpeechClient, TTS_LANGUAGE_CODE } from '@/lib/tts/google-tts'
-import { synthesizeSpeech as synthesizeElevenLabs } from '@/lib/tts/elevenlabs-tts'
 import { requireUser } from '@/lib/api/route-guard'
 import { enforceRateLimit, enforceTtsDailyQuota, enforceCreditQuota } from '@/lib/api/rate-limit'
 import { voiceTemplateHelpers } from '@/store/useVideoCreateStore'
+import { getProvider } from '@/lib/tts/core/factory'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,18 +18,6 @@ type SynthesizeRequest = {
 }
 
 const MAX_PREVIEW_CHARS = 4500
-
-// 일레븐랩스는 SSML을 직접 지원하지 않으므로 마크업을 텍스트로 변환
-function markupToText(markup: string): string {
-  // 기본적인 SSML 태그 제거
-  return markup
-    .replace(/<speak[^>]*>/gi, '')
-    .replace(/<\/speak>/gi, '')
-    .replace(/<break[^>]*\/?>/gi, ' ')
-    .replace(/<[^>]+>/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
 
 export async function POST(request: Request) {
   try {
@@ -74,15 +60,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // 데모 목소리는 실제 TTS 합성 불가
-    if (isDemoVoice(voiceInfo)) {
-      return NextResponse.json(
-        { error: '데모 목소리는 실제 TTS 합성을 지원하지 않습니다. 미리듣기만 가능합니다.' },
-        { status: 400 }
-      )
-    }
-
-    // 제공자별 쿼터 체크
+    // Provider별 쿼터 체크
     const quotaBlocked = await enforceTtsDailyQuota({
       userId: auth.userId,
       charCount: inputText.length,
@@ -99,60 +77,27 @@ export async function POST(request: Request) {
     })
     if (creditBlocked) return creditBlocked
 
-    let audioBuffer: Buffer
+    // Provider 팩토리를 사용하여 적절한 Provider 선택
+    const provider = getProvider(voiceInfo.provider)
 
-    // 제공자별 TTS 합성
-    if (isGoogleVoice(voiceInfo)) {
-      // Google TTS 처리
-      if (!voiceInfo.googleVoiceName.includes(TTS_LANGUAGE_CODE)) {
-        return NextResponse.json({ error: '한국어(ko-KR) 목소리만 허용됩니다.' }, { status: 400 })
-      }
+    // Provider의 synthesize 메서드 호출
+    const speakingRate = typeof body.speakingRate === 'number' ? body.speakingRate : undefined
+    const pitch = typeof body.pitch === 'number' ? body.pitch : undefined
 
-      const speakingRate = typeof body.speakingRate === 'number' ? body.speakingRate : undefined
-      const pitch = typeof body.pitch === 'number' ? body.pitch : undefined
+    const result = await provider.synthesize({
+      voiceId: voiceInfo.voiceId,
+      text: mode === 'text' ? inputText : undefined,
+      markup: mode === 'markup' ? inputText : undefined,
+      mode,
+      speakingRate,
+      pitch,
+    })
 
-      const client = getTextToSpeechClient()
-      const [result] = await client.synthesizeSpeech({
-        input: mode === 'markup' ? { markup: inputText } : { text: inputText },
-        voice: {
-          languageCode: TTS_LANGUAGE_CODE,
-          name: voiceInfo.googleVoiceName,
-        },
-        audioConfig: {
-          audioEncoding: 'MP3',
-          ...(speakingRate !== undefined ? { speakingRate } : {}),
-          ...(pitch !== undefined ? { pitch } : {}),
-        },
-      })
+    const audioBuffer = result.audio
 
-      const audioContent = result.audioContent
-      if (!audioContent) {
-        return NextResponse.json({ error: 'TTS 변환 결과가 비어있어요.' }, { status: 500 })
-      }
-
-      const nodeBuf =
-        typeof audioContent === 'string'
-          ? Buffer.from(audioContent, 'base64')
-          : Buffer.from(audioContent as Uint8Array)
-      
-      audioBuffer = nodeBuf
-    } else if (isElevenLabsVoice(voiceInfo)) {
-      // ElevenLabs 처리
-      const finalText = mode === 'markup' ? markupToText(inputText) : inputText
-
-      const result = await synthesizeElevenLabs({
-        voiceId: voiceInfo.elevenLabsVoiceId,
-        text: finalText,
-      })
-
-      audioBuffer = result.audio
-
-      // 문자 수 추적 (헤더에서 가져온 값 사용)
-      if (result.charCount) {
-        console.log(`[ElevenLabs] Character count: ${result.charCount}, Request ID: ${result.requestId}`)
-      }
-    } else {
-      return NextResponse.json({ error: '지원하지 않는 TTS 제공자입니다.' }, { status: 400 })
+    // 문자 수 추적 (ElevenLabs인 경우)
+    if (result.charCount) {
+      console.log(`[${voiceInfo.provider}] Character count: ${result.charCount}, Request ID: ${result.requestId}`)
     }
 
     const bodyArrayBuffer = audioBuffer.buffer.slice(

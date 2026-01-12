@@ -1,7 +1,7 @@
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { BgmSelector } from '@/components/video-editor/BgmSelector'
 import { SubtitleSettings } from '@/components/video-editor/SubtitleSettings'
-import ChirpVoiceSelector from '@/components/ChirpVoiceSelector'
+import VoiceSelector from '@/components/VoiceSelector'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 
 interface EffectsPanelProps {
@@ -384,7 +384,7 @@ export function EffectsPanel({
                     </div>
                   )}
                   <div className="w-full max-w-full overflow-x-hidden box-border">
-                    <ChirpVoiceSelector
+                    <VoiceSelector
                       theme={theme ?? 'light'}
                       title="목소리 선택"
                       disabled={!timeline || currentSceneIndex < 0}
