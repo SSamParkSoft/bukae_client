@@ -647,12 +647,26 @@ export default function ChirpVoiceSelector({
                     {renderGenderGroup(googleByGender.female, '여성 목소리')}
                     {renderGenderGroup(googleByGender.male, '남성 목소리')}
                     {renderGenderGroup(googleByGender.other, '기타')}
+                    {/* Powered by Google TTS */}
+                    <div className="text-center pt-2">
+                      <span className="text-gray-400 text-xs tracking-[-0.14px]">
+                        Powered by Google TTS
+                      </span>
+                    </div>
                   </>
                 )
               })() : (
-                <div className="text-sm text-text-dark text-center py-8">
-                  Standard 목소리가 없어요.
-                </div>
+                <>
+                  <div className="text-sm text-text-dark text-center py-8">
+                    Standard 목소리가 없어요.
+                  </div>
+                  {/* Powered by Google TTS */}
+                  <div className="text-center pt-2">
+                    <span className="text-gray-400 text-xs tracking-[-0.14px]">
+                      Powered by Google TTS
+                    </span>
+                  </div>
+                </>
               )}
             </TabsContent>
 
@@ -665,12 +679,26 @@ export default function ChirpVoiceSelector({
                     {renderGenderGroup(demoByGender.female, '여성 목소리')}
                     {renderGenderGroup(demoByGender.male, '남성 목소리')}
                     {renderGenderGroup(demoByGender.other, '기타')}
+                    {/* Powered by ElevenLabs */}
+                    <div className="text-center pt-2">
+                      <span className="text-gray-400 text-xs tracking-[-0.14px]">
+                        Powered by ElevenLabs
+                      </span>
+                    </div>
                   </>
                 )
               })() : (
-                <div className="text-sm text-text-dark text-center py-8">
-                  Premium 목소리가 없어요.
-                </div>
+                <>
+                  <div className="text-sm text-text-dark text-center py-8">
+                    Premium 목소리가 없어요.
+                  </div>
+                  {/* Powered by ElevenLabs */}
+                  <div className="text-center pt-2">
+                    <span className="text-gray-400 text-xs tracking-[-0.14px]">
+                      Powered by ElevenLabs
+                    </span>
+                  </div>
+                </>
               )}
             </TabsContent>
           </Tabs>
