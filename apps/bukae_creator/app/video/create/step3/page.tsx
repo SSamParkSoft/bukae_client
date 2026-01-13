@@ -95,6 +95,10 @@ export default function Step3Page() {
             setBgmTemplate={container.setBgmTemplate}
             confirmedBgmTemplate={container.confirmedBgmTemplate}
             onBgmConfirm={container.handleBgmConfirm}
+            soundEffect={container.soundEffect}
+            setSoundEffect={container.setSoundEffect}
+            confirmedSoundEffect={container.confirmedSoundEffect}
+            onSoundEffectConfirm={container.handleSoundEffectConfirm}
             setTimeline={container.setTimeline}
             showVoiceRequiredMessage={container.showVoiceRequiredMessage}
           />

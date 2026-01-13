@@ -6,6 +6,8 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { useTtsResources } from './useTtsResources'
+import { soundEffects } from '@/components/video-editor/SoundEffectSelector'
+import { getSupabaseStorageUrl } from '@/lib/utils/supabase-storage'
 
 interface UseGroupPlaybackParams {
   timeline: TimelineData | null
@@ -60,6 +62,9 @@ export function useGroupPlayback({
   // TTS 리소스 가져오기
   const { ttsCacheRef, ttsAudioRef, ttsAudioUrlRef, stopTtsAudio } = useTtsResources()
   const { getSceneStructure } = useSceneStructureStore()
+  const resolveSoundEffectUrl = (fileName: string): string => {
+    return getSupabaseStorageUrl('soundeffect', fileName) ?? `/sound-effects/${fileName}`
+  }
   
   // 재생 중인 씬 인덱스 추적 (단일 씬 재생용)
   const [playingSceneIndex, setPlayingSceneIndex] = useState<number | null>(null)
@@ -540,6 +545,20 @@ export function useGroupPlayback({
             await playPart(globalPartIndex + 1)
           }
           return
+        }
+
+        // 씬의 첫 구간에서 효과음 재생
+        if (scenePartIndex === 0) {
+          const scene = updatedTimeline.scenes[targetSceneIndex]
+          const effect = scene.soundEffect ? soundEffects.find(e => e.id === scene.soundEffect) : null
+          if (effect) {
+            const effectUrl = resolveSoundEffectUrl(effect.filename)
+            const seAudio = new Audio(effectUrl)
+            seAudio.volume = 0.5
+            seAudio.play().catch((err) => {
+              console.warn('[useGroupPlayback] 효과음 재생 실패:', err)
+            })
+          }
         }
 
         ttsAudioUrlRef.current = audioUrl

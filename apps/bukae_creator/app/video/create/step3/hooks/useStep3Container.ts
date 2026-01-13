@@ -101,6 +101,8 @@ export function useStep3Container() {
   
   // State
   const [rightPanelTab, setRightPanelTab] = useState('animation')
+  const [soundEffect, setSoundEffect] = useState<string | null>(null)
+  const [confirmedSoundEffect, setConfirmedSoundEffect] = useState<string | null>(null)
   const [editMode, setEditMode] = useState<'none' | 'image' | 'text'>('none')
   const editModeRef = useRef(editMode)
   // 빈 공간 클릭 감지를 위한 플래그 (스프라이트/텍스트/핸들 클릭 여부 추적)
@@ -694,6 +696,11 @@ export function useStep3Container() {
     playbackSpeed,
     isPlaying,
   })
+
+  // 효과음 확정 핸들러
+  const handleSoundEffectConfirm = useCallback((effectId: string | null) => {
+    setConfirmedSoundEffect(effectId)
+  }, [])
 
   // 타임라인 인터랙션
   const { isDraggingTimeline: _isDraggingTimeline, handleTimelineClick: _handleTimelineClick, handleTimelineMouseDown } = useTimelineInteraction({
@@ -2223,6 +2230,10 @@ export function useStep3Container() {
     playingGroupSceneId: groupPlayback.playingGroupSceneId,
     confirmedBgmTemplate,
     handleBgmConfirm,
+    soundEffect,
+    setSoundEffect,
+    confirmedSoundEffect,
+    handleSoundEffectConfirm,
     setTimeline,
   }), [
     pixiContainerRef,
@@ -2286,6 +2297,10 @@ export function useStep3Container() {
     singleScenePlayback,
     confirmedBgmTemplate,
     handleBgmConfirm,
+    soundEffect,
+    setSoundEffect,
+    confirmedSoundEffect,
+    handleSoundEffectConfirm,
     setTimeline,
     groupPlayback.playingSceneIndex,
     groupPlayback.playingGroupSceneId,
