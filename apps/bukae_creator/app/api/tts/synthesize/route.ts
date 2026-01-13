@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import type { VoiceInfo } from '@/lib/types/tts'
 import { requireUser } from '@/lib/api/route-guard'
 import { enforceRateLimit, enforceTtsDailyQuota, enforceCreditQuota } from '@/lib/api/rate-limit'
 import { voiceTemplateHelpers } from '@/store/useVideoCreateStore'
@@ -40,11 +39,6 @@ export async function POST(request: Request) {
     
     if (!voiceInfo) {
       return NextResponse.json({ error: '유효하지 않은 목소리 정보입니다.' }, { status: 400 })
-    }
-
-    // Demo provider는 더 이상 지원하지 않음
-    if (voiceInfo.provider === 'demo') {
-      return NextResponse.json({ error: 'Demo 목소리는 더 이상 지원하지 않습니다. Standard 또는 Premium 목소리를 선택해주세요.' }, { status: 400 })
     }
 
     // Provider 정보 로깅
@@ -109,12 +103,7 @@ export async function POST(request: Request) {
       console.log(`[${voiceInfo.provider}] Character count: ${result.charCount}, Request ID: ${result.requestId}`)
     }
 
-    const bodyArrayBuffer = audioBuffer.buffer.slice(
-      audioBuffer.byteOffset,
-      audioBuffer.byteOffset + audioBuffer.byteLength
-    )
-
-    return new Response(bodyArrayBuffer, {
+    return new Response(new Uint8Array(audioBuffer), {
       headers: {
         'Content-Type': 'audio/mpeg',
         'Cache-Control': 'no-store',
