@@ -52,14 +52,14 @@ export function useStep3Container() {
   const subtitleFont = useVideoCreateStore((state) => state.subtitleFont)
   const subtitleColor = useVideoCreateStore((state) => state.subtitleColor)
   const bgmTemplate = useVideoCreateStore((state) => state.bgmTemplate)
-  const transitionTemplate = useVideoCreateStore((state) => state.transitionTemplate)
+  const _transitionTemplate = useVideoCreateStore((state) => state.transitionTemplate)
   const voiceTemplate = useVideoCreateStore((state) => state.voiceTemplate)
-  const setSubtitlePosition = useVideoCreateStore((state) => state.setSubtitlePosition)
-  const setSubtitleFont = useVideoCreateStore((state) => state.setSubtitleFont)
-  const setSubtitleColor = useVideoCreateStore((state) => state.setSubtitleColor)
+  const _setSubtitlePosition = useVideoCreateStore((state) => state.setSubtitlePosition)
+  const _setSubtitleFont = useVideoCreateStore((state) => state.setSubtitleFont)
+  const _setSubtitleColor = useVideoCreateStore((state) => state.setSubtitleColor)
   const setBgmTemplate = useVideoCreateStore((state) => state.setBgmTemplate)
-  const setTransitionTemplate = useVideoCreateStore((state) => state.setTransitionTemplate)
-  const setVoiceTemplate = useVideoCreateStore((state) => state.setVoiceTemplate)
+  const _setTransitionTemplate = useVideoCreateStore((state) => state.setTransitionTemplate)
+  const _setVoiceTemplate = useVideoCreateStore((state) => state.setVoiceTemplate)
   const selectedProducts = useVideoCreateStore((state) => state.selectedProducts)
   const videoTitle = useVideoCreateStore((state) => state.videoTitle)
   const videoDescription = useVideoCreateStore((state) => state.videoDescription)
@@ -74,7 +74,7 @@ export function useStep3Container() {
   const texturesRef = useRef<Map<string, PIXI.Texture>>(new Map())
   const spritesRef = useRef<Map<number, PIXI.Sprite>>(new Map())
   const textsRef = useRef<Map<number, PIXI.Text>>(new Map())
-  const handlesRef = useRef<PIXI.Graphics | null>(null)
+  const _handlesRef = useRef<PIXI.Graphics | null>(null)
   const isDraggingRef = useRef(false)
   const draggingElementRef = useRef<'image' | 'text' | null>(null) // 현재 드래그 중인 요소 타입
   const dragStartPosRef = useRef<{ x: number; y: number; boundsWidth?: number; boundsHeight?: number }>({ x: 0, y: 0 })
@@ -122,8 +122,8 @@ export function useStep3Container() {
   const fabricScaleRatioRef = useRef<number>(1) // Fabric.js 좌표 스케일 비율
   const [mounted, setMounted] = useState(false)
   const [isTtsBootstrapping, setIsTtsBootstrapping] = useState(false) // 첫 씬 TTS 로딩 상태
-  const isTtsBootstrappingRef = useRef(false) // 클로저에서 최신 값 참조용
-  const [showReadyMessage, setShowReadyMessage] = useState(false) // "재생이 가능해요!" 메시지 표시 여부
+  const _isTtsBootstrappingRef = useRef(false) // 클로저에서 최신 값 참조용
+  const [showReadyMessage, _setShowReadyMessage] = useState(false) // "재생이 가능해요!" 메시지 표시 여부
   const [showVoiceRequiredMessage, setShowVoiceRequiredMessage] = useState(false) // "음성을 먼저 선택해주세요" 메시지 표시 여부
   const [isPreparing, setIsPreparing] = useState(false) // 모든 TTS 합성 준비 중인지 여부
   // 스크립트가 변경된 씬 추적 (재생 시 강제 재생성)
@@ -139,7 +139,7 @@ export function useStep3Container() {
   }, [])
 
   // 토큰 검증
-  const { isValidatingToken } = useVideoCreateAuth()
+  const { isValidatingToken: _isValidatingToken } = useVideoCreateAuth()
 
   // 클라이언트에서만 렌더링 (SSR/Hydration mismatch 방지)
   useEffect(() => {
@@ -248,12 +248,12 @@ export function useStep3Container() {
   const {
     drawEditHandles,
     saveImageTransform,
-    saveAllImageTransforms,
+    saveAllImageTransforms: _saveAllImageTransforms,
     handleResize,
     setupSpriteDrag,
-    applyImageTransform,
+    applyImageTransform: _applyImageTransform,
     saveTextTransform,
-    applyTextTransform,
+    applyTextTransform: _applyTextTransform,
     handleTextResize,
     drawTextEditHandles,
     setupTextDrag,
@@ -352,7 +352,7 @@ export function useStep3Container() {
         if (!existingHandles || !existingHandles.parent) {
           try {
             drawEditHandles(sprite, sceneIndex, handleResize, saveImageTransform)
-          } catch (error) {
+          } catch {
             // 이미지 핸들 그리기 실패
           }
         }
@@ -371,7 +371,7 @@ export function useStep3Container() {
         if (!existingTextHandles || !existingTextHandles.parent) {
           try {
             drawTextEditHandles(text, sceneIndex, handleTextResize, saveTextTransform)
-          } catch (error) {
+          } catch {
             // 자막 핸들 그리기 실패
           }
         }
@@ -412,10 +412,10 @@ export function useStep3Container() {
     applyEnterEffect,
     onLoadComplete: handleLoadComplete,
     setTimeline,
-    setCurrentSceneIndex: undefined as any, // 나중에 설정됨
+    setCurrentSceneIndex: undefined as ((index: number) => void) | undefined, // 나중에 설정됨
   })
   
-  let { updateCurrentScene, syncFabricWithScene, loadAllScenes } = sceneManagerResult1
+  const { updateCurrentScene, syncFabricWithScene, loadAllScenes } = sceneManagerResult1
   
   // loadAllScenes가 항상 정의되도록 보장 (초기화되지 않은 경우를 대비)
   const loadAllScenesStable = loadAllScenes || (async () => {})
@@ -442,7 +442,7 @@ export function useStep3Container() {
 
   // timeline의 scenes 배열 길이나 구조가 변경될 때만 loadAllScenes 호출
   const timelineScenesLengthRef = useRef<number>(0)
-  const timelineScenesRef = useRef<any[]>([])
+  const timelineScenesRef = useRef<TimelineScene[]>([])
   const loadAllScenesCompletedRef = useRef<boolean>(false) // loadAllScenes 완료 여부 추적
 
   // Pixi와 타임라인이 모두 준비되면 씬 로드
@@ -482,8 +482,9 @@ export function useStep3Container() {
     // scenes 정보 업데이트
     timelineScenesLengthRef.current = scenesLength
     timelineScenesRef.current = timeline.scenes.map(scene => ({
+      sceneId: scene.sceneId,
       image: scene.image,
-      text: scene.text ? { content: scene.text.content, position: scene.text.position } : null,
+      text: scene.text || { content: '', font: 'Noto Sans KR', color: '#ffffff', position: 'center' },
       duration: scene.duration,
       transition: scene.transition,
     }))
@@ -496,8 +497,8 @@ export function useStep3Container() {
       
       // loadAllScenes 완료 후 spritesRef와 textsRef 상태 확인
       const sceneIndex = currentSceneIndexRef.current
-      const spriteAfterLoad = spritesRef.current.get(sceneIndex)
-      const textAfterLoad = textsRef.current.get(sceneIndex)
+      const _spriteAfterLoad = spritesRef.current.get(sceneIndex)
+      const _textAfterLoad = textsRef.current.get(sceneIndex)
       
       loadAllScenesCompletedRef.current = true
       
@@ -538,7 +539,7 @@ export function useStep3Container() {
               if (currentEditMode === 'image') {
                 // 이미지 편집 모드일 때는 이미지 핸들만 표시하고 자막 핸들은 제거
                 const currentSprite = spritesRef.current.get(sceneIndex)
-                const currentText = textsRef.current.get(sceneIndex)
+                const _currentText = textsRef.current.get(sceneIndex)
                 
                 // 자막 핸들 제거
                 const existingTextHandles = textEditHandlesRef.current.get(sceneIndex)
@@ -555,18 +556,18 @@ export function useStep3Container() {
                 if (!existingHandles || !existingHandles.parent) {
                   try {
                     drawEditHandlesRef.current(currentSprite, sceneIndex, handleResizeRef.current, saveImageTransformRef.current)
-                  } catch (error) {
+                  } catch {
                     // 이미지 핸들 그리기 실패
                   }
                 }
                 try {
                   setupSpriteDragRef.current(currentSprite, sceneIndex)
-                } catch (error) {
+                } catch {
                   // 이미지 드래그 설정 실패
                 }
               } else if (currentEditMode === 'text') {
                 // 자막 편집 모드일 때는 자막 핸들만 표시하고 이미지 핸들은 제거
-                const currentSprite = spritesRef.current.get(sceneIndex)
+                const _currentSprite = spritesRef.current.get(sceneIndex)
                 const currentText = textsRef.current.get(sceneIndex)
                 
                 // 이미지 핸들 제거
@@ -584,13 +585,13 @@ export function useStep3Container() {
                 if (!existingTextHandles || !existingTextHandles.parent) {
                   try {
                     drawTextEditHandlesRef.current(currentText, sceneIndex, handleTextResizeRef.current, saveTextTransformRef.current)
-                  } catch (error) {
+                  } catch {
                     // 자막 핸들 그리기 실패
                   }
                 }
                 try {
                   setupTextDragRef.current(currentText, sceneIndex)
-                } catch (error) {
+                } catch {
                   // 자막 드래그 설정 실패
                 }
               }
@@ -610,7 +611,7 @@ export function useStep3Container() {
   // timeline 변경 시 저장된 씬 인덱스 복원 (더 이상 필요 없음 - 편집 종료 버튼에서 직접 처리)
 
   // 현재 씬의 시작 시간 계산
-  const getSceneStartTime = useCallback((sceneIndex: number) => {
+  const _getSceneStartTime = useCallback((sceneIndex: number) => {
     if (!timeline) {
       return 0
     }
@@ -627,7 +628,7 @@ export function useStep3Container() {
   }, [timeline])
 
   // 씬을 표시하는 공통 함수 (씬 선택과 재생 모두에서 사용)
-  const showScene = useCallback((index: number) => {
+  const _showScene = useCallback((index: number) => {
     showSceneUtil(index, appRef, containerRef, spritesRef, textsRef)
   }, [appRef, containerRef, spritesRef, textsRef])
 
@@ -647,9 +648,9 @@ export function useStep3Container() {
     playbackSpeed,
     setPlaybackSpeed,
     totalDuration,
-    selectScene: timelineSelectScene,
-    togglePlay,
-    getStageDimensions,
+    selectScene: _timelineSelectScene,
+    togglePlay: _togglePlay,
+    getStageDimensions: _getStageDimensions,
   } = useTimelinePlayer({
     timeline,
     updateCurrentScene: () => {
@@ -679,12 +680,12 @@ export function useStep3Container() {
   // BGM 관리
   const {
     confirmedBgmTemplate,
-    setConfirmedBgmTemplate,
+    setConfirmedBgmTemplate: _setConfirmedBgmTemplate,
     isBgmBootstrapping,
-    setIsBgmBootstrapping,
-    isBgmBootstrappingRef,
-    bgmAudioRef,
-    bgmStartTimeRef,
+    setIsBgmBootstrapping: _setIsBgmBootstrapping,
+    isBgmBootstrappingRef: _isBgmBootstrappingRef,
+    bgmAudioRef: _bgmAudioRef,
+    bgmStartTimeRef: _bgmStartTimeRef,
     stopBgmAudio,
     startBgmAudio,
     handleBgmConfirm,
@@ -695,7 +696,7 @@ export function useStep3Container() {
   })
 
   // 타임라인 인터랙션
-  const { isDraggingTimeline, handleTimelineClick, handleTimelineMouseDown } = useTimelineInteraction({
+  const { isDraggingTimeline: _isDraggingTimeline, handleTimelineClick: _handleTimelineClick, handleTimelineMouseDown } = useTimelineInteraction({
     timeline,
     timelineBarRef,
     isPlaying,
@@ -879,7 +880,7 @@ export function useStep3Container() {
         sceneIndex // sceneIndex 전달
       )
     }
-  }, [timeline, setTimeline, setCurrentSceneIndex, textsRef, spritesRef, currentSceneIndexRef, updateCurrentScene, renderSceneContentFromManager])
+  }, [timeline, setTimeline, setCurrentSceneIndex, currentSceneIndexRef, updateCurrentScene, renderSceneContentFromManager])
   const isPreviewingTransition = timelineIsPreviewingTransition
   const setIsPreviewingTransition = setTimelineIsPreviewingTransition
 
@@ -905,9 +906,9 @@ export function useStep3Container() {
 
   // 재생/일시정지 (씬 선택 로직을 그대로 사용)
   const playTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const bgmStopTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const _bgmStopTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   // isPlayingRef는 위에서 이미 선언됨
-  const currentPlayIndexRef = useRef<number>(0)
+  const _currentPlayIndexRef = useRef<number>(0)
 
   // -----------------------------
   // TTS 재생/프리페치/캐시 (Chirp3 HD: speakingRate + markup pause 지원)
@@ -923,7 +924,7 @@ export function useStep3Container() {
   const ttsAudioUrlRef = useRef<string | null>(null)
   const scenePreviewAudioRef = useRef<HTMLAudioElement | null>(null)
   const scenePreviewAudioUrlRef = useRef<string | null>(null)
-  const bgmAudioUrlRef = useRef<string | null>(null)
+  const _bgmAudioUrlRef = useRef<string | null>(null)
   const previewingSceneIndexRef = useRef<number | null>(null)
   const previewingPartIndexRef = useRef<number | null>(null)
   const isPreviewingRef = useRef<boolean>(false)
@@ -1004,7 +1005,7 @@ export function useStep3Container() {
     if (!timeline || !voiceTemplate) return
     
     // 변경된 씬이 있는지 확인 (스크립트가 변경된 씬은 재계산 필요)
-    const hasChangedScenes = changedScenesRef.current.size > 0
+    const _hasChangedScenes = changedScenesRef.current.size > 0
     
     const updatedScenes = timeline.scenes.map((scene, index) => {
       // 실제 재생 시간이 있고, 해당 씬이 변경되지 않았으면 그것을 사용 (가장 정확함)
@@ -1104,7 +1105,7 @@ export function useStep3Container() {
         scenes: updatedScenes,
       })
     }
-  }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, setTimeline, ttsCacheRef])
+  }, [timeline, voiceTemplate, setTimeline, ttsCacheRef])
 
   // getMp3DurationSec는 lib/utils/audio.ts에서 import하여 사용
 
@@ -1168,7 +1169,7 @@ export function useStep3Container() {
       
       setTimeline(newTimeline)
     },
-    [setTimeline, timeline, isPlaying, setCurrentTime, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef]
+    [setTimeline, timeline, isPlaying, setCurrentTime, voiceTemplate, ttsCacheRef]
   )
 
   // ensureSceneTts를 유틸리티 함수로 래핑
@@ -1212,7 +1213,7 @@ export function useStep3Container() {
     ]
   )
 
-  const prefetchWindow = useCallback(
+  const _prefetchWindow = useCallback(
     (baseIndex: number) => {
       if (!timeline) {
         return
@@ -1369,7 +1370,7 @@ export function useStep3Container() {
     ttsCacheRef.current.forEach((value, key) => {
       // 캐시 값이 객체인지 확인
       if (value && typeof value === 'object') {
-        const cached = value as any
+        const cached = value as { blob: Blob; durationSec: number; markup: string; url?: string | null; sceneId?: number; sceneIndex?: number }
         // sceneId가 일치하거나 sceneIndex가 일치하면 무효화
         // 기존 캐시에는 sceneId/sceneIndex가 없을 수 있으므로, 
         // 해당 씬의 현재 스크립트로 생성된 키인지도 확인
@@ -1403,12 +1404,12 @@ export function useStep3Container() {
         ttsCacheRef.current.delete(key)
       }
     })
-  }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey])
+  }, [timeline, voiceTemplate])
 
   // 씬 편집 핸들러들
   const {
     handleSceneScriptChange: originalHandleSceneScriptChange,
-    handleSceneDurationChange,
+    handleSceneDurationChange: _handleSceneDurationChange,
     handleSceneTransitionChange: originalHandleSceneTransitionChange,
     handleSceneImageFitChange,
     handlePlaybackSpeedChange,
@@ -1919,13 +1920,13 @@ export function useStep3Container() {
 
     // 편집 모드가 종료되면 핸들 제거
     if (editMode === 'none') {
-      editHandlesRef.current.forEach((handles, index) => {
+      editHandlesRef.current.forEach((handles) => {
         if (handles.parent) {
           handles.parent.removeChild(handles)
         }
       })
       editHandlesRef.current.clear()
-      textEditHandlesRef.current.forEach((handles, index) => {
+      textEditHandlesRef.current.forEach((handles) => {
         if (handles.parent) {
           handles.parent.removeChild(handles)
         }
@@ -1973,14 +1974,14 @@ export function useStep3Container() {
       if (!existingHandles || !existingHandles.parent) {
         try {
           drawEditHandlesRef.current(sprite, currentSceneIndex, handleResizeRef.current, saveImageTransformRef.current)
-        } catch (error) {
+        } catch {
           // 이미지 핸들 그리기 실패
         }
       } else {
       }
       try {
         setupSpriteDragRef.current(sprite, currentSceneIndex)
-      } catch (error) {
+      } catch {
         // 이미지 드래그 설정 실패
       }
     } else if (editMode === 'text') {
@@ -2020,14 +2021,14 @@ export function useStep3Container() {
       if (!existingTextHandles || !existingTextHandles.parent) {
         try {
           drawTextEditHandlesRef.current(text, currentSceneIndex, handleTextResizeRef.current, saveTextTransformRef.current)
-        } catch (error) {
+        } catch {
           // 자막 핸들 그리기 실패
         }
       } else {
       }
       try {
         setupTextDragRef.current(text, currentSceneIndex)
-      } catch (error) {
+      } catch {
         // 자막 드래그 설정 실패
       }
     }
@@ -2048,13 +2049,13 @@ export function useStep3Container() {
       setSelectedElementType(null)
       
       // 모든 편집 핸들 제거
-      editHandlesRef.current.forEach((handles, index) => {
+      editHandlesRef.current.forEach((handles) => {
         if (handles.parent) {
           handles.parent.removeChild(handles)
         }
       })
       editHandlesRef.current.clear()
-      textEditHandlesRef.current.forEach((handles, index) => {
+      textEditHandlesRef.current.forEach((handles) => {
         if (handles.parent) {
           handles.parent.removeChild(handles)
         }
@@ -2255,6 +2256,7 @@ export function useStep3Container() {
     isBgmBootstrapping,
     isPreparing,
     showReadyMessage,
+    showVoiceRequiredMessage,
     isExporting,
     isPreviewingTransition,
     canvasDisplaySize,
@@ -2280,10 +2282,6 @@ export function useStep3Container() {
     handleResizeTemplate,
     sceneNavigation.selectPart,
     sceneThumbnails,
-    transitionLabels,
-    allTransitions,
-    transitions,
-    movements,
     fullPlayback,
     singleScenePlayback,
     confirmedBgmTemplate,
