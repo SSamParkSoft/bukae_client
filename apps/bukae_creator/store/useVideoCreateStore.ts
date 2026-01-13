@@ -19,7 +19,6 @@ interface VideoCreateState {
   // 스크립트 생성 관련
   scriptMethod: ScriptMethod
   concept: ConceptType | null
-  tone: string | null
   script: string | null
   // 상품별 데이터
   productNames: Record<string, string>
@@ -66,7 +65,6 @@ interface VideoCreateState {
   setCreationProgress: (progress: number) => void
   setScriptMethod: (method: ScriptMethod) => void
   setConcept: (concept: ConceptType | null) => void
-  setTone: (tone: string | null) => void
   setScript: (script: string | null) => void
   setProductName: (productId: string, name: string) => void
   setProductVideos: (productId: string, videos: File[]) => void
@@ -107,7 +105,6 @@ const initialState = {
   creationProgress: 0,
   scriptMethod: 'edit' as ScriptMethod,
   concept: null,
-  tone: null,
   script: null,
   productNames: {},
   productVideos: {},
@@ -211,7 +208,6 @@ export const useVideoCreateStore = create<VideoCreateState>()(
       setCreationProgress: (progress) => set({ creationProgress: progress }),
       setScriptMethod: (method) => set({ scriptMethod: method }),
       setConcept: (concept) => set({ concept }),
-      setTone: (tone) => set({ tone }),
       setScript: (script) => set({ script }),
       setProductName: (productId, name) =>
         set((state) => ({

@@ -37,29 +37,12 @@ export default function Step2Page() {
               {/* 대본 및 스크립트 스타일 선택 */}
               <ScriptStyleSection
                 conceptOptions={container.conceptOptions}
-                conceptTones={container.conceptTones}
                 selectedScriptStyle={container.selectedScriptStyle}
-                selectedTone={container.selectedTone}
-                expandedConceptId={container.expandedConceptId}
-                openToneExampleId={container.openToneExampleId}
-                showConfirmPopover={container.showConfirmPopover}
-                confirmPopoverToneId={container.confirmPopoverToneId}
-                toneExamples={container.toneExamples}
-                onConceptToggle={container.handleConceptToggle}
-                onToneSelect={container.handleScriptStyleSelect}
-                onToneExampleToggle={container.handleToneExampleToggle}
-                onConfirm={container.handleConfirmStyle}
-                onReselect={container.handleReselect}
-                onConfirmPopoverChange={(open: boolean) => {
-                  if (!open) {
-                    container.setShowConfirmPopover(false)
-                    container.setConfirmPopoverToneId(null)
-                  }
-                }}
+                onStyleSelect={container.handleScriptStyleSelect}
               />
 
               {/* 이미지 선택 및 대본 생성 - 대본 스타일 선택 후 표시 */}
-              {container.selectedScriptStyle && container.selectedTone && (
+              {container.selectedScriptStyle && (
                 <>
                   {/* 이미지 선택 섹션 */}
                   <ImageSelectionSection

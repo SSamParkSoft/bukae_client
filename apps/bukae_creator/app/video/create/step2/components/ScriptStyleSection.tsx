@@ -5,39 +5,20 @@ import { ConceptCard } from './ConceptCard'
 import type { ConceptType } from '@/lib/data/templates'
 
 interface ScriptStyleSectionProps {
-  conceptOptions: Array<{ id: ConceptType; label: string }>
-  conceptTones: Record<string, Array<{ id: string; label: string }>>
+  conceptOptions: Array<{ 
+    id: ConceptType
+    label: string
+    description: string
+    target: string
+  }>
   selectedScriptStyle: ConceptType | null
-  selectedTone: string | null
-  expandedConceptId: ConceptType | null
-  openToneExampleId: string | null
-  showConfirmPopover: boolean
-  confirmPopoverToneId: string | null
-  toneExamples: Record<string, string>
-  onConceptToggle: (conceptId: ConceptType) => void
-  onToneSelect: (concept: ConceptType, toneId: string) => void
-  onToneExampleToggle: (toneId: string, open: boolean) => void
-  onConfirm: () => void
-  onReselect: () => void
-  onConfirmPopoverChange: (open: boolean) => void
+  onStyleSelect: (concept: ConceptType) => void
 }
 
 export const ScriptStyleSection = memo(function ScriptStyleSection({
   conceptOptions,
-  conceptTones,
   selectedScriptStyle,
-  selectedTone,
-  expandedConceptId,
-  openToneExampleId,
-  showConfirmPopover,
-  confirmPopoverToneId,
-  toneExamples,
-  onConceptToggle,
-  onToneSelect,
-  onToneExampleToggle,
-  onConfirm,
-  onReselect,
-  onConfirmPopoverChange,
+  onStyleSelect,
 }: ScriptStyleSectionProps) {
   return (
     <section className="space-y-6">
@@ -58,35 +39,20 @@ export const ScriptStyleSection = memo(function ScriptStyleSection({
             lineHeight: 'var(--line-height-16-140)'
           }}
         >
-          원하는 대본 및 스크립트 스타일과 말투를 선택해주세요
+          원하는 대본 및 스크립트 스타일을 선택해주세요
         </p>
       </div>
 
       <div className="rounded-2xl bg-white/40 border border-white/10 p-6 shadow-[var(--shadow-container)]">
-        <div className="space-y-6">
-          {conceptOptions.map((conceptOption) => {
-            const tones = conceptTones[conceptOption.id]
-            return (
-              <ConceptCard
-                key={conceptOption.id}
-                conceptOption={conceptOption}
-                tones={tones}
-                selectedScriptStyle={selectedScriptStyle}
-                selectedTone={selectedTone}
-                expandedConceptId={expandedConceptId}
-                openToneExampleId={openToneExampleId}
-                showConfirmPopover={showConfirmPopover}
-                confirmPopoverToneId={confirmPopoverToneId}
-                toneExamples={toneExamples}
-                onConceptToggle={onConceptToggle}
-                onToneSelect={onToneSelect}
-                onToneExampleToggle={onToneExampleToggle}
-                onConfirm={onConfirm}
-                onReselect={onReselect}
-                onConfirmPopoverChange={onConfirmPopoverChange}
-              />
-            )
-          })}
+        <div className="grid grid-cols-3 gap-4">
+          {conceptOptions.map((conceptOption) => (
+            <ConceptCard
+              key={conceptOption.id}
+              conceptOption={conceptOption}
+              selectedScriptStyle={selectedScriptStyle}
+              onStyleSelect={onStyleSelect}
+            />
+          ))}
         </div>
       </div>
     </section>
