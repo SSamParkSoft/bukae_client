@@ -9,7 +9,7 @@ export interface PremiumVoiceData {
 }
 
 export const PREMIUM_VOICES: PremiumVoiceData[] = [
-  // 남성 (13개)
+  // 남성 (16개)
   { name: 'Adam', displayName: 'Adam', gender: 'MALE' },
   { name: 'Bill', displayName: 'Bill', gender: 'MALE' },
   { name: 'Brian', displayName: 'Brian', gender: 'MALE' },
@@ -23,6 +23,9 @@ export const PREMIUM_VOICES: PremiumVoiceData[] = [
   { name: 'Liam', displayName: 'Liam', gender: 'MALE' },
   { name: 'Roger', displayName: 'Roger', gender: 'MALE' },
   { name: 'Will', displayName: 'Will', gender: 'MALE' },
+  { name: 'MichaelMouse', displayName: 'MichaelMouse', gender: 'MALE' },
+  { name: 'Phil', displayName: 'Phil', gender: 'MALE' },
+  { name: 'ASMR', displayName: 'ASMR', gender: 'MALE' },
   // 여성 (7개)
   { name: 'Alice', displayName: 'Alice', gender: 'FEMALE' },
   { name: 'Jessica', displayName: 'Jessica', gender: 'FEMALE' },

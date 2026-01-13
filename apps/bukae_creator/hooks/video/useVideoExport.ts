@@ -581,7 +581,7 @@ export function useVideoExport({
                 filename: soundEffectData?.filename ?? null,
                 url: soundEffectUrl,
                 startTime: 0,
-                volume: 0.5,
+                volume: 0.4,
               },
             }
           })

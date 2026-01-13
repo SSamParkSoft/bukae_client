@@ -37,6 +37,9 @@ const VOICE_IDS: Record<string, string> = {
   Roger: 'CwhRBWXzGAHq8TQ4Fs17',
   Sarah: 'EXAVITQu4vr4xnSDxMaL',
   Will: 'bIHbv24MWmeRgasZH58o',
+  Phil: 'LG95yZDEHg6fCZdQjLqj',
+  MichaelMouse: 'dfZGXKiIzjizWtJ0NgPy',
+  ASMR: 'UvFmc37lQcxsSts1KwSb',
 }
 
 async function saveToSupabase() {
