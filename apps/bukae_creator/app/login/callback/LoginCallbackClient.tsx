@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { authStorage } from '@/lib/api/auth-storage'
 import { useUserStore } from '@/store/useUserStore'
-import { authApi } from '@/lib/api/auth'
+import { useCurrentUser } from '@/lib/hooks/useAuth'
 import { getMallConfigs } from '@/lib/api/mall-configs'
 
 export default function LoginCallbackClient() {
@@ -15,15 +15,18 @@ export default function LoginCallbackClient() {
   const checkAuth = useUserStore((state) => state.checkAuth)
   const setPlatformTrackingIds = useUserStore((state) => state.setPlatformTrackingIds)
   const [error, setError] = useState<string | null>(null)
+  const isProcessingRef = useRef(false)
+
+  // 토큰 저장 후 사용자 정보 조회 (React Query 사용)
+  const { data: userInfo, error: userError, isError, refetch: refetchUser } = useCurrentUser({
+    enabled: false, // 수동으로 refetch 호출
+  })
 
   useEffect(() => {
-    let isProcessing = false
+    if (isProcessingRef.current) return
+    isProcessingRef.current = true
 
     const handleCallback = async () => {
-      // 이미 처리 중이면 중복 실행 방지
-      if (isProcessing) return
-      isProcessing = true
-
       try {
         // URL 파라미터에서 토큰 추출 (한 번만 읽기)
         const accessToken = searchParams.get('accessToken')
@@ -42,6 +45,12 @@ export default function LoginCallbackClient() {
             throw new Error('토큰 정보를 찾을 수 없어요. 다시 로그인해주세요.')
           }
           // 이미 토큰이 있으면 성공으로 처리
+          // 사용자 정보 조회
+          try {
+            await refetchUser()
+          } catch (refetchError) {
+            console.error('[Login Callback] 사용자 정보 조회 실패:', refetchError)
+          }
           return
         }
 
@@ -60,38 +69,15 @@ export default function LoginCallbackClient() {
         // 인증 상태 업데이트
         checkAuth()
 
-        // 사용자 정보 조회
+        // React Query를 사용하여 사용자 정보 조회 (명시적으로 refetch)
+        // 토큰이 저장된 후이므로 refetch 실행
         try {
-          const userInfo = await authApi.getCurrentUser()
-          const fallbackName = userInfo.name ?? userInfo.nickname ?? '사용자'
-          const fallbackProfileImage = userInfo.profileImage ?? userInfo.profileImageUrl
-          setUser({
-            id: userInfo.id,
-            name: fallbackName,
-            email: userInfo.email,
-            profileImage: fallbackProfileImage,
-            createdAt: userInfo.createdAt,
-            accountStatus: 'active',
-          })
-          checkAuth()
-        } catch (userInfoError) {
-          console.error('[Login Callback] 사용자 정보 조회 실패:', userInfoError)
-          checkAuth()
+          await refetchUser()
+        } catch (refetchError) {
+          console.error('[Login Callback] 사용자 정보 조회 실패:', refetchError)
         }
-
-        // 트래킹 ID 자동 조회 (에러 발생해도 로그인은 계속 진행)
-        try {
-          const mallConfigs = await getMallConfigs()
-          setPlatformTrackingIds(mallConfigs)
-        } catch (trackingIdError) {
-          console.error('[Login Callback] 트래킹 ID 조회 실패:', trackingIdError)
-          // 트래킹 ID 조회 실패해도 로그인은 정상 진행
-        }
-
-        // 홈으로 리다이렉트
-        router.replace('/')
       } catch (err) {
-        isProcessing = false
+        isProcessingRef.current = false
         const message =
           err instanceof Error
             ? err.message
@@ -103,6 +89,44 @@ export default function LoginCallbackClient() {
     void handleCallback()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // searchParams를 dependency에서 제거하여 한 번만 실행
+
+  // 사용자 정보가 로드되면 store에 동기화
+  useEffect(() => {
+    if (userInfo) {
+      const fallbackName = userInfo.name ?? userInfo.nickname ?? '사용자'
+      const fallbackProfileImage = userInfo.profileImage ?? userInfo.profileImageUrl
+      setUser({
+        id: userInfo.id,
+        name: fallbackName,
+        email: userInfo.email,
+        profileImage: fallbackProfileImage,
+        createdAt: userInfo.createdAt,
+        accountStatus: 'active',
+      })
+      checkAuth()
+
+      // 트래킹 ID 자동 조회 (에러 발생해도 로그인은 계속 진행)
+      getMallConfigs()
+        .then((mallConfigs) => {
+          setPlatformTrackingIds(mallConfigs)
+        })
+        .catch((trackingIdError) => {
+          console.error('[Login Callback] 트래킹 ID 조회 실패:', trackingIdError)
+          // 트래킹 ID 조회 실패해도 로그인은 정상 진행
+        })
+
+      // 홈으로 리다이렉트
+      router.replace('/')
+    }
+  }, [userInfo, setUser, checkAuth, setPlatformTrackingIds, router])
+
+  // 에러 처리
+  useEffect(() => {
+    if (isError && userError) {
+      console.error('[Login Callback] 사용자 정보 조회 실패:', userError)
+      checkAuth()
+    }
+  }, [isError, userError, checkAuth])
 
   return (
     <div className="flex min-h-screen items-center justify-center">

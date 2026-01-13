@@ -2,7 +2,6 @@
 
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import Image from 'next/image'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useUserStore } from '@/store/useUserStore'
 import { useThemeStore } from '@/store/useThemeStore'
-import { authApi } from '@/lib/api/auth'
+import { useCurrentUser } from '@/lib/hooks/useAuth'
 import { saveMallConfig } from '@/lib/api/mall-configs'
 import { useMyVideos } from '@/lib/hooks/useVideos'
 import PageHeader from '@/components/PageHeader'
@@ -320,12 +319,8 @@ export default function ProfilePage() {
     data: currentUser,
     isLoading: userLoading,
     error: userError,
-  } = useQuery({
-    queryKey: ['current-user'],
-    queryFn: authApi.getCurrentUser,
+  } = useCurrentUser({
     enabled: isAuthenticated,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
   })
 
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
