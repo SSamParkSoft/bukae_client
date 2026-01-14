@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { LogOut, User, Ticket } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isAdminEmail } from '@/lib/utils/admin'
 import { useUserStore } from '@/store/useUserStore'
 import { authApi } from '@/lib/api/auth'
 import Image from 'next/image'
@@ -84,6 +85,7 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
   const displayPlan = subscriptionPlan === 'none' ? 'Free' : subscriptionPlan
   const displayCredits = credits ?? 0
   const maxCredits = 10000 // 1만 크레딧
+  const isAdmin = isAdminEmail(user.email)
 
   return (
     <div className={cn('relative', className)} ref={dropdownRef}>
@@ -118,6 +120,13 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
         <span className="text-base font-bold text-[#5e8790] whitespace-nowrap">
           {displayPlan}
         </span>
+        
+        {/* Admin 표시 */}
+        {isAdmin && (
+          <span className="text-base font-bold text-red-500 whitespace-nowrap">
+            Admin
+          </span>
+        )}
       </button>
 
       {/* 드롭다운 메뉴 */}
