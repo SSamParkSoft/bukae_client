@@ -120,6 +120,41 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 let refreshInFlight: Promise<string | null> | null = null
+let refreshIntervalId: NodeJS.Timeout | null = null
+
+// 사전 리프레시 체크 간격 (1분마다 체크)
+const REFRESH_CHECK_INTERVAL = 60000
+
+/**
+ * 토큰 사전 리프레시 스케줄러 시작
+ */
+export function startTokenRefreshScheduler(): void {
+  if (typeof window === 'undefined') return
+  if (refreshIntervalId) return // 이미 실행 중
+
+  refreshIntervalId = setInterval(async () => {
+    if (!authStorage.hasTokens()) {
+      stopTokenRefreshScheduler()
+      return
+    }
+
+    // 토큰이 5분 경과했는지 확인
+    if (authStorage.shouldRefreshToken()) {
+      console.log('[Token Refresh] 사전 리프레시 시작 (5분 경과)')
+      await refreshAccessToken()
+    }
+  }, REFRESH_CHECK_INTERVAL)
+}
+
+/**
+ * 토큰 사전 리프레시 스케줄러 중지
+ */
+export function stopTokenRefreshScheduler(): void {
+  if (refreshIntervalId) {
+    clearInterval(refreshIntervalId)
+    refreshIntervalId = null
+  }
+}
 
 async function refreshAccessToken(): Promise<string | null> {
   if (refreshInFlight) return refreshInFlight

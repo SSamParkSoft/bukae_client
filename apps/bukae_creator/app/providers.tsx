@@ -10,6 +10,7 @@ import { useAppStore } from '@/store/useAppStore'
 import { useCurrentUser } from '@/lib/hooks/useAuth'
 import { getMallConfigs } from '@/lib/api/mall-configs'
 import { initMcpBrowserHelper } from '@/lib/utils/mcp-browser-helper'
+import { startTokenRefreshScheduler, stopTokenRefreshScheduler } from '@/lib/api/client'
 
 function AuthSync() {
   const router = useRouter()
@@ -109,6 +110,21 @@ function AuthSync() {
       }
     }
   }, [hasTokens, currentUser])
+
+  // 토큰 사전 리프레시 스케줄러 관리
+  useEffect(() => {
+    if (hasTokens) {
+      // 토큰이 있으면 스케줄러 시작
+      startTokenRefreshScheduler()
+    } else {
+      // 토큰이 없으면 스케줄러 중지
+      stopTokenRefreshScheduler()
+    }
+
+    return () => {
+      stopTokenRefreshScheduler()
+    }
+  }, [hasTokens])
 
   return null
 }
