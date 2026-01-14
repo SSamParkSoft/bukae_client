@@ -101,14 +101,37 @@ export default function VideoCreateLayout({ children }: { children: React.ReactN
           handleCancel()
         }
       }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>임시 저장하시겠습니까?</DialogTitle>
-            <DialogDescription>
+        <DialogContent 
+          style={{ width: '100%', maxWidth: '448px' }}
+        >
+          <DialogHeader className="text-left" style={{ width: '100%' }}>
+            <DialogTitle 
+              style={{
+                fontSize: '18px',
+                lineHeight: '25.2px',
+                fontWeight: '600',
+                display: 'block',
+                width: '100%',
+                whiteSpace: 'normal',
+                wordBreak: 'keep-all'
+              }}
+            >
+              임시 저장하시겠습니까?
+            </DialogTitle>
+            <DialogDescription 
+              style={{
+                fontSize: '14px',
+                lineHeight: '19.6px',
+                display: 'block',
+                width: '100%',
+                whiteSpace: 'normal',
+                wordBreak: 'keep-all'
+              }}
+            >
               현재 작업 내용을 임시 저장하지 않으면 다음에 돌아왔을 때 복원되지 않습니다.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0" style={{ width: '100%' }}>
             <Button variant="outline" onClick={handleDontSave}>
               저장 안 함
             </Button>
