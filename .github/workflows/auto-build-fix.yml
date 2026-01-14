@@ -140,6 +140,39 @@ jobs:
             echo "ℹ️ 커밋할 변경사항이 없습니다"
           fi
       
+      - name: Build error summary
+        if: failure()
+        run: |
+          echo ""
+          echo "## 🔴 빌드 오류 요약" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # TypeScript 에러 추출
+          echo "### TypeScript 에러:" >> $GITHUB_STEP_SUMMARY
+          TS_ERRORS=$(pnpm exec tsc --noEmit 2>&1 || true)
+          if echo "$TS_ERRORS" | grep -q "error TS"; then
+            echo "$TS_ERRORS" | grep "error TS" | head -20 >> $GITHUB_STEP_SUMMARY
+          else
+            echo "TypeScript 에러 없음" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # 린트 에러 추출
+          echo "### 린트 에러:" >> $GITHUB_STEP_SUMMARY
+          LINT_ERRORS=$(pnpm lint 2>&1 || true)
+          if echo "$LINT_ERRORS" | grep -qE "error|Error|✖"; then
+            echo "$LINT_ERRORS" | grep -E "error|Error|✖" | head -20 >> $GITHUB_STEP_SUMMARY
+          else
+            echo "린트 에러 없음" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # 빌드 에러 추출
+          echo "### 빌드 에러:" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.build.outcome }}" == "failure" ]; then
+            echo "빌드 단계에서 실패했습니다. 위의 TypeScript/린트 에러를 확인하세요." >> $GITHUB_STEP_SUMMARY
+          fi
+      
       - name: Build summary
         if: always()
         run: |
@@ -154,5 +187,5 @@ jobs:
           if [ "${{ steps.build.outcome }}" == "success" ]; then
             echo "✅ 빌드가 성공적으로 완료되었습니다." >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ 빌드가 실패했습니다. 로그를 확인해주세요." >> $GITHUB_STEP_SUMMARY
+            echo "❌ 빌드가 실패했습니다. 위의 오류 요약을 확인하세요." >> $GITHUB_STEP_SUMMARY
           fi
