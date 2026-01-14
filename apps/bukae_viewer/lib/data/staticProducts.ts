@@ -36,7 +36,9 @@ const PRODUCT_URLS = {
   nangmomil:
     'https://www.coupang.com/vp/products/8248204570?itemId=23742416658&vendorItemId=90767010073&src=1139000&spec=10799999&addtag=400&ctag=8248204570&lptag=AF4647824&itime=20260110175800&pageType=PRODUCT&pageValue=8248204570&wPcid=17510469561163597660443&wRef=&wTime=20260110175800&redirect=landing&traceid=V0-181-a2a1d9205d4759bf&mcid=d93b484d21ca44f7b7e48149c83934d0&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
   pepsi_zerocoke:
-    'https://www.coupang.com/vp/products/9274048526?itemId=27492126386&vendorItemId=94457247773&src=1139000&spec=10799999&addtag=400&ctag=9274048526&lptag=AF4647824&itime=20260110181631&pageType=PRODUCT&pageValue=9274048526&wPcid=17510469561163597660443&wRef=&wTime=20260110181631&redirect=landing&traceid=V0-181-f2d39e29bec12616&mcid=0167c871faa148a0ad837497652ff61d&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam='
+    'https://www.coupang.com/vp/products/9274048526?itemId=27492126386&vendorItemId=94457247773&src=1139000&spec=10799999&addtag=400&ctag=9274048526&lptag=AF4647824&itime=20260110181631&pageType=PRODUCT&pageValue=9274048526&wPcid=17510469561163597660443&wRef=&wTime=20260110181631&redirect=landing&traceid=V0-181-f2d39e29bec12616&mcid=0167c871faa148a0ad837497652ff61d&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
+  akii_boots:
+    'https://www.coupang.com/vp/products/8730341883?itemId=25366951659&vendorItemId=91526396377&src=1139000&spec=10799999&addtag=400&ctag=8730341883&lptag=AF4647824&itime=20260114163219&pageType=PRODUCT&pageValue=8730341883&wPcid=17510469561163597660443&wRef=&wTime=20260114163219&redirect=landing&traceid=V0-181-5a98c36d9c864c47&mcid=b95674d6161a4dca9b600146a3113f0c&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam='
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -153,13 +155,13 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     url: PRODUCT_URLS.nangmomil,
   },
   {
-    id: 'pepsi-zerocoke',
+    id: 'akii-boots',
     productId: 1018,
-    name: '펩시 제로슈거 라임향, 210ml, 30개',
-    description: '제로슈거 · 라임향 · 210ml · 30개',
+    name: '[아키클래식] 여성용 아이슬린 리커버리 패딩 부츠 AKANWWH02',
+    description: '여성용 · 아이슬린 리커버리 · 패딩 부츠',
     order: 13,
-    thumbnailUrl: '/dummy/pepsi_zerocoke.png',
-    url: PRODUCT_URLS.pepsi_zerocoke,
+    thumbnailUrl: '/dummy/akii_boots.png',
+    url: PRODUCT_URLS.akii_boots,
   },
 ]
 
