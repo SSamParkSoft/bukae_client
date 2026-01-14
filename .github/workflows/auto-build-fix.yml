@@ -108,6 +108,8 @@ jobs:
       
       - name: Commit auto-fixes
         if: steps.auto-fix.outputs.fixed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.BUKAE_CLIENT_BUILD_TOKEN }}
         run: |
           echo "💾 자동 수정된 내용 커밋 중..."
           
@@ -119,7 +121,8 @@ jobs:
               exit 0
             }
             
-            # 같은 브랜치에 푸시
+            # 같은 브랜치에 푸시 (토큰 사용)
+            git remote set-url origin https://${{ secrets.BUKAE_CLIENT_BUILD_TOKEN }}@github.com/${{ github.repository }}.git
             git push origin ${{ github.ref_name }} || {
               echo "⚠️ 푸시 실패 (권한 문제 또는 충돌)"
               exit 0
