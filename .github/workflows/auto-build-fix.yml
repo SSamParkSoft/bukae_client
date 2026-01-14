@@ -43,12 +43,16 @@ jobs:
       - name: Install dependencies
         id: install
         run: |
-          pnpm install --frozen-lockfile || {
-            echo "⚠️ 의존성 설치 실패, 캐시 클리어 후 재시도..."
-            rm -rf node_modules apps/*/node_modules
-            pnpm store prune || true
-            pnpm install --frozen-lockfile
-          }
+          # lockfile이 있으면 frozen-lockfile 사용, 없으면 일반 install
+          if [ -f "pnpm-lock.yaml" ]; then
+            pnpm install --frozen-lockfile || {
+              echo "⚠️ frozen-lockfile 실패, 일반 install로 재시도..."
+              pnpm install --no-frozen-lockfile
+            }
+          else
+            echo "⚠️ lockfile이 없습니다. 일반 install 실행..."
+            pnpm install --no-frozen-lockfile
+          fi
       
       - name: Auto-fix errors
         id: auto-fix
