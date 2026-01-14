@@ -86,5 +86,15 @@ export const authStorage = {
     // 5분 = 300000ms 경과 시 리프레시 필요
     return age >= 300000
   },
+
+  /**
+   * 토큰이 이미 만료되었는지 확인 (6분 이상 경과 시 true)
+   */
+  isTokenExpired(): boolean {
+    const age = this.getTokenAge()
+    if (age === null) return false
+    // 6분 = 360000ms 이상 경과 시 만료
+    return age >= TOKEN_EXPIRY_MS
+  },
 }
 

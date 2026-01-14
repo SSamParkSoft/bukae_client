@@ -1,50 +1,9 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import Image from 'next/image'
-import { Button } from '@/components/ui/button'
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from '@/components/ui/popover'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { getSoundEffectStorageUrl } from '@/lib/utils/supabase-storage'
-
-// 효과음 데이터 정의
-export interface SoundEffect {
-  id: string
-  name: string
-  filename: string
-}
-
-export const soundEffects: SoundEffect[] = [
-  {
-    id: 'pop',
-    name: '팝!',
-    filename: 'pop.mp3',
-  },
-  {
-    id: 'whoosh',
-    name: '휙!',
-    filename: 'whoosh.mp3',
-  },
-  {
-    id: 'riser',
-    name: '슉!',
-    filename: 'riserSwoosh.mp3',
-  },
-  {
-    id: 'notification',
-    name: '띠링!',
-    filename: 'notification.mp3',
-  },
-  {
-    id: 'explosion',
-    name: '펑!',
-    filename: 'loudExplosion.mp3',
-  },
-]
+import { useSoundEffects, type SoundEffectFile } from '@/hooks/video/useSoundEffects'
 
 interface SoundEffectSelectorProps {
   soundEffect: string | null
@@ -66,20 +25,19 @@ export function SoundEffectSelector({
   setTimeline,
 }: SoundEffectSelectorProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const [playingEffectId, setPlayingEffectId] = useState<string | null>(null)
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [pendingEffectId, setPendingEffectId] = useState<string | null>(null)
+  const [playingEffectPath, setPlayingEffectPath] = useState<string | null>(null)
+  const { data, loading, error } = useSoundEffects()
 
-  const getSoundEffectUrl = (effect: SoundEffect): string => {
-    // Supabase Storage 우선, 실패 시 로컬 경로 fallback
-    const storageUrl = getSoundEffectStorageUrl(effect.filename)
+  const getSoundEffectUrl = (filePath: string): string => {
+    // Supabase Storage URL 가져오기
+    const storageUrl = getSoundEffectStorageUrl(filePath)
     if (storageUrl) return storageUrl
-    return `/sound-effects/${effect.filename}`
+    return `/sound-effects/${filePath}`
   }
 
-  const handlePreview = async (effect: SoundEffect, e: React.MouseEvent) => {
+  const handlePreview = async (effect: SoundEffectFile, e: React.MouseEvent) => {
     e.stopPropagation()
-    const isCurrentlyPlaying = playingEffectId === effect.id
+    const isCurrentlyPlaying = playingEffectPath === effect.path
 
     // 현재 재생 중인 오디오 정지
     if (audioRef.current) {
@@ -89,13 +47,13 @@ export function SoundEffectSelector({
     }
 
     if (isCurrentlyPlaying) {
-      setPlayingEffectId(null)
+      setPlayingEffectPath(null)
       return
     }
 
     // 새 오디오 재생
     try {
-      const url = getSoundEffectUrl(effect)
+      const url = getSoundEffectUrl(effect.path)
       
       if (!url) {
         return
@@ -106,79 +64,96 @@ export function SoundEffectSelector({
         return
       }
 
-      // URL이 실제로 접근 가능한지 먼저 확인
-      try {
-        const response = await fetch(url, { method: 'HEAD' })
-        
-        if (!response.ok) {
-          alert(`효과음 파일을 불러올 수 없어요.\n상태: ${response.status} ${response.statusText}\n파일이 public 폴더에 있는지 확인해주세요.`)
-          return
-        }
-      } catch {
-        alert(`효과음 파일에 접근할 수 없어요.\n파일이 public 폴더에 있는지 확인해주세요.`)
-        return
-      }
-
       const audio = new Audio(url)
       audio.volume = 0.5 // 미리보기 볼륨 상향
       audioRef.current = audio
-      setPlayingEffectId(effect.id)
+      setPlayingEffectPath(effect.path)
 
       audio.addEventListener('ended', () => {
-        setPlayingEffectId(null)
+        setPlayingEffectPath(null)
         audioRef.current = null
       })
 
       audio.addEventListener('error', () => {
-        setPlayingEffectId(null)
+        setPlayingEffectPath(null)
         audioRef.current = null
       })
 
       await audio.play()
     } catch {
-      setPlayingEffectId(null)
+      setPlayingEffectPath(null)
     }
   }
 
-  const handleCardClick = (effectId: string | null) => {
-    if (effectId === 'none' || effectId === null) {
-      // 효과음 없음은 바로 적용
-      onSoundEffectConfirm(null)
+  const handleEffectClick = (effectPath: string) => {
+    if (timeline && currentSceneIndex >= 0) {
+      const updatedScenes = [...timeline.scenes]
+      updatedScenes[currentSceneIndex] = {
+        ...updatedScenes[currentSceneIndex],
+        soundEffect: effectPath,
+      }
+      setTimeline({ ...timeline, scenes: updatedScenes })
+      setSoundEffect(effectPath)
+      onSoundEffectConfirm(effectPath)
+    }
+  }
+
+  const handleNoneClick = () => {
+    if (timeline && currentSceneIndex >= 0) {
+      const updatedScenes = [...timeline.scenes]
+      updatedScenes[currentSceneIndex] = {
+        ...updatedScenes[currentSceneIndex],
+        soundEffect: null,
+      }
+      setTimeline({ ...timeline, scenes: updatedScenes })
       setSoundEffect(null)
-      if (timeline && currentSceneIndex >= 0) {
-        const updatedScenes = [...timeline.scenes]
-        updatedScenes[currentSceneIndex] = {
-          ...updatedScenes[currentSceneIndex],
-          soundEffect: null,
-        }
-        setTimeline({ ...timeline, scenes: updatedScenes })
-      }
-      return
+      onSoundEffectConfirm(null)
     }
-    setPendingEffectId(effectId)
-    setConfirmOpen(true)
   }
 
-  const handleConfirm = () => {
-    if (pendingEffectId !== null) {
-      onSoundEffectConfirm(pendingEffectId)
-      setSoundEffect(pendingEffectId)
-      if (timeline && currentSceneIndex >= 0) {
-        const updatedScenes = [...timeline.scenes]
-        updatedScenes[currentSceneIndex] = {
-          ...updatedScenes[currentSceneIndex],
-          soundEffect: pendingEffectId,
-        }
-        setTimeline({ ...timeline, scenes: updatedScenes })
-      }
-    }
-    setConfirmOpen(false)
-    setPendingEffectId(null)
+  // 효과음 표시명 가져오기 (label 우선, 없으면 파일명)
+  const getDisplayName = (effect: SoundEffectFile): string => {
+    return effect.label || effect.name.replace(/\.[^/.]+$/, '')
   }
 
-  const handleCancel = () => {
-    setConfirmOpen(false)
-    setPendingEffectId(null)
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full" data-theme={theme}>
+        <h3 
+          className="font-bold text-text-dark mb-4 tracking-[-0.4px] shrink-0"
+          style={{ 
+            fontSize: 'var(--font-size-20)',
+            lineHeight: '28px'
+          }}
+        >
+          효과음 선택
+        </h3>
+        <div className="h-0.5 bg-[#bbc9c9] mb-6 shrink-0" />
+        <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center">
+          <div className="text-text-dark">효과음을 불러오는 중...</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex flex-col h-full" data-theme={theme}>
+        <h3 
+          className="font-bold text-text-dark mb-4 tracking-[-0.4px] shrink-0"
+          style={{ 
+            fontSize: 'var(--font-size-20)',
+            lineHeight: '28px'
+          }}
+        >
+          효과음 선택
+        </h3>
+        <div className="h-0.5 bg-[#bbc9c9] mb-6 shrink-0" />
+        <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center">
+          <div className="text-text-dark">효과음을 불러올 수 없습니다.</div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -193,186 +168,93 @@ export function SoundEffectSelector({
         효과음 선택
       </h3>
       <div className="h-0.5 bg-[#bbc9c9] mb-6 shrink-0" />
-      <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+      <div className="flex-1 overflow-y-auto space-y-6 min-h-0 pb-6">
         {/* 효과음 없음 옵션 */}
-        <div
-          onClick={() => handleCardClick('none')}
-          className="flex items-center gap-4 h-[59px] cursor-pointer transition-all hover:opacity-90"
-        >
-          <div className="w-6 h-6 flex items-center justify-center shrink-0">
-            <Image src="/mute.svg" alt="mute" width={24} height={24} />
+        <div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <button
+              onClick={handleNoneClick}
+              className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
+                soundEffect === null
+                  ? 'bg-[#5e8790] text-white border-[#5e8790]'
+                  : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
+              }`}
+              style={{ 
+                fontSize: 'var(--font-size-14)',
+                lineHeight: '22.4px'
+              }}
+            >
+              없음
+            </button>
           </div>
-          <div className={`flex-1 rounded-lg border h-[59px] flex items-center ${
-            soundEffect === null
-              ? 'bg-[#5e8790] border-[#5e8790]'
-              : 'bg-[#e3e3e3] border-[#88a9ac]'
-          }`}>
-            <div className="px-6 flex flex-col justify-center">
-              <span 
-                className={`font-bold tracking-[-0.32px] ${
-                  soundEffect === null ? 'text-white' : 'text-[#2c2c2c]'
-                }`}
-                style={{ 
-                  fontSize: 'var(--font-size-16)',
-                  lineHeight: '22.4px'
-                }}
-              >
-                효과음 없음
-              </span>
-              <span 
-                className={`font-medium ${
-                  soundEffect === null ? 'text-white' : 'text-[#2c2c2c]'
-                }`}
-                style={{ 
-                  fontSize: '12px',
-                  lineHeight: '16.8px'
-                }}
-              >
-                효과음을 설정하지 않습니다
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              // 효과음 없음은 재생할 수 없음
-            }}
-            className="w-[65px] h-8 rounded-lg flex items-center justify-center gap-1 shrink-0 opacity-0 pointer-events-none"
-          >
-            <Image src="/play.svg" alt="play" width={12} height={14} />
-            <span className="font-semibold tracking-[-0.14px] text-black" style={{ fontSize: '14px', lineHeight: '19.6px' }}>듣기</span>
-          </button>
         </div>
 
-        {/* 효과음 목록 */}
-        {soundEffects.map((effect) => {
-          const isSelected = soundEffect === effect.id
-          const isPlaying = playingEffectId === effect.id
-          const isThisConfirmOpen = confirmOpen && pendingEffectId === effect.id
+        {/* 폴더별 효과음 섹션 */}
+        {data.folders.map((folder) => {
+          const effects = data.soundEffects[folder] || []
+          if (effects.length === 0) return null
 
           return (
-            <Popover key={effect.id} open={isThisConfirmOpen} onOpenChange={(open) => {
-              if (open) {
-                handleCardClick(effect.id)
-              } else {
-                setConfirmOpen(false)
-              }
-            }}>
-              <PopoverTrigger asChild>
-                <div
-                  onClick={() => handleCardClick(effect.id)}
-                  className="flex items-center gap-4 h-[59px] cursor-pointer transition-all hover:opacity-90"
-                >
-                  <div className="w-6 h-6 flex items-center justify-center shrink-0">
-                    <Image src="/sound.svg" alt="sound" width={24} height={24} />
-                  </div>
-                  <div className={`flex-1 rounded-lg border h-[59px] flex items-center ${
-                    isSelected
-                      ? 'bg-[#5e8790] border-[#5e8790]'
-                      : 'bg-white border-[#88a9ac]'
-                  }`}>
-                    <div className="px-6 flex flex-col justify-center">
-                      <span 
-                        className={`font-bold tracking-[-0.32px] ${
-                          isSelected ? 'text-white' : 'text-[#2c2c2c]'
+            <div key={folder}>
+              <h4 
+                className="font-bold text-text-dark mb-4 tracking-[-0.4px]"
+                style={{ 
+                  fontSize: 'var(--font-size-20)',
+                  lineHeight: '28px'
+                }}
+              >
+                {folder === '기타' ? '기타' : folder}
+              </h4>
+              <div className="h-0.5 bg-[#bbc9c9] mb-6" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {effects.map((effect) => {
+                  const isSelected = soundEffect === effect.path
+                  const isPlaying = playingEffectPath === effect.path
+                  const displayName = getDisplayName(effect)
+
+                  return (
+                    <div key={effect.path} className="relative group">
+                      <button
+                        onClick={() => handleEffectClick(effect.path)}
+                        className={`w-full h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] relative ${
+                          isSelected
+                            ? 'bg-[#5e8790] text-white border-[#5e8790]'
+                            : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
                         }`}
                         style={{ 
-                          fontSize: 'var(--font-size-16)',
+                          fontSize: 'var(--font-size-14)',
                           lineHeight: '22.4px'
                         }}
                       >
-                        {effect.name}
-                      </span>
-                      <span 
-                        className={`font-medium ${
-                          isSelected ? 'text-white' : 'text-[#2c2c2c]'
-                        }`}
-                        style={{ 
-                          fontSize: '12px',
-                          lineHeight: '16.8px'
+                        <span className="truncate block px-2">{displayName}</span>
+                      </button>
+                      {/* 재생 버튼 (호버 시 표시) */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handlePreview(effect, e)
                         }}
+                        className={`absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded flex items-center justify-center transition-opacity ${
+                          isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                        } ${isSelected ? 'bg-white/20 hover:bg-white/30' : 'bg-gray-100 hover:bg-gray-200'}`}
                       >
-                        효과음을 재생합니다
-                      </span>
+                        {isPlaying ? (
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                            <rect x="2" y="2" width="3" height="8" rx="0.5" />
+                            <rect x="7" y="2" width="3" height="8" rx="0.5" />
+                          </svg>
+                        ) : (
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                            <path d="M2 2l8 4-8 4V2z" />
+                          </svg>
+                        )}
+                      </button>
                     </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => handlePreview(effect, e)}
-                    className="w-[65px] h-8 rounded-lg flex items-center justify-center gap-1 shrink-0 hover:bg-gray-100 transition-all"
-                  >
-                    {isPlaying ? (
-                      <Image src="/mute.svg" alt="pause" width={15} height={18} />
-                    ) : (
-                      <Image src="/play.svg" alt="play" width={12} height={14} />
-                    )}
-                    <span className="font-semibold tracking-[-0.14px] text-black" style={{ fontSize: '14px', lineHeight: '19.6px' }}>듣기</span>
-                  </button>
-                </div>
-              </PopoverTrigger>
-              
-              {/* 말풍선 Popover */}
-              <PopoverContent
-                side="top"
-                align="center"
-                sideOffset={12}
-                className="w-80 p-5 relative bg-white border-gray-200"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="space-y-4">
-                  <div 
-                    className="font-semibold text-text-dark tracking-[-0.32px]"
-                    style={{ 
-                      fontSize: 'var(--font-size-16)',
-                      lineHeight: 'var(--line-height-16-140)'
-                    }}
-                  >
-                    효과음을 확정하시겠어요?
-                  </div>
-                  
-                  <div className="flex gap-2 pt-1">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={handleCancel}
-                      className="flex-1 bg-white border-gray-300 text-text-dark hover:bg-gray-50"
-                    >
-                      다시 선택하기
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleConfirm}
-                      className="flex-1 bg-brand-teal hover:bg-brand-teal-dark text-white"
-                    >
-                      확정하기
-                    </Button>
-                  </div>
-                </div>
-                
-                {/* 말풍선 화살표 */}
-                <div
-                  className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
-                  style={{
-                    bottom: '-8px',
-                    borderLeft: '8px solid transparent',
-                    borderRight: '8px solid transparent',
-                    borderTop: '8px solid #ffffff',
-                  }}
-                />
-                <div
-                  className="absolute left-1/2 -translate-x-1/2 w-0 h-0"
-                  style={{
-                    bottom: '-9px',
-                    borderLeft: '9px solid transparent',
-                    borderRight: '9px solid transparent',
-                    borderTop: '9px solid #e5e7eb',
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
+                  )
+                })}
+              </div>
+            </div>
           )
         })}
       </div>

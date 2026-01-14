@@ -121,9 +121,48 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 let refreshInFlight: Promise<string | null> | null = null
 let refreshIntervalId: NodeJS.Timeout | null = null
+let refreshFocusHandler: (() => void) | null = null
+let refreshVisibilityHandler: (() => void) | null = null
 
 // 사전 리프레시 체크 간격 (1분마다 체크)
 const REFRESH_CHECK_INTERVAL = 60000
+
+/**
+ * 토큰 리프레시 체크 및 실행
+ */
+async function checkAndRefreshToken(): Promise<void> {
+  if (!authStorage.hasTokens()) {
+    stopTokenRefreshScheduler()
+    return
+  }
+
+  const age = authStorage.getTokenAge()
+  
+  // 토큰이 이미 만료된 경우 즉시 리프레시 시도
+  if (age !== null && authStorage.isTokenExpired()) {
+    console.log(`[Token Refresh] 토큰 만료 감지 - 즉시 리프레시 시도 (${Math.floor(age / 1000)}초 경과)`)
+    const result = await refreshAccessToken()
+    if (!result) {
+      // 리프레시 실패 시 토큰 정리 및 로그아웃 처리
+      // (정상적인 만료 케이스이므로 에러가 아닌 로그로만 처리)
+      console.log('[Token Refresh] 리프레시 실패 - 로그인이 필요합니다.')
+      authStorage.clearTokens()
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:expired'))
+      }
+    }
+    return
+  }
+  
+  // 토큰이 5분 경과했는지 확인 (사전 리프레시)
+  if (age !== null && age >= 300000) {
+    console.log(`[Token Refresh] 사전 리프레시 시작 (${Math.floor(age / 1000)}초 경과)`)
+    const result = await refreshAccessToken()
+    if (!result) {
+      console.log('[Token Refresh] 리프레시 실패 - 다음 체크에서 재시도합니다.')
+    }
+  }
+}
 
 /**
  * 토큰 사전 리프레시 스케줄러 시작
@@ -132,18 +171,28 @@ export function startTokenRefreshScheduler(): void {
   if (typeof window === 'undefined') return
   if (refreshIntervalId) return // 이미 실행 중
 
-  refreshIntervalId = setInterval(async () => {
-    if (!authStorage.hasTokens()) {
-      stopTokenRefreshScheduler()
-      return
-    }
+  // 즉시 한 번 체크 (페이지 로드 시 또는 돌아왔을 때)
+  void checkAndRefreshToken()
 
-    // 토큰이 5분 경과했는지 확인
-    if (authStorage.shouldRefreshToken()) {
-      console.log('[Token Refresh] 사전 리프레시 시작 (5분 경과)')
-      await refreshAccessToken()
-    }
+  // 주기적으로 체크
+  refreshIntervalId = setInterval(() => {
+    void checkAndRefreshToken()
   }, REFRESH_CHECK_INTERVAL)
+
+  // 페이지 포커스 시 즉시 체크 (탭 전환 후 돌아왔을 때)
+  refreshFocusHandler = () => {
+    void checkAndRefreshToken()
+  }
+
+  // 페이지 visibility 변경 시 체크 (백그라운드에서 돌아왔을 때)
+  refreshVisibilityHandler = () => {
+    if (!document.hidden) {
+      void checkAndRefreshToken()
+    }
+  }
+
+  window.addEventListener('focus', refreshFocusHandler)
+  document.addEventListener('visibilitychange', refreshVisibilityHandler)
 }
 
 /**
@@ -153,6 +202,17 @@ export function stopTokenRefreshScheduler(): void {
   if (refreshIntervalId) {
     clearInterval(refreshIntervalId)
     refreshIntervalId = null
+  }
+
+  // 이벤트 리스너 정리
+  if (refreshFocusHandler) {
+    window.removeEventListener('focus', refreshFocusHandler)
+    refreshFocusHandler = null
+  }
+
+  if (refreshVisibilityHandler) {
+    document.removeEventListener('visibilitychange', refreshVisibilityHandler)
+    refreshVisibilityHandler = null
   }
 }
 
