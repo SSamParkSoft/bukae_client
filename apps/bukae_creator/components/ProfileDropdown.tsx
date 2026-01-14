@@ -111,7 +111,7 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
       {/* 드롭다운 메뉴 */}
       {isOpen && (
         <div 
-          className="absolute top-full left-0 mt-2 rounded-3xl bg-white/10 shadow-lg z-50 overflow-hidden"
+          className="absolute top-full left-0 mt-2 rounded-3xl bg-white shadow-lg z-50 overflow-hidden"
           style={{ width: dropdownWidth ? `${dropdownWidth}px` : 'auto' }}
         >
           {/* 버튼 영역 */}
