@@ -63,7 +63,7 @@ export default function VoiceSelector({
   title = '목소리 선택',
   disabled = false,
   layout = 'page',
-}: ChirpVoiceSelectorProps) {
+}: VoiceSelectorProps) {
   const { voiceTemplate, setVoiceTemplate } = useVideoCreateStore()
   const [voices, setVoices] = useState<PublicVoiceInfo[]>([])
   const [isLoadingVoices, setIsLoadingVoices] = useState(true)

@@ -28,7 +28,7 @@ export default function ConceptToneDialog({ open, onOpenChange }: ConceptToneDia
   const { concept, tone, setConcept, setTone } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const [selectedConcept, setSelectedConcept] = useState<ConceptType>(
-    (concept as ConceptType) || 'viral'
+    (concept as ConceptType) || 'HEY_EVERYONE_LOOK'
   )
   const [selectedTone, setSelectedTone] = useState<string>(tone || '')
 
@@ -75,12 +75,6 @@ export default function ConceptToneDialog({ open, onOpenChange }: ConceptToneDia
                   <TabsTrigger key={option.id} value={option.id} className="flex items-center gap-2">
                     <MessageSquare className="h-4 w-4" />
                     <span>{option.label}</span>
-                    <Badge
-                      variant={option.tier === 'LIGHT' ? 'default' : 'secondary'}
-                      className="ml-auto"
-                    >
-                      {option.tier}
-                    </Badge>
                   </TabsTrigger>
                 ))}
               </TabsList>

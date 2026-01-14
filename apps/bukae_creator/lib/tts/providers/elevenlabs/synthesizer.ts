@@ -23,18 +23,28 @@ export async function synthesize(params: SynthesizeParams & { voiceInfo: ElevenL
   const { data, rawResponse } = await client.textToSpeech
     .convert(voiceInfo.elevenLabsVoiceId, {
       text: finalText,
-      model_id: 'eleven_multilingual_v2',
-      voice_settings: {
+      modelId: 'eleven_multilingual_v2',
+      voiceSettings: {
         stability: 0.5,
-        similarity_boost: 0.75,
+        similarityBoost: 0.75,
       },
     })
     .withRawResponse()
 
   // Stream을 Buffer로 변환
+  const reader = data.getReader()
   const chunks: Uint8Array[] = []
-  for await (const chunk of data) {
-    chunks.push(chunk)
+  
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value) {
+        chunks.push(value)
+      }
+    }
+  } finally {
+    reader.releaseLock()
   }
 
   const audioBuffer = Buffer.concat(chunks)
