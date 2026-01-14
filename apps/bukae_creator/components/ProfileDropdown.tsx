@@ -80,7 +80,8 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
 
   if (!user) return null
 
-  const subscriptionPlan = user.subscriptionPlan || 'none'
+  const subscriptionPlan = user.subscriptionPlan || 'Free'
+  const displayPlan = subscriptionPlan === 'none' ? 'Free' : subscriptionPlan
   const displayCredits = credits ?? 0
   const maxCredits = 10000 // 1만 크레딧
 
@@ -115,7 +116,7 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
         
         {/* 요금제 (Pro Track) */}
         <span className="text-base font-bold text-[#5e8790] whitespace-nowrap">
-          {subscriptionPlan}
+          {displayPlan}
         </span>
       </button>
 
