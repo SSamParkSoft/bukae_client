@@ -73,7 +73,7 @@ export default function Step1Page() {
         className="w-full max-w-[1194px] mx-auto px-4 sm:px-6 pt-4 pb-8"
       >
         {/* 헤더 섹션 */}
-        <div className="mb-20 mt-[72px]">
+        <div className="mb-16 mt-[72px]">
           <div className="flex items-center justify-center mb-4">
             <span 
               className="font-bold bg-gradient-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.56px]"
