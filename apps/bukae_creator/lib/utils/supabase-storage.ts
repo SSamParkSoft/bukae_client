@@ -45,6 +45,15 @@ export function getImageStorageUrl(fileName: string): string | null {
 }
 
 /**
+ * 효과음 파일의 Supabase Storage URL을 가져옵니다.
+ * @param fileName - 효과음 파일 이름 (예: 'pop.mp3')
+ * @returns 공개 URL 또는 null
+ */
+export function getSoundEffectStorageUrl(fileName: string): string | null {
+  return getSupabaseStorageUrl('soundeffect', fileName)
+}
+
+/**
  * /media/ 경로를 Supabase Storage URL로 변환합니다.
  * 환경 변수만 사용하여 빌드 타임/서버 사이드에서도 작동합니다.
  * @param mediaPath - /media/로 시작하는 경로 (예: '/media/spael-massager.png')

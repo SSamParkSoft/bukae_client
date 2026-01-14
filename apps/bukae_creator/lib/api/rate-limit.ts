@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { Ratelimit, type Duration } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 import { getRequestIp } from '@/lib/api/route-guard'
+import type { TtsProvider } from '@/lib/types/tts'
+import { consumeCredits, calculateCredits } from './credit'
 
 type RateLimitResult = {
   success: boolean
@@ -257,19 +259,25 @@ export async function enforceTtsDailyQuota(
   params: {
     userId: string
     charCount: number
+    provider: TtsProvider // 추가
   }
 ): Promise<NextResponse | null> {
-  const { userId, charCount } = params
+  const { userId, charCount, provider } = params
   // 로컬(dev)에서 Upstash env가 없을 때는 쿼터도 스킵
   if (isDevBypass()) return null
 
   const ttl = intEnv('TTS_DAILY_QUOTA_TTL_SECONDS', 60 * 60 * 24)
 
-  const maxChars = intEnv('TTS_DAILY_CHAR_QUOTA', 20000)
+  // 제공자별 쿼터 설정 (환경변수로 조정 가능)
+  const maxChars = provider === 'elevenlabs'
+    ? intEnv('TTS_DAILY_CHAR_QUOTA_ELEVENLABS', 10000) // ElevenLabs는 더 낮은 쿼터
+    : intEnv('TTS_DAILY_CHAR_QUOTA_GOOGLE', 20000)
+  
   const maxReq = intEnv('TTS_DAILY_REQUEST_QUOTA', 200)
 
-  const charKey = `quota:tts:chars:${userId}`
-  const reqKey = `quota:tts:req:${userId}`
+  // 제공자별로 쿼터 키 분리
+  const charKey = `quota:tts:${provider}:chars:${userId}`
+  const reqKey = `quota:tts:${provider}:req:${userId}`
 
   const [nextChars, nextReq] = await Promise.all([
     consumeQuota(charKey, Math.max(0, Math.floor(charCount)), maxChars, ttl),
@@ -278,14 +286,48 @@ export async function enforceTtsDailyQuota(
 
   if (nextChars === -1) {
     return NextResponse.json(
-      { error: '오늘의 TTS 사용량(문자수) 한도를 초과했어요.' },
+      { 
+        error: `오늘의 ${provider === 'elevenlabs' ? 'ElevenLabs' : 'Google'} TTS 사용량(문자수) 한도를 초과했어요.`,
+        provider,
+      },
       { status: 429 }
     )
   }
   if (nextReq === -1) {
     return NextResponse.json(
-      { error: '오늘의 TTS 사용량(요청수) 한도를 초과했어요.' },
+      { 
+        error: `오늘의 ${provider === 'elevenlabs' ? 'ElevenLabs' : 'Google'} TTS 사용량(요청수) 한도를 초과했어요.`,
+        provider,
+      },
       { status: 429 }
+    )
+  }
+
+  return null
+}
+
+// 크레딧 차감 함수 (새로 추가)
+export async function enforceCreditQuota(
+  params: {
+    userId: string
+    provider: TtsProvider
+    charCount: number
+    accessToken?: string // 추가: admin 체크용
+  }
+): Promise<NextResponse | null> {
+  const { userId, provider, charCount, accessToken } = params
+  
+  const creditResult = await consumeCredits(userId, provider, charCount, accessToken)
+  
+  if (!creditResult.success) {
+    return NextResponse.json(
+      { 
+        error: creditResult.error || '크레딧이 부족합니다.',
+        creditsRequired: calculateCredits(provider, charCount),
+        remainingCredits: creditResult.remainingCredits,
+        provider,
+      },
+      { status: 402 } // 402 Payment Required
     )
   }
 

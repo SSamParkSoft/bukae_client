@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
-import { filterChirpKoreanVoices, getTextToSpeechClient, toPublicVoiceInfo, TTS_LANGUAGE_CODE } from '@/lib/tts/google-tts'
+import type { PublicVoiceInfo } from '@/lib/types/tts'
 import { requireUser } from '@/lib/api/route-guard'
 import { enforceRateLimit } from '@/lib/api/rate-limit'
+import { getAllProviders } from '@/lib/tts/core/factory'
+import { TTS_LANGUAGE_CODE } from '@/lib/tts/providers/google/constants'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,18 +17,34 @@ export async function GET(request: Request) {
     const rl = await enforceRateLimit(request, { endpoint: 'tts:voices', userId: auth.userId })
     if (rl instanceof NextResponse) return rl
 
-    const client = getTextToSpeechClient()
-    const [result] = await client.listVoices({ languageCode: TTS_LANGUAGE_CODE })
+    const allVoices: PublicVoiceInfo[] = []
 
-    const voices = result.voices ?? []
-    const filtered = filterChirpKoreanVoices(voices)
-      .map(toPublicVoiceInfo)
-      .filter(Boolean)
+    // 모든 Provider에서 목소리 수집
+    const providers = getAllProviders()
+    console.log(`[TTS] Loading voices from ${providers.length} providers:`, providers.map(p => p.name))
+    
+    for (const provider of providers) {
+      try {
+        console.log(`[TTS] Loading voices from ${provider.name}...`)
+        const voices = await provider.listVoices()
+        console.log(`[TTS] ${provider.name} returned ${voices.length} voices`)
+        allVoices.push(...voices)
+      } catch (error) {
+        console.error(`[TTS] ${provider.name} voices error:`, error)
+        if (error instanceof Error) {
+          console.error(`[TTS] ${provider.name} error message:`, error.message)
+          console.error(`[TTS] ${provider.name} error stack:`, error.stack)
+        }
+        // 하나의 Provider 실패해도 다른 Provider는 계속 진행
+      }
+    }
+    
+    console.log(`[TTS] Total voices loaded: ${allVoices.length} (Google: ${allVoices.filter(v => v.provider === 'google' || !v.provider).length}, ElevenLabs: ${allVoices.filter(v => v.provider === 'elevenlabs').length})`)
 
     return NextResponse.json(
       {
         languageCode: TTS_LANGUAGE_CODE,
-        voices: filtered,
+        voices: allVoices,
       },
       {
         headers: {

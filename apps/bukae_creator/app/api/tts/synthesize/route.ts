@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
-import { getTextToSpeechClient, TTS_LANGUAGE_CODE } from '@/lib/tts/google-tts'
 import { requireUser } from '@/lib/api/route-guard'
-import { enforceRateLimit, enforceTtsDailyQuota } from '@/lib/api/rate-limit'
+import { enforceRateLimit, enforceTtsDailyQuota, enforceCreditQuota } from '@/lib/api/rate-limit'
+import { voiceTemplateHelpers } from '@/store/useVideoCreateStore'
+import { getProvider } from '@/lib/tts/core/factory'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type SynthesizeRequest = {
-  voiceName: string
+  voiceTemplate: string // 직렬화된 VoiceInfo 또는 legacy 형식
   mode?: 'text' | 'markup'
   text?: string
   markup?: string
@@ -27,21 +28,27 @@ export async function POST(request: Request) {
     if (rl instanceof NextResponse) return rl
 
     const body = (await request.json()) as Partial<SynthesizeRequest>
+    const voiceTemplate = String(body.voiceTemplate ?? '').trim()
 
-    const voiceName = String(body.voiceName ?? '').trim()
+    if (!voiceTemplate) {
+      return NextResponse.json({ error: 'voiceTemplate이 필요합니다.' }, { status: 400 })
+    }
+
+    // VoiceInfo 파싱 (voiceTemplateHelpers 사용)
+    const voiceInfo = voiceTemplateHelpers.getVoiceInfo(voiceTemplate)
+    
+    if (!voiceInfo) {
+      return NextResponse.json({ error: '유효하지 않은 목소리 정보입니다.' }, { status: 400 })
+    }
+
+    // Provider 정보 로깅
+    console.log(`[TTS Synthesize] Provider: ${voiceInfo.provider}, VoiceId: ${voiceInfo.voiceId}, DisplayName: ${voiceInfo.displayName}`)
+
     const mode = body.mode === 'markup' ? 'markup' : 'text'
     const text = String(body.text ?? '').trim()
     const markup = String(body.markup ?? '').trim()
-
-    if (!voiceName) {
-      return NextResponse.json({ error: 'voiceName이 필요합니다.' }, { status: 400 })
-    }
-    // 한국어 고정
-    if (!voiceName.includes(TTS_LANGUAGE_CODE)) {
-      return NextResponse.json({ error: '한국어(ko-KR) 목소리만 허용됩니다.' }, { status: 400 })
-    }
-
     const inputText = mode === 'markup' ? markup : text
+
     if (!inputText) {
       return NextResponse.json(
         { error: mode === 'markup' ? 'markup이 필요합니다.' : 'text가 필요합니다.' },
@@ -55,52 +62,52 @@ export async function POST(request: Request) {
       )
     }
 
-    // 일일 쿼터(문자수/요청수) 소비: 실제 외부 호출 전에 차단
+    // Provider별 쿼터 체크
     const quotaBlocked = await enforceTtsDailyQuota({
       userId: auth.userId,
       charCount: inputText.length,
+      provider: voiceInfo.provider,
     })
     if (quotaBlocked) return quotaBlocked
 
-    const speakingRate =
-      typeof body.speakingRate === 'number' ? body.speakingRate : undefined
+    // 크레딧 차감 체크 (크레딧 시스템 활성화 시에만)
+    const creditBlocked = await enforceCreditQuota({
+      userId: auth.userId,
+      provider: voiceInfo.provider,
+      charCount: inputText.length,
+      accessToken: auth.accessToken,
+    })
+    if (creditBlocked) return creditBlocked
+
+    // Provider 팩토리를 사용하여 적절한 Provider 선택
+    const provider = getProvider(voiceInfo.provider)
+    console.log(`[TTS Synthesize] Selected provider: ${provider.name} (${provider.displayName})`)
+
+    // Provider의 synthesize 메서드 호출
+    const speakingRate = typeof body.speakingRate === 'number' ? body.speakingRate : undefined
     const pitch = typeof body.pitch === 'number' ? body.pitch : undefined
 
-    const client = getTextToSpeechClient()
-    const [result] = await client.synthesizeSpeech({
-      input: mode === 'markup' ? { markup: inputText } : { text: inputText },
-      voice: {
-        languageCode: TTS_LANGUAGE_CODE,
-        name: voiceName,
-      },
-      audioConfig: {
-        audioEncoding: 'MP3',
-        ...(speakingRate !== undefined ? { speakingRate } : {}),
-        ...(pitch !== undefined ? { pitch } : {}),
-      },
+    const result = await provider.synthesize({
+      voiceId: voiceInfo.voiceId,
+      text: mode === 'text' ? inputText : undefined,
+      markup: mode === 'markup' ? inputText : undefined,
+      mode,
+      speakingRate,
+      pitch,
     })
 
-    const audioContent = result.audioContent
-    if (!audioContent) {
-      return NextResponse.json({ error: 'TTS 변환 결과가 비어있어요.' }, { status: 500 })
+    const audioBuffer = result.audio
+
+    // 문자 수 추적 (ElevenLabs인 경우)
+    if (result.charCount) {
+      console.log(`[${voiceInfo.provider}] Character count: ${result.charCount}, Request ID: ${result.requestId}`)
     }
 
-    // google client는 Uint8Array(Buffer) 또는 base64 string을 반환할 수 있음
-    // Response body 타입(BodyInit) 호환을 위해 ArrayBuffer로 정규화
-    const nodeBuf =
-      typeof audioContent === 'string'
-        ? Buffer.from(audioContent, 'base64')
-        : Buffer.from(audioContent as Uint8Array)
-
-    const bodyArrayBuffer = nodeBuf.buffer.slice(
-      nodeBuf.byteOffset,
-      nodeBuf.byteOffset + nodeBuf.byteLength
-    )
-
-    return new Response(bodyArrayBuffer, {
+    return new Response(new Uint8Array(audioBuffer), {
       headers: {
         'Content-Type': 'audio/mpeg',
         'Cache-Control': 'no-store',
+        'X-TTS-Provider': voiceInfo.provider, // 응답 헤더에 제공자 정보 포함
         ...(rl.headers ?? {}),
       },
     })

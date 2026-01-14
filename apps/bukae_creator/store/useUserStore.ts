@@ -13,6 +13,7 @@ export interface User {
   profileImage?: string
   createdAt: string
   accountStatus: 'active' | 'inactive'
+  subscriptionPlan?: string | null
 }
 
 export interface ConnectedService {

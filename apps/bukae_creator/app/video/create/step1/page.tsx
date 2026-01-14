@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { useStep1Container } from './hooks/useStep1Container'
 import { useRouter } from 'next/navigation'
@@ -18,6 +18,11 @@ export default function Step1Page() {
   const container = useStep1Container()
   const router = useRouter()
   const [searchMode, setSearchMode] = useState<'search' | 'url'>('search')
+  const [hydrated, setHydrated] = useState(false)
+
+  useEffect(() => {
+    setHydrated(true)
+  }, [])
 
   // 플레이스홀더 텍스트 생성
   const placeholder = useMemo(() => {
@@ -35,6 +40,18 @@ export default function Step1Page() {
   }, [container.selectedPlatform, searchMode])
 
   const selectedCount = container.selectedProducts.length
+
+  // SSR/CSR 일치 보장을 위해 초기 렌더는 로딩 UI 고정
+  if (!hydrated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-brand-background-start">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-brand-teal" />
+          <p className="text-brand-teal-dark">인증 확인 중...</p>
+        </div>
+      </div>
+    )
+  }
 
   // 토큰 검증 중에는 로딩 표시
   if (container.isValidatingToken) {

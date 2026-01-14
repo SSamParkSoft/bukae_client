@@ -260,14 +260,14 @@ export function usePixiFabric({
     fabricCanvas.moveCursor = 'move'
     fabricCanvas.skipTargetFind = false
 
-    // 핸들 스타일 (원형/보라색)
+    // 핸들 스타일 (원형/브랜드 컬러)
     fabric.Object.prototype.set({
       transparentCorners: false,
-      cornerColor: '#8b5cf6',
+      cornerColor: '#5e8790', // 브랜드 컬러 (brand-teal)
       cornerStrokeColor: '#ffffff',
       cornerSize: 12,
       cornerStyle: 'circle',
-      borderColor: '#8b5cf6',
+      borderColor: '#5e8790', // 브랜드 컬러 (brand-teal)
       borderScaleFactor: 2,
       padding: 8,
     })

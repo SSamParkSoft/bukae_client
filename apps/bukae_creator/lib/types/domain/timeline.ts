@@ -106,6 +106,7 @@ export interface TimelineScene {
   imageTransform?: ImageTransform
   advancedEffects?: AdvancedEffects
   text: TextSettings
+  soundEffect?: string | null
 }
 
 /**

@@ -5,6 +5,8 @@ import { groupScenesForExport, createTransitionMap } from '@/lib/utils/video-exp
 import { getFontFileName, SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
 import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
 import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
+import { soundEffects } from '@/components/video-editor/SoundEffectSelector'
+import { getSupabaseStorageUrl } from '@/lib/utils/supabase-storage'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { SceneScript } from '@/lib/types/domain/script'
 import * as PIXI from 'pixi.js'
@@ -467,6 +469,13 @@ export function useVideoExport({
             const fontSize = lastScene.text.fontSize || 48
             const fontFileName = getFontFileName(sceneFontId, sceneFontWeight) || 'NanumGothic-Regular'
 
+            // 효과음 정보 (씬별)
+            const soundEffectId = firstScene.soundEffect
+            const soundEffectData = soundEffectId ? soundEffects.find((e) => e.id === soundEffectId) : null
+            const soundEffectUrl = soundEffectData
+              ? getSupabaseStorageUrl('soundeffect', soundEffectData.filename) ?? `/sound-effects/${soundEffectData.filename}`
+              : null
+
             // 이미지 URL 검증
             if (!firstScene.image || firstScene.image.trim() === '') {
               throw new Error(`씬 ${actualSceneId}의 이미지 URL이 없습니다.`)
@@ -566,6 +575,13 @@ export function useVideoExport({
                 url: mergedTtsUrl,
                 text: mergedVoiceText || ' ', // 빈 텍스트도 공백으로 처리
                 startTime: 0, // TTS 시작 시간 (초)
+              },
+              soundEffect: {
+                enabled: !!soundEffectData,
+                filename: soundEffectData?.filename ?? null,
+                url: soundEffectUrl,
+                startTime: 0,
+                volume: 0.4,
               },
             }
           })

@@ -7,14 +7,16 @@
  * 도메인 모델로 변환하여 사용해야 합니다.
  */
 
-// 대본 분위기 설정 (INFORMATION: 정보성, ENTERTAINMENT: 예능형, EMPATHY/HEALING: 감정/힐링)
-export type ScriptType = 'ENTERTAINMENT' | 'INFORMATION' | 'EMPATHY' | 'HEALING'
+import type { ConceptType } from '@/lib/data/templates'
+
+// 대본 스타일 타입 (ConceptType과 동일)
+export type ScriptType = ConceptType
 
 // /api/v1/studio/scripts 의 요청 스키마 (ScriptRequest)
 export interface StudioScriptRequest {
   topic: string // 상품명 또는 영상 주제
   description: string // 핵심 설명/키워드 요약
-  type: ScriptType // 대본 분위기
+  type: ScriptType // 대본 스타일
   imageUrls: string[] // 분석할 이미지 URL 목록
 }
 

@@ -1,97 +1,152 @@
 // 컨셉 타입
-export type ConceptType = 'viral' | 'product-info' | 'review' | 'daily-review' | 'promotional' | 'calm-explanation' | 'emotional'
+export type ConceptType = 
+  | 'UNEXPECTED_TIP'
+  | 'MUST_BUY_ITEM'
+  | 'WHERE_DID_YOU_BUY'
+  | 'CELEBRITY_ITEM'
+  | 'MY_STORY_REVIEW'
+  | 'HEY_EVERYONE_LOOK'
+  | 'TREND_REPORT'
+  | 'FOUND_IT'
+  | 'FINALLY_FOUND'
+  | 'MONOLOGUE_REVIEW'
+  | 'UNBELIEVABLE_PRICE'
+  | 'LOSS_AVERSION'
+  | 'COUPANG_RANK_1'
+  | 'END_GAME_ITEM'
+  | 'BRAND_SINCERITY'
+  | 'REGRET_LATE_BUY'
+  | 'QUALITY_OF_LIFE'
+  | 'MUST_TRY_COUPANG'
+  | 'COST_EFFECTIVE_GIFT'
 
-// 말투 타입
-export type ToneType = string
+// 컨셉별 말투 옵션 (deprecated - step2에서 더 이상 사용하지 않음, 다른 컴포넌트 호환성을 위해 빈 객체 유지)
+export const conceptTones: Record<ConceptType, Array<{ id: string; label: string; tier: 'LIGHT' | 'PRO' }>> = {} as Record<ConceptType, Array<{ id: string; label: string; tier: 'LIGHT' | 'PRO' }>>
 
-// 톤 예시 텍스트
-export const toneExamples: Record<string, string> = {
-  'viral-1': '내가 커피 텀블러를 찾고 있었는데 이걸 발견했지 뭐야? 다채로운 색상이 너무 예뻐서 바로 리뷰해봄. 핸들과 리드 부분에 포인트 컬러가 새겨져 있어서 귀여움 폭발! 보냉, 보온 기능이 탁월해서 장시간 따뜻한 커피를 즐길 수 있더라고. 여러분이라면 산다 안산다? 나는 다음에도 또 사고 싶으니 추천!',
-  'info-1': '안녕하세요. 오늘 소개해드릴 제품은 프리미엄 커피 텀블러입니다. 이 제품의 특징은 뛰어난 보온 보냉 기능과 세련된 디자인입니다. 스테인리스 스틸 소재로 제작되어 내구성이 우수하며, 다양한 색상으로 제공됩니다.',
-  'review-1': '이 커피 텀블러를 사용해본 결과, 보온 기능이 정말 뛰어납니다. 아침에 따뜻한 커피를 담아서 점심 시간까지 따뜻하게 유지되었어요. 디자인도 깔끔하고 사용하기 편리합니다.',
-  'daily-1': '요즘 이 텀블러 들고 다니는데 진짜 편해. 색깔도 예쁘고 보온도 잘 되고. 친구들한테도 추천했어.',
-  'promo-1': '지금 바로 구매하시면 특별 할인가로 만나보실 수 있습니다. 한정 수량이니 서두르세요!',
-  'calm-1': '이 제품은 실용적이면서도 세련된 디자인을 갖추고 있습니다. 일상생활에서 유용하게 사용할 수 있는 아이템입니다.',
-  'emo-1': '이 텀블러를 보면 마음이 따뜻해지는 느낌이에요. 매일 아침 이 텀블러로 커피를 마시면 하루가 더 특별해지는 것 같아요.',
-}
-
-// 컨셉별 말투 옵션
-export const conceptTones: Record<ConceptType, Array<{ id: string; label: string; tier: 'LIGHT' | 'PRO' }>> = {
-  viral: [
-    { id: 'viral-1', label: '이걸 나만 모르고 있었네', tier: 'LIGHT' },
-    { id: 'viral-2', label: '와 이런게 있다고?', tier: 'PRO' },
-    { id: 'viral-3', label: '또 사고 싶으니 추천', tier: 'PRO' },
-    { id: 'viral-4', label: '이거 한 번 써보세요', tier: 'PRO' },
-    { id: 'viral-5', label: '일상이 도파민으로 가득해졌습니다', tier: 'PRO' },
-    { id: 'viral-6', label: '없으면 손해보는 꿀템 소개', tier: 'PRO' },
-    { id: 'viral-7', label: '이거 얼마주고 샀어?', tier: 'PRO' },
-    { id: 'viral-8', label: '아니 웬걸...', tier: 'PRO' },
-    { id: 'viral-9', label: '5점 줄게요', tier: 'PRO' },
-    { id: 'viral-10', label: '어 이 제품 뭐지?', tier: 'PRO' },
-    { id: 'viral-11', label: '희대의 아이템을 가져왔다', tier: 'PRO' },
-    { id: 'viral-12', label: '이거 완전 난리 났거든요?', tier: 'PRO' },
-    { id: 'viral-13', label: '니 이거 안 써봤제?', tier: 'PRO' },
-    { id: 'viral-14', label: '덕분에 두배로 행복해졌어요', tier: 'PRO' },
-  ],
-  'product-info': [
-    { id: 'info-1', label: '신뢰감 가는 아나운서', tier: 'LIGHT' },
-    { id: 'info-2', label: '인스타그램 인플루언서', tier: 'PRO' },
-    { id: 'info-3', label: '테크 전문 유튜버', tier: 'PRO' },
-    { id: 'info-4', label: '트렌디한 마케팅 전문가', tier: 'PRO' },
-    { id: 'info-5', label: '살림꾼 블로거', tier: 'PRO' },
-    { id: 'info-6', label: '대학생 쇼핑광 친구', tier: 'PRO' },
-    { id: 'info-7', label: '흥분한 세일즈맨', tier: 'PRO' },
-    { id: 'info-8', label: '발랄한 틱톡커', tier: 'PRO' },
-  ],
-  review: [
-    { id: 'review-1', label: '신뢰감 가는 아나운서', tier: 'LIGHT' },
-    { id: 'review-2', label: '인스타그램 인플루언서', tier: 'PRO' },
-    { id: 'review-3', label: '테크 전문 유튜버', tier: 'PRO' },
-    { id: 'review-4', label: '트렌디한 마케팅 전문가', tier: 'PRO' },
-    { id: 'review-5', label: '살림꾼 블로거', tier: 'PRO' },
-    { id: 'review-6', label: '대학생 쇼핑광 친구', tier: 'PRO' },
-    { id: 'review-7', label: '흥분한 세일즈맨', tier: 'PRO' },
-    { id: 'review-8', label: '발랄한 틱톡커', tier: 'PRO' },
-  ],
-  'daily-review': [
-    { id: 'daily-1', label: '일상적인 대화 톤', tier: 'LIGHT' },
-    { id: 'daily-2', label: '친구에게 추천하는 느낌', tier: 'LIGHT' },
-    { id: 'daily-3', label: '솔직한 후기 스타일', tier: 'PRO' },
-    { id: 'daily-4', label: '편안한 일상 리뷰', tier: 'PRO' },
-    { id: 'daily-5', label: '자연스러운 대화체', tier: 'PRO' },
-  ],
-  promotional: [
-    { id: 'promo-1', label: '홍보 전문가', tier: 'LIGHT' },
-    { id: 'promo-2', label: '광고 카피라이터', tier: 'PRO' },
-    { id: 'promo-3', label: '세일즈 전문가', tier: 'PRO' },
-    { id: 'promo-4', label: '마케팅 전문가', tier: 'PRO' },
-    { id: 'promo-5', label: '프로모션 전문가', tier: 'PRO' },
-  ],
-  'calm-explanation': [
-    { id: 'calm-1', label: '차분한 설명자', tier: 'LIGHT' },
-    { id: 'calm-2', label: '교육자 스타일', tier: 'PRO' },
-    { id: 'calm-3', label: '전문가 해설', tier: 'PRO' },
-    { id: 'calm-4', label: '안정적인 나레이션', tier: 'PRO' },
-    { id: 'calm-5', label: '신뢰감 있는 설명', tier: 'PRO' },
-  ],
-  emotional: [
-    { id: 'emo-1', label: '감성적인 톤', tier: 'LIGHT' },
-    { id: 'emo-2', label: '따뜻한 감성', tier: 'PRO' },
-    { id: 'emo-3', label: '로맨틱한 스타일', tier: 'PRO' },
-    { id: 'emo-4', label: '감동적인 나레이션', tier: 'PRO' },
-    { id: 'emo-5', label: '부드러운 감성톤', tier: 'PRO' },
-  ],
-}
+// 톤 예시 텍스트 (deprecated - step2에서 더 이상 사용하지 않음, 다른 컴포넌트 호환성을 위해 빈 객체 유지)
+export const toneExamples: Record<string, string> = {}
 
 // 컨셉 옵션
-export const conceptOptions: Array<{ id: ConceptType; label: string; tier: 'LIGHT' | 'PRO' }> = [
-  { id: 'viral', label: '바이럴형', tier: 'LIGHT' },
-  { id: 'product-info', label: '상품 정보형', tier: 'LIGHT' },
-  { id: 'review', label: '리뷰형', tier: 'PRO' },
-  { id: 'daily-review', label: '일상적 리뷰 스타일', tier: 'LIGHT' },
-  { id: 'promotional', label: '홍보형/광고 스타일', tier: 'PRO' },
-  { id: 'calm-explanation', label: '차분한 설명 스타일', tier: 'LIGHT' },
-  { id: 'emotional', label: '감성톤', tier: 'PRO' },
+export const conceptOptions: Array<{
+  id: ConceptType
+  label: string // 한글명
+  description: string // 특징 및 타겟 설명
+  target: string // 타겟 고객층
+}> = [
+  {
+    id: 'UNEXPECTED_TIP',
+    label: '의외로 잘 모르는 꿀템',
+    description: '[정보전달형] 나만 몰랐나? 하는 심리를 자극하여 시청 지속 시간을 확보합니다.',
+    target: '생활 꿀팁에 관심 많은 주부 / 자취생'
+  },
+  {
+    id: 'MUST_BUY_ITEM',
+    label: '보이면 사야하는 꿀템',
+    description: '[정보전달형] 발견 즉시 구매해야 한다는 강한 확신과 희소성을 심어줍니다.',
+    target: '다이소 / 마트 쇼핑을 즐기는 알뜰족'
+  },
+  {
+    id: 'WHERE_DID_YOU_BUY',
+    label: '어디서 샀어?',
+    description: '[리뷰형] 지인이 물어보는 것처럼 자연스럽게 제품의 매력을 간접 증명합니다.',
+    target: '인테리어 / 데스크테리어 소품에 관심 있는 2030'
+  },
+  {
+    id: 'CELEBRITY_ITEM',
+    label: '연예인이 사용한 제품',
+    description: '[연예인템] 유명인의 권위를 빌려 제품의 신뢰도와 \'손민수\' 욕구를 자극합니다.',
+    target: '트렌드와 셀럽 라이프스타일을 동경하는 팔로워'
+  },
+  {
+    id: 'MY_STORY_REVIEW',
+    label: '저 이것 때문에 ~됐어요',
+    description: '[썰푸는형] 문제 발생 → 해결의 서사 구조로 몰입감을 극대화합니다.',
+    target: '드라마틱한 이야기와 반전에 흥미를 느끼는 시청자'
+  },
+  {
+    id: 'HEY_EVERYONE_LOOK',
+    label: '아니 여러분',
+    description: '[소개리뷰형] 흥분한 어조의 \'찐텐\'으로 시청자의 주목을 끄는 바이럴 유형입니다.',
+    target: '맛집 / 신상 리뷰를 즐겨보는 SNS 헤비 유저'
+  },
+  {
+    id: 'TREND_REPORT',
+    label: '요즘 유행이라는',
+    description: '[정보전달형] 뉴스 / 리포트 형식으로 최신 트렌드를 객관적으로 소개합니다.',
+    target: '유행에 민감한 얼리어답터'
+  },
+  {
+    id: 'FOUND_IT',
+    label: '여러분 찾았어요!',
+    description: '[현실리뷰형] 오랫동안 찾아 헤매던 해결책을 \'드디어\' 발견했다는 기쁨을 공유합니다.',
+    target: '특정 생활 불편을 겪고 있는 타겟층'
+  },
+  {
+    id: 'FINALLY_FOUND',
+    label: '여러분 저 드디어 찾았어요',
+    description: '[감격형] 고질적인 문제를 해결해주는 구세주 아이템을 감정적으로 호소합니다.',
+    target: '기존 제품들의 단점에 지친 유목민 소비자'
+  },
+  {
+    id: 'MONOLOGUE_REVIEW',
+    label: '여러분 저 됐어요',
+    description: '[혼잣말형] 독백과 방백을 오가는 화법으로 시청자와 친구처럼 소통합니다.',
+    target: '격식 없는 브이로그 감성을 선호하는 1020'
+  },
+  {
+    id: 'UNBELIEVABLE_PRICE',
+    label: '믿으시겠나요?',
+    description: '[권유형] 믿기 힘든 성능이나 가격을 제시하여 의심을 확신으로 바꿉니다.',
+    target: '가성비 / 고성능을 찾는 합리적 소비자'
+  },
+  {
+    id: 'LOSS_AVERSION',
+    label: '이제는 ~~하면 손해',
+    description: '[손해강조형] 기존 방식을 고수하면 손해라는 심리(Loss Aversion)를 자극합니다.',
+    target: '손해 보는 것을 싫어하는 스마트 컨슈머'
+  },
+  {
+    id: 'COUPANG_RANK_1',
+    label: '이게 쿠팡 1등이라고?',
+    description: '[상품소개형] 플랫폼 랭킹 1위 제품의 인기 비결을 검증하며 신뢰를 줍니다.',
+    target: '대세를 따르고 싶은 신중한 구매자'
+  },
+  {
+    id: 'END_GAME_ITEM',
+    label: '결국 나와버렸다는 끝판왕',
+    description: '[제품소개형] 기존 제품의 단점을 모두 상쇄하는 \'종결자\' 등장을 알립니다.',
+    target: '혁신적인 솔루션을 기다리던 대기 수요층'
+  },
+  {
+    id: 'BRAND_SINCERITY',
+    label: '~~은 여기에 진심이라는데?',
+    description: '[브랜드강조형] 제품에 담긴 브랜드의 철학이나 장인정신을 스토리로 풉니다.',
+    target: '디테일을 중요시하는 팬슈머'
+  },
+  {
+    id: 'REGRET_LATE_BUY',
+    label: '늦게 살 수록 후회하는 제품',
+    description: '[후회형] \'일찍 샀으면 좋았을걸\' 하는 후회를 공유하여 구매를 앞당깁니다.',
+    target: '고민만 하는 결정 장애 소비자'
+  },
+  {
+    id: 'QUALITY_OF_LIFE',
+    label: '삶의 질 떡상하는 아이템',
+    description: '[삶의질형] 제품 사용 전후의 명확한 변화와 행복을 약속합니다.',
+    target: '일상의 소확행을 추구하는 소비자'
+  },
+  {
+    id: 'MUST_TRY_COUPANG',
+    label: '지금 당장 쿠팡에 들어가서',
+    description: '[쿠팡추천형] 구체적인 행동 지침(Call To Action)으로 즉각적인 전환을 유도합니다.',
+    target: '빠르고 편리한 로켓배송 선호 고객'
+  },
+  {
+    id: 'COST_EFFECTIVE_GIFT',
+    label: 'N만원 대 가성비 선물',
+    description: '[가성비선물] 가격대별 최적의 선물을 큐레이션하여 고민을 해결해줍니다.',
+    target: '센스 있는 가성비 선물을 찾는 2030'
+  },
 ]
 
 // 썸네일 템플릿

@@ -1,7 +1,8 @@
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { BgmSelector } from '@/components/video-editor/BgmSelector'
+import { SoundEffectSelector } from '@/components/video-editor/SoundEffectSelector'
 import { SubtitleSettings } from '@/components/video-editor/SubtitleSettings'
-import ChirpVoiceSelector from '@/components/ChirpVoiceSelector'
+import VoiceSelector from '@/components/VoiceSelector'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 
 interface EffectsPanelProps {
@@ -18,6 +19,10 @@ interface EffectsPanelProps {
   setBgmTemplate: (value: string | null) => void
   confirmedBgmTemplate: string | null
   onBgmConfirm: (templateId: string | null) => void
+  soundEffect: string | null
+  setSoundEffect: (effectId: string | null) => void
+  confirmedSoundEffect: string | null
+  onSoundEffectConfirm: (effectId: string | null) => void
   setTimeline: (value: TimelineData) => void
   showVoiceRequiredMessage?: boolean
 }
@@ -36,6 +41,9 @@ export function EffectsPanel({
   setBgmTemplate,
   confirmedBgmTemplate,
   onBgmConfirm,
+  soundEffect,
+  setSoundEffect,
+  onSoundEffectConfirm,
   setTimeline,
   showVoiceRequiredMessage = false,
 }: EffectsPanelProps) {
@@ -51,7 +59,7 @@ export function EffectsPanel({
             <div className="bg-white/60 rounded-2xl flex flex-col h-full" style={{ overflowY: 'hidden', overflowX: 'visible' }}>
               {/* 탭바 */}
               <div className="p-1 shrink-0 -mx-1" style={{ overflowX: 'auto', overflowY: 'hidden' }}>
-                <div className="bg-white rounded-2xl p-1 shadow-[var(--shadow-container)] scrollbar-hide" style={{ minWidth: 'max-content' }}>
+                <div className="bg-white rounded-2xl p-1 shadow-(--shadow-container) scrollbar-hide" style={{ minWidth: 'max-content' }}>
                   <div className="flex items-center gap-1 md:flex">
                 <button
                   type="button"
@@ -384,11 +392,25 @@ export function EffectsPanel({
                     </div>
                   )}
                   <div className="w-full max-w-full overflow-x-hidden box-border">
-                    <ChirpVoiceSelector
+                    <VoiceSelector
                       theme={theme ?? 'light'}
                       title="목소리 선택"
                       disabled={!timeline || currentSceneIndex < 0}
                       layout="panel"
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="sound" className="px-6 pt-6 w-full max-w-full overflow-x-hidden">
+                  <div className="w-full max-w-full overflow-x-hidden box-border">
+                    <SoundEffectSelector 
+                      soundEffect={soundEffect} 
+                      theme={theme ?? 'light'} 
+                      setSoundEffect={setSoundEffect}
+                      onSoundEffectConfirm={onSoundEffectConfirm}
+                      timeline={timeline}
+                      currentSceneIndex={currentSceneIndex}
+                      setTimeline={setTimeline}
                     />
                   </div>
                 </TabsContent>

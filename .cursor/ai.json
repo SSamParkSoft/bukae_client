@@ -6,7 +6,8 @@
         "cursor-talk-to-figma-mcp@latest"
       ],
       "env": {
-        "FIGMA_MCP_PORT": "3055"
+        "FIGMA_MCP_PORT": "3055",
+        "FIGMA_MCP_CHANNEL": "nbcrihlx"
       }
     }
   }

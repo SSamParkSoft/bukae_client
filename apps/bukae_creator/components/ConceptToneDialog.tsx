@@ -28,16 +28,18 @@ export default function ConceptToneDialog({ open, onOpenChange }: ConceptToneDia
   const { concept, tone, setConcept, setTone } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const [selectedConcept, setSelectedConcept] = useState<ConceptType>(
-    (concept as ConceptType) || 'viral'
+    (concept as ConceptType) || 'HEY_EVERYONE_LOOK'
   )
   const [selectedTone, setSelectedTone] = useState<string>(tone || '')
 
   const handleConceptChange = (newConcept: ConceptType) => {
     setSelectedConcept(newConcept)
     // 컨셉 변경 시 첫 번째 말투로 자동 선택
-    const tones = conceptTones[newConcept]
+    const tones = conceptTones[newConcept] || []
     if (tones.length > 0) {
       setSelectedTone(tones[0].id)
+    } else {
+      setSelectedTone('')
     }
   }
 
@@ -47,7 +49,7 @@ export default function ConceptToneDialog({ open, onOpenChange }: ConceptToneDia
     onOpenChange(false)
   }
 
-  const currentTones = conceptTones[selectedConcept]
+  const currentTones = conceptTones[selectedConcept] || []
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -75,12 +77,6 @@ export default function ConceptToneDialog({ open, onOpenChange }: ConceptToneDia
                   <TabsTrigger key={option.id} value={option.id} className="flex items-center gap-2">
                     <MessageSquare className="h-4 w-4" />
                     <span>{option.label}</span>
-                    <Badge
-                      variant={option.tier === 'LIGHT' ? 'default' : 'secondary'}
-                      className="ml-auto"
-                    >
-                      {option.tier}
-                    </Badge>
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -96,7 +92,7 @@ export default function ConceptToneDialog({ open, onOpenChange }: ConceptToneDia
             </h3>
             <RadioGroup value={selectedTone} onValueChange={setSelectedTone}>
               <div className="grid grid-cols-2 gap-4">
-                {currentTones.map((toneOption) => (
+                {currentTones.length > 0 ? currentTones.map((toneOption) => (
                   <div key={toneOption.id}>
                     <RadioGroupItem
                       value={toneOption.id}
@@ -128,7 +124,13 @@ export default function ConceptToneDialog({ open, onOpenChange }: ConceptToneDia
                       </Badge>
                     </Label>
                   </div>
-                ))}
+                )) : (
+                  <div className={`col-span-2 p-4 rounded-lg ${
+                    theme === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    말투 옵션이 없습니다.
+                  </div>
+                )}
               </div>
             </RadioGroup>
           </div>

@@ -7,14 +7,19 @@ import { authStorage } from '@/lib/api/auth-storage'
 import { useUserStore } from '@/store/useUserStore'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { useAppStore } from '@/store/useAppStore'
-import { authApi } from '@/lib/api/auth'
-import { ApiError } from '@/lib/api/client'
+import { useCurrentUser } from '@/lib/hooks/useAuth'
 import { getMallConfigs } from '@/lib/api/mall-configs'
 import { initMcpBrowserHelper } from '@/lib/utils/mcp-browser-helper'
 
 function AuthSync() {
   const router = useRouter()
-  const user = useUserStore((state) => state.user)
+  const hasTokens = authStorage.hasTokens()
+  const currentUser = useUserStore((state) => state.user)
+  
+  // React Query를 사용하여 사용자 정보 조회 (중복 호출 방지)
+  const { data: userInfo, error: userError, isError } = useCurrentUser({
+    enabled: hasTokens && !currentUser, // 토큰이 있고 사용자 정보가 없을 때만 조회
+  })
 
   useEffect(() => {
     const handleAuthExpired = () => {
@@ -35,73 +40,75 @@ function AuthSync() {
     // 토큰 만료 이벤트 리스너 등록
     window.addEventListener('auth:expired', handleAuthExpired)
 
-    // 초기 로드 시 토큰이 있으면 인증 상태 확인 및 사용자 정보 복원
-    const restoreAuth = async () => {
-      const hasTokens = useUserStore.getState().checkAuth()
-      const currentUser = useUserStore.getState().user
-      
-      if (hasTokens && !currentUser) {
-        // 토큰이 있고 사용자 정보가 없으면 사용자 정보 가져오기
-        try {
-          const userInfo = await authApi.getCurrentUser()
-          const fallbackName = userInfo.name ?? userInfo.nickname ?? '사용자'
-          const fallbackProfileImage = userInfo.profileImage ?? userInfo.profileImageUrl
-          useUserStore.getState().setUser({
-            id: userInfo.id,
-            name: fallbackName,
-            email: userInfo.email,
-            profileImage: fallbackProfileImage,
-            createdAt: userInfo.createdAt,
-            accountStatus: 'active',
-          })
-          
-          // 추적 ID 복원 (에러 발생해도 로그인은 계속 진행)
-          try {
-            const mallConfigs = await getMallConfigs()
-            useUserStore.getState().setPlatformTrackingIds(mallConfigs)
-          } catch (trackingIdError) {
-            console.error('[AuthSync] 트래킹 ID 복원 실패:', trackingIdError)
-            // 트래킹 ID 복원 실패해도 로그인은 정상 진행
-          }
-        } catch (error) {
-          // 사용자 정보 가져오기 실패 시 처리
-          if (error instanceof ApiError && error.status === 401) {
-            // 401 에러인 경우: apiRequest에서 이미 auth:expired 이벤트를 발생시켰으므로
-            // handleAuthExpired가 자동으로 처리함 (토큰 정리 + 로그인 페이지 리다이렉트)
-            // 여기서는 조용히 처리
-            return
-          }
-          
-          // 401이 아닌 다른 에러인 경우에만 로그 출력 및 상태 초기화
-          console.error('사용자 정보 복원 실패:', error)
-          useUserStore.getState().reset()
-          useVideoCreateStore.getState().reset()
-          useAppStore.getState().setProductUrl('')
-        }
-      } else if (hasTokens && currentUser) {
-        // 토큰이 있고 사용자 정보도 있지만, 추적 ID가 없을 수 있으므로 복원 시도
-        const currentTrackingIds = useUserStore.getState().platformTrackingIds
-        const hasAnyTrackingId = Object.values(currentTrackingIds).some(id => id !== null)
-        
-        if (!hasAnyTrackingId) {
-          // 추적 ID가 하나도 없으면 복원 시도
-          try {
-            const mallConfigs = await getMallConfigs()
-            useUserStore.getState().setPlatformTrackingIds(mallConfigs)
-          } catch (trackingIdError) {
-            console.error('[AuthSync] 트래킹 ID 복원 실패:', trackingIdError)
-            // 실패해도 계속 진행
-          }
-        }
-      }
-    }
-
-    restoreAuth()
-
     return () => {
       window.removeEventListener('auth:expired', handleAuthExpired)
     }
-  }, [router, user])
+  }, [router])
+
+  // 사용자 정보가 로드되면 store에 동기화
+  useEffect(() => {
+    if (userInfo) {
+      const fallbackName = userInfo.name ?? userInfo.nickname ?? '사용자'
+      const fallbackProfileImage = userInfo.profileImage ?? userInfo.profileImageUrl
+      useUserStore.getState().setUser({
+        id: userInfo.id,
+        name: fallbackName,
+        email: userInfo.email,
+        profileImage: fallbackProfileImage,
+        createdAt: userInfo.createdAt,
+        accountStatus: 'active',
+      })
+
+      // 추적 ID 복원 (에러 발생해도 로그인은 계속 진행)
+      const currentTrackingIds = useUserStore.getState().platformTrackingIds
+      const hasAnyTrackingId = Object.values(currentTrackingIds).some(id => id !== null)
+      
+      if (!hasAnyTrackingId) {
+        getMallConfigs()
+          .then((mallConfigs) => {
+            useUserStore.getState().setPlatformTrackingIds(mallConfigs)
+          })
+          .catch((trackingIdError) => {
+            console.error('[AuthSync] 트래킹 ID 복원 실패:', trackingIdError)
+            // 실패해도 계속 진행
+          })
+      }
+    }
+  }, [userInfo])
+
+  // 에러 처리 (401은 apiRequest에서 이미 처리됨)
+  useEffect(() => {
+    if (isError && userError) {
+      // 401이 아닌 다른 에러인 경우에만 로그 출력 및 상태 초기화
+      const is401 = userError && typeof userError === 'object' && 'status' in userError && userError.status === 401
+      if (!is401) {
+        console.error('사용자 정보 복원 실패:', userError)
+        useUserStore.getState().reset()
+        useVideoCreateStore.getState().reset()
+        useAppStore.getState().setProductUrl('')
+      }
+    }
+  }, [isError, userError])
+
+  // 토큰이 있고 사용자 정보도 있지만, 추적 ID가 없을 수 있으므로 복원 시도
+  useEffect(() => {
+    if (hasTokens && currentUser) {
+      const currentTrackingIds = useUserStore.getState().platformTrackingIds
+      const hasAnyTrackingId = Object.values(currentTrackingIds).some(id => id !== null)
+      
+      if (!hasAnyTrackingId) {
+        // 추적 ID가 하나도 없으면 복원 시도
+        getMallConfigs()
+          .then((mallConfigs) => {
+            useUserStore.getState().setPlatformTrackingIds(mallConfigs)
+          })
+          .catch((trackingIdError) => {
+            console.error('[AuthSync] 트래킹 ID 복원 실패:', trackingIdError)
+            // 실패해도 계속 진행
+          })
+      }
+    }
+  }, [hasTokens, currentUser])
 
   return null
 }

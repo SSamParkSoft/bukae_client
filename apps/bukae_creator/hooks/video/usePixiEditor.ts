@@ -151,7 +151,7 @@ export const usePixiEditor = ({
       }
 
       const handleSize = 20
-      const handleColor = 0x8b5cf6
+      const handleColor = 0x5e8790 // 브랜드 컬러 (brand-teal)
       const handleBorderColor = 0xffffff
 
       const handles: Array<{ x: number; y: number; type: 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' }> = [
@@ -402,7 +402,7 @@ export const usePixiEditor = ({
       }
 
       const handleSize = 16
-      const handleColor = 0x8b5cf6
+      const handleColor = 0x5e8790 // 브랜드 컬러 (brand-teal)
       const handleBorderColor = 0xffffff
 
       const handles: Array<{ x: number; y: number; type: 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w' }> = [

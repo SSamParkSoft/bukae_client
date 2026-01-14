@@ -5,10 +5,9 @@ import { useRouter } from 'next/navigation'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import type { SceneScript } from '@/lib/types/domain/script'
 import { useThemeStore } from '@/store/useThemeStore'
-import { conceptOptions, conceptTones, toneExamples, type ConceptType } from '@/lib/data/templates'
+import { conceptOptions, type ConceptType } from '@/lib/data/templates'
 import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
 import { studioScriptApi } from '@/lib/api/studio-script'
-import type { ScriptType } from '@/lib/types/api/studio-script'
 import { 
   requestCoupangExtensionStorage, 
   extractImagesFromStorage,
@@ -22,9 +21,7 @@ export function useStep2Container() {
     selectedImages, 
     setSelectedImages, 
     scriptStyle, 
-    tone,
     setScriptStyle, 
-    setTone,
     setScenes,
     scenes,
     setHasUnsavedChanges,
@@ -32,13 +29,7 @@ export function useStep2Container() {
   const theme = useThemeStore((state) => state.theme)
   const selectedProduct = selectedProducts[0]
   
-  const [expandedConceptId, setExpandedConceptId] = useState<ConceptType | null>(null)
   const [selectedScriptStyle, setSelectedScriptStyle] = useState<ConceptType | null>(scriptStyle)
-  const [selectedTone, setSelectedTone] = useState<string | null>(tone)
-  const [isStyleConfirmed, setIsStyleConfirmed] = useState(false)
-  const [openToneExampleId, setOpenToneExampleId] = useState<string | null>(null)
-  const [showConfirmPopover, setShowConfirmPopover] = useState(false)
-  const [confirmPopoverToneId, setConfirmPopoverToneId] = useState<string | null>(null)
 
   // 토큰 검증
   const { isValidatingToken } = useVideoCreateAuth()
@@ -66,11 +57,9 @@ export function useStep2Container() {
     if (scriptStyle) {
       setTimeout(() => {
         setSelectedScriptStyle(scriptStyle)
-        setSelectedTone(tone)
-        setExpandedConceptId(scriptStyle)
       }, 0)
     }
-  }, [scriptStyle, tone]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scriptStyle])
 
   // 상품이 변경될 때 extensionImages와 sceneScripts 초기화
   useEffect(() => {
@@ -147,7 +136,7 @@ export function useStep2Container() {
   // 전역에서 테스트할 수 있도록 window 객체에 함수 추가
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      (window as any).testExtensionStorage = async () => {
+      (window as Window & { testExtensionStorage?: () => Promise<void> }).testExtensionStorage = async () => {
         const { testExtensionStorageAccess, requestCoupangExtensionStorage } = await import('@/lib/utils/coupang-extension-storage')
         console.log('=== Extension Storage 테스트 시작 ===')
         const canAccess = await testExtensionStorageAccess()
@@ -280,6 +269,7 @@ export function useStep2Container() {
         setSceneScripts(restoredSceneScripts)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenes.length, selectedImages, setSelectedImages]) // scenes.length만 dependency로 사용하여 무한 루프 방지
 
   // sceneScripts가 변경될 때마다 store에 저장 (렌더링 중 업데이트 방지)
@@ -300,97 +290,26 @@ export function useStep2Container() {
     }
   }, [])
 
-  // ConceptType -> ScriptType 매핑
-  const mapConceptToScriptType = useCallback((concept: typeof scriptStyle): ScriptType => {
-    switch (concept) {
-      case 'product-info':
-      case 'calm-explanation':
-        return 'INFORMATION'
-      case 'review':
-      case 'daily-review':
-        return 'EMPATHY'
-      case 'emotional':
-        return 'HEALING'
-      case 'viral':
-      case 'promotional':
-      default:
-        return 'ENTERTAINMENT'
-    }
-  }, [])
-
   // 대본 스타일 선택
-  const handleScriptStyleSelect = useCallback((concept: ConceptType, toneId: string) => {
-    const isSameSelection = selectedScriptStyle === concept && selectedTone === toneId
+  const handleScriptStyleSelect = useCallback((concept: ConceptType) => {
+    const isSameSelection = selectedScriptStyle === concept
 
     if (isSameSelection) {
       // 같은 것을 다시 클릭하면 선택 해제
       setSelectedScriptStyle(null)
-      setSelectedTone(null)
       setScriptStyle(null)
-      setTone(null)
-      setExpandedConceptId(null)
-      setShowConfirmPopover(false)
-      setConfirmPopoverToneId(null)
-      setIsStyleConfirmed(false)
       return
     }
 
     setSelectedScriptStyle(concept)
-    setSelectedTone(toneId)
     setScriptStyle(concept)
-    setTone(toneId)
-    setExpandedConceptId(concept)
     setHasUnsavedChanges(true)
-    
-    // 새로운 선택 시 확정 상태 해제
-    setIsStyleConfirmed(false)
-    
-    // 확정 말풍선 표시 (위쪽으로)
-    setShowConfirmPopover(true)
-    setConfirmPopoverToneId(toneId)
-  }, [selectedScriptStyle, selectedTone, setScriptStyle, setTone, setHasUnsavedChanges])
-
-  // 토글 열기 (확정 후에도 다시 열 수 있도록)
-  const handleConceptToggle = useCallback((conceptId: ConceptType) => {
-    setExpandedConceptId((prev) => (prev === conceptId ? null : conceptId))
-  }, [])
-
-  // 톤 예시 토글
-  const handleToneExampleToggle = useCallback((toneId: string, open: boolean) => {
-    setOpenToneExampleId(open ? toneId : null)
-  }, [])
-
-  // 스타일 확정하기
-  const handleConfirmStyle = useCallback(() => {
-    if (!selectedScriptStyle || !selectedTone) {
-      alert('대본 스타일과 말투를 선택해주세요.')
-      return
-    }
-    setIsStyleConfirmed(true)
-    setShowConfirmPopover(false)
-    setExpandedConceptId(null)
-    
-    // 다음 단계 버튼으로 스크롤
-    setTimeout(() => {
-      const nextButton = document.querySelector('[data-next-step-button]') as HTMLElement
-      if (nextButton) {
-        nextButton.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-    }, 100)
-  }, [selectedScriptStyle, selectedTone])
-
-  // 다시 선택하기
-  const handleReselect = useCallback(() => {
-    setIsStyleConfirmed(false)
-    setShowConfirmPopover(false)
-    setConfirmPopoverToneId(null)
-    // 토글은 열어두지 않고 닫음 (사용자가 다시 클릭할 수 있도록)
-  }, [])
+  }, [selectedScriptStyle, setScriptStyle, setHasUnsavedChanges])
 
   // 선택된 모든 이미지에 대해 일괄 대본 생성
   const handleGenerateAllScripts = useCallback(async () => {
-    if (!scriptStyle || !tone) {
-      alert('대본 스타일과 톤을 먼저 선택해주세요.')
+    if (!scriptStyle) {
+      alert('대본 스타일을 먼저 선택해주세요.')
       return
     }
 
@@ -421,12 +340,11 @@ export function useStep2Container() {
 
     try {
       const product = selectedProducts[0]
-      const scriptType = mapConceptToScriptType(scriptStyle)
 
       const data = await studioScriptApi.generateScripts({
         topic: product?.name || '상품',
-        description: product?.description || tone || '상품 리뷰 쇼츠 대본 생성',
-        type: scriptType,
+        description: product?.name || '상품',
+        type: scriptStyle, // 새로운 타입 코드 그대로 사용
         imageUrls: selectedImages,
       })
 
@@ -463,7 +381,7 @@ export function useStep2Container() {
       setIsGeneratingAll(false)
       setGeneratingScenes(new Set())
     }
-  }, [scriptStyle, tone, selectedImages, selectedProducts, mapConceptToScriptType])
+  }, [scriptStyle, selectedImages, selectedProducts])
 
   // 이미지 선택
   const handleImageSelect = useCallback((imageUrl: string) => {
@@ -633,8 +551,8 @@ export function useStep2Container() {
 
   // 다음 단계로 이동
   const handleNext = useCallback(() => {
-    if (!selectedScriptStyle || !selectedTone) {
-      alert('대본 스타일과 톤을 선택해주세요.')
+    if (!selectedScriptStyle) {
+      alert('대본 스타일을 선택해주세요.')
       return
     }
 
@@ -661,7 +579,7 @@ export function useStep2Container() {
     
     setScenes(finalScenes)
     router.push('/video/create/step3')
-  }, [selectedScriptStyle, selectedTone, selectedImages, sceneScripts, setScenes, router])
+  }, [selectedScriptStyle, selectedImages, sceneScripts, setScenes, router])
 
   return {
     // State
@@ -670,24 +588,7 @@ export function useStep2Container() {
     
     // Script Style
     selectedScriptStyle,
-    selectedTone,
-    isStyleConfirmed,
-    expandedConceptId,
     handleScriptStyleSelect,
-    handleConceptToggle,
-    handleConfirmStyle,
-    handleReselect,
-    
-    // Tone Examples
-    openToneExampleId,
-    handleToneExampleToggle,
-    
-    // Confirm Popover
-    showConfirmPopover,
-    confirmPopoverToneId,
-    setShowConfirmPopover,
-    setConfirmPopoverToneId,
-    setOpenToneExampleId,
     
     // Images
     availableImages,
@@ -721,7 +622,5 @@ export function useStep2Container() {
     
     // Data
     conceptOptions,
-    conceptTones,
-    toneExamples,
   }
 }
