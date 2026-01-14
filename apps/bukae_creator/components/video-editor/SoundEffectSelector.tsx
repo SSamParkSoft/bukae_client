@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -35,6 +35,21 @@ export function SoundEffectSelector({
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingEffectPath, setPendingEffectPath] = useState<string | null>(null)
   const { data, loading, error } = useSoundEffects()
+
+  // 현재 씬의 효과음 가져오기
+  const currentSceneSoundEffect = useMemo(() => {
+    if (!timeline || currentSceneIndex < 0 || currentSceneIndex >= timeline.scenes.length) {
+      return null
+    }
+    return timeline.scenes[currentSceneIndex]?.soundEffect ?? null
+  }, [timeline, currentSceneIndex])
+
+  // currentSceneIndex가 변경될 때 현재 씬의 효과음으로 동기화
+  useEffect(() => {
+    if (currentSceneSoundEffect !== soundEffect) {
+      setSoundEffect(currentSceneSoundEffect)
+    }
+  }, [currentSceneSoundEffect, soundEffect, setSoundEffect])
 
   const getSoundEffectUrl = (filePath: string): string => {
     // Supabase Storage URL 가져오기
@@ -198,7 +213,7 @@ export function SoundEffectSelector({
             <button
               onClick={() => handleCardClick(null)}
               className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
-                soundEffect === null
+                currentSceneSoundEffect === null
                   ? 'bg-[#5e8790] text-white border-[#5e8790]'
                   : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
               }`}
@@ -231,7 +246,7 @@ export function SoundEffectSelector({
               <div className="h-0.5 bg-[#bbc9c9] mb-6" />
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {effects.map((effect) => {
-                  const isSelected = soundEffect === effect.path
+                  const isSelected = currentSceneSoundEffect === effect.path
                   const isPlaying = playingEffectPath === effect.path
                   const isThisConfirmOpen = confirmOpen && pendingEffectPath === effect.path
                   const displayName = getDisplayName(effect)

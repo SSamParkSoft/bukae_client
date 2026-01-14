@@ -30,7 +30,7 @@ export default function OAuthCallbackClient() {
       try {
         // URL 파라미터에서 토큰 추출 (한 번만 읽기)
         const accessToken = searchParams.get('accessToken')
-        const refreshToken = searchParams.get('refreshToken')
+        let refreshToken = searchParams.get('refreshToken')
         const errorParam = searchParams.get('error')
 
         // 에러 파라미터 확인
@@ -55,7 +55,15 @@ export default function OAuthCallbackClient() {
         }
 
         // 토큰 저장
+        // accessToken은 localStorage에 저장
+        // refreshToken은 쿠키에 있으므로 localStorage에 저장하지 않아도 됨 (백엔드가 쿠키에서 읽음)
         authStorage.setTokens(accessToken, refreshToken || null, { source: 'backend' })
+        
+        if (refreshToken) {
+          console.log('[OAuth Callback] ✅ 토큰 저장 완료: accessToken 저장됨, refreshToken은 쿠키에 있음')
+        } else {
+          console.log('[OAuth Callback] ✅ 토큰 저장 완료: accessToken 저장됨, refreshToken은 쿠키에서 사용')
+        }
 
         // 보안: 토큰을 저장한 후 URL에서 제거 (비동기 작업 전에 먼저 제거)
         if (typeof window !== 'undefined') {

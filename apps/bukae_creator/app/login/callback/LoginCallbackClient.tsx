@@ -55,7 +55,15 @@ export default function LoginCallbackClient() {
         }
 
         // 토큰 저장
+        // accessToken은 localStorage에 저장
+        // refreshToken은 쿠키에 있으므로 localStorage에 저장하지 않아도 됨 (백엔드가 쿠키에서 읽음)
         authStorage.setTokens(accessToken, refreshToken || null, { source: 'backend' })
+        
+        if (refreshToken) {
+          console.log('[Login Callback] ✅ 토큰 저장 완료: accessToken 저장됨, refreshToken은 쿠키에 있음')
+        } else {
+          console.log('[Login Callback] ✅ 토큰 저장 완료: accessToken 저장됨, refreshToken은 쿠키에서 사용')
+        }
 
         // 보안: 토큰을 저장한 후 URL에서 제거 (비동기 작업 전에 먼저 제거)
         if (typeof window !== 'undefined') {

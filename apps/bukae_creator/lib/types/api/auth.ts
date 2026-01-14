@@ -17,6 +17,9 @@ export interface LoginRequest {
 
 export interface TokenResponse {
   accessToken: string
+  accessExpiresIn?: number // 액세스 토큰 만료 시간 (초 단위)
   refreshToken: string
+  refreshExpiresIn?: number // 리프레시 토큰 만료 시간 (초 단위)
+  tokenType?: string // 토큰 타입 (예: "Bearer")
 }
 
