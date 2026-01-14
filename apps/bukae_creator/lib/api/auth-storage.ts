@@ -96,5 +96,14 @@ export const authStorage = {
     // 6분 = 360000ms 이상 경과 시 만료
     return age >= TOKEN_EXPIRY_MS
   },
+
+  /**
+   * 토큰 타임스탬프만 업데이트 (리프레시 실패 시 무한 루프 방지용)
+   * 토큰은 그대로 유지하고 타임스탬프만 현재 시간으로 갱신
+   */
+  updateTokenTimestamp(): void {
+    if (typeof window === 'undefined') return
+    localStorage.setItem(TOKEN_TIMESTAMP_KEY, Date.now().toString())
+  },
 }
 

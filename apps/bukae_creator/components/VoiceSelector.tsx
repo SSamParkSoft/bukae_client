@@ -59,11 +59,14 @@ interface VoiceSelectorProps {
 }
 
 export default function VoiceSelector({
-  theme,
+  theme: _theme,
   title = '목소리 선택',
   disabled = false,
-  layout = 'page',
+  layout: _layout = 'page',
 }: VoiceSelectorProps) {
+  // 향후 사용을 위해 prop 유지
+  void _theme
+  void _layout
   const { voiceTemplate, setVoiceTemplate } = useVideoCreateStore()
   const [voices, setVoices] = useState<PublicVoiceInfo[]>([])
   const [isLoadingVoices, setIsLoadingVoices] = useState(true)
@@ -400,7 +403,8 @@ export default function VoiceSelector({
           ? currentVoiceInfo.voiceId === v.voiceId
           : currentVoiceInfo.voiceId === v.name))
       : voiceTemplate === v.name
-    const isThisPlaying = isPlaying && playingVoiceName === v.name
+    // 향후 사용을 위해 변수 유지
+    void (isPlaying && playingVoiceName === v.name)
     const label = getShortName(v.name, v)
     const isThisConfirmOpen = confirmOpen && pendingVoiceName === v.name
 

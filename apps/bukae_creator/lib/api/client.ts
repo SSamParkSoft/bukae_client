@@ -123,9 +123,12 @@ let refreshInFlight: Promise<string | null> | null = null
 let refreshIntervalId: NodeJS.Timeout | null = null
 let refreshFocusHandler: (() => void) | null = null
 let refreshVisibilityHandler: (() => void) | null = null
+let consecutiveRefreshFailures = 0 // 연속 리프레시 실패 횟수
 
 // 사전 리프레시 체크 간격 (1분마다 체크)
 const REFRESH_CHECK_INTERVAL = 60000
+// 최대 연속 실패 횟수 (3회 실패 시 로그아웃)
+const MAX_CONSECUTIVE_FAILURES = 3
 
 /**
  * 토큰 리프레시 체크 및 실행
@@ -133,6 +136,7 @@ const REFRESH_CHECK_INTERVAL = 60000
 async function checkAndRefreshToken(): Promise<void> {
   if (!authStorage.hasTokens()) {
     stopTokenRefreshScheduler()
+    consecutiveRefreshFailures = 0
     return
   }
 
@@ -143,13 +147,32 @@ async function checkAndRefreshToken(): Promise<void> {
     console.log(`[Token Refresh] 토큰 만료 감지 - 즉시 리프레시 시도 (${Math.floor(age / 1000)}초 경과)`)
     const result = await refreshAccessToken()
     if (!result) {
-      // 리프레시 실패 시 토큰 정리 및 로그아웃 처리
-      // (정상적인 만료 케이스이므로 에러가 아닌 로그로만 처리)
-      console.log('[Token Refresh] 리프레시 실패 - 로그인이 필요합니다.')
-      authStorage.clearTokens()
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('auth:expired'))
+      consecutiveRefreshFailures++
+      console.log(`[Token Refresh] 리프레시 실패 (${consecutiveRefreshFailures}/${MAX_CONSECUTIVE_FAILURES})`)
+      
+      // 연속 실패 횟수가 최대치를 넘으면 로그아웃 처리
+      if (consecutiveRefreshFailures >= MAX_CONSECUTIVE_FAILURES) {
+        console.log('[Token Refresh] 연속 리프레시 실패로 인한 로그아웃 처리')
+        authStorage.clearTokens()
+        consecutiveRefreshFailures = 0
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('auth:expired'))
+        }
+        return
       }
+      
+      // 실패했지만 아직 재시도 가능한 경우, 타임스탬프를 현재 시간으로 업데이트하여
+      // 다음 체크까지 최소한의 시간이 지나도록 함 (무한 루프 방지)
+      // 현재 토큰을 유지하되 타임스탬프만 업데이트
+      const currentToken = authStorage.getAccessToken()
+      const currentRefreshToken = authStorage.getRefreshToken()
+      if (currentToken && currentRefreshToken) {
+        // 타임스탬프만 업데이트 (토큰은 그대로 유지)
+        authStorage.updateTokenTimestamp()
+      }
+    } else {
+      // 리프레시 성공 시 실패 횟수 리셋
+      consecutiveRefreshFailures = 0
     }
     return
   }
@@ -159,7 +182,33 @@ async function checkAndRefreshToken(): Promise<void> {
     console.log(`[Token Refresh] 사전 리프레시 시작 (${Math.floor(age / 1000)}초 경과)`)
     const result = await refreshAccessToken()
     if (!result) {
-      console.log('[Token Refresh] 리프레시 실패 - 다음 체크에서 재시도합니다.')
+      consecutiveRefreshFailures++
+      console.log(`[Token Refresh] 리프레시 실패 (${consecutiveRefreshFailures}/${MAX_CONSECUTIVE_FAILURES}) - 다음 체크에서 재시도합니다.`)
+      
+      // 연속 실패 횟수가 최대치를 넘으면 로그아웃 처리
+      if (consecutiveRefreshFailures >= MAX_CONSECUTIVE_FAILURES) {
+        console.log('[Token Refresh] 연속 리프레시 실패로 인한 로그아웃 처리')
+        authStorage.clearTokens()
+        consecutiveRefreshFailures = 0
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('auth:expired'))
+        }
+        return
+      }
+      
+      // 실패했지만 아직 재시도 가능한 경우, 타임스탬프를 현재 시간으로 업데이트하여
+      // 다음 체크까지 최소한의 시간이 지나도록 함 (무한 루프 방지)
+      const currentToken = authStorage.getAccessToken()
+      const currentRefreshToken = authStorage.getRefreshToken()
+      if (currentToken && currentRefreshToken) {
+        // 타임스탬프만 업데이트 (토큰은 그대로 유지)
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('bookae_token_timestamp', Date.now().toString())
+        }
+      }
+    } else {
+      // 리프레시 성공 시 실패 횟수 리셋
+      consecutiveRefreshFailures = 0
     }
   }
 }
