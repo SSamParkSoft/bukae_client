@@ -124,9 +124,10 @@ jobs:
               exit 0
             }
             
-            # 같은 브랜치에 푸시 (토큰 사용)
+            # 같은 브랜치에 푸시 (토큰을 URL에 직접 포함)
             git remote set-url origin https://${{ secrets.BUKAE_CLIENT_BUILD_TOKEN }}@github.com/${{ github.repository }}.git
-            git push origin ${{ github.ref_name }} || {
+            git config --local credential.helper ""
+            git push https://${{ secrets.BUKAE_CLIENT_BUILD_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }} || {
               echo "⚠️ 푸시 실패 (권한 문제 또는 충돌)"
               exit 0
             }
