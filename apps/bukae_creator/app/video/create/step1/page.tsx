@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
+import { motion } from 'framer-motion'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { useStep1Container } from './hooks/useStep1Container'
 import { useRouter } from 'next/navigation'
@@ -18,11 +19,8 @@ export default function Step1Page() {
   const container = useStep1Container()
   const router = useRouter()
   const [searchMode, setSearchMode] = useState<'search' | 'url'>('search')
-  const [hydrated, setHydrated] = useState(false)
-
-  useEffect(() => {
-    setHydrated(true)
-  }, [])
+  // SSR/CSR 일치 보장을 위해 클라이언트에서만 true로 설정
+  const [hydrated] = useState(() => typeof window !== 'undefined')
 
   // 플레이스홀더 텍스트 생성
   const placeholder = useMemo(() => {
@@ -67,9 +65,15 @@ export default function Step1Page() {
 
   return (
     <div>
-      <div className="w-full max-w-[1194px] mx-auto px-4 sm:px-6 py-8">
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        transition={{ duration: 0.3 }}
+        className="w-full max-w-[1194px] mx-auto px-4 sm:px-6 pt-4 pb-8"
+      >
         {/* 헤더 섹션 */}
-        <div className="mb-20 mt-[96px]">
+        <div className="mb-20 mt-[72px]">
           <div className="flex items-center justify-center mb-4">
             <span 
               className="font-bold bg-gradient-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.56px]"
@@ -222,7 +226,7 @@ export default function Step1Page() {
         {container.searchError && !container.isSearching && (
           <ErrorMessage message={container.searchError} />
         )}
-      </div>
+      </motion.div>
     </div>
   )
 }

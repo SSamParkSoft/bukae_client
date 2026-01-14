@@ -4,7 +4,7 @@ import { memo } from 'react'
 
 export const HeaderSection = memo(function HeaderSection() {
   return (
-    <div className="mb-20 mt-[96px]">
+    <div className="mb-20 mt-[72px]">
       <div className="flex items-center justify-center mb-4">
         <span 
           className="font-bold bg-gradient-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.56px]"

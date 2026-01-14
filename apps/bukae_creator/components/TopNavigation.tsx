@@ -51,21 +51,23 @@ export default function TopNavigation({ activeTab, className }: TopNavigationPro
   // 로그인 상태일 때 피그마 디자인에 맞게 표시
   if (isAuthenticated && user) {
     return (
-      <div className={cn('flex items-center gap-0', className)}>
+      <div className={cn('flex items-center gap-0 flex-nowrap shrink-0', className)}>
         {/* 프로필 드롭다운 */}
-        <ProfileDropdown />
+        <div className="shrink-0">
+          <ProfileDropdown />
+        </div>
 
         {/* 제작 버튼 */}
         <button
           onClick={() => handleTabClick('/video/create')}
           className={cn(
-            'h-[52px] px-6 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 justify-center',
+            'h-[58px] px-6 rounded-3xl text-base font-bold transition-colors flex items-center gap-2 justify-center shrink-0 whitespace-nowrap',
             currentActiveTab === 'make'
               ? 'bg-brand-teal text-white'
               : 'bg-transparent text-[#454545] hover:bg-gray-100'
           )}
         >
-          <Video className="w-6 h-6" />
+          <Video className="w-6 h-6 shrink-0" />
           제작
         </button>
 
@@ -73,13 +75,13 @@ export default function TopNavigation({ activeTab, className }: TopNavigationPro
         <button
           onClick={() => handleTabClick('/statistics')}
           className={cn(
-            'h-[52px] px-6 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 justify-center',
+            'h-[58px] px-6 rounded-3xl text-base font-bold transition-colors flex items-center gap-2 justify-center shrink-0 whitespace-nowrap',
             currentActiveTab === 'data'
               ? 'bg-brand-teal text-white'
               : 'bg-transparent text-[#454545] hover:bg-gray-100'
           )}
         >
-          <BarChart3 className="w-6 h-6" />
+          <BarChart3 className="w-6 h-6 shrink-0" />
           통계
         </button>
       </div>
@@ -88,7 +90,7 @@ export default function TopNavigation({ activeTab, className }: TopNavigationPro
 
   // 로그인하지 않은 상태: 로그인 버튼만 표시
   return (
-    <div className={cn('flex items-center', className)}>
+    <div className={cn('flex items-center flex-nowrap shrink-0', className)}>
       {tabs.map((tab) => {
         if (tab.id === 'login') {
           const isActive = currentActiveTab === tab.id
@@ -98,7 +100,7 @@ export default function TopNavigation({ activeTab, className }: TopNavigationPro
               key={tab.id}
               onClick={() => handleTabClick(tab.path)}
               className={cn(
-                'w-[140px] px-3 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 justify-center',
+                'w-[140px] px-3 py-2 rounded-3xl text-sm font-bold transition-colors flex items-center gap-2 justify-center',
                 isActive
                   ? 'bg-brand-teal text-white'
                   : 'bg-transparent text-text-muted hover:bg-brand-hover'

@@ -69,7 +69,7 @@ export default function BukaeTop({
   return (
     <div className={cn('w-full', className)}>
       <div className="max-w-[1194px] mx-auto px-6 pt-4 pb-0">
-        <div className="flex items-center justify-between mb-12">
+        <div className="flex items-center justify-between mb-6">
           {/* 로고 */}
           <Link href="/" className="shrink-0">
             <Image
@@ -98,7 +98,7 @@ export default function BukaeTop({
             })
           }}
         >
-          <div className="max-w-[1194px] mx-auto pb-4" style={{ paddingLeft: 'calc(1.5rem + 12px)', paddingRight: 'calc(1.5rem + 12px)' }}>
+          <div className="max-w-[1194px] mx-auto pb-4 flex justify-end" style={{ paddingLeft: 'calc(1.5rem + 12px)', paddingRight: 'calc(1.5rem + 24px)' }}>
             <StepNavigation
               steps={steps || defaultSteps}
               currentStep={detectedCurrentStep}

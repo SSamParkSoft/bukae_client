@@ -71,7 +71,7 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
       <button
         ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center h-[60px] px-5 rounded-3xl bg-white/10 gap-4 shadow-md hover:bg-white/20 transition-colors"
+        className="flex items-center h-[58px] px-5 rounded-3xl bg-white/10 gap-4 shadow-md hover:bg-white/20 transition-colors"
       >
         {/* 프로필 사진 */}
         {user.profileImage ? (
