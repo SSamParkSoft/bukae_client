@@ -118,18 +118,14 @@ export function useTimelinePlayer({
       const t = clampedTime
       
       // 현재 시간에 맞는 씬 찾기 (절대 시간 기준)
+      // TTS duration만 사용 (transition duration 제외)
       let accumulated = 0
       let targetSceneIndex = timeline.scenes.length - 1 // 기본값: 마지막 씬
       
       for (let i = 0; i < timeline.scenes.length; i++) {
         const scene = timeline.scenes[i]
-        // 마지막 씬에는 transition이 없음
-        const isLastScene = i === timeline.scenes.length - 1
-        // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
-        const nextScene = !isLastScene ? timeline.scenes[i + 1] : null
-        const isSameSceneId = nextScene && scene.sceneId === nextScene.sceneId
-        const transitionDuration = isLastScene ? 0 : (isSameSceneId ? 0 : (scene.transitionDuration || 0.5))
-        const sceneDuration = scene.duration + transitionDuration
+        // TTS duration만 사용 (transition duration 제외)
+        const sceneDuration = scene.duration
         const sceneStart = accumulated
         const sceneEnd = accumulated + sceneDuration
         

@@ -1005,103 +1005,105 @@ export function useStep3Container() {
     []
   )
 
-  // Timeline의 duration을 계산 (실제 재생 시간 우선, 없으면 TTS 캐시 기반 계산)
-  // 실제 재생 시간이 있으면 그것을 사용하고, 없으면 한 번만 TTS 캐시 기반으로 계산
-  // 스크립트가 변경되지 않았고 actualPlaybackDuration이 있으면 재계산하지 않음
+  // Timeline의 duration을 계산 (TTS 캐시 기반, 한 번만)
+  // TTS 파일이 없으면 계산하지 않음 (재생이 안되니까)
+  // 한 번 계산되면 업데이트하지 않음
+  const prevScenesKeyRef = useRef<string>('')
+  
   useEffect(() => {
     if (!timeline || !voiceTemplate) return
     
-    // 변경된 씬이 있는지 확인 (스크립트가 변경된 씬은 재계산 필요)
-    const _hasChangedScenes = changedScenesRef.current.size > 0
+    // scenes의 text content가 변경되었는지 확인
+    const currentScenesKey = timeline.scenes.map(s => s.text?.content || '').join('|')
+    const scenesChanged = prevScenesKeyRef.current !== currentScenesKey
+    prevScenesKeyRef.current = currentScenesKey
+    
+    // text content가 변경되지 않았고, 모든 씬의 duration이 이미 정확히 계산되어 있으면 실행하지 않음
+    if (!scenesChanged) {
+      const allScenesHaveDuration = timeline.scenes.every((scene, index) => {
+        // actualPlaybackDuration이 있으면 duration이 일치하는지 확인
+        if (scene.actualPlaybackDuration && scene.actualPlaybackDuration > 0) {
+          return Math.abs(scene.duration - scene.actualPlaybackDuration) <= 0.01
+        }
+        // actualPlaybackDuration이 없으면 TTS 캐시 확인
+        const markups = buildSceneMarkup(timeline, index)
+        if (markups.length === 0) return true
+        
+        let allPartsCached = true
+        for (const markup of markups) {
+          const key = makeTtsKey(voiceTemplate, markup)
+          const cached = ttsCacheRef.current.get(key)
+          if (!cached || !cached.durationSec || cached.durationSec <= 0) {
+            allPartsCached = false
+            break
+          }
+        }
+        // 모든 part가 캐시에 있고, duration이 이미 정확히 계산되어 있으면 OK
+        if (allPartsCached) {
+          let totalTtsDuration = 0
+          for (const markup of markups) {
+            const key = makeTtsKey(voiceTemplate, markup)
+            const cached = ttsCacheRef.current.get(key)
+            totalTtsDuration += cached!.durationSec
+          }
+          return Math.abs(scene.duration - totalTtsDuration) <= 0.01
+        }
+        return false
+      })
+      
+      // 모든 씬의 duration이 이미 정확히 계산되어 있으면 실행하지 않음
+      if (allScenesHaveDuration) {
+        return
+      }
+    }
     
     const updatedScenes = timeline.scenes.map((scene, index) => {
-      // 실제 재생 시간이 있고, 해당 씬이 변경되지 않았으면 그것을 사용 (가장 정확함)
-      if (scene.actualPlaybackDuration && scene.actualPlaybackDuration > 0 && !changedScenesRef.current.has(index)) {
+      // 실제 재생 시간이 있으면 그것을 사용 (가장 정확함)
+      // actualPlaybackDuration이 있으면 절대 TTS 캐시 기반 계산을 하지 않음
+      if (scene.actualPlaybackDuration && scene.actualPlaybackDuration > 0) {
+        // 기존 duration과 같으면 업데이트하지 않음
+        if (Math.abs(scene.duration - scene.actualPlaybackDuration) <= 0.01) {
+          return scene
+        }
+        // actualPlaybackDuration이 있으면 무조건 그것을 사용
         return { ...scene, duration: scene.actualPlaybackDuration }
       }
       
-      // 실제 재생 시간이 없으면 TTS 캐시 기반으로 계산 (한 번만)
+      // actualPlaybackDuration이 없을 때만 TTS 캐시 기반으로 계산
       const markups = buildSceneMarkup(timeline, index)
       if (markups.length === 0) return scene
       
+      // 모든 part가 TTS 캐시에 있는지 확인
       let totalTtsDuration = 0
-      let cachedPartsCount = 0
-      let cachedPartsTotalDuration = 0
-      let uncachedPartsTextLength = 0
-      let cachedPartsTextLength = 0
+      let allPartsCached = true
       
-      // 모든 part의 TTS duration 합산 및 텍스트 길이 계산
       for (let partIndex = 0; partIndex < markups.length; partIndex++) {
         const markup = markups[partIndex]
         const key = makeTtsKey(voiceTemplate, markup)
         const cached = ttsCacheRef.current.get(key)
         
-        // 텍스트 길이 계산 (공백 제거)
-        const textLength = markup.replace(/\s+/g, '').length
-        
         if (cached && cached.durationSec > 0) {
           totalTtsDuration += cached.durationSec
-          cachedPartsTotalDuration += cached.durationSec
-          cachedPartsCount++
-          cachedPartsTextLength += textLength
         } else {
-          uncachedPartsTextLength += textLength
+          allPartsCached = false
+          break // 하나라도 없으면 중단
         }
       }
       
-      // 모든 part가 캐시에 있으면 정확한 합계 사용
-      if (cachedPartsCount === markups.length && totalTtsDuration > 0) {
-        // TTS 캐시에서 계산된 duration이 더 정확하므로 항상 업데이트
+      // 모든 part가 캐시에 있고 duration이 계산 가능한 경우만 업데이트
+      if (allPartsCached && totalTtsDuration > 0) {
+        // 기존 duration과 같으면 업데이트하지 않음
+        if (Math.abs(scene.duration - totalTtsDuration) <= 0.01) {
+          return scene
+        }
         return { ...scene, duration: totalTtsDuration }
-      } 
-      // 일부 part만 캐시에 있는 경우: 더 정확한 추정
-      else if (cachedPartsCount > 0 && cachedPartsTotalDuration > 0) {
-        // 방법 1: 캐시된 part의 평균 duration으로 추정
-        const avgCachedDuration = cachedPartsTotalDuration / cachedPartsCount
-        const uncachedPartsCount = markups.length - cachedPartsCount
-        const estimatedByAvg = totalTtsDuration + (avgCachedDuration * uncachedPartsCount)
-        
-        // 방법 2: 텍스트 길이 기반 추정 (더 정확)
-        let estimatedByText = totalTtsDuration
-        if (cachedPartsTextLength > 0 && uncachedPartsTextLength > 0) {
-          // 캐시된 part의 초당 글자 수 계산
-          const charsPerSecond = cachedPartsTextLength / cachedPartsTotalDuration
-          // 캐시되지 않은 part의 duration 추정
-          const estimatedUncachedDuration = uncachedPartsTextLength / charsPerSecond
-          estimatedByText = totalTtsDuration + estimatedUncachedDuration
-        }
-        
-        // 두 방법 중 더 신뢰할 수 있는 방법 선택
-        // 텍스트 길이 기반 추정이 더 정확하므로 우선 사용
-        const estimatedTotal = estimatedByText > 0 ? estimatedByText : estimatedByAvg
-        
-        // 추정값이 합리적인 범위 내에 있으면 사용
-        // 캐시된 part가 많을수록 더 신뢰할 수 있으므로 조건 완화
-        const cacheRatio = cachedPartsCount / markups.length
-        const minRatio = cacheRatio >= 0.7 ? 0.2 : (cacheRatio >= 0.5 ? 0.3 : 0.4)
-        const maxRatio = cacheRatio >= 0.7 ? 2.0 : (cacheRatio >= 0.5 ? 3.0 : 4.0)
-        
-        if (estimatedTotal > 0 && estimatedTotal >= scene.duration * minRatio && estimatedTotal <= scene.duration * maxRatio) {
-          return { ...scene, duration: estimatedTotal }
-        }
-        // 추정값이 범위를 벗어나도 캐시 비율이 높으면 사용
-        else if (cacheRatio >= 0.7 && estimatedTotal > 0) {
-          return { ...scene, duration: estimatedTotal }
-        }
-      }
-      // 캐시가 전혀 없는 경우: 텍스트 길이 기반 추정 (초당 8글자)
-      else if (uncachedPartsTextLength > 0) {
-        const estimatedByTextLength = uncachedPartsTextLength / 8
-        // 최소 1초, 기존 duration과 비교하여 합리적인 범위 내에 있으면 사용
-        const estimatedTotal = Math.max(1, estimatedByTextLength)
-        if (estimatedTotal >= scene.duration * 0.3 && estimatedTotal <= scene.duration * 3) {
-          return { ...scene, duration: estimatedTotal }
-        }
       }
       
+      // TTS 캐시가 없으면 아무것도 하지 않음 (재생이 안되니까)
       return scene
     })
     
+    // 실제로 duration이 변경된 씬이 있는지 확인
     const hasDurationUpdate = updatedScenes.some((scene, index) => 
       Math.abs(scene.duration - (timeline.scenes[index]?.duration ?? 0)) > 0.01
     )
@@ -1112,7 +1114,7 @@ export function useStep3Container() {
         scenes: updatedScenes,
       })
     }
-  }, [timeline, voiceTemplate, setTimeline, ttsCacheRef])
+  }, [voiceTemplate, setTimeline, timeline, buildSceneMarkup, makeTtsKey])
 
   // getMp3DurationSec는 lib/utils/audio.ts에서 import하여 사용
 
@@ -1122,6 +1124,14 @@ export function useStep3Container() {
         return
       }
       if (!Number.isFinite(durationSec) || durationSec <= 0) {
+        return
+      }
+      
+      const scene = timeline.scenes[sceneIndex]
+      if (!scene) return
+      
+      // 이미 actualPlaybackDuration이 있으면 업데이트하지 않음 (가장 정확함)
+      if (scene.actualPlaybackDuration && scene.actualPlaybackDuration > 0) {
         return
       }
       
@@ -1138,14 +1148,21 @@ export function useStep3Container() {
           totalTtsDuration += cached.durationSec
         } else {
           allPartsCached = false
+          break // 하나라도 없으면 중단
         }
       }
       
       // 모든 part가 캐시에 있으면 정확한 합계 사용, 없으면 전달받은 durationSec 사용
       const finalDuration = allPartsCached && totalTtsDuration > 0 ? totalTtsDuration : durationSec
       
-      const prev = timeline.scenes[sceneIndex]?.duration ?? 0
+      const prev = scene.duration ?? 0
+      // 기존 duration과 같으면 업데이트하지 않음
       if (Math.abs(prev - finalDuration) <= 0.01) {
+        return
+      }
+      
+      // 모든 part가 캐시에 있지 않으면 업데이트하지 않음 (TTS 파일이 없으면 재생이 안되니까)
+      if (!allPartsCached) {
         return
       }
 

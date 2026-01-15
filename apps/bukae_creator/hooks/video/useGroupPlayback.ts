@@ -620,6 +620,7 @@ export function useGroupPlayback({
 
           const handleEnded = () => {
             cleanup()
+            
             // 오디오 재생 완료 후에도 텍스트가 표시되어 있는지 확인하고 다시 표시
             if (currentTextToUpdate && currentPartText) {
               if (containerRef.current && currentTextToUpdate.parent !== containerRef.current) {
@@ -682,27 +683,12 @@ export function useGroupPlayback({
       }
       
       // TTS 재생 시작
-      const groupPlaybackStartTime = Date.now()
       if (mergedTextParts.length > 0) {
         await playPart(0)
       }
       
-      // 그룹 재생 완료 시 실제 재생 시간 저장
-      if (mergedTextParts.length > 0 && timeline && setTimeline) {
-        const actualGroupPlaybackDuration = (Date.now() - groupPlaybackStartTime) / 1000
-        if (actualGroupPlaybackDuration > 0) {
-          // 그룹 내 각 씬에 실제 재생 시간 저장 (그룹 전체 시간을 씬 개수로 나눔)
-          const durationPerScene = actualGroupPlaybackDuration / groupIndices.length
-          const updatedScenes = timeline.scenes.map((s, idx) => {
-            if (groupIndices.includes(idx)) {
-              // 각 씬에 그룹 재생 시간의 평균 저장 (더 정확한 방법은 각 씬의 실제 재생 시간을 추적)
-              return { ...s, actualPlaybackDuration: durationPerScene }
-            }
-            return s
-          })
-          setTimeline({ ...timeline, scenes: updatedScenes })
-        }
-      }
+      // actualPlaybackDuration은 useFullPlayback에서 그룹 전체 재생 시간을 사용해서 설정하므로
+      // 여기서는 설정하지 않음 (중복 방지)
 
     } catch {
       // 재생 실패 처리
