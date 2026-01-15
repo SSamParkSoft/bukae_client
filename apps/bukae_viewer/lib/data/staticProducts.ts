@@ -38,7 +38,9 @@ const PRODUCT_URLS = {
   pepsi_zerocoke:
     'https://www.coupang.com/vp/products/9274048526?itemId=27492126386&vendorItemId=94457247773&src=1139000&spec=10799999&addtag=400&ctag=9274048526&lptag=AF4647824&itime=20260110181631&pageType=PRODUCT&pageValue=9274048526&wPcid=17510469561163597660443&wRef=&wTime=20260110181631&redirect=landing&traceid=V0-181-f2d39e29bec12616&mcid=0167c871faa148a0ad837497652ff61d&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
   akii_boots:
-    'https://www.coupang.com/vp/products/8730341883?itemId=25366951659&vendorItemId=91526396377&src=1139000&spec=10799999&addtag=400&ctag=8730341883&lptag=AF4647824&itime=20260114163219&pageType=PRODUCT&pageValue=8730341883&wPcid=17510469561163597660443&wRef=&wTime=20260114163219&redirect=landing&traceid=V0-181-5a98c36d9c864c47&mcid=b95674d6161a4dca9b600146a3113f0c&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam='
+    'https://www.coupang.com/vp/products/8730341883?itemId=25366951659&vendorItemId=91526396377&src=1139000&spec=10799999&addtag=400&ctag=8730341883&lptag=AF4647824&itime=20260114163219&pageType=PRODUCT&pageValue=8730341883&wPcid=17510469561163597660443&wRef=&wTime=20260114163219&redirect=landing&traceid=V0-181-5a98c36d9c864c47&mcid=b95674d6161a4dca9b600146a3113f0c&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
+  worldclean_mini_power_plunger:
+    'https://link.coupang.com/a/ds2nnq'
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -162,6 +164,15 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     order: 13,
     thumbnailUrl: '/dummy/akii_boots.png',
     url: PRODUCT_URLS.akii_boots,
+  },
+  {
+    id: 'worldclean-mini-power-plunger',
+    productId: 1019,
+    name: '월드크린 미니 파워 뚫어뻥',
+    description: '미니 파워 · 뚫어뻥',
+    order: 14,
+    thumbnailUrl: '/dummy/durubong.png',
+    url: PRODUCT_URLS.worldclean_mini_power_plunger,
   },
 ]
 
