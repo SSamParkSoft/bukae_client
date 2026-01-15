@@ -108,10 +108,16 @@ const nextConfig: NextConfig = {
   // Turbopack 설정 (개발 환경에서 사용)
   // Next.js 16에서는 Turbopack이 기본이므로 빈 설정 추가하여 webpack과의 충돌 방지
   turbopack: {},
-  // 프로덕션 빌드에서 console.log 제거 (webpack 사용 시)
+  // 프로덕션 빌드에서 console.log 제거
+  // SWC를 사용하여 클라이언트와 서버 모두에서 console 제거
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn'], // error와 warn은 유지
+    } : false,
+  },
+  // webpack 설정 (SWC가 작동하지 않는 경우를 위한 fallback)
   webpack: (config, { dev, isServer }) => {
     // 프로덕션 빌드에서만 webpack 설정 적용
-    // 개발 환경에서는 Turbopack 사용
     if (!dev && !isServer) {
       // 클라이언트 사이드 프로덕션 빌드에서만 console 제거
       try {
@@ -140,7 +146,6 @@ const nextConfig: NextConfig = {
         };
       } catch (error) {
         // TerserPlugin을 사용할 수 없는 경우 무시 (Next.js 기본 최적화 사용)
-        // 개발 환경에서는 에러를 출력하지 않음
       }
     }
     return config;

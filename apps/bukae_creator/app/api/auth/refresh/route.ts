@@ -29,18 +29,21 @@ export async function POST(request: NextRequest) {
     const cookies = request.cookies.getAll()
     const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ')
     
-    // refreshToken 관련 쿠키 찾기
-    const refreshTokenCookies = cookies.filter(c => 
-      c.name.toLowerCase().includes('refresh') || 
-      c.name.toLowerCase() === 'refresh_token' ||
-      c.name.toLowerCase() === 'refreshtoken'
-    )
+    // refreshToken 관련 쿠키 찾기 (정확한 이름만 매칭)
+    const refreshTokenCookies = cookies.filter(c => {
+      const name = c.name.toLowerCase()
+      return name === 'refresh_token' || name === 'refreshtoken'
+    })
     
     console.log('[Refresh Proxy] 프록시 요청 시작:', refreshUrl)
     console.log('[Refresh Proxy] 전체 쿠키 개수:', cookies.length)
     console.log('[Refresh Proxy] 전체 쿠키 이름:', cookies.map(c => c.name).join(', '))
     console.log('[Refresh Proxy] refreshToken 관련 쿠키:', refreshTokenCookies.length > 0 ? refreshTokenCookies.map(c => c.name).join(', ') : '없음')
-    console.log('[Refresh Proxy] ⚠️ refreshToken 쿠키가 없으면 백엔드가 401을 반환합니다')
+    
+    if (refreshTokenCookies.length === 0) {
+      console.log('[Refresh Proxy] ⚠️ refresh_token 쿠키가 없습니다!')
+      console.log('[Refresh Proxy] ⚠️ 로그인 시 백엔드가 localhost 도메인에 쿠키를 설정했는지 확인하세요')
+    }
     
     // 백엔드로 프록시 요청
     const response = await fetch(refreshUrl, {
