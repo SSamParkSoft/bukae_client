@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useRef } from 'react'
 import * as PIXI from 'pixi.js'
+import { gsap } from 'gsap'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
@@ -38,6 +39,7 @@ interface UseGroupPlaybackParams {
   isPlayingRef: React.MutableRefObject<boolean>
   setIsPreparing?: (preparing: boolean) => void
   setIsTtsBootstrapping?: (bootstrapping: boolean) => void
+  activeAnimationsRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>
 }
 
 export function useGroupPlayback({
@@ -57,6 +59,7 @@ export function useGroupPlayback({
   isPlayingRef,
   setIsPreparing,
   setIsTtsBootstrapping,
+  activeAnimationsRef,
 }: UseGroupPlaybackParams) {
   // TTS 리소스 가져오기
   const { ttsCacheRef, ttsAudioRef, ttsAudioUrlRef, stopTtsAudio } = useTtsResources()
@@ -230,8 +233,14 @@ export function useGroupPlayback({
   // 그룹 재생 정지 함수
   const stopGroup = useCallback(() => {
     // 진행 중인 전환 효과 애니메이션 중지
-    // activeAnimationsRef는 useGroupPlaybackParams에 없으므로, 
-    // 필요시 파라미터로 추가해야 하지만, 일단 TTS와 상태만 정리
+    if (activeAnimationsRef) {
+      activeAnimationsRef.current.forEach((tl) => {
+        if (tl && tl.isActive()) {
+          tl.kill()
+        }
+      })
+      activeAnimationsRef.current.clear()
+    }
     
     // TTS 오디오 정지
     stopTtsAudio()
@@ -246,7 +255,7 @@ export function useGroupPlayback({
     
     // 재생 상태 초기화
     isPlayingRef.current = false
-  }, [stopTtsAudio, isPlayingRef])
+  }, [stopTtsAudio, isPlayingRef, activeAnimationsRef])
 
 
   /**
@@ -612,10 +621,15 @@ export function useGroupPlayback({
             return
           }
 
+          let isResolved = false // 중복 resolve 방지
+          
           const cleanup = () => {
+            if (isResolved) return
+            isResolved = true
             audio.removeEventListener('ended', handleEnded)
             audio.removeEventListener('error', handleError)
             audio.removeEventListener('pause', handlePause)
+            audio.removeEventListener('timeupdate', handleTimeUpdate)
           }
 
           const handleEnded = () => {
@@ -636,18 +650,31 @@ export function useGroupPlayback({
           }
           
           const handleError = (event?: Event) => {
-            console.error('[useGroupPlayback] TTS 재생 오류:', event)
             cleanup()
             resolve()
           }
           
+          // pause 이벤트에서 즉시 정지 처리
           const handlePause = () => {
-            // pause 이벤트는 무시
+            if (abortController.signal.aborted || !isPlayingRef.current) {
+              cleanup()
+              resolve()
+            }
+          }
+          
+          // 재생 중에도 abort 체크 (timeupdate 이벤트 활용)
+          const handleTimeUpdate = () => {
+            if (abortController.signal.aborted || !isPlayingRef.current) {
+              audio.pause()
+              cleanup()
+              resolve()
+            }
           }
           
           audio.addEventListener('ended', handleEnded)
           audio.addEventListener('error', handleError)
           audio.addEventListener('pause', handlePause)
+          audio.addEventListener('timeupdate', handleTimeUpdate) // 재생 중 체크 추가
           
           if (abortController.signal.aborted || !isPlayingRef.current) {
             cleanup()

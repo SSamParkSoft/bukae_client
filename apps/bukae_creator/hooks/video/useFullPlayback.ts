@@ -197,6 +197,7 @@ export function useFullPlayback({
     isPlayingRef: groupPlaybackIsPlayingRef,
     setIsPreparing,
     setIsTtsBootstrapping,
+    activeAnimationsRef,
   })
 
   // 재생바 업데이트 interval 정리
