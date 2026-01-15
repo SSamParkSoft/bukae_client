@@ -79,7 +79,11 @@ async function getUserInfo(userId: string, accessToken?: string): Promise<{
   try {
     // 백엔드 API에서 사용자 정보 조회
     if (accessToken) {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+      if (!API_BASE_URL) {
+        console.error('[Credit] NEXT_PUBLIC_API_BASE_URL이 설정되지 않았습니다.')
+        return null
+      }
       const res = await fetch(`${API_BASE_URL}/api/v1/users/me`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,

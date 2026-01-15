@@ -347,7 +347,11 @@ export function useStep4Container() {
       
       try {
         const accessToken = authStorage.getAccessToken()
-        const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+        if (!API_BASE_URL) {
+          console.error('[HTTP Polling] NEXT_PUBLIC_API_BASE_URL이 설정되지 않았습니다.')
+          return
+        }
         const statusUrl = `${API_BASE_URL}/api/v1/studio/jobs/${jobId}`
         console.log('[HTTP Polling] 요청 URL:', statusUrl)
         
@@ -467,7 +471,11 @@ export function useStep4Container() {
             const accessToken = authStorage.getAccessToken()
             if (!accessToken) return
 
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+            if (!API_BASE_URL) {
+              console.error('[Step4] NEXT_PUBLIC_API_BASE_URL이 설정되지 않았습니다.')
+              return
+            }
             const statusUrl = `${API_BASE_URL}/api/v1/studio/jobs/${targetJobId}`
             
             const statusResponse = await fetch(statusUrl, {
@@ -575,7 +583,12 @@ export function useStep4Container() {
         return
       }
 
-        const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+        if (!API_BASE_URL) {
+          console.error('[Step4] NEXT_PUBLIC_API_BASE_URL이 설정되지 않았습니다.')
+          setIsInitializing(false)
+          return
+        }
         const statusUrl = `${API_BASE_URL}/api/v1/studio/jobs/${targetJobId}`
         
         const statusResponse = await fetch(statusUrl, {
@@ -865,7 +878,11 @@ export function useStep4Container() {
         }
 
         if (accessToken) {
-          const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://15.164.220.105.nip.io:8080'
+          const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+          if (!API_BASE_URL) {
+            console.error('[Step4] NEXT_PUBLIC_API_BASE_URL이 설정되지 않았습니다.')
+            throw new Error('API_BASE_URL이 설정되지 않았습니다.')
+          }
           
           // 영상 메타데이터 저장 API 호출
           // 백엔드 API가 jobId를 기반으로 영상을 생성하고 메타데이터를 저장하도록 요청

@@ -103,8 +103,8 @@ let refreshFocusHandler: (() => void) | null = null
 let refreshVisibilityHandler: (() => void) | null = null
 let consecutiveRefreshFailures = 0 // 연속 리프레시 실패 횟수
 
-// 사전 리프레시 체크 간격 (테스트용: 10초마다 체크)
-const REFRESH_CHECK_INTERVAL = 10000
+// 사전 리프레시 체크 간격 (5분마다 체크)
+const REFRESH_CHECK_INTERVAL = 300000
 // 최대 연속 실패 횟수 (3회 실패 시 로그아웃)
 const MAX_CONSECUTIVE_FAILURES = 3
 
