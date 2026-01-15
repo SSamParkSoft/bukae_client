@@ -188,19 +188,35 @@ export function useStep2Container() {
   }, [])
   
   // 업로드된 이미지 자동 복원 (availableImages에서 Supabase URL 찾기)
+  // dependency array 안정성을 위해 문자열로 변환
+  const scenesImageUrlsString = useMemo(() => 
+    scenes.map(s => s.imageUrl).filter(Boolean).join(','),
+    [scenes]
+  )
+  const productImageUrlsString = useMemo(() => {
+    const urls: string[] = []
+    if (selectedProduct?.images?.length) {
+      urls.push(...selectedProduct.images.filter(Boolean))
+    }
+    if (selectedProduct?.image) {
+      urls.push(selectedProduct.image)
+    }
+    return urls.join(',')
+  }, [selectedProduct?.images, selectedProduct?.image])
+  
   useEffect(() => {
     const supabaseUrls: string[] = []
     
     // selectedImages에서 Supabase URL 찾기
     selectedImages.forEach((img) => {
-      if (img && img.includes('supabase.co') && !img.startsWith('blob:')) {
+      if (img && typeof img === 'string' && img.includes('supabase.co') && !img.startsWith('blob:')) {
         supabaseUrls.push(img)
       }
     })
     
     // scenes에서 Supabase URL 찾기 (step3에서 돌아온 경우)
     scenes.forEach((scene) => {
-      if (scene.imageUrl && scene.imageUrl.includes('supabase.co') && !scene.imageUrl.startsWith('blob:')) {
+      if (scene.imageUrl && typeof scene.imageUrl === 'string' && scene.imageUrl.includes('supabase.co') && !scene.imageUrl.startsWith('blob:')) {
         supabaseUrls.push(scene.imageUrl)
       }
     })
@@ -208,19 +224,18 @@ export function useStep2Container() {
     // selectedProduct의 이미지에서 Supabase URL 찾기
     if (selectedProduct?.images?.length) {
       selectedProduct.images.forEach((img) => {
-        if (img && img.includes('supabase.co') && !img.startsWith('blob:')) {
+        if (img && typeof img === 'string' && img.includes('supabase.co') && !img.startsWith('blob:')) {
           supabaseUrls.push(img)
         }
       })
     }
-    
-    if (selectedProduct?.image && selectedProduct.image.includes('supabase.co') && !selectedProduct.image.startsWith('blob:')) {
+    if (selectedProduct?.image && typeof selectedProduct.image === 'string' && selectedProduct.image.includes('supabase.co') && !selectedProduct.image.startsWith('blob:')) {
       supabaseUrls.push(selectedProduct.image)
     }
     
     // extensionImages에서 Supabase URL 찾기
     extensionImages.forEach((img) => {
-      if (img && img.includes('supabase.co') && !img.startsWith('blob:')) {
+      if (img && typeof img === 'string' && img.includes('supabase.co') && !img.startsWith('blob:')) {
         supabaseUrls.push(img)
       }
     })
@@ -231,7 +246,7 @@ export function useStep2Container() {
         return combined
       })
     }
-  }, [selectedImages, scenes, selectedProduct, extensionImages])
+  }, [selectedImages, scenesImageUrlsString, productImageUrlsString, extensionImages, scenes, selectedProduct])
 
   // 사용 가능한 이미지 목록
   const availableImages = useMemo(() => {

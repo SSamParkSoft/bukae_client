@@ -375,74 +375,27 @@ export function useVideoExport({
         }
       }
 
-      // 3. jobId 생성 (videoId로 사용, 이미지 업로드 경로에도 사용)
+      // 3. jobId 생성 (videoId로 사용)
       const jobId = crypto.randomUUID()
 
-      // 4. 이미지 업로드 로직 (blob URL인 경우 서버에 업로드)
-      const imageUploadPromises: Map<number, Promise<string | null>> = new Map()
-
+      // 4. 이미지 URL 검증 (step2에서 이미 업로드되어 있어야 함)
+      const imageUrls: (string | null)[] = []
       for (let index = 0; index < timeline.scenes.length; index++) {
         const scene = timeline.scenes[index]
         const imageUrl = scene.image
         
-        // blob URL인 경우에만 업로드 (blob:http://...)
-        if (imageUrl && imageUrl.startsWith('blob:')) {
-          const uploadPromise = (async () => {
-            try {
-              // blob URL을 File로 변환
-              const response = await fetch(imageUrl)
-              const blob = await response.blob()
-              
-              // MIME 타입에 따라 확장자 결정
-              const mimeType = blob.type || 'image/jpeg'
-              const ext = mimeType.split('/')[1] || 'jpg'
-              const file = new File([blob], `scene_${index}_image.${ext}`, {
-                type: mimeType
-              })
-
-              const formData = new FormData()
-              formData.append('file', file)
-              formData.append('sceneIndex', String(index))
-              formData.append('jobId', jobId) // jobId 전달
-
-              const uploadRes = await fetch('/api/images/upload', {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${accessToken}` },
-                body: formData,
-              })
-
-              if (!uploadRes.ok) {
-                const errorData = await uploadRes.json().catch(() => ({}))
-                throw new Error(
-                  `씬 ${index + 1}의 이미지 파일 업로드 실패: ${errorData.error || '알 수 없는 오류'}`
-                )
-              }
-
-              const uploadData = await uploadRes.json()
-              return uploadData.url
-            } catch (error) {
-              console.error(`[useVideoExport] 씬 ${index} 이미지 업로드 실패:`, error)
-              return null
-            }
-          })()
-          
-          imageUploadPromises.set(index, uploadPromise)
+        if (!imageUrl || imageUrl.trim() === '') {
+          throw new Error(`씬 ${index + 1}의 이미지 URL이 없습니다.`)
         }
-      }
-
-      // 모든 이미지 업로드 완료 대기
-      const imageUrls: (string | null)[] = []
-      for (let index = 0; index < timeline.scenes.length; index++) {
-        const uploadPromise = imageUploadPromises.get(index)
-        if (uploadPromise) {
-          imageUrls[index] = await uploadPromise
-          if (!imageUrls[index]) {
-            throw new Error(`씬 ${index + 1}의 이미지 업로드에 실패했습니다.`)
-          }
-        } else {
-          // blob URL이 아니면 원본 URL 사용 (이미 서버에 있는 이미지)
-          imageUrls[index] = timeline.scenes[index].image || null
+        
+        // blob URL이 있으면 에러 (step2에서 이미 업로드되어 있어야 함)
+        if (imageUrl.startsWith('blob:')) {
+          throw new Error(
+            `씬 ${index + 1}의 이미지가 아직 업로드되지 않았습니다. step2에서 이미지를 업로드해주세요.`
+          )
         }
+        
+        imageUrls[index] = imageUrl
       }
 
       // 5. resolution 파싱 (예: "1080x1920" -> {width: 1080, height: 1920})

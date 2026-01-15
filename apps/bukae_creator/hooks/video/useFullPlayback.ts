@@ -702,6 +702,7 @@ export function useFullPlayback({
     timelineBarRef,
     totalDuration,
     buildSceneMarkup,
+    setTimeline,
     makeTtsKey,
     ensureSceneTts,
     changedScenesRef,
