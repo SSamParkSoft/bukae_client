@@ -43,6 +43,7 @@
     "pixi.js": "^8.14.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "sharp": "^0.34.5",
     "sockjs-client": "^1.6.1",
     "tailwind-merge": "^3.4.0",
     "zustand": "^5.0.8"

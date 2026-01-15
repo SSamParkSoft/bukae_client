@@ -103,8 +103,49 @@ export function useSceneLoader({
         const imageToUse = firstSceneInGroup?.image || scene.image
         const baseScene = firstSceneInGroup || scene
 
+        // 이미지 URL 유효성 검사
+        if (!imageToUse || imageToUse.trim() === '') {
+          console.warn(`[useSceneLoader] 씬 ${sceneIndex}의 이미지 URL이 없습니다.`)
+          return
+        }
+
         // 첫 번째 씬이거나 같은 그룹 내 스프라이트가 없으면 새로 생성
-        const texture = await loadPixiTextureWithCache(imageToUse)
+        let texture: PIXI.Texture | null = null
+        try {
+          texture = await loadPixiTextureWithCache(imageToUse)
+        } catch (error) {
+          console.error(`[useSceneLoader] 씬 ${sceneIndex}의 텍스처 로드 중 에러 발생:`, error)
+        }
+        
+        // texture 유효성 검사 및 fallback 처리
+        if (!texture) {
+          console.warn(`[useSceneLoader] 씬 ${sceneIndex}의 텍스처 로드 실패, placeholder 사용: ${imageToUse.substring(0, 50)}...`)
+          // placeholder texture 생성 (1x1 검은색)
+          try {
+            const canvas = document.createElement('canvas')
+            canvas.width = 1
+            canvas.height = 1
+            const ctx = canvas.getContext('2d')
+            if (ctx) {
+              ctx.fillStyle = '#000000'
+              ctx.fillRect(0, 0, 1, 1)
+            }
+            texture = PIXI.Texture.from(canvas)
+          } catch (placeholderError) {
+            console.error(`[useSceneLoader] Placeholder 생성 실패:`, placeholderError)
+            // 최후의 수단: 빈 텍스처 사용
+            texture = PIXI.Texture.EMPTY
+          }
+        }
+
+        // texture의 width와 height가 유효한지 확인
+        if (!texture || typeof texture.width !== 'number' || typeof texture.height !== 'number' || 
+            texture.width <= 0 || texture.height <= 0) {
+          console.error(`[useSceneLoader] 씬 ${sceneIndex}의 텍스처 크기가 유효하지 않습니다: ${texture?.width}x${texture?.height}`)
+          // 빈 텍스처로 대체
+          texture = PIXI.Texture.EMPTY
+        }
+
         const sprite = new PIXI.Sprite(texture)
 
         const imageFit = baseScene.imageFit || 'contain'

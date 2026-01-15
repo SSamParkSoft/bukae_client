@@ -375,17 +375,87 @@ export function useVideoExport({
         }
       }
 
-      // 3. resolution 파싱 (예: "1080x1920" -> {width: 1080, height: 1920})
+      // 3. jobId 생성 (videoId로 사용, 이미지 업로드 경로에도 사용)
+      const jobId = crypto.randomUUID()
+
+      // 4. 이미지 업로드 로직 (blob URL인 경우 서버에 업로드)
+      const imageUploadPromises: Map<number, Promise<string | null>> = new Map()
+
+      for (let index = 0; index < timeline.scenes.length; index++) {
+        const scene = timeline.scenes[index]
+        const imageUrl = scene.image
+        
+        // blob URL인 경우에만 업로드 (blob:http://...)
+        if (imageUrl && imageUrl.startsWith('blob:')) {
+          const uploadPromise = (async () => {
+            try {
+              // blob URL을 File로 변환
+              const response = await fetch(imageUrl)
+              const blob = await response.blob()
+              
+              // MIME 타입에 따라 확장자 결정
+              const mimeType = blob.type || 'image/jpeg'
+              const ext = mimeType.split('/')[1] || 'jpg'
+              const file = new File([blob], `scene_${index}_image.${ext}`, {
+                type: mimeType
+              })
+
+              const formData = new FormData()
+              formData.append('file', file)
+              formData.append('sceneIndex', String(index))
+              formData.append('jobId', jobId) // jobId 전달
+
+              const uploadRes = await fetch('/api/images/upload', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${accessToken}` },
+                body: formData,
+              })
+
+              if (!uploadRes.ok) {
+                const errorData = await uploadRes.json().catch(() => ({}))
+                throw new Error(
+                  `씬 ${index + 1}의 이미지 파일 업로드 실패: ${errorData.error || '알 수 없는 오류'}`
+                )
+              }
+
+              const uploadData = await uploadRes.json()
+              return uploadData.url
+            } catch (error) {
+              console.error(`[useVideoExport] 씬 ${index} 이미지 업로드 실패:`, error)
+              return null
+            }
+          })()
+          
+          imageUploadPromises.set(index, uploadPromise)
+        }
+      }
+
+      // 모든 이미지 업로드 완료 대기
+      const imageUrls: (string | null)[] = []
+      for (let index = 0; index < timeline.scenes.length; index++) {
+        const uploadPromise = imageUploadPromises.get(index)
+        if (uploadPromise) {
+          imageUrls[index] = await uploadPromise
+          if (!imageUrls[index]) {
+            throw new Error(`씬 ${index + 1}의 이미지 업로드에 실패했습니다.`)
+          }
+        } else {
+          // blob URL이 아니면 원본 URL 사용 (이미 서버에 있는 이미지)
+          imageUrls[index] = timeline.scenes[index].image || null
+        }
+      }
+
+      // 5. resolution 파싱 (예: "1080x1920" -> {width: 1080, height: 1920})
       const [width, height] = timeline.resolution.split('x').map(Number)
       
-      // 4. 첫 번째 상품 정보 가져오기 (metadata용)
+      // 6. 첫 번째 상품 정보 가져오기 (metadata용)
       const firstProduct = selectedProducts[0]
       
-      // 5. BGM 템플릿 URL 가져오기
+      // 7. BGM 템플릿 URL 가져오기
       const bgmTemplateObj = bgmTemplate ? bgmTemplates.find(t => t.id === bgmTemplate) : null
       const bgmUrl = bgmTemplateObj ? getBgmTemplateUrlSync(bgmTemplateObj) : null
       
-      // 6. API 문서 형태로 변환
+      // 8. API 문서 형태로 변환
       const sceneGroups = groupScenesForExport(timeline.scenes, scenes, ttsResults, ttsUrls)
       
       // 씬 그룹이 비어있는지 확인
@@ -394,7 +464,7 @@ export function useVideoExport({
       }
 
       const encodingRequest = {
-        videoId: crypto.randomUUID(),
+        videoId: jobId,
         videoTitle: videoTitle || '제목 없음',
         description: videoDescription || '',
         sequence: 1,
@@ -474,8 +544,11 @@ export function useVideoExport({
               ? getSoundEffectStorageUrl(soundEffectPath) ?? `/sound-effects/${soundEffectPath}`
               : null
 
+            // 업로드된 이미지 URL 사용 (blob URL이었던 경우 업로드된 URL로 교체됨)
+            const uploadedImageUrl = imageUrls[firstSceneIndex]
+            
             // 이미지 URL 검증
-            if (!firstScene.image || firstScene.image.trim() === '') {
+            if (!uploadedImageUrl || uploadedImageUrl.trim() === '') {
               throw new Error(`씬 ${actualSceneId}의 이미지 URL이 없습니다.`)
             }
 
@@ -496,7 +569,7 @@ export function useVideoExport({
               duration: Math.max(0.1, totalDuration), // duration이 0보다 커야 함
               transition: transition,
               image: {
-                url: firstScene.image, // 같은 그룹 내에서는 첫 번째 씬의 이미지 사용
+                url: uploadedImageUrl, // 업로드된 URL 사용
                 fit: firstScene.imageFit || 'contain',
                 transform: {
                   ...imageTransform,
