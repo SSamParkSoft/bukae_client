@@ -5,8 +5,7 @@ import { groupScenesForExport, createTransitionMap } from '@/lib/utils/video-exp
 import { getFontFileName, SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
 import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
 import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
-import { soundEffects } from '@/components/video-editor/SoundEffectSelector'
-import { getSupabaseStorageUrl } from '@/lib/utils/supabase-storage'
+import { getSoundEffectStorageUrl } from '@/lib/utils/supabase-storage'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { SceneScript } from '@/lib/types/domain/script'
 import * as PIXI from 'pixi.js'
@@ -376,17 +375,40 @@ export function useVideoExport({
         }
       }
 
-      // 3. resolution 파싱 (예: "1080x1920" -> {width: 1080, height: 1920})
+      // 3. jobId 생성 (videoId로 사용)
+      const jobId = crypto.randomUUID()
+
+      // 4. 이미지 URL 검증 (step2에서 이미 업로드되어 있어야 함)
+      const imageUrls: (string | null)[] = []
+      for (let index = 0; index < timeline.scenes.length; index++) {
+        const scene = timeline.scenes[index]
+        const imageUrl = scene.image
+        
+        if (!imageUrl || imageUrl.trim() === '') {
+          throw new Error(`씬 ${index + 1}의 이미지 URL이 없습니다.`)
+        }
+        
+        // blob URL이 있으면 에러 (step2에서 이미 업로드되어 있어야 함)
+        if (imageUrl.startsWith('blob:')) {
+          throw new Error(
+            `씬 ${index + 1}의 이미지가 아직 업로드되지 않았습니다. step2에서 이미지를 업로드해주세요.`
+          )
+        }
+        
+        imageUrls[index] = imageUrl
+      }
+
+      // 5. resolution 파싱 (예: "1080x1920" -> {width: 1080, height: 1920})
       const [width, height] = timeline.resolution.split('x').map(Number)
       
-      // 4. 첫 번째 상품 정보 가져오기 (metadata용)
+      // 6. 첫 번째 상품 정보 가져오기 (metadata용)
       const firstProduct = selectedProducts[0]
       
-      // 5. BGM 템플릿 URL 가져오기
+      // 7. BGM 템플릿 URL 가져오기
       const bgmTemplateObj = bgmTemplate ? bgmTemplates.find(t => t.id === bgmTemplate) : null
       const bgmUrl = bgmTemplateObj ? getBgmTemplateUrlSync(bgmTemplateObj) : null
       
-      // 6. API 문서 형태로 변환
+      // 8. API 문서 형태로 변환
       const sceneGroups = groupScenesForExport(timeline.scenes, scenes, ttsResults, ttsUrls)
       
       // 씬 그룹이 비어있는지 확인
@@ -395,7 +417,7 @@ export function useVideoExport({
       }
 
       const encodingRequest = {
-        videoId: crypto.randomUUID(),
+        videoId: jobId,
         videoTitle: videoTitle || '제목 없음',
         description: videoDescription || '',
         sequence: 1,
@@ -470,14 +492,16 @@ export function useVideoExport({
             const fontFileName = getFontFileName(sceneFontId, sceneFontWeight) || 'NanumGothic-Regular'
 
             // 효과음 정보 (씬별)
-            const soundEffectId = firstScene.soundEffect
-            const soundEffectData = soundEffectId ? soundEffects.find((e) => e.id === soundEffectId) : null
-            const soundEffectUrl = soundEffectData
-              ? getSupabaseStorageUrl('soundeffect', soundEffectData.filename) ?? `/sound-effects/${soundEffectData.filename}`
+            const soundEffectPath = firstScene.soundEffect
+            const soundEffectUrl = soundEffectPath
+              ? getSoundEffectStorageUrl(soundEffectPath) ?? `/sound-effects/${soundEffectPath}`
               : null
 
+            // 업로드된 이미지 URL 사용 (blob URL이었던 경우 업로드된 URL로 교체됨)
+            const uploadedImageUrl = imageUrls[firstSceneIndex]
+            
             // 이미지 URL 검증
-            if (!firstScene.image || firstScene.image.trim() === '') {
+            if (!uploadedImageUrl || uploadedImageUrl.trim() === '') {
               throw new Error(`씬 ${actualSceneId}의 이미지 URL이 없습니다.`)
             }
 
@@ -498,7 +522,7 @@ export function useVideoExport({
               duration: Math.max(0.1, totalDuration), // duration이 0보다 커야 함
               transition: transition,
               image: {
-                url: firstScene.image, // 같은 그룹 내에서는 첫 번째 씬의 이미지 사용
+                url: uploadedImageUrl, // 업로드된 URL 사용
                 fit: firstScene.imageFit || 'contain',
                 transform: {
                   ...imageTransform,
@@ -577,8 +601,8 @@ export function useVideoExport({
                 startTime: 0, // TTS 시작 시간 (초)
               },
               soundEffect: {
-                enabled: !!soundEffectData,
-                filename: soundEffectData?.filename ?? null,
+                enabled: !!soundEffectPath,
+                filename: soundEffectPath ?? null,
                 url: soundEffectUrl,
                 startTime: 0,
                 volume: 0.4,

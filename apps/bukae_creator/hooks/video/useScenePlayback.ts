@@ -4,8 +4,7 @@ import { useCallback, useRef } from 'react'
 import * as PIXI from 'pixi.js'
 import { TimelineData } from '@/store/useVideoCreateStore'
 import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
-import { soundEffects } from '@/components/video-editor/SoundEffectSelector'
-import { getSupabaseStorageUrl } from '@/lib/utils/supabase-storage'
+import { getSoundEffectStorageUrl } from '@/lib/utils/supabase-storage'
 
 /**
  * 단일 씬 재생 로직 (훅 외부에서도 사용 가능)
@@ -94,8 +93,8 @@ export async function playSceneLogic({
   ensureSceneTts?: (sceneIndex: number, signal?: AbortSignal, forceRegenerate?: boolean) => Promise<{ sceneIndex: number; parts: Array<{ blob: Blob; durationSec: number; url: string | null; partIndex: number; markup: string }> }>
   changedScenesRef?: React.MutableRefObject<Set<number>>
 }): Promise<void> {
-  const resolveSoundEffectUrl = (fileName: string): string => {
-    return getSupabaseStorageUrl('soundeffect', fileName) ?? `/sound-effects/${fileName}`
+  const resolveSoundEffectUrl = (filePath: string): string => {
+    return getSoundEffectStorageUrl(filePath) ?? `/sound-effects/${filePath}`
   }
 
   const scene = timeline.scenes[sceneIndex]
@@ -442,15 +441,12 @@ export async function playSceneLogic({
         if (audioUrl) {
         // 효과음: 씬의 첫 구간에서 TTS 시작과 동시 재생
         if (partIndex === 0 && scene.soundEffect) {
-          const effect = soundEffects.find(e => e.id === scene.soundEffect)
-          if (effect) {
-            const effectUrl = resolveSoundEffectUrl(effect.filename)
-            const seAudio = new Audio(effectUrl)
-            seAudio.volume = 0.4
-            seAudio.play().catch((err) => {
-              console.warn('[playSceneLogic] 효과음 재생 실패:', err)
-            })
-          }
+          const effectUrl = resolveSoundEffectUrl(scene.soundEffect)
+          const seAudio = new Audio(effectUrl)
+          seAudio.volume = 0.4
+          seAudio.play().catch((err) => {
+            console.warn('[playSceneLogic] 효과음 재생 실패:', err)
+          })
         }
 
           ttsAudioUrlRef.current = audioUrl

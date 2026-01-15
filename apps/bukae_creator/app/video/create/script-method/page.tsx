@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import StepIndicator from '@/components/StepIndicator'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import ConceptToneDialog from '@/components/ConceptToneDialog'
@@ -42,10 +41,9 @@ export default function ScriptMethodPage() {
       className="flex min-h-screen justify-center"
     >
       <div className="flex w-full max-w-[1600px]">
-        <StepIndicator />
-        <div className="flex-1 p-4 md:p-8 overflow-y-auto min-w-0">
+        <div className="flex-1 pt-4 pb-4 md:pt-4 md:pb-8 px-4 md:px-8 overflow-y-auto min-w-0">
           <div className="max-w-5xl mx-auto">
-            <div className="mb-8">
+            <div className="mb-8 mt-[48px]">
               <div className="flex items-center gap-2 mb-2">
                 <h1 className={`text-3xl font-bold ${
                   theme === 'dark' ? 'text-white' : 'text-gray-900'

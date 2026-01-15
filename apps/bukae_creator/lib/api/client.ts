@@ -15,10 +15,6 @@ export class ApiError extends Error {
   }
 }
 
-function isLocalhostUrl(url: string): boolean {
-  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(url.trim())
-}
-
 function isRunningOnLocalhost(): boolean {
   if (typeof window === 'undefined') return false
   const host = window.location.hostname
@@ -31,27 +27,9 @@ function getApiBaseUrl(): string {
   
   // 로컬 개발 환경에서만 기본값 허용
   const isLocal = isRunningOnLocalhost()
-  const base = envUrl || (isLocal ? 'http://15.164.220.105.nip.io:8080' : null)
+  const base = envUrl || (isLocal ? process.env.NEXT_PUBLIC_API_BASE_URL : null)
 
-  if (!base) {
-    throw new ApiError(
-      '환경 변수 NEXT_PUBLIC_API_BASE_URL이 설정되어 있지 않습니다. 프로덕션 환경에서는 반드시 설정해야 합니다.',
-      0,
-      'Config Error'
-    )
-  }
-
-  // 배포 환경에서 env가 localhost로 잘못 들어간 경우를 즉시 감지해서 안내
-  // (Next.js NEXT_PUBLIC_* 는 빌드 타임에 번들에 박히기 쉬워 실수가 잦음)
-  if (!isLocal && isLocalhostUrl(base)) {
-    throw new ApiError(
-      '배포 환경 설정 오류: NEXT_PUBLIC_API_BASE_URL이 localhost로 설정되어 있습니다. 배포 환경 변수 값을 실제 백엔드 주소로 변경 후 재배포해주세요.',
-      0,
-      'Config Error'
-    )
-  }
-
-  return base
+  return base ?? ''
 }
 
 interface RequestOptions extends RequestInit {
@@ -120,37 +98,216 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 let refreshInFlight: Promise<string | null> | null = null
+let refreshIntervalId: NodeJS.Timeout | null = null
+let refreshFocusHandler: (() => void) | null = null
+let refreshVisibilityHandler: (() => void) | null = null
+let consecutiveRefreshFailures = 0 // 연속 리프레시 실패 횟수
+
+// 사전 리프레시 체크 간격 (테스트용: 10초마다 체크)
+const REFRESH_CHECK_INTERVAL = 10000
+// 최대 연속 실패 횟수 (3회 실패 시 로그아웃)
+const MAX_CONSECUTIVE_FAILURES = 3
+
+/**
+ * 토큰 리프레시 체크 및 실행
+ */
+async function checkAndRefreshToken(): Promise<void> {
+  if (!authStorage.hasTokens()) {
+    stopTokenRefreshScheduler()
+    consecutiveRefreshFailures = 0
+    return
+  }
+
+  const age = authStorage.getTokenAge()
+  const expiresIn = authStorage.getTokenExpiresIn()
+  
+  // 디버그: 체크 상태 로그
+  if (age !== null) {
+    const ageSeconds = Math.floor(age / 1000)
+    const expiresInSeconds = expiresIn || 1800
+    const shouldRefresh = authStorage.shouldRefreshToken()
+    const isExpired = authStorage.isTokenExpired()
+    console.log(`[Token Refresh] 체크 중 - 경과: ${ageSeconds}초, 만료시간: ${expiresInSeconds}초, 리프레시 필요: ${shouldRefresh}, 만료됨: ${isExpired}`)
+  }
+  
+  // 토큰이 이미 만료된 경우 즉시 리프레시 시도
+  if (age !== null && authStorage.isTokenExpired()) {
+    console.log(`[Token Refresh] 토큰 만료 감지 - 즉시 리프레시 시도 (${Math.floor(age / 1000)}초 경과)`)
+    const result = await refreshAccessToken()
+    if (!result) {
+      consecutiveRefreshFailures++
+      console.log(`[Token Refresh] 리프레시 실패 (${consecutiveRefreshFailures}/${MAX_CONSECUTIVE_FAILURES})`)
+      
+      // 연속 실패 횟수가 최대치를 넘으면 로그아웃 처리
+      if (consecutiveRefreshFailures >= MAX_CONSECUTIVE_FAILURES) {
+        console.log('[Token Refresh] 연속 리프레시 실패로 인한 로그아웃 처리')
+        authStorage.clearTokens()
+        consecutiveRefreshFailures = 0
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('auth:expired'))
+        }
+        return
+      }
+      
+      // 실패했지만 아직 재시도 가능한 경우, 타임스탬프를 현재 시간으로 업데이트하여
+      // 다음 체크까지 최소한의 시간이 지나도록 함 (무한 루프 방지)
+      const currentToken = authStorage.getAccessToken()
+      if (currentToken) {
+        authStorage.updateTokenTimestamp()
+      }
+    } else {
+      consecutiveRefreshFailures = 0
+    }
+    return
+  }
+  
+  // 토큰이 5분 경과했는지 확인 (사전 리프레시)
+  if (age !== null && authStorage.shouldRefreshToken()) {
+    console.log(`[Token Refresh] 사전 리프레시 시작 (${Math.floor(age / 1000)}초 경과)`)
+    const result = await refreshAccessToken()
+    if (!result) {
+      consecutiveRefreshFailures++
+      console.log(`[Token Refresh] 리프레시 실패 (${consecutiveRefreshFailures}/${MAX_CONSECUTIVE_FAILURES}) - 다음 체크에서 재시도합니다.`)
+      
+      // 연속 실패 횟수가 최대치를 넘으면 로그아웃 처리
+      if (consecutiveRefreshFailures >= MAX_CONSECUTIVE_FAILURES) {
+        console.log('[Token Refresh] 연속 리프레시 실패로 인한 로그아웃 처리')
+        authStorage.clearTokens()
+        consecutiveRefreshFailures = 0
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('auth:expired'))
+        }
+        return
+      }
+      
+      // 실패했지만 아직 재시도 가능한 경우, 타임스탬프를 현재 시간으로 업데이트하여
+      // 다음 체크까지 최소한의 시간이 지나도록 함 (무한 루프 방지)
+      const currentToken = authStorage.getAccessToken()
+      if (currentToken) {
+        authStorage.updateTokenTimestamp()
+      }
+    } else {
+      consecutiveRefreshFailures = 0
+    }
+  } else if (age !== null) {
+    console.log(`[Token Refresh] 리프레시 불필요 - 경과: ${Math.floor(age / 1000)}초`)
+  }
+}
+
+/**
+ * 토큰 사전 리프레시 스케줄러 시작
+ */
+export function startTokenRefreshScheduler(): void {
+  if (typeof window === 'undefined') return
+  if (refreshIntervalId) return // 이미 실행 중
+
+  // 즉시 한 번 체크 (페이지 로드 시 또는 돌아왔을 때)
+  void checkAndRefreshToken()
+
+  // 주기적으로 체크
+  refreshIntervalId = setInterval(() => {
+    void checkAndRefreshToken()
+  }, REFRESH_CHECK_INTERVAL)
+  console.log(`[Token Refresh] setInterval 설정 완료 (interval ID: ${refreshIntervalId})`)
+
+  // 페이지 포커스 시 즉시 체크 (탭 전환 후 돌아왔을 때)
+  refreshFocusHandler = () => {
+    void checkAndRefreshToken()
+  }
+
+  // 페이지 visibility 변경 시 체크 (백그라운드에서 돌아왔을 때)
+  refreshVisibilityHandler = () => {
+    if (!document.hidden) {
+      void checkAndRefreshToken()
+    }
+  }
+
+  window.addEventListener('focus', refreshFocusHandler)
+  document.addEventListener('visibilitychange', refreshVisibilityHandler)
+}
+
+/**
+ * 토큰 사전 리프레시 스케줄러 중지
+ */
+export function stopTokenRefreshScheduler(): void {
+  if (refreshIntervalId) {
+    clearInterval(refreshIntervalId)
+    refreshIntervalId = null
+  }
+
+  // 이벤트 리스너 정리
+  if (refreshFocusHandler) {
+    window.removeEventListener('focus', refreshFocusHandler)
+    refreshFocusHandler = null
+  }
+
+  if (refreshVisibilityHandler) {
+    document.removeEventListener('visibilitychange', refreshVisibilityHandler)
+    refreshVisibilityHandler = null
+  }
+}
 
 async function refreshAccessToken(): Promise<string | null> {
   if (refreshInFlight) return refreshInFlight
 
   refreshInFlight = (async () => {
     const API_BASE_URL = getApiBaseUrl()
-    const refreshToken = authStorage.getRefreshToken()
-    if (!refreshToken) return null
+
+    if (!API_BASE_URL) {
+      console.error('[Token Refresh] API_BASE_URL이 설정되지 않았습니다.')
+      return null
+    }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+      // 로컬 개발 환경: 프록시 사용 (HTTP → HTTPS 크로스 오리진 쿠키 문제 해결)
+      // 프로덕션: 직접 호출 (같은 HTTPS 도메인)
+      const isLocal = typeof window !== 'undefined' && 
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+      
+      const refreshUrl = isLocal 
+        ? '/api/auth/refresh' // 로컬: 프록시 사용
+        : `${API_BASE_URL}/api/v1/auth/refresh` // 프로덕션: 직접 호출
+      
+      console.log(`[Token Refresh] 리프레시 요청 시작: ${refreshUrl} (${isLocal ? '프록시' : '직접 호출'})`)
+      console.log(`[Token Refresh] credentials: 'include' 설정됨 - 쿠키가 자동으로 전달됩니다`)
+      
+      const response = await fetch(refreshUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ refreshToken }),
+        credentials: 'include', // 쿠키 포함
+        // body 없음 - 백엔드가 쿠키에서 refreshToken을 읽음
       })
 
-      if (!response.ok) return null
+      console.log(`[Token Refresh] 응답 상태: ${response.status} ${response.statusText}`)
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '응답을 읽을 수 없습니다.')
+        console.error(`[Token Refresh] 리프레시 실패: ${response.status} ${response.statusText}`, errorText)
+        return null
+      }
 
       const data = (await response.json()) as TokenResponse | null
-      if (!data?.accessToken || !data?.refreshToken) {
-        // RTR 정책에 따라 refreshToken이 필수이므로 없으면 실패 처리
-        console.error('[Token Refresh] RTR 정책 위반: 새 refreshToken이 반환되지 않았습니다.')
+      if (!data?.accessToken) {
+        console.error('[Token Refresh] 응답에 accessToken이 없습니다.')
         return null
       }
 
       // RTR 정책: 두 토큰을 모두 갱신
-      authStorage.setTokens(data.accessToken, data.refreshToken)
+      // accessToken은 localStorage에 저장하고, refreshToken은 Set-Cookie 헤더로 HttpOnly 쿠키에 자동 설정됨
+      // 보안: refreshToken은 localStorage에 저장하지 않음 (XSS 공격 방지)
+      // 응답 body에 refreshToken이 포함되어 있지만, 쿠키로만 관리하므로 무시
+      authStorage.setTokens(data.accessToken, null, {
+        source: 'backend',
+        expiresIn: data.accessExpiresIn,
+      })
+      
+      console.log('[Token Refresh] ✅ 리프레시 완료: accessToken 갱신됨, refreshToken은 쿠키(HttpOnly)에 자동 설정됨')
+      
       return data.accessToken
-    } catch {
+    } catch (error) {
+      console.error('[Token Refresh] 리프레시 중 예외 발생:', error)
       return null
     } finally {
       refreshInFlight = null
@@ -196,6 +353,7 @@ export async function apiRequest<T>(
       ...fetchOptions,
       headers,
       signal: controller.signal,
+      credentials: 'include', // 쿠키 포함 (refreshToken 등)
     })
 
     // 타임아웃 정리
@@ -215,6 +373,7 @@ export async function apiRequest<T>(
             ...fetchOptions,
             headers,
             signal: retryController.signal,
+            credentials: 'include', // 쿠키 포함 (refreshToken 등)
           })
           clearTimeout(retryTimeoutId)
         

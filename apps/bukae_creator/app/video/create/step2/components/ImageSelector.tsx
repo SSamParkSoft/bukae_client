@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import Image from 'next/image'
+import { Loader2 } from 'lucide-react'
 import { PRODUCT_PLACEHOLDER } from '@/lib/utils/placeholder-image'
 import { ImageUploadButton } from './ImageUploadButton'
 
@@ -35,13 +36,16 @@ export const ImageSelector = memo(function ImageSelector({
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
             {availableImages.map((imageUrl) => {
               const isSelected = selectedImages.includes(imageUrl)
+              const isUploading = imageUrl.startsWith('blob:') // blob URL인 경우 업로드 중
               return (
                 <div
                   key={imageUrl}
-                  onClick={() => onImageSelect(imageUrl)}
+                  onClick={() => !isUploading && onImageSelect(imageUrl)}
                   className={`relative aspect-square w-full max-w-[200px] mx-auto rounded-lg overflow-hidden cursor-pointer border-2 transition-all shadow-[var(--shadow-card-default)] ${
                     isSelected
                       ? 'border-brand-teal ring-2 ring-brand-teal'
+                      : isUploading
+                      ? 'border-gray-300 opacity-75'
                       : 'border-gray-200 hover:border-brand-teal'
                   }`}
                 >
@@ -55,7 +59,12 @@ export const ImageSelector = memo(function ImageSelector({
                       e.currentTarget.src = PRODUCT_PLACEHOLDER
                     }}
                   />
-                  {isSelected && (
+                  {isUploading && (
+                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                      <Loader2 className="w-6 h-6 text-white animate-spin" />
+                    </div>
+                  )}
+                  {isSelected && !isUploading && (
                     <div className="absolute inset-0 bg-brand-teal/20 flex items-center justify-center">
                       <div className="w-8 h-8 rounded-full bg-brand-teal flex items-center justify-center">
                         <span 

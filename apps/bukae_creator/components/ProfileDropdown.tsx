@@ -2,25 +2,14 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { LogOut, User, Ticket } from 'lucide-react'
+import { LogOut, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isAdminEmail } from '@/lib/utils/admin'
 import { useUserStore } from '@/store/useUserStore'
 import { authApi } from '@/lib/api/auth'
 import Image from 'next/image'
-import { useQuery } from '@tanstack/react-query'
-
 interface ProfileDropdownProps {
   className?: string
-}
-
-async function fetchCredits() {
-  const response = await fetch('/api/credit/balance')
-  if (!response.ok) {
-    return null
-  }
-  const data = await response.json()
-  return data.credits as number | null
 }
 
 export default function ProfileDropdown({ className }: ProfileDropdownProps) {
@@ -30,14 +19,6 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [dropdownWidth, setDropdownWidth] = useState<number | undefined>(undefined)
-
-  // 크레딧 정보 조회
-  const { data: credits } = useQuery({
-    queryKey: ['userCredits'],
-    queryFn: fetchCredits,
-    enabled: !!user,
-    refetchInterval: 30000, // 30초마다 갱신
-  })
 
   // 프로필 버튼의 너비를 측정하여 드롭다운 너비에 적용
   useEffect(() => {
@@ -83,8 +64,6 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
 
   const subscriptionPlan = user.subscriptionPlan || 'Free'
   const displayPlan = subscriptionPlan === 'none' ? 'Free' : subscriptionPlan
-  const displayCredits = credits ?? 0
-  const maxCredits = 10000 // 1만 크레딧
   const isAdmin = isAdminEmail(user.email)
 
   return (
@@ -92,7 +71,7 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
       <button
         ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center h-[60px] px-5 rounded-3xl bg-white/10 gap-4 shadow-md hover:bg-white/20 transition-colors"
+        className="flex items-center h-[58px] px-5 rounded-3xl bg-white/10 gap-4 shadow-md hover:bg-white/20 transition-colors"
       >
         {/* 프로필 사진 */}
         {user.profileImage ? (
@@ -132,24 +111,9 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
       {/* 드롭다운 메뉴 */}
       {isOpen && (
         <div 
-          className="absolute top-full left-0 mt-2 rounded-3xl bg-white/10 shadow-lg z-50 overflow-hidden"
+          className="absolute top-full left-0 mt-2 rounded-3xl bg-white shadow-lg z-50 overflow-hidden"
           style={{ width: dropdownWidth ? `${dropdownWidth}px` : 'auto' }}
         >
-          {/* 크레딧 정보 */}
-          <div className="px-4 py-2 border-b border-white/20">
-            <div className="flex items-center gap-2 rounded-xl h-9">
-              <Ticket className="w-6 h-6 text-[#454545]" />
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-bold text-[#454545] leading-[33.6px] tracking-[-0.48px]">
-                  {displayCredits.toLocaleString()}
-                </span>
-                <span className="text-xs font-bold text-[#454545] leading-[16.8px]">
-                  /{maxCredits.toLocaleString()} 크레딧
-                </span>
-              </div>
-            </div>
-          </div>
-
           {/* 버튼 영역 */}
           <div className="p-2 space-y-2">
             {/* 업그레이드 버튼 */}

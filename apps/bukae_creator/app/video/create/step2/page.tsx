@@ -1,6 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { Loader2 } from 'lucide-react'
 import { useStep2Container } from './hooks/useStep2Container'
 import {
   HeaderSection,
@@ -13,6 +15,20 @@ import {
 
 export default function Step2Page() {
   const container = useStep2Container()
+  // SSR/CSR 일치 보장을 위해 클라이언트에서만 true로 설정
+  const [hydrated] = useState(() => typeof window !== 'undefined')
+
+  // SSR/CSR 일치 보장을 위해 초기 렌더는 로딩 UI 고정
+  if (!hydrated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-brand-background-start">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-brand-teal" />
+          <p className="text-brand-teal-dark">인증 확인 중...</p>
+        </div>
+      </div>
+    )
+  }
 
   // 토큰 검증 중에는 로딩 표시
   if (container.isValidatingToken) {
@@ -28,7 +44,7 @@ export default function Step2Page() {
         transition={{ duration: 0.3 }}
         className="flex justify-center"
       >
-        <div className="flex w-full max-w-[1194px] mx-auto px-4 sm:px-6 py-8">
+        <div className="flex w-full max-w-[1194px] mx-auto px-4 sm:px-6 pt-4 pb-8">
           <div className="flex-1 overflow-y-auto min-w-0">
             <div className="max-w-5xl mx-auto space-y-6">
               {/* 헤더 섹션 */}

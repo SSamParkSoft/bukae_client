@@ -1,7 +1,7 @@
 'use client'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ReactNode, useEffect, useState } from 'react'
+import { ReactNode, useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { authStorage } from '@/lib/api/auth-storage'
 import { useUserStore } from '@/store/useUserStore'
@@ -10,11 +10,13 @@ import { useAppStore } from '@/store/useAppStore'
 import { useCurrentUser } from '@/lib/hooks/useAuth'
 import { getMallConfigs } from '@/lib/api/mall-configs'
 import { initMcpBrowserHelper } from '@/lib/utils/mcp-browser-helper'
+import { startTokenRefreshScheduler, stopTokenRefreshScheduler } from '@/lib/api/client'
 
 function AuthSync() {
   const router = useRouter()
   const hasTokens = authStorage.hasTokens()
   const currentUser = useUserStore((state) => state.user)
+  const mallConfigsFetchedRef = useRef(false) // 중복 호출 방지
   
   // React Query를 사용하여 사용자 정보 조회 (중복 호출 방지)
   const { data: userInfo, error: userError, isError } = useCurrentUser({
@@ -58,21 +60,6 @@ function AuthSync() {
         createdAt: userInfo.createdAt,
         accountStatus: 'active',
       })
-
-      // 추적 ID 복원 (에러 발생해도 로그인은 계속 진행)
-      const currentTrackingIds = useUserStore.getState().platformTrackingIds
-      const hasAnyTrackingId = Object.values(currentTrackingIds).some(id => id !== null)
-      
-      if (!hasAnyTrackingId) {
-        getMallConfigs()
-          .then((mallConfigs) => {
-            useUserStore.getState().setPlatformTrackingIds(mallConfigs)
-          })
-          .catch((trackingIdError) => {
-            console.error('[AuthSync] 트래킹 ID 복원 실패:', trackingIdError)
-            // 실패해도 계속 진행
-          })
-      }
     }
   }, [userInfo])
 
@@ -91,12 +78,14 @@ function AuthSync() {
   }, [isError, userError])
 
   // 토큰이 있고 사용자 정보도 있지만, 추적 ID가 없을 수 있으므로 복원 시도
+  // 중복 호출 방지를 위해 ref를 사용하여 한 번만 실행되도록 함
   useEffect(() => {
-    if (hasTokens && currentUser) {
+    if (hasTokens && currentUser && !mallConfigsFetchedRef.current) {
       const currentTrackingIds = useUserStore.getState().platformTrackingIds
       const hasAnyTrackingId = Object.values(currentTrackingIds).some(id => id !== null)
       
       if (!hasAnyTrackingId) {
+        mallConfigsFetchedRef.current = true // 호출 시작 표시
         // 추적 ID가 하나도 없으면 복원 시도
         getMallConfigs()
           .then((mallConfigs) => {
@@ -104,11 +93,27 @@ function AuthSync() {
           })
           .catch((trackingIdError) => {
             console.error('[AuthSync] 트래킹 ID 복원 실패:', trackingIdError)
+            mallConfigsFetchedRef.current = false // 실패 시 재시도 가능하도록
             // 실패해도 계속 진행
           })
       }
     }
   }, [hasTokens, currentUser])
+
+  // 토큰 사전 리프레시 스케줄러 관리
+  useEffect(() => {
+    if (hasTokens) {
+      // 토큰이 있으면 스케줄러 시작
+      startTokenRefreshScheduler()
+    } else {
+      // 토큰이 없으면 스케줄러 중지
+      stopTokenRefreshScheduler()
+    }
+
+    return () => {
+      stopTokenRefreshScheduler()
+    }
+  }, [hasTokens])
 
   return null
 }

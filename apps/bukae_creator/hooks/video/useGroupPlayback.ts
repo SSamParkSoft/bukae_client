@@ -2,12 +2,12 @@
 
 import { useCallback, useState, useRef } from 'react'
 import * as PIXI from 'pixi.js'
+import { gsap } from 'gsap'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { useTtsResources } from './useTtsResources'
-import { soundEffects } from '@/components/video-editor/SoundEffectSelector'
-import { getSupabaseStorageUrl } from '@/lib/utils/supabase-storage'
+import { getSoundEffectStorageUrl } from '@/lib/utils/supabase-storage'
 
 interface UseGroupPlaybackParams {
   timeline: TimelineData | null
@@ -39,6 +39,7 @@ interface UseGroupPlaybackParams {
   isPlayingRef: React.MutableRefObject<boolean>
   setIsPreparing?: (preparing: boolean) => void
   setIsTtsBootstrapping?: (bootstrapping: boolean) => void
+  activeAnimationsRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>
 }
 
 export function useGroupPlayback({
@@ -58,12 +59,13 @@ export function useGroupPlayback({
   isPlayingRef,
   setIsPreparing,
   setIsTtsBootstrapping,
+  activeAnimationsRef,
 }: UseGroupPlaybackParams) {
   // TTS 리소스 가져오기
   const { ttsCacheRef, ttsAudioRef, ttsAudioUrlRef, stopTtsAudio } = useTtsResources()
   const { getSceneStructure } = useSceneStructureStore()
-  const resolveSoundEffectUrl = (fileName: string): string => {
-    return getSupabaseStorageUrl('soundeffect', fileName) ?? `/sound-effects/${fileName}`
+  const resolveSoundEffectUrl = (filePath: string): string => {
+    return getSoundEffectStorageUrl(filePath) ?? `/sound-effects/${filePath}`
   }
   
   // 재생 중인 씬 인덱스 추적 (단일 씬 재생용)
@@ -231,8 +233,14 @@ export function useGroupPlayback({
   // 그룹 재생 정지 함수
   const stopGroup = useCallback(() => {
     // 진행 중인 전환 효과 애니메이션 중지
-    // activeAnimationsRef는 useGroupPlaybackParams에 없으므로, 
-    // 필요시 파라미터로 추가해야 하지만, 일단 TTS와 상태만 정리
+    if (activeAnimationsRef) {
+      activeAnimationsRef.current.forEach((tl) => {
+        if (tl && tl.isActive()) {
+          tl.kill()
+        }
+      })
+      activeAnimationsRef.current.clear()
+    }
     
     // TTS 오디오 정지
     stopTtsAudio()
@@ -247,7 +255,7 @@ export function useGroupPlayback({
     
     // 재생 상태 초기화
     isPlayingRef.current = false
-  }, [stopTtsAudio, isPlayingRef])
+  }, [stopTtsAudio, isPlayingRef, activeAnimationsRef])
 
 
   /**
@@ -550,9 +558,8 @@ export function useGroupPlayback({
         // 씬의 첫 구간에서 효과음 재생
         if (scenePartIndex === 0) {
           const scene = updatedTimeline.scenes[targetSceneIndex]
-          const effect = scene.soundEffect ? soundEffects.find(e => e.id === scene.soundEffect) : null
-          if (effect) {
-            const effectUrl = resolveSoundEffectUrl(effect.filename)
+          if (scene.soundEffect) {
+            const effectUrl = resolveSoundEffectUrl(scene.soundEffect)
             const seAudio = new Audio(effectUrl)
             seAudio.volume = 0.5
             seAudio.play().catch((err) => {
@@ -614,14 +621,20 @@ export function useGroupPlayback({
             return
           }
 
+          let isResolved = false // 중복 resolve 방지
+          
           const cleanup = () => {
+            if (isResolved) return
+            isResolved = true
             audio.removeEventListener('ended', handleEnded)
             audio.removeEventListener('error', handleError)
             audio.removeEventListener('pause', handlePause)
+            audio.removeEventListener('timeupdate', handleTimeUpdate)
           }
 
           const handleEnded = () => {
             cleanup()
+            
             // 오디오 재생 완료 후에도 텍스트가 표시되어 있는지 확인하고 다시 표시
             if (currentTextToUpdate && currentPartText) {
               if (containerRef.current && currentTextToUpdate.parent !== containerRef.current) {
@@ -637,18 +650,31 @@ export function useGroupPlayback({
           }
           
           const handleError = (event?: Event) => {
-            console.error('[useGroupPlayback] TTS 재생 오류:', event)
             cleanup()
             resolve()
           }
           
+          // pause 이벤트에서 즉시 정지 처리
           const handlePause = () => {
-            // pause 이벤트는 무시
+            if (abortController.signal.aborted || !isPlayingRef.current) {
+              cleanup()
+              resolve()
+            }
+          }
+          
+          // 재생 중에도 abort 체크 (timeupdate 이벤트 활용)
+          const handleTimeUpdate = () => {
+            if (abortController.signal.aborted || !isPlayingRef.current) {
+              audio.pause()
+              cleanup()
+              resolve()
+            }
           }
           
           audio.addEventListener('ended', handleEnded)
           audio.addEventListener('error', handleError)
           audio.addEventListener('pause', handlePause)
+          audio.addEventListener('timeupdate', handleTimeUpdate) // 재생 중 체크 추가
           
           if (abortController.signal.aborted || !isPlayingRef.current) {
             cleanup()
@@ -684,27 +710,12 @@ export function useGroupPlayback({
       }
       
       // TTS 재생 시작
-      const groupPlaybackStartTime = Date.now()
       if (mergedTextParts.length > 0) {
         await playPart(0)
       }
       
-      // 그룹 재생 완료 시 실제 재생 시간 저장
-      if (mergedTextParts.length > 0 && timeline && setTimeline) {
-        const actualGroupPlaybackDuration = (Date.now() - groupPlaybackStartTime) / 1000
-        if (actualGroupPlaybackDuration > 0) {
-          // 그룹 내 각 씬에 실제 재생 시간 저장 (그룹 전체 시간을 씬 개수로 나눔)
-          const durationPerScene = actualGroupPlaybackDuration / groupIndices.length
-          const updatedScenes = timeline.scenes.map((s, idx) => {
-            if (groupIndices.includes(idx)) {
-              // 각 씬에 그룹 재생 시간의 평균 저장 (더 정확한 방법은 각 씬의 실제 재생 시간을 추적)
-              return { ...s, actualPlaybackDuration: durationPerScene }
-            }
-            return s
-          })
-          setTimeline({ ...timeline, scenes: updatedScenes })
-        }
-      }
+      // actualPlaybackDuration은 useFullPlayback에서 그룹 전체 재생 시간을 사용해서 설정하므로
+      // 여기서는 설정하지 않음 (중복 방지)
 
     } catch {
       // 재생 실패 처리

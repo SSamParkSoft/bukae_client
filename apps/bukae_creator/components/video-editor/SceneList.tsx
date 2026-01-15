@@ -41,12 +41,10 @@ export function SceneList({
   sceneThumbnails,
   currentSceneIndex,
   selectedPart,
-  theme,
   onSelect,
   onScriptChange,
   onImageFitChange,
   onReorder,
-  transitionLabels,
   onSplitScene,
   onDeleteScene,
   onDuplicateScene,
@@ -580,7 +578,7 @@ export function SceneList({
                     onDrop={handleDrop}
                     onDragLeave={() => setDragOver(null)}
                     onDragEnd={handleDragEnd}
-                    className={`relative rounded-2xl p-4 transition-all cursor-pointer shadow-[var(--shadow-card-default)] ${
+                    className={`relative rounded-2xl p-4 transition-all cursor-pointer shadow-(--shadow-card-default) ${
                       isGrouped ? 'ml-6' : ''
                     } ${
                       draggedIndex === index
@@ -795,7 +793,7 @@ export function SceneList({
                           }}
                           onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => e.stopPropagation()}
-                          className="w-full p-2 rounded-lg border resize-none bg-white border-gray-300 text-text-dark focus:outline-none focus:ring-2 focus:ring-brand-teal tracking-[-0.28px] shadow-[var(--shadow-card-default)]"
+                          className="w-full p-2 rounded-lg border resize-none bg-white border-gray-300 text-text-dark focus:outline-none focus:ring-2 focus:ring-brand-teal tracking-[-0.28px] shadow-(--shadow-card-default)"
                           style={{ 
                             fontSize: 'var(--font-size-14)',
                             lineHeight: 'var(--line-height-14-140)'
@@ -813,11 +811,12 @@ export function SceneList({
                       onChange={(e) => {
                         // 사용자가 입력한 값에서 ||| 제거 (실수로 입력한 경우 방지)
                         const cleaned = e.target.value.replace(/\s*\|\|\|\s*/g, ' ')
-                        onScriptChange(index, cleaned.trim())
+                        // trim() 제거: 입력 중간의 공백(띄어쓰기)을 유지하기 위해
+                        onScriptChange(index, cleaned)
                       }}
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => e.stopPropagation()}
-                      className="flex-1 p-2 max-w-[520px] rounded-lg border resize-none bg-white border-gray-300 text-text-dark focus:outline-none focus:ring-2 focus:ring-brand-teal tracking-[-0.28px] shadow-[var(--shadow-card-default)]"
+                      className="flex-1 p-2 max-w-[520px] rounded-lg border resize-none bg-white border-gray-300 text-text-dark focus:outline-none focus:ring-2 focus:ring-brand-teal tracking-[-0.28px] shadow-(--shadow-card-default)"
                       style={{ 
                         fontSize: 'var(--font-size-14)',
                         lineHeight: 'var(--line-height-14-140)',

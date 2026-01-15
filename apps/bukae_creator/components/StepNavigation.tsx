@@ -43,26 +43,26 @@ export default function StepNavigation({
           <div key={step.number} className="flex items-center">
             <button
               onClick={() => handleStepClick(step)}
-              className="flex items-center gap-15 group"
+              className="flex items-center gap-2 group"
             >
               {/* 원형 스텝 번호/아이콘 */}
               <div
                 className={cn(
                   'flex items-center justify-center rounded-full font-bold transition-all',
                   isActive
-                    ? 'bg-[#5e8790] text-white w-10 h-10'
+                    ? 'bg-[#5e8790] text-white w-8 h-8'
                     : isCompleted
-                      ? 'bg-[#d2dedd] text-[#111111] w-10 h-10'
-                      : 'bg-[#e3e3e3] text-[#5d5d5d] w-10 h-10'
+                      ? 'bg-[#d2dedd] text-[#111111] w-8 h-8'
+                      : 'bg-[#e3e3e3] text-[#5d5d5d] w-8 h-8'
                 )}
                 style={{
-                  fontSize: 'var(--font-size-16)',
+                  fontSize: 'var(--font-size-14)',
                   fontWeight: 'var(--font-weight-bold)',
                   boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)'
                 }}
               >
                 {isCompleted ? (
-                  <Check className="w-5 h-5 text-[#111111]" />
+                  <Check className="w-4 h-4 text-[#111111]" />
                 ) : (
                   <span>{step.number}</span>
                 )}
@@ -71,7 +71,7 @@ export default function StepNavigation({
               <span
                 className="font-bold whitespace-nowrap"
                 style={{
-                  fontSize: 'var(--font-size-16)',
+                  fontSize: 'var(--font-size-14)',
                   fontWeight: 'var(--font-weight-bold)'
                 }}
               >
@@ -81,11 +81,11 @@ export default function StepNavigation({
 
             {/* 스텝 사이 연결선 (진행된 단계: " - ", 진행 남은 단계: " > ") */}
             {index < steps.length - 1 && (
-              <div className="flex items-center" style={{ marginLeft: '56px', marginRight: '56px' }}>
+              <div className="flex items-center" style={{ marginLeft: '32px', marginRight: '32px' }}>
                 <span
                   className="text-[#111111]"
                   style={{
-                    fontSize: 'var(--font-size-16)',
+                    fontSize: 'var(--font-size-14)',
                     fontWeight: 'var(--font-weight-bold)'
                   }}
                 >

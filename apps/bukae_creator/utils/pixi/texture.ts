@@ -23,16 +23,43 @@ export const loadPixiTexture = (
     }
 
     if (url.startsWith('data:') || url.startsWith('blob:')) {
-      try {
-        const texture = PIXI.Texture.from(url)
-        textureCache.set(url, texture)
-        resolve(texture)
-        return
-      } catch (error) {
-        console.error('Failed to load data/blob URL:', error)
-        reject(new Error(`Failed to load data/blob texture: ${url.substring(0, 50)}...`))
-        return
+      // blob URL은 HTMLImageElement를 통해 먼저 로드한 후 텍스처 생성 (더 안정적)
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+      
+      img.onload = () => {
+        try {
+          // 이미지가 완전히 로드되었는지 확인
+          if (!img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) {
+            throw new Error('Image not fully loaded')
+          }
+          
+          const texture = PIXI.Texture.from(img)
+          
+          if (!texture) {
+            throw new Error('PIXI.Texture.from returned undefined')
+          }
+          
+          if (!texture.baseTexture) {
+            throw new Error('Texture baseTexture is undefined')
+          }
+          
+          texture.baseTexture.update()
+          textureCache.set(url, texture)
+          resolve(texture)
+        } catch (textureError) {
+          console.error('Failed to create texture from data/blob URL:', textureError)
+          reject(new Error(`Failed to create texture from data/blob: ${url.substring(0, 50)}...`))
+        }
       }
+      
+      img.onerror = (e) => {
+        console.error('Failed to load data/blob URL:', e)
+        reject(new Error(`Failed to load data/blob image: ${url.substring(0, 50)}...`))
+      }
+      
+      img.src = url
+      return
     }
 
     // 쿠팡 이미지의 경우 CORS 문제가 있을 수 있으므로 서버 프록시 사용

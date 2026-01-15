@@ -44,21 +44,15 @@ export const getSceneStartTime = (timeline: { scenes: Array<{ sceneId: number; d
 
 /**
  * 타임라인의 전체 duration을 계산합니다.
+ * Transition duration은 제외하고 TTS duration만 합산합니다.
+ * (Transition은 TTS 재생과 동시에 일어나므로 별도 시간이 추가되지 않음)
  * @param timeline Timeline 객체
- * @returns 전체 duration (초)
+ * @returns 전체 duration (초) - TTS duration 합계만
  */
 export const calculateTotalDuration = (timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number }> }): number => {
-  return timeline.scenes.reduce((sum, scene, index) => {
-    // 마지막 씬에는 transition이 없으므로 제외
-    const isLastScene = index === timeline.scenes.length - 1
-    if (isLastScene) {
-      return sum + scene.duration
-    }
-    // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
-    const nextScene = timeline.scenes[index + 1]
-    const isSameSceneId = nextScene && scene.sceneId === nextScene.sceneId
-    const transitionDuration = isSameSceneId ? 0 : (scene.transitionDuration || 0.5)
-    return sum + scene.duration + transitionDuration
+  return timeline.scenes.reduce((sum, scene) => {
+    // TTS duration만 합산 (transition duration 제외)
+    return sum + scene.duration
   }, 0)
 }
 

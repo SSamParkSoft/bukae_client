@@ -8,6 +8,7 @@ import { useThemeStore } from '@/store/useThemeStore'
 import { conceptOptions, type ConceptType } from '@/lib/data/templates'
 import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
 import { studioScriptApi } from '@/lib/api/studio-script'
+import { authStorage } from '@/lib/api/auth-storage'
 import { 
   requestCoupangExtensionStorage, 
   extractImagesFromStorage,
@@ -39,6 +40,8 @@ export function useStep2Container() {
   
   // 사용자가 직접 업로드한 이미지
   const [uploadedImages, setUploadedImages] = useState<string[]>([])
+  // 업로드 중인 이미지 추적 (blob URL -> Supabase URL 매핑)
+  const uploadingImagesRef = useRef<Map<string, string>>(new Map()) // blob URL -> Supabase URL
 
   // 이미지 및 스크립트 관련 상태
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -61,10 +64,45 @@ export function useStep2Container() {
     }
   }, [scriptStyle])
 
+  // step2로 돌아왔을 때 업로드된 이미지 복원
+  useEffect(() => {
+    // availableImages에서 Supabase URL 추출 (supabase.co 도메인 포함)
+    const supabaseUrls: string[] = []
+    
+    // selectedImages에서 Supabase URL 찾기
+    selectedImages.forEach((url) => {
+      if (url && url.includes('supabase.co') && !url.startsWith('blob:')) {
+        supabaseUrls.push(url)
+      }
+    })
+    
+    // availableImages에서도 Supabase URL 찾기 (선택되지 않은 업로드 이미지 포함)
+    const allImages = [
+      ...(selectedProduct?.images || []),
+      ...extensionImages,
+      ...selectedImages,
+    ]
+    
+    allImages.forEach((url) => {
+      if (url && url.includes('supabase.co') && !url.startsWith('blob:')) {
+        supabaseUrls.push(url)
+      }
+    })
+    
+    if (supabaseUrls.length > 0) {
+      setUploadedImages((prev) => {
+        // 중복 제거
+        const combined = [...new Set([...prev, ...supabaseUrls])]
+        return combined
+      })
+    }
+  }, [selectedImages, selectedProduct, extensionImages]) // 마운트 시 및 관련 데이터 변경 시 확인
+
   // 상품이 변경될 때 extensionImages와 sceneScripts 초기화
   useEffect(() => {
     setExtensionImages([])
     setUploadedImages([])
+    uploadingImagesRef.current.clear()
     setSceneScripts(new Map())
     setEditedScripts(new Map())
     setGeneratingScenes(new Set())
@@ -149,6 +187,67 @@ export function useStep2Container() {
     }
   }, [])
   
+  // 업로드된 이미지 자동 복원 (availableImages에서 Supabase URL 찾기)
+  // dependency array 안정성을 위해 문자열로 변환
+  const scenesImageUrlsString = useMemo(() => 
+    scenes.map(s => s.imageUrl).filter(Boolean).join(','),
+    [scenes]
+  )
+  const productImageUrlsString = useMemo(() => {
+    const urls: string[] = []
+    if (selectedProduct?.images?.length) {
+      urls.push(...selectedProduct.images.filter(Boolean))
+    }
+    if (selectedProduct?.image) {
+      urls.push(selectedProduct.image)
+    }
+    return urls.join(',')
+  }, [selectedProduct?.images, selectedProduct?.image])
+  
+  useEffect(() => {
+    const supabaseUrls: string[] = []
+    
+    // selectedImages에서 Supabase URL 찾기
+    selectedImages.forEach((img) => {
+      if (img && typeof img === 'string' && img.includes('supabase.co') && !img.startsWith('blob:')) {
+        supabaseUrls.push(img)
+      }
+    })
+    
+    // scenes에서 Supabase URL 찾기 (step3에서 돌아온 경우)
+    scenes.forEach((scene) => {
+      if (scene.imageUrl && typeof scene.imageUrl === 'string' && scene.imageUrl.includes('supabase.co') && !scene.imageUrl.startsWith('blob:')) {
+        supabaseUrls.push(scene.imageUrl)
+      }
+    })
+    
+    // selectedProduct의 이미지에서 Supabase URL 찾기
+    if (selectedProduct?.images?.length) {
+      selectedProduct.images.forEach((img) => {
+        if (img && typeof img === 'string' && img.includes('supabase.co') && !img.startsWith('blob:')) {
+          supabaseUrls.push(img)
+        }
+      })
+    }
+    if (selectedProduct?.image && typeof selectedProduct.image === 'string' && selectedProduct.image.includes('supabase.co') && !selectedProduct.image.startsWith('blob:')) {
+      supabaseUrls.push(selectedProduct.image)
+    }
+    
+    // extensionImages에서 Supabase URL 찾기
+    extensionImages.forEach((img) => {
+      if (img && typeof img === 'string' && img.includes('supabase.co') && !img.startsWith('blob:')) {
+        supabaseUrls.push(img)
+      }
+    })
+    
+    if (supabaseUrls.length > 0) {
+      setUploadedImages((prev) => {
+        const combined = [...new Set([...prev, ...supabaseUrls])]
+        return combined
+      })
+    }
+  }, [selectedImages, scenesImageUrlsString, productImageUrlsString, extensionImages, scenes, selectedProduct])
+
   // 사용 가능한 이미지 목록
   const availableImages = useMemo(() => {
     const isDev = process.env.NODE_ENV === 'development'
@@ -164,6 +263,7 @@ export function useStep2Container() {
           platform: selectedProduct.platform,
         } : null,
         extensionImagesLength: extensionImages.length,
+        uploadedImagesLength: uploadedImages.length,
       })
     }
     
@@ -206,10 +306,77 @@ export function useStep2Container() {
     return images
   }, [selectedProduct, extensionImages, uploadedImages])
   
-  // 이미지 업로드 핸들러
-  const handleImageUpload = useCallback((imageUrl: string) => {
-    setUploadedImages((prev) => [...prev, imageUrl])
-    setHasUnsavedChanges(true)
+  // 이미지 업로드 핸들러 (optimistic update 적용)
+  const handleImageUpload = useCallback(async (imageUrl: string) => {
+    // blob URL인 경우 즉시 Supabase에 업로드
+    if (imageUrl.startsWith('blob:')) {
+      // Optimistic update: 업로드 시작 시 즉시 blob URL을 추가하여 미리 렌더링
+      setUploadedImages((prev) => [...prev, imageUrl])
+      setHasUnsavedChanges(true)
+
+      try {
+        const accessToken = authStorage.getAccessToken()
+        if (!accessToken) {
+          console.error('[Step2] 이미지 업로드 실패: 로그인이 필요합니다.')
+          // Optimistic update 롤백
+          setUploadedImages((prev) => prev.filter((url) => url !== imageUrl))
+          alert('로그인이 필요합니다.')
+          return
+        }
+
+        // blob URL을 File로 변환
+        const response = await fetch(imageUrl)
+        const blob = await response.blob()
+        
+        // MIME 타입에 따라 확장자 결정
+        const mimeType = blob.type || 'image/jpeg'
+        const ext = mimeType.split('/')[1] || 'jpg'
+        const file = new File([blob], `upload_${Date.now()}.${ext}`, {
+          type: mimeType
+        })
+
+        // jobId는 step2에서는 아직 없으므로 임시 ID 사용 (나중에 영상 생성 시 실제 jobId로 교체)
+        const tempJobId = 'temp_' + Date.now()
+
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('sceneIndex', '0') // step2에서는 씬 인덱스가 아직 없음
+        formData.append('jobId', tempJobId)
+
+        const uploadRes = await fetch('/api/images/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: formData,
+        })
+
+        if (!uploadRes.ok) {
+          const errorData = await uploadRes.json().catch(() => ({}))
+          throw new Error(errorData.error || '이미지 업로드 실패')
+        }
+
+        const uploadData = await uploadRes.json()
+        const uploadedUrl = uploadData.url
+
+        // 업로드 완료: blob URL을 Supabase URL로 교체
+        setUploadedImages((prev) => 
+          prev.map((url) => url === imageUrl ? uploadedUrl : url)
+        )
+        
+        // 매핑 저장 (나중에 selectedImages 업데이트 시 사용)
+        uploadingImagesRef.current.set(imageUrl, uploadedUrl)
+        
+        setHasUnsavedChanges(true)
+      } catch (error) {
+        console.error('[Step2] 이미지 업로드 실패:', error)
+        // Optimistic update 롤백
+        setUploadedImages((prev) => prev.filter((url) => url !== imageUrl))
+        alert(`이미지 업로드에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`)
+      }
+    } else {
+      // blob URL이 아니면 그대로 사용 (이미 서버에 있는 이미지)
+      setUploadedImages((prev) => [...prev, imageUrl])
+      setHasUnsavedChanges(true)
+    }
   }, [setHasUnsavedChanges])
 
   // sceneScripts를 직렬화하여 안정적인 dependency 생성
@@ -385,10 +552,13 @@ export function useStep2Container() {
 
   // 이미지 선택
   const handleImageSelect = useCallback((imageUrl: string) => {
-    if (selectedImages.includes(imageUrl)) {
-      // 이미 선택된 이미지는 제거
-      const index = selectedImages.indexOf(imageUrl)
-      const newSelectedImages = selectedImages.filter(url => url !== imageUrl)
+    // blob URL인 경우 Supabase URL로 교체 (업로드 완료된 경우)
+    const finalImageUrl = uploadingImagesRef.current.get(imageUrl) || imageUrl
+    
+    if (selectedImages.includes(finalImageUrl) || selectedImages.includes(imageUrl)) {
+      // 이미 선택된 이미지는 제거 (blob URL 또는 Supabase URL 모두 체크)
+      const index = selectedImages.findIndex(url => url === finalImageUrl || url === imageUrl)
+      const newSelectedImages = selectedImages.filter(url => url !== finalImageUrl && url !== imageUrl)
       setSelectedImages(newSelectedImages)
       setHasUnsavedChanges(true)
       
@@ -411,8 +581,8 @@ export function useStep2Container() {
         return reorderedMap
       })
     } else {
-      // 새 이미지 추가
-      setSelectedImages([...selectedImages, imageUrl])
+      // 새 이미지 추가 (Supabase URL 우선 사용)
+      setSelectedImages([...selectedImages, finalImageUrl])
       setHasUnsavedChanges(true)
       // 대본은 사용자가 명시적으로 버튼을 눌렀을 때만 생성
     }

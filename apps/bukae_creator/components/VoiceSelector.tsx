@@ -59,11 +59,14 @@ interface VoiceSelectorProps {
 }
 
 export default function VoiceSelector({
-  theme,
+  theme: _theme,
   title = '목소리 선택',
   disabled = false,
-  layout = 'page',
+  layout: _layout = 'page',
 }: VoiceSelectorProps) {
+  // 향후 사용을 위해 prop 유지
+  void _theme
+  void _layout
   const { voiceTemplate, setVoiceTemplate } = useVideoCreateStore()
   const [voices, setVoices] = useState<PublicVoiceInfo[]>([])
   const [isLoadingVoices, setIsLoadingVoices] = useState(true)
@@ -198,42 +201,52 @@ export default function VoiceSelector({
       // Premium 목소리 (ElevenLabs)인 경우 정적 파일 재생
       if (voice?.provider === 'elevenlabs') {
         const displayName = voice.displayName || voice.voiceId || voiceName.replace(/^elevenlabs:/, '')
-        const fileName = `${displayName.toLowerCase()}_test.wav`
-        const demoPath = `/voice-demos/premium/${fileName}`
+        // 파일명 후보: 원본 displayName과 소문자 버전 모두 시도
+        const fileNameCandidates = [
+          `${displayName}_test.wav`,  // 원본 (예: MichaelMouse_test.wav)
+          `${displayName.toLowerCase()}_test.wav`,  // 소문자 (예: michaelmouse_test.wav)
+        ]
         
-        try {
-          const response = await fetch(demoPath, { 
-            method: 'HEAD',
-            cache: 'no-cache' 
-          })
-          if (response.ok) {
-            const audio = new Audio(demoPath)
-            audioRef.current = audio
+        // 각 파일명 후보를 순차적으로 시도
+        for (const fileName of fileNameCandidates) {
+          const demoPath = `/voice-demos/premium/${fileName}`
+          
+          try {
+            const response = await fetch(demoPath, { 
+              method: 'HEAD',
+              cache: 'no-cache' 
+            })
+            if (response.ok) {
+              const audio = new Audio(demoPath)
+              audioRef.current = audio
 
-            audio.onended = () => {
-              setIsPlaying(false)
-              setPlayingVoiceName(null)
+              audio.onended = () => {
+                setIsPlaying(false)
+                setPlayingVoiceName(null)
+              }
+
+              audio.onerror = () => {
+                setIsPlaying(false)
+                setPlayingVoiceName(null)
+              }
+
+              setPlayingVoiceName(voiceName)
+              setIsPlaying(true)
+              await audio.play()
+              return // 정적 파일 재생 성공
             }
-
-            audio.onerror = () => {
-              setIsPlaying(false)
-              setPlayingVoiceName(null)
-            }
-
-            setPlayingVoiceName(voiceName)
-            setIsPlaying(true)
-            await audio.play()
-            return // 정적 파일 재생 성공
+          } catch {
+            // 파일이 없으면 다음 후보 시도
+            continue
           }
-        } catch {
-          // 파일이 없으면 재생 실패 (조용히 처리)
-          return
         }
+        // 모든 후보를 시도했지만 파일을 찾지 못한 경우
+        return
       }
       
       // Google TTS인 경우 정적 파일 재생
-      const isGoogleVoice = !voice || voice.provider !== 'elevenlabs'
-      
+      // voice가 없거나 provider가 'elevenlabs'가 아닌 경우 Google TTS로 간주
+      const isGoogleVoice = !voice || voice.provider === 'google' || !voice.provider
       if (isGoogleVoice) {
         // voiceName을 슬러그 형식으로 변환 (예: ko-KR-Chirp3-HD-Achernar → chirp3-hd-achernar)
         const slugName = voiceName
@@ -390,7 +403,8 @@ export default function VoiceSelector({
           ? currentVoiceInfo.voiceId === v.voiceId
           : currentVoiceInfo.voiceId === v.name))
       : voiceTemplate === v.name
-    const isThisPlaying = isPlaying && playingVoiceName === v.name
+    // 향후 사용을 위해 변수 유지
+    void (isPlaying && playingVoiceName === v.name)
     const label = getShortName(v.name, v)
     const isThisConfirmOpen = confirmOpen && pendingVoiceName === v.name
 

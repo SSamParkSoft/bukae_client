@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
+import { motion } from 'framer-motion'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { useStep1Container } from './hooks/useStep1Container'
 import { useRouter } from 'next/navigation'
@@ -18,11 +19,8 @@ export default function Step1Page() {
   const container = useStep1Container()
   const router = useRouter()
   const [searchMode, setSearchMode] = useState<'search' | 'url'>('search')
-  const [hydrated, setHydrated] = useState(false)
-
-  useEffect(() => {
-    setHydrated(true)
-  }, [])
+  // SSR/CSR 일치 보장을 위해 클라이언트에서만 true로 설정
+  const [hydrated] = useState(() => typeof window !== 'undefined')
 
   // 플레이스홀더 텍스트 생성
   const placeholder = useMemo(() => {
@@ -67,12 +65,18 @@ export default function Step1Page() {
 
   return (
     <div>
-      <div className="w-full max-w-[1194px] mx-auto px-4 sm:px-6 py-8">
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        transition={{ duration: 0.3 }}
+        className="w-full max-w-[1194px] mx-auto px-4 sm:px-6 pt-4 pb-8"
+      >
         {/* 헤더 섹션 */}
-        <div className="mb-20 mt-[96px]">
+        <div className="mb-16 mt-[72px]">
           <div className="flex items-center justify-center mb-4">
             <span 
-              className="font-bold bg-gradient-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.56px]"
+              className="font-bold bg-linear-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.56px]"
               style={{ 
                 fontSize: 'var(--font-size-28)',
                 lineHeight: 'var(--line-height-28-140)'
@@ -82,7 +86,7 @@ export default function Step1Page() {
             </span>
           </div>
           <h1 
-            className="text-center font-bold mb-2 bg-gradient-to-r from-text-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.64px]"
+            className="text-center font-bold mb-2 bg-linear-to-r from-text-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.64px]"
             style={{ 
               fontSize: 'var(--font-size-32)',
               lineHeight: 'var(--line-height-32-140)'
@@ -147,7 +151,7 @@ export default function Step1Page() {
                 {selectedCount}개 선택됨
               </span>
             </div>
-            <div className="rounded-2xl bg-white/60 border border-white/10 p-6 shadow-[var(--shadow-card-default)]">
+            <div className="rounded-2xl bg-white/60 border border-white/10 p-6 shadow-(--shadow-card-default)">
               {container.selectedProducts.map((product) => {
                 const productResponse = container.currentProductResponses.find(
                   (r) => r.id === product.id
@@ -163,7 +167,7 @@ export default function Step1Page() {
               })}
               <button
                 onClick={() => router.push('/video/create/step2')}
-                className="w-full mt-4 py-4 rounded-2xl bg-[#5e8790] text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3b6574] transition-colors tracking-[-0.48px] shadow-[var(--shadow-card-default)]"
+                className="w-full mt-4 py-4 rounded-2xl bg-[#5e8790] text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3b6574] transition-colors tracking-[-0.48px] shadow-(--shadow-card-default)"
                 style={{ 
                   fontSize: 'var(--font-size-24)',
                   lineHeight: 'var(--line-height-24-140)'
@@ -199,7 +203,7 @@ export default function Step1Page() {
                 정확한 가격은 링크에서 확인해주세요!
               </span>
             </div>
-            <div className="rounded-2xl bg-white/20 border border-white/10 p-6 shadow-[var(--shadow-card-default)]">
+            <div className="rounded-2xl bg-white/20 border border-white/10 p-6 shadow-(--shadow-card-default)">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {container.currentProducts.map((product, index) => {
                   const productResponse = container.currentProductResponses[index]
@@ -222,7 +226,7 @@ export default function Step1Page() {
         {container.searchError && !container.isSearching && (
           <ErrorMessage message={container.searchError} />
         )}
-      </div>
+      </motion.div>
     </div>
   )
 }

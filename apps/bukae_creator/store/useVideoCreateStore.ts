@@ -50,7 +50,6 @@ interface VideoCreateState {
   videoTitleCandidates: string[] // AI 추천 제목 후보
   videoDescription: string // 영상 상세 설명
   videoHashtags: string[] // 영상 해시태그
-  isStepIndicatorCollapsed: boolean // 단계 표시기 접기/펼치기 상태
   // 저장 제어
   autoSaveEnabled: boolean // 자동 저장 활성화 여부
   hasUnsavedChanges: boolean // 저장되지 않은 변경사항이 있는지
@@ -94,7 +93,6 @@ interface VideoCreateState {
   setVideoTitleCandidates: (candidates: string[]) => void
   setVideoDescription: (description: string) => void
   setVideoHashtags: (hashtags: string[]) => void
-  setIsStepIndicatorCollapsed: (collapsed: boolean) => void
   reset: () => void
 }
 
@@ -135,7 +133,6 @@ const initialState = {
   videoTitleCandidates: [],
   videoDescription: '',
   videoHashtags: [],
-  isStepIndicatorCollapsed: false,
   // 저장 제어 초기값
   autoSaveEnabled: true, // 기본값은 활성화
   hasUnsavedChanges: false,
@@ -251,7 +248,6 @@ export const useVideoCreateStore = create<VideoCreateState>()(
       setVideoTitleCandidates: (candidates) => set({ videoTitleCandidates: candidates }),
       setVideoDescription: (description) => set({ videoDescription: description }),
       setVideoHashtags: (hashtags) => set({ videoHashtags: hashtags }),
-      setIsStepIndicatorCollapsed: (collapsed) => set({ isStepIndicatorCollapsed: collapsed }),
       setAutoSaveEnabled: (enabled) => set({ autoSaveEnabled: enabled }),
       setHasUnsavedChanges: (hasChanges) => set({ hasUnsavedChanges: hasChanges }),
       reset: () => set(initialState),
