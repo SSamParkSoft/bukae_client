@@ -103,8 +103,8 @@ let refreshFocusHandler: (() => void) | null = null
 let refreshVisibilityHandler: (() => void) | null = null
 let consecutiveRefreshFailures = 0 // 연속 리프레시 실패 횟수
 
-// 사전 리프레시 체크 간격 (1분마다 체크)
-const REFRESH_CHECK_INTERVAL = 60000
+// 사전 리프레시 체크 간격 (테스트용: 10초마다 체크)
+const REFRESH_CHECK_INTERVAL = 10000
 // 최대 연속 실패 횟수 (3회 실패 시 로그아웃)
 const MAX_CONSECUTIVE_FAILURES = 3
 
@@ -119,6 +119,16 @@ async function checkAndRefreshToken(): Promise<void> {
   }
 
   const age = authStorage.getTokenAge()
+  const expiresIn = authStorage.getTokenExpiresIn()
+  
+  // 디버그: 체크 상태 로그
+  if (age !== null) {
+    const ageSeconds = Math.floor(age / 1000)
+    const expiresInSeconds = expiresIn || 1800
+    const shouldRefresh = authStorage.shouldRefreshToken()
+    const isExpired = authStorage.isTokenExpired()
+    console.log(`[Token Refresh] 체크 중 - 경과: ${ageSeconds}초, 만료시간: ${expiresInSeconds}초, 리프레시 필요: ${shouldRefresh}, 만료됨: ${isExpired}`)
+  }
   
   // 토큰이 이미 만료된 경우 즉시 리프레시 시도
   if (age !== null && authStorage.isTokenExpired()) {
@@ -179,6 +189,8 @@ async function checkAndRefreshToken(): Promise<void> {
     } else {
       consecutiveRefreshFailures = 0
     }
+  } else if (age !== null) {
+    console.log(`[Token Refresh] 리프레시 불필요 - 경과: ${Math.floor(age / 1000)}초`)
   }
 }
 
@@ -247,18 +259,28 @@ async function refreshAccessToken(): Promise<string | null> {
     }
 
     try {
-      const refreshUrl = `${API_BASE_URL}/api/v1/auth/refresh`
+      // 로컬 개발 환경: 프록시 사용 (HTTP → HTTPS 크로스 오리진 쿠키 문제 해결)
+      // 프로덕션: 직접 호출 (같은 HTTPS 도메인)
+      const isLocal = typeof window !== 'undefined' && 
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
       
-      // 백엔드가 쿠키에서 refreshToken을 읽도록 요청
-      // credentials: 'include'로 쿠키가 자동으로 전달됨
+      const refreshUrl = isLocal 
+        ? '/api/auth/refresh' // 로컬: 프록시 사용
+        : `${API_BASE_URL}/api/v1/auth/refresh` // 프로덕션: 직접 호출
+      
+      console.log(`[Token Refresh] 리프레시 요청 시작: ${refreshUrl} (${isLocal ? '프록시' : '직접 호출'})`)
+      console.log(`[Token Refresh] credentials: 'include' 설정됨 - 쿠키가 자동으로 전달됩니다`)
+      
       const response = await fetch(refreshUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // 쿠키 포함 (다른 도메인 쿠키도 전달)
+        credentials: 'include', // 쿠키 포함
         // body 없음 - 백엔드가 쿠키에서 refreshToken을 읽음
       })
+
+      console.log(`[Token Refresh] 응답 상태: ${response.status} ${response.statusText}`)
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '응답을 읽을 수 없습니다.')
@@ -267,17 +289,21 @@ async function refreshAccessToken(): Promise<string | null> {
       }
 
       const data = (await response.json()) as TokenResponse | null
-      if (!data?.accessToken || !data?.refreshToken) {
-        console.error('[Token Refresh] RTR 정책 위반: 새 refreshToken이 반환되지 않았습니다.')
+      if (!data?.accessToken) {
+        console.error('[Token Refresh] 응답에 accessToken이 없습니다.')
         return null
       }
 
       // RTR 정책: 두 토큰을 모두 갱신
-      // accessToken은 localStorage에 저장하고, refreshToken은 백엔드가 쿠키로 설정
-      authStorage.setTokens(data.accessToken, data.refreshToken, {
+      // accessToken은 localStorage에 저장하고, refreshToken은 Set-Cookie 헤더로 HttpOnly 쿠키에 자동 설정됨
+      // 보안: refreshToken은 localStorage에 저장하지 않음 (XSS 공격 방지)
+      // 응답 body에 refreshToken이 포함되어 있지만, 쿠키로만 관리하므로 무시
+      authStorage.setTokens(data.accessToken, null, {
         source: 'backend',
         expiresIn: data.accessExpiresIn,
       })
+      
+      console.log('[Token Refresh] ✅ 리프레시 완료: accessToken 갱신됨, refreshToken은 쿠키(HttpOnly)에 자동 설정됨')
       
       return data.accessToken
     } catch (error) {
@@ -327,6 +353,7 @@ export async function apiRequest<T>(
       ...fetchOptions,
       headers,
       signal: controller.signal,
+      credentials: 'include', // 쿠키 포함 (refreshToken 등)
     })
 
     // 타임아웃 정리
@@ -346,6 +373,7 @@ export async function apiRequest<T>(
             ...fetchOptions,
             headers,
             signal: retryController.signal,
+            credentials: 'include', // 쿠키 포함 (refreshToken 등)
           })
           clearTimeout(retryTimeoutId)
         

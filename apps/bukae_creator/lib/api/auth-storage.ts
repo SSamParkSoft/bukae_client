@@ -93,16 +93,20 @@ export const authStorage = {
     const age = this.getTokenAge()
     if (age === null) return false
     
-    // 저장된 만료 시간(초) 가져오기
-    const expiresInSeconds = this.getTokenExpiresIn()
-    if (expiresInSeconds) {
-      // 만료 시간의 80% 경과 시 리프레시 필요 (5분 전에 리프레시)
-      const expiresInMs = expiresInSeconds * 1000
-      return age >= expiresInMs * 0.8
-    }
+    // 테스트용: 10초 경과 시 항상 리프레시
+    return age >= 10000
     
-    // 만료 시간이 없으면 기본값 사용 (5분 = 300000ms)
-    return age >= 300000
+    // 원래 로직 (주석 처리)
+    // // 저장된 만료 시간(초) 가져오기
+    // const expiresInSeconds = this.getTokenExpiresIn()
+    // if (expiresInSeconds) {
+    //   // 만료 시간의 80% 경과 시 리프레시 필요 (5분 전에 리프레시)
+    //   const expiresInMs = expiresInSeconds * 1000
+    //   return age >= expiresInMs * 0.8
+    // }
+    // 
+    // // 만료 시간이 없으면 기본값 사용 (5분 = 300000ms)
+    // return age >= 300000
   },
 
   /**

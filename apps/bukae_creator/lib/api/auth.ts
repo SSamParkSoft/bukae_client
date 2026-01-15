@@ -186,22 +186,48 @@ export const authApi = {
   /**
    * 액세스 토큰 재발급
    * POST /api/v1/auth/refresh
+   * 
+   * @deprecated 이 함수는 더 이상 사용되지 않습니다. client.ts의 refreshAccessToken을 사용하세요.
+   * 이 함수는 body에 refreshToken을 포함하지만, API는 쿠키에서 refreshToken을 읽습니다.
    */
   refreshToken: async (): Promise<TokenResponse> => {
-    const refreshToken = authStorage.getRefreshToken()
-    if (!refreshToken) {
-      throw new Error('리프레시 토큰이 없습니다. 다시 로그인해주세요.')
+    // 백엔드가 쿠키에서 refreshToken을 읽도록 요청
+    // credentials: 'include'로 쿠키가 자동으로 전달됨
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
+    if (!API_BASE_URL) {
+      throw new Error('API_BASE_URL이 설정되지 않았습니다.')
     }
 
-    const response = await api.post<TokenResponse>(
-      '/api/v1/auth/refresh',
-      { refreshToken },
-      { skipAuth: true }
-    )
+    const refreshUrl = `${API_BASE_URL}/api/v1/auth/refresh`
+    const response = await fetch(refreshUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include', // 쿠키 포함
+      // body 없음 - 백엔드가 쿠키에서 refreshToken을 읽음
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '응답을 읽을 수 없습니다.')
+      throw new Error(`리프레시 실패: ${response.status} ${response.statusText} - ${errorText}`)
+    }
+
+    const data = (await response.json()) as TokenResponse
+    if (!data?.accessToken) {
+      throw new Error('응답에 accessToken이 없습니다.')
+    }
 
     // 백엔드에서 반환한 토큰으로 갱신
-    authStorage.setTokens(response.accessToken, response.refreshToken)
-    return response
+    // refreshToken은 Set-Cookie 헤더로 HttpOnly 쿠키에 자동 설정됨
+    // 보안: refreshToken은 localStorage에 저장하지 않음 (XSS 공격 방지)
+    // 응답 body에 refreshToken이 포함되어 있지만, 쿠키로만 관리하므로 무시
+    authStorage.setTokens(data.accessToken, null, {
+      source: 'backend',
+      expiresIn: data.accessExpiresIn,
+    })
+    
+    return data
   },
 
   /**
