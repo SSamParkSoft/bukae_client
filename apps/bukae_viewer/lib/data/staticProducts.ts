@@ -179,8 +179,8 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
   {
     id: 'worldclean-mini-power-plunger-15',
     productId: 1020,
-    name: '월드크린 미니 파워 뚫어뻥',
-    description: '미니 파워 · 뚫어뻥',
+    name: '마를랑 양면 두피 마사지 샴푸 브러쉬',
+    description: '양면 두피 마사지 · 샴푸 브러쉬',
     order: 15,
     thumbnailUrl: '/dummy/talmobit.png',
     url: PRODUCT_URLS.worldclean_mini_power_plunger_15,
