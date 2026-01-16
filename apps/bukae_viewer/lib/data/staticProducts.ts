@@ -40,7 +40,9 @@ const PRODUCT_URLS = {
   akii_boots:
     'https://www.coupang.com/vp/products/8730341883?itemId=25366951659&vendorItemId=91526396377&src=1139000&spec=10799999&addtag=400&ctag=8730341883&lptag=AF4647824&itime=20260114163219&pageType=PRODUCT&pageValue=8730341883&wPcid=17510469561163597660443&wRef=&wTime=20260114163219&redirect=landing&traceid=V0-181-5a98c36d9c864c47&mcid=b95674d6161a4dca9b600146a3113f0c&campaignid=&clickBeacon=&imgsize=&pageid=&sig=&subid=&campaigntype=&puid=&ctime=&portal=&landing_exp=&placementid=&puidType=&contentcategory=&tsource=&deviceid=&contenttype=&token=&impressionid=&requestid=&contentkeyword=&offerId=&sfId=&subparam=',
   worldclean_mini_power_plunger:
-    'https://link.coupang.com/a/ds2nnq'
+    'https://link.coupang.com/a/ds2nnq',
+  worldclean_mini_power_plunger_15:
+    'https://link.coupang.com/a/dtySs9'
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -173,6 +175,15 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     order: 14,
     thumbnailUrl: '/dummy/durubong.png',
     url: PRODUCT_URLS.worldclean_mini_power_plunger,
+  },
+  {
+    id: 'worldclean-mini-power-plunger-15',
+    productId: 1020,
+    name: '월드크린 미니 파워 뚫어뻥',
+    description: '미니 파워 · 뚫어뻥',
+    order: 15,
+    thumbnailUrl: '/dummy/talmobit.png',
+    url: PRODUCT_URLS.worldclean_mini_power_plunger_15,
   },
 ]
 

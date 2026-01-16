@@ -4,12 +4,11 @@ import React, { Suspense } from 'react'
 import { use } from 'react'
 import PartnershipBanner from '@/components/PartnershipBanner'
 import ChannelProfile from '@/components/ChannelProfile'
-import TopProducts from '@/components/TopProducts'
 import ProductSearch from '@/components/ProductSearch'
 import ProductGrid from '@/components/ProductGrid'
 import { useChannelInfo } from '@/lib/hooks/useChannelInfo'
 import { Loader2 } from 'lucide-react'
-import { getStaticProducts, STATIC_TOP_PRODUCTS } from '@/lib/data/staticProducts'
+import { getStaticProducts } from '@/lib/data/staticProducts'
 
 function ChannelPageContent({ channelId }: { channelId: string }) {
   const [searchQuery, setSearchQuery] = React.useState('')
@@ -60,9 +59,6 @@ function ChannelPageContent({ channelId }: { channelId: string }) {
 
       {/* 프로필 헤더 */}
       <ChannelProfile channel={channelInfo} />
-
-      {/* Top 5 제품 섹션 */}
-      <TopProducts topProducts={STATIC_TOP_PRODUCTS} isLoading={false} channelName={channelInfo.name} />
 
       {/* 검색 바 */}
       <ProductSearch
