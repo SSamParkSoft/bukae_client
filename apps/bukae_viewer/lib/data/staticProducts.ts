@@ -42,7 +42,9 @@ const PRODUCT_URLS = {
   worldclean_mini_power_plunger:
     'https://link.coupang.com/a/ds2nnq',
   worldclean_mini_power_plunger_15:
-    'https://link.coupang.com/a/dtySs9'
+    'https://link.coupang.com/a/dtySs9',
+  raon_multihub:
+    'https://link.coupang.com/a/dulIts'
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -184,6 +186,15 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     order: 15,
     thumbnailUrl: '/dummy/talmobit.png',
     url: PRODUCT_URLS.worldclean_mini_power_plunger_15,
+  },
+  {
+    id: 'raon-multihub',
+    productId: 1021,
+    name: '라온 7in1 C타입 멀티 카드리더기',
+    description: '7in1 멀티 카드리더기 · C타입',
+    order: 16,
+    thumbnailUrl: '/dummy/multihub.png',
+    url: PRODUCT_URLS.raon_multihub,
   },
 ]
 
