@@ -1628,6 +1628,19 @@ export function useStep3Container() {
   // 그룹 재생 핸들러 (useGroupPlayback 훅 사용)
   const handleGroupPlay = useCallback(async (sceneId: number, groupIndices: number[]) => {
     console.log('[handleGroupPlay] 호출됨', { sceneId, groupIndices, groupPlayback: !!groupPlayback })
+    
+    // 음성 선택 여부 확인 (null, undefined, 빈 문자열 모두 체크)
+    if (!voiceTemplate || voiceTemplate.trim() === '') {
+      setShowVoiceRequiredMessage(true)
+      // 음성 탭으로 자동 이동
+      setRightPanelTab('voice')
+      // 3초 후 자동으로 숨김
+      setTimeout(() => {
+        setShowVoiceRequiredMessage(false)
+      }, 3000)
+      return
+    }
+    
     // 이미 같은 그룹이 재생 중이면 정지
     if (groupPlayback.playingGroupSceneId === sceneId) {
       console.log('[handleGroupPlay] 정지 호출')
@@ -1636,13 +1649,26 @@ export function useStep3Container() {
     }
     
     console.log('[handleGroupPlay] 재생 호출')
+    setShowVoiceRequiredMessage(false)
     await groupPlayback.playGroup(sceneId, groupIndices)
-  }, [groupPlayback])
+  }, [groupPlayback, voiceTemplate, setRightPanelTab])
 
   // 씬 재생 핸들러 (useGroupPlayback 훅 사용 - 단일 씬도 그룹으로 처리)
   const handleScenePlay = useCallback(async (sceneIndex: number) => {
     console.log('[handleScenePlay] 호출됨', { sceneIndex, groupPlayback: !!groupPlayback, timeline: !!timeline })
     try {
+      // 음성 선택 여부 확인 (null, undefined, 빈 문자열 모두 체크)
+      if (!voiceTemplate || voiceTemplate.trim() === '') {
+        setShowVoiceRequiredMessage(true)
+        // 음성 탭으로 자동 이동
+        setRightPanelTab('voice')
+        // 3초 후 자동으로 숨김
+        setTimeout(() => {
+          setShowVoiceRequiredMessage(false)
+        }, 3000)
+        return
+      }
+      
       // 이미 같은 씬이 재생 중이면 정지
       if (groupPlayback.playingSceneIndex === sceneIndex) {
         console.log('[handleScenePlay] 정지 호출')
@@ -1655,6 +1681,7 @@ export function useStep3Container() {
       const scene = timeline?.scenes[sceneIndex]
       const sceneId = scene?.sceneId
       console.log('[handleScenePlay] 재생 호출', { sceneId, sceneIndex })
+      setShowVoiceRequiredMessage(false)
       await groupPlayback.playGroup(sceneId, [sceneIndex])
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -1683,7 +1710,7 @@ export function useStep3Container() {
       // 기타 오류는 콘솔에만 출력
       console.error('[씬 재생] 오류:', error)
     }
-  }, [groupPlayback, timeline, router])
+  }, [groupPlayback, timeline, router, voiceTemplate, setRightPanelTab])
 
   // 그룹 삭제 핸들러
   const handleGroupDelete = useCallback((sceneId: number, groupIndices: number[]) => {

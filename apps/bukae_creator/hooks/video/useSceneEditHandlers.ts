@@ -254,54 +254,121 @@ export function useSceneEditHandlers({
       const targetSceneScript = scenes[index]
       const targetTimelineScene = timeline.scenes[index]
 
-      // 항상 새로운 독립적인 씬으로 복사
-      // 새로운 sceneId 할당 (최대 sceneId + 1)
-      const maxSceneId = Math.max(...scenes.map(s => s.sceneId || 0), ...timeline.scenes.map(s => s.sceneId || 0))
-      const newSceneId = maxSceneId + 1
+      // 그룹 내 세부 씬인지 확인 (splitIndex가 있는지 확인)
+      const isGroupedScene = targetSceneScript.splitIndex !== undefined
 
-      const duplicatedSceneScript: SceneScript = {
-        ...targetSceneScript,
-        sceneId: newSceneId, // 새로운 sceneId 할당
-        splitIndex: undefined, // splitIndex 제거하여 독립적인 씬으로
+      if (isGroupedScene) {
+        // 그룹 내 세부 씬을 복사하는 경우: 같은 그룹 내에 새로운 세부 씬으로 추가
+        const groupSceneId = targetSceneScript.sceneId
+
+        // 같은 그룹 내의 모든 세부 씬들 찾기
+        const sameGroupScenes = scenes
+          .map((s, i) => ({ scene: s, index: i }))
+          .filter(({ scene }) => scene.sceneId === groupSceneId && scene.splitIndex !== undefined)
+
+        // 최대 splitIndex 구하기
+        const maxSplitIndex = sameGroupScenes.reduce((max, { scene }) => {
+          return Math.max(max, scene.splitIndex || 0)
+        }, 0)
+
+        // 새로운 splitIndex 할당
+        const newSplitIndex = maxSplitIndex + 1
+
+        // 그룹의 마지막 세부 씬 다음 위치 찾기
+        const lastGroupSceneIndex = Math.max(...sameGroupScenes.map(({ index }) => index))
+        const insertIndex = lastGroupSceneIndex + 1
+
+        const duplicatedSceneScript: SceneScript = {
+          ...targetSceneScript,
+          sceneId: groupSceneId, // 같은 그룹의 sceneId 유지
+          splitIndex: newSplitIndex, // 새로운 splitIndex 할당
+        }
+
+        const duplicatedTimelineScene: TimelineScene = {
+          ...targetTimelineScene,
+          sceneId: groupSceneId, // 같은 그룹의 sceneId 유지
+          splitIndex: newSplitIndex, // 새로운 splitIndex 할당
+        }
+
+        // scenes 배열에 삽입
+        const newScenes = [
+          ...scenes.slice(0, insertIndex),
+          duplicatedSceneScript,
+          ...scenes.slice(insertIndex),
+        ]
+
+        // timeline.scenes 배열에도 삽입
+        const newTimelineScenes = [
+          ...timeline.scenes.slice(0, insertIndex),
+          duplicatedTimelineScene,
+          ...timeline.scenes.slice(insertIndex),
+        ]
+
+        setScenes(newScenes)
+        setTimeline({
+          ...timeline,
+          scenes: newTimelineScenes,
+        })
+
+        // 복제된 씬을 선택
+        setCurrentSceneIndex(insertIndex)
+        currentSceneIndexRef.current = insertIndex
+
+        // 복사된 씬을 변경 상태로 표시 (재생 시 강제 재생성)
+        changedScenesRef.current.add(insertIndex)
+
+        // 스크립트가 변경되었으므로 해당 씬의 TTS 캐시 무효화
+        invalidateSceneTtsCache(insertIndex)
+      } else {
+        // 독립적인 씬을 복사하는 경우: 새로운 독립적인 씬으로 복사
+        // 새로운 sceneId 할당 (최대 sceneId + 1)
+        const maxSceneId = Math.max(...scenes.map(s => s.sceneId || 0), ...timeline.scenes.map(s => s.sceneId || 0))
+        const newSceneId = maxSceneId + 1
+
+        const duplicatedSceneScript: SceneScript = {
+          ...targetSceneScript,
+          sceneId: newSceneId, // 새로운 sceneId 할당
+          splitIndex: undefined, // splitIndex 제거하여 독립적인 씬으로
+        }
+
+        const duplicatedTimelineScene: TimelineScene = {
+          ...targetTimelineScene,
+          sceneId: newSceneId, // 새로운 sceneId 할당
+        }
+
+        // 원본 씬 바로 다음 위치에 삽입
+        const insertIndex = index + 1
+
+        // scenes 배열에 삽입
+        const newScenes = [
+          ...scenes.slice(0, insertIndex),
+          duplicatedSceneScript,
+          ...scenes.slice(insertIndex),
+        ]
+
+        // timeline.scenes 배열에도 삽입
+        const newTimelineScenes = [
+          ...timeline.scenes.slice(0, insertIndex),
+          duplicatedTimelineScene,
+          ...timeline.scenes.slice(insertIndex),
+        ]
+
+        setScenes(newScenes)
+        setTimeline({
+          ...timeline,
+          scenes: newTimelineScenes,
+        })
+
+        // 복제된 씬을 선택
+        setCurrentSceneIndex(insertIndex)
+        currentSceneIndexRef.current = insertIndex
+
+        // 복사된 씬을 변경 상태로 표시 (재생 시 강제 재생성)
+        changedScenesRef.current.add(insertIndex)
+
+        // 스크립트가 변경되었으므로 해당 씬의 TTS 캐시 무효화
+        invalidateSceneTtsCache(insertIndex)
       }
-
-      const duplicatedTimelineScene: TimelineScene = {
-        ...targetTimelineScene,
-        sceneId: newSceneId, // 새로운 sceneId 할당
-      }
-
-      // 원본 씬 바로 다음 위치에 삽입
-      const insertIndex = index + 1
-
-      // scenes 배열에 삽입
-      const newScenes = [
-        ...scenes.slice(0, insertIndex),
-        duplicatedSceneScript,
-        ...scenes.slice(insertIndex),
-      ]
-
-      // timeline.scenes 배열에도 삽입
-      const newTimelineScenes = [
-        ...timeline.scenes.slice(0, insertIndex),
-        duplicatedTimelineScene,
-        ...timeline.scenes.slice(insertIndex),
-      ]
-
-      setScenes(newScenes)
-      setTimeline({
-        ...timeline,
-        scenes: newTimelineScenes,
-      })
-
-      // 복제된 씬을 선택
-      setCurrentSceneIndex(insertIndex)
-      currentSceneIndexRef.current = insertIndex
-
-      // 복사된 씬을 변경 상태로 표시 (재생 시 강제 재생성)
-      changedScenesRef.current.add(insertIndex)
-
-      // 스크립트가 변경되었으므로 해당 씬의 TTS 캐시 무효화
-      invalidateSceneTtsCache(insertIndex)
     },
     [scenes, timeline, setScenes, setTimeline, setCurrentSceneIndex, currentSceneIndexRef, invalidateSceneTtsCache, changedScenesRef]
   )
