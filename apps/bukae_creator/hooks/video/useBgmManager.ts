@@ -3,13 +3,14 @@ import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
 
 interface UseBgmManagerParams {
   bgmTemplate: string | null
-  playbackSpeed?: number // 배속 설정 (재생 중인 BGM의 playbackRate 업데이트에 사용)
+  playbackSpeed?: number // 배속 설정 (호환성을 위해 유지하지만 BGM에는 적용되지 않음)
   isPlaying?: boolean // 사용되지 않지만 인터페이스 호환성을 위해 유지
 }
 
 /**
  * BGM 관리 hook
  * BGM 오디오 재생, 확정 처리, 부트스트래핑 상태 관리를 담당합니다.
+ * BGM은 배속 설정과 무관하게 항상 1.0x 속도로 재생됩니다.
  */
 export function useBgmManager({
   bgmTemplate,
@@ -32,12 +33,12 @@ export function useBgmManager({
     }
   }, [bgmTemplate, confirmedBgmTemplate])
 
-  // 배속 변경 시 재생 중인 BGM의 playbackRate 업데이트
-  useEffect(() => {
-    if (playbackSpeed !== undefined && bgmAudioRef.current) {
-      bgmAudioRef.current.playbackRate = playbackSpeed
-    }
-  }, [playbackSpeed])
+  // 배속 변경 시 재생 중인 BGM의 playbackRate 업데이트 (비활성화: BGM은 배속 적용 안 함)
+  // useEffect(() => {
+  //   if (playbackSpeed !== undefined && bgmAudioRef.current) {
+  //     bgmAudioRef.current.playbackRate = playbackSpeed
+  //   }
+  // }, [playbackSpeed])
 
   const stopBgmAudio = useCallback(() => {
     const a = bgmAudioRef.current
@@ -96,7 +97,7 @@ export function useBgmManager({
       stopBgmAudio()
       const audio = new Audio(url)
       audio.loop = true
-      audio.playbackRate = playbackSpeed
+      audio.playbackRate = 1.0 // BGM은 배속 적용 안 함 (항상 1.0x 속도)
       audio.volume = 0.5 // 미리보기에서 볼륨 낮춤
       bgmAudioRef.current = audio
       
