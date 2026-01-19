@@ -111,6 +111,7 @@ export default function VoiceSelector({
           return
         }
 
+        // 모든 음성을 한 번에 가져오기
         const res = await fetch('/api/tts/voices', {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -123,13 +124,12 @@ export default function VoiceSelector({
 
         const data = await res.json()
         if (!cancelled) {
-          // API가 이미 모든 Provider의 목소리를 반환하므로 중복 추가 불필요
           const voicesList = data.voices || []
           setVoices(voicesList)
           // 디버깅: Provider별 목소리 확인
           const googleVoices = voicesList.filter((v: PublicVoiceInfo) => v.provider === 'google' || !v.provider)
           const elevenlabsVoices = voicesList.filter((v: PublicVoiceInfo) => v.provider === 'elevenlabs')
-          console.log('[VoiceSelector] Total voices:', voicesList.length)
+          console.log('[VoiceSelector] Initial voices loaded:', voicesList.length)
           console.log('[VoiceSelector] Google voices:', googleVoices.length)
           console.log('[VoiceSelector] ElevenLabs voices:', elevenlabsVoices.length)
         }
@@ -150,6 +150,7 @@ export default function VoiceSelector({
       cancelled = true
     }
   }, [])
+
 
   const openConfirm = useCallback((voiceName: string) => {
     setPendingVoiceName(voiceName)
@@ -545,6 +546,12 @@ export default function VoiceSelector({
   const renderGenderGroup = useCallback((voices: PublicVoiceInfo[], genderLabel: string) => {
     if (voices.length === 0) return null
 
+    // 중복 제거: 같은 키를 가진 음성 제거
+    const uniqueVoices = voices.filter((v, index, self) => {
+      const key = `${v.provider || 'google'}:${v.voiceId || v.name}`
+      return index === self.findIndex(vo => `${vo.provider || 'google'}:${vo.voiceId || vo.name}` === key)
+    })
+
     return (
       <div className="space-y-4">
         <div>
@@ -560,7 +567,7 @@ export default function VoiceSelector({
           <div className="h-0.5 bg-[#bbc9c9] mt-2" />
         </div>
         <div className="grid grid-cols-2 gap-4">
-          {voices.map(renderVoiceItem)}
+          {uniqueVoices.map(renderVoiceItem)}
         </div>
       </div>
     )

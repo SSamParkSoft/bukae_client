@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import * as PIXI from 'pixi.js'
 import { TimelineData } from '@/store/useVideoCreateStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
+import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import type {
   RenderSceneImageOptions,
   RenderSubtitlePartOptions,
@@ -259,6 +260,60 @@ export function useSceneRenderer({
 
       // 텍스트 업데이트
       targetTextObj.text = partText
+
+      // 자막 스타일 업데이트 (구간별로 다른 설정 적용)
+      if (scene.text) {
+        const fontFamily = resolveSubtitleFontFamily(scene.text.font)
+        const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
+        
+        // 텍스트 너비 계산
+        const stageWidth = appRef.current.screen.width
+        let textWidth = stageWidth * 0.75 // 기본값: 화면 너비의 75%
+        if (scene.text.transform?.width) {
+          textWidth = scene.text.transform.width / (scene.text.transform.scaleX || 1)
+        }
+
+        // 텍스트 스타일 업데이트
+        const styleConfig: Record<string, unknown> = {
+          fontFamily,
+          fontSize: scene.text.fontSize || 80,
+          fill: scene.text.color || '#ffffff',
+          align: scene.text.style?.align || 'center',
+          fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
+          fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
+          wordWrap: true,
+          wordWrapWidth: textWidth,
+          breakWords: true,
+          stroke: { color: '#000000', width: 10 },
+        }
+        
+        const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
+        targetTextObj.style = textStyle
+
+        // 텍스트 Transform 적용
+        if (scene.text.transform) {
+          const scaleX = scene.text.transform.scaleX ?? 1
+          const scaleY = scene.text.transform.scaleY ?? 1
+          targetTextObj.x = scene.text.transform.x
+          targetTextObj.y = scene.text.transform.y
+          targetTextObj.scale.set(scaleX, scaleY)
+          targetTextObj.rotation = scene.text.transform.rotation ?? 0
+        } else {
+          // Transform이 없으면 기본 위치 설정
+          const position = scene.text.position || 'center'
+          const stageHeight = appRef.current.screen.height
+          if (position === 'top') {
+            targetTextObj.y = stageHeight * 0.15
+          } else if (position === 'bottom') {
+            targetTextObj.y = stageHeight * 0.85
+          } else {
+            targetTextObj.y = stageHeight * 0.5
+          }
+          targetTextObj.x = stageWidth * 0.5
+          targetTextObj.scale.set(1, 1)
+          targetTextObj.rotation = 0
+        }
+      }
 
       if (prepareOnly) {
         targetTextObj.visible = true

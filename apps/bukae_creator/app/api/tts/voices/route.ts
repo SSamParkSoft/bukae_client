@@ -17,6 +17,12 @@ export async function GET(request: Request) {
     const rl = await enforceRateLimit(request, { endpoint: 'tts:voices', userId: auth.userId })
     if (rl instanceof NextResponse) return rl
 
+    const { searchParams } = new URL(request.url)
+    const limitParam = searchParams.get('limit')
+    const offsetParam = searchParams.get('offset')
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined
+    const offset = offsetParam ? parseInt(offsetParam, 10) : 0
+
     const allVoices: PublicVoiceInfo[] = []
 
     // 모든 Provider에서 목소리 수집
@@ -41,10 +47,33 @@ export async function GET(request: Request) {
     
     console.log(`[TTS] Total voices loaded: ${allVoices.length} (Google: ${allVoices.filter(v => v.provider === 'google' || !v.provider).length}, ElevenLabs: ${allVoices.filter(v => v.provider === 'elevenlabs').length})`)
 
+    // limit이 지정된 경우: Provider별로 균등하게 분배하여 반환
+    let finalVoices = allVoices
+    if (limit !== undefined) {
+      // Provider별로 그룹화
+      const googleVoices = allVoices.filter(v => v.provider === 'google' || !v.provider)
+      const elevenlabsVoices = allVoices.filter(v => v.provider === 'elevenlabs')
+      
+      // 각 Provider에서 가져올 개수 계산 (처음 로드 시 균등 분배)
+      if (offset === 0) {
+        // 처음 로드: 각 Provider에서 일부씩 가져오기
+        const perProviderLimit = Math.ceil(limit / 2) // 각 Provider에서 가져올 개수
+        const googleSlice = googleVoices.slice(0, perProviderLimit)
+        const elevenlabsSlice = elevenlabsVoices.slice(0, perProviderLimit)
+        finalVoices = [...googleSlice, ...elevenlabsSlice].slice(0, limit)
+      } else {
+        // 추가 로드: 전체 목록에서 offset부터 limit만큼 가져오기
+        const endIndex = Math.min(offset + limit, allVoices.length)
+        finalVoices = allVoices.slice(offset, endIndex)
+      }
+    }
+
     return NextResponse.json(
       {
         languageCode: TTS_LANGUAGE_CODE,
-        voices: allVoices,
+        voices: finalVoices,
+        totalVoices: allVoices.length, // 전체 음성 개수
+        hasMore: limit !== undefined ? offset + finalVoices.length < allVoices.length : false,
       },
       {
         headers: {
