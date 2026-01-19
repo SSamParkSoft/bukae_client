@@ -61,6 +61,7 @@ export const PreviewPanel = memo(function PreviewPanel({
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
   
   // 최신 timeline의 totalDuration 계산 (TTS 합성으로 duration이 업데이트되었을 수 있음)
+  // 배속과는 무관하게 항상 동일한 값이어야 함
   const latestTotalDuration = useMemo(() => {
     if (timeline) {
       return calculateTotalDuration(timeline)
@@ -69,14 +70,16 @@ export const PreviewPanel = memo(function PreviewPanel({
   }, [timeline, totalDuration])
   
   // 최신 totalDuration을 사용한 progressRatio 계산
+  // 배속과는 무관하게 항상 동일한 값이어야 함
   const latestProgressRatio = useMemo(() => {
     if (latestTotalDuration === 0) return 0
     return Math.min(1, currentTime / latestTotalDuration)
   }, [currentTime, latestTotalDuration])
   
-  const actualTime = currentTime / speed
-  const actualDuration = latestTotalDuration / speed
-  const totalTime = latestTotalDuration / speed
+  // 배속 변경 시에도 다시 계산되도록 speed를 의존성에 포함
+  const actualTime = useMemo(() => currentTime / speed, [currentTime, speed])
+  const actualDuration = useMemo(() => latestTotalDuration / speed, [latestTotalDuration, speed])
+  const totalTime = useMemo(() => latestTotalDuration / speed, [latestTotalDuration, speed])
 
   const speedValue = (() => {
     if (speed === 1 || speed === 1.0) return "1.00"
