@@ -965,12 +965,14 @@ export function useStep3Container() {
   useEffect(() => {
     if (!timeline || !voiceTemplate) return
     
-    // scenes의 text content가 변경되었는지 확인
-    const currentScenesKey = timeline.scenes.map(s => s.text?.content || '').join('|')
+    // scenes의 text content와 voiceTemplate이 변경되었는지 확인
+    const currentScenesKey = timeline.scenes.map(s => 
+      `${s.text?.content || ''}|${s.voiceTemplate || ''}`
+    ).join('||')
     const scenesChanged = prevScenesKeyRef.current !== currentScenesKey
     prevScenesKeyRef.current = currentScenesKey
     
-    // text content가 변경되지 않았고, 모든 씬의 duration이 이미 정확히 계산되어 있으면 실행하지 않음
+    // text content나 voiceTemplate이 변경되지 않았고, 모든 씬의 duration이 이미 정확히 계산되어 있으면 실행하지 않음
     if (!scenesChanged) {
       const allScenesHaveDuration = timeline.scenes.every((scene, index) => {
         // actualPlaybackDuration이 있으면 duration이 일치하는지 확인
@@ -981,9 +983,12 @@ export function useStep3Container() {
         const markups = buildSceneMarkup(timeline, index)
         if (markups.length === 0) return true
         
+        // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+        
         let allPartsCached = true
         for (const markup of markups) {
-          const key = makeTtsKey(voiceTemplate, markup)
+          const key = makeTtsKey(sceneVoiceTemplate, markup)
           const cached = ttsCacheRef.current.get(key)
           if (!cached || !cached.durationSec || cached.durationSec <= 0) {
             allPartsCached = false
@@ -994,7 +999,7 @@ export function useStep3Container() {
         if (allPartsCached) {
           let totalTtsDuration = 0
           for (const markup of markups) {
-            const key = makeTtsKey(voiceTemplate, markup)
+            const key = makeTtsKey(sceneVoiceTemplate, markup)
             const cached = ttsCacheRef.current.get(key)
             totalTtsDuration += cached!.durationSec
           }
@@ -1025,13 +1030,16 @@ export function useStep3Container() {
       const markups = buildSceneMarkup(timeline, index)
       if (markups.length === 0) return scene
       
+      // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+      
       // 모든 part가 TTS 캐시에 있는지 확인
       let totalTtsDuration = 0
       let allPartsCached = true
       
       for (let partIndex = 0; partIndex < markups.length; partIndex++) {
         const markup = markups[partIndex]
-        const key = makeTtsKey(voiceTemplate, markup)
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
         const cached = ttsCacheRef.current.get(key)
         
         if (cached && cached.durationSec > 0) {
@@ -1066,7 +1074,7 @@ export function useStep3Container() {
         scenes: updatedScenes,
       })
     }
-  }, [voiceTemplate, setTimeline, timeline])
+  }, [voiceTemplate, setTimeline, timeline, buildSceneMarkup, makeTtsKey])
 
   // getMp3DurationSec는 lib/utils/audio.ts에서 import하여 사용
 
@@ -1089,12 +1097,15 @@ export function useStep3Container() {
       
       // TTS 캐시에서 모든 part의 실제 duration을 다시 계산하여 정확성 보장
       const markups = buildSceneMarkup(timeline, sceneIndex)
+      // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+      
       let totalTtsDuration = 0
       let allPartsCached = true
       
       for (let partIndex = 0; partIndex < markups.length; partIndex++) {
         const markup = markups[partIndex]
-        const key = makeTtsKey(voiceTemplate, markup)
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
         const cached = ttsCacheRef.current.get(key)
         if (cached && cached.durationSec > 0) {
           totalTtsDuration += cached.durationSec
@@ -1145,7 +1156,7 @@ export function useStep3Container() {
       
       setTimeline(newTimeline)
     },
-    [setTimeline, timeline, isPlaying, setCurrentTime, voiceTemplate, ttsCacheRef]
+    [setTimeline, timeline, isPlaying, setCurrentTime, voiceTemplate, ttsCacheRef, buildSceneMarkup, makeTtsKey]
   )
 
   // ensureSceneTts를 유틸리티 함수로 래핑
@@ -1340,10 +1351,12 @@ export function useStep3Container() {
     // sceneId나 sceneIndex로 찾지 못한 경우, 
     // 해당 씬의 현재 스크립트로 생성된 모든 키를 찾아서 무효화
     // (스크립트가 변경되었을 때 이전 캐시를 찾기 위함)
+    // 씬별 voiceTemplate도 고려 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
     if (keysToInvalidate.length === 0) {
       const markups = buildSceneMarkup(timeline, sceneIndex)
+      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate || ''
       markups.forEach((markup) => {
-        const key = makeTtsKey(voiceTemplate || '', markup)
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
         if (ttsCacheRef.current.has(key)) {
           keysToInvalidate.push(key)
         }
@@ -1357,7 +1370,7 @@ export function useStep3Container() {
         ttsCacheRef.current.delete(key)
       }
     })
-  }, [timeline, voiceTemplate])
+  }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey])
 
   // 씬 편집 핸들러들
   const {
@@ -1393,10 +1406,11 @@ export function useStep3Container() {
       const scene = timeline.scenes[sceneIndex]
       if (!scene) return
       
-      // 씬의 voiceTemplate 업데이트
+      // 씬의 voiceTemplate 업데이트 및 actualPlaybackDuration 초기화
+      // (새로운 목소리로 재생성되므로 이전 재생 시간은 무효화)
       const updatedScenes = timeline.scenes.map((s, idx) =>
         idx === sceneIndex
-          ? { ...s, voiceTemplate: newVoiceTemplate }
+          ? { ...s, voiceTemplate: newVoiceTemplate, actualPlaybackDuration: undefined }
           : s
       )
       
