@@ -59,7 +59,7 @@ export function EffectsPanel({
             <div className="bg-white/60 rounded-2xl flex flex-col h-full" style={{ overflowY: 'hidden', overflowX: 'visible' }}>
               {/* 탭바 */}
               <div className="p-1 shrink-0 -mx-1" style={{ overflowX: 'auto', overflowY: 'hidden' }}>
-                <div className="bg-white rounded-2xl p-1 shadow-(--shadow-container) scrollbar-hide" style={{ minWidth: 'max-content' }}>
+                <div className="bg-white rounded-2xl p-1 scrollbar-hide" style={{ minWidth: 'max-content' }}>
                   <div className="flex items-center gap-1 md:flex">
                 <button
                   type="button"

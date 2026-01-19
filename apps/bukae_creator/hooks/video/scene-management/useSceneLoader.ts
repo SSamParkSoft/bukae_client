@@ -148,19 +148,6 @@ export function useSceneLoader({
 
         const sprite = new PIXI.Sprite(texture)
 
-        const imageFit = baseScene.imageFit || 'contain'
-        const params = calculateSpriteParams(
-          texture.width,
-          texture.height,
-          width,
-          height,
-          imageFit
-        )
-
-        sprite.x = params.x
-        sprite.y = params.y
-        sprite.width = params.width
-        sprite.height = params.height
         sprite.anchor.set(0, 0)
         sprite.visible = false
         sprite.alpha = 0
@@ -172,6 +159,14 @@ export function useSceneLoader({
           sprite.width = baseScene.imageTransform.width
           sprite.height = baseScene.imageTransform.height
           sprite.rotation = baseScene.imageTransform.rotation
+        } else {
+          // Transform이 없으면 기초 상태 사용: 상단 15%부터 시작, 가로 100%, 높이 70%
+          const imageY = height * 0.15
+          sprite.x = 0
+          sprite.y = imageY
+          sprite.width = width
+          sprite.height = height * 0.7
+          sprite.rotation = 0
         }
 
         container.addChild(sprite)
@@ -215,14 +210,6 @@ export function useSceneLoader({
           })
 
           text.anchor.set(0.5, 0.5)
-          let textY = height / 2
-          if (scene.text.position === 'top') {
-            textY = 200
-          } else if (scene.text.position === 'bottom') {
-            textY = height * 0.85 // 하단 85% 위치
-          }
-          text.x = width / 2
-          text.y = textY
           text.visible = false
           text.alpha = 0
 
@@ -241,6 +228,13 @@ export function useSceneLoader({
               text.style.wordWrapWidth = baseWidth
               text.text = text.text // 스타일 변경 적용
             }
+          } else {
+            // Transform이 없으면 기초 상태 사용: 하단 85% 위치
+            const textY = height * 0.85
+            text.x = width / 2
+            text.y = textY
+            text.scale.set(1, 1)
+            text.rotation = 0
           }
 
           container.addChild(text)
