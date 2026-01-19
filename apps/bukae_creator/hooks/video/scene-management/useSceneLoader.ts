@@ -219,7 +219,7 @@ export function useSceneLoader({
           if (scene.text.position === 'top') {
             textY = 200
           } else if (scene.text.position === 'bottom') {
-            textY = height - 200
+            textY = height * 0.85 // 하단 85% 위치
           }
           text.x = width / 2
           text.y = textY

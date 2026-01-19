@@ -29,7 +29,6 @@ import { loadPixiTexture } from '@/utils/pixi'
 import { showScene as showSceneUtil } from '@/lib/utils/scene-renderer'
 import { useTtsPreview } from '@/hooks/video/useTtsPreview'
 import { useFabricHandlers } from '@/hooks/video/useFabricHandlers'
-import { applyShortsTemplateToScenes } from '@/lib/utils/scene-template'
 import { transitionLabels, transitions, movements, allTransitions } from '@/lib/data/transitions'
 import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
 import { calculateTotalDuration } from '@/utils/timeline'
@@ -2163,14 +2162,47 @@ export function useStep3Container() {
     }
   }, [isPlaying, fullPlayback, voiceTemplate, setRightPanelTab])
 
-  // 크기 조정하기 핸들러
+  // 되돌리기 핸들러
   const handleResizeTemplate = useCallback(() => {
     if (!timeline || scenes.length === 0) {
       return
     }
     
-    // 쇼츠용 추천 템플릿 적용
-    const nextTimeline = applyShortsTemplateToScenes(timeline, stageDimensions)
+    const { width, height } = stageDimensions
+    
+    // 모든 씬에 되돌리기 적용
+    const updatedScenes = timeline.scenes.map((scene) => {
+      // 이미지: imageTransform 제거하여 초기 상태로 되돌림
+      // 자막: 하단 85% 위치로 설정
+      const textY = height * 0.85 // 하단 85% 위치
+      const textWidth = width * 0.75 // 화면 너비의 75%
+      
+      const textTransform = {
+        x: width * 0.5, // 중앙 (50%)
+        y: textY,
+        width: textWidth,
+        height: height * 0.07, // 화면 높이의 7%
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+      }
+      
+      return {
+        ...scene,
+        imageTransform: undefined, // 초기 상태로 되돌림
+        text: {
+          ...scene.text,
+          position: 'bottom',
+          transform: textTransform,
+        },
+      }
+    })
+    
+    const nextTimeline: TimelineData = {
+      ...timeline,
+      scenes: updatedScenes,
+    }
+    
     setTimeline(nextTimeline)
     
     // 모든 씬을 다시 로드하여 Transform 적용
