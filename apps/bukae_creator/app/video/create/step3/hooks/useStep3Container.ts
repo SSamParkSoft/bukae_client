@@ -26,7 +26,6 @@ import { useSceneEditHandlers } from '@/hooks/video/useSceneEditHandlers'
 import { useVideoExport } from '@/hooks/video/useVideoExport'
 import { ensureSceneTts as ensureSceneTtsUtil } from '@/lib/utils/tts-synthesis'
 import { loadPixiTexture } from '@/utils/pixi'
-import { showScene as showSceneUtil } from '@/lib/utils/scene-renderer'
 import { useTtsPreview } from '@/hooks/video/useTtsPreview'
 import { useFabricHandlers } from '@/hooks/video/useFabricHandlers'
 import { transitionLabels, transitions, movements, allTransitions } from '@/lib/data/transitions'
@@ -51,14 +50,8 @@ export function useStep3Container() {
   const subtitleFont = useVideoCreateStore((state) => state.subtitleFont)
   const subtitleColor = useVideoCreateStore((state) => state.subtitleColor)
   const bgmTemplate = useVideoCreateStore((state) => state.bgmTemplate)
-  const _transitionTemplate = useVideoCreateStore((state) => state.transitionTemplate)
   const voiceTemplate = useVideoCreateStore((state) => state.voiceTemplate)
-  const _setSubtitlePosition = useVideoCreateStore((state) => state.setSubtitlePosition)
-  const _setSubtitleFont = useVideoCreateStore((state) => state.setSubtitleFont)
-  const _setSubtitleColor = useVideoCreateStore((state) => state.setSubtitleColor)
   const setBgmTemplate = useVideoCreateStore((state) => state.setBgmTemplate)
-  const _setTransitionTemplate = useVideoCreateStore((state) => state.setTransitionTemplate)
-  const _setVoiceTemplate = useVideoCreateStore((state) => state.setVoiceTemplate)
   const selectedProducts = useVideoCreateStore((state) => state.selectedProducts)
   const videoTitle = useVideoCreateStore((state) => state.videoTitle)
   const videoDescription = useVideoCreateStore((state) => state.videoDescription)
@@ -73,7 +66,6 @@ export function useStep3Container() {
   const texturesRef = useRef<Map<string, PIXI.Texture>>(new Map())
   const spritesRef = useRef<Map<number, PIXI.Sprite>>(new Map())
   const textsRef = useRef<Map<number, PIXI.Text>>(new Map())
-  const _handlesRef = useRef<PIXI.Graphics | null>(null)
   const isDraggingRef = useRef(false)
   const draggingElementRef = useRef<'image' | 'text' | null>(null) // 현재 드래그 중인 요소 타입
   const dragStartPosRef = useRef<{ x: number; y: number; boundsWidth?: number; boundsHeight?: number }>({ x: 0, y: 0 })
@@ -123,8 +115,7 @@ export function useStep3Container() {
   const fabricScaleRatioRef = useRef<number>(1) // Fabric.js 좌표 스케일 비율
   const [mounted, setMounted] = useState(false)
   const [isTtsBootstrapping, setIsTtsBootstrapping] = useState(false) // 첫 씬 TTS 로딩 상태
-  const _isTtsBootstrappingRef = useRef(false) // 클로저에서 최신 값 참조용
-  const [showReadyMessage, _setShowReadyMessage] = useState(false) // "재생이 가능해요!" 메시지 표시 여부
+  const [showReadyMessage] = useState(false) // "재생이 가능해요!" 메시지 표시 여부
   const [showVoiceRequiredMessage, setShowVoiceRequiredMessage] = useState(false) // "음성을 먼저 선택해주세요" 메시지 표시 여부
   const [isPreparing, setIsPreparing] = useState(false) // 모든 TTS 합성 준비 중인지 여부
   // 스크립트가 변경된 씬 추적 (재생 시 강제 재생성)
@@ -140,7 +131,7 @@ export function useStep3Container() {
   }, [])
 
   // 토큰 검증
-  const { isValidatingToken: _isValidatingToken } = useVideoCreateAuth()
+  useVideoCreateAuth()
 
   // 클라이언트에서만 렌더링 (SSR/Hydration mismatch 방지)
   useEffect(() => {
@@ -249,12 +240,9 @@ export function useStep3Container() {
   const {
     drawEditHandles,
     saveImageTransform,
-    saveAllImageTransforms: _saveAllImageTransforms,
     handleResize,
     setupSpriteDrag,
-    applyImageTransform: _applyImageTransform,
     saveTextTransform,
-    applyTextTransform: _applyTextTransform,
     handleTextResize,
     drawTextEditHandles,
     setupTextDrag,
@@ -419,7 +407,7 @@ export function useStep3Container() {
   const { updateCurrentScene, syncFabricWithScene, loadAllScenes } = sceneManagerResult1
   
   // loadAllScenes가 항상 정의되도록 보장 (초기화되지 않은 경우를 대비)
-  const loadAllScenesStable = loadAllScenes || (async () => {})
+  const loadAllScenesStable = useMemo(() => loadAllScenes || (async () => {}), [loadAllScenes])
   
   // updateCurrentScene을 ref로 감싸서 안정적인 참조 유지
   updateCurrentSceneRef.current = updateCurrentScene
@@ -498,8 +486,6 @@ export function useStep3Container() {
       
       // loadAllScenes 완료 후 spritesRef와 textsRef 상태 확인
       const sceneIndex = currentSceneIndexRef.current
-      const _spriteAfterLoad = spritesRef.current.get(sceneIndex)
-      const _textAfterLoad = textsRef.current.get(sceneIndex)
       
       loadAllScenesCompletedRef.current = true
       
@@ -540,7 +526,6 @@ export function useStep3Container() {
               if (currentEditMode === 'image') {
                 // 이미지 편집 모드일 때는 이미지 핸들만 표시하고 자막 핸들은 제거
                 const currentSprite = spritesRef.current.get(sceneIndex)
-                const _currentText = textsRef.current.get(sceneIndex)
                 
                 // 자막 핸들 제거
                 const existingTextHandles = textEditHandlesRef.current.get(sceneIndex)
@@ -568,7 +553,6 @@ export function useStep3Container() {
                 }
               } else if (currentEditMode === 'text') {
                 // 자막 편집 모드일 때는 자막 핸들만 표시하고 이미지 핸들은 제거
-                const _currentSprite = spritesRef.current.get(sceneIndex)
                 const currentText = textsRef.current.get(sceneIndex)
                 
                 // 이미지 핸들 제거
@@ -611,27 +595,6 @@ export function useStep3Container() {
   
   // timeline 변경 시 저장된 씬 인덱스 복원 (더 이상 필요 없음 - 편집 종료 버튼에서 직접 처리)
 
-  // 현재 씬의 시작 시간 계산
-  const _getSceneStartTime = useCallback((sceneIndex: number) => {
-    if (!timeline) {
-      return 0
-    }
-    let time = 0
-    for (let i = 0; i < sceneIndex; i++) {
-      const currentScene = timeline.scenes[i]
-      const nextScene = timeline.scenes[i + 1]
-      // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
-      const isSameSceneId = nextScene && currentScene.sceneId === nextScene.sceneId
-      const transitionDuration = isSameSceneId ? 0 : (currentScene.transitionDuration || 0.5)
-      time += currentScene.duration + transitionDuration
-    }
-    return time
-  }, [timeline])
-
-  // 씬을 표시하는 공통 함수 (씬 선택과 재생 모두에서 사용)
-  const _showScene = useCallback((index: number) => {
-    showSceneUtil(index, appRef, containerRef, spritesRef, textsRef)
-  }, [appRef, containerRef, spritesRef, textsRef])
 
 
   // useTimelinePlayer (재생 루프 관리) - 먼저 선언하여 currentSceneIndex 등을 얻음
@@ -649,9 +612,6 @@ export function useStep3Container() {
     playbackSpeed,
     setPlaybackSpeed,
     totalDuration,
-    selectScene: _timelineSelectScene,
-    togglePlay: _togglePlay,
-    getStageDimensions: _getStageDimensions,
   } = useTimelinePlayer({
     timeline,
     updateCurrentScene: () => {
@@ -681,12 +641,7 @@ export function useStep3Container() {
   // BGM 관리
   const {
     confirmedBgmTemplate,
-    setConfirmedBgmTemplate: _setConfirmedBgmTemplate,
     isBgmBootstrapping,
-    setIsBgmBootstrapping: _setIsBgmBootstrapping,
-    isBgmBootstrappingRef: _isBgmBootstrappingRef,
-    bgmAudioRef: _bgmAudioRef,
-    bgmStartTimeRef: _bgmStartTimeRef,
     stopBgmAudio,
     startBgmAudio,
     handleBgmConfirm,
@@ -702,7 +657,7 @@ export function useStep3Container() {
   }, [])
 
   // 타임라인 인터랙션
-  const { isDraggingTimeline: _isDraggingTimeline, handleTimelineClick: _handleTimelineClick, handleTimelineMouseDown } = useTimelineInteraction({
+  const { handleTimelineMouseDown } = useTimelineInteraction({
     timeline,
     timelineBarRef,
     isPlaying,
@@ -912,9 +867,6 @@ export function useStep3Container() {
 
   // 재생/일시정지 (씬 선택 로직을 그대로 사용)
   const playTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const _bgmStopTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  // isPlayingRef는 위에서 이미 선언됨
-  const _currentPlayIndexRef = useRef<number>(0)
 
   // -----------------------------
   // TTS 재생/프리페치/캐시 (Chirp3 HD: speakingRate + markup pause 지원)
@@ -930,7 +882,6 @@ export function useStep3Container() {
   const ttsAudioUrlRef = useRef<string | null>(null)
   const scenePreviewAudioRef = useRef<HTMLAudioElement | null>(null)
   const scenePreviewAudioUrlRef = useRef<string | null>(null)
-  const _bgmAudioUrlRef = useRef<string | null>(null)
   const previewingSceneIndexRef = useRef<number | null>(null)
   const previewingPartIndexRef = useRef<number | null>(null)
   const isPreviewingRef = useRef<boolean>(false)
@@ -1113,7 +1064,7 @@ export function useStep3Container() {
         scenes: updatedScenes,
       })
     }
-  }, [voiceTemplate, setTimeline, timeline, buildSceneMarkup, makeTtsKey])
+  }, [voiceTemplate, setTimeline, timeline])
 
   // getMp3DurationSec는 lib/utils/audio.ts에서 import하여 사용
 
@@ -1236,30 +1187,6 @@ export function useStep3Container() {
     ]
   )
 
-  const _prefetchWindow = useCallback(
-    (baseIndex: number) => {
-      if (!timeline) {
-        return
-      }
-      if (!voiceTemplate) {
-        return
-      }
-
-      ttsAbortRef.current?.abort()
-      const controller = new AbortController()
-      ttsAbortRef.current = controller
-
-      const candidates = [baseIndex + 1, baseIndex + 2].filter(
-        (i) => i >= 0 && i < timeline.scenes.length
-      )
-
-      // 간단 동시성 제한: 2개까지만 (현재 창 +2)
-      candidates.forEach((i) => {
-        ensureSceneTts(i, controller.signal).catch(() => {})
-      })
-    },
-    [timeline, voiceTemplate, ensureSceneTts]
-  )
 
   // TTS 미리보기 hook 사용
   const { handleSceneTtsPreview } = useTtsPreview({
@@ -1432,7 +1359,6 @@ export function useStep3Container() {
   // 씬 편집 핸들러들
   const {
     handleSceneScriptChange: originalHandleSceneScriptChange,
-    handleSceneDurationChange: _handleSceneDurationChange,
     handleSceneTransitionChange: originalHandleSceneTransitionChange,
     handleSceneImageFitChange,
     handlePlaybackSpeedChange,
