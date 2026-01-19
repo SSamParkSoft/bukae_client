@@ -81,9 +81,15 @@ export function useGroupPlayback({
   const findScenesToSynthesize = useCallback((groupIndices: number[]): number[] => {
     const scenesToSynthesize: number[] = []
     for (const sceneIndex of groupIndices) {
+      const scene = timeline?.scenes[sceneIndex]
+      if (!scene) continue
+      // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+      if (!sceneVoiceTemplate) continue
+      
       const markups = buildSceneMarkup(timeline, sceneIndex)
       const hasAllCache = markups.every(markup => {
-        const key = makeTtsKey(voiceTemplate!, markup)
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
         const cached = ttsCacheRef.current.get(key)
         return cached && (cached.blob || cached.url)
       })
@@ -123,12 +129,16 @@ export function useGroupPlayback({
           continue
         }
         
+        const scene = timeline!.scenes[sceneIndex]
+        // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+        const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate!
+        
         const markups = buildSceneMarkup(timeline!, sceneIndex)
         for (let i = 0; i < parts.length && i < markups.length; i++) {
           const part = parts[i]
           const partMarkup = markups[i]
           if (part && partMarkup) {
-            const partKey = makeTtsKey(voiceTemplate!, partMarkup)
+            const partKey = makeTtsKey(sceneVoiceTemplate, partMarkup)
             ttsCacheRef.current.set(partKey, {
               blob: part.blob,
               durationSec: part.durationSec,
@@ -155,9 +165,14 @@ export function useGroupPlayback({
     let duration = 0
     if (voiceTemplate && timeline) {
       for (const sceneIndex of groupIndices) {
+        const scene = timeline.scenes[sceneIndex]
+        if (!scene) continue
+        // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+        
         const markups = buildSceneMarkup(timeline, sceneIndex)
         for (const markup of markups) {
-          const key = makeTtsKey(voiceTemplate, markup)
+          const key = makeTtsKey(sceneVoiceTemplate, markup)
           const cached = ttsCacheRef.current.get(key)
           if (cached?.durationSec) {
             duration += cached.durationSec
@@ -538,8 +553,12 @@ export function useGroupPlayback({
           return
         }
 
+        // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+        const targetScene = updatedTimeline.scenes[targetSceneIndex]
+        const sceneVoiceTemplate = targetScene?.voiceTemplate || voiceTemplate
+
         // TTS 파일 가져오기
-        const key = makeTtsKey(voiceTemplate, markup)
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
         let cached = ttsCacheRef.current.get(key)
 
         if (!cached) {
@@ -675,7 +694,7 @@ export function useGroupPlayback({
             resolve()
           }
           
-          const handleError = (event?: Event) => {
+          const handleError = () => {
             cleanup()
             resolve()
           }

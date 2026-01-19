@@ -49,6 +49,12 @@ export async function ensureSceneTts({
   const scene = timeline.scenes[sceneIndex]
   if (!scene) throw new Error(`씬 ${sceneIndex}을 찾을 수 없습니다.`)
 
+  // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+  const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+  if (!sceneVoiceTemplate) {
+    throw new Error('목소리를 먼저 선택해주세요.')
+  }
+
   const markups = buildSceneMarkup(timeline, sceneIndex)
   if (markups.length === 0) throw new Error('씬 대본이 비어있습니다.')
 
@@ -60,9 +66,9 @@ export async function ensureSceneTts({
   // 변경된 씬이면 강제 재생성
   const isChanged = forceRegenerate || changedScenesRef.current.has(sceneIndex)
   if (isChanged) {
-    // 변경된 씬의 모든 캐시 무효화
+    // 변경된 씬의 모든 캐시 무효화 (씬별 voiceTemplate 사용)
     markups.forEach((markup) => {
-      const key = makeTtsKey(voiceTemplate, markup)
+      const key = makeTtsKey(sceneVoiceTemplate, markup)
       ttsCacheRef.current.delete(key)
     })
     // 변경 상태는 모든 구간 처리 완료 후 제거 (아래에서 처리)
@@ -75,7 +81,7 @@ export async function ensureSceneTts({
   for (let partIndex = 0; partIndex < markups.length; partIndex++) {
     const markup = markups[partIndex]
     const part = await (async (): Promise<TtsPart> => {
-      const key = makeTtsKey(voiceTemplate, markup)
+      const key = makeTtsKey(sceneVoiceTemplate, markup)
 
       // 강제 재생성이면 캐시와 저장소 다운로드 모두 스킵하고 바로 TTS 생성
       if (isChanged) {
@@ -179,7 +185,7 @@ export async function ensureSceneTts({
       const p = (async () => {
         // voiceTemplate에서 provider 정보 확인 (로깅용)
         const { voiceTemplateHelpers } = await import('@/store/useVideoCreateStore')
-        const voiceInfo = voiceTemplateHelpers.getVoiceInfo(voiceTemplate)
+        const voiceInfo = voiceTemplateHelpers.getVoiceInfo(sceneVoiceTemplate)
         if (voiceInfo) {
           console.log(`[ensureSceneTts] Scene ${sceneIndex}, Part ${partIndex}: Provider=${voiceInfo.provider}, VoiceId=${voiceInfo.voiceId}`)
         }
@@ -189,7 +195,7 @@ export async function ensureSceneTts({
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
           signal,
           body: JSON.stringify({
-            voiceTemplate: voiceTemplate,
+            voiceTemplate: sceneVoiceTemplate,
             mode: 'markup',
             markup,
           }),

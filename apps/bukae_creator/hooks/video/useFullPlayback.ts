@@ -277,9 +277,13 @@ export function useFullPlayback({
     // 모든 씬의 TTS가 준비되었는지 확인
     const scenesToSynthesize: number[] = []
     for (let i = 0; i < timeline.scenes.length; i++) {
+      const scene = timeline.scenes[i]
+      // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+      const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate
+      
       const markups = buildSceneMarkup(timeline, i)
       const cachedCount = markups.filter(markup => {
-        const key = makeTtsKey(voiceTemplate, markup)
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
         const cached = ttsCacheRef.current.get(key)
         return cached && (cached.blob || cached.url)
       }).length
@@ -309,6 +313,10 @@ export function useFullPlayback({
             continue
           }
           
+          const scene = timeline.scenes[sceneIndex]
+          // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+          const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate
+          
           const markups = buildSceneMarkup(timeline, sceneIndex)
           for (let partIndex = 0; partIndex < markups.length; partIndex++) {
             const part = parts[partIndex]
@@ -327,10 +335,9 @@ export function useFullPlayback({
               continue
             }
             
-            // 캐시에 명시적으로 저장
+            // 캐시에 명시적으로 저장 (씬별 voiceTemplate 사용)
             const markup = markups[partIndex]
-            const key = makeTtsKey(voiceTemplate, markup)
-            const scene = timeline.scenes[sceneIndex]
+            const key = makeTtsKey(sceneVoiceTemplate, markup)
             const cacheEntry = {
               blob: part.blob,
               durationSec: part.durationSec,
@@ -513,15 +520,18 @@ export function useFullPlayback({
         if (sceneId !== undefined && groupIndices.length > 1) {
           // 그룹 재생: 실제 TTS duration 계산 (transition 제외)
           for (const sceneIndex of groupIndices) {
+            const scene = timeline.scenes[sceneIndex]
+            // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+            const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate!
+            
             const markups = buildSceneMarkup(timeline, sceneIndex)
             for (const markup of markups) {
-              const key = makeTtsKey(voiceTemplate!, markup)
+              const key = makeTtsKey(sceneVoiceTemplate, markup)
               const cached = ttsCacheRef.current.get(key)
               if (cached?.durationSec) {
                 groupDuration += cached.durationSec
               } else {
                 // 캐시가 없으면 scene.duration 사용 (fallback)
-                const scene = timeline.scenes[sceneIndex]
                 if (scene) {
                   groupDuration += scene.duration || 0
                 }
@@ -532,16 +542,19 @@ export function useFullPlayback({
         } else {
           // 단일 씬 재생: 실제 TTS duration 계산 (transition 제외)
           for (const sceneIndex of groupIndices) {
+            const scene = timeline.scenes[sceneIndex]
+            // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+            const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate!
+            
             const markups = buildSceneMarkup(timeline, sceneIndex)
             let sceneTtsDuration = 0
             for (const markup of markups) {
-              const key = makeTtsKey(voiceTemplate!, markup)
+              const key = makeTtsKey(sceneVoiceTemplate, markup)
               const cached = ttsCacheRef.current.get(key)
               if (cached?.durationSec) {
                 sceneTtsDuration += cached.durationSec
               } else {
                 // 캐시가 없으면 scene.duration 사용 (fallback)
-                const scene = timeline.scenes[sceneIndex]
                 if (scene) {
                   sceneTtsDuration += scene.duration || 0
                 }
@@ -621,10 +634,14 @@ export function useFullPlayback({
           let totalTtsDuration = 0
           
           for (const sceneIndex of groupIndices) {
+            const scene = timeline.scenes[sceneIndex]
+            // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+            const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate!
+            
             const markups = buildSceneMarkup(timeline, sceneIndex)
             let sceneTtsDuration = 0
             for (const markup of markups) {
-              const key = makeTtsKey(voiceTemplate!, markup)
+              const key = makeTtsKey(sceneVoiceTemplate, markup)
               const cached = ttsCacheRef.current.get(key)
               if (cached?.durationSec) {
                 sceneTtsDuration += cached.durationSec

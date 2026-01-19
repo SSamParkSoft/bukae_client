@@ -16,6 +16,7 @@ interface SceneListPanelProps {
   playingGroupSceneId: number | null
   isPreparing: boolean
   isTtsBootstrapping: boolean
+  voiceTemplate: string | null
   onSelect: (index: number) => void
   onScriptChange: (index: number, value: string) => void
   onImageFitChange: (index: number, fit: 'cover' | 'contain' | 'fill') => void
@@ -29,6 +30,7 @@ interface SceneListPanelProps {
   onPlayGroup: (sceneId: number, groupIndices: number[]) => Promise<void>
   onDeleteGroup: (sceneId: number, groupIndices: number[]) => void
   onPlayScene: (sceneIndex: number) => Promise<void>
+  onVoiceTemplateChange: (sceneIndex: number, voiceTemplate: string | null) => void
 }
 
 export const SceneListPanel = memo(function SceneListPanel({
@@ -43,6 +45,7 @@ export const SceneListPanel = memo(function SceneListPanel({
   playingGroupSceneId,
   isPreparing,
   isTtsBootstrapping,
+  voiceTemplate,
   onSelect,
   onScriptChange,
   onImageFitChange,
@@ -56,6 +59,7 @@ export const SceneListPanel = memo(function SceneListPanel({
   onPlayGroup,
   onDeleteGroup,
   onPlayScene,
+  onVoiceTemplateChange,
 }: SceneListPanelProps) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -86,6 +90,8 @@ export const SceneListPanel = memo(function SceneListPanel({
             playingGroupSceneId={playingGroupSceneId}
             isPreparing={isPreparing}
             isTtsBootstrapping={isTtsBootstrapping}
+            voiceTemplate={voiceTemplate}
+            onVoiceTemplateChange={onVoiceTemplateChange}
           />
         </div>
       </div>

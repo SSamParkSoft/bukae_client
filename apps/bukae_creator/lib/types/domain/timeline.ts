@@ -107,6 +107,7 @@ export interface TimelineScene {
   advancedEffects?: AdvancedEffects
   text: TextSettings
   soundEffect?: string | null
+  voiceTemplate?: string | null // 씬별 TTS 목소리 템플릿 (없으면 전역 voiceTemplate 사용)
 }
 
 /**

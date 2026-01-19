@@ -44,7 +44,7 @@ export function useTimelinePlayer({
   const lastUpdateTimeRef = useRef<number>(0) // 마지막 상태 업데이트 시간 (리렌더링 방지용)
 
   const totalDuration = useMemo(() => {
-    if (!timeline || timeline.scenes.length === 0) return 0
+    if (!timeline || !timeline.scenes || timeline.scenes.length === 0) return 0
     return calculateTotalDuration(timeline)
   }, [timeline])
 
@@ -74,7 +74,7 @@ export function useTimelinePlayer({
   // 재생 루프
   useEffect(() => {
     tickRef.current = (timestamp: number) => {
-      if (!isPlaying || !timeline) return
+      if (!isPlaying || !timeline || !timeline.scenes || timeline.scenes.length === 0) return
       
       // 비디오 재생 중일 때는 자동 시간 업데이트와 씬 전환을 모두 건너뛰고 실제 오디오 재생 시간을 사용
       // useVideoPlayback이 씬 전환을 담당하므로 여기서는 씬 전환을 하지 않음

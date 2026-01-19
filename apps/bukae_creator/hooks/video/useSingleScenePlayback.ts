@@ -186,8 +186,11 @@ export function useSingleScenePlayback({
       return
     }
 
+    // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+    const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate
+
     // TTS 캐시 확인
-    const key = makeTtsKey(voiceTemplate, markup)
+    const key = makeTtsKey(sceneVoiceTemplate, markup)
     let cached = ttsCacheRef.current.get(key)
 
     // TTS가 없으면 합성

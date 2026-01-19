@@ -325,8 +325,11 @@ export async function playSceneLogic({
           return
         }
 
+        // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+
         // TTS 파일 가져오기 (캐시에서)
-        const key = makeTtsKey(voiceTemplate, markup)
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
         
         let cached = ttsCacheRef.current.get(key)
 
@@ -349,12 +352,15 @@ export async function playSceneLogic({
               
               // 생성된 TTS를 캐시에 저장
               const markups = buildSceneMarkup(timeline, sceneIndex)
+              const scene = timeline.scenes[sceneIndex]
+              // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+              const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate
+              
               for (let i = 0; i < ttsResult.parts.length; i++) {
                 const part = ttsResult.parts[i]
                 const partMarkup = markups[i]
                 if (part && partMarkup) {
-                  const partKey = makeTtsKey(voiceTemplate, partMarkup)
-                  const scene = timeline.scenes[sceneIndex]
+                  const partKey = makeTtsKey(sceneVoiceTemplate, partMarkup)
                   const cacheEntry = {
                     blob: part.blob,
                     durationSec: part.durationSec,

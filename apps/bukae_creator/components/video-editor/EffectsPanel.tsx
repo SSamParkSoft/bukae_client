@@ -25,6 +25,9 @@ interface EffectsPanelProps {
   onSoundEffectConfirm: (effectId: string | null) => void
   setTimeline: (value: TimelineData) => void
   showVoiceRequiredMessage?: boolean
+  scenesWithoutVoice?: number[]
+  globalVoiceTemplate?: string | null
+  onVoiceTemplateChange?: (sceneIndex: number, voiceTemplate: string | null) => void
 }
 
 export function EffectsPanel({
@@ -46,10 +49,19 @@ export function EffectsPanel({
   onSoundEffectConfirm,
   setTimeline,
   showVoiceRequiredMessage = false,
+  scenesWithoutVoice = [],
+  globalVoiceTemplate,
+  onVoiceTemplateChange,
 }: EffectsPanelProps) {
   // transitions와 movements가 제공되면 사용, 아니면 allTransitions 사용 (하위 호환성)
   const displayTransitions = transitions || allTransitions
   const displayMovements = movements || []
+  
+  // 현재 씬의 voiceTemplate 계산 (씬별 voiceTemplate이 있으면 사용, 없으면 전역 voiceTemplate 사용)
+  const sceneVoiceTemplate = timeline && currentSceneIndex >= 0
+    ? (timeline.scenes[currentSceneIndex]?.voiceTemplate || globalVoiceTemplate)
+    : globalVoiceTemplate
+  
   return (
     <div className="w-full flex flex-col h-full overflow-hidden">
       <div className="flex-1 overflow-hidden min-h-0 flex flex-col" style={{ width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }}>
@@ -387,8 +399,10 @@ export function EffectsPanel({
                 <TabsContent value="voice" className="px-6 pt-6 space-y-4 w-full max-w-full overflow-x-hidden relative">
                   {/* 음성 선택 안 했을 때 말풍선 UI */}
                   {showVoiceRequiredMessage && rightPanelTab === 'voice' && (
-                    <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-red-500 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg whitespace-nowrap z-50 animate-bounce">
-                      음성을 먼저 선택해주세요
+                    <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-red-500 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg z-50 animate-bounce">
+                      {scenesWithoutVoice.length > 0 
+                        ? `씬 ${scenesWithoutVoice.join(', ')}에 음성을 선택해주세요`
+                        : '음성을 먼저 선택해주세요'}
                     </div>
                   )}
                   <div className="w-full max-w-full overflow-x-hidden box-border">
@@ -397,6 +411,12 @@ export function EffectsPanel({
                       title="목소리 선택"
                       disabled={!timeline || currentSceneIndex < 0}
                       layout="panel"
+                      sceneVoiceTemplate={sceneVoiceTemplate}
+                      onSceneVoiceTemplateChange={onVoiceTemplateChange ? (voiceTemplate: string | null) => {
+                        if (currentSceneIndex >= 0) {
+                          onVoiceTemplateChange(currentSceneIndex, voiceTemplate)
+                        }
+                      } : undefined}
                     />
                   </div>
                 </TabsContent>

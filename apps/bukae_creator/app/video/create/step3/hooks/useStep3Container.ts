@@ -117,6 +117,7 @@ export function useStep3Container() {
   const [isTtsBootstrapping, setIsTtsBootstrapping] = useState(false) // 첫 씬 TTS 로딩 상태
   const [showReadyMessage] = useState(false) // "재생이 가능해요!" 메시지 표시 여부
   const [showVoiceRequiredMessage, setShowVoiceRequiredMessage] = useState(false) // "음성을 먼저 선택해주세요" 메시지 표시 여부
+  const [scenesWithoutVoice, setScenesWithoutVoice] = useState<number[]>([]) // 목소리가 선택되지 않은 씬 번호 목록
   const [isPreparing, setIsPreparing] = useState(false) // 모든 TTS 합성 준비 중인지 여부
   // 스크립트가 변경된 씬 추적 (재생 시 강제 재생성)
   const changedScenesRef = useRef<Set<number>>(new Set())
@@ -173,7 +174,8 @@ export function useStep3Container() {
     stageDimensions,
     canvasSize,
     pixiContainerRef,
-    timelineScenesLength: timeline?.scenes.length,
+    // timeline이나 scenes가 아직 준비되지 않은 경우에도 안전하게 처리
+    timelineScenesLength: timeline?.scenes?.length ?? 0,
   })
 
   // 진행 중인 애니메이션 추적 (usePixiFabric보다 먼저 선언)
@@ -1188,6 +1190,7 @@ export function useStep3Container() {
   )
 
 
+
   // TTS 미리보기 hook 사용
   const { handleSceneTtsPreview } = useTtsPreview({
     timeline,
@@ -1381,6 +1384,33 @@ export function useStep3Container() {
     setPlaybackSpeed,
     renderSceneContent,
   })
+
+  // 씬별 voiceTemplate 설정 핸들러
+  const handleSceneVoiceTemplateChange = useCallback(
+    (sceneIndex: number, newVoiceTemplate: string | null) => {
+      if (!timeline) return
+      
+      const scene = timeline.scenes[sceneIndex]
+      if (!scene) return
+      
+      // 씬의 voiceTemplate 업데이트
+      const updatedScenes = timeline.scenes.map((s, idx) =>
+        idx === sceneIndex
+          ? { ...s, voiceTemplate: newVoiceTemplate }
+          : s
+      )
+      
+      setTimeline({
+        ...timeline,
+        scenes: updatedScenes,
+      })
+      
+      // TTS 캐시 무효화 (새로운 목소리로 재생성 필요)
+      changedScenesRef.current.add(sceneIndex)
+      invalidateSceneTtsCache(sceneIndex)
+    },
+    [timeline, setTimeline, changedScenesRef, invalidateSceneTtsCache]
+  )
 
   // 씬 편집 핸들러들
   const {
@@ -2072,21 +2102,78 @@ export function useStep3Container() {
       fullPlayback?.stopAllScenes()
       setShowVoiceRequiredMessage(false)
     } else {
-      // 음성 선택 여부 확인 (null, undefined, 빈 문자열 모두 체크)
-      if (!voiceTemplate || voiceTemplate.trim() === '') {
+      // 모든 씬의 음성 선택 여부 확인
+      if (!timeline) {
+        console.log('[handlePlayPause] timeline이 없습니다.')
+        return
+      }
+      
+      console.log('[handlePlayPause] 음성 선택 여부 확인 시작')
+      console.log('[handlePlayPause] 전역 voiceTemplate:', voiceTemplate)
+      console.log('[handlePlayPause] 총 씬 개수:', timeline.scenes.length)
+      
+      const scenesWithoutVoice: number[] = []
+      for (let i = 0; i < timeline.scenes.length; i++) {
+        const scene = timeline.scenes[i]
+        const sceneVoiceTemplateRaw = scene?.voiceTemplate
+        console.log(`[handlePlayPause] 씬 ${i + 1}:`, {
+          sceneId: scene?.sceneId,
+          sceneVoiceTemplate: sceneVoiceTemplateRaw,
+          sceneVoiceTemplateType: typeof sceneVoiceTemplateRaw,
+          sceneVoiceTemplateIsNull: sceneVoiceTemplateRaw === null,
+          sceneVoiceTemplateIsUndefined: sceneVoiceTemplateRaw === undefined,
+          sceneVoiceTemplateTrimmed: sceneVoiceTemplateRaw?.trim(),
+          globalVoiceTemplate: voiceTemplate,
+        })
+        
+        // 씬별 voiceTemplate이 있으면 사용, 없으면(null/undefined/빈 문자열) 전역 voiceTemplate 사용
+        // scene.voiceTemplate이 null, undefined, 빈 문자열이 아닌 경우에만 사용
+        const hasSceneVoiceTemplate = scene?.voiceTemplate != null && 
+                                      typeof scene.voiceTemplate === 'string' && 
+                                      scene.voiceTemplate.trim() !== ''
+        const sceneVoiceTemplate = hasSceneVoiceTemplate 
+          ? scene.voiceTemplate 
+          : voiceTemplate
+        
+        console.log(`[handlePlayPause] 씬 ${i + 1} 최종 voiceTemplate:`, sceneVoiceTemplate)
+        console.log(`[handlePlayPause] 씬 ${i + 1} hasSceneVoiceTemplate:`, hasSceneVoiceTemplate)
+        
+        // 최종적으로 voiceTemplate이 없으면 에러
+        // sceneVoiceTemplate이 null이거나 빈 문자열이면 음성이 없는 것으로 판단
+        // 하지만 sceneVoiceTemplate이 null이면 이미 voiceTemplate을 사용하도록 했으므로,
+        // 실제로는 sceneVoiceTemplate이 null이 아니어야 함
+        const isEmpty = sceneVoiceTemplate == null || 
+                       sceneVoiceTemplate === '' ||
+                       (typeof sceneVoiceTemplate === 'string' && sceneVoiceTemplate.trim() === '')
+        console.log(`[handlePlayPause] 씬 ${i + 1} isEmpty:`, isEmpty, 'sceneVoiceTemplate:', sceneVoiceTemplate, 'type:', typeof sceneVoiceTemplate, 'length:', sceneVoiceTemplate?.length)
+        
+        if (isEmpty) {
+          console.log(`[handlePlayPause] 씬 ${i + 1}에 음성이 없습니다.`)
+          scenesWithoutVoice.push(i + 1) // 사용자에게 보여줄 때는 1부터 시작
+        } else {
+          console.log(`[handlePlayPause] 씬 ${i + 1}에 음성이 있습니다:`, sceneVoiceTemplate)
+        }
+      }
+      
+      console.log('[handlePlayPause] 음성이 없는 씬:', scenesWithoutVoice)
+      
+      if (scenesWithoutVoice.length > 0) {
+        setScenesWithoutVoice(scenesWithoutVoice)
         setShowVoiceRequiredMessage(true)
         // 음성 탭으로 자동 이동
         setRightPanelTab('voice')
         // 3초 후 자동으로 숨김
         setTimeout(() => {
           setShowVoiceRequiredMessage(false)
+          setScenesWithoutVoice([])
         }, 3000)
         return
       }
+      
       setShowVoiceRequiredMessage(false)
       void fullPlayback?.playAllScenes()
     }
-  }, [isPlaying, fullPlayback, voiceTemplate, setRightPanelTab])
+  }, [isPlaying, fullPlayback, voiceTemplate, timeline, setRightPanelTab])
 
   // 되돌리기 핸들러
   const handleResizeTemplate = useCallback(() => {
@@ -2189,6 +2276,7 @@ export function useStep3Container() {
     isPreparing,
     showReadyMessage,
     showVoiceRequiredMessage,
+    scenesWithoutVoice,
     isExporting,
     isPreviewingTransition,
     
@@ -2216,6 +2304,7 @@ export function useStep3Container() {
     handleGroupDelete,
     handleScenePlay,
     handleResizeTemplate,
+    handleSceneVoiceTemplateChange,
     onSelectPart: sceneNavigation.selectPart,
     
     // Scene data
@@ -2270,6 +2359,7 @@ export function useStep3Container() {
     isPreparing,
     showReadyMessage,
     showVoiceRequiredMessage,
+    scenesWithoutVoice,
     isExporting,
     isPreviewingTransition,
     canvasDisplaySize,
@@ -2293,6 +2383,7 @@ export function useStep3Container() {
     handleGroupDelete,
     handleScenePlay,
     handleResizeTemplate,
+    handleSceneVoiceTemplateChange,
     sceneNavigation.selectPart,
     sceneThumbnails,
     fullPlayback,

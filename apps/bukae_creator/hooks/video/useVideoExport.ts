@@ -155,22 +155,30 @@ export function useVideoExport({
           return { sceneIndex: index, result: null }
         }
 
+        // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+        const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate
+        
+        if (!sceneVoiceTemplate) {
+          console.warn(`[useVideoExport] 씬 ${index}에 voiceTemplate이 없습니다.`)
+          return { sceneIndex: index, result: null }
+        }
+
         // 모든 구간이 캐시되어 있는지 확인
         const allCached = markups.every(markup => {
-          const key = makeTtsKey(voiceTemplate, markup)
+          const key = makeTtsKey(sceneVoiceTemplate, markup)
           return ttsCacheRef.current.has(key)
         })
 
         if (allCached) {
           // 모든 구간의 duration 합산
           const totalDuration = markups.reduce((sum, markup) => {
-            const key = makeTtsKey(voiceTemplate, markup)
+            const key = makeTtsKey(sceneVoiceTemplate, markup)
             const cached = ttsCacheRef.current.get(key)
             return sum + (cached?.durationSec || 0)
           }, 0)
           
           // 첫 번째 구간의 blob 사용 (임시, 나중에 수정 필요)
-          const firstKey = makeTtsKey(voiceTemplate, markups[0])
+          const firstKey = makeTtsKey(sceneVoiceTemplate, markups[0])
           const firstCached = ttsCacheRef.current.get(firstKey)
           
           if (firstCached && firstCached.blob) {
@@ -460,6 +468,8 @@ export function useVideoExport({
             // 마지막 씬의 정보 사용 (transition 등)
             const lastSceneIndex = group[group.length - 1].index
             const lastScene = group[group.length - 1].scene
+            // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+            const sceneVoiceTemplate = firstScene.voiceTemplate || voiceTemplate
             
             // 캔버스에서 읽은 transform 사용 (없으면 timeline의 transform 사용)
             const firstSceneCanvasTransform = canvasTransforms.get(firstSceneIndex)
