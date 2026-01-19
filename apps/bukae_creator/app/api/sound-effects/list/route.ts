@@ -3,6 +3,7 @@ import { getSupabaseServiceClient } from '@/lib/api/supabase-server'
 import {
   soundEffectsMetadata,
   getSoundEffectPath,
+  getSoundEffectsByCategory,
 } from '@/lib/data/sound-effects'
 
 export const dynamic = 'force-dynamic'
@@ -24,62 +25,90 @@ interface SoundEffectFile {
 /**
  * 실제 Supabase Storage에서 파일 목록을 가져와서 JSON 메타데이터와 매칭합니다.
  * 실제 존재하는 파일만 반환합니다.
+ * 
+ * 쿼리 파라미터:
+ * - limit: 반환할 카테고리 개수 (선택사항, 기본값: 모든 카테고리)
+ * - offset: 시작 카테고리 인덱스 (선택사항, 기본값: 0)
  */
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const limitParam = searchParams.get('limit')
+  const offsetParam = searchParams.get('offset')
+  const limit = limitParam ? parseInt(limitParam, 10) : undefined
+  const offset = offsetParam ? parseInt(offsetParam, 10) : 0
   try {
     const supabase = getSupabaseServiceClient()
+    
+    // 먼저 메타데이터에서 카테고리 목록 가져오기 (빠름)
+    const metadataByCategory = getSoundEffectsByCategory()
+    const allCategories = Object.keys(metadataByCategory).sort((a, b) => a.localeCompare(b, 'ko'))
+    
+    // limit이 있으면 필요한 카테고리만 추출
+    let targetCategories: string[] = allCategories
+    if (limit !== undefined) {
+      const endIndex = Math.min(offset + limit, allCategories.length)
+      targetCategories = allCategories.slice(offset, endIndex)
+    }
+    
     // 실제 파일 정보 저장: {categoryEn}/{key} -> { path: 실제경로, name: 파일명 }
     const actualFilesMap = new Map<string, { path: string; name: string }>()
-    const queue: string[] = [''] // 빈 문자열은 루트 폴더를 의미
-
-    // BFS 방식으로 모든 폴더와 파일 탐색
-    while (queue.length > 0) {
-      const currentPrefix = queue.shift()!
-
-      for (let offset = 0; ; offset += PAGE_SIZE) {
-        const { data, error } = await supabase.storage.from(BUCKET).list(currentPrefix, {
+    
+    // 필요한 카테고리의 폴더만 스캔 (최적화)
+    const categoriesToScan = new Set<string>()
+    targetCategories.forEach((categoryKo) => {
+      const metadataList = metadataByCategory[categoryKo]
+      if (metadataList && metadataList.length > 0) {
+        // 첫 번째 메타데이터에서 카테고리 영어명 가져오기
+        categoriesToScan.add(metadataList[0].category.en)
+      }
+    })
+    
+    // 필요한 카테고리 폴더만 병렬로 스캔
+    const scanPromises = Array.from(categoriesToScan).map(async (categoryEn) => {
+      try {
+        const { data, error } = await supabase.storage.from(BUCKET).list(categoryEn, {
           limit: PAGE_SIZE,
-          offset,
+          offset: 0,
           sortBy: { column: 'name', order: 'asc' },
         })
 
         if (error) {
-          console.error('[sound-effects list] 목록 조회 실패:', error)
-          // 에러가 발생해도 계속 진행 (일부 폴더만 실패할 수 있음)
-          break
+          console.error(`[sound-effects list] 카테고리 ${categoryEn} 목록 조회 실패:`, error)
+          return
         }
 
-        if (!data || data.length === 0) break
+        if (!data) return
 
         for (const item of data) {
-          const itemPath = currentPrefix ? `${currentPrefix}/${item.name}` : item.name
-          
-          // 폴더인 경우 (metadata가 null)
-          if (item.metadata === null) {
-            queue.push(itemPath)
-          } else {
-            // 파일인 경우 - 확장자 제거한 key로 매핑
-            const parts = itemPath.split('/')
-            if (parts.length === 2) {
-              const [categoryEn, filename] = parts
-              const key = filename.replace(/\.(mp3|wav|m4a|ogg)$/i, '') // 확장자 제거
-              const mapKey = `${categoryEn}/${key}`
-              actualFilesMap.set(mapKey, {
-                path: itemPath,
-                name: filename,
-              })
-            }
+          // 파일인 경우만 처리 (폴더는 무시)
+          if (item.metadata !== null) {
+            const filename = item.name
+            const key = filename.replace(/\.(mp3|wav|m4a|ogg)$/i, '') // 확장자 제거
+            const mapKey = `${categoryEn}/${key}`
+            actualFilesMap.set(mapKey, {
+              path: `${categoryEn}/${filename}`,
+              name: filename,
+            })
           }
         }
-
-        if (data.length < PAGE_SIZE) break
+      } catch (err) {
+        console.error(`[sound-effects list] 카테고리 ${categoryEn} 스캔 오류:`, err)
       }
-    }
+    })
+    
+    // 모든 카테고리 스캔 완료 대기
+    await Promise.all(scanPromises)
 
-    // JSON 메타데이터와 실제 파일을 매칭
+    // 타겟 카테고리의 메타데이터만 필터링하여 실제 파일과 매칭
     const matchedEffects: SoundEffectFile[] = []
+    const targetCategorySet = new Set(targetCategories)
     
     soundEffectsMetadata.forEach((meta) => {
+      // 타겟 카테고리에 포함된 것만 처리
+      if (!targetCategorySet.has(meta.category.ko)) {
+        return
+      }
+      
       const mapKey = `${meta.category.en}/${meta.key}`
       const actualFile = actualFilesMap.get(mapKey)
       
@@ -109,15 +138,22 @@ export async function GET() {
       groupedByFolder[folder].push(effect)
     })
 
-    // 폴더 이름으로 정렬
-    const sortedFolders = Object.keys(groupedByFolder).sort((a, b) => {
-      return a.localeCompare(b, 'ko')
+    // 타겟 카테고리 순서 유지 (이미 정렬됨)
+    const finalFolders = targetCategories.filter(folder => groupedByFolder[folder] && groupedByFolder[folder].length > 0)
+    const finalSoundEffects: Record<string, SoundEffectFile[]> = {}
+    
+    finalFolders.forEach((folder) => {
+      if (groupedByFolder[folder]) {
+        finalSoundEffects[folder] = groupedByFolder[folder]
+      }
     })
 
     return NextResponse.json({
       success: true,
-      folders: sortedFolders,
-      soundEffects: groupedByFolder,
+      folders: finalFolders,
+      soundEffects: finalSoundEffects,
+      totalFolders: allCategories.length, // 전체 카테고리 개수
+      hasMore: limit !== undefined ? offset + (finalFolders.length) < allCategories.length : false,
     })
   } catch (error) {
     console.error('[sound-effects list] 처리 중 오류:', error)
