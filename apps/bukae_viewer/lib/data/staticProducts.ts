@@ -44,7 +44,9 @@ const PRODUCT_URLS = {
   worldclean_mini_power_plunger_15:
     'https://link.coupang.com/a/dtySs9',
   raon_multihub:
-    'https://link.coupang.com/a/dulIts'
+    'https://link.coupang.com/a/dulIts',
+  solo_hell_dex:
+    'https://link.coupang.com/a/dvlgdp'
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -195,6 +197,15 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     order: 16,
     thumbnailUrl: '/dummy/multihub.png',
     url: PRODUCT_URLS.raon_multihub,
+  },
+  {
+    id: 'solo-hell-dex',
+    productId: 1022,
+    name: '솔로지옥2 덱스 다각형 검정 남자 뿔테 안경',
+    description: '다각형 검정 뿔테 안경 · 남자용',
+    order: 17,
+    thumbnailUrl: '/dummy/dex.png',
+    url: PRODUCT_URLS.solo_hell_dex,
   },
 ]
 
