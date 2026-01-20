@@ -12,29 +12,27 @@ export const SearchUrlToggle = memo(function SearchUrlToggle({
   onModeChange,
 }: SearchUrlToggleProps) {
   return (
-    <div className="mb-8">
-      <div className="flex rounded-[60px] bg-bg-gray-light p-2 shadow-(--shadow-card-default) w-full sm:w-[228px] sm:h-[74px]">
-        <button
-          onClick={() => onModeChange('search')}
-          className={`flex-1 rounded-[60px] text-(--font-size-24) font-bold transition-all tracking-[-0.48px] leading-(--line-height-24-140) ${
-            searchMode === 'search'
-              ? 'bg-white text-text-dark shadow-(--shadow-card-default)'
-              : 'bg-transparent text-text-tertiary'
-          }`}
-        >
-          상품 검색
-        </button>
-        <button
-          onClick={() => onModeChange('url')}
-          className={`flex-1 rounded-[60px] text-(--font-size-24) font-bold transition-all tracking-[-0.48px] leading-(--line-height-24-140) ${
-            searchMode === 'url'
-              ? 'bg-white text-text-dark shadow-(--shadow-card-default)'
-              : 'bg-transparent text-text-tertiary'
-          }`}
-        >
-          URL
-        </button>
-      </div>
+    <div className="flex rounded-[64px] bg-[#d6d6d6] p-2" style={{ width: '182px', height: '68px' }}>
+      <button
+        onClick={() => onModeChange('search')}
+        className={`flex-1 rounded-[60px] text-[var(--font-size-20)] font-bold transition-all tracking-[-0.4px] leading-[28px] ${
+          searchMode === 'search'
+            ? 'bg-white text-[#15252c]'
+            : 'bg-transparent text-[#2c2c2c]'
+        }`}
+      >
+        상품 검색
+      </button>
+      <button
+        onClick={() => onModeChange('url')}
+        className={`flex-1 rounded-[60px] text-[var(--font-size-20)] font-bold transition-all tracking-[-0.4px] leading-[28px] ${
+          searchMode === 'url'
+            ? 'bg-white text-[#15252c]'
+            : 'bg-transparent text-[#2c2c2c]'
+        }`}
+      >
+        URL
+      </button>
     </div>
   )
 })

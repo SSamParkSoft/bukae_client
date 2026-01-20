@@ -30,7 +30,7 @@ export default function AppShell({ children }: AppShellProps) {
       case 1:
         // Step1: 상단 배치
         return {
-          position1: { top: '65%', left: '15%', transform: 'translateY(-50%)' },
+          position1: { top: '99%', left: '50%', transform: 'translate(-50%, -50%)' },
         }
       case 2:
         // Step2: 중앙 배치

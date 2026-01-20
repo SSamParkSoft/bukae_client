@@ -3,12 +3,11 @@
 import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowRight, Loader2 } from 'lucide-react'
+import Image from 'next/image'
 import { useStep1Container } from './hooks/useStep1Container'
 import { useRouter } from 'next/navigation'
 import {
   SearchUrlToggle,
-  PlatformSelector,
-  SearchInput,
   LoadingIndicator,
   ErrorMessage,
   SelectedProductCard,
@@ -73,7 +72,7 @@ export default function Step1Page() {
         className="w-full max-w-[1194px] mx-auto px-4 sm:px-6 pt-4 pb-8"
       >
         {/* 헤더 섹션 */}
-        <div className="mb-16 mt-[72px]">
+        <div className="mb-24 mt-[72px]">
           <div className="flex items-center justify-center mb-4">
             <span 
               className="font-bold bg-linear-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.56px]"
@@ -101,29 +100,102 @@ export default function Step1Page() {
               lineHeight: 'var(--line-height-18-140)'
             }}
           >
-            원하는 플랫폼과 상품을 선택하세요
+            원하는 플랫폼과 상품을 검색해주세요.
           </p>
         </div>
 
-        {/* 검색/URL 탭 */}
-        <SearchUrlToggle searchMode={searchMode} onModeChange={setSearchMode} />
+        {/* 검색 영역 - 피그마 디자인에 맞춘 통합 프레임 */}
+        <div className="mb-8 rounded-3xl bg-white/20 p-6 shadow-[var(--shadow-card-default)]">
+          {/* 첫 번째 줄: 검색/URL 토글 + 플랫폼 선택 */}
+          <div className="flex items-center justify-between mb-4">
+            {/* 검색/URL 토글 */}
+            <div className="flex-shrink-0">
+              <SearchUrlToggle searchMode={searchMode} onModeChange={setSearchMode} />
+            </div>
+            
+            {/* 플랫폼 선택 버튼들 */}
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => container.handlePlatformSelect('all')}
+                className={`h-[68px] px-6 rounded-2xl text-[var(--font-size-20)] font-bold transition-all tracking-[-0.4px] leading-[28px] ${
+                  container.selectedPlatform === 'all'
+                    ? 'bg-[#5e8790] text-white'
+                    : 'bg-white border border-[#5e8790] text-[#3b6574]'
+                }`}
+                style={{ width: '160px' }}
+              >
+                전체
+              </button>
+              <button
+                onClick={() => container.handlePlatformSelect('COUPANG')}
+                className={`h-[68px] px-6 rounded-2xl text-[var(--font-size-20)] font-bold transition-all tracking-[-0.4px] leading-[28px] ${
+                  container.selectedPlatform === 'COUPANG'
+                    ? 'bg-[#5e8790] text-white'
+                    : 'bg-white border border-[#5e8790] text-[#3b6574]'
+                }`}
+                style={{ width: '160px' }}
+              >
+                쿠팡
+              </button>
+              <button
+                onClick={() => container.handlePlatformSelect('ALI_EXPRESS')}
+                className={`h-[68px] px-6 rounded-2xl text-[var(--font-size-20)] font-bold transition-all tracking-[-0.4px] leading-[28px] ${
+                  container.selectedPlatform === 'ALI_EXPRESS'
+                    ? 'bg-[#5e8790] text-white'
+                    : 'bg-white border border-[#5e8790] text-[#3b6574]'
+                }`}
+                style={{ width: '160px' }}
+              >
+                알리 익스프레스
+              </button>
+            </div>
+          </div>
 
-        {/* 플랫폼 선택 카테고리 */}
-        <PlatformSelector
-          selectedPlatform={container.selectedPlatform}
-          onPlatformSelect={container.handlePlatformSelect}
-        />
+          {/* 두 번째 줄: 검색 입력 필드 */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="검색어 고민은 그만, 평소 말하듯 편하게 검색해 보세요."
+              value={container.prompt}
+              onChange={(e) => container.setPrompt(e.target.value)}
+              onKeyPress={container.handleKeyPress}
+              disabled={container.isSearching || container.selectedPlatform === 'all'}
+              className="w-full h-[72px] pl-6 pr-16 rounded-2xl bg-white font-semibold text-[#2c2c2c] placeholder:text-[#2c2c2c] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed tracking-[-0.36px] shadow-[var(--shadow-card-default)]"
+              style={{ 
+                fontSize: 'var(--font-size-18)',
+                lineHeight: '25.2px'
+              }}
+            />
+            <button
+              onClick={container.handleSearch}
+              disabled={container.isSearching || container.selectedPlatform === 'all' || !container.prompt.trim()}
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {container.isSearching ? (
+                <Loader2 className="w-10 h-10 animate-spin text-teal-900" />
+              ) : (
+                <Image 
+                  src="/send.svg" 
+                  alt="전송" 
+                  width={40} 
+                  height={40}
+                  className="w-10 h-10"
+                />
+              )}
+            </button>
+          </div>
+        </div>
 
-        {/* 검색 입력 필드 */}
-        <SearchInput
-          placeholder={placeholder}
-          value={container.prompt}
-          onChange={container.setPrompt}
-          onKeyPress={container.handleKeyPress}
-          onSearch={container.handleSearch}
-          isSearching={container.isSearching}
-          disabled={container.isSearching || container.selectedPlatform === 'all'}
-        />
+        {/* 예시 텍스트 */}
+        <p 
+          className="text-right font-semibold text-brand-teal-dark tracking-[-0.36px)"
+          style={{ 
+            fontSize: 'var(--font-size-18)',
+            lineHeight: 'var(--line-height-18-140)'
+          }}
+        >
+          ex) 화장실에서 심심할 때 읽을 거리, 캠핑장의 완벽한 밀키트
+        </p>
 
         {/* 검색 중 표시 */}
         {container.isSearching && <LoadingIndicator />}
