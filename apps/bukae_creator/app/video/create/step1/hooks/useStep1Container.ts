@@ -60,6 +60,11 @@ export function useStep1Container() {
   const [currentProductResponses, setCurrentProductResponses] = useState<ProductResponse[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const prevPlatformRef = useRef<TargetMall | 'all'>('all')
+  
+  // 페이지네이션 상태
+  const [visibleProductCount, setVisibleProductCount] = useState(6) // 초기 표시 개수
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const ITEMS_PER_PAGE = 6 // 한 번에 추가로 표시할 아이템 수
 
   // 토큰 검증
   const { isValidatingToken } = useVideoCreateAuth()
@@ -252,7 +257,23 @@ export function useStep1Container() {
     setPrompt('')
     // 채팅 메시지 초기화
     setChatMessages([])
+    // 페이지네이션 초기화
+    setVisibleProductCount(6)
   }, [])
+  
+  // 더 많은 상품 로드
+  const loadMoreProducts = useCallback(() => {
+    if (isLoadingMore || visibleProductCount >= currentProducts.length) {
+      return
+    }
+    
+    setIsLoadingMore(true)
+    // 약간의 지연 후 다음 아이템들을 표시
+    setTimeout(() => {
+      setVisibleProductCount((prev) => Math.min(prev + ITEMS_PER_PAGE, currentProducts.length))
+      setIsLoadingMore(false)
+    }, 100)
+  }, [isLoadingMore, visibleProductCount, currentProducts.length, ITEMS_PER_PAGE])
 
   // 플랫폼 선택 핸들러
   const handlePlatformSelect = useCallback((platform: TargetMall | 'all') => {
@@ -351,6 +372,8 @@ export function useStep1Container() {
       })
       setCurrentProducts(convertedProducts)
       setCurrentProductResponses(products) // 원본 데이터도 저장
+      // 검색 결과가 적을 때는 모두 표시, 많을 때는 초기 개수만 표시
+      setVisibleProductCount(products.length <= 6 ? products.length : 6)
 
       // AI 응답 메시지 추가
       const assistantMessage: ChatMessage = {
@@ -389,6 +412,10 @@ export function useStep1Container() {
 
   const themeMode: ThemeMode = theme
 
+  // 표시할 상품 목록
+  const visibleProducts = currentProducts.slice(0, visibleProductCount)
+  const hasMoreProducts = visibleProductCount < currentProducts.length
+
   return {
     // State
     theme: themeMode,
@@ -409,10 +436,16 @@ export function useStep1Container() {
     
     // Products
     currentProducts,
+    visibleProducts,
     currentProductResponses,
     selectedProducts,
     isProductSelected,
     handleProductToggle,
+    
+    // Pagination
+    hasMoreProducts,
+    isLoadingMore,
+    loadMoreProducts,
     
     // Messages
     chatMessages,
