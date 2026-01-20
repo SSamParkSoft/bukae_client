@@ -447,6 +447,9 @@ export function useStep1Container() {
     isLoadingMore,
     loadMoreProducts,
     
+    // Reset
+    resetSearchData,
+    
     // Messages
     chatMessages,
     messagesEndRef,

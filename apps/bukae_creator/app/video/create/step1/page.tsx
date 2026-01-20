@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowRight, Loader2 } from 'lucide-react'
+import { ArrowRight, Loader2, X } from 'lucide-react'
 import Image from 'next/image'
 import { useStep1Container } from './hooks/useStep1Container'
 import { useRouter } from 'next/navigation'
@@ -10,9 +10,9 @@ import {
   SearchUrlToggle,
   LoadingIndicator,
   ErrorMessage,
-  SelectedProductCard,
   ProductCard,
   ProductCardSkeleton,
+  SelectedProductCard,
 } from './components'
 
 const ITEMS_PER_PAGE = 6 // 한 번에 추가로 표시할 아이템 수
@@ -142,7 +142,7 @@ export default function Step1Page() {
   }
 
   return (
-    <div className="w-full max-w-[1194px] mx-auto px-4 sm:px-6 pt-4 pb-8">
+    <div className="w-full max-w-[1194px] mx-auto px-4 sm:px-6 pt-4 pb-8 relative">
       <AnimatePresence mode="wait">
         {/* 검색 페이지 */}
         {showSearchPage && (
@@ -302,80 +302,50 @@ export default function Step1Page() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
+            className="relative pb-[260px]" // 선택된 상품 고정 영역 높이만큼 여유를 둬 스크롤 시 마지막 카드가 가려지지 않도록 처리
           >
-            {/* 선택된 상품 섹션 */}
-            {selectedCount > 0 && (
-              <div className="mt-20 mb-20">
-                <div className="flex items-center gap-3 mb-4">
+
+            {/* 검색 결과 표시 - 무한 스크롤 */}
+            <div className="mb-[84px] mt-20">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
                   <h2 
                     className="font-bold text-[#15252c] tracking-[-0.64px]"
                     style={{ 
-                      fontSize: 'var(--font-size-24)',
-                      lineHeight: 'var(--line-height-32-140)'
+                      fontSize: 'var(--font-size-32)',
+                      lineHeight: 'var(--line-height-44-140)'
                     }}
                   >
-                    선택된 상품
+                    {container.currentProducts.length}개를 찾았습니다!
                   </h2>
                   <span 
                     className="font-bold text-[#111111] tracking-[-0.32px]"
                     style={{ 
-                      fontSize: 'var(--font-size-8)',
-                      lineHeight: 'var(--line-height-16-140)'
-                    }}
-                  >
-                    {selectedCount}개 선택됨
-                  </span>
-                </div>
-                <div className="rounded-2xl bg-white/60 border border-white/10 p-6 shadow-(--shadow-card-default)">
-                  {container.selectedProducts.map((product) => {
-                    const productResponse = container.currentProductResponses.find(
-                      (r) => r.id === product.id
-                    )
-                    return (
-                      <SelectedProductCard
-                        key={product.id}
-                        product={product}
-                        productResponse={productResponse}
-                        onRemove={container.handleProductToggle}
-                      />
-                    )
-                  })}
-                  <button
-                    onClick={() => router.push('/video/create/step2')}
-                    className="w-full mt-4 py-4 rounded-2xl bg-[#5e8790] text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3b6574] transition-colors tracking-[-0.48px] shadow-(--shadow-card-default)"
-                    style={{ 
-                      fontSize: 'var(--font-size-24)',
+                      fontSize: 'var(--font-size-16)',
                       lineHeight: 'var(--line-height-24-140)'
                     }}
                   >
-                    다음 단계
-                    <ArrowRight className="w-6 h-6" />
-                  </button>
+                    정확한 가격은 링크에서 확인해주세요!
+                  </span>
                 </div>
-              </div>
-            )}
-
-            {/* 검색 결과 표시 - 무한 스크롤 */}
-            <div className="mb-[84px] mt-20">
-              <div className="flex items-center gap-3 mb-4">
-                <h2 
-                  className="font-bold text-[#15252c] tracking-[-0.64px]"
+                <button
+                  onClick={container.resetSearchData}
+                  className="flex items-center justify-center gap-3 px-10 h-[68px] rounded-2xl bg-[#5e8790] text-white font-bold hover:bg-[#3b6574] transition-colors tracking-[-0.48px]"
                   style={{ 
                     fontSize: 'var(--font-size-24)',
-                    lineHeight: 'var(--line-height-32-140)'
+                    lineHeight: 'var(--line-height-24-140)',
+                    minWidth: '320px'
                   }}
                 >
-                  {container.currentProducts.length}개를 찾았습니다!
-                </h2>
-                <span 
-                  className="font-bold text-[#111111] tracking-[-0.32px]"
-                  style={{ 
-                    fontSize: 'var(--font-size-8)',
-                    lineHeight: 'var(--line-height-16-140)'
-                  }}
-                >
-                  정확한 가격은 링크에서 확인해주세요!
-                </span>
+                  <Image 
+                    src="/send.svg" 
+                    alt="다시 검색하기" 
+                    width={16} 
+                    height={16}
+                    className="w-4 h-4 brightness-0 invert"
+                  />
+                  다시 검색하기
+                </button>
               </div>
               <div className="rounded-2xl bg-white/20 border border-white/10 p-6 shadow-(--shadow-card-default)">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -414,6 +384,59 @@ export default function Step1Page() {
             {container.searchError && (
               <ErrorMessage message={container.searchError} />
             )}
+
+            {/* 선택된 상품 섹션 - 화면 기준 오른쪽 하단 (컨텐츠 여백 맞춤) */}
+            {selectedCount > 0 && (() => {
+              const product = container.selectedProducts[0]
+              const productResponse = container.currentProductResponses.find(
+                (r) => String(r.id ?? r.productId) === String(product.id)
+              )
+              return (
+                <div
+                  className="fixed bottom-8 z-50 w-[792px] max-w-[calc(100vw-2rem)] transform origin-bottom-right"
+                  style={{
+                    right: 'calc((100vw - 1194px) / 2 + 24px)',
+                  }}
+                >
+                  <div className="rounded-2xl bg-[#5E8790]/20 p-6 shadow-(--shadow-card-default) backdrop-blur-lg transform origin-bottom-right relative">
+                    <button
+                      type="button"
+                      onClick={() => container.handleProductToggle(product)}
+                      className="absolute top-3 right-3 flex items-center justify-center w-8 h-8 rounded-xl hover:bg-white/20 transition-colors"
+                    >
+                      <X className="w-5 h-5 text-black" />
+                    </button>
+                    <div className="flex items-end gap-4">
+                      {/* 선택된 상품 카드 */}
+                      <div style={{ width: '514px' }}>
+                        <SelectedProductCard
+                          key={product.id}
+                          product={product}
+                          productResponse={productResponse}
+                        />
+                      </div>
+                      
+                      {/* 다음 단계 버튼 */}
+                      <div className="flex items-end">
+                        <button
+                          onClick={() => router.push('/video/create/step2')}
+                          className="px-6 py-4 rounded-2xl bg-[#e4eeed] text-[#234b60] font-bold flex items-center justify-center gap-2 hover:bg-[#d4e0df] transition-colors tracking-[-0.48px] shadow-(--shadow-card-default)"
+                          style={{ 
+                            fontSize: 'var(--font-size-20)',
+                            lineHeight: 'var(--line-height-20-140)',
+                            minWidth: '222px',
+                            height: '74px'
+                          }}
+                        >
+                          다음 단계
+                          <ArrowRight className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
           </motion.div>
         )}
       </AnimatePresence>

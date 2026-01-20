@@ -13,6 +13,7 @@ interface ProductCardProps {
   productResponse?: ProductResponse
   isSelected: boolean
   onToggle: (product: Product) => void
+  showSelectButton?: boolean // 선택 버튼 표시 여부
 }
 
 export const ProductCard = memo(function ProductCard({
@@ -20,6 +21,7 @@ export const ProductCard = memo(function ProductCard({
   productResponse,
   isSelected,
   onToggle,
+  showSelectButton = true,
 }: ProductCardProps) {
   const priceInfo = useMemo(
     () => calculateProductPriceInfo(product, productResponse),
@@ -115,25 +117,27 @@ export const ProductCard = memo(function ProductCard({
             )}
           </div>
         </div>
-        <div className="shrink-0 flex items-end">
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggle(product)
-            }}
-            className={`px-4 h-8 rounded-lg font-bold transition-colors ${
-              isSelected
-                ? 'bg-[#5E8790] text-white'
-                : 'bg-[#e4eeed] text-[#111111] hover:bg-[#d4e0df]'
-            }`}
-            style={{ 
-              fontSize: 'var(--font-size-12)',
-              lineHeight: 'var(--line-height-12-140)'
-            }}
-          >
-            {isSelected ? '선택됨' : '선택'}
-          </button>
-        </div>
+        {showSelectButton && (
+          <div className="shrink-0 flex items-end">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggle(product)
+              }}
+              className={`px-4 h-8 rounded-lg font-bold transition-colors ${
+                isSelected
+                  ? 'bg-[#5E8790] text-white'
+                  : 'bg-[#e4eeed] text-[#111111] hover:bg-[#d4e0df]'
+              }`}
+              style={{ 
+                fontSize: 'var(--font-size-12)',
+                lineHeight: 'var(--line-height-12-140)'
+              }}
+            >
+              {isSelected ? '선택됨' : '선택'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
