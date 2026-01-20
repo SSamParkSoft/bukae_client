@@ -1,10 +1,12 @@
 'use client'
 
 import React, { memo, useMemo, useState, useEffect } from 'react'
-import { Play, Pause, Clock, Loader2, Grid3x3, Edit2, Upload, ChevronDown } from 'lucide-react'
+import { Play, Pause, Clock, Loader2, Grid3x3, Upload, ChevronDown, RotateCcw, Info } from 'lucide-react'
 import { formatTime, calculateTotalDuration } from '@/utils/timeline'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 
 interface PreviewPanelProps {
   theme: string | undefined
@@ -56,8 +58,10 @@ export const PreviewPanel = memo(function PreviewPanel({
   onResizeTemplate,
 }: PreviewPanelProps) {
   const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
   
   // 최신 timeline의 totalDuration 계산 (TTS 합성으로 duration이 업데이트되었을 수 있음)
+  // 배속과는 무관하게 항상 동일한 값이어야 함
   const latestTotalDuration = useMemo(() => {
     if (timeline) {
       return calculateTotalDuration(timeline)
@@ -66,14 +70,16 @@ export const PreviewPanel = memo(function PreviewPanel({
   }, [timeline, totalDuration])
   
   // 최신 totalDuration을 사용한 progressRatio 계산
+  // 배속과는 무관하게 항상 동일한 값이어야 함
   const latestProgressRatio = useMemo(() => {
     if (latestTotalDuration === 0) return 0
     return Math.min(1, currentTime / latestTotalDuration)
   }, [currentTime, latestTotalDuration])
   
-  const actualTime = currentTime / speed
-  const actualDuration = latestTotalDuration / speed
-  const totalTime = latestTotalDuration / speed
+  // 배속 변경 시에도 다시 계산되도록 speed를 의존성에 포함
+  const actualTime = useMemo(() => currentTime / speed, [currentTime, speed])
+  const actualDuration = useMemo(() => latestTotalDuration / speed, [latestTotalDuration, speed])
+  const totalTime = useMemo(() => latestTotalDuration / speed, [latestTotalDuration, speed])
 
   const speedValue = (() => {
     if (speed === 1 || speed === 1.0) return "1.00"
@@ -313,21 +319,80 @@ export const PreviewPanel = memo(function PreviewPanel({
               </button>
             )}
             {onResizeTemplate && (
-              <button
-                onClick={onResizeTemplate}
-                className="flex-1 h-7 bg-white border border-[#d6d6d6] rounded-lg flex items-center justify-center gap-1 transition-all hover:bg-gray-50"
-              >
-                <Edit2 className="w-4 h-4 text-[#111111]" />
-                <span 
-                  className="font-medium text-[#111111] tracking-[-0.14px] text-xs"
-                  style={{ 
-                    fontSize: '11px',
-                    lineHeight: '15px'
-                  }}
+              <>
+                <button
+                  onClick={() => setIsResetDialogOpen(true)}
+                  className="flex-1 h-7 bg-white border border-[#d6d6d6] rounded-lg flex items-center justify-center gap-1 transition-all hover:bg-gray-50"
                 >
-                  크기 조정
-                </span>
-              </button>
+                  <RotateCcw className="w-4 h-4 text-[#111111]" />
+                  <span 
+                    className="font-medium text-[#111111] tracking-[-0.14px] text-xs"
+                    style={{ 
+                      fontSize: '11px',
+                      lineHeight: '15px'
+                    }}
+                  >
+                    초기화
+                  </span>
+                </button>
+                <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+                  <DialogContent 
+                    style={{ width: '100%', maxWidth: '448px' }}
+                  >
+                    <DialogHeader className="text-left" style={{ width: '100%' }}>
+                      <DialogTitle 
+                        style={{
+                          fontSize: '18px',
+                          lineHeight: '25.2px',
+                          fontWeight: '600',
+                          display: 'block',
+                          width: '100%',
+                          whiteSpace: 'normal',
+                          wordBreak: 'keep-all'
+                        }}
+                      >
+                        초기화하시겠어요?
+                      </DialogTitle>
+                      <DialogDescription 
+                        style={{
+                          fontSize: '14px',
+                          lineHeight: '19.6px',
+                          display: 'block',
+                          width: '100%',
+                          whiteSpace: 'normal',
+                          wordBreak: 'keep-all',
+                          marginTop: '8px'
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Info className="w-3 h-3 shrink-0" />
+                          <span>전체 Scene의 이미지와 자막를 초기화해요!</span>
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                          <Info className="w-3 h-3 shrink-0" />
+                          <span>적용된 효과와 bgm은 초기화되지 않아요!</span>
+                        </span>
+                      </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-0" style={{ width: '100%' }}>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setIsResetDialogOpen(false)}
+                      >
+                        취소
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          setIsResetDialogOpen(false)
+                          onResizeTemplate()
+                        }}
+                      >
+                        확정하기
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </>
             )}
           </div>
 

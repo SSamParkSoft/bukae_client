@@ -6,6 +6,7 @@ import { gsap } from 'gsap'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
+import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { useTtsResources } from './useTtsResources'
 import { getSoundEffectStorageUrl } from '@/lib/utils/supabase-storage'
 
@@ -80,9 +81,15 @@ export function useGroupPlayback({
   const findScenesToSynthesize = useCallback((groupIndices: number[]): number[] => {
     const scenesToSynthesize: number[] = []
     for (const sceneIndex of groupIndices) {
+      const scene = timeline?.scenes[sceneIndex]
+      if (!scene) continue
+      // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+      if (!sceneVoiceTemplate) continue
+      
       const markups = buildSceneMarkup(timeline, sceneIndex)
       const hasAllCache = markups.every(markup => {
-        const key = makeTtsKey(voiceTemplate!, markup)
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
         const cached = ttsCacheRef.current.get(key)
         return cached && (cached.blob || cached.url)
       })
@@ -122,12 +129,16 @@ export function useGroupPlayback({
           continue
         }
         
+        const scene = timeline!.scenes[sceneIndex]
+        // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+        const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate!
+        
         const markups = buildSceneMarkup(timeline!, sceneIndex)
         for (let i = 0; i < parts.length && i < markups.length; i++) {
           const part = parts[i]
           const partMarkup = markups[i]
           if (part && partMarkup) {
-            const partKey = makeTtsKey(voiceTemplate!, partMarkup)
+            const partKey = makeTtsKey(sceneVoiceTemplate, partMarkup)
             ttsCacheRef.current.set(partKey, {
               blob: part.blob,
               durationSec: part.durationSec,
@@ -154,9 +165,14 @@ export function useGroupPlayback({
     let duration = 0
     if (voiceTemplate && timeline) {
       for (const sceneIndex of groupIndices) {
+        const scene = timeline.scenes[sceneIndex]
+        if (!scene) continue
+        // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+        
         const markups = buildSceneMarkup(timeline, sceneIndex)
         for (const markup of markups) {
-          const key = makeTtsKey(voiceTemplate, markup)
+          const key = makeTtsKey(sceneVoiceTemplate, markup)
           const cached = ttsCacheRef.current.get(key)
           if (cached?.durationSec) {
             duration += cached.durationSec
@@ -452,9 +468,53 @@ export function useGroupPlayback({
         const currentTextToUpdate = textToUpdate
         
         // 자막 텍스트 업데이트
+        // 위치는 renderSceneContent를 통해 이미 설정되었으므로, 텍스트와 스타일만 업데이트
         if (currentTextToUpdate && currentPartText) {
           // 텍스트 업데이트
           currentTextToUpdate.text = currentPartText
+          
+          // 해당 구간의 씬 설정으로 자막 스타일 업데이트
+          const targetScene = updatedTimeline.scenes[targetSceneIndex]
+          if (targetScene?.text) {
+            const fontFamily = resolveSubtitleFontFamily(targetScene.text.font)
+            const fontWeight = targetScene.text.fontWeight ?? (targetScene.text.style?.bold ? 700 : 400)
+            
+            // 텍스트 너비 계산
+            const stageWidth = containerRef.current?.width || 1080
+            let textWidth = stageWidth * 0.75 // 기본값: 화면 너비의 75%
+            if (targetScene.text.transform?.width) {
+              textWidth = targetScene.text.transform.width / (targetScene.text.transform.scaleX || 1)
+            }
+
+            // 텍스트 스타일 업데이트
+            const styleConfig: Record<string, unknown> = {
+              fontFamily,
+              fontSize: targetScene.text.fontSize || 80,
+              fill: targetScene.text.color || '#ffffff',
+              align: targetScene.text.style?.align || 'center',
+              fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
+              fontStyle: targetScene.text.style?.italic ? 'italic' : 'normal',
+              wordWrap: true,
+              wordWrapWidth: textWidth,
+              breakWords: true,
+              stroke: { color: '#000000', width: 10 },
+            }
+            
+            const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
+            currentTextToUpdate.style = textStyle
+
+            // 위치는 renderSceneContent를 통해 이미 설정되었으므로 업데이트하지 않음
+            // Transform이 있는 경우에만 업데이트 (사용자가 직접 설정한 경우)
+            if (targetScene.text.transform) {
+              const scaleX = targetScene.text.transform.scaleX ?? 1
+              const scaleY = targetScene.text.transform.scaleY ?? 1
+              currentTextToUpdate.x = targetScene.text.transform.x
+              currentTextToUpdate.y = targetScene.text.transform.y
+              currentTextToUpdate.scale.set(scaleX, scaleY)
+              currentTextToUpdate.rotation = targetScene.text.transform.rotation ?? 0
+            }
+            // Transform이 없는 경우 위치는 renderSceneContent에서 설정한 것을 유지
+          }
           
           // 텍스트가 컨테이너에 없으면 추가 (반드시 컨테이너에 있어야 표시됨)
           if (containerRef.current) {
@@ -471,25 +531,6 @@ export function useGroupPlayback({
           // 텍스트 표시 (강제로 설정)
           currentTextToUpdate.visible = true
           currentTextToUpdate.alpha = 1
-          
-          // 텍스트가 실제로 표시되는지 확인
-          const isInContainer = containerRef.current && currentTextToUpdate.parent === containerRef.current
-          const isVisible = currentTextToUpdate.visible && currentTextToUpdate.alpha > 0
-          
-          if (!isInContainer) {
-            if (containerRef.current) {
-              if (currentTextToUpdate.parent) {
-                currentTextToUpdate.parent.removeChild(currentTextToUpdate)
-              }
-              containerRef.current.addChild(currentTextToUpdate)
-              containerRef.current.setChildIndex(currentTextToUpdate, containerRef.current.children.length - 1)
-            }
-          }
-          
-          if (!isVisible) {
-            currentTextToUpdate.visible = true
-            currentTextToUpdate.alpha = 1
-          }
         }
 
         // 마크업 가져오기
@@ -512,8 +553,12 @@ export function useGroupPlayback({
           return
         }
 
+        // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+        const targetScene = updatedTimeline.scenes[targetSceneIndex]
+        const sceneVoiceTemplate = targetScene?.voiceTemplate || voiceTemplate
+
         // TTS 파일 가져오기
-        const key = makeTtsKey(voiceTemplate, markup)
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
         let cached = ttsCacheRef.current.get(key)
 
         if (!cached) {
@@ -649,7 +694,7 @@ export function useGroupPlayback({
             resolve()
           }
           
-          const handleError = (event?: Event) => {
+          const handleError = () => {
             cleanup()
             resolve()
           }

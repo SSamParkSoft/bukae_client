@@ -9,7 +9,6 @@ import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { useAppStore } from '@/store/useAppStore'
 import { useCurrentUser } from '@/lib/hooks/useAuth'
 import { getMallConfigs } from '@/lib/api/mall-configs'
-import { initMcpBrowserHelper } from '@/lib/utils/mcp-browser-helper'
 import { startTokenRefreshScheduler, stopTokenRefreshScheduler } from '@/lib/api/client'
 
 function AuthSync() {
@@ -120,11 +119,6 @@ function AuthSync() {
 
 export default function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(() => new QueryClient())
-  
-  // 개발 환경에서 MCP 브라우저 헬퍼 초기화
-  useEffect(() => {
-    initMcpBrowserHelper()
-  }, [])
   
   return (
     <QueryClientProvider client={client}>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -34,7 +35,8 @@ export function SoundEffectSelector({
   const [playingEffectPath, setPlayingEffectPath] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingEffectPath, setPendingEffectPath] = useState<string | null>(null)
-  const { data, loading, error } = useSoundEffects()
+  const { data, loading, error, loadMoreCategories, hasMore, isLoadingMore } = useSoundEffects()
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
 
   // 현재 씬의 효과음 가져오기
   const currentSceneSoundEffect = useMemo(() => {
@@ -50,6 +52,34 @@ export function SoundEffectSelector({
       setSoundEffect(currentSceneSoundEffect)
     }
   }, [currentSceneSoundEffect, soundEffect, setSoundEffect])
+
+  // 무한 스크롤: Intersection Observer로 하단 감지
+  useEffect(() => {
+    if (!hasMore || isLoadingMore || !loadMoreRef.current) return
+
+    const currentRef = loadMoreRef.current
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries
+        if (entry.isIntersecting && hasMore && !isLoadingMore) {
+          loadMoreCategories()
+        }
+      },
+      {
+        root: null,
+        rootMargin: '100px', // 하단 100px 전에 미리 로드
+        threshold: 0.1,
+      }
+    )
+
+    observer.observe(currentRef)
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef)
+      }
+    }
+  }, [hasMore, isLoadingMore, loadMoreCategories])
 
   const getSoundEffectUrl = (filePath: string): string => {
     // Supabase Storage URL 가져오기
@@ -367,6 +397,18 @@ export function SoundEffectSelector({
             </div>
           )
         })}
+
+        {/* 무한 스크롤 감지용 요소 */}
+        {hasMore && (
+          <div ref={loadMoreRef} className="flex justify-center items-center py-4 min-h-[60px]">
+            {isLoadingMore && (
+              <div className="flex items-center gap-2 text-text-dark text-sm">
+                <Loader2 className="w-4 h-4 animate-spin text-[#5e8790]" />
+                <span>불러오는 중...</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

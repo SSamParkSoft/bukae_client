@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import Image from 'next/image'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Info } from 'lucide-react'
 
 type GenderGroup = 'MALE' | 'FEMALE' | 'OTHER'
 
@@ -56,6 +56,8 @@ interface VoiceSelectorProps {
   title?: string
   disabled?: boolean
   layout?: 'page' | 'panel'
+  sceneVoiceTemplate?: string | null // 씬별 voiceTemplate (있으면 이걸 사용, 없으면 전역 voiceTemplate 사용)
+  onSceneVoiceTemplateChange?: (voiceTemplate: string | null) => void // 씬별 voiceTemplate 변경 핸들러
 }
 
 export default function VoiceSelector({
@@ -63,11 +65,16 @@ export default function VoiceSelector({
   title = '목소리 선택',
   disabled = false,
   layout: _layout = 'page',
+  sceneVoiceTemplate,
+  onSceneVoiceTemplateChange,
 }: VoiceSelectorProps) {
   // 향후 사용을 위해 prop 유지
   void _theme
   void _layout
-  const { voiceTemplate, setVoiceTemplate } = useVideoCreateStore()
+  const { voiceTemplate: globalVoiceTemplate, setVoiceTemplate, timeline, setTimeline } = useVideoCreateStore()
+  
+  // 씬별 voiceTemplate이 있으면 사용, 없으면 전역 voiceTemplate 사용
+  const voiceTemplate = sceneVoiceTemplate !== undefined ? sceneVoiceTemplate : globalVoiceTemplate
   const [voices, setVoices] = useState<PublicVoiceInfo[]>([])
   const [isLoadingVoices, setIsLoadingVoices] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -111,6 +118,7 @@ export default function VoiceSelector({
           return
         }
 
+        // 모든 음성을 한 번에 가져오기
         const res = await fetch('/api/tts/voices', {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -123,13 +131,12 @@ export default function VoiceSelector({
 
         const data = await res.json()
         if (!cancelled) {
-          // API가 이미 모든 Provider의 목소리를 반환하므로 중복 추가 불필요
           const voicesList = data.voices || []
           setVoices(voicesList)
           // 디버깅: Provider별 목소리 확인
           const googleVoices = voicesList.filter((v: PublicVoiceInfo) => v.provider === 'google' || !v.provider)
           const elevenlabsVoices = voicesList.filter((v: PublicVoiceInfo) => v.provider === 'elevenlabs')
-          console.log('[VoiceSelector] Total voices:', voicesList.length)
+          console.log('[VoiceSelector] Initial voices loaded:', voicesList.length)
           console.log('[VoiceSelector] Google voices:', googleVoices.length)
           console.log('[VoiceSelector] ElevenLabs voices:', elevenlabsVoices.length)
         }
@@ -151,6 +158,7 @@ export default function VoiceSelector({
     }
   }, [])
 
+
   const openConfirm = useCallback((voiceName: string) => {
     setPendingVoiceName(voiceName)
     setConfirmOpen(true)
@@ -160,23 +168,76 @@ export default function VoiceSelector({
     if (!pendingVoiceName) return
     // VoiceInfo로 변환하여 직렬화
     const voice = voices.find(v => v.name === pendingVoiceName)
+    let serialized: string | null = null
+    
     if (voice) {
       // PublicVoiceInfo를 VoiceInfo로 변환
       const voiceInfo = publicVoiceInfoToVoiceInfo(voice)
       
       if (voiceInfo) {
-        const serialized = voiceTemplateHelpers.setVoiceInfo(voiceInfo)
-        setVoiceTemplate(serialized)
+        serialized = voiceTemplateHelpers.setVoiceInfo(voiceInfo)
       } else {
         // 변환 실패 시 기존 방식 유지 (하위 호환성)
-        setVoiceTemplate(pendingVoiceName)
+        serialized = pendingVoiceName
       }
     } else {
       // voice를 찾지 못한 경우 기존 방식 유지
-      setVoiceTemplate(pendingVoiceName)
+      serialized = pendingVoiceName
     }
+    
+    // 씬별 voiceTemplate 변경 핸들러가 있으면 사용, 없으면 전역 voiceTemplate 업데이트
+    if (onSceneVoiceTemplateChange) {
+      onSceneVoiceTemplateChange(serialized)
+    } else {
+      setVoiceTemplate(serialized)
+    }
+    
     setConfirmOpen(false)
-  }, [pendingVoiceName, setVoiceTemplate, voices])
+  }, [pendingVoiceName, setVoiceTemplate, voices, onSceneVoiceTemplateChange])
+
+  // 전체에 적용하기: 전역 voiceTemplate 설정 + 모든 씬에 기본값으로 반영
+  const applyToAllScenes = useCallback(() => {
+    if (!pendingVoiceName) return
+    
+    // VoiceInfo로 변환하여 직렬화 (confirmSelection과 동일한 로직 재사용)
+    const voice = voices.find(v => v.name === pendingVoiceName)
+    let serialized: string | null = null
+    
+    if (voice) {
+      const voiceInfo = publicVoiceInfoToVoiceInfo(voice)
+      if (voiceInfo) {
+        serialized = voiceTemplateHelpers.setVoiceInfo(voiceInfo)
+      } else {
+        serialized = pendingVoiceName
+      }
+    } else {
+      serialized = pendingVoiceName
+    }
+
+    // 전역 voiceTemplate 업데이트
+    setVoiceTemplate(serialized)
+
+    // 씬별 voiceTemplate이 명시적으로 설정되지 않은 씬들에만 기본값으로 적용
+    if (timeline && serialized) {
+      const updatedScenes = timeline.scenes.map((scene) => {
+        // 이미 scene.voiceTemplate이 있는 경우에는 그대로 두고, 없을 때만 전역 템플릿으로 채움
+        if (scene.voiceTemplate === null || scene.voiceTemplate === undefined || scene.voiceTemplate === '') {
+          return {
+            ...scene,
+            voiceTemplate: serialized,
+          }
+        }
+        return scene
+      })
+
+      setTimeline({
+        ...timeline,
+        scenes: updatedScenes,
+      })
+    }
+
+    setConfirmOpen(false)
+  }, [pendingVoiceName, setVoiceTemplate, timeline, setTimeline, voices])
 
   const playDemo = useCallback(async (voiceName: string) => {
     if (isPlaying && playingVoiceName === voiceName) {
@@ -493,7 +554,21 @@ export default function VoiceSelector({
                 lineHeight: 'var(--line-height-16-140)'
               }}
             >
-              이 목소리로 확정하시겠어요?
+              이 목소리의 적용범위를 알려주세요!
+            </div>
+            
+            {/* 안내 메시지 */}
+            <div className="flex items-start gap-1.5 pt-1">
+              <Info className="w-3.5 h-3.5 text-gray-400 mt-0.5 shrink-0" />
+              <span 
+                className="text-gray-400 tracking-[-0.28px]"
+                style={{ 
+                  fontSize: 'var(--font-size-12)',
+                  lineHeight: 'var(--line-height-12-140)'
+                }}
+              >
+                씬마다 목소리를 다르게 설정할 수도 있어요!
+              </span>
             </div>
             
             <div className="flex gap-2 pt-1">
@@ -504,7 +579,7 @@ export default function VoiceSelector({
                 onClick={() => setConfirmOpen(false)}
                 className="flex-1 bg-white border-gray-300 text-text-dark hover:bg-gray-50"
               >
-                다시 선택하기
+                다시 선택
               </Button>
               <Button
                 type="button"
@@ -512,7 +587,15 @@ export default function VoiceSelector({
                 onClick={confirmSelection}
                 className="flex-1 bg-brand-teal hover:bg-brand-teal-dark text-white"
               >
-                확정하기
+                이 씬만
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={applyToAllScenes}
+                className="flex-1 bg-[#344e57] hover:bg-[#2a3f46] text-white"
+              >
+                전체
               </Button>
             </div>
           </div>
@@ -539,11 +622,17 @@ export default function VoiceSelector({
         </PopoverContent>
       </Popover>
     )
-  }, [voiceTemplate, isPlaying, playingVoiceName, confirmOpen, pendingVoiceName, disabled, getShortName, openConfirm, playDemo, confirmSelection])
+  }, [voiceTemplate, isPlaying, playingVoiceName, confirmOpen, pendingVoiceName, disabled, getShortName, openConfirm, playDemo, confirmSelection, applyToAllScenes])
 
   // 성별 그룹 렌더링 헬퍼
   const renderGenderGroup = useCallback((voices: PublicVoiceInfo[], genderLabel: string) => {
     if (voices.length === 0) return null
+
+    // 중복 제거: 같은 키를 가진 음성 제거
+    const uniqueVoices = voices.filter((v, index, self) => {
+      const key = `${v.provider || 'google'}:${v.voiceId || v.name}`
+      return index === self.findIndex(vo => `${vo.provider || 'google'}:${vo.voiceId || vo.name}` === key)
+    })
 
     return (
       <div className="space-y-4">
@@ -560,7 +649,7 @@ export default function VoiceSelector({
           <div className="h-0.5 bg-[#bbc9c9] mt-2" />
         </div>
         <div className="grid grid-cols-2 gap-4">
-          {voices.map(renderVoiceItem)}
+          {uniqueVoices.map(renderVoiceItem)}
         </div>
       </div>
     )

@@ -63,6 +63,7 @@ export default function Step3Page() {
             playingGroupSceneId={container.playingGroupSceneId}
             isPreparing={container.isPreparing}
             isTtsBootstrapping={container.isTtsBootstrapping}
+            voiceTemplate={container.voiceTemplate}
             onSelect={container.handleSceneSelect}
             onScriptChange={container.handleSceneScriptChange}
             onImageFitChange={container.handleSceneImageFitChange}
@@ -76,6 +77,7 @@ export default function Step3Page() {
             onPlayGroup={container.handleGroupPlay}
             onDeleteGroup={container.handleGroupDelete}
             onPlayScene={container.handleScenePlay}
+            onVoiceTemplateChange={container.handleSceneVoiceTemplateChange}
           />
         </div>
 
@@ -101,6 +103,9 @@ export default function Step3Page() {
             onSoundEffectConfirm={container.handleSoundEffectConfirm}
             setTimeline={container.setTimeline}
             showVoiceRequiredMessage={container.showVoiceRequiredMessage}
+            scenesWithoutVoice={container.scenesWithoutVoice}
+            globalVoiceTemplate={container.voiceTemplate}
+            onVoiceTemplateChange={container.handleSceneVoiceTemplateChange}
           />
         </div>
       </motion.div>

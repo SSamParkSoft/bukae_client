@@ -7,6 +7,7 @@ import type { TimelineData } from '@/lib/types/domain/timeline'
 import type { SceneScript } from '@/lib/types/domain/script'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { getScenePlaceholder } from '@/lib/utils/placeholder-image'
+import { SceneSettingsPopover } from './SceneSettingsPopover'
 
 interface SceneListProps {
   scenes: SceneScript[]
@@ -33,6 +34,8 @@ interface SceneListProps {
   playingGroupSceneId?: number | null // 현재 재생 중인 그룹의 sceneId
   isPreparing?: boolean // TTS 준비 중인지 여부
   isTtsBootstrapping?: boolean // TTS 부트스트래핑 중인지 여부
+  voiceTemplate?: string | null // 전역 voiceTemplate
+  onVoiceTemplateChange?: (sceneIndex: number, voiceTemplate: string | null) => void // 씬별 voiceTemplate 변경 핸들러
 }
 
 export function SceneList({
@@ -58,6 +61,8 @@ export function SceneList({
   playingGroupSceneId,
   isPreparing,
   isTtsBootstrapping,
+  voiceTemplate = null,
+  onVoiceTemplateChange,
 }: SceneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
@@ -474,11 +479,21 @@ export function SceneList({
                   
                   {/* 오른쪽: Scene 번호와 전환 효과/이미지 비율 */}
                   <div className="flex flex-col gap-2 flex-1">
-                    {/* Scene 번호 */}
+                    {/* Scene 번호 - 버튼으로 변경 */}
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-text-dark">
-                        Scene {sceneOrderNumber}
-                      </span>
+                      <SceneSettingsPopover
+                        scene={timeline?.scenes[firstSceneIndexInGroup] || timeline?.scenes[firstSceneIndex]!}
+                        globalVoiceTemplate={voiceTemplate}
+                        isGrouped={false}
+                      >
+                        <button
+                          type="button"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-sm font-semibold text-text-dark hover:text-[#5e8790] transition-colors cursor-pointer"
+                        >
+                          Scene {sceneOrderNumber}
+                        </button>
+                      </SceneSettingsPopover>
                     </div>
                     
                     {/* 이미지 비율 - 아래쪽 */}
@@ -655,21 +670,30 @@ export function SceneList({
                       {/* 씬 정보 */}
                       <div className="flex-1 min-w-0 space-y-2">
                         <div className="flex items-center justify-between">
-                          <p 
-                            className="font-bold text-text-dark tracking-[-0.36px]"
-                            style={{ 
-                              fontSize: 'var(--font-size-18)',
-                              lineHeight: 'var(--line-height-18-140)'
-                            }}
+                          <SceneSettingsPopover
+                            scene={timeline?.scenes[index]!}
+                            globalVoiceTemplate={voiceTemplate}
+                            isGrouped={isGrouped}
+                            groupFirstScene={isGrouped ? timeline?.scenes[firstSceneIndex] : undefined}
                           >
-                            {hasDelimiters
-                              ? `Scene ${sceneOrderNumber} (${scriptParts.length}개 구간)`
-                              : !isGrouped
-                              ? `Scene ${sceneOrderNumber}`
-                              : scene.splitIndex
-                              ? `Scene ${sceneOrderNumber}-${groupSceneOrderNumber}`
-                              : `Scene ${sceneOrderNumber}`}
-                          </p>
+                            <button
+                              type="button"
+                              onClick={(e) => e.stopPropagation()}
+                              className="font-bold text-text-dark tracking-[-0.36px] hover:text-[#5e8790] transition-colors cursor-pointer text-left"
+                              style={{ 
+                                fontSize: 'var(--font-size-18)',
+                                lineHeight: 'var(--line-height-18-140)'
+                              }}
+                            >
+                              {hasDelimiters
+                                ? `Scene ${sceneOrderNumber} (${scriptParts.length}개 구간)`
+                                : !isGrouped
+                                ? `Scene ${sceneOrderNumber}`
+                                : scene.splitIndex
+                                ? `Scene ${sceneOrderNumber}-${groupSceneOrderNumber}`
+                                : `Scene ${sceneOrderNumber}`}
+                            </button>
+                          </SceneSettingsPopover>
                         </div>
                         
                         {/* 텍스트 입력 - ||| 구분자가 있으면 각 구간별로 카드 형태로 표시 */}

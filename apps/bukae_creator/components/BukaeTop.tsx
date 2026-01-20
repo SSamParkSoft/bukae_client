@@ -2,10 +2,13 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { User } from 'lucide-react'
 import TopNavigation, { TopNavTab } from './TopNavigation'
 import StepNavigation, { Step } from './StepNavigation'
+import ProfileDropdown from './ProfileDropdown'
 import { cn } from '@/lib/utils'
+import { useUserStore } from '@/store/useUserStore'
 
 interface BukaeTopProps {
   variant?: 'login' | 'make' | 'mypage' | 'data'
@@ -30,6 +33,8 @@ export default function BukaeTop({
   className,
 }: BukaeTopProps) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { user, isAuthenticated } = useUserStore()
 
   // variant가 제공되지 않으면 pathname 기반으로 자동 감지
   const getVariant = (): 'login' | 'make' | 'mypage' | 'data' => {
@@ -61,10 +66,11 @@ export default function BukaeTop({
   // Step Navigation은 제작 페이지에서만 표시하되, 0단계에서는 숨김
   const showStepNavigation = detectedVariant === 'make' && detectedCurrentStep > 0
 
-  const activeTab: TopNavTab | undefined = detectedVariant === 'login' ? 'login' :
-    detectedVariant === 'make' ? 'make' :
-    detectedVariant === 'mypage' ? 'mypage' :
-    detectedVariant === 'data' ? 'data' : undefined
+  const activeTab: TopNavTab | undefined = detectedVariant === 'login' ? 'login' : undefined
+
+  const handleMyPageClick = () => {
+    router.push('/profile')
+  }
 
   return (
     <div className={cn('w-full', className)}>
@@ -82,8 +88,33 @@ export default function BukaeTop({
             />
           </Link>
 
-          {/* Top Navigation */}
-          <TopNavigation activeTab={activeTab} />
+          {/* 오른쪽 네비게이션 영역 */}
+          <div className="flex items-center gap-0">
+            {/* 로그인 상태일 때만 마이페이지 버튼과 프로필 드롭다운 표시 */}
+            {isAuthenticated && user ? (
+              <>
+                {/* 마이페이지 버튼 (왼쪽) */}
+                <button
+                  onClick={handleMyPageClick}
+                  className={cn(
+                    'w-[140px] h-[52px] px-3 rounded-2xl text-sm font-bold transition-colors flex items-center gap-2 justify-center shrink-0',
+                    detectedVariant === 'mypage'
+                      ? 'bg-brand-teal text-white'
+                      : 'bg-transparent text-[#454545] hover:bg-gray-100'
+                  )}
+                >
+                  <User className="w-6 h-6 shrink-0" />
+                  마이페이지
+                </button>
+
+                {/* 프로필 드롭다운 (오른쪽) */}
+                <ProfileDropdown />
+              </>
+            ) : (
+              /* 로그인하지 않은 상태: Top Navigation만 표시 */
+              <TopNavigation activeTab={activeTab} />
+            )}
+          </div>
         </div>
       </div>
 
@@ -98,7 +129,7 @@ export default function BukaeTop({
             })
           }}
         >
-          <div className="max-w-[1194px] mx-auto pb-4 flex justify-end" style={{ paddingLeft: 'calc(1.5rem + 12px)', paddingRight: 'calc(1.5rem + 24px)' }}>
+          <div className="max-w-[1194px] mx-auto pb-4 flex justify-start" style={{ paddingLeft: 'calc(1.5rem + 12px)', paddingRight: 'calc(1.5rem + 24px)' }}>
             <StepNavigation
               steps={steps || defaultSteps}
               currentStep={detectedCurrentStep}

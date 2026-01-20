@@ -151,18 +151,13 @@ export async function consumeCredits(
     }
   }
 
-  // 개발 환경에서 admin 체크
+  // 개발 환경에서는 크레딧 제한 없음 (모든 사용자)
   if (process.env.NODE_ENV !== 'production') {
-    const userInfo = await getUserInfo(userId, accessToken)
-    const isAdmin = await isAdminUser(userId, userInfo?.email, userInfo?.role)
-    
-    if (isAdmin) {
-      console.log(`[Credit] Admin user detected - 크레딧 차감 스킵 (userId: ${userId}, email: ${userInfo?.email})`)
-      return {
-        success: true,
-        creditsUsed: calculateCredits(provider, charCount), // 통계용으로 계산
-        remainingCredits: null, // admin은 무제한
-      }
+    console.log(`[Credit] 개발 환경 - 크레딧 차감 스킵 (userId: ${userId}, provider: ${provider}, 문자: ${charCount})`)
+    return {
+      success: true,
+      creditsUsed: calculateCredits(provider, charCount), // 통계용으로 계산
+      remainingCredits: null, // 개발 환경에서는 무제한
     }
   }
 
