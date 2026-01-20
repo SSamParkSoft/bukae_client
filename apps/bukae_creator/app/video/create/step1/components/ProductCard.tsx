@@ -30,7 +30,7 @@ export const ProductCard = memo(function ProductCard({
 
   return (
     <div
-      className={`rounded-2xl p-4 cursor-pointer shadow-[var(--shadow-card-default)] hover:shadow-lg transition-all ${
+      className={`rounded-2xl p-4 cursor-pointer shadow-(--shadow-card-default) hover:shadow-lg transition-all ${
         isSelected
           ? 'bg-[#f0f7f8] border-2 border-[#5E8790]'
           : 'bg-white border-2 border-transparent'

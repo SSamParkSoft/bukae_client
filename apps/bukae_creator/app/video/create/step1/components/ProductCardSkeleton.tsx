@@ -4,7 +4,7 @@ import { memo } from 'react'
 
 export const ProductCardSkeleton = memo(function ProductCardSkeleton() {
   return (
-    <div className="rounded-2xl p-4 bg-white border-2 border-transparent shadow-[var(--shadow-card-default)] animate-pulse">
+    <div className="rounded-2xl p-4 bg-white border-2 border-transparent shadow-(--shadow-card-default) animate-pulse">
       <div className="flex gap-4 items-end">
         <div className="flex-1 flex gap-4">
           {/* 이미지 스켈레톤 */}
