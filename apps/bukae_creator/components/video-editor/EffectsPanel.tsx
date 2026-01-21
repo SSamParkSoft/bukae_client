@@ -56,6 +56,7 @@ export function EffectsPanel({
   // transitions와 movements가 제공되면 사용, 아니면 allTransitions 사용 (하위 호환성)
   const displayTransitions = transitions || allTransitions
   const displayMovements = movements || []
+  const transitionsWithoutNone = displayTransitions.filter((t) => t.value !== 'none')
   
   // 현재 씬의 voiceTemplate 계산 (씬별 voiceTemplate이 있으면 사용, 없으면 전역 voiceTemplate 사용)
   const sceneVoiceTemplate = timeline && currentSceneIndex >= 0
@@ -169,10 +170,10 @@ export function EffectsPanel({
 
               {/* 내용 영역 */}
               <div className="flex-1 overflow-y-auto min-h-0" style={{ width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden' }}>
-                <TabsContent value="animation" className="space-y-6 px-6 pt-6 w-full max-w-full overflow-x-hidden">
+                <TabsContent value="animation" className="px-6 pt-6 w-full max-w-full overflow-x-hidden">
               {/* 전환 효과 섹션 */}
               {displayTransitions.length > 0 && (
-                <div>
+                <div className="space-y-4">
                   <h3 
                     className="font-bold text-text-dark mb-4 tracking-[-0.4px]"
                     style={{ 
@@ -180,65 +181,82 @@ export function EffectsPanel({
                       lineHeight: '28px'
                     }}
                   >
-                    전환 효과
+                    애니메이션 선택
                   </h3>
-                  <div className="h-0.5 bg-[#bbc9c9] mb-6" />
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {/* 첫 번째 카드: 없음 */}
-                    <button
-                      onClick={() => {
-                        if (timeline && currentSceneIndex >= 0) {
-                          onTransitionChange(currentSceneIndex, 'none')
-                        }
-                      }}
-                      className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
-                        timeline?.scenes[currentSceneIndex]?.transition === 'none' || !timeline?.scenes[currentSceneIndex]?.transition
-                          ? 'bg-[#5e8790] text-white border-[#5e8790]'
-                          : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
-                      }`}
-                      style={{ 
-                        fontSize: 'var(--font-size-14)',
-                        lineHeight: '22.4px'
-                      }}
-                    >
-                      없음
-                    </button>
-                    {/* 나머지 전환 효과들 */}
-                    {displayTransitions
-                      .filter(transition => transition.value !== 'none')
-                      .map((transition) => {
-                        const isSelected = timeline?.scenes[currentSceneIndex]?.transition === transition.value
-                        return (
-                          <button
-                            key={transition.value}
-                            onClick={() => {
-                              if (timeline && currentSceneIndex >= 0) {
-                                onTransitionChange(currentSceneIndex, transition.value)
-                              }
-                            }}
-                            className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
-                              isSelected
-                                ? 'bg-[#5e8790] text-white border-[#5e8790]'
-                                : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
-                            }`}
-                            style={{ 
-                              fontSize: 'var(--font-size-14)',
-                              lineHeight: '22.4px'
-                            }}
-                          >
-                            {transition.label}
-                          </button>
-                        )
-                      })}
+                  <div className="h-0.5 bg-[#bbc9c9]" />
+                  <div className="space-y-6">
+                    {/* 전환 효과 없음 옵션 */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-6">
+                      <button
+                        onClick={() => {
+                          if (timeline && currentSceneIndex >= 0) {
+                            onTransitionChange(currentSceneIndex, 'none')
+                          }
+                        }}
+                        className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
+                          timeline?.scenes[currentSceneIndex]?.transition === 'none' || !timeline?.scenes[currentSceneIndex]?.transition
+                            ? 'bg-[#5e8790] text-white border-[#5e8790]'
+                            : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
+                        }`}
+                        style={{ 
+                          fontSize: 'var(--font-size-14)',
+                          lineHeight: '22.4px'
+                        }}
+                      >
+                        없음
+                      </button>
+                    </div>
+
+                    {/* 전환 효과 리스트 */}
+                    {transitionsWithoutNone.length > 0 && (
+                      <div className="space-y-6">
+                        <h3 
+                          className="font-bold text-text-dark tracking-[-0.4px]"
+                          style={{ 
+                            fontSize: 'var(--font-size-20)',
+                            lineHeight: '28px'
+                          }}
+                        >
+                          전환 효과
+                        </h3>
+                        <div className="h-0.5 bg-[#bbc9c9]" />
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {transitionsWithoutNone.map((transition) => {
+                            const isSelected = timeline?.scenes[currentSceneIndex]?.transition === transition.value
+                            return (
+                              <button
+                                key={transition.value}
+                                onClick={() => {
+                                  if (timeline && currentSceneIndex >= 0) {
+                                    onTransitionChange(currentSceneIndex, transition.value)
+                                  }
+                                }}
+                                className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
+                                  isSelected
+                                    ? 'bg-[#5e8790] text-white border-[#5e8790]'
+                                    : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
+                                }`}
+                                style={{ 
+                                  fontSize: 'var(--font-size-14)',
+                                  lineHeight: '22.4px'
+                                }}
+                              >
+                                {transition.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* 움직임 섹션 */}
               {displayMovements.length > 0 && (
-                <div>
+                <div className="space-y-6">
                   <h3 
-                    className="font-bold text-text-dark mb-4 tracking-[-0.4px]"
+                    className="font-bold text-text-dark mb-4 tracking-[-0.4px] mt-6"
                     style={{ 
                       fontSize: 'var(--font-size-20)',
                       lineHeight: '28px'
@@ -246,7 +264,7 @@ export function EffectsPanel({
                   >
                     움직임
                   </h3>
-                  <div className="h-0.5 bg-[#bbc9c9] mb-6" />
+                  <div className="h-0.5 bg-[#bbc9c9]" />
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {displayMovements.map((movement) => {
                       const isSelected = timeline?.scenes[currentSceneIndex]?.transition === movement.value
