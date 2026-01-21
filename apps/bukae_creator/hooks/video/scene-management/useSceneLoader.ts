@@ -148,22 +148,24 @@ export function useSceneLoader({
 
         const sprite = new PIXI.Sprite(texture)
 
-        sprite.anchor.set(0, 0)
+        // 회전 피벗을 이미지 중앙으로 설정
+        sprite.anchor.set(0.5, 0.5)
         sprite.visible = false
         sprite.alpha = 0
 
         // Transform 데이터 적용 (첫 번째 씬의 transform 사용)
         if (baseScene.imageTransform) {
-          sprite.x = baseScene.imageTransform.x
-          sprite.y = baseScene.imageTransform.y
+          // 기존 transform이 좌상단 기준이었다면 anchor(0.5)로 이동 보정
+          sprite.x = (baseScene.imageTransform.x + baseScene.imageTransform.width) * 0.5
+          sprite.y = (baseScene.imageTransform.y + baseScene.imageTransform.height) * 0.5
           sprite.width = baseScene.imageTransform.width
           sprite.height = baseScene.imageTransform.height
           sprite.rotation = baseScene.imageTransform.rotation
         } else {
           // Transform이 없으면 기초 상태 사용: 상단 15%부터 시작, 가로 100%, 높이 70%
           const imageY = height * 0.15
-          sprite.x = 0
-          sprite.y = imageY
+          sprite.x = width * 0.5
+          sprite.y = imageY + (height * 0.7) * 0.5
           sprite.width = width
           sprite.height = height * 0.7
           sprite.rotation = 0
@@ -177,7 +179,7 @@ export function useSceneLoader({
           const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
           
           // 텍스트 너비 계산 (Transform이 있으면 그 너비 사용, 없으면 기본값)
-          let textWidth = width * 0.75 // 기본값: 화면 너비의 75%
+          let textWidth = width
           if (scene.text.transform?.width) {
             textWidth = scene.text.transform.width / (scene.text.transform.scaleX || 1)
           }

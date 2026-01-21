@@ -275,7 +275,7 @@ export function useSceneRenderer({
         
         // 텍스트 너비 계산
         const stageWidth = appRef.current.screen.width
-        let textWidth = stageWidth * 0.75 // 기본값: 화면 너비의 75%
+        let textWidth = stageWidth
         if (scene.text.transform?.width) {
           textWidth = scene.text.transform.width / (scene.text.transform.scaleX || 1)
         }
