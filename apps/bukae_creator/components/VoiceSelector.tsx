@@ -496,7 +496,7 @@ export default function VoiceSelector({
                 openConfirm(v.name)
               }
             }}
-            className="flex items-center gap-4 h-[46px] transition-all hover:opacity-90"
+            className="flex items-center gap-2 sm:gap-4 h-[46px] transition-all hover:opacity-90 min-w-0"
           >
             <div 
               className="w-6 h-6 flex items-center justify-center shrink-0 cursor-pointer"
@@ -515,15 +515,15 @@ export default function VoiceSelector({
               />
             </div>
             <div 
-              className={`flex-1 rounded-lg border h-[46px] flex items-center cursor-pointer ${
+              className={`flex-1 rounded-lg border h-[46px] flex items-center cursor-pointer min-w-0 ${
                 isSelected
                   ? 'bg-[#5e8790] border-[#5e8790]'
                   : 'bg-white border-[#88a9ac]'
               }`}
             >
-              <div className="px-4 flex items-center w-full">
+              <div className="px-3 sm:px-4 flex items-center w-full min-w-0">
                 <span 
-                  className={`font-medium tracking-[-0.32px] ${
+                  className={`font-medium tracking-[-0.32px] truncate ${
                     isSelected ? 'text-white' : 'text-[#2c2c2c]'
                   }`}
                   style={{ 
@@ -648,7 +648,7 @@ export default function VoiceSelector({
           </h5>
           <div className="h-0.5 bg-[#bbc9c9] mt-2" />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
           {uniqueVoices.map(renderVoiceItem)}
         </div>
       </div>

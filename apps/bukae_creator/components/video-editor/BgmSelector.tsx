@@ -127,19 +127,19 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
         {/* 배경음악 없음 옵션 */}
         <div
           onClick={() => handleCardClick('none')}
-          className="flex items-center gap-4 h-[59px] cursor-pointer transition-all hover:opacity-90"
+          className="flex items-center gap-2 sm:gap-4 h-[59px] cursor-pointer transition-all hover:opacity-90 min-w-0"
         >
           <div className="w-6 h-6 flex items-center justify-center shrink-0">
             <Image src="/mute.svg" alt="mute" width={24} height={24} />
           </div>
-          <div className={`flex-1 rounded-lg border h-[59px] flex items-center ${
+          <div className={`flex-1 rounded-lg border h-[59px] flex items-center min-w-0 ${
             bgmTemplate === null
               ? 'bg-[#5e8790] border-[#5e8790]'
               : 'bg-[#e3e3e3] border-[#88a9ac]'
           }`}>
-            <div className="px-6 flex flex-col justify-center">
+            <div className="px-3 sm:px-6 flex flex-col justify-center min-w-0 flex-1">
               <span 
-                className={`font-bold tracking-[-0.32px] ${
+                className={`font-bold tracking-[-0.32px] truncate ${
                   bgmTemplate === null ? 'text-white' : 'text-[#2c2c2c]'
                 }`}
                 style={{ 
@@ -150,7 +150,7 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
                 배경음악 없음
               </span>
               <span 
-                className={`font-medium ${
+                className={`font-medium truncate ${
                   bgmTemplate === null ? 'text-white' : 'text-[#2c2c2c]'
                 }`}
                 style={{ 
@@ -193,19 +193,19 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
               <PopoverTrigger asChild>
                 <div
                   onClick={() => handleCardClick(template.id)}
-                  className="flex items-center gap-4 h-[59px] cursor-pointer transition-all hover:opacity-90"
+                  className="flex items-center gap-2 sm:gap-4 h-[59px] cursor-pointer transition-all hover:opacity-90 min-w-0"
                 >
                   <div className="w-6 h-6 flex items-center justify-center shrink-0">
                     <Image src="/sound.svg" alt="sound" width={24} height={24} />
                   </div>
-                  <div className={`flex-1 rounded-lg border h-[59px] flex items-center ${
+                  <div className={`flex-1 rounded-lg border h-[59px] flex items-center min-w-0 ${
                     isSelected
                       ? 'bg-[#5e8790] border-[#5e8790]'
                       : 'bg-white border-[#88a9ac]'
                   }`}>
-                    <div className="px-6 flex flex-col justify-center">
+                    <div className="px-3 sm:px-6 flex flex-col justify-center min-w-0 flex-1">
                       <span 
-                        className={`font-bold tracking-[-0.32px] ${
+                        className={`font-bold tracking-[-0.32px] truncate ${
                           isSelected ? 'text-white' : 'text-[#2c2c2c]'
                         }`}
                         style={{ 
@@ -216,7 +216,7 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
                         {template.name}
                       </span>
                       <span 
-                        className={`font-medium ${
+                        className={`font-medium truncate ${
                           isSelected ? 'text-white' : 'text-[#2c2c2c]'
                         }`}
                         style={{ 
@@ -231,7 +231,7 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
                   <button
                     type="button"
                     onClick={(e) => handlePreview(template, e)}
-                    className="w-[65px] h-8 rounded-lg flex items-center justify-center gap-1 shrink-0 hover:bg-gray-100 transition-all"
+                    className="w-[55px] sm:w-[65px] h-8 rounded-lg flex items-center justify-center gap-1 shrink-0 hover:bg-gray-100 transition-all"
                   >
                     {isPlaying ? (
                       <Image src="/mute.svg" alt="pause" width={15} height={18} />
