@@ -373,7 +373,7 @@ export const usePixiEffects = ({
       case 'glitch':
         {
           // 이전 코드 패턴: 글리치 (랜덤 위치 이동하며 나타남) - 이미지만 적용
-          const glitchObj = { x: originalX, alpha: 0 }
+          const glitchObj = { x: originalX }
           toSprite.x = originalX
           // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
           
@@ -394,11 +394,14 @@ export const usePixiEffects = ({
           }
           glitchAnim()
           
+          // 글리치 이동만 적용, 페이드는 제거 (이미지는 즉시 보이도록 alpha=1 고정)
+          tl.set(toSprite, { alpha: 1 }, 0)
+          tl.set(glitchObj, { x: originalX }, 0)
+          tl.set(toText, {}, 0) // 텍스트는 별도 페이드 적용
+
           tl.to(glitchObj, { 
-            alpha: 1, 
             duration, 
             onUpdate: function() {
-              // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
               if (toSprite && containerRef.current) {
                 if (!toSprite.parent || toSprite.parent !== containerRef.current) {
                   if (toSprite.parent) {
@@ -406,7 +409,7 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toSprite)
                 }
-                toSprite.alpha = glitchObj.alpha
+                toSprite.x = glitchObj.x
               }
               if (toText && containerRef.current) {
                 if (!toText.parent || toText.parent !== containerRef.current) {
@@ -416,7 +419,6 @@ export const usePixiEffects = ({
                   containerRef.current.addChild(toText)
                 }
               }
-              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
           
