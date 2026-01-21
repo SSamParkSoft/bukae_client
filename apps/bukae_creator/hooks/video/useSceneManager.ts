@@ -12,6 +12,7 @@ import { useSceneLoader } from './scene-management/useSceneLoader'
 import { useSceneRenderer } from './scene-management/useSceneRenderer'
 import { useSceneTransition } from './scene-management/useSceneTransition'
 import type { UseSceneManagerParams } from './types/scene'
+import type { TimelineScene } from '@/lib/types/domain/timeline'
 
 /**
  * 씬 매니저 통합 훅
@@ -110,7 +111,7 @@ export const useSceneManager = ({
   })
 
   // 밑줄 렌더링 헬퍼 함수
-  const renderUnderline = useCallback((textObj: PIXI.Text, scene: typeof timeline.scenes[0]) => {
+  const renderUnderline = useCallback((textObj: PIXI.Text, scene: TimelineScene) => {
     // underline 꺼짐이면 제거만 수행
     const removeExisting = () => {
       const existing = textObj.children.find(
