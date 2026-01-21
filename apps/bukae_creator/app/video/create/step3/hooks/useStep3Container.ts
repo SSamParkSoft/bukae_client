@@ -2348,6 +2348,10 @@ export function useStep3Container() {
     confirmedSoundEffect,
     handleSoundEffectConfirm,
     setTimeline,
+    
+    // For subtitle underline overlay
+    textsRef,
+    appRef,
   }), [
     pixiContainerRef,
     timelineBarRef,

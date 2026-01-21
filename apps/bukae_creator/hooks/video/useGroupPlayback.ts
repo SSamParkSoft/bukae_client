@@ -520,6 +520,40 @@ export function useGroupPlayback({
             const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
             currentTextToUpdate.style = textStyle
 
+            // 밑줄 렌더링 (텍스트 자식으로 추가)
+            const removeUnderline = () => {
+              const underlineChildren = currentTextToUpdate.children.filter(
+                (child) => child instanceof PIXI.Graphics && (child as PIXI.Graphics & { __isUnderline?: boolean }).__isUnderline
+              )
+              underlineChildren.forEach((child) => currentTextToUpdate.removeChild(child))
+            }
+            removeUnderline()
+            if (targetScene.text.style?.underline) {
+              requestAnimationFrame(() => {
+                const underlineHeight = Math.max(2, (targetScene.text.fontSize || 80) * 0.05)
+                const textColor = targetScene.text.color || '#ffffff'
+                const colorValue = textColor.startsWith('#')
+                  ? parseInt(textColor.slice(1), 16)
+                  : 0xffffff
+
+                const bounds = currentTextToUpdate.getLocalBounds()
+                const underlineWidth = bounds.width || textWidth
+
+                const underline = new PIXI.Graphics()
+                ;(underline as PIXI.Graphics & { __isUnderline?: boolean }).__isUnderline = true
+
+                const halfWidth = underlineWidth / 2
+                const yPos = bounds.height / 2 + underlineHeight * 0.25 // 텍스트 하단 근처
+
+                underline.lineStyle(underlineHeight, colorValue, 1)
+                underline.moveTo(-halfWidth, yPos)
+                underline.lineTo(halfWidth, yPos)
+                underline.stroke()
+
+                currentTextToUpdate.addChild(underline)
+              })
+            }
+
             // 위치는 renderSceneContent를 통해 이미 설정되었으므로 업데이트하지 않음
             // Transform이 있는 경우에만 업데이트 (사용자가 직접 설정한 경우)
             if (targetScene.text.transform) {

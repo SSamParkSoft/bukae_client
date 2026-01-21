@@ -7,6 +7,7 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import * as PIXI from 'pixi.js'
 
 interface PreviewPanelProps {
   theme: string | undefined
@@ -32,6 +33,9 @@ interface PreviewPanelProps {
   onPlaybackSpeedChange: (speed: number) => void
   onToggleGrid?: () => void
   onResizeTemplate?: () => void
+  currentSceneIndex?: number
+  textsRef?: React.MutableRefObject<Map<number, PIXI.Text>>
+  appRef?: React.RefObject<PIXI.Application | null>
 }
 
 export const PreviewPanel = memo(function PreviewPanel({
@@ -56,6 +60,9 @@ export const PreviewPanel = memo(function PreviewPanel({
   onPlaybackSpeedChange,
   onToggleGrid,
   onResizeTemplate,
+  currentSceneIndex = 0,
+  textsRef,
+  appRef,
 }: PreviewPanelProps) {
   const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
@@ -89,7 +96,7 @@ export const PreviewPanel = memo(function PreviewPanel({
 
   // 캔버스의 실제 너비를 측정
   const [canvasActualWidth, setCanvasActualWidth] = useState<number | null>(null)
-
+  
   useEffect(() => {
     if (!pixiContainerRef.current) return
 

@@ -1,10 +1,9 @@
 'use client'
 
-import { useMemo, useCallback, useState, useEffect } from 'react'
+import { useMemo, useCallback, useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import type { TimelineData } from '@/store/useVideoCreateStore'
-import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   SUBTITLE_DEFAULT_FONT_ID,
@@ -102,6 +101,38 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
     }
   }, [showToast])
 
+  const fontSizeInputRef = useRef<HTMLInputElement | null>(null)
+
+  const applyFontSizeInput = useCallback(
+    (value?: string) => {
+      const currentSize = currentScene?.text?.fontSize || 80
+      const raw = value !== undefined ? value : fontSizeInputRef.current?.value ?? ''
+      const trimmed = raw.trim()
+      if (trimmed === '') {
+        if (fontSizeInputRef.current) {
+          fontSizeInputRef.current.value = String(currentSize)
+        }
+        return
+      }
+      const parsed = Number(trimmed)
+      if (Number.isNaN(parsed)) {
+        if (fontSizeInputRef.current) {
+          fontSizeInputRef.current.value = String(currentSize)
+        }
+        return
+      }
+      const clamped = Math.min(200, Math.max(0, parsed))
+      if (fontSizeInputRef.current) {
+        fontSizeInputRef.current.value = String(clamped)
+      }
+      updateScene((scene) => ({
+        ...scene,
+        text: { ...scene.text, fontSize: clamped },
+      }))
+    },
+    [currentScene?.text?.fontSize, updateScene],
+  )
+
   if (!timeline || !currentScene) return null
 
   return (
@@ -118,7 +149,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
           SCENE {currentSceneIndex + 1} 자막 설정
         </h3>
         <div 
-          className="rounded-lg p-3 break-words"
+          className="rounded-lg p-3 wrap-break-word"
           style={{
             backgroundColor: '#15252c',
             fontFamily: currentFontFamily,
@@ -213,7 +244,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
             >
               타이포그래피 설정
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center">
               <Select
                 value={String(normalizedFontWeight)}
                 onValueChange={(value) => {
@@ -346,13 +377,19 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                 type="button"
               >
                 <span 
-                  className="font-medium"
+                  className="font-medium relative"
                   style={{ 
                     fontSize: 'var(--font-size-18)',
                     lineHeight: '25.2px'
                   }}
                 >
                   U
+                  <span 
+                    className="absolute bottom-0 left-0 right-0 h-[2px]"
+                    style={{
+                      backgroundColor: currentScene.text?.style?.underline ? '#ffffff' : '#454545',
+                    }}
+                  />
                 </span>
               </button>
             </div>
@@ -492,16 +529,26 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
         <div className="bg-white border border-[#d6d6d6] rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1">
-              <span 
-                className="font-medium text-black"
+              <input
+                type="number"
+                key={currentSceneIndex}
+                defaultValue={currentScene.text?.fontSize || 80}
+                ref={fontSizeInputRef}
+                min={0}
+                max={200}
+                onBlur={(e) => applyFontSizeInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    applyFontSizeInput((e.target as HTMLInputElement).value)
+                  }
+                }}
+                className="h-10 text-text-dark text-center border-0 bg-transparent outline-none focus:outline-none appearance-none [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none px-0 w-auto min-w-[3ch]"
                 style={{ 
                   fontSize: 'var(--font-size-16)',
                   lineHeight: '22.4px',
                   letterSpacing: '-0.32px'
                 }}
-              >
-                {currentScene.text?.fontSize || 80}
-              </span>
+              />
               <span 
                 className="font-medium text-black"
                 style={{ 
@@ -523,6 +570,9 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                     ...scene,
                     text: { ...scene.text, fontSize: newSize },
                   }))
+                  if (fontSizeInputRef.current) {
+                    fontSizeInputRef.current.value = String(newSize)
+                  }
                 }}
                 className="w-6 h-6 flex items-center justify-center"
               >
@@ -537,6 +587,9 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                     ...scene,
                     text: { ...scene.text, fontSize: newSize },
                   }))
+                  if (fontSizeInputRef.current) {
+                    fontSizeInputRef.current.value = String(newSize)
+                  }
                 }}
                 className="w-6 h-6 flex items-center justify-center"
               >

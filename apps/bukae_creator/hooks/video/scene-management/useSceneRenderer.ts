@@ -263,6 +263,13 @@ export function useSceneRenderer({
 
       // 자막 스타일 업데이트 (구간별로 다른 설정 적용)
       if (scene.text) {
+        const textObj = targetTextObj
+        if (!textObj) {
+          if (onComplete) {
+            onComplete()
+          }
+          return
+        }
         const fontFamily = resolveSubtitleFontFamily(scene.text.font)
         const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
         
@@ -288,30 +295,64 @@ export function useSceneRenderer({
         }
         
         const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
-        targetTextObj.style = textStyle
+        textObj.style = textStyle
+
+        // 밑줄 렌더링 (텍스트 자식으로 추가)
+        const removeUnderline = () => {
+          const underlineChildren = textObj.children.filter(
+            (child) => child instanceof PIXI.Graphics && (child as PIXI.Graphics & { __isUnderline?: boolean }).__isUnderline
+          )
+          underlineChildren.forEach((child) => textObj.removeChild(child))
+        }
+        removeUnderline()
+        if (scene.text.style?.underline) {
+          requestAnimationFrame(() => {
+            const underlineHeight = Math.max(2, (scene.text.fontSize || 80) * 0.05)
+            const textColor = scene.text.color || '#ffffff'
+            const colorValue = textColor.startsWith('#')
+              ? parseInt(textColor.slice(1), 16)
+              : 0xffffff
+
+            const bounds = textObj.getLocalBounds()
+            const underlineWidth = bounds.width || textWidth
+
+            const underline = new PIXI.Graphics()
+            ;(underline as PIXI.Graphics & { __isUnderline?: boolean }).__isUnderline = true
+
+            const halfWidth = underlineWidth / 2
+            const yPos = bounds.height / 2 + underlineHeight * 0.25 // 텍스트 하단 근처
+
+            underline.lineStyle(underlineHeight, colorValue, 1)
+            underline.moveTo(-halfWidth, yPos)
+            underline.lineTo(halfWidth, yPos)
+            underline.stroke()
+
+            textObj.addChild(underline)
+          })
+        }
 
         // 텍스트 Transform 적용
         if (scene.text.transform) {
           const scaleX = scene.text.transform.scaleX ?? 1
           const scaleY = scene.text.transform.scaleY ?? 1
-          targetTextObj.x = scene.text.transform.x
-          targetTextObj.y = scene.text.transform.y
-          targetTextObj.scale.set(scaleX, scaleY)
-          targetTextObj.rotation = scene.text.transform.rotation ?? 0
+          textObj.x = scene.text.transform.x
+          textObj.y = scene.text.transform.y
+          textObj.scale.set(scaleX, scaleY)
+          textObj.rotation = scene.text.transform.rotation ?? 0
         } else {
           // Transform이 없으면 기본 위치 설정
-          const position = scene.text.position || 'center'
+          const position = scene.text.position || 'bottom'
           const stageHeight = appRef.current.screen.height
           if (position === 'top') {
-            targetTextObj.y = stageHeight * 0.15
+            textObj.y = stageHeight * 0.15
           } else if (position === 'bottom') {
-            targetTextObj.y = stageHeight * 0.85
+            textObj.y = stageHeight * 0.85
           } else {
-            targetTextObj.y = stageHeight * 0.5
+            textObj.y = stageHeight * 0.5
           }
-          targetTextObj.x = stageWidth * 0.5
-          targetTextObj.scale.set(1, 1)
-          targetTextObj.rotation = 0
+          textObj.x = stageWidth * 0.5
+          textObj.scale.set(1, 1)
+          textObj.rotation = 0
         }
       }
 

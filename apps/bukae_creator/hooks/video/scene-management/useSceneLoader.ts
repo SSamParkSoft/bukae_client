@@ -229,8 +229,14 @@ export function useSceneLoader({
               text.text = text.text // 스타일 변경 적용
             }
           } else {
-            // Transform이 없으면 기초 상태 사용: 하단 85% 위치
-            const textY = height * 0.85
+            // Transform이 없으면 자막 위치 설정 (top / center / bottom)
+            const position = scene.text.position || 'bottom'
+            const textY =
+              position === 'top'
+                ? height * 0.15
+                : position === 'bottom'
+                  ? height * 0.85
+                  : height * 0.5
             text.x = width / 2
             text.y = textY
             text.scale.set(1, 1)
@@ -251,6 +257,40 @@ export function useSceneLoader({
             }
           }
           textsRef.current.set(sceneIndex, text)
+
+          // 밑줄 렌더링 (텍스트 자식으로 추가)
+          const removeUnderline = () => {
+            const underlineChildren = text.children.filter(
+              (child) => child instanceof PIXI.Graphics && (child as PIXI.Graphics & { __isUnderline?: boolean }).__isUnderline
+            )
+            underlineChildren.forEach((child) => text.removeChild(child))
+          }
+          removeUnderline()
+          if (scene.text.style?.underline) {
+            requestAnimationFrame(() => {
+              const underlineHeight = Math.max(2, (scene.text.fontSize || 80) * 0.05)
+              const textColor = scene.text.color || '#ffffff'
+              const colorValue = textColor.startsWith('#')
+                ? parseInt(textColor.slice(1), 16)
+                : 0xffffff
+
+              const bounds = text.getLocalBounds()
+              const underlineWidth = bounds.width || textWidth
+
+              const underline = new PIXI.Graphics()
+              ;(underline as PIXI.Graphics & { __isUnderline?: boolean }).__isUnderline = true
+
+              const halfWidth = underlineWidth / 2
+              const yPos = bounds.height / 2 + underlineHeight * 0.25 // 텍스트 하단 근처
+
+              underline.lineStyle(underlineHeight, colorValue, 1)
+              underline.moveTo(-halfWidth, yPos)
+              underline.lineTo(halfWidth, yPos)
+              underline.stroke()
+
+              text.addChild(underline)
+            })
+          }
         }
       } catch (error) {
         console.error(`Failed to load scene ${sceneIndex}:`, error)
