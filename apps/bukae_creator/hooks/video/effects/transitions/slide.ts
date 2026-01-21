@@ -92,6 +92,19 @@ export function applySlideTransition(
           toSprite.alpha = 1  // 슬라이드 효과는 alpha 변경 없음
         }
       },
+      onComplete: function () {
+        // 슬라이드 효과 완료 후 원래 위치로 확실히 설정
+        // anchor가 (0.5, 0.5)이므로 originalX, originalY는 이미 중심점 좌표
+        if (toSprite) {
+          if (direction === 'left' || direction === 'right') {
+            toSprite.x = originalX
+          } else {
+            toSprite.y = originalY
+          }
+          toSprite.visible = true
+          toSprite.alpha = 1
+        }
+      },
     },
     0
   )

@@ -179,30 +179,26 @@ export const usePixiEffects = ({
         }
       }
     }
-    // 원래 위치 및 스케일 계산 (렌더링되어 있는 스프라이트의 현재 상태를 우선 사용)
-    // 편집 모드에서 변경된 위치/스케일을 그대로 활용하여 전환 효과 적용
-    let originalX = toSprite.x
-    let originalY = toSprite.y
-    // 스프라이트의 현재 실제 스케일을 읽어서 사용 (비율 유지)
+    // 원래 위치 및 스케일 계산
+    // anchor가 (0.5, 0.5)이므로 항상 타임라인의 transform을 중심점 기준으로 변환하여 사용
+    let originalX: number
+    let originalY: number
     const originalScaleX = toSprite.scale.x
     const originalScaleY = toSprite.scale.y
-    // 비율을 유지하기 위해 평균값 사용 (또는 더 작은 값 사용)
     const originalScale = originalScaleX // X 스케일을 기준으로 사용 (비율 유지)
     const scaleRatio = originalScaleY / originalScaleX // Y/X 비율 저장
     
-    // 타임라인의 transform이 있더라도, 이미 렌더링된 스프라이트의 현재 상태를 우선 사용
-    // 단, 스프라이트가 초기 위치(0, 0)에 있고 타임라인에 transform이 있으면 타임라인 값 사용
-    // (스프라이트가 아직 제대로 렌더링되지 않은 경우를 대비)
+    // 타임라인의 transform을 기준으로 원래 위치 계산 (anchor 0.5, 0.5 기준)
     if (timeline?.scenes[sceneIndex]?.imageTransform) {
       const transform = timeline.scenes[sceneIndex].imageTransform!
-      // 스프라이트가 초기 상태(0, 0)가 아니거나 이미 렌더링된 상태면 현재 상태 사용
-      // 스프라이트가 초기 상태면 타임라인 값 사용
-      if (toSprite.x === 0 && toSprite.y === 0 && originalScaleX === 1 && originalScaleY === 1) {
-        // 스프라이트가 초기 상태인 경우에만 타임라인 값 사용
-        originalX = transform.x
-        originalY = transform.y
-      }
-      // 그 외의 경우는 스프라이트의 현재 상태를 그대로 사용 (편집 모드에서 변경된 상태 유지)
+      // anchor가 (0.5, 0.5)이므로 타임라인의 좌상단 기준 좌표를 중심점 기준으로 변환
+      originalX = transform.x + transform.width * 0.5
+      originalY = transform.y + transform.height * 0.5
+    } else {
+      // Transform이 없으면 기본 위치 사용 (anchor 0.5, 0.5 기준)
+      const imageY = stageHeight * 0.15
+      originalX = stageWidth * 0.5
+      originalY = imageY + (stageHeight * 0.7) * 0.5
     }
 
 

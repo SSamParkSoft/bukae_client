@@ -36,8 +36,9 @@ export function applyZoomTransition(
   toSprite.alpha = 1
   toSprite.visible = true
 
-  const centerX = originalX + (toSprite.texture.width * originalScaleX) / 2
-  const centerY = originalY + (toSprite.texture.height * originalScaleY) / 2
+  // anchor가 (0.5, 0.5)이므로 originalX, originalY는 이미 중심점 좌표
+  const centerX = originalX
+  const centerY = originalY
 
   applyTextFade(toText)
 
@@ -58,10 +59,9 @@ export function applyZoomTransition(
           toSprite.alpha = 1
           toSprite.scale.set(scaleFactor, scaleFactor * scaleRatio)
 
-          const newWidth = toSprite.texture.width * scaleFactor
-          const newHeight = toSprite.texture.height * scaleFactor * scaleRatio
-          toSprite.x = centerX - newWidth / 2
-          toSprite.y = centerY - newHeight / 2
+          // anchor가 (0.5, 0.5)이므로 중심점 좌표를 그대로 사용
+          toSprite.x = centerX
+          toSprite.y = centerY
         }
 
         if (toText && containerRef.current) {
