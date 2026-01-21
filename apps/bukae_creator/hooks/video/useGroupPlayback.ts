@@ -676,7 +676,7 @@ export function useGroupPlayback({
         audio.playbackRate = updatedTimeline?.playbackSpeed ?? 1.0
         ttsAudioRef.current = audio
         
-        // 오디오 로드 대기
+        // 오디오 로드 대기 및 duration 확인
         if (audio.readyState < 2) {
           await new Promise<void>((resolve) => {
             if (audio.readyState >= 2) {
@@ -684,25 +684,68 @@ export function useGroupPlayback({
               return
             }
             
-            const handleCanPlay = () => {
-              audio.removeEventListener('canplay', handleCanPlay)
-              audio.removeEventListener('error', handleLoadError)
-              resolve()
-            }
-            const handleLoadError = () => {
+            const handleLoadedMetadata = () => {
+              // 실제 오디오 duration 확인 및 캐시 업데이트
+              if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+                const actualDuration = audio.duration
+                const cachedDuration = cached.durationSec || 0
+                
+                // 실제 duration과 캐시된 duration이 0.1초 이상 차이나면 업데이트
+                if (Math.abs(actualDuration - cachedDuration) > 0.1) {
+                  console.log(`[useGroupPlayback] Duration 불일치 감지: 캐시=${cachedDuration.toFixed(2)}s, 실제=${actualDuration.toFixed(2)}s, 업데이트 중...`)
+                  // 캐시 업데이트
+                  ttsCacheRef.current.set(key, {
+                    ...cached,
+                    durationSec: actualDuration,
+                  })
+                }
+              }
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
               audio.removeEventListener('canplay', handleCanPlay)
               audio.removeEventListener('error', handleLoadError)
               resolve()
             }
             
+            const handleCanPlay = () => {
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+              audio.removeEventListener('canplay', handleCanPlay)
+              audio.removeEventListener('error', handleLoadError)
+              resolve()
+            }
+            const handleLoadError = () => {
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+              audio.removeEventListener('canplay', handleCanPlay)
+              audio.removeEventListener('error', handleLoadError)
+              resolve()
+            }
+            
+            // loadedmetadata 이벤트를 먼저 등록 (duration 정보 포함)
+            audio.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true })
             audio.addEventListener('canplay', handleCanPlay, { once: true })
             audio.addEventListener('error', handleLoadError, { once: true })
             setTimeout(() => {
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
               audio.removeEventListener('canplay', handleCanPlay)
               audio.removeEventListener('error', handleLoadError)
               resolve()
             }, 100)
           })
+        } else {
+          // 이미 로드된 경우에도 duration 확인
+          if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+            const actualDuration = audio.duration
+            const cachedDuration = cached.durationSec || 0
+            
+            // 실제 duration과 캐시된 duration이 0.1초 이상 차이나면 업데이트
+            if (Math.abs(actualDuration - cachedDuration) > 0.1) {
+              console.log(`[useGroupPlayback] Duration 불일치 감지: 캐시=${cachedDuration.toFixed(2)}s, 실제=${actualDuration.toFixed(2)}s, 업데이트 중...`)
+              // 캐시 업데이트
+              ttsCacheRef.current.set(key, {
+                ...cached,
+                durationSec: actualDuration,
+              })
+            }
+          }
         }
 
         // 오디오 재생 전에 텍스트가 표시되어 있는지 확인하고 다시 표시
