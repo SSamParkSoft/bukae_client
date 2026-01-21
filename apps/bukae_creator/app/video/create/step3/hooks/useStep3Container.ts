@@ -1174,14 +1174,15 @@ export function useStep3Container() {
       if (!timeline) {
         throw new Error('timeline이 없습니다.')
       }
-      if (!voiceTemplate) {
+      const sceneVoiceTemplate = timeline.scenes[sceneIndex]?.voiceTemplate || voiceTemplate
+      if (!sceneVoiceTemplate) {
         throw new Error('목소리를 먼저 선택해주세요.')
       }
 
       return ensureSceneTtsUtil({
         timeline,
         sceneIndex,
-        voiceTemplate,
+        voiceTemplate: sceneVoiceTemplate,
         ttsCacheRef,
         ttsInFlightRef,
         changedScenesRef,
@@ -1598,8 +1599,14 @@ export function useStep3Container() {
   const handleGroupPlay = useCallback(async (sceneId: number, groupIndices: number[]) => {
     console.log('[handleGroupPlay] 호출됨', { sceneId, groupIndices, groupPlayback: !!groupPlayback })
     
-    // 음성 선택 여부 확인 (null, undefined, 빈 문자열 모두 체크)
-    if (!voiceTemplate || voiceTemplate.trim() === '') {
+    // 대상 그룹에 대한 음성 템플릿 존재 여부 확인 (씬별 voiceTemplate 우선, 없으면 전역 voiceTemplate)
+    const hasVoiceForGroup = groupIndices.every((idx) => {
+      const sceneVoice = timeline?.scenes[idx]?.voiceTemplate
+      const resolvedVoice = sceneVoice || voiceTemplate
+      return !!resolvedVoice && resolvedVoice.trim() !== ''
+    })
+
+    if (!hasVoiceForGroup) {
       setShowVoiceRequiredMessage(true)
       // 음성 탭으로 자동 이동
       setRightPanelTab('voice')
@@ -1627,7 +1634,8 @@ export function useStep3Container() {
     console.log('[handleScenePlay] 호출됨', { sceneIndex, groupPlayback: !!groupPlayback, timeline: !!timeline })
     try {
       // 음성 선택 여부 확인 (null, undefined, 빈 문자열 모두 체크)
-      if (!voiceTemplate || voiceTemplate.trim() === '') {
+    const sceneVoice = timeline?.scenes[sceneIndex]?.voiceTemplate || voiceTemplate
+    if (!sceneVoice || sceneVoice.trim() === '') {
         setShowVoiceRequiredMessage(true)
         // 음성 탭으로 자동 이동
         setRightPanelTab('voice')

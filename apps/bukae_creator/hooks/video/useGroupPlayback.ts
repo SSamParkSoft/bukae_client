@@ -163,12 +163,13 @@ export function useGroupPlayback({
   const calculateGroupTtsDuration = useCallback((sceneId: number | undefined, groupIndices: number[]): number => {
     // 항상 최신 TTS 캐시에서 직접 계산하여 정확한 duration 보장
     let duration = 0
-    if (voiceTemplate && timeline) {
+    if (timeline) {
       for (const sceneIndex of groupIndices) {
         const scene = timeline.scenes[sceneIndex]
         if (!scene) continue
         // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
         const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+        if (!sceneVoiceTemplate) continue
         
         const markups = buildSceneMarkup(timeline, sceneIndex)
         for (const markup of markups) {
@@ -278,9 +279,16 @@ export function useGroupPlayback({
    * 그룹 재생 함수
    */
   const playGroup = useCallback(async (sceneId: number | undefined, groupIndices: number[]) => {
-    if (!timeline || !voiceTemplate || !ensureSceneTtsParam) {
+    if (!timeline || !ensureSceneTtsParam) {
       return
     }
+    // 그룹/씬 내에 적용 가능한 음성 템플릿이 하나라도 있는지 확인
+    const hasAnyVoice = groupIndices.some((idx) => {
+      const sceneVoice = timeline.scenes[idx]?.voiceTemplate
+      const resolvedVoice = sceneVoice || voiceTemplate
+      return !!resolvedVoice && resolvedVoice.trim() !== ''
+    })
+    if (!hasAnyVoice) return
 
     // 단일 씬 재생도 지원 (sceneId가 undefined이거나 groupIndices가 1개인 경우)
     const isSingleScene = sceneId === undefined || groupIndices.length === 1
@@ -556,6 +564,13 @@ export function useGroupPlayback({
         // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
         const targetScene = updatedTimeline.scenes[targetSceneIndex]
         const sceneVoiceTemplate = targetScene?.voiceTemplate || voiceTemplate
+        if (!sceneVoiceTemplate) {
+          // 음성 템플릿이 없으면 다음 구간으로 이동
+          if (globalPartIndex < mergedTextParts.length - 1) {
+            await playPart(globalPartIndex + 1)
+          }
+          return
+        }
 
         // TTS 파일 가져오기
         const key = makeTtsKey(sceneVoiceTemplate, markup)
