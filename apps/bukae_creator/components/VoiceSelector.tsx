@@ -217,18 +217,12 @@ export default function VoiceSelector({
     // 전역 voiceTemplate 업데이트
     setVoiceTemplate(serialized)
 
-    // 씬별 voiceTemplate이 명시적으로 설정되지 않은 씬들에만 기본값으로 적용
+    // 씬별 voiceTemplate을 모두 덮어쓰기
     if (timeline && serialized) {
-      const updatedScenes = timeline.scenes.map((scene) => {
-        // 이미 scene.voiceTemplate이 있는 경우에는 그대로 두고, 없을 때만 전역 템플릿으로 채움
-        if (scene.voiceTemplate === null || scene.voiceTemplate === undefined || scene.voiceTemplate === '') {
-          return {
-            ...scene,
-            voiceTemplate: serialized,
-          }
-        }
-        return scene
-      })
+      const updatedScenes = timeline.scenes.map((scene) => ({
+        ...scene,
+        voiceTemplate: serialized,
+      }))
 
       setTimeline({
         ...timeline,
