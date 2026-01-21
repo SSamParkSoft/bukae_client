@@ -288,13 +288,12 @@ export const usePixiEffects = ({
       case 'rotate':
         {
           // 이전 코드 패턴: 회전 (회전하며 나타남) - 이미지만 적용
-          const toRotateObj = { rotation: -Math.PI * 2, alpha: 0 }
+          const toRotateObj = { rotation: -Math.PI * 2 }
           toSprite.rotation = -Math.PI * 2
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
+          toSprite.alpha = 1 // 이미지 페이드 제거
           
           tl.to(toRotateObj, { 
             rotation: 0, 
-            alpha: 1, 
             duration, 
             onUpdate: function() {
               // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
@@ -306,7 +305,7 @@ export const usePixiEffects = ({
                   containerRef.current.addChild(toSprite)
                 }
                 toSprite.rotation = toRotateObj.rotation
-                toSprite.alpha = toRotateObj.alpha
+                toSprite.alpha = 1
               }
               if (toText && containerRef.current) {
                 if (!toText.parent || toText.parent !== containerRef.current) {
