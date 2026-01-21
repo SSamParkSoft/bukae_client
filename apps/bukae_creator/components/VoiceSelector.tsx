@@ -262,9 +262,15 @@ export default function VoiceSelector({
       // Premium 목소리 (ElevenLabs)인 경우 정적 파일 재생
       if (voice?.provider === 'elevenlabs') {
         const displayName = voice.displayName || voice.voiceId || voiceName.replace(/^elevenlabs:/, '')
-        // 파일명 후보: 원본 displayName과 소문자 버전 모두 시도
+        // 카멜케이스 변환 함수 (첫 글자만 소문자)
+        const toCamelCase = (str: string) => {
+          if (!str) return str
+          return str.charAt(0).toLowerCase() + str.slice(1)
+        }
+        // 파일명 후보: 원본, 카멜케이스, 소문자 버전 모두 시도
         const fileNameCandidates = [
           `${displayName}_test.wav`,  // 원본 (예: MichaelMouse_test.wav)
+          `${toCamelCase(displayName)}_test.wav`,  // 카멜케이스 (예: michaelMouse_test.wav)
           `${displayName.toLowerCase()}_test.wav`,  // 소문자 (예: michaelmouse_test.wav)
         ]
         
