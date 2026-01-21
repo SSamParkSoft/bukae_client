@@ -63,23 +63,49 @@ export const usePixiEffects = ({
           toSprite.parent.removeChild(toSprite)
         }
         containerRef.current.addChild(toSprite)
+        // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
+        containerRef.current.setChildIndex(toSprite, 0)
       }
-      if (toText && toText.parent !== containerRef.current) {
-        if (toText.parent) {
-          toText.parent.removeChild(toText)
+      // 텍스트 처리: 씬이 넘어가지 않았다면 자막 렌더링 유지
+      if (toText) {
+        // 씬이 넘어갔는지 확인 (_previousIndex가 null이거나 현재 sceneIndex와 같으면 넘어가지 않음)
+        const isSceneChanged = _previousIndex !== null && _previousIndex !== sceneIndex
+        
+        if (isSceneChanged) {
+          // 씬이 넘어갔으면 텍스트 렌더링
+          if (toText.parent !== containerRef.current) {
+            if (toText.parent) {
+              toText.parent.removeChild(toText)
+            }
+            containerRef.current.addChild(toText)
+          }
+          
+          toText.visible = true
+          toText.alpha = 1
+          
+          // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
+          if (containerRef.current) {
+            const currentIndex = containerRef.current.getChildIndex(toText)
+            const maxIndex = containerRef.current.children.length - 1
+            if (currentIndex !== maxIndex) {
+              containerRef.current.setChildIndex(toText, maxIndex)
+            }
+          }
+        } else {
+          // 씬이 넘어가지 않았으면 텍스트를 그대로 유지하되, 맨 위에 있는지 확인
+          if (toText.parent === containerRef.current && containerRef.current) {
+            const currentIndex = containerRef.current.getChildIndex(toText)
+            const maxIndex = containerRef.current.children.length - 1
+            if (currentIndex !== maxIndex) {
+              containerRef.current.setChildIndex(toText, maxIndex)
+            }
+          }
         }
-        containerRef.current.addChild(toText)
       }
       
       // 전환 효과가 없을 때: 재생 중이든 편집 모드든 이미지 표시
         toSprite.visible = true
         toSprite.alpha = 1
-      
-      // 자막도 항상 표시
-      if (toText) {
-        toText.visible = true
-        toText.alpha = 1
-      }
       
       // 렌더링은 PixiJS ticker가 처리
       
@@ -101,19 +127,57 @@ export const usePixiEffects = ({
       activeAnimationsRef.current.delete(sceneIndex)
     }
 
-    // 컨테이너에 추가
+    // 컨테이너에 추가 (텍스트가 항상 위에 오도록 순서 보장)
     if (toSprite.parent !== containerRef.current) {
       if (toSprite.parent) {
       toSprite.parent.removeChild(toSprite)
     }
       containerRef.current.addChild(toSprite)
+      // 이미지가 추가된 후 자막을 맨 위로 올림
+      if (toText && containerRef.current) {
+        const textIndex = containerRef.current.getChildIndex(toText)
+        const maxIndex = containerRef.current.children.length - 1
+        if (textIndex !== maxIndex) {
+          containerRef.current.setChildIndex(toText, maxIndex)
+        }
+      }
     }
     
-    if (toText && toText.parent !== containerRef.current) {
-      if (toText.parent) {
-        toText.parent.removeChild(toText)
+    // 텍스트 처리: 씬이 넘어가지 않았다면 자막 렌더링 유지
+    if (toText) {
+      // 씬이 넘어갔는지 확인 (_previousIndex가 null이거나 현재 sceneIndex와 같으면 넘어가지 않음)
+      const isSceneChanged = _previousIndex !== null && _previousIndex !== sceneIndex
+      
+      if (isSceneChanged) {
+        // 씬이 넘어갔으면 텍스트 렌더링
+        if (toText.parent !== containerRef.current) {
+          if (toText.parent) {
+            toText.parent.removeChild(toText)
+          }
+          containerRef.current.addChild(toText)
+        }
+        
+        toText.visible = true
+        toText.alpha = 1
+        
+        // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
+        if (containerRef.current) {
+          const currentIndex = containerRef.current.getChildIndex(toText)
+          const maxIndex = containerRef.current.children.length - 1
+          if (currentIndex !== maxIndex) {
+            containerRef.current.setChildIndex(toText, maxIndex)
+          }
+        }
+      } else {
+        // 씬이 넘어가지 않았으면 텍스트를 그대로 유지하되, 맨 위에 있는지 확인
+        if (toText && containerRef.current && toText.parent === containerRef.current) {
+          const currentIndex = containerRef.current.getChildIndex(toText)
+          const maxIndex = containerRef.current.children.length - 1
+          if (currentIndex !== maxIndex) {
+            containerRef.current.setChildIndex(toText, maxIndex)
+          }
+        }
       }
-        containerRef.current.addChild(toText)
     }
     // 원래 위치 및 스케일 계산 (렌더링되어 있는 스프라이트의 현재 상태를 우선 사용)
     // 편집 모드에서 변경된 위치/스케일을 그대로 활용하여 전환 효과 적용
@@ -152,6 +216,25 @@ export const usePixiEffects = ({
         toText.alpha = 1
       }
       // 편집 모드에서는 전환 효과를 건너뛰고 바로 onComplete 호출
+      // 편집 모드에서도 텍스트를 항상 보이게 함
+      if (toText && containerRef.current) {
+        if (toText.parent !== containerRef.current) {
+          if (toText.parent) {
+            toText.parent.removeChild(toText)
+          }
+          containerRef.current.addChild(toText)
+        }
+        toText.visible = true
+        toText.alpha = 1
+        const currentIndex = containerRef.current.getChildIndex(toText)
+        const maxIndex = containerRef.current.children.length - 1
+        if (currentIndex !== maxIndex) {
+          containerRef.current.setChildIndex(toText, maxIndex)
+        }
+        if (toText.mask) {
+          toText.mask = null
+        }
+      }
       if (onComplete) {
         onComplete(toText)
       }
@@ -173,27 +256,66 @@ export const usePixiEffects = ({
     const tl = gsap.timeline({
       timeScale: playbackSpeed,
       onComplete: () => {
-        
-        // 전환 효과 완료 후 이전 씬 숨기기
-        // 이전 씬 인덱스는 updateCurrentScene에서 전달받아야 함
-        // 하지만 현재는 직접 접근할 수 없으므로, onComplete 콜백에서 처리하도록 해야 함
-        
-        // 재생 중(isPlaying이 true)이면 전환 효과 완료 후에도 이미지를 유지
-        // 씬 재생과 그룹 재생 모두에서 전환 효과가 보이도록 함
-        if (toSprite && isPlaying) {
-          // 재생 중: 전환 효과 완료 후에도 이미지를 유지하여 전환 효과가 보이도록 함
-          toSprite.visible = true
-          toSprite.alpha = 1
-        } else if (toSprite) {
-            // 편집 모드: 이미지 유지
+        // 전환 효과 완료 후: 이미지가 이미 보이는 상태라면 그대로 유지 (깜빡임 방지)
+        // 씬이 넘어가지 않는다면 이미지가 그대로 남아있어야 함
+        if (toSprite) {
+          // 컨테이너에 없으면 추가 (필요한 경우에만)
+          if (containerRef.current && toSprite.parent !== containerRef.current) {
+            if (toSprite.parent) {
+              toSprite.parent.removeChild(toSprite)
+            }
+            containerRef.current.addChild(toSprite)
+          }
+          
+          // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
+          if (containerRef.current && toSprite.parent === containerRef.current) {
+            containerRef.current.setChildIndex(toSprite, 0)
+          }
+          
+          // 이미 보이는 상태라면 visible/alpha를 건드리지 않음 (깜빡임 방지)
+          // 보이지 않는 경우에만 보이게 설정
+          if (!toSprite.visible || toSprite.alpha < 1) {
             toSprite.visible = true
             toSprite.alpha = 1
+          }
+          
+          // 필터 제거 (블러 등) - 항상 제거
+          if (toSprite.filters && toSprite.filters.length > 0) {
+            toSprite.filters = []
+          }
+          // 마스크 제거 (원형 등) - 항상 제거
+          if (toSprite.mask) {
+            toSprite.mask = null
+          }
         }
         
-        // 자막은 항상 alpha: 1로 표시 (효과 없음)
+        // 텍스트 처리: 전환 효과 완료 후 항상 텍스트를 보이게 함
         if (toText) {
+          // 컨테이너에 없으면 추가
+          if (containerRef.current && toText.parent !== containerRef.current) {
+            if (toText.parent) {
+              toText.parent.removeChild(toText)
+            }
+            containerRef.current.addChild(toText)
+          }
+          
+          // 항상 보이게 설정
           toText.visible = true
           toText.alpha = 1
+          
+          // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
+          if (containerRef.current) {
+            const currentIndex = containerRef.current.getChildIndex(toText)
+            const maxIndex = containerRef.current.children.length - 1
+            if (currentIndex !== maxIndex) {
+              containerRef.current.setChildIndex(toText, maxIndex)
+            }
+          }
+          
+          // 마스크 제거 (원형 등) - 마스크가 있을 때만 제거
+          if (toText.mask) {
+            toText.mask = null
+          }
         }
         // 렌더링은 PixiJS ticker가 처리
         
@@ -209,6 +331,26 @@ export const usePixiEffects = ({
         }
         
         activeAnimationsRef.current.delete(sceneIndex)
+        
+        // 전환 효과 완료 후 텍스트를 항상 보이게 함 (메인 타임라인 완료 시)
+        if (toText && containerRef.current) {
+          if (toText.parent !== containerRef.current) {
+            if (toText.parent) {
+              toText.parent.removeChild(toText)
+            }
+            containerRef.current.addChild(toText)
+          }
+          toText.visible = true
+          toText.alpha = 1
+          const currentIndex = containerRef.current.getChildIndex(toText)
+          const maxIndex = containerRef.current.children.length - 1
+          if (currentIndex !== maxIndex) {
+            containerRef.current.setChildIndex(toText, maxIndex)
+          }
+          if (toText.mask) {
+            toText.mask = null
+          }
+        }
         
         if (onComplete) {
           onComplete(toText)
@@ -287,7 +429,7 @@ export const usePixiEffects = ({
 
       case 'rotate':
         {
-          // 이전 코드 패턴: 회전 (회전하며 나타남) - 이미지만 적용
+          // 회전 (회전하며 나타남) - 이미지만 적용
           const toRotateObj = { rotation: -Math.PI * 2 }
           toSprite.rotation = -Math.PI * 2
           toSprite.alpha = 1 // 이미지 페이드 제거
@@ -303,22 +445,94 @@ export const usePixiEffects = ({
                     toSprite.parent.removeChild(toSprite)
                   }
                   containerRef.current.addChild(toSprite)
+                  // 이미지가 추가된 후 자막을 맨 위로 올림
+                  if (toText && containerRef.current) {
+                    const textIndex = containerRef.current.getChildIndex(toText)
+                    const maxIndex = containerRef.current.children.length - 1
+                    if (textIndex !== maxIndex) {
+                      containerRef.current.setChildIndex(toText, maxIndex)
+                    }
+                  }
                 }
                 toSprite.rotation = toRotateObj.rotation
                 toSprite.alpha = 1
               }
+              // 텍스트 처리: 씬이 넘어가지 않았다면 자막 렌더링 유지
               if (toText && containerRef.current) {
-                if (!toText.parent || toText.parent !== containerRef.current) {
+                // 씬이 넘어갔는지 확인 (_previousIndex가 null이거나 현재 sceneIndex와 같으면 넘어가지 않음)
+                const isSceneChanged = _previousIndex !== null && _previousIndex !== sceneIndex
+                
+                if (isSceneChanged) {
+                  // 씬이 넘어갔으면 텍스트 렌더링
+                  if (toText.parent !== containerRef.current) {
+                    if (toText.parent) {
+                      toText.parent.removeChild(toText)
+                    }
+                    containerRef.current.addChild(toText)
+                  }
+                  
+                  toText.visible = true
+                  toText.alpha = 1
+                  
+                  // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
+                  const currentIndex = containerRef.current.getChildIndex(toText)
+                  const maxIndex = containerRef.current.children.length - 1
+                  if (currentIndex !== maxIndex) {
+                    containerRef.current.setChildIndex(toText, maxIndex)
+                  }
+                } else {
+                  // 씬이 넘어가지 않았으면 텍스트를 그대로 유지하되, 맨 위에 있는지 확인
+                  if (toText.parent === containerRef.current) {
+                    const currentIndex = containerRef.current.getChildIndex(toText)
+                    const maxIndex = containerRef.current.children.length - 1
+                    if (currentIndex !== maxIndex) {
+                      containerRef.current.setChildIndex(toText, maxIndex)
+                    }
+                  }
+                }
+              }
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
+            },
+            onComplete: () => {
+              // 회전 효과 완료 후 스프라이트가 확실히 보이도록 보장
+              if (toSprite && containerRef.current) {
+                if (toSprite.parent !== containerRef.current) {
+                  if (toSprite.parent) {
+                    toSprite.parent.removeChild(toSprite)
+                  }
+                  containerRef.current.addChild(toSprite)
+                }
+                // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
+                if (toSprite.parent === containerRef.current) {
+                  containerRef.current.setChildIndex(toSprite, 0)
+                }
+                // 이미 보이는 상태라면 visible/alpha를 건드리지 않음 (깜빡임 방지)
+                if (!toSprite.visible || toSprite.alpha < 1) {
+                  toSprite.visible = true
+                  toSprite.alpha = 1
+                }
+                toSprite.rotation = 0
+              }
+              
+              // 텍스트 처리: 전환 효과 완료 후 항상 텍스트를 보이게 함
+              if (toText && containerRef.current) {
+                if (toText.parent !== containerRef.current) {
                   if (toText.parent) {
                     toText.parent.removeChild(toText)
                   }
                   containerRef.current.addChild(toText)
                 }
-                // 자막은 항상 alpha: 1로 표시 (효과 없음)
-                toText.alpha = 1
                 toText.visible = true
+                toText.alpha = 1
+                const currentIndex = containerRef.current.getChildIndex(toText)
+                const maxIndex = containerRef.current.children.length - 1
+                if (currentIndex !== maxIndex) {
+                  containerRef.current.setChildIndex(toText, maxIndex)
+                }
+                if (toText.mask) {
+                  toText.mask = null
+                }
               }
-              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
           
@@ -329,7 +543,7 @@ export const usePixiEffects = ({
 
       case 'blur':
         {
-          // 이전 코드 패턴: 블러 (블러에서 선명하게) - 이미지만 적용
+          // 블러 (블러에서 선명하게) - 이미지만 적용
           const toBlurFilter = new PIXI.BlurFilter()
           toBlurFilter.blur = 20
           toSprite.filters = [toBlurFilter]
@@ -348,19 +562,55 @@ export const usePixiEffects = ({
                     toSprite.parent.removeChild(toSprite)
                   }
                   containerRef.current.addChild(toSprite)
+                  // 이미지가 추가된 후 자막을 맨 위로 올림
+                  if (toText && containerRef.current) {
+                    const textIndex = containerRef.current.getChildIndex(toText)
+                    const maxIndex = containerRef.current.children.length - 1
+                    if (textIndex !== maxIndex) {
+                      containerRef.current.setChildIndex(toText, maxIndex)
+                    }
+                  }
                 }
                 toBlurFilter.blur = toBlurObj.blur
                 toSprite.alpha = toBlurObj.alpha
               }
+              // 텍스트는 onUpdate에서 처리하지 않음 (깜빡임 방지)
+              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
+            },
+            onComplete: () => {
+              // 블러 효과 완료 후 필터 제거 및 스프라이트 보이도록 보장
+              if (toSprite) {
+                toSprite.filters = []
+                // 이미 보이는 상태라면 visible/alpha를 건드리지 않음 (깜빡임 방지)
+                if (!toSprite.visible || toSprite.alpha < 1) {
+                  toSprite.visible = true
+                  toSprite.alpha = 1
+                }
+                // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
+                if (containerRef.current && toSprite.parent === containerRef.current) {
+                  containerRef.current.setChildIndex(toSprite, 0)
+                }
+              }
+              
+              // 텍스트 처리: 전환 효과 완료 후 항상 텍스트를 보이게 함
               if (toText && containerRef.current) {
-                if (!toText.parent || toText.parent !== containerRef.current) {
+                if (toText.parent !== containerRef.current) {
                   if (toText.parent) {
                     toText.parent.removeChild(toText)
                   }
                   containerRef.current.addChild(toText)
                 }
+                toText.visible = true
+                toText.alpha = 1
+                const currentIndex = containerRef.current.getChildIndex(toText)
+                const maxIndex = containerRef.current.children.length - 1
+                if (currentIndex !== maxIndex) {
+                  containerRef.current.setChildIndex(toText, maxIndex)
+                }
+                if (toText.mask) {
+                  toText.mask = null
+                }
               }
-              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
             }
           }, 0)
           
@@ -407,15 +657,57 @@ export const usePixiEffects = ({
                     toSprite.parent.removeChild(toSprite)
                   }
                   containerRef.current.addChild(toSprite)
+                  // 이미지가 추가된 후 자막을 맨 위로 올림
+                  if (toText && containerRef.current) {
+                    const textIndex = containerRef.current.getChildIndex(toText)
+                    const maxIndex = containerRef.current.children.length - 1
+                    if (textIndex !== maxIndex) {
+                      containerRef.current.setChildIndex(toText, maxIndex)
+                    }
+                  }
                 }
                 toSprite.x = glitchObj.x
               }
+              // 텍스트는 onUpdate에서 처리하지 않음 (깜빡임 방지)
+            },
+            onComplete: () => {
+              // 글리치 효과 완료 후 스프라이트가 확실히 보이도록 보장
+              if (toSprite && containerRef.current) {
+                if (toSprite.parent !== containerRef.current) {
+                  if (toSprite.parent) {
+                    toSprite.parent.removeChild(toSprite)
+                  }
+                  containerRef.current.addChild(toSprite)
+                }
+                // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
+                if (toSprite.parent === containerRef.current) {
+                  containerRef.current.setChildIndex(toSprite, 0)
+                }
+                // 이미 보이는 상태라면 visible/alpha를 건드리지 않음 (깜빡임 방지)
+                if (!toSprite.visible || toSprite.alpha < 1) {
+                  toSprite.visible = true
+                  toSprite.alpha = 1
+                }
+                toSprite.x = originalX // 원래 위치로 복원
+              }
+              
+              // 텍스트 처리: 전환 효과 완료 후 항상 텍스트를 보이게 함
               if (toText && containerRef.current) {
-                if (!toText.parent || toText.parent !== containerRef.current) {
+                if (toText.parent !== containerRef.current) {
                   if (toText.parent) {
                     toText.parent.removeChild(toText)
                   }
                   containerRef.current.addChild(toText)
+                }
+                toText.visible = true
+                toText.alpha = 1
+                const currentIndex = containerRef.current.getChildIndex(toText)
+                const maxIndex = containerRef.current.children.length - 1
+                if (currentIndex !== maxIndex) {
+                  containerRef.current.setChildIndex(toText, maxIndex)
+                }
+                if (toText.mask) {
+                  toText.mask = null
                 }
               }
             }
@@ -524,10 +816,11 @@ export const usePixiEffects = ({
           break
         }
 
-        // 스프라이트 기준 원형 마스크 확장
+        // 스프라이트 기준 원형 마스크 확장 (스프라이트 중심을 피벗으로 사용)
         const mask = new PIXI.Graphics()
-        const centerX = originalX + (toSprite.texture.width * originalScaleX) / 2
-        const centerY = originalY + (toSprite.texture.height * originalScaleY) / 2
+        // originalX/Y는 스프라이트의 현재 위치(중심)를 의미하도록 로딩/렌더러에서 anchor 0.5로 맞춰둠
+        const centerX = toSprite.x
+        const centerY = toSprite.y
         const maxRadius = Math.sqrt(
           Math.pow((toSprite.texture.width * originalScaleX) / 2, 2) +
           Math.pow((toSprite.texture.height * originalScaleY) / 2, 2)
@@ -558,9 +851,48 @@ export const usePixiEffects = ({
             }
           },
           onComplete: () => {
+            // 원형 마스크 제거 후 스프라이트가 확실히 보이도록 보장
             toSprite.mask = null
             if (mask.parent) mask.parent.removeChild(mask)
             mask.destroy()
+            // 마스크 제거 후에도 스프라이트가 보이도록 보장
+            if (toSprite && containerRef.current) {
+              if (toSprite.parent !== containerRef.current) {
+                if (toSprite.parent) {
+                  toSprite.parent.removeChild(toSprite)
+                }
+                containerRef.current.addChild(toSprite)
+              }
+              // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
+              if (toSprite.parent === containerRef.current) {
+                containerRef.current.setChildIndex(toSprite, 0)
+              }
+              // 이미 보이는 상태라면 visible/alpha를 건드리지 않음 (깜빡임 방지)
+              if (!toSprite.visible || toSprite.alpha < 1) {
+                toSprite.visible = true
+                toSprite.alpha = 1
+              }
+            }
+            
+            // 텍스트 처리: 전환 효과 완료 후 항상 텍스트를 보이게 함
+            if (toText && containerRef.current) {
+              if (toText.parent !== containerRef.current) {
+                if (toText.parent) {
+                  toText.parent.removeChild(toText)
+                }
+                containerRef.current.addChild(toText)
+              }
+              toText.visible = true
+              toText.alpha = 1
+              const currentIndex = containerRef.current.getChildIndex(toText)
+              const maxIndex = containerRef.current.children.length - 1
+              if (currentIndex !== maxIndex) {
+                containerRef.current.setChildIndex(toText, maxIndex)
+              }
+              if (toText.mask) {
+                toText.mask = null
+              }
+            }
           },
         }, 0)
 
@@ -569,7 +901,7 @@ export const usePixiEffects = ({
       break
 
       default:
-        // 이전 코드 패턴: 기본 페이드
+        // 기본 페이드 효과
         {
           const defaultFadeObj = { alpha: 0 }
           // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
@@ -579,13 +911,65 @@ export const usePixiEffects = ({
             alpha: 1, 
             duration, 
             onUpdate: function() {
-              if (toSprite) {
+              if (toSprite && containerRef.current) {
+                if (toSprite.parent !== containerRef.current) {
+                  if (toSprite.parent) {
+                    toSprite.parent.removeChild(toSprite)
+                  }
+                  containerRef.current.addChild(toSprite)
+                  // 이미지가 추가된 후 자막을 맨 위로 올림
+                  if (toText && containerRef.current) {
+                    const textIndex = containerRef.current.getChildIndex(toText)
+                    const maxIndex = containerRef.current.children.length - 1
+                    if (textIndex !== maxIndex) {
+                      containerRef.current.setChildIndex(toText, maxIndex)
+                    }
+                  }
+                }
                 toSprite.alpha = defaultFadeObj.alpha
               }
-              if (toText) {
-                toText.alpha = 1 // 자막은 항상 alpha: 1로 표시 (효과 없음)
-              }
+              // 텍스트는 onUpdate에서 처리하지 않음 (깜빡임 방지)
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
+            },
+            onComplete: () => {
+              // 페이드 효과 완료 후 스프라이트가 확실히 보이도록 보장
+              if (toSprite && containerRef.current) {
+                if (toSprite.parent !== containerRef.current) {
+                  if (toSprite.parent) {
+                    toSprite.parent.removeChild(toSprite)
+                  }
+                  containerRef.current.addChild(toSprite)
+                }
+                // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
+                if (toSprite.parent === containerRef.current) {
+                  containerRef.current.setChildIndex(toSprite, 0)
+                }
+                // 이미 보이는 상태라면 visible/alpha를 건드리지 않음 (깜빡임 방지)
+                if (!toSprite.visible || toSprite.alpha < 1) {
+                  toSprite.visible = true
+                  toSprite.alpha = 1
+                }
+              }
+              
+              // 텍스트 처리: 전환 효과 완료 후 항상 텍스트를 보이게 함
+              if (toText && containerRef.current) {
+                if (toText.parent !== containerRef.current) {
+                  if (toText.parent) {
+                    toText.parent.removeChild(toText)
+                  }
+                  containerRef.current.addChild(toText)
+                }
+                toText.visible = true
+                toText.alpha = 1
+                const currentIndex = containerRef.current.getChildIndex(toText)
+                const maxIndex = containerRef.current.children.length - 1
+                if (currentIndex !== maxIndex) {
+                  containerRef.current.setChildIndex(toText, maxIndex)
+                }
+                if (toText.mask) {
+                  toText.mask = null
+                }
+              }
             }
           }, 0)
         }

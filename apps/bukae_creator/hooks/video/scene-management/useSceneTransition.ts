@@ -98,23 +98,9 @@ export function useSceneTransition({
         }
       }
 
-      // 다른 씬들 숨기기
-      const shouldHideOthers =
-        previousIndex === null && previousSceneIndexRef.current !== actualSceneIndex
-      if (shouldHideOthers) {
-        spritesRef.current.forEach((sprite, idx) => {
-          if (sprite && idx !== actualSceneIndex) {
-            sprite.visible = false
-            sprite.alpha = 0
-          }
-        })
-        textsRef.current.forEach((text, idx) => {
-          if (text && idx !== actualSceneIndex) {
-            text.visible = false
-            text.alpha = 0
-          }
-        })
-      }
+      // 다른 씬들 숨기기 - 씬이 넘어갔을 때만 이전 씬 숨김
+      // 기본적으로는 모든 씬을 보이게 하고, 씬이 넘어갔을 때만 이전 씬을 숨김
+      // (이 부분은 제거 - 씬이 넘어갔을 때만 이전 씬을 숨기도록 변경)
 
       // 현재 씬 표시
       if (currentSprite) {
@@ -268,17 +254,35 @@ export function useSceneTransition({
           }
         })
 
-        if (currentText) {
+        // 현재 씬의 텍스트 표시 (편집 모드)
+        const currentText = textsRef.current.get(actualSceneIndex)
+        if (currentText && containerRef.current) {
+          if (currentText.parent !== containerRef.current) {
+            if (currentText.parent) {
+              currentText.parent.removeChild(currentText)
+            }
+            containerRef.current.addChild(currentText)
+          }
           currentText.visible = true
           currentText.alpha = 1
+          
+          // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
+          // 이미 맨 위가 아니면만 setChildIndex 호출 (깜빡임 방지)
+          const currentIndex = containerRef.current.getChildIndex(currentText)
+          const maxIndex = containerRef.current.children.length - 1
+          if (currentIndex !== maxIndex) {
+            containerRef.current.setChildIndex(currentText, maxIndex)
+          }
         }
 
-        textsRef.current.forEach((text, idx) => {
-          if (text && idx !== actualSceneIndex) {
-            text.visible = false
-            text.alpha = 0
+        // 씬이 넘어갔을 때만 이전 씬의 텍스트 숨김
+        if (previousSceneIndexRef.current !== null && previousSceneIndexRef.current !== actualSceneIndex) {
+          const previousText = textsRef.current.get(previousSceneIndexRef.current)
+          if (previousText) {
+            previousText.visible = false
+            previousText.alpha = 0
           }
-        })
+        }
 
         previousSceneIndexRef.current = actualSceneIndex
         if (onAnimationComplete) {
@@ -384,43 +388,65 @@ export function useSceneTransition({
           }
         })
 
-        if (!isManualSceneSelectRef.current) {
-          textsRef.current.forEach((text, idx) => {
-            if (text && idx !== actualSceneIndex && idx !== previousIndex) {
-              const otherScene = timeline.scenes[idx]
-              const isOtherInSameGroup =
-                otherScene && currentScene && hasSceneId && otherScene.sceneId === currentScene.sceneId
-              if (!isOtherInSameGroup) {
-                text.visible = false
-                text.alpha = 0
-              }
-            }
-          })
-        }
+        // 씬이 넘어갔을 때만 이전 씬의 텍스트 숨김 (다른 씬들은 그대로 유지)
+        // 기본적으로는 모든 텍스트를 보이게 하고, 씬이 넘어갔을 때만 이전 씬의 텍스트를 숨김
+        // (이 부분은 제거 - 씬이 넘어갔을 때만 이전 씬을 숨기도록 변경)
       }
 
       // 전환 효과 적용을 위한 wrappedOnComplete 미리 정의
       const wrappedOnComplete = onAnimationComplete
         ? () => {
-            // 재생 중일 때: 전환 효과 완료 후에도 이미지를 유지 (그룹 재생 완료 시 끊기지 않도록)
-            // 이미지 숨김은 usePixiEffects의 onComplete에서 처리하므로 여기서는 숨기지 않음
+            // 현재 씬의 스프라이트 처리: 이미 보이는 상태라면 그대로 유지 (깜빡임 방지)
+            // 씬이 넘어가지 않는다면 이미지가 그대로 남아있어야 함
+            const currentSprite = spritesRef.current.get(actualSceneIndex)
+            if (currentSprite && containerRef.current) {
+              // 컨테이너에 없으면 추가 (필요한 경우에만)
+              if (currentSprite.parent !== containerRef.current) {
+                if (currentSprite.parent) {
+                  currentSprite.parent.removeChild(currentSprite)
+                }
+                containerRef.current.addChild(currentSprite)
+              }
+              
+              // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
+              if (currentSprite.parent === containerRef.current) {
+                containerRef.current.setChildIndex(currentSprite, 0)
+              }
+              
+              // 이미 보이는 상태라면 visible/alpha를 건드리지 않음 (깜빡임 방지)
+              // 보이지 않는 경우에만 보이게 설정
+              if (!currentSprite.visible || currentSprite.alpha < 1) {
+                currentSprite.visible = true
+                currentSprite.alpha = 1
+              }
+            }
 
-            // 이전 씬 숨기기 (전환 효과 완료 후)
+            // 텍스트는 usePixiEffects의 onComplete에서 이미 처리되므로 여기서는 처리하지 않음 (깜빡임 방지)
+
+            // 이전 씬 숨기기 (전환 효과 완료 후) - 현재 씬과 다른 씬만 숨김
+            // 이미지와 텍스트 모두 같은 그룹이 아닌 경우에만 숨김
             if (previousIndex !== null && previousIndex !== actualSceneIndex) {
               const prevSprite = spritesRef.current.get(previousIndex)
               const prevText = textsRef.current.get(previousIndex)
+              const prevScene = timeline.scenes[previousIndex]
+              const isPrevInSameGroup =
+                prevScene && currentScene && hasSceneId && prevScene.sceneId === currentScene.sceneId
               
-              if (prevSprite) {
-                prevSprite.visible = false
-                prevSprite.alpha = 0
+              // 같은 그룹이 아닌 경우에만 숨김
+              if (!isPrevInSameGroup) {
+                if (prevSprite) {
+                  prevSprite.visible = false
+                  prevSprite.alpha = 0
                 }
-              if (prevText) {
-                prevText.visible = false
-                prevText.alpha = 0
+                if (prevText) {
+                  prevText.visible = false
+                  prevText.alpha = 0
+                }
               }
             }
 
             // 다른 모든 씬 숨기기 (현재 씬과 같은 그룹 제외)
+            // 이미지와 텍스트 모두 같은 그룹이 아닌 경우에만 숨김
             spritesRef.current.forEach((sprite, idx) => {
               if (sprite && idx !== actualSceneIndex && idx !== previousIndex) {
                 const otherScene = timeline.scenes[idx]
@@ -439,6 +465,7 @@ export function useSceneTransition({
                   const otherScene = timeline.scenes[idx]
                   const isOtherInSameGroup =
                     otherScene && currentScene && hasSceneId && otherScene.sceneId === currentScene.sceneId
+                  // 같은 그룹이 아닌 경우에만 텍스트 숨김
                   if (!isOtherInSameGroup) {
                     text.visible = false
                     text.alpha = 0
@@ -450,6 +477,19 @@ export function useSceneTransition({
             onAnimationComplete(actualSceneIndex)
           }
         : () => {
+            // 현재 씬의 스프라이트가 확실히 보이도록 보장
+            const currentSprite = spritesRef.current.get(actualSceneIndex)
+            if (currentSprite && containerRef.current) {
+              if (currentSprite.parent !== containerRef.current) {
+                if (currentSprite.parent) {
+                  currentSprite.parent.removeChild(currentSprite)
+                }
+                containerRef.current.addChild(currentSprite)
+              }
+              currentSprite.visible = true
+              currentSprite.alpha = 1
+            }
+
             spritesRef.current.forEach((sprite, idx) => {
               if (sprite && idx !== actualSceneIndex) {
                 sprite.visible = false
@@ -578,6 +618,15 @@ export function useSceneTransition({
             }
             currentText.visible = true
             currentText.alpha = 1
+            // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
+            // 이미 맨 위가 아니면만 setChildIndex 호출 (깜빡임 방지)
+            if (containerRef.current) {
+              const currentIndex = containerRef.current.getChildIndex(currentText)
+              const maxIndex = containerRef.current.children.length - 1
+              if (currentIndex !== maxIndex) {
+                containerRef.current.setChildIndex(currentText, maxIndex)
+              }
+            }
           }
 
           previousSceneIndexRef.current = actualSceneIndex
@@ -626,11 +675,34 @@ export function useSceneTransition({
         }
 
         // 텍스트 처리
-        textsRef.current.forEach((text) => {
-          if (!text || text === currentText) return
-          text.visible = false
-          text.alpha = 0
-        })
+        // 현재 씬의 텍스트 표시
+        if (currentText && containerRef.current) {
+          if (currentText.parent !== containerRef.current) {
+            if (currentText.parent) {
+              currentText.parent.removeChild(currentText)
+            }
+            containerRef.current.addChild(currentText)
+          }
+          currentText.visible = true
+          currentText.alpha = 1
+          
+          // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
+          // 이미 맨 위가 아니면만 setChildIndex 호출 (깜빡임 방지)
+          const currentIndex = containerRef.current.getChildIndex(currentText)
+          const maxIndex = containerRef.current.children.length - 1
+          if (currentIndex !== maxIndex) {
+            containerRef.current.setChildIndex(currentText, maxIndex)
+          }
+        }
+        
+        // 씬이 넘어갔을 때만 이전 씬의 텍스트 숨김
+        if (previousSceneIndexRef.current !== null && previousSceneIndexRef.current !== actualSceneIndex) {
+          const previousText = textsRef.current.get(previousSceneIndexRef.current)
+          if (previousText && previousText !== currentText) {
+            previousText.visible = false
+            previousText.alpha = 0
+          }
+        }
 
         // spriteToUse의 visibility 설정
         // 재생 중이고 전환 효과가 있는 경우, applyEnterEffect에서 alpha를 설정하므로
@@ -659,7 +731,18 @@ export function useSceneTransition({
             }
             containerRef.current.addChild(currentText)
           }
-          // visible/alpha는 applyEnterEffect에서 설정하므로 여기서는 설정하지 않음 (중복 렌더링 방지)
+          // 재생 중 깜빡임 방지를 위해 미리 표시 상태 고정
+          currentText.visible = true
+          currentText.alpha = 1
+          // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
+          // 이미 맨 위가 아니면만 setChildIndex 호출 (깜빡임 방지)
+          if (containerRef.current) {
+            const currentIndex = containerRef.current.getChildIndex(currentText)
+            const maxIndex = containerRef.current.children.length - 1
+            if (currentIndex !== maxIndex) {
+              containerRef.current.setChildIndex(currentText, maxIndex)
+            }
+          }
         }
 
         const isCurrentTransitionMovement = MOVEMENT_EFFECTS.includes(
@@ -808,6 +891,25 @@ export function useSceneTransition({
             actualSceneIndex,
             forceTransition,
             () => {
+              // 전환 효과 완료 후 텍스트를 항상 보이게 함
+              if (currentText && containerRef.current) {
+                if (currentText.parent !== containerRef.current) {
+                  if (currentText.parent) {
+                    currentText.parent.removeChild(currentText)
+                  }
+                  containerRef.current.addChild(currentText)
+                }
+                currentText.visible = true
+                currentText.alpha = 1
+                const currentIndex = containerRef.current.getChildIndex(currentText)
+                const maxIndex = containerRef.current.children.length - 1
+                if (currentIndex !== maxIndex) {
+                  containerRef.current.setChildIndex(currentText, maxIndex)
+                }
+                if (currentText.mask) {
+                  currentText.mask = null
+                }
+              }
               previousSceneIndexRef.current = actualSceneIndex
               wrappedOnComplete()
             },
@@ -816,6 +918,15 @@ export function useSceneTransition({
             currentScene.sceneId,
             isPlaying
           )
+          
+          // applyEnterEffect 호출 직후에도 텍스트를 맨 위로 올림 (전환 효과 시작 시에도 보이도록) - 이미 맨 위가 아니면만
+          if (currentText && containerRef.current && currentText.parent === containerRef.current) {
+            const currentIndex = containerRef.current.getChildIndex(currentText)
+            const maxIndex = containerRef.current.children.length - 1
+            if (currentIndex !== maxIndex) {
+              containerRef.current.setChildIndex(currentText, maxIndex)
+            }
+          }
         }
       }
 

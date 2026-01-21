@@ -255,7 +255,12 @@ export function useSceneRenderer({
           }
           containerRef.current.addChild(targetTextObj)
         }
-        containerRef.current.setChildIndex(targetTextObj, containerRef.current.children.length - 1)
+        // 이미 맨 위가 아니면만 setChildIndex 호출 (깜빡임 방지)
+        const currentIndex = containerRef.current.getChildIndex(targetTextObj)
+        const maxIndex = containerRef.current.children.length - 1
+        if (currentIndex !== maxIndex) {
+          containerRef.current.setChildIndex(targetTextObj, maxIndex)
+        }
       }
 
       // 텍스트 업데이트
@@ -375,7 +380,12 @@ export function useSceneRenderer({
           targetTextObj.parent.removeChild(targetTextObj)
         }
         containerRef.current.addChild(targetTextObj)
-        containerRef.current.setChildIndex(targetTextObj, containerRef.current.children.length - 1)
+        // 이미 맨 위가 아니면만 setChildIndex 호출 (깜빡임 방지)
+        const currentIndex = containerRef.current.getChildIndex(targetTextObj)
+        const maxIndex = containerRef.current.children.length - 1
+        if (currentIndex !== maxIndex) {
+          containerRef.current.setChildIndex(targetTextObj, maxIndex)
+        }
       }
 
       // 자막이 제대로 렌더링되었는지 최종 확인
