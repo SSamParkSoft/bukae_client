@@ -44,12 +44,15 @@ export function applyZoomTransition(
 
   const targetScale = direction === 'in' ? originalScale * 1.15 : originalScale * 0.85
 
+  // 이전 애니메이션 제거 (겹침 방지)
+  timeline.clear()
+  
   timeline.to(
     toZoomObj,
     {
       scale: targetScale,
       duration,
-      ease: 'power1.out',
+      ease: 'none', // 선형 애니메이션으로 정확한 듀레이션 보장
       onUpdate: function () {
         if (toSprite && containerRef.current) {
           ensureInContainer(toSprite, toText, containerRef.current)
@@ -68,6 +71,16 @@ export function applyZoomTransition(
           ensureInContainer(toSprite, toText, containerRef.current)
           toText.alpha = 1
           toText.visible = true
+        }
+      },
+      onComplete: function () {
+        // 줌 효과 완료 후 원래 스케일로 복귀
+        if (toSprite) {
+          toSprite.scale.set(originalScaleX, originalScaleY)
+          toSprite.x = originalX
+          toSprite.y = originalY
+          toSprite.visible = true
+          toSprite.alpha = 1
         }
       },
     },

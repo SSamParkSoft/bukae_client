@@ -84,7 +84,7 @@ export const usePixiEffects = ({
           toText.alpha = 1
           
           // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
-          if (containerRef.current) {
+          if (toText && containerRef.current && toText.parent === containerRef.current) {
             const currentIndex = containerRef.current.getChildIndex(toText)
             const maxIndex = containerRef.current.children.length - 1
             if (currentIndex !== maxIndex) {
@@ -134,7 +134,7 @@ export const usePixiEffects = ({
     }
       containerRef.current.addChild(toSprite)
       // 이미지가 추가된 후 자막을 맨 위로 올림
-      if (toText && containerRef.current) {
+      if (toText && containerRef.current && toText.parent === containerRef.current) {
         const textIndex = containerRef.current.getChildIndex(toText)
         const maxIndex = containerRef.current.children.length - 1
         if (textIndex !== maxIndex) {
@@ -161,7 +161,7 @@ export const usePixiEffects = ({
         toText.alpha = 1
         
         // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
-        if (containerRef.current) {
+        if (toText && containerRef.current && toText.parent === containerRef.current) {
           const currentIndex = containerRef.current.getChildIndex(toText)
           const maxIndex = containerRef.current.children.length - 1
           if (currentIndex !== maxIndex) {
@@ -180,26 +180,26 @@ export const usePixiEffects = ({
       }
     }
     // 원래 위치 및 스케일 계산
-    // anchor가 (0.5, 0.5)이므로 항상 타임라인의 transform을 중심점 기준으로 변환하여 사용
+    // 편집 모드에서 사용자가 설정한 위치를 원래 위치로 사용
+    // 타임라인의 transform에 저장된 x, y는 이미 anchor (0.5, 0.5) 기준의 중심점 좌표
     let originalX: number
     let originalY: number
-    const originalScaleX = toSprite.scale.x
-    const originalScaleY = toSprite.scale.y
-    const originalScale = originalScaleX // X 스케일을 기준으로 사용 (비율 유지)
-    const scaleRatio = originalScaleY / originalScaleX // Y/X 비율 저장
     
-    // 타임라인의 transform을 기준으로 원래 위치 계산 (anchor 0.5, 0.5 기준)
     if (timeline?.scenes[sceneIndex]?.imageTransform) {
       const transform = timeline.scenes[sceneIndex].imageTransform!
-      // anchor가 (0.5, 0.5)이므로 타임라인의 좌상단 기준 좌표를 중심점 기준으로 변환
-      originalX = transform.x + transform.width * 0.5
-      originalY = transform.y + transform.height * 0.5
+      // 편집 모드에서 저장된 위치를 그대로 사용 (이미 중심점 좌표)
+      originalX = transform.x
+      originalY = transform.y
     } else {
       // Transform이 없으면 기본 위치 사용 (anchor 0.5, 0.5 기준)
       const imageY = stageHeight * 0.15
       originalX = stageWidth * 0.5
       originalY = imageY + (stageHeight * 0.7) * 0.5
     }
+    const originalScaleX = toSprite.scale.x
+    const originalScaleY = toSprite.scale.y
+    const originalScale = originalScaleX // X 스케일을 기준으로 사용 (비율 유지)
+    const scaleRatio = originalScaleY / originalScaleX // Y/X 비율 저장
 
 
     // 편집 모드면 전환 효과 없이 바로 이미지 표시, 재생 중이면 전환 효과 적용
@@ -222,10 +222,12 @@ export const usePixiEffects = ({
         }
         toText.visible = true
         toText.alpha = 1
-        const currentIndex = containerRef.current.getChildIndex(toText)
-        const maxIndex = containerRef.current.children.length - 1
-        if (currentIndex !== maxIndex) {
-          containerRef.current.setChildIndex(toText, maxIndex)
+        if (toText.parent === containerRef.current && containerRef.current) {
+          const currentIndex = containerRef.current.getChildIndex(toText)
+          const maxIndex = containerRef.current.children.length - 1
+          if (currentIndex !== maxIndex) {
+            containerRef.current.setChildIndex(toText, maxIndex)
+          }
         }
         if (toText.mask) {
           toText.mask = null
@@ -300,7 +302,7 @@ export const usePixiEffects = ({
           toText.alpha = 1
           
           // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
-          if (containerRef.current) {
+          if (toText && containerRef.current && toText.parent === containerRef.current) {
             const currentIndex = containerRef.current.getChildIndex(toText)
             const maxIndex = containerRef.current.children.length - 1
             if (currentIndex !== maxIndex) {
@@ -338,10 +340,12 @@ export const usePixiEffects = ({
           }
           toText.visible = true
           toText.alpha = 1
-          const currentIndex = containerRef.current.getChildIndex(toText)
-          const maxIndex = containerRef.current.children.length - 1
-          if (currentIndex !== maxIndex) {
-            containerRef.current.setChildIndex(toText, maxIndex)
+          if (toText.parent === containerRef.current && containerRef.current) {
+            const currentIndex = containerRef.current.getChildIndex(toText)
+            const maxIndex = containerRef.current.children.length - 1
+            if (currentIndex !== maxIndex) {
+              containerRef.current.setChildIndex(toText, maxIndex)
+            }
           }
           if (toText.mask) {
             toText.mask = null
@@ -442,7 +446,7 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toSprite)
                   // 이미지가 추가된 후 자막을 맨 위로 올림
-                  if (toText && containerRef.current) {
+                  if (toText && containerRef.current && toText.parent === containerRef.current) {
                     const textIndex = containerRef.current.getChildIndex(toText)
                     const maxIndex = containerRef.current.children.length - 1
                     if (textIndex !== maxIndex) {
@@ -471,10 +475,12 @@ export const usePixiEffects = ({
                   toText.alpha = 1
                   
                   // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
-                  const currentIndex = containerRef.current.getChildIndex(toText)
-                  const maxIndex = containerRef.current.children.length - 1
-                  if (currentIndex !== maxIndex) {
-                    containerRef.current.setChildIndex(toText, maxIndex)
+                  if (toText.parent === containerRef.current && containerRef.current) {
+                    const currentIndex = containerRef.current.getChildIndex(toText)
+                    const maxIndex = containerRef.current.children.length - 1
+                    if (currentIndex !== maxIndex) {
+                      containerRef.current.setChildIndex(toText, maxIndex)
+                    }
                   }
                 } else {
                   // 씬이 넘어가지 않았으면 텍스트를 그대로 유지하되, 맨 위에 있는지 확인
@@ -520,10 +526,12 @@ export const usePixiEffects = ({
                 }
                 toText.visible = true
                 toText.alpha = 1
-                const currentIndex = containerRef.current.getChildIndex(toText)
-                const maxIndex = containerRef.current.children.length - 1
-                if (currentIndex !== maxIndex) {
-                  containerRef.current.setChildIndex(toText, maxIndex)
+                if (toText.parent === containerRef.current && containerRef.current) {
+                  const currentIndex = containerRef.current.getChildIndex(toText)
+                  const maxIndex = containerRef.current.children.length - 1
+                  if (currentIndex !== maxIndex) {
+                    containerRef.current.setChildIndex(toText, maxIndex)
+                  }
                 }
                 if (toText.mask) {
                   toText.mask = null
@@ -559,7 +567,7 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toSprite)
                   // 이미지가 추가된 후 자막을 맨 위로 올림
-                  if (toText && containerRef.current) {
+                  if (toText && containerRef.current && toText.parent === containerRef.current) {
                     const textIndex = containerRef.current.getChildIndex(toText)
                     const maxIndex = containerRef.current.children.length - 1
                     if (textIndex !== maxIndex) {
@@ -598,10 +606,12 @@ export const usePixiEffects = ({
                 }
                 toText.visible = true
                 toText.alpha = 1
-                const currentIndex = containerRef.current.getChildIndex(toText)
-                const maxIndex = containerRef.current.children.length - 1
-                if (currentIndex !== maxIndex) {
-                  containerRef.current.setChildIndex(toText, maxIndex)
+                if (toText.parent === containerRef.current && containerRef.current) {
+                  const currentIndex = containerRef.current.getChildIndex(toText)
+                  const maxIndex = containerRef.current.children.length - 1
+                  if (currentIndex !== maxIndex) {
+                    containerRef.current.setChildIndex(toText, maxIndex)
+                  }
                 }
                 if (toText.mask) {
                   toText.mask = null
@@ -654,7 +664,7 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toSprite)
                   // 이미지가 추가된 후 자막을 맨 위로 올림
-                  if (toText && containerRef.current) {
+                  if (toText && containerRef.current && toText.parent === containerRef.current) {
                     const textIndex = containerRef.current.getChildIndex(toText)
                     const maxIndex = containerRef.current.children.length - 1
                     if (textIndex !== maxIndex) {
@@ -697,10 +707,12 @@ export const usePixiEffects = ({
                 }
                 toText.visible = true
                 toText.alpha = 1
-                const currentIndex = containerRef.current.getChildIndex(toText)
-                const maxIndex = containerRef.current.children.length - 1
-                if (currentIndex !== maxIndex) {
-                  containerRef.current.setChildIndex(toText, maxIndex)
+                if (toText.parent === containerRef.current && containerRef.current) {
+                  const currentIndex = containerRef.current.getChildIndex(toText)
+                  const maxIndex = containerRef.current.children.length - 1
+                  if (currentIndex !== maxIndex) {
+                    containerRef.current.setChildIndex(toText, maxIndex)
+                  }
                 }
                 if (toText.mask) {
                   toText.mask = null
@@ -812,46 +824,114 @@ export const usePixiEffects = ({
           break
         }
 
-        // 스프라이트 기준 원형 마스크 확장 (스프라이트 중심을 피벗으로 사용)
-        const mask = new PIXI.Graphics()
-        // originalX/Y는 스프라이트의 현재 위치(중심)를 의미하도록 로딩/렌더러에서 anchor 0.5로 맞춰둠
-        const centerX = toSprite.x
-        const centerY = toSprite.y
+        // 스프라이트를 컨테이너에 추가
+        if (toSprite.parent !== containerRef.current) {
+          if (toSprite.parent) {
+            toSprite.parent.removeChild(toSprite)
+          }
+          containerRef.current.addChild(toSprite)
+        }
+        
+        // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
+        if (toSprite.parent === containerRef.current) {
+          containerRef.current.setChildIndex(toSprite, 0)
+        }
+        
+        // 스프라이트를 먼저 보이게 설정 (마스크가 적용되면 마스크 영역만 보임)
+        toSprite.visible = true
+        toSprite.alpha = 1
+
+        // 스프라이트의 실제 크기 계산 (스케일 적용)
+        const spriteWidth = toSprite.texture.width * originalScaleX
+        const spriteHeight = toSprite.texture.height * originalScaleY
+        
+        // 대각선 길이의 절반을 최대 반지름으로 사용
         const maxRadius = Math.sqrt(
-          Math.pow((toSprite.texture.width * originalScaleX) / 2, 2) +
-          Math.pow((toSprite.texture.height * originalScaleY) / 2, 2)
+          Math.pow(spriteWidth / 2, 2) +
+          Math.pow(spriteHeight / 2, 2)
         )
 
+        // 원형 마스크 생성
+        // PixiJS에서 마스크는 스프라이트와 같은 부모 컨테이너에 있어야 함
+        const mask = new PIXI.Graphics()
+        // 마스크를 보이게 설정하여 디버깅 (실제로 그려지는지 확인)
+        mask.visible = true
+        
+        // 스프라이트의 글로벌 위치를 마스크의 중심으로 사용
+        // 스프라이트의 anchor가 (0.5, 0.5)이므로 x, y가 이미 중심점 좌표
+        let centerX = toSprite.x
+        let centerY = toSprite.y
+        
         const state = { r: 0 }
+        
+        // 마스크를 컨테이너에 추가 (스프라이트와 같은 부모)
+        containerRef.current.addChild(mask)
+        
+        // 스프라이트에 마스크 적용 (마스크를 먼저 추가한 후 적용)
+        toSprite.mask = mask
+        
         const drawMask = () => {
           mask.clear()
-          mask.beginFill(0xffffff)
+          // 마스크는 흰색으로 채워서 마스크 영역을 정의
+          // 컨테이너의 글로벌 좌표계에서 스프라이트의 중심 위치를 기준으로 원 그리기
+          mask.beginFill(0xffffff, 1)
           mask.drawCircle(centerX, centerY, state.r)
           mask.endFill()
         }
-
+        
+        // 초기 마스크 그리기 (반지름 0으로 시작 - 아무것도 보이지 않음)
         drawMask()
-        containerRef.current.addChild(mask)
-        toSprite.mask = mask
-        // 자막은 마스크를 적용하지 않아 영역 왜곡을 방지
-        toSprite.alpha = 1
 
         tl.to(state, {
           r: maxRadius,
           duration,
           ease: 'power2.out',
           onUpdate: () => {
-            drawMask()
-            if (containerRef.current && !containerRef.current.children.includes(mask)) {
+            // 스프라이트가 컨테이너에 있는지 확인
+            if (toSprite && containerRef.current) {
+              if (!toSprite.parent || toSprite.parent !== containerRef.current) {
+                if (toSprite.parent) {
+                  toSprite.parent.removeChild(toSprite)
+                }
+                containerRef.current.addChild(toSprite)
+              }
+              // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
+              if (toSprite.parent === containerRef.current) {
+                containerRef.current.setChildIndex(toSprite, 0)
+              }
+              toSprite.visible = true
+              toSprite.alpha = 1
+            }
+            
+            // 스프라이트 위치 업데이트
+            centerX = toSprite.x
+            centerY = toSprite.y
+            
+            // 마스크가 컨테이너에 있는지 확인
+            if (containerRef.current && mask.parent !== containerRef.current) {
+              if (mask.parent) {
+                mask.parent.removeChild(mask)
+              }
               containerRef.current.addChild(mask)
             }
+            
+            // 스프라이트에 마스크가 적용되어 있는지 확인
+            if (toSprite.mask !== mask) {
+              toSprite.mask = mask
+            }
+            
+            // 마스크를 다시 그리기 (반지름이 증가하면서 점진적으로 나타남)
+            drawMask()
           },
           onComplete: () => {
-            // 원형 마스크 제거 후 스프라이트가 확실히 보이도록 보장
+            // 원형 마스크 제거 (효과 완료 후 전체 이미지 표시)
             toSprite.mask = null
-            if (mask.parent) mask.parent.removeChild(mask)
+            if (mask.parent) {
+              mask.parent.removeChild(mask)
+            }
             mask.destroy()
-            // 마스크 제거 후에도 스프라이트가 보이도록 보장
+            
+            // 스프라이트가 확실히 보이도록 보장
             if (toSprite && containerRef.current) {
               if (toSprite.parent !== containerRef.current) {
                 if (toSprite.parent) {
@@ -863,11 +943,8 @@ export const usePixiEffects = ({
               if (toSprite.parent === containerRef.current) {
                 containerRef.current.setChildIndex(toSprite, 0)
               }
-              // 이미 보이는 상태라면 visible/alpha를 건드리지 않음 (깜빡임 방지)
-              if (!toSprite.visible || toSprite.alpha < 1) {
-                toSprite.visible = true
-                toSprite.alpha = 1
-              }
+              toSprite.visible = true
+              toSprite.alpha = 1
             }
             
             // 텍스트 처리: 전환 효과 완료 후 항상 텍스트를 보이게 함
@@ -880,10 +957,12 @@ export const usePixiEffects = ({
               }
               toText.visible = true
               toText.alpha = 1
-              const currentIndex = containerRef.current.getChildIndex(toText)
-              const maxIndex = containerRef.current.children.length - 1
-              if (currentIndex !== maxIndex) {
-                containerRef.current.setChildIndex(toText, maxIndex)
+              if (toText.parent === containerRef.current && containerRef.current) {
+                const currentIndex = containerRef.current.getChildIndex(toText)
+                const maxIndex = containerRef.current.children.length - 1
+                if (currentIndex !== maxIndex) {
+                  containerRef.current.setChildIndex(toText, maxIndex)
+                }
               }
               if (toText.mask) {
                 toText.mask = null
@@ -914,7 +993,7 @@ export const usePixiEffects = ({
                   }
                   containerRef.current.addChild(toSprite)
                   // 이미지가 추가된 후 자막을 맨 위로 올림
-                  if (toText && containerRef.current) {
+                  if (toText && containerRef.current && toText.parent === containerRef.current) {
                     const textIndex = containerRef.current.getChildIndex(toText)
                     const maxIndex = containerRef.current.children.length - 1
                     if (textIndex !== maxIndex) {
@@ -957,10 +1036,12 @@ export const usePixiEffects = ({
                 }
                 toText.visible = true
                 toText.alpha = 1
-                const currentIndex = containerRef.current.getChildIndex(toText)
-                const maxIndex = containerRef.current.children.length - 1
-                if (currentIndex !== maxIndex) {
-                  containerRef.current.setChildIndex(toText, maxIndex)
+                if (toText.parent === containerRef.current && containerRef.current) {
+                  const currentIndex = containerRef.current.getChildIndex(toText)
+                  const maxIndex = containerRef.current.children.length - 1
+                  if (currentIndex !== maxIndex) {
+                    containerRef.current.setChildIndex(toText, maxIndex)
+                  }
                 }
                 if (toText.mask) {
                   toText.mask = null

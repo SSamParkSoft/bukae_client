@@ -362,8 +362,7 @@ export function useGroupPlayback({
       return
     }
 
-    // 3. TTS Duration 계산 (움직임 효과 전용): 각 파트별 duration을 사용하도록 변경
-    const totalGroupTtsDuration = calculateGroupTtsDuration(sceneId, groupIndices)
+    // 3. TTS Duration 계산은 각 구간마다 개별적으로 수행 (움직임 효과는 각 구간의 TTS 듀레이션 사용)
 
     // 첫 번째 씬 transitionDuration 보정: 움직임이면 해당 씬의 파트0 TTS 길이, 아니면 1초
     const firstScene = timeline.scenes[firstSceneIndex]
@@ -442,7 +441,14 @@ export function useGroupPlayback({
       if (renderSceneContent) {
         // 렌더링 경로 확인: 그룹 재생 시작에서 renderSceneContent 사용
         const isMovement = movements.some((m) => m.value === (firstSceneForRender?.transition || ''))
-        const transitionDurationForRender = isMovement ? totalGroupTtsDuration : 1
+        
+        // 첫 번째 구간의 실제 partIndex를 사용하여 TTS 듀레이션 계산
+        let transitionDurationForRender = 1
+        if (isMovement && mergedTextParts.length > 0) {
+          const firstPart = mergedTextParts[0]
+          const partDuration = getPartTtsDuration(firstPart.sceneIndex, firstPart.partIndex)
+          transitionDurationForRender = Math.max(partDuration, 1)
+        }
 
         renderSceneContent(firstSceneIndexForRender, null, {
           skipAnimation: false,
