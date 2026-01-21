@@ -221,7 +221,9 @@ export function EffectsPanel({
                         </h3>
                         <div className="h-0.5 bg-[#bbc9c9]" />
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          {transitionsWithoutNone.map((transition) => {
+                          {transitionsWithoutNone
+                            .filter((transition) => transition.value !== 'ripple')
+                            .map((transition) => {
                             const isSelected = timeline?.scenes[currentSceneIndex]?.transition === transition.value
                             return (
                               <button

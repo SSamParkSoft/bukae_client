@@ -427,98 +427,98 @@ export const usePixiEffects = ({
         }
         break
 
-      case 'ripple':
-        {
-          // 물결 효과: 현재 크기에서 물결 파동이 퍼지는 효과 (비율 유지)
-          const toRippleObj = { scale: originalScale, alpha: 0, wavePhase: 0 }
-          // 현재 스케일에서 시작 (비율 유지)
-          toSprite.scale.set(originalScaleX, originalScaleY)
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
-          
-          // 중심점 계산 (스프라이트의 현재 중심)
-          const centerX = originalX + (toSprite.texture.width * originalScaleX) / 2
-          const centerY = originalY + (toSprite.texture.height * originalScaleY) / 2
-          
-          // 페이드 인
-          tl.to(toRippleObj, { 
-            alpha: 1, 
-            duration: duration * 0.15, 
-            ease: 'power1.out',
-            onUpdate: function() {
-              if (toSprite && containerRef.current) {
-                if (!toSprite.parent || toSprite.parent !== containerRef.current) {
-                  if (toSprite.parent) {
-                    toSprite.parent.removeChild(toSprite)
-                  }
-                  containerRef.current.addChild(toSprite)
-                }
-                toSprite.alpha = toRippleObj.alpha
-              }
-              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
-            }
-          }, 0)
-          
-          // 물결 효과: 현재 크기 주변에서 파동이 퍼지는 효과
-          const waveCount = 2 // 물결 파동 개수
-          const waveDuration = duration * 0.85 / waveCount
-          
-          for (let i = 0; i < waveCount; i++) {
-            const waveStartTime = duration * 0.15 + (waveDuration * i)
-            const waveObj = { scale: originalScale, waveIntensity: 0 }
-            
-            // 각 파동이 시작될 때 (현재 스케일에서 시작)
-            tl.set(waveObj, { scale: originalScale, waveIntensity: 0 }, waveStartTime)
-            
-            // 파동이 퍼지는 애니메이션 (현재 크기에서 약간 커졌다가)
-            tl.to(waveObj, {
-              scale: originalScale * 1.06, // 현재 크기에서 약간만 커짐
-              waveIntensity: 1,
-              duration: waveDuration * 0.5,
-              ease: 'sine.out',
-              onUpdate: function() {
-                if (toSprite && containerRef.current) {
-                  // 물결 효과를 위한 스케일 변동 (현재 크기 기준으로 파동, 비율 유지)
-                  const baseScale = originalScale + (waveObj.scale - originalScale) * waveObj.waveIntensity
-                  const waveScale = baseScale + (waveObj.waveIntensity * originalScale * 0.02 * Math.sin(waveObj.waveIntensity * Math.PI * 3))
-                  toSprite.scale.set(waveScale, waveScale * scaleRatio)
-                  
-                  // 중심점 기준으로 위치 조정 (중심점 유지)
-                  const newWidth = toSprite.texture.width * waveScale
-                  const newHeight = toSprite.texture.height * waveScale * scaleRatio
-                  toSprite.x = centerX - newWidth / 2
-                  toSprite.y = centerY - newHeight / 2
-                }
-                // 렌더링은 PixiJS ticker가 처리
-              }
-            }, waveStartTime)
-            
-            // 파동이 현재 크기로 돌아오는 애니메이션
-            tl.to(waveObj, {
-              scale: originalScale, // 현재 크기로 돌아옴
-              waveIntensity: 0,
-              duration: waveDuration * 0.5,
-              ease: 'sine.in',
-              onUpdate: function() {
-                if (toSprite && containerRef.current) {
-                  const baseScale = originalScale + (waveObj.scale - originalScale) * waveObj.waveIntensity
-                  const waveScale = baseScale + (waveObj.waveIntensity * originalScale * 0.02 * Math.sin(waveObj.waveIntensity * Math.PI * 3))
-                  toSprite.scale.set(waveScale, waveScale * scaleRatio)
-                  
-                  // 중심점 기준으로 위치 조정 (중심점 유지)
-                  const newWidth = toSprite.texture.width * waveScale
-                  const newHeight = toSprite.texture.height * waveScale * scaleRatio
-                  toSprite.x = centerX - newWidth / 2
-                  toSprite.y = centerY - newHeight / 2
-                }
-                // 렌더링은 PixiJS ticker가 처리
-              }
-            }, waveStartTime + waveDuration * 0.5)
-          }
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
-        }
-        break
+      // case 'ripple':
+      //   {
+      //     // 물결 효과: 현재 크기에서 물결 파동이 퍼지는 효과 (비율 유지)
+      //     const toRippleObj = { scale: originalScale, alpha: 0, wavePhase: 0 }
+      //     // 현재 스케일에서 시작 (비율 유지)
+      //     toSprite.scale.set(originalScaleX, originalScaleY)
+      //     // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
+      //     
+      //     // 중심점 계산 (스프라이트의 현재 중심)
+      //     const centerX = originalX + (toSprite.texture.width * originalScaleX) / 2
+      //     const centerY = originalY + (toSprite.texture.height * originalScaleY) / 2
+      //     
+      //     // 페이드 인
+      //     tl.to(toRippleObj, { 
+      //       alpha: 1, 
+      //       duration: duration * 0.15, 
+      //       ease: 'power1.out',
+      //       onUpdate: function() {
+      //         if (toSprite && containerRef.current) {
+      //           if (!toSprite.parent || toSprite.parent !== containerRef.current) {
+      //             if (toSprite.parent) {
+      //               toSprite.parent.removeChild(toSprite)
+      //             }
+      //             containerRef.current.addChild(toSprite)
+      //           }
+      //           toSprite.alpha = toRippleObj.alpha
+      //         }
+      //         // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
+      //       }
+      //     }, 0)
+      //     
+      //     // 물결 효과: 현재 크기 주변에서 파동이 퍼지는 효과
+      //     const waveCount = 2 // 물결 파동 개수
+      //     const waveDuration = duration * 0.85 / waveCount
+      //     
+      //     for (let i = 0; i < waveCount; i++) {
+      //       const waveStartTime = duration * 0.15 + (waveDuration * i)
+      //       const waveObj = { scale: originalScale, waveIntensity: 0 }
+      //       
+      //       // 각 파동이 시작될 때 (현재 스케일에서 시작)
+      //       tl.set(waveObj, { scale: originalScale, waveIntensity: 0 }, waveStartTime)
+      //       
+      //       // 파동이 퍼지는 애니메이션 (현재 크기에서 약간 커졌다가)
+      //       tl.to(waveObj, {
+      //         scale: originalScale * 1.06, // 현재 크기에서 약간만 커짐
+      //         waveIntensity: 1,
+      //         duration: waveDuration * 0.5,
+      //         ease: 'sine.out',
+      //         onUpdate: function() {
+      //           if (toSprite && containerRef.current) {
+      //             // 물결 효과를 위한 스케일 변동 (현재 크기 기준으로 파동, 비율 유지)
+      //             const baseScale = originalScale + (waveObj.scale - originalScale) * waveObj.waveIntensity
+      //             const waveScale = baseScale + (waveObj.waveIntensity * originalScale * 0.02 * Math.sin(waveObj.waveIntensity * Math.PI * 3))
+      //             toSprite.scale.set(waveScale, waveScale * scaleRatio)
+      //             
+      //             // 중심점 기준으로 위치 조정 (중심점 유지)
+      //             const newWidth = toSprite.texture.width * waveScale
+      //             const newHeight = toSprite.texture.height * waveScale * scaleRatio
+      //             toSprite.x = centerX - newWidth / 2
+      //             toSprite.y = centerY - newHeight / 2
+      //           }
+      //           // 렌더링은 PixiJS ticker가 처리
+      //         }
+      //       }, waveStartTime)
+      //       
+      //       // 파동이 현재 크기로 돌아오는 애니메이션
+      //       tl.to(waveObj, {
+      //         scale: originalScale, // 현재 크기로 돌아옴
+      //         waveIntensity: 0,
+      //         duration: waveDuration * 0.5,
+      //         ease: 'sine.in',
+      //         onUpdate: function() {
+      //           if (toSprite && containerRef.current) {
+      //             const baseScale = originalScale + (waveObj.scale - originalScale) * waveObj.waveIntensity
+      //             const waveScale = baseScale + (waveObj.waveIntensity * originalScale * 0.02 * Math.sin(waveObj.waveIntensity * Math.PI * 3))
+      //             toSprite.scale.set(waveScale, waveScale * scaleRatio)
+      //             
+      //             // 중심점 기준으로 위치 조정 (중심점 유지)
+      //             const newWidth = toSprite.texture.width * waveScale
+      //             const newHeight = toSprite.texture.height * waveScale * scaleRatio
+      //             toSprite.x = centerX - newWidth / 2
+      //             toSprite.y = centerY - newHeight / 2
+      //           }
+      //           // 렌더링은 PixiJS ticker가 처리
+      //         }
+      //       }, waveStartTime + waveDuration * 0.5)
+      //     }
+      //     
+      //     // 텍스트는 항상 페이드
+      //     applyTextFade()
+      //   }
+      //   break
 
       case 'circle': {
         if (!containerRef.current || !toSprite) {

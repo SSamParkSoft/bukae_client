@@ -24,8 +24,8 @@ export const soundEffectsMetadata: SoundEffectMetadata[] = [
   { "category": { "en": "horn", "ko": "경적" }, "label": "운동경기 시작", "key": "roundstart" },
   { "category": { "en": "horn", "ko": "경적" }, "label": "자동차 경적", "key": "carbbang" },
 
-  { "category": { "en": "positive", "ko": "긍정반응" }, "label": "군중 wow", "key": "cloudwa" },
-  { "category": { "en": "positive", "ko": "긍정반응" }, "label": "군중환호", "key": "cloud" },
+  { "category": { "en": "positive", "ko": "긍정반응" }, "label": "군중 wow", "key": "cloud" },
+  { "category": { "en": "positive", "ko": "긍정반응" }, "label": "군중환호", "key": "cloudwa" },
   { "category": { "en": "positive", "ko": "긍정반응" }, "label": "WOW", "key": "wow" },
   { "category": { "en": "positive", "ko": "긍정반응" }, "label": "YEAH!", "key": "yeah" },
 
