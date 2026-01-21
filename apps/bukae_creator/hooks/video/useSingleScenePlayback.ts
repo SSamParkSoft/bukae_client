@@ -7,6 +7,7 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
 import { authStorage } from '@/lib/api/auth-storage'
 import { useTtsResources } from './useTtsResources'
+import { movements } from '@/lib/data/transitions'
 
 interface UseSingleScenePlaybackParams {
   timeline: TimelineData | null
@@ -275,7 +276,7 @@ export function useSingleScenePlayback({
       }
     }
 
-    // TTS duration 가져오기
+    // TTS duration 가져오기 (움직임 효과일 때만 사용)
     const ttsDuration = cached?.durationSec || scene.duration || 2.5
 
     // 이전 오디오 정리
@@ -316,6 +317,9 @@ export function useSingleScenePlayback({
       // renderSceneContent가 자막도 함께 렌더링하도록 호출
       // partIndex를 null로 전달하면 전체 자막을 표시
       // 이미지는 전환 효과를 통해서만 렌더링됨 (전환 효과 완료 후 항상 숨김)
+      const isMovement = movements.some((m) => m.value === (scene.transition || ''))
+      const transitionDuration = isMovement ? ttsDuration : 1
+
       renderSceneContent(sceneIndex, null, {
         skipAnimation: false,
         forceTransition: scene.transition || 'fade',
@@ -323,7 +327,7 @@ export function useSingleScenePlayback({
         updateTimeline: false,
         prepareOnly: false,
         isPlaying: true,
-        transitionDuration: ttsDuration, // TTS duration을 전환 효과 지속시간으로 사용
+        transitionDuration,
         onComplete: () => {
           lastRenderedSceneIndexRef.current = sceneIndex
         },
@@ -362,6 +366,78 @@ export function useSingleScenePlayback({
         const audio = new Audio(audioUrl)
         audio.playbackRate = timeline?.playbackSpeed ?? 1.0
         ttsAudioRef.current = audio
+
+        // 오디오 로드 대기 및 duration 확인
+        if (audio.readyState < 2) {
+          await new Promise<void>((resolve) => {
+            if (audio.readyState >= 2) {
+              resolve()
+              return
+            }
+            
+            const handleLoadedMetadata = () => {
+              // 실제 오디오 duration 확인 및 캐시 업데이트
+              if (audio.duration && isFinite(audio.duration) && audio.duration > 0 && cached) {
+                const actualDuration = audio.duration
+                const cachedDuration = cached.durationSec || 0
+                
+                // 실제 duration과 캐시된 duration이 0.1초 이상 차이나면 업데이트
+                if (Math.abs(actualDuration - cachedDuration) > 0.1) {
+                  console.log(`[useSingleScenePlayback] Duration 불일치 감지: 캐시=${cachedDuration.toFixed(2)}s, 실제=${actualDuration.toFixed(2)}s, 업데이트 중...`)
+                  // 캐시 업데이트
+                  ttsCacheRef.current.set(key, {
+                    ...cached,
+                    durationSec: actualDuration,
+                  })
+                }
+              }
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+              audio.removeEventListener('canplay', handleCanPlay)
+              audio.removeEventListener('error', handleLoadError)
+              resolve()
+            }
+            
+            const handleCanPlay = () => {
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+              audio.removeEventListener('canplay', handleCanPlay)
+              audio.removeEventListener('error', handleLoadError)
+              resolve()
+            }
+            const handleLoadError = () => {
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+              audio.removeEventListener('canplay', handleCanPlay)
+              audio.removeEventListener('error', handleLoadError)
+              resolve()
+            }
+            
+            // loadedmetadata 이벤트를 먼저 등록 (duration 정보 포함)
+            audio.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true })
+            audio.addEventListener('canplay', handleCanPlay, { once: true })
+            audio.addEventListener('error', handleLoadError, { once: true })
+            setTimeout(() => {
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+              audio.removeEventListener('canplay', handleCanPlay)
+              audio.removeEventListener('error', handleLoadError)
+              resolve()
+            }, 100)
+          })
+        } else {
+          // 이미 로드된 경우에도 duration 확인
+          if (audio.duration && isFinite(audio.duration) && audio.duration > 0 && cached) {
+            const actualDuration = audio.duration
+            const cachedDuration = cached.durationSec || 0
+            
+            // 실제 duration과 캐시된 duration이 0.1초 이상 차이나면 업데이트
+            if (Math.abs(actualDuration - cachedDuration) > 0.1) {
+              console.log(`[useSingleScenePlayback] Duration 불일치 감지: 캐시=${cachedDuration.toFixed(2)}s, 실제=${actualDuration.toFixed(2)}s, 업데이트 중...`)
+              // 캐시 업데이트
+              ttsCacheRef.current.set(key, {
+                ...cached,
+                durationSec: actualDuration,
+              })
+            }
+          }
+        }
 
         try {
           const playbackStartTime = Date.now()

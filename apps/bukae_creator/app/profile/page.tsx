@@ -323,13 +323,8 @@ export default function ProfilePage() {
     enabled: isAuthenticated,
   })
 
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [editForm, setEditForm] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-  })
   
   // Tracking ID 편집 상태
   const [editingTrackingId, setEditingTrackingId] = useState<TargetMall | null>(null)
@@ -348,16 +343,6 @@ export default function ProfilePage() {
       [platform]: platformTrackingIds[platform] || '',
     }))
     setEditingTrackingId(platform)
-  }
-
-  const handleSaveProfile = () => {
-    if (user) {
-      updateUser({
-        name: editForm.name,
-        email: editForm.email,
-      })
-      setIsEditDialogOpen(false)
-    }
   }
 
   const handleSaveTrackingId = async (platform: TargetMall) => {
@@ -436,12 +421,12 @@ export default function ProfilePage() {
 
         <Tabs defaultValue="profile" className="w-full" style={{ width: '100%' }}>
           <TabsList 
-            className={`grid w-full grid-cols-4 max-w-2xl mb-6 ${
+            className={`grid w-full grid-cols-3 max-w-2xl mb-6 ${
               theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'
             }`}
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
+              gridTemplateColumns: 'repeat(3, 1fr)',
               width: '100%',
               maxWidth: '672px',
               marginBottom: '24px'
@@ -482,18 +467,6 @@ export default function ProfilePage() {
               }}
             >
               활동 내역
-            </TabsTrigger>
-            <TabsTrigger 
-              value="settings"
-              style={{
-                whiteSpace: 'nowrap',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '100%'
-              }}
-            >
-              설정
             </TabsTrigger>
           </TabsList>
 
@@ -537,23 +510,7 @@ export default function ProfilePage() {
               {shouldRenderProfileCard && (
                 <Card className="border border-gray-200">
                   <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle>프로필 정보</CardTitle>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setEditForm({
-                            name: profileDisplayName || '',
-                            email: profileEmail || '',
-                          })
-                          setIsEditDialogOpen(true)
-                        }}
-                      >
-                        <Edit2 className="w-4 h-4 mr-2" />
-                        수정
-                      </Button>
-                    </div>
+                    <CardTitle>프로필 정보</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center gap-6 mb-6">
@@ -816,202 +773,8 @@ export default function ProfilePage() {
               </Card>
             </div>
           </TabsContent>
-
-          {/* 설정 탭 */}
-          <TabsContent value="settings">
-            <div className="space-y-6">
-              {/* 알림 설정 */}
-              <Card className="border border-gray-200">
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <Bell className={`w-5 h-5 ${
-                      theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                    }`} />
-                    <CardTitle>알림 설정</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                    <div>
-                      <div className={`font-medium ${
-                        theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
-                      }`}>
-                        영상 제작 완료 알림
-                      </div>
-                      <div className={`text-sm ${
-                        theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                      }`}>
-                        영상 제작이 완료되면 알림을 받아요
-                      </div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={notificationSettings.videoComplete}
-                        onChange={(e) =>
-                          updateNotificationSettings({ videoComplete: e.target.checked })
-                        }
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
-                    </label>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                    <div>
-                      <div className={`font-medium ${
-                        theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
-                      }`}>
-                        수익 알림
-                      </div>
-                      <div className={`text-sm ${
-                        theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                      }`}>
-                        수익이 발생하면 알림을 받아요
-                      </div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={notificationSettings.revenueAlert}
-                        onChange={(e) =>
-                          updateNotificationSettings({ revenueAlert: e.target.checked })
-                        }
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
-                    </label>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                    <div>
-                      <div className={`font-medium ${
-                        theme === 'dark' ? 'text-gray-200' : 'text-gray-900'
-                      }`}>
-                        주간 리포트
-                      </div>
-                      <div className={`text-sm ${
-                        theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                      }`}>
-                        매주 성과 리포트를 이메일로 받아요
-                      </div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="sr-only peer"
-                        checked={notificationSettings.weeklyReport}
-                        onChange={(e) =>
-                          updateNotificationSettings({ weeklyReport: e.target.checked })
-                        }
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
-                    </label>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* 계정 설정 */}
-              <Card className="border border-gray-200">
-                <CardHeader>
-                  <div className="flex items-center gap-2">
-                    <Settings className={`w-5 h-5 ${
-                      theme === 'dark' ? 'text-purple-400' : 'text-purple-600'
-                    }`} />
-                    <CardTitle>계정 설정</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => setIsPasswordDialogOpen(true)}
-                  >
-                    비밀번호 변경
-                  </Button>
-                  <div className="flex gap-4">
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => {
-                        // 데이터 내보내기 기능
-                        const data = {
-                          user,
-                          connectedServices,
-                          notificationSettings,
-                        }
-                        const blob = new Blob([JSON.stringify(data, null, 2)], {
-                          type: 'application/json',
-                        })
-                        const url = URL.createObjectURL(blob)
-                        const a = document.createElement('a')
-                        a.href = url
-                        a.download = `bookae-data-${new Date().toISOString()}.json`
-                        a.click()
-                        URL.revokeObjectURL(url)
-                      }}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      데이터 내보내기
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      className="flex-1"
-                      onClick={() => setIsDeleteDialogOpen(true)}
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      계정 삭제
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
         </Tabs>
       </div>
-
-      {/* 프로필 수정 다이얼로그 */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent
-          className={`border ${
-            theme === 'dark' ? 'bg-gray-900 border-gray-200' : 'border-gray-200'
-          }`}
-        >
-          <DialogHeader>
-            <DialogTitle>프로필 정보 수정</DialogTitle>
-            <DialogDescription>
-              프로필 정보를 수정하세요
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="name">이름</Label>
-              <Input
-                id="name"
-                value={editForm.name}
-                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="email">이메일</Label>
-              <Input
-                id="email"
-                type="email"
-                value={editForm.email}
-                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                className="mt-1"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              취소
-            </Button>
-            <Button onClick={handleSaveProfile}>저장</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* 비밀번호 변경 다이얼로그 */}
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>

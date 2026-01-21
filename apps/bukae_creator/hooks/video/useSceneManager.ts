@@ -12,6 +12,7 @@ import { useSceneLoader } from './scene-management/useSceneLoader'
 import { useSceneRenderer } from './scene-management/useSceneRenderer'
 import { useSceneTransition } from './scene-management/useSceneTransition'
 import type { UseSceneManagerParams } from './types/scene'
+import type { TimelineScene } from '@/lib/types/domain/timeline'
 
 /**
  * 씬 매니저 통합 훅
@@ -108,6 +109,44 @@ export const useSceneManager = ({
     timeline,
     stageDimensions,
   })
+
+  // 밑줄 렌더링 헬퍼 함수
+  const renderUnderline = useCallback((textObj: PIXI.Text, scene: TimelineScene) => {
+    // underline 꺼짐이면 제거만 수행
+    const removeExisting = () => {
+      const existing = textObj.children.find(
+        (child) => child instanceof PIXI.Graphics && (child as PIXI.Graphics & { __isUnderline?: boolean }).__isUnderline
+      )
+      if (existing) {
+        textObj.removeChild(existing)
+      }
+    }
+
+    if (!scene.text?.style?.underline) {
+      removeExisting()
+      return
+    }
+
+    removeExisting()
+
+    // 텍스트 크기 기준으로 밑줄 생성 (텍스트 로컬 좌표계에 추가)
+    const underlineHeight = Math.max(2, (scene.text.fontSize || 80) * 0.05)
+    const underline = new PIXI.Graphics()
+    ;(underline as PIXI.Graphics & { __isUnderline?: boolean }).__isUnderline = true
+
+    const textColor = scene.text.color || '#ffffff'
+    const colorValue = textColor.startsWith('#')
+      ? parseInt(textColor.slice(1), 16)
+      : 0xffffff
+
+    underline.lineStyle(underlineHeight, colorValue, 1)
+    // 앵커(0.5,0.5) 기준: 중앙에서 좌우로 선을 긋고, 텍스트 높이 절반 아래에 배치
+    underline.moveTo(-textObj.width / 2, textObj.height / 2 + underlineHeight / 2)
+    underline.lineTo(textObj.width / 2, textObj.height / 2 + underlineHeight / 2)
+
+    // 텍스트의 자식으로 붙여 함께 이동/스케일/회전되게 함
+    textObj.addChild(underline)
+  }, [])
 
   // 통합 렌더링 함수: 모든 canvas 렌더링 경로를 통합 (재생 중/비재생 중 모두 사용)
   const renderSceneContent = useCallback(
@@ -310,6 +349,8 @@ export const useSceneManager = ({
           targetTextObj.text = partText
           targetTextObj.visible = true
           targetTextObj.alpha = 0
+          // 밑줄 렌더링
+          renderUnderline(targetTextObj, scene)
         }
 
         if (onComplete) {
@@ -321,6 +362,8 @@ export const useSceneManager = ({
       // 텍스트 객체 업데이트 (prepareOnly가 아닐 때)
       if (targetTextObj && partText) {
         targetTextObj.text = partText
+        // 밑줄 렌더링
+        renderUnderline(targetTextObj, scene)
       }
 
       // 같은 씬 내 구간 전환인지 확인
@@ -337,6 +380,8 @@ export const useSceneManager = ({
           targetTextObj.text = partText
           targetTextObj.visible = true
           targetTextObj.alpha = 1
+          // 밑줄 렌더링
+          renderUnderline(targetTextObj, scene)
         }
         if (onComplete) {
           onComplete()
@@ -364,6 +409,10 @@ export const useSceneManager = ({
         effectivePreviousIndex,
         forceTransition,
         () => {
+          // updateCurrentScene 완료 후 밑줄 렌더링
+          if (targetTextObj && scene.text) {
+            renderUnderline(targetTextObj, scene)
+          }
           if (onComplete) {
             onComplete()
           }
@@ -385,6 +434,7 @@ export const useSceneManager = ({
       updateCurrentScene,
       setTimeline,
       setCurrentSceneIndex,
+      renderUnderline,
     ]
   )
 

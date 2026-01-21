@@ -20,6 +20,7 @@ interface UseFabricHandlersParams {
   isSavingTransformRef: React.MutableRefObject<boolean>
   savedSceneIndexRef: React.MutableRefObject<number | null>
   isManualSceneSelectRef: React.MutableRefObject<boolean>
+  useFabricEditing?: boolean // Fabric.js 편집 모드 활성화 여부
 }
 
 /**
@@ -36,6 +37,7 @@ export function useFabricHandlers({
   isSavingTransformRef,
   savedSceneIndexRef,
   isManualSceneSelectRef,
+  useFabricEditing = false,
 }: UseFabricHandlersParams) {
   /**
    * 이미지 Transform을 타임라인에 저장
@@ -49,11 +51,18 @@ export function useFabricHandlers({
       const scale = fabricScaleRatioRef.current || 1
       const invScale = 1 / scale
 
+      // Fabric.js의 이미지는 originX: 'center', originY: 'center'로 설정되어 있음
+      // 따라서 left와 top이 이미 중심점 좌표임
+      const scaledWidth = target.getScaledWidth() ?? (target.width || 0)
+      const scaledHeight = target.getScaledHeight() ?? (target.height || 0)
+      const centerX = target.left ?? 0
+      const centerY = target.top ?? 0
+
       const nextTransform = {
-        x: (target.left ?? 0) * invScale,
-        y: (target.top ?? 0) * invScale,
-        width: (target.getScaledWidth() ?? (target.width || 0)) * invScale,
-        height: (target.getScaledHeight() ?? (target.height || 0)) * invScale,
+        x: centerX * invScale,
+        y: centerY * invScale,
+        width: scaledWidth * invScale,
+        height: scaledHeight * invScale,
         scaleX: 1,
         scaleY: 1,
         rotation: ((target.angle || 0) * Math.PI) / 180,
@@ -72,6 +81,14 @@ export function useFabricHandlers({
       }
 
       setTimeline(nextTimeline)
+
+      // 중요: width/height 변경을 하지 않음
+      // 이유: Fabric.js에서 width/height를 변경하면 내부적으로 좌표를 재계산하는데,
+      // 이 과정에서 originX/originY 설정이 제대로 적용되지 않아 왼쪽 상단으로 튀는 문제 발생
+      // 
+      // 해결책: 타임라인에만 실제 크기(width, height)와 scaleX: 1, scaleY: 1로 저장하고,
+      // Fabric.js 객체는 리사이즈된 상태(scaleX/scaleY가 변경된 상태)로 그대로 둠
+      // 다음에 로드할 때 useFabricSync에서 타임라인의 width/height를 기반으로 올바르게 복원됨
     },
     [timeline, setTimeline, fabricScaleRatioRef]
   )
@@ -165,6 +182,14 @@ export function useFabricHandlers({
         return
       }
 
+      // 리사이즈 완료 후 객체 속성 초기화
+      if (target.dataType === 'image') {
+        const imageTarget = target as fabric.Object & { resizeStartCenter?: { x: number; y: number } }
+        if (imageTarget.resizeStartCenter) {
+          delete imageTarget.resizeStartCenter
+        }
+      }
+
       // 씬 이동 방지: 현재 씬 인덱스 저장 및 플래그 설정
       const savedIndex = sceneIndex
       isSavingTransformRef.current = true
@@ -187,7 +212,7 @@ export function useFabricHandlers({
    * 텍스트 내용 변경 핸들러
    */
   const handleTextChanged = useCallback(
-    (e: any) => {
+    (e: fabric.ModifiedEvent<fabric.TPointerEvent>) => {
       const target = e?.target as fabric.Textbox & { dataType?: 'image' | 'text' }
       if (!target || target.dataType !== 'text') {
         return
@@ -236,7 +261,7 @@ export function useFabricHandlers({
    * 텍스트 편집 종료 핸들러
    */
   const handleTextEditingExited = useCallback(
-    (e: any) => {
+    (e: fabric.ModifiedEvent<fabric.TPointerEvent>) => {
       const target = e?.target as fabric.Textbox & { dataType?: 'image' | 'text' }
       if (!target || target.dataType !== 'text') {
         return
@@ -256,31 +281,47 @@ export function useFabricHandlers({
     [currentSceneIndexRef, isSavingTransformRef, savedSceneIndexRef, isManualSceneSelectRef, saveTextTransform, clearFlags]
   )
 
-  /**
-   * 마우스 다운 핸들러 (현재는 빈 함수)
-   */
-  const handleMouseDown = useCallback((e: any) => {
-    // 현재는 사용하지 않지만 이벤트 리스너 등록을 위해 유지
-  }, [fabricCanvasRef])
+  // 불필요한 복잡한 리사이즈 핸들러들 제거
+  // centeredScaling: true 옵션으로 충분히 처리됨
 
   // Fabric.js 이벤트 리스너 등록
   useEffect(() => {
+    // Fabric.js 편집 모드가 비활성화되어 있으면 핸들러 등록하지 않음
+    if (!useFabricEditing) {
+      return
+    }
+    
+    // 조건이 만족되지 않으면 리턴 (조건이 만족되면 자동으로 다시 실행됨)
     if (!fabricReady || !fabricCanvasRef.current || !timeline) {
       return
     }
 
     const fabricCanvas = fabricCanvasRef.current
+    
+    // 이벤트 핸들러 등록
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fabricCanvas.on('object:modified', handleModified as any)
-    fabricCanvas.on('mouse:down', handleMouseDown as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fabricCanvas.on('text:changed', handleTextChanged as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fabricCanvas.on('text:editing:exited', handleTextEditingExited as any)
 
     return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       fabricCanvas.off('object:modified', handleModified as any)
-      fabricCanvas.off('mouse:down', handleMouseDown as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       fabricCanvas.off('text:changed', handleTextChanged as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       fabricCanvas.off('text:editing:exited', handleTextEditingExited as any)
     }
-  }, [fabricReady, timeline, handleModified, handleMouseDown, handleTextChanged, handleTextEditingExited, fabricCanvasRef])
+  }, [
+    useFabricEditing,
+    fabricReady,
+    timeline,
+    fabricCanvasRef,
+    handleModified,
+    handleTextChanged,
+    handleTextEditingExited,
+  ])
 }
 

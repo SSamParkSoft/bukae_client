@@ -197,7 +197,7 @@ export default function Step1Page() {
                 
                 {/* 플랫폼 선택 버튼들 */}
                 <div className="flex items-center gap-4">
-                  <button
+                  {/* <button
                     onClick={() => container.handlePlatformSelect('all')}
                     className={`h-[68px] px-6 rounded-2xl text-(--font-size-20) font-bold transition-all tracking-[-0.4px] leading-[28px] ${
                       container.selectedPlatform === 'all'
@@ -207,7 +207,7 @@ export default function Step1Page() {
                     style={{ width: '160px' }}
                   >
                     전체
-                  </button>
+                  </button> */}
                   <button
                     onClick={() => container.handlePlatformSelect('COUPANG')}
                     className={`h-[68px] px-6 rounded-2xl text-(--font-size-20) font-bold transition-all tracking-[-0.4px] leading-[28px] ${

@@ -52,7 +52,7 @@ export function useFabricSync({
       
       if (img) {
         const transform = scene.imageTransform
-        let left: number, top: number, imgScaleX: number, imgScaleY: number, angleDeg: number
+        let centerX: number, centerY: number, imgScaleX: number, imgScaleY: number, angleDeg: number
         
         if (transform) {
           angleDeg = (transform.rotation || 0) * (180 / Math.PI)
@@ -60,28 +60,33 @@ export function useFabricSync({
           const effectiveHeight = transform.height * (transform.scaleY || 1)
           imgScaleX = (effectiveWidth / img.width) * scale
           imgScaleY = (effectiveHeight / img.height) * scale
-          left = transform.x * scale
-          top = transform.y * scale
+          // transform.x와 transform.y는 중심점 좌표
+          centerX = transform.x * scale
+          centerY = transform.y * scale
         } else {
           // 초기 contain/cover 계산과 동일하게 배치
           const params = calculateSpriteParams(img.width, img.height, width, height, scene.imageFit || 'contain')
           imgScaleX = (params.width / img.width) * scale
           imgScaleY = (params.height / img.height) * scale
-          left = params.x * scale
-          top = params.y * scale
+          // params.x와 params.y도 중심점 좌표
+          centerX = params.x * scale
+          centerY = params.y * scale
           angleDeg = 0
         }
         
+        // originX: 'center', originY: 'center'일 때 Fabric.js의 left/top 속성은 중심점 좌표를 의미함
         img.set({
-          originX: 'left',
-          originY: 'top',
-          left,
-          top,
+          originX: 'center',
+          originY: 'center',
+          left: centerX, // 중심점 x 좌표
+          top: centerY,  // 중심점 y 좌표
           scaleX: imgScaleX,
           scaleY: imgScaleY,
           angle: angleDeg,
           selectable: true,
           evented: true,
+          centeredScaling: true, // 리사이즈 시 중심점 유지
+          centeredRotation: true, // 회전 시 중심점 유지
         })
         ;(img as fabric.Image & { dataType?: 'image' | 'text' }).dataType = 'image'
         fabricCanvas.add(img)
@@ -97,9 +102,13 @@ export function useFabricSync({
       const fontFamily = resolveSubtitleFontFamily(scene.text.font)
       const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
       
+      // transform.x와 transform.y는 중심점 좌표
+      const centerX = (transform?.x ?? width / 2) * scale
+      const centerY = (transform?.y ?? height * 0.9) * scale
+      
       const textObj = new fabric.Textbox(scene.text.content, {
-        left: (transform?.x ?? width / 2) * scale,
-        top: (transform?.y ?? height * 0.9) * scale,
+        left: centerX, // 중심점 x 좌표
+        top: centerY,  // 중심점 y 좌표
         originX: 'center',
         originY: 'center',
         fontFamily,

@@ -15,6 +15,12 @@ import {
 
 export default function Step2Page() {
   const container = useStep2Container()
+  const isGeneratingScripts =
+    container.isGeneratingAll || (container.generatingScenes?.size ?? 0) > 0
+  const hasIncompleteScript = container.selectedImages.some((_, index) => {
+    const script = container.sceneScripts.get(index)?.script ?? ''
+    return !script.trim()
+  })
   // SSR/CSR 일치 보장을 위해 클라이언트에서만 true로 설정
   const [hydrated] = useState(() => typeof window !== 'undefined')
 
@@ -92,7 +98,16 @@ export default function Step2Page() {
 
                   {/* 다음 단계 버튼 */}
                   {container.selectedImages.length >= 5 && (
-                    <NextStepButton onClick={container.handleNext} />
+                    <NextStepButton
+                      onClick={container.handleNext}
+                      state={
+                        isGeneratingScripts
+                          ? 'ai-script-loading'
+                          : hasIncompleteScript
+                            ? 'disabled'
+                            : 'default'
+                      }
+                    />
                   )}
                 </>
               )}

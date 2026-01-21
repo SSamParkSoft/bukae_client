@@ -3,6 +3,7 @@
 import { useCallback, useState, useRef } from 'react'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
+import { movements } from '@/lib/data/transitions'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
@@ -160,15 +161,17 @@ export function useGroupPlayback({
   }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef, ensureSceneTtsParam, changedScenesRef, setIsPreparing, setIsTtsBootstrapping])
 
   // 그룹 TTS duration 계산
-  const calculateGroupTtsDuration = useCallback((sceneId: number | undefined, groupIndices: number[]): number => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const calculateGroupTtsDuration = useCallback((groupIndices: number[]): number => {
     // 항상 최신 TTS 캐시에서 직접 계산하여 정확한 duration 보장
     let duration = 0
-    if (voiceTemplate && timeline) {
+    if (timeline) {
       for (const sceneIndex of groupIndices) {
         const scene = timeline.scenes[sceneIndex]
         if (!scene) continue
         // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
         const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+        if (!sceneVoiceTemplate) continue
         
         const markups = buildSceneMarkup(timeline, sceneIndex)
         for (const markup of markups) {
@@ -182,6 +185,29 @@ export function useGroupPlayback({
     }
     return duration
   }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef])
+
+  // 특정 씬/구간의 TTS durationSec을 캐시에서 가져오기 (fallback: 씬 duration -> 1초)
+  const getPartTtsDuration = useCallback(
+    (sceneIndex: number, partIndex: number): number => {
+      if (!timeline) return 1
+      const scene = timeline.scenes[sceneIndex]
+      if (!scene) return 1
+
+      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+      const markups = buildSceneMarkup(timeline, sceneIndex)
+      const markup = markups?.[partIndex]
+      if (sceneVoiceTemplate && markup) {
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
+        const cached = ttsCacheRef.current.get(key)
+        if (cached?.durationSec && cached.durationSec > 0) {
+          return cached.durationSec
+        }
+      }
+      // fallback: 씬 duration 또는 1초
+      return scene.duration || 1
+    },
+    [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef]
+  )
 
   // 자막 파싱 및 병합
   const parseMergedTextParts = useCallback((groupIndices: number[], updatedTimeline: TimelineData): Array<{ text: string; sceneIndex: number; partIndex: number }> => {
@@ -278,9 +304,16 @@ export function useGroupPlayback({
    * 그룹 재생 함수
    */
   const playGroup = useCallback(async (sceneId: number | undefined, groupIndices: number[]) => {
-    if (!timeline || !voiceTemplate || !ensureSceneTtsParam) {
+    if (!timeline || !ensureSceneTtsParam) {
       return
     }
+    // 그룹/씬 내에 적용 가능한 음성 템플릿이 하나라도 있는지 확인
+    const hasAnyVoice = groupIndices.some((idx) => {
+      const sceneVoice = timeline.scenes[idx]?.voiceTemplate
+      const resolvedVoice = sceneVoice || voiceTemplate
+      return !!resolvedVoice && resolvedVoice.trim() !== ''
+    })
+    if (!hasAnyVoice) return
 
     // 단일 씬 재생도 지원 (sceneId가 undefined이거나 groupIndices가 1개인 경우)
     const isSingleScene = sceneId === undefined || groupIndices.length === 1
@@ -330,22 +363,27 @@ export function useGroupPlayback({
       return
     }
 
-    // 3. TTS Duration 계산 및 전환 효과 길이 설정
-    const totalGroupTtsDuration = calculateGroupTtsDuration(sceneId, groupIndices)
+    // 3. TTS Duration 계산은 각 구간마다 개별적으로 수행 (움직임 효과는 각 구간의 TTS 듀레이션 사용)
 
-    // 첫 번째 씬의 transitionDuration 업데이트
+    // 첫 번째 씬 transitionDuration 보정: 움직임이면 해당 씬의 파트0 TTS 길이, 아니면 1초
     const firstScene = timeline.scenes[firstSceneIndex]
     const originalTransitionDuration = firstScene?.transitionDuration
-    
     let updatedTimeline = timeline
-    if (firstScene && totalGroupTtsDuration > 0) {
+    if (firstScene) {
+      const isMovementFirst = movements.some((m) => m.value === (firstScene.transition || ''))
+      const firstPartDuration = getPartTtsDuration(firstSceneIndex, 0)
+      // 움직임은 TTS 길이, 비움직임은 1초 고정
+      const transitionDurationForFirst = isMovementFirst ? Math.max(firstPartDuration, 1) : 1
+
       updatedTimeline = {
         ...timeline,
-        scenes: timeline.scenes.map((scene, idx) =>
-          idx === firstSceneIndex
-            ? { ...scene, transitionDuration: totalGroupTtsDuration }
-            : scene
-        ),
+        scenes: timeline.scenes.map((scene, idx) => {
+          if (idx !== firstSceneIndex) return scene
+          return {
+            ...scene,
+            transitionDuration: transitionDurationForFirst,
+          }
+        }),
       }
       setTimeline(updatedTimeline)
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
@@ -361,7 +399,7 @@ export function useGroupPlayback({
       
       // 첫 번째 씬: 전환 효과만 표시
       const firstSceneIndexForRender = groupIndices[0]
-      const firstSceneForRender = updatedTimeline.scenes[firstSceneIndexForRender]
+        const firstSceneForRender = updatedTimeline.scenes[firstSceneIndexForRender]
       currentSceneIndexRef.current = firstSceneIndexForRender
       
       // 그룹 재생 시작 전에 컨테이너의 모든 자식 제거 및 숨김
@@ -388,12 +426,8 @@ export function useGroupPlayback({
           sprite.alpha = 0
         }
       })
-      textsRef.current.forEach((text) => {
-        if (text) {
-          text.visible = false
-          text.alpha = 0
-        }
-      })
+      // 씬이 넘어갔을 때만 이전 씬의 텍스트 숨김 (기본적으로는 모든 텍스트를 보이게 유지)
+      // 이 부분은 제거 - 씬이 넘어갔을 때만 이전 씬의 텍스트를 숨기도록 변경
       
       // 자막 파싱
       const mergedTextParts = parseMergedTextParts(groupIndices, updatedTimeline)
@@ -403,26 +437,27 @@ export function useGroupPlayback({
       const textToUpdate = findTextObject(firstSceneIndex, updatedTimeline)
       
       // 텍스트가 컨테이너에 없으면 추가하고 표시
-      if (textToUpdate && containerRef.current) {
-        if (textToUpdate.parent !== containerRef.current) {
-          if (textToUpdate.parent) {
-            textToUpdate.parent.removeChild(textToUpdate)
-          }
-          containerRef.current.addChild(textToUpdate)
-        }
-        textToUpdate.visible = true
-        textToUpdate.alpha = 1
-      }
+        // 텍스트 재렌더링하지 않음 (이미 보이는 상태라면 그대로 유지)
       
       if (renderSceneContent) {
         // 렌더링 경로 확인: 그룹 재생 시작에서 renderSceneContent 사용
+        const isMovement = movements.some((m) => m.value === (firstSceneForRender?.transition || ''))
+        
+        // 첫 번째 구간의 실제 partIndex를 사용하여 TTS 듀레이션 계산
+        let transitionDurationForRender = 1
+        if (isMovement && mergedTextParts.length > 0) {
+          const firstPart = mergedTextParts[0]
+          const partDuration = getPartTtsDuration(firstPart.sceneIndex, firstPart.partIndex)
+          transitionDurationForRender = Math.max(partDuration, 1)
+        }
+
         renderSceneContent(firstSceneIndexForRender, null, {
           skipAnimation: false,
           forceTransition: firstSceneForRender?.transition || 'none',
           updateTimeline: false,
           prepareOnly: false,
           isPlaying: true,
-          transitionDuration: totalGroupTtsDuration,
+          transitionDuration: transitionDurationForRender,
           onComplete: () => {
             lastRenderedSceneIndexRef.current = firstSceneIndexForRender
           },
@@ -446,6 +481,7 @@ export function useGroupPlayback({
         const currentPartText = partInfo.text
         const targetSceneIndex = partInfo.sceneIndex
         const scenePartIndex = partInfo.partIndex
+        const targetScene = updatedTimeline.scenes[targetSceneIndex]
 
         if (!currentPartText) {
           if (globalPartIndex < mergedTextParts.length - 1) {
@@ -462,6 +498,84 @@ export function useGroupPlayback({
           currentSceneIndexRef.current = targetSceneIndex
         }
 
+        // 구간별 전환 효과 적용: 각 분할 씬의 transition을 그대로 사용
+        if (renderSceneContent && targetScene) {
+          // 같은 씬이 이미 렌더링되어 있고 보이는 상태라면 renderSceneContent를 호출하지 않음 (재렌더링 방지)
+          const currentSprite = spritesRef.current.get(targetSceneIndex)
+          const isAlreadyRendered = 
+            lastRenderedSceneIndexRef.current === targetSceneIndex &&
+            currentSprite?.visible &&
+            currentSprite?.alpha === 1
+          
+          if (!isAlreadyRendered) {
+            const isMovement = movements.some((m) => m.value === (targetScene.transition || ''))
+            // 움직임: 해당 파트 TTS, 비움직임: 1초 고정
+            const transitionDurationForRender = isMovement
+              ? Math.max(getPartTtsDuration(targetSceneIndex, scenePartIndex), 1)
+              : 1
+
+            renderSceneContent(targetSceneIndex, null, {
+              skipAnimation: false,
+              forceTransition: targetScene.transition || 'none',
+              previousIndex: lastRenderedSceneIndexRef.current ?? undefined,
+              updateTimeline: false,
+              prepareOnly: false,
+              isPlaying: true,
+              transitionDuration: transitionDurationForRender,
+              onComplete: () => {
+                lastRenderedSceneIndexRef.current = targetSceneIndex
+                
+                // 전환 효과 완료 후에만 가시성 보정 (깜빡임 방지)
+                // 전환 효과 duration을 제대로 지키기 위해 onComplete에서만 처리
+                // 같은 그룹 내 씬인 경우 첫 번째 씬의 스프라이트를 사용
+                let spriteToShow = spritesRef.current.get(targetSceneIndex)
+                if (targetScene.sceneId !== undefined) {
+                  const firstSceneIndexInGroup = updatedTimeline.scenes.findIndex(
+                    (s) => s.sceneId === targetScene.sceneId
+                  )
+                  if (firstSceneIndexInGroup >= 0 && firstSceneIndexInGroup !== targetSceneIndex) {
+                    const firstSprite = spritesRef.current.get(firstSceneIndexInGroup)
+                    if (firstSprite) {
+                      spriteToShow = firstSprite
+                    }
+                  }
+                }
+
+                if (spriteToShow && containerRef.current) {
+                  // 컨테이너에 없으면 추가 (필요한 경우에만)
+                  if (spriteToShow.parent !== containerRef.current) {
+                    if (spriteToShow.parent) {
+                      spriteToShow.parent.removeChild(spriteToShow)
+                    }
+                    containerRef.current.addChild(spriteToShow)
+                  }
+                  
+                  // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
+                  if (spriteToShow.parent === containerRef.current) {
+                    containerRef.current.setChildIndex(spriteToShow, 0)
+                  }
+                  
+                  // 전환 효과 완료 후 이미지가 보이도록 보장
+                  spriteToShow.visible = true
+                  spriteToShow.alpha = 1
+                  
+                  // 필터 제거 (블러 등) - 항상 제거
+                  if (spriteToShow.filters && spriteToShow.filters.length > 0) {
+                    spriteToShow.filters = []
+                  }
+                  // 마스크 제거 (원형 등) - 항상 제거
+                  if (spriteToShow.mask) {
+                    spriteToShow.mask = null
+                  }
+                }
+              },
+            })
+          } else {
+            // 이미 렌더링된 경우에도 lastRenderedSceneIndexRef 업데이트
+            lastRenderedSceneIndexRef.current = targetSceneIndex
+          }
+        }
+
         // 각 구간에서 텍스트 객체 찾기
         // 같은 그룹 내 씬들은 첫 번째 씬의 텍스트를 공유하므로, 항상 첫 번째 씬의 텍스트를 사용
         // textToUpdate는 이미 첫 번째 씬의 텍스트 객체이므로, 이를 직접 사용
@@ -474,14 +588,13 @@ export function useGroupPlayback({
           currentTextToUpdate.text = currentPartText
           
           // 해당 구간의 씬 설정으로 자막 스타일 업데이트
-          const targetScene = updatedTimeline.scenes[targetSceneIndex]
           if (targetScene?.text) {
             const fontFamily = resolveSubtitleFontFamily(targetScene.text.font)
             const fontWeight = targetScene.text.fontWeight ?? (targetScene.text.style?.bold ? 700 : 400)
             
-            // 텍스트 너비 계산
+            // 텍스트 너비 계산 (마스크 효과와 무관하게 일정 폭 유지)
             const stageWidth = containerRef.current?.width || 1080
-            let textWidth = stageWidth * 0.75 // 기본값: 화면 너비의 75%
+            let textWidth = stageWidth
             if (targetScene.text.transform?.width) {
               textWidth = targetScene.text.transform.width / (targetScene.text.transform.scaleX || 1)
             }
@@ -502,6 +615,40 @@ export function useGroupPlayback({
             
             const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
             currentTextToUpdate.style = textStyle
+
+            // 밑줄 렌더링 (텍스트 자식으로 추가)
+            const removeUnderline = () => {
+              const underlineChildren = currentTextToUpdate.children.filter(
+                (child) => child instanceof PIXI.Graphics && (child as PIXI.Graphics & { __isUnderline?: boolean }).__isUnderline
+              )
+              underlineChildren.forEach((child) => currentTextToUpdate.removeChild(child))
+            }
+            removeUnderline()
+            if (targetScene.text.style?.underline) {
+              requestAnimationFrame(() => {
+                const underlineHeight = Math.max(2, (targetScene.text.fontSize || 80) * 0.05)
+                const textColor = targetScene.text.color || '#ffffff'
+                const colorValue = textColor.startsWith('#')
+                  ? parseInt(textColor.slice(1), 16)
+                  : 0xffffff
+
+                const bounds = currentTextToUpdate.getLocalBounds()
+                const underlineWidth = bounds.width || textWidth
+
+                const underline = new PIXI.Graphics()
+                ;(underline as PIXI.Graphics & { __isUnderline?: boolean }).__isUnderline = true
+
+                const halfWidth = underlineWidth / 2
+                const yPos = bounds.height / 2 + underlineHeight * 0.25 // 텍스트 하단 근처
+
+                underline.lineStyle(underlineHeight, colorValue, 1)
+                underline.moveTo(-halfWidth, yPos)
+                underline.lineTo(halfWidth, yPos)
+                underline.stroke()
+
+                currentTextToUpdate.addChild(underline)
+              })
+            }
 
             // 위치는 renderSceneContent를 통해 이미 설정되었으므로 업데이트하지 않음
             // Transform이 있는 경우에만 업데이트 (사용자가 직접 설정한 경우)
@@ -525,7 +672,12 @@ export function useGroupPlayback({
               containerRef.current.addChild(currentTextToUpdate)
             }
             // 컨테이너의 맨 위로 이동 (다른 요소에 가려지지 않도록)
-            containerRef.current.setChildIndex(currentTextToUpdate, containerRef.current.children.length - 1)
+            // 이미 맨 위가 아니면만 setChildIndex 호출 (깜빡임 방지)
+            const currentIndex = containerRef.current.getChildIndex(currentTextToUpdate)
+            const maxIndex = containerRef.current.children.length - 1
+            if (currentIndex !== maxIndex) {
+              containerRef.current.setChildIndex(currentTextToUpdate, maxIndex)
+            }
           }
           
           // 텍스트 표시 (강제로 설정)
@@ -554,8 +706,14 @@ export function useGroupPlayback({
         }
 
         // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
-        const targetScene = updatedTimeline.scenes[targetSceneIndex]
         const sceneVoiceTemplate = targetScene?.voiceTemplate || voiceTemplate
+        if (!sceneVoiceTemplate) {
+          // 음성 템플릿이 없으면 다음 구간으로 이동
+          if (globalPartIndex < mergedTextParts.length - 1) {
+            await playPart(globalPartIndex + 1)
+          }
+          return
+        }
 
         // TTS 파일 가져오기
         const key = makeTtsKey(sceneVoiceTemplate, markup)
@@ -618,7 +776,7 @@ export function useGroupPlayback({
         audio.playbackRate = updatedTimeline?.playbackSpeed ?? 1.0
         ttsAudioRef.current = audio
         
-        // 오디오 로드 대기
+        // 오디오 로드 대기 및 duration 확인
         if (audio.readyState < 2) {
           await new Promise<void>((resolve) => {
             if (audio.readyState >= 2) {
@@ -626,25 +784,68 @@ export function useGroupPlayback({
               return
             }
             
-            const handleCanPlay = () => {
-              audio.removeEventListener('canplay', handleCanPlay)
-              audio.removeEventListener('error', handleLoadError)
-              resolve()
-            }
-            const handleLoadError = () => {
+            const handleLoadedMetadata = () => {
+              // 실제 오디오 duration 확인 및 캐시 업데이트
+              if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+                const actualDuration = audio.duration
+                const cachedDuration = cached.durationSec || 0
+                
+                // 실제 duration과 캐시된 duration이 0.1초 이상 차이나면 업데이트
+                if (Math.abs(actualDuration - cachedDuration) > 0.1) {
+                  console.log(`[useGroupPlayback] Duration 불일치 감지: 캐시=${cachedDuration.toFixed(2)}s, 실제=${actualDuration.toFixed(2)}s, 업데이트 중...`)
+                  // 캐시 업데이트
+                  ttsCacheRef.current.set(key, {
+                    ...cached,
+                    durationSec: actualDuration,
+                  })
+                }
+              }
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
               audio.removeEventListener('canplay', handleCanPlay)
               audio.removeEventListener('error', handleLoadError)
               resolve()
             }
             
+            const handleCanPlay = () => {
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+              audio.removeEventListener('canplay', handleCanPlay)
+              audio.removeEventListener('error', handleLoadError)
+              resolve()
+            }
+            const handleLoadError = () => {
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+              audio.removeEventListener('canplay', handleCanPlay)
+              audio.removeEventListener('error', handleLoadError)
+              resolve()
+            }
+            
+            // loadedmetadata 이벤트를 먼저 등록 (duration 정보 포함)
+            audio.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true })
             audio.addEventListener('canplay', handleCanPlay, { once: true })
             audio.addEventListener('error', handleLoadError, { once: true })
             setTimeout(() => {
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
               audio.removeEventListener('canplay', handleCanPlay)
               audio.removeEventListener('error', handleLoadError)
               resolve()
             }, 100)
           })
+        } else {
+          // 이미 로드된 경우에도 duration 확인
+          if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+            const actualDuration = audio.duration
+            const cachedDuration = cached.durationSec || 0
+            
+            // 실제 duration과 캐시된 duration이 0.1초 이상 차이나면 업데이트
+            if (Math.abs(actualDuration - cachedDuration) > 0.1) {
+              console.log(`[useGroupPlayback] Duration 불일치 감지: 캐시=${cachedDuration.toFixed(2)}s, 실제=${actualDuration.toFixed(2)}s, 업데이트 중...`)
+              // 캐시 업데이트
+              ttsCacheRef.current.set(key, {
+                ...cached,
+                durationSec: actualDuration,
+              })
+            }
+          }
         }
 
         // 오디오 재생 전에 텍스트가 표시되어 있는지 확인하고 다시 표시
@@ -866,12 +1067,12 @@ export function useGroupPlayback({
     isPlayingRef,
     findScenesToSynthesize,
     synthesizeAndCacheTts,
-    calculateGroupTtsDuration,
     parseMergedTextParts,
     findTextObject,
     cleanupAudio,
     stopGroup,
     playingSceneIndexRef,
+    getPartTtsDuration,
   ])
 
   return {

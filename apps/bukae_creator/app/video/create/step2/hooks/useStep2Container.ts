@@ -437,7 +437,7 @@ export function useStep2Container() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scenes.length, selectedImages, setSelectedImages]) // scenes.length만 dependency로 사용하여 무한 루프 방지
+  }, [scenes, setSelectedImages]) // scenes 변경 시에만 동기화하여 무한 루프 방지
 
   // sceneScripts가 변경될 때마다 store에 저장 (렌더링 중 업데이트 방지)
   useEffect(() => {
@@ -721,6 +721,20 @@ export function useStep2Container() {
 
   // 다음 단계로 이동
   const handleNext = useCallback(() => {
+    if (isGeneratingAll || generatingScenes.size > 0) {
+      return
+    }
+
+    // 모든 씬에 대본이 있어야 진행
+    const hasIncompleteScript = selectedImages.some((_, index) => {
+      const script = sceneScripts.get(index)?.script ?? ''
+      return !script.trim()
+    })
+    if (hasIncompleteScript) {
+      alert('대본을 모두 생성하거나 입력한 후 다음 단계로 이동해주세요.')
+      return
+    }
+
     if (!selectedScriptStyle) {
       alert('대본 스타일을 선택해주세요.')
       return
@@ -749,7 +763,7 @@ export function useStep2Container() {
     
     setScenes(finalScenes)
     router.push('/video/create/step3')
-  }, [selectedScriptStyle, selectedImages, sceneScripts, setScenes, router])
+  }, [isGeneratingAll, generatingScenes.size, selectedScriptStyle, selectedImages, sceneScripts, setScenes, router])
 
   return {
     // State

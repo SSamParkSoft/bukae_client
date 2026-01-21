@@ -36,19 +36,23 @@ export function applyZoomTransition(
   toSprite.alpha = 1
   toSprite.visible = true
 
-  const centerX = originalX + (toSprite.texture.width * originalScaleX) / 2
-  const centerY = originalY + (toSprite.texture.height * originalScaleY) / 2
+  // anchor가 (0.5, 0.5)이므로 originalX, originalY는 이미 중심점 좌표
+  const centerX = originalX
+  const centerY = originalY
 
   applyTextFade(toText)
 
   const targetScale = direction === 'in' ? originalScale * 1.15 : originalScale * 0.85
 
+  // 이전 애니메이션 제거 (겹침 방지)
+  timeline.clear()
+  
   timeline.to(
     toZoomObj,
     {
       scale: targetScale,
       duration,
-      ease: 'power1.out',
+      ease: 'none', // 선형 애니메이션으로 정확한 듀레이션 보장
       onUpdate: function () {
         if (toSprite && containerRef.current) {
           ensureInContainer(toSprite, toText, containerRef.current)
@@ -58,16 +62,25 @@ export function applyZoomTransition(
           toSprite.alpha = 1
           toSprite.scale.set(scaleFactor, scaleFactor * scaleRatio)
 
-          const newWidth = toSprite.texture.width * scaleFactor
-          const newHeight = toSprite.texture.height * scaleFactor * scaleRatio
-          toSprite.x = centerX - newWidth / 2
-          toSprite.y = centerY - newHeight / 2
+          // anchor가 (0.5, 0.5)이므로 중심점 좌표를 그대로 사용
+          toSprite.x = centerX
+          toSprite.y = centerY
         }
 
         if (toText && containerRef.current) {
           ensureInContainer(toSprite, toText, containerRef.current)
           toText.alpha = 1
           toText.visible = true
+        }
+      },
+      onComplete: function () {
+        // 줌 효과 완료 후 원래 스케일로 복귀
+        if (toSprite) {
+          toSprite.scale.set(originalScaleX, originalScaleY)
+          toSprite.x = originalX
+          toSprite.y = originalY
+          toSprite.visible = true
+          toSprite.alpha = 1
         }
       },
     },

@@ -217,18 +217,12 @@ export default function VoiceSelector({
     // 전역 voiceTemplate 업데이트
     setVoiceTemplate(serialized)
 
-    // 씬별 voiceTemplate이 명시적으로 설정되지 않은 씬들에만 기본값으로 적용
+    // 씬별 voiceTemplate을 모두 덮어쓰기
     if (timeline && serialized) {
-      const updatedScenes = timeline.scenes.map((scene) => {
-        // 이미 scene.voiceTemplate이 있는 경우에는 그대로 두고, 없을 때만 전역 템플릿으로 채움
-        if (scene.voiceTemplate === null || scene.voiceTemplate === undefined || scene.voiceTemplate === '') {
-          return {
-            ...scene,
-            voiceTemplate: serialized,
-          }
-        }
-        return scene
-      })
+      const updatedScenes = timeline.scenes.map((scene) => ({
+        ...scene,
+        voiceTemplate: serialized,
+      }))
 
       setTimeline({
         ...timeline,
@@ -262,9 +256,15 @@ export default function VoiceSelector({
       // Premium 목소리 (ElevenLabs)인 경우 정적 파일 재생
       if (voice?.provider === 'elevenlabs') {
         const displayName = voice.displayName || voice.voiceId || voiceName.replace(/^elevenlabs:/, '')
-        // 파일명 후보: 원본 displayName과 소문자 버전 모두 시도
+        // 카멜케이스 변환 함수 (첫 글자만 소문자)
+        const toCamelCase = (str: string) => {
+          if (!str) return str
+          return str.charAt(0).toLowerCase() + str.slice(1)
+        }
+        // 파일명 후보: 원본, 카멜케이스, 소문자 버전 모두 시도
         const fileNameCandidates = [
           `${displayName}_test.wav`,  // 원본 (예: MichaelMouse_test.wav)
+          `${toCamelCase(displayName)}_test.wav`,  // 카멜케이스 (예: michaelMouse_test.wav)
           `${displayName.toLowerCase()}_test.wav`,  // 소문자 (예: michaelmouse_test.wav)
         ]
         
@@ -496,7 +496,7 @@ export default function VoiceSelector({
                 openConfirm(v.name)
               }
             }}
-            className="flex items-center gap-4 h-[46px] transition-all hover:opacity-90"
+            className="flex items-center gap-2 sm:gap-4 h-[46px] transition-all hover:opacity-90 min-w-0"
           >
             <div 
               className="w-6 h-6 flex items-center justify-center shrink-0 cursor-pointer"
@@ -515,15 +515,15 @@ export default function VoiceSelector({
               />
             </div>
             <div 
-              className={`flex-1 rounded-lg border h-[46px] flex items-center cursor-pointer ${
+              className={`flex-1 rounded-lg border h-[46px] flex items-center cursor-pointer min-w-0 ${
                 isSelected
                   ? 'bg-[#5e8790] border-[#5e8790]'
                   : 'bg-white border-[#88a9ac]'
               }`}
             >
-              <div className="px-4 flex items-center w-full">
+              <div className="px-3 sm:px-4 flex items-center w-full min-w-0">
                 <span 
-                  className={`font-medium tracking-[-0.32px] ${
+                  className={`font-medium tracking-[-0.32px] truncate ${
                     isSelected ? 'text-white' : 'text-[#2c2c2c]'
                   }`}
                   style={{ 
@@ -648,7 +648,7 @@ export default function VoiceSelector({
           </h5>
           <div className="h-0.5 bg-[#bbc9c9] mt-2" />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
           {uniqueVoices.map(renderVoiceItem)}
         </div>
       </div>
