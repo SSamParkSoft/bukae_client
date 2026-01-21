@@ -46,7 +46,9 @@ const PRODUCT_URLS = {
   raon_multihub:
     'https://link.coupang.com/a/dulIts',
   solo_hell_dex:
-    'https://link.coupang.com/a/dvlgdp'
+    'https://link.coupang.com/a/dvlgdp',
+  pronutrition_dualplan:
+    'https://link.coupang.com/a/dwPPd5'
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -206,6 +208,15 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     order: 17,
     thumbnailUrl: '/dummy/dex.png',
     url: PRODUCT_URLS.solo_hell_dex,
+  },
+  {
+    id: 'pronutrition-dualplan',
+    productId: 1023,
+    name: 'PRONUTRITION 정품 듀얼플랜 다이어트 유산균 14p, 35g, 1개',
+    description: '듀얼플랜 다이어트 유산균 · 14p',
+    order: 18,
+    thumbnailUrl: '/dummy/usangun.png',
+    url: PRODUCT_URLS.pronutrition_dualplan,
   },
 ]
 
