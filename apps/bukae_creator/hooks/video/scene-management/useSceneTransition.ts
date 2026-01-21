@@ -52,6 +52,7 @@ export function useSceneTransition({
   const groupTransitionTimelinesRef = useRef<Map<number, gsap.core.Timeline>>(new Map())
 
   // 애니메이션 스킵 처리 헬퍼 함수
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleSkipAnimation = useCallback(
     ({
       actualSceneIndex,
@@ -131,7 +132,7 @@ export function useSceneTransition({
         onAnimationComplete?.(actualSceneIndex)
       }
     },
-    [previousSceneIndexRef, spritesRef, textsRef, renderSubtitlePartRef]
+    [previousSceneIndexRef, renderSubtitlePartRef]
   )
 
   // 현재 씬 업데이트
@@ -961,7 +962,6 @@ export function useSceneTransition({
       currentSceneIndexRef,
       previousSceneIndexRef,
       isManualSceneSelectRef,
-      handleSkipAnimation,
     ]
   )
 

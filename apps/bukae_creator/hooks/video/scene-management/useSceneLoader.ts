@@ -6,7 +6,6 @@
 import { useCallback } from 'react'
 import * as PIXI from 'pixi.js'
 import { TimelineData } from '@/store/useVideoCreateStore'
-import { calculateSpriteParams } from '@/utils/pixi'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import type { StageDimensions } from '../types/common'
@@ -155,9 +154,9 @@ export function useSceneLoader({
 
         // Transform 데이터 적용 (첫 번째 씬의 transform 사용)
         if (baseScene.imageTransform) {
-          // 기존 transform이 좌상단 기준이었다면 anchor(0.5)로 이동 보정
-          sprite.x = (baseScene.imageTransform.x + baseScene.imageTransform.width) * 0.5
-          sprite.y = (baseScene.imageTransform.y + baseScene.imageTransform.height) * 0.5
+          // imageTransform.x와 imageTransform.y는 중심점 좌표 (anchor 0.5 기준)
+          sprite.x = baseScene.imageTransform.x
+          sprite.y = baseScene.imageTransform.y
           sprite.width = baseScene.imageTransform.width
           sprite.height = baseScene.imageTransform.height
           sprite.rotation = baseScene.imageTransform.rotation

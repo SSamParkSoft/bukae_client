@@ -161,7 +161,8 @@ export function useGroupPlayback({
   }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef, ensureSceneTtsParam, changedScenesRef, setIsPreparing, setIsTtsBootstrapping])
 
   // 그룹 TTS duration 계산
-  const calculateGroupTtsDuration = useCallback((sceneId: number | undefined, groupIndices: number[]): number => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const calculateGroupTtsDuration = useCallback((groupIndices: number[]): number => {
     // 항상 최신 TTS 캐시에서 직접 계산하여 정확한 duration 보장
     let duration = 0
     if (timeline) {
@@ -523,63 +524,55 @@ export function useGroupPlayback({
               transitionDuration: transitionDurationForRender,
               onComplete: () => {
                 lastRenderedSceneIndexRef.current = targetSceneIndex
+                
+                // 전환 효과 완료 후에만 가시성 보정 (깜빡임 방지)
+                // 전환 효과 duration을 제대로 지키기 위해 onComplete에서만 처리
+                // 같은 그룹 내 씬인 경우 첫 번째 씬의 스프라이트를 사용
+                let spriteToShow = spritesRef.current.get(targetSceneIndex)
+                if (targetScene.sceneId !== undefined) {
+                  const firstSceneIndexInGroup = updatedTimeline.scenes.findIndex(
+                    (s) => s.sceneId === targetScene.sceneId
+                  )
+                  if (firstSceneIndexInGroup >= 0 && firstSceneIndexInGroup !== targetSceneIndex) {
+                    const firstSprite = spritesRef.current.get(firstSceneIndexInGroup)
+                    if (firstSprite) {
+                      spriteToShow = firstSprite
+                    }
+                  }
+                }
+
+                if (spriteToShow && containerRef.current) {
+                  // 컨테이너에 없으면 추가 (필요한 경우에만)
+                  if (spriteToShow.parent !== containerRef.current) {
+                    if (spriteToShow.parent) {
+                      spriteToShow.parent.removeChild(spriteToShow)
+                    }
+                    containerRef.current.addChild(spriteToShow)
+                  }
+                  
+                  // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
+                  if (spriteToShow.parent === containerRef.current) {
+                    containerRef.current.setChildIndex(spriteToShow, 0)
+                  }
+                  
+                  // 전환 효과 완료 후 이미지가 보이도록 보장
+                  spriteToShow.visible = true
+                  spriteToShow.alpha = 1
+                  
+                  // 필터 제거 (블러 등) - 항상 제거
+                  if (spriteToShow.filters && spriteToShow.filters.length > 0) {
+                    spriteToShow.filters = []
+                  }
+                  // 마스크 제거 (원형 등) - 항상 제거
+                  if (spriteToShow.mask) {
+                    spriteToShow.mask = null
+                  }
+                }
               },
             })
           } else {
             // 이미 렌더링된 경우에도 lastRenderedSceneIndexRef 업데이트
             lastRenderedSceneIndexRef.current = targetSceneIndex
-          }
-
-          // 전환 중/전환 이후 이미지가 사라지는 것을 방지하기 위해 가시성 보정
-          // 같은 그룹 내 씬인 경우 첫 번째 씬의 스프라이트를 사용
-          let spriteToShow = spritesRef.current.get(targetSceneIndex)
-          if (targetScene.sceneId !== undefined) {
-            const firstSceneIndexInGroup = updatedTimeline.scenes.findIndex(
-              (s) => s.sceneId === targetScene.sceneId
-            )
-            if (firstSceneIndexInGroup >= 0 && firstSceneIndexInGroup !== targetSceneIndex) {
-              const firstSprite = spritesRef.current.get(firstSceneIndexInGroup)
-              if (firstSprite) {
-                spriteToShow = firstSprite
-              }
-            }
-          }
-
-          if (spriteToShow && containerRef.current) {
-            // 컨테이너에 없으면 추가 (필요한 경우에만)
-            if (spriteToShow.parent !== containerRef.current) {
-              if (spriteToShow.parent) {
-                spriteToShow.parent.removeChild(spriteToShow)
-              }
-              containerRef.current.addChild(spriteToShow)
-            }
-            
-            // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
-            if (spriteToShow.parent === containerRef.current) {
-              containerRef.current.setChildIndex(spriteToShow, 0)
-            }
-            
-            // 이미 보이는 상태라면 visible/alpha를 건드리지 않음 (깜빡임 방지)
-            // 씬이 넘어가지 않는다면 이미지가 그대로 남아있어야 함
-            // 보이지 않는 경우에만 보이게 설정
-            if (!spriteToShow.visible || spriteToShow.alpha < 1) {
-              spriteToShow.visible = true
-              spriteToShow.alpha = 1
-            }
-            
-            // 필터 제거 (블러 등) - 항상 제거
-            if (spriteToShow.filters && spriteToShow.filters.length > 0) {
-              spriteToShow.filters = []
-            }
-            // 마스크 제거 (원형 등) - 항상 제거
-            if (spriteToShow.mask) {
-              spriteToShow.mask = null
-            }
-            
-            // 텍스트 재렌더링하지 않음 (이미 보이는 상태라면 그대로 유지)
-
-            // 텍스트는 setTimeout에서 처리하지 않음 (깜빡임 방지)
-            // 텍스트는 전환 효과 시작 시와 완료 시에만 처리됨
           }
         }
 
@@ -1074,7 +1067,6 @@ export function useGroupPlayback({
     isPlayingRef,
     findScenesToSynthesize,
     synthesizeAndCacheTts,
-    calculateGroupTtsDuration,
     parseMergedTextParts,
     findTextObject,
     cleanupAudio,

@@ -428,6 +428,7 @@ export function useStep3Container() {
     isSavingTransformRef,
     savedSceneIndexRef,
     isManualSceneSelectRef,
+    useFabricEditing,
   })
 
 

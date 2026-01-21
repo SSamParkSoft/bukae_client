@@ -8,6 +8,10 @@ import * as PIXI from 'pixi.js'
 import type { ResizeHandle, Transform } from '../types/common'
 import { getPixiCoordinates } from './utils'
 
+// 상수 정의
+const MIN_IMAGE_SIZE = 50
+const MIN_TEXT_SIZE = 20
+
 interface UseResizeHandlerParams {
   appRef: React.RefObject<PIXI.Application | null>
   spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>
@@ -55,65 +59,89 @@ export function useResizeHandler({
       const handleType = resizeHandleRef.current
       const original = originalTransformRef.current
 
-      let newWidth = original.width
-      let newHeight = original.height
-      let newX = original.x
-      let newY = original.y
+      // 중요: sprite.anchor가 0.5, 0.5이므로 sprite.x, sprite.y는 중심점 좌표임
+      // original.x, original.y는 중심점 좌표로 저장되어 있음
+      // 리사이즈 계산을 위해 왼쪽 상단 좌표를 계산
+      const left = original.left ?? original.x - original.width / 2
+      const right = original.right ?? original.x + original.width / 2
+      const top = original.top ?? original.y - original.height / 2
+      const bottom = original.bottom ?? original.y + original.height / 2
 
-      const rightEdge = original.x + original.width
-      const bottomEdge = original.y + original.height
+      // 리사이즈 핸들 위치에 따라 새로운 경계 좌표 계산
+      let newLeft = left
+      let newRight = right
+      let newTop = top
+      let newBottom = bottom
 
       switch (handleType) {
         case 'nw':
-          newWidth = rightEdge - globalPos.x
-          newHeight = bottomEdge - globalPos.y
-          newX = globalPos.x
-          newY = globalPos.y
+          newLeft = globalPos.x
+          newTop = globalPos.y
           break
         case 'n':
-          newHeight = bottomEdge - globalPos.y
-          newY = globalPos.y
+          newTop = globalPos.y
           break
         case 'ne':
-          newWidth = globalPos.x - original.x
-          newHeight = bottomEdge - globalPos.y
-          newY = globalPos.y
+          newRight = globalPos.x
+          newTop = globalPos.y
           break
         case 'e':
-          newWidth = globalPos.x - original.x
+          newRight = globalPos.x
           break
         case 'se':
-          newWidth = globalPos.x - original.x
-          newHeight = globalPos.y - original.y
+          newRight = globalPos.x
+          newBottom = globalPos.y
           break
         case 's':
-          newHeight = globalPos.y - original.y
+          newBottom = globalPos.y
           break
         case 'sw':
-          newWidth = rightEdge - globalPos.x
-          newHeight = globalPos.y - original.y
-          newX = globalPos.x
+          newLeft = globalPos.x
+          newBottom = globalPos.y
           break
         case 'w':
-          newWidth = rightEdge - globalPos.x
-          newX = globalPos.x
+          newLeft = globalPos.x
           break
       }
 
+      let newWidth = newRight - newLeft
+      let newHeight = newBottom - newTop
+
       // 최소 크기 제한
-      const minSize = 50
-      if (newWidth < minSize) {
-        newWidth = minSize
-        if (handleType === 'nw' || handleType === 'w' || handleType === 'sw') {
-          newX = original.x + original.width - minSize
+      if (newWidth < MIN_IMAGE_SIZE) {
+        newWidth = MIN_IMAGE_SIZE
+        switch (handleType) {
+          case 'nw':
+          case 'w':
+          case 'sw':
+            newLeft = newRight - MIN_IMAGE_SIZE
+            break
+          case 'ne':
+          case 'e':
+          case 'se':
+            newRight = newLeft + MIN_IMAGE_SIZE
+            break
         }
       }
-      if (newHeight < minSize) {
-        newHeight = minSize
-        if (handleType === 'nw' || handleType === 'n' || handleType === 'ne') {
-          newY = original.y + original.height - minSize
+      if (newHeight < MIN_IMAGE_SIZE) {
+        newHeight = MIN_IMAGE_SIZE
+        switch (handleType) {
+          case 'nw':
+          case 'n':
+          case 'ne':
+            newTop = newBottom - MIN_IMAGE_SIZE
+            break
+          case 'sw':
+          case 's':
+          case 'se':
+            newBottom = newTop + MIN_IMAGE_SIZE
+            break
         }
       }
+
+      // 새로운 중심점 좌표 계산
+      const newCenterX = (newLeft + newRight) / 2
+      const newCenterY = (newTop + newBottom) / 2
 
       // 스프라이트 업데이트
       const baseWidth = original.baseWidth || original.width / (original.scaleX || 1)
@@ -122,8 +150,8 @@ export function useResizeHandler({
       const scaleY = newHeight / baseHeight
 
       sprite.scale.set(scaleX, scaleY)
-      sprite.x = newX
-      sprite.y = newY
+      sprite.x = newCenterX // 중심점 x 좌표
+      sprite.y = newCenterY // 중심점 y 좌표
 
       // 핸들 위치 및 경계선 업데이트
       const existingImageHandlesForResizeUpdate = editHandlesRef.current.get(sceneIndex)
@@ -197,8 +225,6 @@ export function useResizeHandler({
       let newRight = right
       let newTop = top
       let newBottom = bottom
-      let newCenterX = original.x
-      let newCenterY = original.y
 
       switch (handleType) {
         case 'nw':
@@ -253,43 +279,40 @@ export function useResizeHandler({
 
       let newWidth = newRight - newLeft
       let newHeight = newBottom - newTop
-      newCenterX = (newLeft + newRight) / 2
-      newCenterY = (newTop + newBottom) / 2
 
-      const minSize = 20
-      if (newWidth < minSize) {
+      if (newWidth < MIN_TEXT_SIZE) {
         switch (handleType) {
           case 'nw':
           case 'w':
           case 'sw':
-            newLeft = newRight - minSize
+            newLeft = newRight - MIN_TEXT_SIZE
             break
           case 'ne':
           case 'e':
           case 'se':
-            newRight = newLeft + minSize
+            newRight = newLeft + MIN_TEXT_SIZE
             break
         }
-        newWidth = minSize
+        newWidth = MIN_TEXT_SIZE
       }
-      if (newHeight < minSize) {
+      if (newHeight < MIN_TEXT_SIZE) {
         switch (handleType) {
           case 'nw':
           case 'n':
           case 'ne':
-            newTop = newBottom - minSize
+            newTop = newBottom - MIN_TEXT_SIZE
             break
           case 'sw':
           case 's':
           case 'se':
-            newBottom = newTop + minSize
+            newBottom = newTop + MIN_TEXT_SIZE
             break
         }
-        newHeight = minSize
+        newHeight = MIN_TEXT_SIZE
       }
 
-      newCenterX = (newLeft + newRight) / 2
-      newCenterY = (newTop + newBottom) / 2
+      const newCenterX = (newLeft + newRight) / 2
+      const newCenterY = (newTop + newBottom) / 2
 
       const newWordWrapWidth = newWidth
 

@@ -241,8 +241,10 @@ export const usePixiEffects = ({
     
     // 재생 중: 전환 효과를 보여주려면 이미지가 필요하므로 항상 visible: true로 설정
     // 전환 효과 완료 후에는 항상 숨김 (전환 효과를 통해서만 렌더링)
+    // 블러 효과는 alpha: 1로 시작해야 블러가 보임 (블러 효과 케이스에서 별도 처리)
+    const isBlurEffect = actualTransition === 'blur'
     toSprite.visible = true
-    toSprite.alpha = 0 // 전환 효과 시작 시 alpha: 0
+    toSprite.alpha = isBlurEffect ? 1 : 0 // 블러 효과는 alpha: 1, 나머지는 alpha: 0
     if (toText) {
       toText.visible = true
       toText.alpha = 1 // 자막은 항상 alpha: 1로 표시 (효과 없음)
@@ -548,15 +550,39 @@ export const usePixiEffects = ({
       case 'blur':
         {
           // 블러 (블러에서 선명하게) - 이미지만 적용
-          const toBlurFilter = new PIXI.BlurFilter()
-          toBlurFilter.blur = 20
-          toSprite.filters = [toBlurFilter]
-          // 스프라이트 초기 상태는 이미 위에서 설정됨 (visible: true, alpha: 0)
+          // 페이드와의 차이: 블러 필터를 사용하여 흐릿한 상태에서 선명하게 변함
+          // 중요: alpha는 1로 유지해야 블러 효과가 보임 (alpha: 0이면 블러가 안 보여서 페이드처럼 보임)
           
-          const toBlurObj = { blur: 20, alpha: 0 }
+          // 컨테이너에 먼저 추가 (필터 적용 전에 컨테이너에 있어야 함)
+          if (toSprite.parent !== containerRef.current) {
+            if (toSprite.parent) {
+              toSprite.parent.removeChild(toSprite)
+            }
+            containerRef.current.addChild(toSprite)
+            containerRef.current.setChildIndex(toSprite, 0)
+          }
+          
+          // 기존 필터 제거 (다른 효과에서 남아있을 수 있음)
+          toSprite.filters = []
+          
+          // 블러 필터 생성 및 적용
+          const toBlurFilter = new PIXI.BlurFilter()
+          toBlurFilter.blur = 30 // 블러 효과를 더 강하게 (페이드와 차이 명확화)
+          toSprite.filters = [toBlurFilter]
+          
+          // 스프라이트를 보이게 설정 (블러 효과가 보이도록 alpha: 1)
+          // 필터 적용 후에 visible/alpha 설정하여 블러가 보이도록 함
+          toSprite.visible = true
+          toSprite.alpha = 1
+          
+          // 초기 렌더링 강제 (블러 상태가 보이도록)
+          if (appRef.current) {
+            appRef.current.render()
+          }
+          
+          const toBlurObj = { blur: 30 }
           tl.to(toBlurObj, { 
             blur: 0, 
-            alpha: 1, 
             duration, 
             onUpdate: function() {
               // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
@@ -575,8 +601,10 @@ export const usePixiEffects = ({
                     }
                   }
                 }
+                // 블러 필터 값 업데이트 (직접 참조 사용)
                 toBlurFilter.blur = toBlurObj.blur
-                toSprite.alpha = toBlurObj.alpha
+                // alpha는 1로 유지 (블러 효과가 보이도록)
+                toSprite.alpha = 1
               }
               // 텍스트는 onUpdate에서 처리하지 않음 (깜빡임 방지)
               // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
@@ -854,8 +882,11 @@ export const usePixiEffects = ({
         // 원형 마스크 생성
         // PixiJS에서 마스크는 스프라이트와 같은 부모 컨테이너에 있어야 함
         const mask = new PIXI.Graphics()
-        // 마스크를 보이게 설정하여 디버깅 (실제로 그려지는지 확인)
+        // 마스크는 보이게 설정해야 효과가 작동함 (렌더링을 위해 필요)
         mask.visible = true
+        // 마스크가 포인터 이벤트를 차단하지 않도록 설정
+        mask.interactive = false
+        mask.eventMode = 'none'
         
         // 스프라이트의 글로벌 위치를 마스크의 중심으로 사용
         // 스프라이트의 anchor가 (0.5, 0.5)이므로 x, y가 이미 중심점 좌표

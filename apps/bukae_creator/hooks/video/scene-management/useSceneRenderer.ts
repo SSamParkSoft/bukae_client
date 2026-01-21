@@ -85,9 +85,6 @@ export function useSceneRenderer({
         containerRef.current.addChild(currentSprite)
       }
 
-      const prevSpriteAlpha = currentSprite.alpha
-      const prevSpriteVisible = currentSprite.visible
-
       if (prepareOnly) {
         // 준비만: alpha: 0으로 설정
         currentSprite.visible = true
@@ -131,10 +128,6 @@ export function useSceneRenderer({
         )
         return
       }
-
-      // 깜빡임 확인
-      const spriteAlphaChanged = prevSpriteAlpha !== currentSprite.alpha
-      const spriteVisibleChanged = prevSpriteVisible !== currentSprite.visible
 
       if (onComplete) {
         onComplete()

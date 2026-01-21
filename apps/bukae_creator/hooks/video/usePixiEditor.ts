@@ -9,6 +9,24 @@ import { useTransformManager } from './editing/useTransformManager'
 import { useResizeHandler } from './editing/useResizeHandler'
 import { getPixiCoordinates, isOutsideCanvas, resetToCenter } from './editing/utils'
 import type { UsePixiEditorParams } from './types/editing'
+import type { ResizeHandle } from './types/common'
+
+// 상수 정의
+const HANDLE_REPOSITION_DELAY_MS = 200
+const RESIZE_MOVE_THRESHOLD = 3
+
+// 핸들 위치 계산 헬퍼 함수
+type NonNullResizeHandle = Exclude<ResizeHandle, null>
+const getHandlePositions = (bounds: PIXI.Bounds): Record<NonNullResizeHandle, { x: number; y: number }> => ({
+  nw: { x: bounds.x, y: bounds.y },
+  n: { x: bounds.x + bounds.width / 2, y: bounds.y },
+  ne: { x: bounds.x + bounds.width, y: bounds.y },
+  e: { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 },
+  se: { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+  s: { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height },
+  sw: { x: bounds.x, y: bounds.y + bounds.height },
+  w: { x: bounds.x, y: bounds.y + bounds.height / 2 },
+})
 
 /**
  * Pixi Editor 통합 훅
@@ -197,15 +215,18 @@ export const usePixiEditor = ({
             const currentHeight = bounds.height
             const currentScaleX = sprite.scale.x
             const currentScaleY = sprite.scale.y
-            const currentX = bounds.x
-            const currentY = bounds.y
+            // 중요: sprite.anchor가 0.5, 0.5이므로 sprite.x, sprite.y는 중심점 좌표임
+            // bounds.x, bounds.y는 왼쪽 상단 좌표이므로 사용하지 않음
+            const centerX = sprite.x
+            const centerY = sprite.y
             const savedTransform = timeline?.scenes[sceneIndex]?.imageTransform
             const baseWidth = savedTransform?.baseWidth || currentWidth / (currentScaleX || 1)
             const baseHeight = savedTransform?.baseHeight || currentHeight / (currentScaleY || 1)
 
+            // 중심점 좌표와 왼쪽 상단 좌표를 모두 저장 (리사이즈 계산에 필요)
             originalTransformRef.current = {
-              x: currentX,
-              y: currentY,
+              x: centerX, // 중심점 x 좌표
+              y: centerY, // 중심점 y 좌표
               width: currentWidth,
               height: currentHeight,
               scaleX: currentScaleX,
@@ -213,6 +234,11 @@ export const usePixiEditor = ({
               rotation: sprite.rotation,
               baseWidth,
               baseHeight,
+              // 왼쪽 상단 좌표도 저장 (리사이즈 계산에 필요)
+              left: bounds.x,
+              top: bounds.y,
+              right: bounds.x + bounds.width,
+              bottom: bounds.y + bounds.height,
             }
             resizeStartPosRef.current = {
               x: e.global.x,
@@ -235,7 +261,7 @@ export const usePixiEditor = ({
             if (isFirstResizeMoveRef.current) {
               const dx = Math.abs(globalPos.x - resizeStartPosRef.current.x)
               const dy = Math.abs(globalPos.y - resizeStartPosRef.current.y)
-              if (dx < 3 && dy < 3) {
+              if (dx < RESIZE_MOVE_THRESHOLD && dy < RESIZE_MOVE_THRESHOLD) {
                 return
               }
               isFirstResizeMoveRef.current = false
@@ -288,7 +314,7 @@ export const usePixiEditor = ({
                   ) {
                     drawEditHandlesRef.current(sprite, sceneIndex, handleResizeRef.current, saveImageTransformRef.current)
                   }
-                }, 200)
+                }, HANDLE_REPOSITION_DELAY_MS)
               }
             }
           }
@@ -533,7 +559,7 @@ export const usePixiEditor = ({
             if (isFirstResizeMoveRef.current) {
               const dx = Math.abs(globalPos.x - resizeStartPosRef.current.x)
               const dy = Math.abs(globalPos.y - resizeStartPosRef.current.y)
-              if (dx < 3 && dy < 3) {
+              if (dx < RESIZE_MOVE_THRESHOLD && dy < RESIZE_MOVE_THRESHOLD) {
                 return
               }
               isFirstResizeMoveRef.current = false
@@ -592,7 +618,7 @@ export const usePixiEditor = ({
                   ) {
                     drawTextEditHandlesRef.current(text, sceneIndex, handleTextResizeRef.current, saveTextTransformRef.current)
                   }
-                }, 200)
+                }, HANDLE_REPOSITION_DELAY_MS)
               }
             }
           }
@@ -760,23 +786,16 @@ export const usePixiEditor = ({
               const existingImageHandlesForDrag = editHandlesRef.current.get(sceneIndex)
               if (existingImageHandlesForDrag) {
                 const bounds = currentSprite.getBounds()
+                const handlePositions = getHandlePositions(bounds)
                 existingImageHandlesForDrag.children.forEach((child, index) => {
-                  if (child instanceof PIXI.Graphics && child.name) {
-                    const handleType = child.name as 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w'
-                    const handlePositions: Record<string, { x: number; y: number }> = {
-                      'nw': { x: bounds.x, y: bounds.y },
-                      'n': { x: bounds.x + bounds.width / 2, y: bounds.y },
-                      'ne': { x: bounds.x + bounds.width, y: bounds.y },
-                      'e': { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 },
-                      'se': { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
-                      's': { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height },
-                      'sw': { x: bounds.x, y: bounds.y + bounds.height },
-                      'w': { x: bounds.x, y: bounds.y + bounds.height / 2 },
-                    }
-                    const pos = handlePositions[handleType]
-                    if (pos) {
-                      child.x = pos.x
-                      child.y = pos.y
+                  if (child instanceof PIXI.Graphics && child.name && typeof child.name === 'string') {
+                    const handleType = child.name as ResizeHandle
+                    if (handleType && handleType !== null) {
+                      const pos = handlePositions[handleType]
+                      if (pos) {
+                        child.x = pos.x
+                        child.y = pos.y
+                      }
                     }
                   } else if (child instanceof PIXI.Graphics && index === existingImageHandlesForDrag.children.length - 1) {
                     child.clear()
@@ -932,23 +951,16 @@ export const usePixiEditor = ({
               const existingTextHandlesForDrag = textEditHandlesRef.current.get(sceneIndex)
               if (existingTextHandlesForDrag) {
                 const bounds = currentText.getBounds()
+                const handlePositions = getHandlePositions(bounds)
                 existingTextHandlesForDrag.children.forEach((child, index) => {
-                  if (child instanceof PIXI.Graphics && child.name) {
-                    const handleType = child.name as 'nw' | 'ne' | 'sw' | 'se' | 'n' | 's' | 'e' | 'w'
-                    const handlePositions: Record<string, { x: number; y: number }> = {
-                      'nw': { x: bounds.x, y: bounds.y },
-                      'n': { x: bounds.x + bounds.width / 2, y: bounds.y },
-                      'ne': { x: bounds.x + bounds.width, y: bounds.y },
-                      'e': { x: bounds.x + bounds.width, y: bounds.y + bounds.height / 2 },
-                      'se': { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
-                      's': { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height },
-                      'sw': { x: bounds.x, y: bounds.y + bounds.height },
-                      'w': { x: bounds.x, y: bounds.y + bounds.height / 2 },
-                    }
-                    const pos = handlePositions[handleType]
-                    if (pos) {
-                      child.x = pos.x
-                      child.y = pos.y
+                  if (child instanceof PIXI.Graphics && child.name && typeof child.name === 'string') {
+                    const handleType = child.name as ResizeHandle
+                    if (handleType && handleType !== null) {
+                      const pos = handlePositions[handleType]
+                      if (pos) {
+                        child.x = pos.x
+                        child.y = pos.y
+                      }
                     }
                   } else if (child instanceof PIXI.Graphics && index === existingTextHandlesForDrag.children.length - 1) {
                     child.clear()
