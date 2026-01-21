@@ -27,5 +27,11 @@
     "eslint-config-next": "^16.0.10",
     "next": "^16.0.10",
     "typescript": "^5"
+  },
+  "pnpm": {
+    "overrides": {
+      "tar": ">=7.5.4",
+      "js-yaml": ">=4.1.1"
+    }
   }
 }
