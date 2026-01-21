@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useCallback } from 'react'
 import Image from 'next/image'
 import { ShoppingCart, ExternalLink } from 'lucide-react'
 import type { Product } from '@/lib/types/domain/product'
@@ -27,6 +27,11 @@ export const ProductCard = memo(function ProductCard({
     () => calculateProductPriceInfo(product, productResponse),
     [product, productResponse]
   )
+
+  const handleOpenProduct = useCallback(() => {
+    if (!product.url) return
+    window.open(product.url, '_blank', 'noopener,noreferrer')
+  }, [product.url])
 
   return (
     <div
@@ -81,12 +86,13 @@ export const ProductCard = memo(function ProductCard({
               </p>
             )}
             {product.url && (
-              <a
-                href={product.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 font-bold hover:underline tracking-[-0.32px] mb-2"
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleOpenProduct()
+                }}
+                className="inline-flex w-auto self-start items-center gap-1 font-bold tracking-[-0.32px] mb-2 text-left hover:underline"
                 style={{ 
                   fontSize: 'var(--font-size-16)',
                   lineHeight: 'var(--line-height-16-140)',
@@ -95,7 +101,7 @@ export const ProductCard = memo(function ProductCard({
               >
                 상품 보기
                 <ExternalLink className="w-4 h-4" />
-              </a>
+              </button>
             )}
             {priceInfo.expectedRevenue !== null && (
               <div className="mt-3 pt-3 border-t border-[#a6a6a6]">

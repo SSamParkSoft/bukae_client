@@ -64,7 +64,7 @@ export default function NextStepButton({
         'w-full h-[82px] rounded-2xl gap-2',
         state === 'default' || state === 'ai-script'
           ? 'bg-[#5e8790] text-white hover:bg-[#5e8790]/90'
-          : 'bg-[#e4eeed] text-[#234b60] hover:bg-[#e4eeed]/90',
+          : 'bg-[#e4eeed] text-[#234b60] hover:bg-[#e4eeed]/90 opacity-70 cursor-not-allowed',
         className
       )}
     >
