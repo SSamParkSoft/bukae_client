@@ -3,6 +3,7 @@
 import { useCallback, useState, useRef } from 'react'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
+import { movements } from '@/lib/data/transitions'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
@@ -338,7 +339,7 @@ export function useGroupPlayback({
       return
     }
 
-    // 3. TTS Duration 계산 및 전환 효과 길이 설정
+    // 3. TTS Duration 계산 (움직임 효과 전용), 기타 전환은 고정 1초
     const totalGroupTtsDuration = calculateGroupTtsDuration(sceneId, groupIndices)
 
     // 첫 번째 씬의 transitionDuration 업데이트
@@ -346,14 +347,19 @@ export function useGroupPlayback({
     const originalTransitionDuration = firstScene?.transitionDuration
     
     let updatedTimeline = timeline
-    if (firstScene && totalGroupTtsDuration > 0) {
+    if (firstScene) {
+      const isMovementFirst = movements.some((m) => m.value === (firstScene.transition || ''))
+      const transitionDurationForFirst = isMovementFirst ? totalGroupTtsDuration : 1
+
       updatedTimeline = {
         ...timeline,
-        scenes: timeline.scenes.map((scene, idx) =>
-          idx === firstSceneIndex
-            ? { ...scene, transitionDuration: totalGroupTtsDuration }
-            : scene
-        ),
+        scenes: timeline.scenes.map((scene, idx) => {
+          if (idx !== firstSceneIndex) return scene
+          return {
+            ...scene,
+            transitionDuration: transitionDurationForFirst,
+          }
+        }),
       }
       setTimeline(updatedTimeline)
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
@@ -369,7 +375,7 @@ export function useGroupPlayback({
       
       // 첫 번째 씬: 전환 효과만 표시
       const firstSceneIndexForRender = groupIndices[0]
-      const firstSceneForRender = updatedTimeline.scenes[firstSceneIndexForRender]
+        const firstSceneForRender = updatedTimeline.scenes[firstSceneIndexForRender]
       currentSceneIndexRef.current = firstSceneIndexForRender
       
       // 그룹 재생 시작 전에 컨테이너의 모든 자식 제거 및 숨김
@@ -424,13 +430,16 @@ export function useGroupPlayback({
       
       if (renderSceneContent) {
         // 렌더링 경로 확인: 그룹 재생 시작에서 renderSceneContent 사용
+        const isMovement = movements.some((m) => m.value === (firstSceneForRender?.transition || ''))
+        const transitionDurationForRender = isMovement ? totalGroupTtsDuration : 1
+
         renderSceneContent(firstSceneIndexForRender, null, {
           skipAnimation: false,
           forceTransition: firstSceneForRender?.transition || 'none',
           updateTimeline: false,
           prepareOnly: false,
           isPlaying: true,
-          transitionDuration: totalGroupTtsDuration,
+          transitionDuration: transitionDurationForRender,
           onComplete: () => {
             lastRenderedSceneIndexRef.current = firstSceneIndexForRender
           },
@@ -487,9 +496,9 @@ export function useGroupPlayback({
             const fontFamily = resolveSubtitleFontFamily(targetScene.text.font)
             const fontWeight = targetScene.text.fontWeight ?? (targetScene.text.style?.bold ? 700 : 400)
             
-            // 텍스트 너비 계산
+            // 텍스트 너비 계산 (마스크 효과와 무관하게 일정 폭 유지)
             const stageWidth = containerRef.current?.width || 1080
-            let textWidth = stageWidth * 0.75 // 기본값: 화면 너비의 75%
+            let textWidth = stageWidth
             if (targetScene.text.transform?.width) {
               textWidth = targetScene.text.transform.width / (targetScene.text.transform.scaleX || 1)
             }

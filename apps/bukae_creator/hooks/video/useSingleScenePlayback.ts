@@ -7,6 +7,7 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
 import { authStorage } from '@/lib/api/auth-storage'
 import { useTtsResources } from './useTtsResources'
+import { movements } from '@/lib/data/transitions'
 
 interface UseSingleScenePlaybackParams {
   timeline: TimelineData | null
@@ -275,7 +276,7 @@ export function useSingleScenePlayback({
       }
     }
 
-    // TTS duration 가져오기
+    // TTS duration 가져오기 (움직임 효과일 때만 사용)
     const ttsDuration = cached?.durationSec || scene.duration || 2.5
 
     // 이전 오디오 정리
@@ -316,6 +317,9 @@ export function useSingleScenePlayback({
       // renderSceneContent가 자막도 함께 렌더링하도록 호출
       // partIndex를 null로 전달하면 전체 자막을 표시
       // 이미지는 전환 효과를 통해서만 렌더링됨 (전환 효과 완료 후 항상 숨김)
+      const isMovement = movements.some((m) => m.value === (scene.transition || ''))
+      const transitionDuration = isMovement ? ttsDuration : 1
+
       renderSceneContent(sceneIndex, null, {
         skipAnimation: false,
         forceTransition: scene.transition || 'fade',
@@ -323,7 +327,7 @@ export function useSingleScenePlayback({
         updateTimeline: false,
         prepareOnly: false,
         isPlaying: true,
-        transitionDuration: ttsDuration, // TTS duration을 전환 효과 지속시간으로 사용
+        transitionDuration,
         onComplete: () => {
           lastRenderedSceneIndexRef.current = sceneIndex
         },

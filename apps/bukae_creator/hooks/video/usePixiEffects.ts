@@ -518,75 +518,54 @@ export const usePixiEffects = ({
         }
         break
 
-      case 'circle':
-        {
-          // 원형 마스크 확장 (중앙에서 원형으로 확장) - 이미지만 적용
-          // circle 케이스는 alpha: 1로 설정해야 함 (마스크로 보이기 때문)
-          const circleMask = new PIXI.Graphics()
-          circleMask.fill({ color: 0xffffff })
-          circleMask.circle(stageWidth / 2, stageHeight / 2, 0)
-          
-          // 마스크를 컨테이너에 추가 (마스크가 표시되려면 컨테이너에 있어야 함)
-          if (containerRef.current) {
-            containerRef.current.addChild(circleMask)
-          }
-          
-          toSprite.mask = circleMask
-          toSprite.alpha = 1
-          // visible은 이미 위에서 설정됨
-          
-          const maskRadius = { value: 0 }
-          const maxRadius = Math.sqrt(stageWidth * stageWidth + stageHeight * stageHeight) / 2
-          
-          tl.to(maskRadius, { 
-            value: maxRadius,
-            duration,
-            onUpdate: function() {
-              // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
-              if (toSprite && containerRef.current) {
-                if (!toSprite.parent || toSprite.parent !== containerRef.current) {
-                  if (toSprite.parent) {
-                    toSprite.parent.removeChild(toSprite)
-                  }
-                  containerRef.current.addChild(toSprite)
-                }
-              }
-              
-              // 마스크가 컨테이너에 있는지 확인하고 없으면 추가
-              if (circleMask && containerRef.current) {
-                if (!circleMask.parent || circleMask.parent !== containerRef.current) {
-                  if (circleMask.parent) {
-                    circleMask.parent.removeChild(circleMask)
-                  }
-                  containerRef.current.addChild(circleMask)
-                }
-              }
-              
-              circleMask.clear()
-              circleMask.fill({ color: 0xffffff })
-              circleMask.circle(stageWidth / 2, stageHeight / 2, maskRadius.value)
-              
-              if (toText && containerRef.current) {
-                if (!toText.parent || toText.parent !== containerRef.current) {
-                  if (toText.parent) {
-                    toText.parent.removeChild(toText)
-                  }
-                  containerRef.current.addChild(toText)
-                }
-              }
-              
-              // 렌더링은 PixiJS ticker가 처리하므로 여기서는 제거 (중복 렌더링 방지)
-            },
-            onComplete: function() {
-              // 전환 효과 완료 후 마스크 정리 (선택사항)
-              // 마스크는 유지해도 되지만, 필요하면 제거할 수 있음
-            }
-          })
-          
-          // 텍스트는 항상 페이드
-          applyTextFade()
+      case 'circle': {
+        if (!containerRef.current || !toSprite) {
+          break
         }
-        break
+
+        // 스프라이트 기준 원형 마스크 확장
+        const mask = new PIXI.Graphics()
+        const centerX = originalX + (toSprite.texture.width * originalScaleX) / 2
+        const centerY = originalY + (toSprite.texture.height * originalScaleY) / 2
+        const maxRadius = Math.sqrt(
+          Math.pow((toSprite.texture.width * originalScaleX) / 2, 2) +
+          Math.pow((toSprite.texture.height * originalScaleY) / 2, 2)
+        )
+
+        const state = { r: 0 }
+        const drawMask = () => {
+          mask.clear()
+          mask.beginFill(0xffffff)
+          mask.drawCircle(centerX, centerY, state.r)
+          mask.endFill()
+        }
+
+        drawMask()
+        containerRef.current.addChild(mask)
+        toSprite.mask = mask
+        // 자막은 마스크를 적용하지 않아 영역 왜곡을 방지
+        toSprite.alpha = 1
+
+        tl.to(state, {
+          r: maxRadius,
+          duration,
+          ease: 'power2.out',
+          onUpdate: () => {
+            drawMask()
+            if (containerRef.current && !containerRef.current.children.includes(mask)) {
+              containerRef.current.addChild(mask)
+            }
+          },
+          onComplete: () => {
+            toSprite.mask = null
+            if (mask.parent) mask.parent.removeChild(mask)
+            mask.destroy()
+          },
+        }, 0)
+
+        applyTextFade()
+      }
+      break
 
       default:
         // 이전 코드 패턴: 기본 페이드
