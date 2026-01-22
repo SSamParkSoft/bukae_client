@@ -48,7 +48,7 @@ export function useTimelineInitializer({
             font: existingScene?.text?.font ?? subtitleFont ?? SUBTITLE_DEFAULT_FONT_ID,
             fontWeight: existingScene?.text?.fontWeight ?? 700,
             color: subtitleColor || existingScene?.text?.color || '#ffffff',
-            position: subtitlePosition || existingScene?.text?.position || 'center',
+            position: subtitlePosition || existingScene?.text?.position || 'bottom',
             fontSize: existingScene?.text?.fontSize || 80,
             transform: existingScene?.text?.transform,
             style: existingScene?.text?.style,
