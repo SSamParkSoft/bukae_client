@@ -5,11 +5,11 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import * as PIXI from 'pixi.js'
-import { useTransformManager } from './editing/useTransformManager'
-import { useResizeHandler } from './editing/useResizeHandler'
-import { getPixiCoordinates, isOutsideCanvas, resetToCenter } from './editing/utils'
-import type { UsePixiEditorParams } from './types/editing'
-import type { ResizeHandle } from './types/common'
+import { useTransformManager } from './useTransformManager'
+import { useResizeHandler } from './useResizeHandler'
+import { getPixiCoordinates, isOutsideCanvas, resetToCenter } from './utils'
+import type { UsePixiEditorParams } from '../types/editing'
+import type { ResizeHandle } from '../types/common'
 
 // 상수 정의
 const HANDLE_REPOSITION_DELAY_MS = 200

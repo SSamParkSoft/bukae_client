@@ -15,6 +15,11 @@ interface UseTimelinePlayerParams {
   pixiReady: boolean
   onSceneChange?: (sceneIndex: number, skipStopPlaying?: boolean) => void // 재생 중 씬 변경 콜백
   disableAutoTimeUpdateRef?: React.MutableRefObject<boolean> // 비디오 재생 중일 때 자동 시간 업데이트 비활성화 (ref로 동적 제어)
+  // TTS 캐시를 사용하여 더 정확한 duration 계산 (선택사항)
+  ttsCacheRef?: React.MutableRefObject<Map<string, { durationSec: number }>>
+  voiceTemplate?: string | null
+  buildSceneMarkup?: (timeline: TimelineData | null, sceneIndex: number) => string[]
+  makeTtsKey?: (voiceName: string, markup: string) => string
 }
 
 export function useTimelinePlayer({
@@ -27,6 +32,10 @@ export function useTimelinePlayer({
   previousSceneIndexRef,
   onSceneChange,
   disableAutoTimeUpdateRef,
+  ttsCacheRef,
+  voiceTemplate,
+  buildSceneMarkup,
+  makeTtsKey,
 }: UseTimelinePlayerParams & { previousSceneIndexRef: React.MutableRefObject<number | null> }) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [isPreviewingTransition, setIsPreviewingTransition] = useState(false)
@@ -45,8 +54,14 @@ export function useTimelinePlayer({
 
   const totalDuration = useMemo(() => {
     if (!timeline || !timeline.scenes || timeline.scenes.length === 0) return 0
-    return calculateTotalDuration(timeline)
-  }, [timeline])
+    // TTS 캐시를 사용하여 더 정확한 duration 계산
+    return calculateTotalDuration(timeline, {
+      ttsCacheRef,
+      voiceTemplate,
+      buildSceneMarkup,
+      makeTtsKey,
+    })
+  }, [timeline, ttsCacheRef, voiceTemplate, buildSceneMarkup, makeTtsKey])
 
   const stageDimensions = useMemo(() => {
     const baseSize = 1080
@@ -194,7 +209,6 @@ export function useTimelinePlayer({
     disableAutoTimeUpdateRef,
     totalDuration,
     updateCurrentScene,
-    disableAutoTimeUpdateRef,
     onSceneChange,
   ])
 

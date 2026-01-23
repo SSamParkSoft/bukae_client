@@ -1,7 +1,6 @@
 'use client'
 
-import React, { memo, useMemo, useState, useEffect } from 'react'
-import { calculateTotalDuration } from '@/utils/timeline'
+import React, { memo, useState, useEffect } from 'react'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { TimelineBar } from './TimelineBar'
 import { PlaybackControls } from './PlaybackControls'
@@ -47,6 +46,7 @@ export const PreviewPanel = memo(function PreviewPanel({
   playbackSpeed,
   currentTime,
   totalDuration,
+  progressRatio,
   isPlaying,
   showReadyMessage,
   isTtsBootstrapping,
@@ -65,22 +65,6 @@ export const PreviewPanel = memo(function PreviewPanel({
   appRef,
 }: PreviewPanelProps) {
   const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
-  
-  // 최신 timeline의 totalDuration 계산 (TTS 합성으로 duration이 업데이트되었을 수 있음)
-  // 배속과는 무관하게 항상 동일한 값이어야 함
-  const latestTotalDuration = useMemo(() => {
-    if (timeline) {
-      return calculateTotalDuration(timeline)
-    }
-    return totalDuration
-  }, [timeline, totalDuration])
-  
-  // 최신 totalDuration을 사용한 progressRatio 계산
-  // 배속과는 무관하게 항상 동일한 값이어야 함
-  const latestProgressRatio = useMemo(() => {
-    if (latestTotalDuration === 0) return 0
-    return Math.min(1, currentTime / latestTotalDuration)
-  }, [currentTime, latestTotalDuration])
 
   // 캔버스의 실제 너비를 측정
   const [canvasActualWidth, setCanvasActualWidth] = useState<number | null>(null)
@@ -196,8 +180,8 @@ export const PreviewPanel = memo(function PreviewPanel({
           <TimelineBar
             timelineBarRef={timelineBarRef}
             currentTime={currentTime}
-            totalDuration={latestTotalDuration}
-            progressRatio={latestProgressRatio}
+            totalDuration={totalDuration}
+            progressRatio={progressRatio}
             playbackSpeed={speed}
             isPlaying={isPlaying}
             onTimelineMouseDown={onTimelineMouseDown}
@@ -217,7 +201,7 @@ export const PreviewPanel = memo(function PreviewPanel({
 
           <SpeedSelector
             playbackSpeed={speed}
-            totalDuration={latestTotalDuration}
+            totalDuration={totalDuration}
             onPlaybackSpeedChange={onPlaybackSpeedChange}
           />
 

@@ -7,9 +7,9 @@ import { useCallback, useRef } from 'react'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import { TimelineData } from '@/store/useVideoCreateStore'
-import { MOVEMENT_EFFECTS } from '../types/effects'
-import type { StageDimensions } from '../types/common'
-import type { ApplyEnterEffectFunction } from '../types/scene'
+import { MOVEMENT_EFFECTS } from '../../types/effects'
+import type { StageDimensions } from '../../types/common'
+import type { ApplyEnterEffectFunction } from '../../types/scene'
 
 interface UseSceneTransitionParams {
   appRef: React.RefObject<PIXI.Application | null>

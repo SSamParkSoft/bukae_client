@@ -12,7 +12,7 @@ import type {
   RenderSceneImageOptions,
   RenderSubtitlePartOptions,
   PrepareImageAndSubtitleOptions,
-} from '../types/scene'
+} from '../../types/scene'
 
 interface UseSceneRendererParams {
   appRef: React.RefObject<PIXI.Application | null>

@@ -6,7 +6,7 @@ import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import type { SceneScript } from '@/lib/types/domain/script'
 import { useThemeStore } from '@/store/useThemeStore'
 import { conceptOptions, type ConceptType } from '@/lib/data/templates'
-import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
+import { useVideoCreateAuth } from '@/hooks/auth/useVideoCreateAuth'
 import { studioScriptApi } from '@/lib/api/studio-script'
 import { authStorage } from '@/lib/api/auth-storage'
 import { 

@@ -8,7 +8,7 @@ import * as PIXI from 'pixi.js'
 import { TimelineData } from '@/store/useVideoCreateStore'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
-import type { StageDimensions } from '../types/common'
+import type { StageDimensions } from '../../types/common'
 
 interface UseSceneLoaderParams {
   appRef: React.RefObject<PIXI.Application | null>

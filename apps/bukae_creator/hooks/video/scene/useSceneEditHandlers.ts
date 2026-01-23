@@ -175,8 +175,8 @@ export function useSceneEditHandlers({
       const sameGroupScenes = scenes.filter((s, i) => s.sceneId === deletedSceneId && i !== index)
 
       // scenes 배열에서 삭제
-      let newScenes = scenes.filter((_, i) => i !== index)
-      let newTimelineScenes = timeline.scenes.filter((_, i) => i !== index)
+      const newScenes = scenes.filter((_, i) => i !== index)
+      const newTimelineScenes = timeline.scenes.filter((_, i) => i !== index)
 
       // 같은 그룹 내 씬이 남아있으면 그룹화 유지 (splitIndex 재정렬)
       if (sameGroupScenes.length > 0) {

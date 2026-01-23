@@ -5,7 +5,7 @@ import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 import type { SceneScript } from '@/lib/types/domain/script'
-import { useTtsResources } from './useTtsResources'
+import { useTtsResources } from '../tts/useTtsResources'
 
 interface UseSceneNavigationParams {
   timeline: TimelineData | null

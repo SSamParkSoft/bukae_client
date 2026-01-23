@@ -6,8 +6,11 @@ import { gsap } from 'gsap'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { useSingleScenePlayback } from './useSingleScenePlayback'
 import { useGroupPlayback } from './useGroupPlayback'
-import { useTtsResources } from './useTtsResources'
+import { useTtsResources } from '../tts/useTtsResources'
+import { usePlaybackCore } from './usePlaybackCore'
+import { useTtsCache } from '../tts/useTtsCache'
 import { formatTime, calculateTotalDuration } from '@/utils/timeline'
+import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 
 interface UseFullPlaybackParams {
   timeline: TimelineData | null
@@ -122,6 +125,12 @@ export function useFullPlayback({
   // TTS 리소스 가져오기
   const { ttsCacheRef, ttsAudioRef, ttsAudioUrlRef, stopTtsAudio, resetTtsSession } = useTtsResources()
   
+  // 공통 재생 로직
+  const { stopPlayback: stopPlaybackCore } = usePlaybackCore()
+  
+  // TTS 캐시 관리
+  const { findScenesToSynthesize: findScenesToSynthesizeCore } = useTtsCache()
+  
   // 타임라인 동기화를 위한 ref
   const groupPlaybackStartTimeRef = useRef<number | null>(null)
   const timelineRef = useRef<TimelineData | null>(timeline)
@@ -160,8 +169,8 @@ export function useFullPlayback({
   const currentGroupDurationRef = useRef(0)
   const bgmStartedRef = useRef(false)
   const lastUpdateTimeRef = useRef(0) // 마지막 업데이트 시간 (중복 호출 방지)
-  // 실제 재생된 최대 시간을 추적 (예상 길이보다 길어질 수 있음)
-  const actualTotalDurationRef = useRef<number | null>(null) // null이면 calculateTotalDuration 사용
+  // actualTotalDurationRef는 사용하지 않음 (TTS duration 합계를 정확히 사용)
+  const actualTotalDurationRef = useRef<number | null>(null)
 
   // useSingleScenePlayback 인스턴스 생성
   const singleScenePlayback = useSingleScenePlayback({
@@ -212,30 +221,222 @@ export function useFullPlayback({
 
   // 재생 중지 함수
   const stopAllScenes = useCallback(() => {
-    // 진행 중인 전환 효과 애니메이션 중지
-    if (activeAnimationsRef) {
-      activeAnimationsRef.current.forEach((tl) => {
-        if (tl && tl.isActive()) {
-          tl.kill()
-        }
-      })
-      activeAnimationsRef.current.clear()
+    // 일시정지 시 현재 재생 위치를 저장하기 위해 현재 시간 계산
+    let finalCurrentTime = 0
+    let targetSceneIndex = currentSceneIndexRef.current
+    let partStartAbsoluteTime = 0
+    
+    if (isPlayingAllRef.current && groupPlaybackStartTimeRef.current !== null) {
+      // 실제 TTS 재생 시작 시점부터 경과한 시간 계산
+      const elapsed = (Date.now() - groupPlaybackStartTimeRef.current) / 1000
+      const elapsedWithSpeed = elapsed * (playbackSpeed ?? 1.0)
+      
+      // 현재 그룹의 진행 시간 계산
+      const currentGroupElapsed = Math.min(
+        elapsedWithSpeed,
+        currentGroupDurationRef.current
+      )
+      
+      // 전체 재생 시간 = 누적 시간 + 현재 그룹 진행 시간
+      finalCurrentTime = accumulatedTimeRef.current + currentGroupElapsed
+    } else if (currentTimeRef) {
+      // 재생이 시작되지 않았거나 이미 완료된 경우, ref에 저장된 현재 시간 사용
+      finalCurrentTime = currentTimeRef.current
     }
     
-    // 현재 재생 중인 씬의 스프라이트와 텍스트를 alpha: 1로 복원
-    const currentSceneIndex = currentSceneIndexRef.current
-    if (currentSceneIndex !== null && spritesRef && textsRef) {
-      const currentSprite = spritesRef.current.get(currentSceneIndex)
-      const currentText = textsRef.current.get(currentSceneIndex)
-      if (currentSprite) {
-        currentSprite.alpha = 1
-        currentSprite.visible = true
+    // 일시정지 시 구간의 시작으로 이동: 현재 시간에 맞는 씬과 구간 계산 (멈춘 음성 파일의 시작점)
+    if (timeline && finalCurrentTime > 0 && buildSceneMarkup && makeTtsKey && voiceTemplate) {
+      // TTS duration만 사용하여 씬 인덱스 계산 (전체 재생과 동일한 방식)
+      let accumulated = 0
+      targetSceneIndex = timeline.scenes.length - 1
+      for (let i = 0; i < timeline.scenes.length; i++) {
+        const sceneDuration = timeline.scenes[i].duration
+        const sceneStart = accumulated
+        const sceneEnd = accumulated + sceneDuration
+        
+        if (finalCurrentTime >= sceneStart && finalCurrentTime < sceneEnd) {
+          targetSceneIndex = i
+          break
+        }
+        
+        if (i === timeline.scenes.length - 1 && finalCurrentTime >= sceneEnd) {
+          targetSceneIndex = i
+          break
+        }
+        
+        accumulated += sceneDuration
       }
-      if (currentText) {
-        currentText.alpha = 1
-        currentText.visible = true
+      
+      const scene = timeline.scenes[targetSceneIndex]
+      
+      if (scene) {
+        // 씬의 시작 시간 계산 (TTS duration만 사용, transition duration 제외)
+        // 전체 재생에서는 TTS duration만 사용하므로 동일하게 계산
+        let sceneStartTime = 0
+        for (let i = 0; i < targetSceneIndex; i++) {
+          sceneStartTime += timeline.scenes[i].duration
+        }
+        
+        // 씬 내에서 경과 시간 계산
+        const elapsedInScene = finalCurrentTime - sceneStartTime
+        
+        // 씬의 자막 구간 파싱
+        const originalText = scene.text?.content || ''
+        const scriptParts = splitSubtitleByDelimiter(originalText)
+        
+        // 각 구간의 duration을 누적하여 현재 구간 찾기
+        let accumulatedPartTime = 0
+        let targetPartIndex = 0
+        
+        const markups = buildSceneMarkup(timeline, targetSceneIndex)
+        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+        
+        for (let partIdx = 0; partIdx < scriptParts.length && partIdx < markups.length; partIdx++) {
+          const markup = markups[partIdx]
+          if (markup) {
+            const key = makeTtsKey(sceneVoiceTemplate, markup)
+            const cached = ttsCacheRef.current.get(key)
+            const partDuration = cached?.durationSec || scene.duration / scriptParts.length || 1
+            
+            // 현재 구간의 끝 시간
+            const partEndTime = accumulatedPartTime + partDuration
+            
+            // 현재 시간이 이 구간 내에 있으면 이 구간의 시작으로 이동
+            if (elapsedInScene >= accumulatedPartTime && elapsedInScene < partEndTime) {
+              targetPartIndex = partIdx
+              // 구간의 시작 시간 계산 (멈춘 음성 파일의 시작점)
+              partStartAbsoluteTime = sceneStartTime + accumulatedPartTime
+              break
+            }
+            
+            accumulatedPartTime = partEndTime
+          }
+        }
+        
+        // 타임라인 안정화: 모든 상태를 한 번에 배치 업데이트 (리렌더링 최소화)
+        // requestAnimationFrame을 사용하여 다음 프레임에 업데이트하여 불필요한 리렌더링 방지
+        requestAnimationFrame(() => {
+          // 1. 시간 업데이트 (구간의 시작 시간)
+          if (partStartAbsoluteTime > 0) {
+            if (setCurrentTime) {
+              setCurrentTime(partStartAbsoluteTime)
+            }
+            if (currentTimeRef) {
+              currentTimeRef.current = partStartAbsoluteTime
+            }
+          }
+          
+          // 2. 씬 인덱스 업데이트
+          currentSceneIndexRef.current = targetSceneIndex
+          lastRenderedSceneIndexRef.current = targetSceneIndex
+          if (setCurrentSceneIndex) {
+            setCurrentSceneIndex(targetSceneIndex)
+          }
+        })
+        
+        // 구간의 시작으로 이동: 텍스트와 이미지를 직접 업데이트하여 해당 구간 표시 (씬 전환 없이)
+        // renderSceneContent를 호출하면 updateCurrentScene이 호출되어 위치가 변경될 수 있으므로
+        // 직접 객체를 업데이트하는 방식 사용
+        
+        // 현재 씬의 이미지 표시
+        const currentSprite = spritesRef.current.get(targetSceneIndex)
+        if (currentSprite && containerRef.current) {
+          // 같은 그룹 내 씬인 경우 첫 번째 씬의 스프라이트 사용
+          let spriteToShow = currentSprite
+          if (scene.sceneId !== undefined) {
+            const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === scene.sceneId)
+            if (firstSceneIndexInGroup >= 0 && firstSceneIndexInGroup !== targetSceneIndex) {
+              const firstSprite = spritesRef.current.get(firstSceneIndexInGroup)
+              if (firstSprite) {
+                spriteToShow = firstSprite
+              }
+            }
+          }
+          
+          if (spriteToShow.parent !== containerRef.current) {
+            if (spriteToShow.parent) {
+              spriteToShow.parent.removeChild(spriteToShow)
+            }
+            containerRef.current.addChild(spriteToShow)
+            containerRef.current.setChildIndex(spriteToShow, 0) // 이미지를 맨 뒤로
+          }
+          spriteToShow.visible = true
+          spriteToShow.alpha = 1
+        }
+        
+        // 다른 씬의 이미지 숨기기
+        spritesRef.current.forEach((sprite, idx) => {
+          if (sprite && idx !== targetSceneIndex) {
+            // 같은 그룹이 아닌 경우에만 숨김
+            const otherScene = timeline.scenes[idx]
+            if (otherScene?.sceneId !== scene.sceneId) {
+              sprite.visible = false
+              sprite.alpha = 0
+            }
+          }
+        })
+        
+        // 텍스트 업데이트
+        if (scriptParts.length > 0 && targetPartIndex < scriptParts.length) {
+          const partText = scriptParts[targetPartIndex]?.trim()
+          if (partText) {
+            // 같은 그룹 내 씬인 경우 첫 번째 씬의 텍스트 객체 사용
+            let targetTextObj = textsRef.current.get(targetSceneIndex)
+            if (scene.sceneId !== undefined) {
+              const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === scene.sceneId)
+              if (firstSceneIndexInGroup >= 0 && firstSceneIndexInGroup !== targetSceneIndex) {
+                targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || targetTextObj
+              }
+            }
+            
+            if (targetTextObj) {
+              targetTextObj.text = partText
+              targetTextObj.visible = true
+              targetTextObj.alpha = 1
+              
+              // 컨테이너에 추가 (없는 경우)
+              if (containerRef.current && targetTextObj.parent !== containerRef.current) {
+                if (targetTextObj.parent) {
+                  targetTextObj.parent.removeChild(targetTextObj)
+                }
+                containerRef.current.addChild(targetTextObj)
+              }
+              
+              // 텍스트를 맨 위로 올림
+              if (containerRef.current && targetTextObj.parent === containerRef.current) {
+                const currentIndex = containerRef.current.getChildIndex(targetTextObj)
+                const maxIndex = containerRef.current.children.length - 1
+                if (currentIndex !== maxIndex) {
+                  containerRef.current.setChildIndex(targetTextObj, maxIndex)
+                }
+              }
+            }
+          }
+        }
+        
+        // 다른 씬의 텍스트 숨기기
+        textsRef.current.forEach((text, idx) => {
+          if (text && idx !== targetSceneIndex) {
+            // 같은 그룹이 아닌 경우에만 숨김
+            const otherScene = timeline.scenes[idx]
+            if (otherScene?.sceneId !== scene.sceneId) {
+              text.visible = false
+              text.alpha = 0
+            }
+          }
+        })
       }
     }
+    
+    // 공통 재생 정지 로직 (애니메이션 정리, 스프라이트/텍스트 복원, 오디오 정지)
+    stopPlaybackCore({
+      sceneIndex: currentSceneIndexRef.current,
+      activeAnimationsRef,
+      spritesRef,
+      textsRef,
+      stopTtsAudio,
+      stopBgmAudio,
+    })
     
     // AbortController로 재생 중단
     if (playbackAbortControllerRef.current) {
@@ -252,58 +453,43 @@ export function useFullPlayback({
       setTimelineIsPlaying(false)
     }
 
-    // useTimelinePlayer의 자동 시간 업데이트 다시 활성화
-    if (disableAutoTimeUpdateRef) {
-      disableAutoTimeUpdateRef.current = false
-    }
+    // 타임라인 안정화: 모든 상태 업데이트 완료 후 자동 업데이트 재활성화
+    // requestAnimationFrame을 사용하여 다음 프레임에 업데이트하여 리렌더링 최소화
+    requestAnimationFrame(() => {
+      // useTimelinePlayer의 자동 시간 업데이트 다시 활성화
+      if (disableAutoTimeUpdateRef) {
+        disableAutoTimeUpdateRef.current = false
+      }
+    })
 
     // 재생바 업데이트 interval 정리
     cleanupProgressInterval()
 
-    // 재생 중지 시점의 현재 시간을 저장 (실제 재생된 최대 시간 업데이트)
-    if (currentTimeRef && currentTimeRef.current > 0) {
-      const currentTime = currentTimeRef.current
-      const calculatedTotal = timelineRef.current ? calculateTotalDuration(timelineRef.current) : 0
-      if (currentTime > calculatedTotal) {
-        actualTotalDurationRef.current = currentTime
-      }
-    }
-
-    // 오디오 정지
-    stopBgmAudio()
-    stopTtsAudio()
-
-    // 상태 초기화
-    accumulatedTimeRef.current = 0
+    // groupPlaybackStartTimeRef 초기화 (다음 재생 시작 시점을 위해)
+    groupPlaybackStartTimeRef.current = null
+    
+    // 상태 초기화 (일시정지 시에는 accumulatedTimeRef를 유지하지 않음 - 재생 재개 시 다시 계산)
+    // accumulatedTimeRef는 재생 재개 시 현재 씬부터 다시 계산되므로 여기서 초기화해도 됨
     currentGroupStartTimeRef.current = 0
     currentGroupDurationRef.current = 0
     bgmStartedRef.current = false
-    // actualTotalDurationRef는 유지 (이전 재생에서 저장된 실제 재생 시간 보존)
-  }, [setIsPlaying, setTimelineIsPlaying, stopBgmAudio, stopTtsAudio, cleanupProgressInterval, disableAutoTimeUpdateRef, activeAnimationsRef, spritesRef, textsRef, currentSceneIndexRef])
+  }, [stopPlaybackCore, setTimelineIsPlaying, cleanupProgressInterval, disableAutoTimeUpdateRef, activeAnimationsRef, spritesRef, textsRef, currentSceneIndexRef, stopTtsAudio, stopBgmAudio, setIsPlaying, setCurrentTime, playbackSpeed, currentTimeRef, timeline, setCurrentSceneIndex, renderSceneContent, lastRenderedSceneIndexRef])
 
   // 전체 재생 함수
   const playAllScenes = useCallback(async () => {
     if (!timeline || !voiceTemplate) {
       return
     }
-    // 모든 씬의 TTS가 준비되었는지 확인
-    const scenesToSynthesize: number[] = []
-    for (let i = 0; i < timeline.scenes.length; i++) {
-      const scene = timeline.scenes[i]
-      // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
-      const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate
-      
-      const markups = buildSceneMarkup(timeline, i)
-      const cachedCount = markups.filter(markup => {
-        const key = makeTtsKey(sceneVoiceTemplate, markup)
-        const cached = ttsCacheRef.current.get(key)
-        return cached && (cached.blob || cached.url)
-      }).length
-      
-      if (cachedCount < markups.length) {
-        scenesToSynthesize.push(i)
-      }
-    }
+    // 모든 씬의 TTS가 준비되었는지 확인 (useTtsCache 사용)
+    const allSceneIndices = timeline.scenes.map((_, i) => i)
+    const scenesToSynthesize = findScenesToSynthesizeCore(
+      timeline,
+      allSceneIndices,
+      voiceTemplate,
+      buildSceneMarkup,
+      makeTtsKey,
+      ttsCacheRef
+    )
 
     // TTS가 준비되지 않은 씬이 있으면 합성
     if (scenesToSynthesize.length > 0 && ensureSceneTts) {
@@ -311,14 +497,24 @@ export function useFullPlayback({
       setIsTtsBootstrapping?.(true)
       
       try {
-        const ttsResults = await Promise.all(
+        // 병렬로 모든 씬의 TTS 합성 (Promise.allSettled 사용하여 일부 실패해도 계속 진행)
+        const ttsResults = await Promise.allSettled(
           scenesToSynthesize.map(sceneIndex =>
             ensureSceneTts(sceneIndex, undefined, changedScenesRef.current.has(sceneIndex) || false)
           )
         )
         
-        // ensureSceneTts 결과를 명시적으로 캐시에 저장
-        for (const ttsResult of ttsResults) {
+        // ensureSceneTts 결과를 명시적으로 캐시에 저장 (성공한 씬만)
+        for (let i = 0; i < ttsResults.length; i++) {
+          const result = ttsResults[i]
+          
+          if (result.status === 'rejected') {
+            const failedSceneIndex = scenesToSynthesize[i]
+            console.error(`[useFullPlayback] 씬 ${failedSceneIndex} TTS 생성 실패:`, result.reason)
+            continue
+          }
+          
+          const ttsResult = result.value
           const { sceneIndex, parts } = ttsResult
           if (!parts || parts.length === 0) {
             console.warn(`[useFullPlayback] 씬 ${sceneIndex} parts가 비어있음`)
@@ -436,10 +632,10 @@ export function useFullPlayback({
       
       // 최신 timeline의 totalDuration 계산 (TTS 합성으로 duration이 업데이트되었을 수 있음)
       const latestTimeline = timelineRef.current
-      const calculatedTotalDuration = latestTimeline ? calculateTotalDuration(latestTimeline) : (totalDuration || 0)
-      
-      // 실제 재생된 최대 시간이 있으면 사용, 없으면 계산된 값 사용
-      let latestTotalDuration = actualTotalDurationRef.current ?? calculatedTotalDuration
+      // useTimelinePlayer의 totalDuration을 우선 사용 (동기화 보장)
+      const calculatedTotalDuration = totalDuration ?? (latestTimeline ? calculateTotalDuration(latestTimeline) : 0)
+      // actualTotalDurationRef는 실제 재생 시간이 예상보다 길 때만 사용
+      const latestTotalDuration = actualTotalDurationRef.current ?? calculatedTotalDuration
       
       // TTS duration만 사용하여 currentTime 계산 (transition 제외)
       // 배속이 적용된 경과 시간 사용
@@ -447,12 +643,6 @@ export function useFullPlayback({
         elapsedWithSpeed,
         currentGroupDurationRef.current
       )
-      
-      // 실제 재생 시간이 예상 길이를 초과하면, 예상 길이를 동적으로 늘림
-      if (rawCurrentTime > latestTotalDuration) {
-        latestTotalDuration = rawCurrentTime
-        actualTotalDurationRef.current = rawCurrentTime
-      }
       
       // currentTime은 rawCurrentTime 그대로 사용 (clamp하지 않음)
       // 실제 재생 시간이 예상 길이를 초과할 수 있도록 허용
@@ -553,53 +743,32 @@ export function useFullPlayback({
           stopBgmAudio()
           stopTtsAudio()
           
-          // 최종 시간 설정 (실제 재생된 최대 시간 또는 계산된 duration 사용)
+          // 최종 시간 설정 (TTS duration 합계 사용)
           if (setCurrentTime) {
-            const finalTime = actualTotalDurationRef.current ?? calculateTotalDuration(timeline)
+            const finalTime = calculateTotalDuration(timeline)
             setCurrentTime(finalTime)
           }
           
-          // 전체 재생 완료 후, 모든 씬의 actualPlaybackDuration을 duration으로 반영
-          // (개별 씬 재생 시에도 정확한 시간을 사용하도록)
-          if (timeline && setTimeline && actualTotalDurationRef.current !== null) {
-            const calculatedTotal = calculateTotalDuration(timeline)
-            const actualTotal = actualTotalDurationRef.current
-            
-            // 실제 재생 시간이 계산된 시간보다 길면, 각 씬의 duration을 비례적으로 업데이트
-            if (actualTotal > calculatedTotal && calculatedTotal > 0) {
-              const durationRatio = actualTotal / calculatedTotal
-              
-              const updatedScenes = timeline.scenes.map((s) => {
-                // actualPlaybackDuration이 있으면 그것을 사용, 없으면 duration에 비율 적용
-                if (s.actualPlaybackDuration && s.actualPlaybackDuration > 0) {
-                  return { ...s, duration: s.actualPlaybackDuration }
-                } else {
-                  return { ...s, duration: s.duration * durationRatio }
-                }
-              })
-              
-              setTimeline({ ...timeline, scenes: updatedScenes })
-            } else {
-              // actualPlaybackDuration이 있는 씬들은 duration으로 반영
-              const updatedScenes = timeline.scenes.map((s) => {
-                if (s.actualPlaybackDuration && s.actualPlaybackDuration > 0) {
-                  return { ...s, duration: s.actualPlaybackDuration }
-                }
-                return s
-              })
-              
-              // 변경사항이 있으면 업데이트
-              const hasChanges = updatedScenes.some((s, idx) => 
-                s.duration !== timeline.scenes[idx]?.duration
-              )
-              if (hasChanges) {
-                setTimeline({ ...timeline, scenes: updatedScenes })
+          // 전체 재생 완료 후, actualPlaybackDuration이 있는 씬들은 duration으로 반영
+          // (TTS duration 합계는 정확하므로 비례 조정하지 않음)
+          if (timeline && setTimeline) {
+            const updatedScenes = timeline.scenes.map((s) => {
+              if (s.actualPlaybackDuration && s.actualPlaybackDuration > 0) {
+                return { ...s, duration: s.actualPlaybackDuration }
               }
+              return s
+            })
+            
+            // 변경사항이 있으면 업데이트
+            const hasChanges = updatedScenes.some((s, idx) => 
+              s.duration !== timeline.scenes[idx]?.duration
+            )
+            if (hasChanges) {
+              setTimeline({ ...timeline, scenes: updatedScenes })
             }
           }
           
-          // 실제 재생된 최대 시간을 기억해두기 (다음 재생 시 사용)
-          // actualTotalDurationRef는 이미 최신 값으로 업데이트되어 있음
+          // TTS duration 합계를 정확히 사용하므로 actualTotalDurationRef 사용하지 않음
           
           return
         }
@@ -746,12 +915,7 @@ export function useFullPlayback({
           actualGroupDuration = Math.max(actualElapsedWithSpeed, groupDuration)
           accumulatedTimeRef.current += actualGroupDuration
           
-          // 실제 재생된 최대 시간 업데이트
-          const currentTotalTime = accumulatedTimeRef.current
-          const calculatedTotal = calculateTotalDuration(timeline)
-          if (currentTotalTime > calculatedTotal) {
-            actualTotalDurationRef.current = currentTotalTime
-          }
+          // TTS duration 합계를 정확히 사용하므로 actualTotalDurationRef 업데이트하지 않음
         } else {
           // fallback: 계산된 duration 사용
           actualGroupDuration = groupDuration
@@ -830,14 +994,7 @@ export function useFullPlayback({
       console.error('[useFullPlayback] 전체 재생 오류:', error)
       cleanupProgressInterval()
       
-      // 재생 중지 시점의 현재 시간을 저장 (실제 재생된 최대 시간 업데이트)
-      if (currentTimeRef && currentTimeRef.current > 0) {
-        const currentTime = currentTimeRef.current
-        const calculatedTotal = timelineRef.current ? calculateTotalDuration(timelineRef.current) : 0
-        if (currentTime > calculatedTotal) {
-          actualTotalDurationRef.current = currentTime
-        }
-      }
+      // TTS duration 합계를 정확히 사용하므로 actualTotalDurationRef 업데이트하지 않음
       
       isPlayingAllRef.current = false
       setIsPlayingAll(false)
@@ -882,6 +1039,7 @@ export function useFullPlayback({
     ttsCacheRef,
     cleanupProgressInterval,
     disableAutoTimeUpdateRef,
+    findScenesToSynthesizeCore,
   ])
 
   // 항상 객체를 반환하도록 보장

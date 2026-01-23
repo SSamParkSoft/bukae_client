@@ -2,11 +2,11 @@ import { useCallback } from 'react'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import { TimelineData } from '@/store/useVideoCreateStore'
-import { applyFadeTransition } from './effects/transitions/fade'
-import { applySlideTransition } from './effects/transitions/slide'
-import { applyZoomTransition } from './effects/transitions/zoom'
-import type { TransitionParams } from './effects/utils'
-import { MOVEMENT_EFFECTS, type TransitionEffect } from './types/effects'
+import { applyFadeTransition } from './transitions/fade'
+import { applySlideTransition } from './transitions/slide'
+import { applyZoomTransition } from './transitions/zoom'
+import type { TransitionParams } from './utils'
+import { MOVEMENT_EFFECTS, type TransitionEffect } from '../types/effects'
 
 interface UsePixiEffectsParams {
   appRef: React.RefObject<PIXI.Application | null>
@@ -148,24 +148,76 @@ export const usePixiEffects = ({
       // 씬이 넘어갔는지 확인 (_previousIndex가 null이거나 현재 sceneIndex와 같으면 넘어가지 않음)
       const isSceneChanged = _previousIndex !== null && _previousIndex !== sceneIndex
       
+      // 슬라이드 좌 효과일 때는 이전 씬의 텍스트가 남아있을 수 있으므로 명시적으로 정리
+      // 슬라이드 좌는 오른쪽에서 시작하므로 이전 씬의 텍스트가 보일 수 있음
+      if (actualTransition === 'slide-left' && isSceneChanged && containerRef.current) {
+        // 컨테이너의 모든 텍스트 객체 확인 및 현재 씬의 텍스트가 아닌 것들 제거
+        const container = containerRef.current
+        const containerChildren = Array.from(container.children)
+        containerChildren.forEach((child) => {
+          if (child instanceof PIXI.Text && child !== toText) {
+            // 현재 씬의 텍스트가 아니면 컨테이너에서 제거하고 숨김
+            container.removeChild(child)
+            child.visible = false
+            child.alpha = 0
+          }
+        })
+      }
+      
       if (isSceneChanged) {
         // 씬이 넘어갔으면 텍스트 렌더링
-        if (toText.parent !== containerRef.current) {
-          if (toText.parent) {
-            toText.parent.removeChild(toText)
-          }
-          containerRef.current.addChild(toText)
-        }
-        
-        toText.visible = true
-        toText.alpha = 1
-        
-        // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
-        if (toText && containerRef.current && toText.parent === containerRef.current) {
+        // 슬라이드 좌 효과일 때는 자막이 이미 컨테이너에 있으면 제거/재추가를 하지 않음
+        // 이렇게 하면 자막의 원래 렌더링(transform, 스타일, 텍스트)이 유지됨
+        if (actualTransition === 'slide-left' && toText && toText.parent === containerRef.current) {
+          // 이미 컨테이너에 있으면 제거/재추가를 하지 않고 그대로 유지
+          // 단, visible과 alpha만 업데이트
+          // 자막의 wordWrapWidth가 0.9로 변경되지 않도록 현재 스타일 유지
+          toText.visible = true
+          toText.alpha = 1
+          
+          // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
           const currentIndex = containerRef.current.getChildIndex(toText)
           const maxIndex = containerRef.current.children.length - 1
           if (currentIndex !== maxIndex) {
             containerRef.current.setChildIndex(toText, maxIndex)
+          }
+        } else {
+          // 슬라이드 좌가 아니거나 컨테이너에 없으면 기존 로직 사용
+          if (toText.parent !== containerRef.current) {
+            if (toText.parent) {
+              toText.parent.removeChild(toText)
+            }
+            containerRef.current.addChild(toText)
+          }
+          
+          // 슬라이드 좌 효과일 때 자막 스타일이 다시 적용되면서 wordWrapWidth가 변경되지 않도록
+          // timeline의 transform.width를 사용하여 정확한 너비 유지
+          if (actualTransition === 'slide-left' && toText && timeline?.scenes[sceneIndex]?.text) {
+            const scene = timeline.scenes[sceneIndex]
+            const stageWidth = appRef.current?.screen.width || 1080
+            let textWidth = stageWidth
+            if (scene.text?.transform?.width) {
+              textWidth = scene.text.transform.width / (scene.text.transform.scaleX || 1)
+            }
+            
+            // 현재 스타일의 wordWrapWidth가 올바른지 확인하고 필요시 업데이트
+            if (toText.style && toText.style.wordWrapWidth !== textWidth) {
+              toText.style.wordWrapWidth = textWidth
+              // 스타일 변경을 적용하기 위해 텍스트를 다시 설정
+              toText.text = toText.text
+            }
+          }
+          
+          toText.visible = true
+          toText.alpha = 1
+          
+          // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
+          if (toText && containerRef.current && toText.parent === containerRef.current) {
+            const currentIndex = containerRef.current.getChildIndex(toText)
+            const maxIndex = containerRef.current.children.length - 1
+            if (currentIndex !== maxIndex) {
+              containerRef.current.setChildIndex(toText, maxIndex)
+            }
           }
         }
       } else {

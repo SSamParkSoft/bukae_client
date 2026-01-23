@@ -6,7 +6,8 @@ import { gsap } from 'gsap'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
 import { authStorage } from '@/lib/api/auth-storage'
-import { useTtsResources } from './useTtsResources'
+import { useTtsResources } from '../tts/useTtsResources'
+import { usePlaybackCore } from './usePlaybackCore'
 import { movements } from '@/lib/data/transitions'
 
 interface UseSingleScenePlaybackParams {
@@ -71,48 +72,29 @@ export function useSingleScenePlayback({
 }: UseSingleScenePlaybackParams) {
   // TTS 리소스 가져오기
   const { ttsCacheRef, ttsAudioRef, ttsAudioUrlRef, stopTtsAudio } = useTtsResources()
+  
+  // 공통 재생 로직
+  const { stopPlayback: stopPlaybackCore } = usePlaybackCore()
+  
   // 현재 재생 중인 씬 인덱스 추적
   const [playingSceneIndex, setPlayingSceneIndex] = useState<number | null>(null)
   const playingSceneIndexRef = useRef<number | null>(null)
   
   // 씬 재생 정지 함수
   const stopScene = useCallback(() => {
-    // 진행 중인 전환 효과 애니메이션 중지
-    if (activeAnimationsRef) {
-      activeAnimationsRef.current.forEach((tl) => {
-        if (tl && tl.isActive()) {
-          tl.kill()
-        }
-      })
-      activeAnimationsRef.current.clear()
-    }
-    
-    // 현재 재생 중인 씬의 스프라이트와 텍스트를 alpha: 1로 복원
-    const currentSceneIndex = playingSceneIndexRef.current
-    if (currentSceneIndex !== null) {
-      if (spritesRef) {
-        const currentSprite = spritesRef.current.get(currentSceneIndex)
-        if (currentSprite) {
-          currentSprite.alpha = 1
-          currentSprite.visible = true
-        }
-      }
-      if (textsRef) {
-        const currentText = textsRef.current.get(currentSceneIndex)
-        if (currentText) {
-          currentText.alpha = 1
-          currentText.visible = true
-        }
-      }
-    }
-    
-    // TTS 오디오 정지
-    stopTtsAudio()
+    // 공통 재생 정지 로직 (애니메이션 정리, 스프라이트/텍스트 복원, 오디오 정지)
+    stopPlaybackCore({
+      sceneIndex: playingSceneIndexRef.current,
+      activeAnimationsRef,
+      spritesRef,
+      textsRef,
+      stopTtsAudio,
+    })
     
     // 재생 중인 씬 인덱스 초기화
     setPlayingSceneIndex(null)
     playingSceneIndexRef.current = null
-  }, [stopTtsAudio, activeAnimationsRef, spritesRef, textsRef])
+  }, [stopPlaybackCore, stopTtsAudio, activeAnimationsRef, spritesRef, textsRef])
   
   
   const playScene = useCallback(async (sceneIndex: number) => {

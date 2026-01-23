@@ -43,8 +43,10 @@ export function useFontLoader({
         }
 
         // document.fonts가 없는 환경에서는 스킵
-        if (typeof document === 'undefined' || !(document as any).fonts?.load) return
-        await (document as any).fonts.load(`${fontWeight} 16px ${fontFamily}`)
+        if (typeof document === 'undefined') return
+        const fonts = (document as { fonts?: { load: (font: string) => Promise<FontFace[]> } }).fonts
+        if (!fonts?.load) return
+        await fonts.load(`${fontWeight} 16px ${fontFamily}`)
         if (cancelled) return
         await onFontLoaded()
       } catch {

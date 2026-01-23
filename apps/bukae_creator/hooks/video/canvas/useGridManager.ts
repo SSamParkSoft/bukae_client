@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MutableRefObject } from 'react'
 import * as PIXI from 'pixi.js'
 
@@ -111,20 +111,50 @@ export function useGridManager({
         }
       })
     }
+    // drawGrid가 이미 appRef를 dependency로 포함하고 있음
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showGrid, pixiReady, drawGrid])
 
   // Canvas 실제 크기 계산 (container div와 동기화용)
-  const canvasDisplaySize = useMemo(() => {
-    if (!appRef.current || !pixiContainerRef.current) return null
-    const canvas = appRef.current.canvas
-    const canvasRect = canvas.getBoundingClientRect()
-    const actualWidth = canvasRect.width > 0 ? canvasRect.width : (parseFloat(canvas.style.width) || parseFloat(canvasSize.width.replace('px', '')) || 0)
-    const actualHeight = canvasRect.height > 0 ? canvasRect.height : (parseFloat(canvasSize.height.replace('px', '')) || parseFloat(canvasSize.height.replace('px', '')) || 0)
-    
-    if (actualWidth <= 0 || actualHeight <= 0) return null
-    
-    return { width: actualWidth, height: actualHeight }
-  }, [canvasSize, pixiReady, appRef, pixiContainerRef])
+  const [canvasDisplaySize, setCanvasDisplaySize] = useState<{ width: number; height: number } | null>(null)
+
+  useEffect(() => {
+    if (!pixiReady || !appRef.current || !pixiContainerRef.current) {
+      return
+    }
+
+    const updateCanvasSize = () => {
+      if (!appRef.current || !pixiContainerRef.current) {
+        return
+      }
+      const canvas = appRef.current.canvas
+      const canvasRect = canvas.getBoundingClientRect()
+      const actualWidth = canvasRect.width > 0 ? canvasRect.width : (parseFloat(canvas.style.width) || parseFloat(canvasSize.width.replace('px', '')) || 0)
+      const actualHeight = canvasRect.height > 0 ? canvasRect.height : (parseFloat(canvasSize.height.replace('px', '')) || parseFloat(canvasSize.height.replace('px', '')) || 0)
+      
+      if (actualWidth <= 0 || actualHeight <= 0) {
+        return
+      }
+      
+      setCanvasDisplaySize({ width: actualWidth, height: actualHeight })
+    }
+
+    // 초기 크기 계산
+    requestAnimationFrame(updateCanvasSize)
+
+    // ResizeObserver로 크기 변경 감지
+    const resizeObserver = new ResizeObserver(() => {
+      requestAnimationFrame(updateCanvasSize)
+    })
+
+    const container = pixiContainerRef.current
+    resizeObserver.observe(container)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasSize, pixiReady])
 
   // 격자 오버레이 크기 계산 (canvas 실제 크기 사용)
   const gridOverlaySize = useMemo(() => {

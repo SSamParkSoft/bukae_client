@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react'
 import type { TimelineData } from '@/store/useVideoCreateStore'
-import { useTtsResources } from './useTtsResources'
+import { useTtsResources } from '../tts/useTtsResources'
 
 interface PlayScenePartOptions {
   sceneIndex: number

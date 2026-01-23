@@ -306,8 +306,11 @@ export async function ensureSceneTts({
 
   // 전체 씬 duration 업데이트 (모든 구간의 duration 합)
   const totalDuration = parts.reduce((sum, part) => sum + part.durationSec, 0)
+  console.log(`[ensureSceneTts] Scene ${sceneIndex} 총 duration 계산: parts=${parts.length}개, 각 part duration=[${parts.map(p => p.durationSec.toFixed(2)).join(', ')}]s, 합계=${totalDuration.toFixed(2)}s`)
   if (totalDuration > 0) {
     setSceneDurationFromAudio(sceneIndex, totalDuration)
+  } else {
+    console.warn(`[ensureSceneTts] Scene ${sceneIndex} totalDuration이 0이거나 음수: ${totalDuration}`)
   }
 
   // 변경 상태 제거 (모든 구간 처리 완료 후)

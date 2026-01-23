@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/popover'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { getSoundEffectStorageUrl } from '@/lib/utils/supabase-storage'
-import { useSoundEffects, type SoundEffectFile } from '@/hooks/video/useSoundEffects'
+import { useSoundEffects, type SoundEffectFile } from '@/hooks/video/audio/useSoundEffects'
 
 interface SoundEffectSelectorProps {
   soundEffect: string | null

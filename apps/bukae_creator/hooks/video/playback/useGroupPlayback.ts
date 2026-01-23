@@ -8,7 +8,9 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
-import { useTtsResources } from './useTtsResources'
+import { useTtsResources } from '../tts/useTtsResources'
+import { usePlaybackCore } from './usePlaybackCore'
+import { useTtsCache } from '../tts/useTtsCache'
 import { getSoundEffectStorageUrl } from '@/lib/utils/supabase-storage'
 
 interface UseGroupPlaybackParams {
@@ -65,6 +67,13 @@ export function useGroupPlayback({
 }: UseGroupPlaybackParams) {
   // TTS 리소스 가져오기
   const { ttsCacheRef, ttsAudioRef, ttsAudioUrlRef, stopTtsAudio } = useTtsResources()
+  
+  // 공통 재생 로직
+  const { stopPlayback: stopPlaybackCore } = usePlaybackCore()
+  
+  // TTS 캐시 관리
+  const { findScenesToSynthesize: findScenesToSynthesizeCore, getGroupTtsDuration, getPartTtsDuration: getPartTtsDurationCore } = useTtsCache()
+  
   const { getSceneStructure } = useSceneStructureStore()
   const resolveSoundEffectUrl = (filePath: string): string => {
     return getSoundEffectStorageUrl(filePath) ?? `/sound-effects/${filePath}`
@@ -78,28 +87,17 @@ export function useGroupPlayback({
   const [playingGroupSceneId, setPlayingGroupSceneId] = useState<number | null>(null)
   const playingGroupSceneIdRef = useRef<number | null>(null)
 
-  // TTS 캐시 확인 및 필요한 씬 찾기
+  // TTS 캐시 확인 및 필요한 씬 찾기 (useTtsCache 사용)
   const findScenesToSynthesize = useCallback((groupIndices: number[]): number[] => {
-    const scenesToSynthesize: number[] = []
-    for (const sceneIndex of groupIndices) {
-      const scene = timeline?.scenes[sceneIndex]
-      if (!scene) continue
-      // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
-      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
-      if (!sceneVoiceTemplate) continue
-      
-      const markups = buildSceneMarkup(timeline, sceneIndex)
-      const hasAllCache = markups.every(markup => {
-        const key = makeTtsKey(sceneVoiceTemplate, markup)
-        const cached = ttsCacheRef.current.get(key)
-        return cached && (cached.blob || cached.url)
-      })
-      if (!hasAllCache) {
-        scenesToSynthesize.push(sceneIndex)
-      }
-    }
-    return scenesToSynthesize
-  }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef])
+    return findScenesToSynthesizeCore(
+      timeline,
+      groupIndices,
+      voiceTemplate,
+      buildSceneMarkup,
+      makeTtsKey,
+      ttsCacheRef
+    )
+  }, [findScenesToSynthesizeCore, timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef])
 
   // TTS 합성 및 캐시 저장 (병렬 처리로 최적화)
   const synthesizeAndCacheTts = useCallback(async (scenesToSynthesize: number[]): Promise<boolean> => {
@@ -111,8 +109,8 @@ export function useGroupPlayback({
     setIsTtsBootstrapping?.(true)
 
     try {
-      // 병렬로 모든 씬의 TTS 합성 (useFullPlayback과 동일한 방식)
-      const ttsResults = await Promise.all(
+      // 병렬로 모든 씬의 TTS 합성 (Promise.allSettled 사용하여 일부 실패해도 계속 진행)
+      const ttsResults = await Promise.allSettled(
         scenesToSynthesize.map(sceneIndex =>
           ensureSceneTtsParam(
           sceneIndex,
@@ -122,22 +120,31 @@ export function useGroupPlayback({
         )
       )
       
-      // 결과를 캐시에 저장
-      for (const result of ttsResults) {
-        const { sceneIndex, parts } = result
-        if (!parts || parts.length === 0) {
-          console.warn(`[useGroupPlayback] 씬 ${sceneIndex} parts가 비어있음`)
+      // 결과를 캐시에 저장 (성공한 씬만)
+      let successCount = 0
+      for (let i = 0; i < ttsResults.length; i++) {
+        const result = ttsResults[i]
+        const sceneIndex = scenesToSynthesize[i]
+        
+        if (result.status === 'rejected') {
+          console.error(`[useGroupPlayback] 씬 ${sceneIndex} TTS 생성 실패:`, result.reason)
           continue
         }
         
-        const scene = timeline!.scenes[sceneIndex]
+        const { sceneIndex: resultSceneIndex, parts } = result.value
+        if (!parts || parts.length === 0) {
+          console.warn(`[useGroupPlayback] 씬 ${resultSceneIndex} parts가 비어있음`)
+          continue
+        }
+        
+        const scene = timeline!.scenes[resultSceneIndex]
         // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
         const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate!
         
-        const markups = buildSceneMarkup(timeline!, sceneIndex)
-        for (let i = 0; i < parts.length && i < markups.length; i++) {
-          const part = parts[i]
-          const partMarkup = markups[i]
+        const markups = buildSceneMarkup(timeline!, resultSceneIndex)
+        for (let j = 0; j < parts.length && j < markups.length; j++) {
+          const part = parts[j]
+          const partMarkup = markups[j]
           if (part && partMarkup) {
             const partKey = makeTtsKey(sceneVoiceTemplate, partMarkup)
             ttsCacheRef.current.set(partKey, {
@@ -148,11 +155,13 @@ export function useGroupPlayback({
             })
           }
         }
+        successCount++
       }
       
-      return true
+      // 일부라도 성공했으면 true 반환
+      return successCount > 0
     } catch (error) {
-      console.error('[useGroupPlayback] TTS 생성 실패:', error)
+      console.error('[useGroupPlayback] TTS 생성 중 예상치 못한 오류:', error)
       return false
     } finally {
       setIsPreparing?.(false)
@@ -160,53 +169,32 @@ export function useGroupPlayback({
     }
   }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef, ensureSceneTtsParam, changedScenesRef, setIsPreparing, setIsTtsBootstrapping])
 
-  // 그룹 TTS duration 계산
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // 그룹 TTS duration 계산 (useTtsCache 사용)
   const calculateGroupTtsDuration = useCallback((groupIndices: number[]): number => {
-    // 항상 최신 TTS 캐시에서 직접 계산하여 정확한 duration 보장
-    let duration = 0
-    if (timeline) {
-      for (const sceneIndex of groupIndices) {
-        const scene = timeline.scenes[sceneIndex]
-        if (!scene) continue
-        // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
-        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
-        if (!sceneVoiceTemplate) continue
-        
-        const markups = buildSceneMarkup(timeline, sceneIndex)
-        for (const markup of markups) {
-          const key = makeTtsKey(sceneVoiceTemplate, markup)
-          const cached = ttsCacheRef.current.get(key)
-          if (cached?.durationSec) {
-            duration += cached.durationSec
-          }
-        }
-      }
-    }
-    return duration
-  }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef])
+    return getGroupTtsDuration(
+      timeline,
+      groupIndices,
+      voiceTemplate,
+      buildSceneMarkup,
+      makeTtsKey,
+      ttsCacheRef
+    )
+  }, [getGroupTtsDuration, timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef])
 
-  // 특정 씬/구간의 TTS durationSec을 캐시에서 가져오기 (fallback: 씬 duration -> 1초)
+  // 특정 씬/구간의 TTS durationSec을 캐시에서 가져오기 (useTtsCache 사용)
   const getPartTtsDuration = useCallback(
     (sceneIndex: number, partIndex: number): number => {
-      if (!timeline) return 1
-      const scene = timeline.scenes[sceneIndex]
-      if (!scene) return 1
-
-      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
-      const markups = buildSceneMarkup(timeline, sceneIndex)
-      const markup = markups?.[partIndex]
-      if (sceneVoiceTemplate && markup) {
-        const key = makeTtsKey(sceneVoiceTemplate, markup)
-        const cached = ttsCacheRef.current.get(key)
-        if (cached?.durationSec && cached.durationSec > 0) {
-          return cached.durationSec
-        }
-      }
-      // fallback: 씬 duration 또는 1초
-      return scene.duration || 1
+      return getPartTtsDurationCore(
+        timeline,
+        sceneIndex,
+        partIndex,
+        voiceTemplate,
+        buildSceneMarkup,
+        makeTtsKey,
+        ttsCacheRef
+      )
     },
-    [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef]
+    [getPartTtsDurationCore, timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, ttsCacheRef]
   )
 
   // 자막 파싱 및 병합
@@ -294,18 +282,12 @@ export function useGroupPlayback({
 
   // 그룹 재생 정지 함수
   const stopGroup = useCallback(() => {
-    // 진행 중인 전환 효과 애니메이션 중지
-    if (activeAnimationsRef) {
-      activeAnimationsRef.current.forEach((tl) => {
-        if (tl && tl.isActive()) {
-          tl.kill()
-        }
-      })
-      activeAnimationsRef.current.clear()
-    }
-    
-    // TTS 오디오 정지
-    stopTtsAudio()
+    // 공통 재생 정지 로직 (애니메이션 정리, 오디오 정지)
+    stopPlaybackCore({
+      sceneIndex: null, // 그룹 재생 정지 시에는 스프라이트/텍스트 복원 불필요
+      activeAnimationsRef,
+      stopTtsAudio,
+    })
     
     // 재생 중인 씬 인덱스 초기화
     setPlayingSceneIndex(null)
@@ -317,7 +299,7 @@ export function useGroupPlayback({
     
     // 재생 상태 초기화
     isPlayingRef.current = false
-  }, [stopTtsAudio, isPlayingRef, activeAnimationsRef])
+  }, [stopPlaybackCore, stopTtsAudio, isPlayingRef, activeAnimationsRef])
 
 
   /**

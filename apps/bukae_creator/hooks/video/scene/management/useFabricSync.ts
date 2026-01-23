@@ -8,7 +8,7 @@ import * as fabric from 'fabric'
 import { TimelineData } from '@/store/useVideoCreateStore'
 import { calculateSpriteParams } from '@/utils/pixi'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
-import type { StageDimensions } from '../types/common'
+import type { StageDimensions } from '../../types/common'
 
 interface UseFabricSyncParams {
   useFabricEditing: boolean
