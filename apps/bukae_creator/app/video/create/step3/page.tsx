@@ -21,7 +21,7 @@ export default function Step3Page() {
         className="flex h-full overflow-hidden w-full px-4 sm:px-8 md:px-12 lg:px-16 xl:px-[100px] justify-center"
       >
         {/* 왼쪽 패널: 미리보기 + 타임라인 */}
-        <div className="w-[25%] min-w-[180px] sm:min-w-[200px] max-w-[350px] flex flex-col overflow-hidden h-full shrink-0">
+        <div className="w-[30%] min-w-[180px] sm:min-w-[200px] max-w-[350px] flex flex-col overflow-hidden h-full shrink-0">
           <PreviewPanel
             theme={container.theme}
             pixiContainerRef={container.pixiContainerRef}
@@ -53,7 +53,7 @@ export default function Step3Page() {
         </div>
 
         {/* 중앙 패널: 씬 리스트 */}
-        <div className="w-[45%] min-w-[300px] sm:min-w-[350px] md:min-w-[400px] flex flex-col overflow-hidden h-full mr-2 sm:mr-4 md:mr-6 shrink-0">
+        <div className="w-[40%] min-w-[380px] sm:min-w-[420px] md:min-w-[460px] flex flex-col overflow-hidden h-full shrink-0">
           <SceneListPanel
             theme={container.theme}
             scenes={container.scenes}

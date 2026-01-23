@@ -160,6 +160,8 @@ export function useFullPlayback({
   const currentGroupDurationRef = useRef(0)
   const bgmStartedRef = useRef(false)
   const lastUpdateTimeRef = useRef(0) // 마지막 업데이트 시간 (중복 호출 방지)
+  // 실제 재생된 최대 시간을 추적 (예상 길이보다 길어질 수 있음)
+  const actualTotalDurationRef = useRef<number | null>(null) // null이면 calculateTotalDuration 사용
 
   // useSingleScenePlayback 인스턴스 생성
   const singleScenePlayback = useSingleScenePlayback({
@@ -258,6 +260,15 @@ export function useFullPlayback({
     // 재생바 업데이트 interval 정리
     cleanupProgressInterval()
 
+    // 재생 중지 시점의 현재 시간을 저장 (실제 재생된 최대 시간 업데이트)
+    if (currentTimeRef && currentTimeRef.current > 0) {
+      const currentTime = currentTimeRef.current
+      const calculatedTotal = timelineRef.current ? calculateTotalDuration(timelineRef.current) : 0
+      if (currentTime > calculatedTotal) {
+        actualTotalDurationRef.current = currentTime
+      }
+    }
+
     // 오디오 정지
     stopBgmAudio()
     stopTtsAudio()
@@ -267,6 +278,7 @@ export function useFullPlayback({
     currentGroupStartTimeRef.current = 0
     currentGroupDurationRef.current = 0
     bgmStartedRef.current = false
+    // actualTotalDurationRef는 유지 (이전 재생에서 저장된 실제 재생 시간 보존)
   }, [setIsPlaying, setTimelineIsPlaying, stopBgmAudio, stopTtsAudio, cleanupProgressInterval, disableAutoTimeUpdateRef, activeAnimationsRef, spritesRef, textsRef, currentSceneIndexRef])
 
   // 전체 재생 함수
@@ -399,6 +411,8 @@ export function useFullPlayback({
     currentGroupDurationRef.current = 0
     bgmStartedRef.current = false
     lastUpdateTimeRef.current = 0
+    // 이전에 저장된 실제 재생 시간이 있으면 사용, 없으면 null로 초기화
+    // (null이면 calculateTotalDuration 사용)
 
     // 재생바 업데이트 interval 시작 (100ms마다 업데이트, DOM 직접 업데이트로 리렌더링 방지)
     // 실제 씬 렌더링은 TTS 재생 완료 시에만 발생
@@ -422,7 +436,10 @@ export function useFullPlayback({
       
       // 최신 timeline의 totalDuration 계산 (TTS 합성으로 duration이 업데이트되었을 수 있음)
       const latestTimeline = timelineRef.current
-      const latestTotalDuration = latestTimeline ? calculateTotalDuration(latestTimeline) : (totalDuration || 0)
+      const calculatedTotalDuration = latestTimeline ? calculateTotalDuration(latestTimeline) : (totalDuration || 0)
+      
+      // 실제 재생된 최대 시간이 있으면 사용, 없으면 계산된 값 사용
+      let latestTotalDuration = actualTotalDurationRef.current ?? calculatedTotalDuration
       
       // TTS duration만 사용하여 currentTime 계산 (transition 제외)
       // 배속이 적용된 경과 시간 사용
@@ -430,8 +447,16 @@ export function useFullPlayback({
         elapsedWithSpeed,
         currentGroupDurationRef.current
       )
-      // totalDuration을 초과하지 않도록 clamp
-      const currentTime = Math.min(rawCurrentTime, latestTotalDuration)
+      
+      // 실제 재생 시간이 예상 길이를 초과하면, 예상 길이를 동적으로 늘림
+      if (rawCurrentTime > latestTotalDuration) {
+        latestTotalDuration = rawCurrentTime
+        actualTotalDurationRef.current = rawCurrentTime
+      }
+      
+      // currentTime은 rawCurrentTime 그대로 사용 (clamp하지 않음)
+      // 실제 재생 시간이 예상 길이를 초과할 수 있도록 허용
+      const currentTime = rawCurrentTime
       
       // ref를 먼저 업데이트하여 useTimelinePlayer의 내부 로직과 동기화
       if (currentTimeRef) {
@@ -439,10 +464,13 @@ export function useFullPlayback({
       }
       
       // 재생바 DOM을 직접 업데이트 (리렌더링 없이)
-      if (timelineBarRef?.current && latestTotalDuration > 0) {
+      // latestTotalDuration이 0보다 크거나 currentTime이 0보다 클 때만 업데이트
+      if (timelineBarRef?.current && (latestTotalDuration > 0 || currentTime > 0)) {
         const progressBar = timelineBarRef.current.querySelector('div[style*="width"]') as HTMLElement
         if (progressBar) {
-          const progressRatio = Math.min(1, currentTime / latestTotalDuration)
+          // latestTotalDuration이 0이면 currentTime을 사용 (초기 상태)
+          const effectiveDuration = latestTotalDuration > 0 ? latestTotalDuration : Math.max(currentTime, 1)
+          const progressRatio = Math.min(1, currentTime / effectiveDuration)
           progressBar.style.width = `${progressRatio * 100}%`
         }
         
@@ -453,7 +481,9 @@ export function useFullPlayback({
           if (timeSpans.length >= 2) {
             const speed = playbackSpeed ?? 1.0
             const actualTime = currentTime / speed
-            const actualDuration = latestTotalDuration / speed
+            // latestTotalDuration이 0이면 currentTime을 사용 (초기 상태)
+            const effectiveDuration = latestTotalDuration > 0 ? latestTotalDuration : Math.max(currentTime, 1)
+            const actualDuration = effectiveDuration / speed
             const formattedCurrentTime = formatTime(actualTime)
             const formattedTotalTime = formatTime(actualDuration)
             timeSpans[0].textContent = formattedCurrentTime
@@ -523,11 +553,53 @@ export function useFullPlayback({
           stopBgmAudio()
           stopTtsAudio()
           
-          // 최종 시간 설정 (TTS duration만 사용)
+          // 최종 시간 설정 (실제 재생된 최대 시간 또는 계산된 duration 사용)
           if (setCurrentTime) {
-            const totalDuration = calculateTotalDuration(timeline)
-            setCurrentTime(totalDuration)
+            const finalTime = actualTotalDurationRef.current ?? calculateTotalDuration(timeline)
+            setCurrentTime(finalTime)
           }
+          
+          // 전체 재생 완료 후, 모든 씬의 actualPlaybackDuration을 duration으로 반영
+          // (개별 씬 재생 시에도 정확한 시간을 사용하도록)
+          if (timeline && setTimeline && actualTotalDurationRef.current !== null) {
+            const calculatedTotal = calculateTotalDuration(timeline)
+            const actualTotal = actualTotalDurationRef.current
+            
+            // 실제 재생 시간이 계산된 시간보다 길면, 각 씬의 duration을 비례적으로 업데이트
+            if (actualTotal > calculatedTotal && calculatedTotal > 0) {
+              const durationRatio = actualTotal / calculatedTotal
+              
+              const updatedScenes = timeline.scenes.map((s) => {
+                // actualPlaybackDuration이 있으면 그것을 사용, 없으면 duration에 비율 적용
+                if (s.actualPlaybackDuration && s.actualPlaybackDuration > 0) {
+                  return { ...s, duration: s.actualPlaybackDuration }
+                } else {
+                  return { ...s, duration: s.duration * durationRatio }
+                }
+              })
+              
+              setTimeline({ ...timeline, scenes: updatedScenes })
+            } else {
+              // actualPlaybackDuration이 있는 씬들은 duration으로 반영
+              const updatedScenes = timeline.scenes.map((s) => {
+                if (s.actualPlaybackDuration && s.actualPlaybackDuration > 0) {
+                  return { ...s, duration: s.actualPlaybackDuration }
+                }
+                return s
+              })
+              
+              // 변경사항이 있으면 업데이트
+              const hasChanges = updatedScenes.some((s, idx) => 
+                s.duration !== timeline.scenes[idx]?.duration
+              )
+              if (hasChanges) {
+                setTimeline({ ...timeline, scenes: updatedScenes })
+              }
+            }
+          }
+          
+          // 실제 재생된 최대 시간을 기억해두기 (다음 재생 시 사용)
+          // actualTotalDurationRef는 이미 최신 값으로 업데이트되어 있음
           
           return
         }
@@ -669,9 +741,17 @@ export function useFullPlayback({
           const actualElapsed = (Date.now() - groupPlaybackStartTimeRef.current) / 1000
           // 배속 적용: 실제 경과 시간에 배속을 곱하여 타임라인 시간으로 변환
           const actualElapsedWithSpeed = actualElapsed * (playbackSpeed ?? 1.0)
-          // groupDuration과 배속이 적용된 실제 경과 시간 중 작은 값 사용 (정확한 동기화)
-          actualGroupDuration = Math.min(actualElapsedWithSpeed, groupDuration)
+          // 실제 재생 시간이 예상 길이보다 길 수 있으므로, 실제 경과 시간을 우선 사용
+          // (예상 길이보다 실제 재생 시간이 길면, 예상 길이를 늘림)
+          actualGroupDuration = Math.max(actualElapsedWithSpeed, groupDuration)
           accumulatedTimeRef.current += actualGroupDuration
+          
+          // 실제 재생된 최대 시간 업데이트
+          const currentTotalTime = accumulatedTimeRef.current
+          const calculatedTotal = calculateTotalDuration(timeline)
+          if (currentTotalTime > calculatedTotal) {
+            actualTotalDurationRef.current = currentTotalTime
+          }
         } else {
           // fallback: 계산된 duration 사용
           actualGroupDuration = groupDuration
@@ -712,7 +792,13 @@ export function useFullPlayback({
                 // 그룹 전체 재생 시간을 비율로 할당
                 const scenePlaybackDuration = actualGroupDuration * ratio
                 if (scenePlaybackDuration > 0) {
-                  return { ...s, actualPlaybackDuration: scenePlaybackDuration }
+                  // actualPlaybackDuration과 duration 모두 업데이트
+                  // duration도 실제 재생 시간에 맞춰 업데이트하여 개별 씬 재생 시에도 정확한 시간 사용
+                  return { 
+                    ...s, 
+                    actualPlaybackDuration: scenePlaybackDuration,
+                    duration: scenePlaybackDuration // duration도 실제 재생 시간으로 업데이트
+                  }
                 }
               }
               return s
@@ -743,6 +829,16 @@ export function useFullPlayback({
     } catch (error) {
       console.error('[useFullPlayback] 전체 재생 오류:', error)
       cleanupProgressInterval()
+      
+      // 재생 중지 시점의 현재 시간을 저장 (실제 재생된 최대 시간 업데이트)
+      if (currentTimeRef && currentTimeRef.current > 0) {
+        const currentTime = currentTimeRef.current
+        const calculatedTotal = timelineRef.current ? calculateTotalDuration(timelineRef.current) : 0
+        if (currentTime > calculatedTotal) {
+          actualTotalDurationRef.current = currentTime
+        }
+      }
+      
       isPlayingAllRef.current = false
       setIsPlayingAll(false)
       setIsPlaying(false)
