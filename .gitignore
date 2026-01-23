@@ -45,3 +45,11 @@ yarn-error.log*
 next-env.d.ts
 
 .cursor
+
+# agent skills
+.agent/
+.agents/skills/
+.claude/
+.codex/
+.gemini/
+

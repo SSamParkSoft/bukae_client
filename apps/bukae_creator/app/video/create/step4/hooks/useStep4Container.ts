@@ -6,7 +6,7 @@ import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { studioMetaApi } from '@/lib/api/studio-meta'
 import { type StudioJobUpdate } from '@/lib/api/websocket'
-import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
+import { useVideoCreateAuth } from '@/hooks/auth/useVideoCreateAuth'
 import { authStorage } from '@/lib/api/auth-storage'
 import { getSupabaseClient } from '@/lib/supabase/client'
 

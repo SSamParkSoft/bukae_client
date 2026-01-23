@@ -91,6 +91,14 @@ export interface TextSettings {
 }
 
 /**
+ * 구간 정보 (씬 내 자막 구간)
+ */
+export interface ScenePart {
+  startTime: number // 구간의 시작 시간 (초)
+  endTime: number // 구간의 끝 시간 (초)
+}
+
+/**
  * Timeline Scene
  * 타임라인의 개별 씬을 나타냅니다.
  */
@@ -100,6 +108,9 @@ export interface TimelineScene {
   transition: string
   transitionDuration?: number // 전환 시간 (초), 기본값 0.5
   actualPlaybackDuration?: number // 실제 재생 시간 (초), 재생 완료 후 저장됨
+  startTime?: number // 씬의 시작 시간 (초) - 카드에 저장된 값
+  endTime?: number // 씬의 끝 시간 (초) - 카드에 저장된 값
+  parts?: ScenePart[] // 구간별 시작/끝 시간 정보
   image: string // base64 또는 URL
   imageFit?: ImageFit // 이미지 표시 방식
   splitIndex?: number // 씬 분할 시 하위 번호 (1, 2, 3...), 있으면 독립적인 씬으로 처리

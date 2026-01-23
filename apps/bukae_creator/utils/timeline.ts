@@ -47,12 +47,65 @@ export const getSceneStartTime = (timeline: { scenes: Array<{ sceneId: number; d
  * Transition duration은 제외하고 TTS duration만 합산합니다.
  * (Transition은 TTS 재생과 동시에 일어나므로 별도 시간이 추가되지 않음)
  * @param timeline Timeline 객체
+ * @param options TTS 캐시를 사용하여 더 정확한 duration 계산 (선택사항)
  * @returns 전체 duration (초) - TTS duration 합계만
  */
-export const calculateTotalDuration = (timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number }> }): number => {
+export const calculateTotalDuration = (
+  timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number; voiceTemplate?: string | null; text?: { content?: string } }> },
+  options?: {
+    ttsCacheRef?: React.MutableRefObject<Map<string, { durationSec: number }>>,
+    voiceTemplate?: string | null,
+    buildSceneMarkup?: (timeline: any, sceneIndex: number) => string[],
+    makeTtsKey?: (voiceName: string, markup: string) => string,
+  }
+): number => {
+  // TTS 캐시를 사용하여 더 정확한 duration 계산
+  if (options?.ttsCacheRef && options?.buildSceneMarkup && options?.makeTtsKey) {
+    let totalDuration = 0
+    for (let i = 0; i < timeline.scenes.length; i++) {
+      const scene = timeline.scenes[i]
+      const sceneVoiceTemplate = scene.voiceTemplate || options.voiceTemplate
+      
+      if (sceneVoiceTemplate) {
+        const markups = options.buildSceneMarkup(timeline, i)
+        let sceneDuration = 0
+        let hasCachedDuration = false
+        
+        // 각 구간의 실제 TTS duration 합산
+        for (const markup of markups) {
+          const key = options.makeTtsKey(sceneVoiceTemplate, markup)
+          const cached = options.ttsCacheRef.current.get(key)
+          if (cached?.durationSec && cached.durationSec > 0) {
+            sceneDuration += cached.durationSec
+            hasCachedDuration = true
+          }
+        }
+        
+        // 캐시된 duration이 있으면 사용, 없으면 scene.duration 사용
+        // 씬 분할 시 각 분할된 씬의 duration은 이미 getSceneDuration으로 계산되어 있으므로 그대로 사용
+        if (hasCachedDuration) {
+          totalDuration += sceneDuration
+        } else {
+          // TTS 캐시가 없을 때는 scene.duration 사용
+          // 씬 분할 시 각 분할된 씬의 duration은 splitSceneBySentences에서
+          // 각 문장에 대해 getSceneDuration(sentence)로 계산되므로
+          // 분할된 씬들의 duration 합이 자동으로 반영됨
+          totalDuration += scene.duration
+        }
+      } else {
+        // voiceTemplate이 없으면 scene.duration 사용
+        totalDuration += scene.duration
+      }
+    }
+    return totalDuration
+  }
+  
+  // 기본 계산: timeline의 duration 속성 합산
+  // 씬 분할 시 각 분할된 씬의 duration은 이미 계산되어 있으므로
+  // 모든 씬의 duration을 합산하면 분할된 씬들의 duration 합이 자동으로 반영됨
   return timeline.scenes.reduce((sum, scene) => {
     // TTS duration만 합산 (transition duration 제외)
-    return sum + scene.duration
+    return sum + scene.duration 
   }, 0)
 }
 

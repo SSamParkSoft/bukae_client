@@ -8,7 +8,7 @@ import { useUserStore } from '@/store/useUserStore'
 import { searchProducts } from '@/lib/api/products'
 import type { TargetMall, ProductResponse } from '@/lib/types/products'
 import { convertProductResponseToProduct } from '@/lib/types/products'
-import { useVideoCreateAuth } from '@/hooks/useVideoCreateAuth'
+import { useVideoCreateAuth } from '@/hooks/auth/useVideoCreateAuth'
 import { 
   requestCoupangExtensionStorage, 
   extractImagesFromStorage,

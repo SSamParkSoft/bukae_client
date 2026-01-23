@@ -3,7 +3,7 @@
  */
 
 // PIXI는 사용하지 않으므로 제거
-import { ensureInContainer, type TransitionParams } from '../utils'
+import type { TransitionParams } from '../utils'
 
 export type SlideDirection = 'left' | 'right' | 'up' | 'down'
 
@@ -16,7 +16,6 @@ export function applySlideTransition(
 ): void {
   const {
     toSprite,
-    toText,
     containerRef,
     originalX,
     originalY,
@@ -78,9 +77,20 @@ export function applySlideTransition(
     toSprite.y = startY
   }
 
-  // 스프라이트와 텍스트를 컨테이너에 추가 (한 번만, 애니메이션 시작 전)
+  // 스프라이트만 컨테이너에 추가 (텍스트는 applyEnterEffect에서 이미 처리됨)
+  // 텍스트를 여기서 추가하면 같은 씬의 구간 전환 시 중복 렌더링이 발생할 수 있음
+  // 특히 슬라이드 좌 효과는 오른쪽에서 시작하므로, 이전 씬의 텍스트가 남아있을 수 있음
   if (toSprite && containerRef.current) {
-    ensureInContainer(toSprite, toText, containerRef.current)
+    if (toSprite.parent !== containerRef.current) {
+      if (toSprite.parent) {
+        toSprite.parent.removeChild(toSprite)
+      }
+      containerRef.current.addChild(toSprite)
+    }
+    // 슬라이드 좌 효과일 때는 이미지를 맨 뒤로 보내서 자막이 위에 오도록 보장
+    if (direction === 'left') {
+      containerRef.current.setChildIndex(toSprite, 0)
+    }
   }
 
   // 전환 효과 시작: 스프라이트를 표시하고 시작 위치로 이동

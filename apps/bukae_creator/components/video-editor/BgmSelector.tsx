@@ -88,6 +88,14 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
 
   const handleCardClick = (templateId: string | null) => {
     if (templateId === 'none' || templateId === null) {
+      // 데모 오디오 정지
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
+        audioRef.current = null
+      }
+      setPlayingTemplateId(null)
+      
       // 배경음악 없음은 바로 적용
       onBgmConfirm(null)
       setBgmTemplate(null)
@@ -98,6 +106,14 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
   }
 
   const handleConfirm = () => {
+    // 데모 오디오 정지
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+    }
+    setPlayingTemplateId(null)
+    
     if (pendingTemplateId !== null) {
       onBgmConfirm(pendingTemplateId)
       setBgmTemplate(pendingTemplateId)

@@ -1,0 +1,1 @@
+export { usePixiRenderHandlers } from './usePixiRenderHandlers'

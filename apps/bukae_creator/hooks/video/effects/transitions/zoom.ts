@@ -2,7 +2,6 @@
  * 줌 전환 효과 (in, out)
  */
 
-import * as PIXI from 'pixi.js'
 import { ensureInContainer, applyTextFade, type TransitionParams } from '../utils'
 
 export type ZoomDirection = 'in' | 'out'
@@ -71,16 +70,6 @@ export function applyZoomTransition(
           ensureInContainer(toSprite, toText, containerRef.current)
           toText.alpha = 1
           toText.visible = true
-        }
-      },
-      onComplete: function () {
-        // 줌 효과 완료 후 원래 스케일로 복귀
-        if (toSprite) {
-          toSprite.scale.set(originalScaleX, originalScaleY)
-          toSprite.x = originalX
-          toSprite.y = originalY
-          toSprite.visible = true
-          toSprite.alpha = 1
         }
       },
     },
