@@ -11,17 +11,47 @@ import { gsap } from 'gsap'
 export function usePlaybackCore() {
   /**
    * 진행 중인 전환 효과 애니메이션 정리
+   * [강화 기능] 그룹 전환 애니메이션도 함께 정리
+   * 비활성화하려면 아래 주석 처리된 부분을 제거하고 기존 코드만 사용
    */
   const cleanupAnimations = useCallback((
-    activeAnimationsRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>
+    activeAnimationsRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>,
+    groupTransitionTimelinesRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>> // [강화] 추가
   ) => {
+    // [강화] 일반 애니메이션 정리 (기존 로직)
     if (activeAnimationsRef) {
-      activeAnimationsRef.current.forEach((tl) => {
-        if (tl && tl.isActive()) {
-          tl.kill()
+      activeAnimationsRef.current.forEach((tl, key) => {
+        try {
+          if (tl) {
+            // 진행 중인 애니메이션만 kill
+            if (tl.isActive()) {
+              tl.kill()
+            }
+            // [강화] 완료된 애니메이션도 정리 (메모리 누수 방지)
+            // 비활성화하려면 아래 줄 주석 처리
+            tl.clear()
+          }
+        } catch (error) {
+          console.warn(`[cleanupAnimations] Error cleaning up animation ${key}:`, error)
         }
       })
       activeAnimationsRef.current.clear()
+    }
+    
+    // [강화] 그룹 전환 애니메이션 정리
+    // 비활성화하려면 아래 블록 전체 주석 처리
+    if (groupTransitionTimelinesRef) {
+      groupTransitionTimelinesRef.current.forEach((tl, key) => {
+        try {
+          if (tl && tl.isActive()) {
+            tl.kill()
+          }
+          tl.clear()
+        } catch (error) {
+          console.warn(`[cleanupAnimations] Error cleaning up group animation ${key}:`, error)
+        }
+      })
+      groupTransitionTimelinesRef.current.clear()
     }
   }, [])
 

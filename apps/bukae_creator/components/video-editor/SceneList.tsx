@@ -8,6 +8,7 @@ import type { SceneScript } from '@/lib/types/domain/script'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { getScenePlaceholder } from '@/lib/utils/placeholder-image'
 import { SceneSettingsPopover } from './SceneSettingsPopover'
+import { formatTime } from '@/utils/timeline'
 
 interface SceneListProps {
   scenes: SceneScript[]
@@ -670,30 +671,70 @@ export function SceneList({
                       {/* 씬 정보 */}
                       <div className="flex-1 min-w-0 space-y-2">
                         <div className="flex items-center justify-between">
-                          <SceneSettingsPopover
-                            scene={timeline?.scenes[index]!}
-                            globalVoiceTemplate={voiceTemplate}
-                            isGrouped={isGrouped}
-                            groupFirstScene={isGrouped ? timeline?.scenes[firstSceneIndex] : undefined}
-                          >
-                            <button
-                              type="button"
-                              onClick={(e) => e.stopPropagation()}
-                              className="font-bold text-text-dark tracking-[-0.36px] hover:text-[#5e8790] transition-colors cursor-pointer text-left"
-                              style={{ 
-                                fontSize: 'var(--font-size-18)',
-                                lineHeight: 'var(--line-height-18-140)'
-                              }}
+                          <div className="flex flex-col gap-1">
+                            <SceneSettingsPopover
+                              scene={timeline?.scenes[index]!}
+                              globalVoiceTemplate={voiceTemplate}
+                              isGrouped={isGrouped}
+                              groupFirstScene={isGrouped ? timeline?.scenes[firstSceneIndex] : undefined}
                             >
-                              {hasDelimiters
-                                ? `Scene ${sceneOrderNumber} (${scriptParts.length}개 구간)`
-                                : !isGrouped
-                                ? `Scene ${sceneOrderNumber}`
-                                : scene.splitIndex
-                                ? `Scene ${sceneOrderNumber}-${groupSceneOrderNumber}`
-                                : `Scene ${sceneOrderNumber}`}
-                            </button>
-                          </SceneSettingsPopover>
+                              <button
+                                type="button"
+                                onClick={(e) => e.stopPropagation()}
+                                className="font-bold text-text-dark tracking-[-0.36px] hover:text-[#5e8790] transition-colors cursor-pointer text-left"
+                                style={{ 
+                                  fontSize: 'var(--font-size-18)',
+                                  lineHeight: 'var(--line-height-18-140)'
+                                }}
+                              >
+                                {hasDelimiters
+                                  ? `Scene ${sceneOrderNumber} (${scriptParts.length}개 구간)`
+                                  : !isGrouped
+                                  ? `Scene ${sceneOrderNumber}`
+                                  : scene.splitIndex
+                                  ? `Scene ${sceneOrderNumber}-${groupSceneOrderNumber}`
+                                  : `Scene ${sceneOrderNumber}`}
+                              </button>
+                            </SceneSettingsPopover>
+                            {/* 시작/끝 시간 표시 */}
+                            {timeline && (() => {
+                              // 씬의 시작 시간 계산
+                              let sceneStartTime = 0
+                              // @ts-expect-error - 카드에 startTime이 추가되면 사용
+                              if (timeline.scenes[index]?.startTime !== undefined) {
+                                // @ts-expect-error
+                                sceneStartTime = timeline.scenes[index].startTime
+                              } else {
+                                // TTS duration만 사용 (actualPlaybackDuration 우선)
+                                for (let i = 0; i < index; i++) {
+                                  const prevScene = timeline.scenes[i]
+                                  const prevDuration = prevScene?.actualPlaybackDuration && prevScene.actualPlaybackDuration > 0
+                                    ? prevScene.actualPlaybackDuration
+                                    : prevScene?.duration || 0
+                                  sceneStartTime += prevDuration
+                                }
+                              }
+                              
+                              // 씬의 끝 시간 계산 (actualPlaybackDuration 우선 사용)
+                              const scene = timeline.scenes[index]
+                              const sceneDuration = scene?.actualPlaybackDuration && scene.actualPlaybackDuration > 0
+                                ? scene.actualPlaybackDuration
+                                : scene?.duration || 0
+                              const sceneEndTime = sceneStartTime + sceneDuration
+                              
+                              return (
+                                <span 
+                                  className="text-xs text-gray-500 font-medium tracking-[-0.12px]"
+                                  style={{ 
+                                    fontSize: 'var(--font-size-12)',
+                                    lineHeight: 'var(--line-height-12-140)'
+                                  }}
+                                >
+                                  {formatTime(sceneStartTime)} - {formatTime(sceneEndTime)}
+                                </span>
+                              )
+                            })()}
+                          </div>
                         </div>
                         
                         {/* 텍스트 입력 - ||| 구분자가 있으면 각 구간별로 카드 형태로 표시 */}
@@ -824,6 +865,68 @@ export function SceneList({
                           }}
                           placeholder={`구간 ${partIndex + 1} 텍스트 입력...`}
                         />
+                        {/* 구간별 시작/끝 시간 표시 */}
+                        {timeline && (() => {
+                          // 씬의 시작 시간 계산
+                          let sceneStartTime = 0
+                          // @ts-expect-error - 카드에 startTime이 추가되면 사용
+                          if (timeline.scenes[index]?.startTime !== undefined) {
+                            // @ts-expect-error
+                            sceneStartTime = timeline.scenes[index].startTime
+                          } else {
+                            // TTS duration만 사용
+                            for (let i = 0; i < index; i++) {
+                              sceneStartTime += timeline.scenes[i]?.duration || 0
+                            }
+                          }
+                          
+                          // 구간의 시작/끝 시간 계산
+                          // @ts-expect-error - 카드에 parts 정보가 추가되면 사용
+                          const hasPartTimes = timeline.scenes[index]?.parts && Array.isArray(timeline.scenes[index].parts) && timeline.scenes[index].parts.length > partIndex
+                          
+                          let partStartTime = sceneStartTime
+                          let partEndTime = sceneStartTime
+                          
+                          if (hasPartTimes) {
+                            // @ts-expect-error
+                            const part = timeline.scenes[index].parts[partIndex]
+                            // @ts-expect-error
+                            if (part && part.startTime !== undefined && part.endTime !== undefined) {
+                              // @ts-expect-error
+                              partStartTime = part.startTime
+                              // @ts-expect-error
+                              partEndTime = part.endTime
+                            }
+                          } else {
+                            // 기존 로직: 씬 duration을 구간 개수로 나누어 계산 (actualPlaybackDuration 우선)
+                            const scene = timeline.scenes[index]
+                            if (scene) {
+                              const originalText = scene.text?.content || ''
+                              const allParts = originalText.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
+                              const partCount = allParts.length || 1
+                              // actualPlaybackDuration이 있으면 우선 사용
+                              const sceneDuration = scene.actualPlaybackDuration && scene.actualPlaybackDuration > 0
+                                ? scene.actualPlaybackDuration
+                                : scene.duration || 0
+                              const partDuration = sceneDuration / partCount
+                              
+                              partStartTime = sceneStartTime + (partDuration * partIndex)
+                              partEndTime = partStartTime + partDuration
+                            }
+                          }
+                          
+                          return (
+                            <span 
+                              className="text-xs text-gray-500 font-medium tracking-[-0.12px] mt-2 block"
+                              style={{ 
+                                fontSize: 'var(--font-size-12)',
+                                lineHeight: 'var(--line-height-12-140)'
+                              }}
+                            >
+                              {formatTime(partStartTime)} - {formatTime(partEndTime)}
+                            </span>
+                          )
+                        })()}
                       </div>
                       )
                     })}

@@ -260,10 +260,6 @@ export const useSceneManager = ({
         }
       }
 
-      console.log(
-        `[renderSceneContent] 렌더링 경로 확인 | sceneIndex: ${sceneIndex}, partIndex: ${partIndex}, isPlaying: ${isPlaying}, prepareOnly: ${prepareOnly}, shouldSkipAnimation: ${shouldSkipAnimation}, forceTransition: ${forceTransition}, previousIndex: ${previousIndex}`
-      )
-
       // 구간 인덱스가 있으면 해당 구간의 텍스트 추출
       let partText: string | null = null
       const originalText = scene.text?.content || ''
@@ -362,6 +358,32 @@ export const useSceneManager = ({
       // 텍스트 객체 업데이트 (prepareOnly가 아닐 때)
       if (targetTextObj && partText) {
         targetTextObj.text = partText
+        
+        // Transform 위치 적용 (재생 중에도 위치가 올바르게 설정되도록)
+        if (scene.text?.transform) {
+          const scaleX = scene.text.transform.scaleX ?? 1
+          const scaleY = scene.text.transform.scaleY ?? 1
+          targetTextObj.x = scene.text.transform.x
+          targetTextObj.y = scene.text.transform.y
+          targetTextObj.scale.set(scaleX, scaleY)
+          targetTextObj.rotation = scene.text.transform.rotation ?? 0
+        } else if (scene.text) {
+          // Transform이 없으면 기본 위치 설정
+          const position = scene.text.position || 'bottom'
+          const stageHeight = appRef.current.screen.height
+          const stageWidth = appRef.current.screen.width
+          if (position === 'top') {
+            targetTextObj.y = stageHeight * 0.15
+          } else if (position === 'bottom') {
+            targetTextObj.y = stageHeight * 0.85
+          } else {
+            targetTextObj.y = stageHeight * 0.5
+          }
+          targetTextObj.x = stageWidth * 0.5
+          targetTextObj.scale.set(1, 1)
+          targetTextObj.rotation = 0
+        }
+        
         // 밑줄 렌더링
         renderUnderline(targetTextObj, scene)
       }

@@ -438,16 +438,19 @@ export function useSingleScenePlayback({
                 return
               }
               
-              // 실제 재생 시간 계산 및 저장
+              // [성능 최적화] 무거운 작업(setTimeline)을 requestAnimationFrame으로 지연
+              // 이렇게 하면 ended 이벤트 핸들러가 빠르게 완료되어 Performance Violation 방지
               const actualPlaybackDuration = (Date.now() - playbackStartTime) / 1000
               if (timeline && setTimeline && actualPlaybackDuration > 0) {
-                const updatedScenes = timeline.scenes.map((s, idx) => {
-                  if (idx === sceneIndex) {
-                    return { ...s, actualPlaybackDuration }
-                  }
-                  return s
+                requestAnimationFrame(() => {
+                  const updatedScenes = timeline.scenes.map((s, idx) => {
+                    if (idx === sceneIndex) {
+                      return { ...s, actualPlaybackDuration }
+                    }
+                    return s
+                  })
+                  setTimeline({ ...timeline, scenes: updatedScenes })
                 })
-                setTimeline({ ...timeline, scenes: updatedScenes })
               }
               
               try {

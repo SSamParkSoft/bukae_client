@@ -56,7 +56,34 @@ export function useSceneLoader({
     const container = containerRef.current
     const { width, height } = stageDimensions
 
+    // 기존 객체들을 안전하게 정리 (메모리 누수 방지)
+    // 컨테이너의 모든 자식 객체 destroy
+    const children = Array.from(container.children)
+    children.forEach((child) => {
+      try {
+        if (child.parent) {
+          child.parent.removeChild(child)
+        }
+        child.destroy({ children: true })
+      } catch (error) {
+        console.warn('[useSceneLoader] Error destroying child:', error)
+      }
+    })
     container.removeChildren()
+    
+    // spritesRef의 모든 스프라이트 destroy
+    spritesRef.current.forEach((sprite) => {
+      try {
+        if (sprite && sprite.parent) {
+          sprite.parent.removeChild(sprite)
+        }
+        if (sprite) {
+          sprite.destroy({ children: true })
+        }
+      } catch (error) {
+        console.warn('[useSceneLoader] Error destroying sprite:', error)
+      }
+    })
     spritesRef.current.clear()
     
     // textsRef를 clear하기 전에 기존 텍스트 객체의 __debugId와 텍스트 내용을 저장
@@ -68,6 +95,20 @@ export function useSceneLoader({
           debugId: debugId || undefined,
           text: text.text || '',
         })
+      }
+    })
+    
+    // textsRef의 모든 텍스트 객체 destroy
+    textsRef.current.forEach((text) => {
+      try {
+        if (text && text.parent) {
+          text.parent.removeChild(text)
+        }
+        if (text) {
+          text.destroy({ children: true })
+        }
+      } catch (error) {
+        console.warn('[useSceneLoader] Error destroying text:', error)
       }
     })
     textsRef.current.clear()

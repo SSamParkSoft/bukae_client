@@ -33,6 +33,7 @@ import { useStep3State } from './state'
 import { usePlaybackHandlers } from './playback'
 import { useSceneEditHandlers } from './editing'
 import { usePixiRenderHandlers } from './rendering'
+// [강화] 리소스 모니터링 및 상태 동기화 검증 (비활성화됨)
 import * as PIXI from 'pixi.js'
 import * as fabric from 'fabric'
 
@@ -650,6 +651,10 @@ export function useStep3Container() {
     updateCurrentScene,
     lastRenderedSceneIndexRef,
     previousSceneIndexRef,
+    ttsCacheRef: ttsCacheRefShared,
+    buildSceneMarkup: buildSceneMarkupWithTimeline,
+    makeTtsKey: makeTtsKey,
+    voiceTemplate: voiceTemplate,
   })
   
   // useSceneManager를 setCurrentSceneIndex와 함께 다시 생성
@@ -1355,6 +1360,8 @@ export function useStep3Container() {
     saveTextTransformRef.current = saveTextTransform
     loadAllScenesRef.current = loadAllScenes
   }, [drawEditHandles, setupSpriteDrag, handleResize, saveImageTransform, drawTextEditHandles, setupTextDrag, handleTextResize, saveTextTransform, loadAllScenes])
+
+  // [강화] 리소스 모니터링 및 상태 동기화 검증 (비활성화됨)
 
   // 편집 모드 변경 시 핸들 표시/숨김
   useEffect(() => {

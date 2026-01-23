@@ -44,27 +44,12 @@ export function usePlaybackHandlers({
     } else {
       // 모든 씬의 음성 선택 여부 확인
       if (!currentTimeline) {
-        console.log('[handlePlayPause] timeline이 없습니다.')
         return
       }
-      
-      console.log('[handlePlayPause] 음성 선택 여부 확인 시작')
-      console.log('[handlePlayPause] 전역 voiceTemplate:', currentVoiceTemplate)
-      console.log('[handlePlayPause] 총 씬 개수:', currentTimeline.scenes.length)
       
       const scenesWithoutVoice: number[] = []
       for (let i = 0; i < currentTimeline.scenes.length; i++) {
         const scene = currentTimeline.scenes[i]
-        const sceneVoiceTemplateRaw = scene?.voiceTemplate
-        console.log(`[handlePlayPause] 씬 ${i + 1}:`, {
-          sceneId: scene?.sceneId,
-          sceneVoiceTemplate: sceneVoiceTemplateRaw,
-          sceneVoiceTemplateType: typeof sceneVoiceTemplateRaw,
-          sceneVoiceTemplateIsNull: sceneVoiceTemplateRaw === null,
-          sceneVoiceTemplateIsUndefined: sceneVoiceTemplateRaw === undefined,
-          sceneVoiceTemplateTrimmed: sceneVoiceTemplateRaw?.trim(),
-          globalVoiceTemplate: currentVoiceTemplate,
-        })
         
         // 씬별 voiceTemplate이 있으면 사용, 없으면(null/undefined/빈 문자열) 전역 voiceTemplate 사용
         // scene.voiceTemplate이 null, undefined, 빈 문자열이 아닌 경우에만 사용
@@ -75,9 +60,6 @@ export function usePlaybackHandlers({
           ? scene.voiceTemplate 
           : currentVoiceTemplate
         
-        console.log(`[handlePlayPause] 씬 ${i + 1} 최종 voiceTemplate:`, sceneVoiceTemplate)
-        console.log(`[handlePlayPause] 씬 ${i + 1} hasSceneVoiceTemplate:`, hasSceneVoiceTemplate)
-        
         // 최종적으로 voiceTemplate이 없으면 에러
         // sceneVoiceTemplate이 null이거나 빈 문자열이면 음성이 없는 것으로 판단
         // 하지만 sceneVoiceTemplate이 null이면 이미 voiceTemplate을 사용하도록 했으므로,
@@ -85,17 +67,11 @@ export function usePlaybackHandlers({
         const isEmpty = sceneVoiceTemplate == null || 
                        sceneVoiceTemplate === '' ||
                        (typeof sceneVoiceTemplate === 'string' && sceneVoiceTemplate.trim() === '')
-        console.log(`[handlePlayPause] 씬 ${i + 1} isEmpty:`, isEmpty, 'sceneVoiceTemplate:', sceneVoiceTemplate, 'type:', typeof sceneVoiceTemplate, 'length:', sceneVoiceTemplate?.length)
         
         if (isEmpty) {
-          console.log(`[handlePlayPause] 씬 ${i + 1}에 음성이 없습니다.`)
           scenesWithoutVoice.push(i + 1) // 사용자에게 보여줄 때는 1부터 시작
-        } else {
-          console.log(`[handlePlayPause] 씬 ${i + 1}에 음성이 있습니다:`, sceneVoiceTemplate)
         }
       }
-      
-      console.log('[handlePlayPause] 음성이 없는 씬:', scenesWithoutVoice)
       
       if (scenesWithoutVoice.length > 0) {
         setScenesWithoutVoice(scenesWithoutVoice)
@@ -121,8 +97,6 @@ export function usePlaybackHandlers({
     const currentTimeline = timelineRef.current
     const currentVoiceTemplate = voiceTemplateRef.current
     
-    console.log('[handleGroupPlay] 호출됨', { sceneId, groupIndices, groupPlayback: !!currentGroupPlayback })
-    
     if (!currentGroupPlayback) return
     
     // 대상 그룹에 대한 음성 템플릿 존재 여부 확인 (씬별 voiceTemplate 우선, 없으면 전역 voiceTemplate)
@@ -145,12 +119,10 @@ export function usePlaybackHandlers({
     
     // 이미 같은 그룹이 재생 중이면 정지
     if (currentGroupPlayback.playingGroupSceneId === sceneId) {
-      console.log('[handleGroupPlay] 정지 호출')
       currentGroupPlayback.stopGroup()
       return
     }
     
-    console.log('[handleGroupPlay] 재생 호출')
     setShowVoiceRequiredMessage(false)
     await currentGroupPlayback.playGroup(sceneId, groupIndices)
   }, [setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, voiceTemplateRef, groupPlaybackRef])
@@ -161,7 +133,6 @@ export function usePlaybackHandlers({
     const currentTimeline = timelineRef.current
     const currentVoiceTemplate = voiceTemplateRef.current
     
-    console.log('[handleScenePlay] 호출됨', { sceneIndex, groupPlayback: !!currentGroupPlayback, timeline: !!currentTimeline })
     try {
       // 음성 선택 여부 확인 (null, undefined, 빈 문자열 모두 체크)
       const sceneVoice = currentTimeline?.scenes[sceneIndex]?.voiceTemplate || currentVoiceTemplate
@@ -178,7 +149,6 @@ export function usePlaybackHandlers({
       
       // 이미 같은 씬이 재생 중이면 정지
       if (currentGroupPlayback?.playingSceneIndex === sceneIndex) {
-        console.log('[handleScenePlay] 정지 호출')
         currentGroupPlayback.stopGroup()
         return
       }
@@ -187,7 +157,6 @@ export function usePlaybackHandlers({
       // sceneId는 undefined로 전달하고, groupIndices는 [sceneIndex]로 전달
       const scene = currentTimeline?.scenes[sceneIndex]
       const sceneId = scene?.sceneId
-      console.log('[handleScenePlay] 재생 호출', { sceneId, sceneIndex })
       setShowVoiceRequiredMessage(false)
       if (currentGroupPlayback) {
         await currentGroupPlayback.playGroup(sceneId, [sceneIndex])

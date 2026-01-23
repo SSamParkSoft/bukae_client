@@ -98,20 +98,15 @@ export function useTtsManager({
   // 씬 duration을 오디오에서 설정
   const setSceneDurationFromAudio = useCallback(
     (sceneIndex: number, durationSec: number) => {
-      console.log(`[setSceneDurationFromAudio] 호출됨: Scene ${sceneIndex}, durationSec=${durationSec.toFixed(2)}s`)
-      
       if (!timeline || !voiceTemplate) {
-        console.log(`[setSceneDurationFromAudio] early return: timeline=${!!timeline}, voiceTemplate=${!!voiceTemplate}`)
         return
       }
       if (!Number.isFinite(durationSec) || durationSec <= 0) {
-        console.log(`[setSceneDurationFromAudio] early return: durationSec=${durationSec}`)
         return
       }
       
       const scene = timeline.scenes[sceneIndex]
       if (!scene) {
-        console.log(`[setSceneDurationFromAudio] early return: scene 없음`)
         return
       }
       
@@ -124,14 +119,11 @@ export function useTtsManager({
       
       // 기존 duration과 같으면 업데이트하지 않음 (0.01초 이하 차이는 무시)
       if (Math.abs(prev - finalDuration) <= 0.01) {
-        console.log(`[setSceneDurationFromAudio] early return: 기존 duration과 동일 (prev=${prev.toFixed(2)}s, new=${finalDuration.toFixed(2)}s)`)
         return
       }
 
       // 실제 duration 사용 (최소 0.5초만 유지, 최대 제한 없음)
       const clamped = Math.max(0.5, finalDuration)
-      
-      console.log(`[setSceneDurationFromAudio] 업데이트: Scene ${sceneIndex}, prev=${prev.toFixed(2)}s -> new=${clamped.toFixed(2)}s`)
       
       // 이전 totalDuration 계산 (같은 sceneId를 가진 씬들 사이의 transition 제외)
       const prevTotalDuration = calculateTotalDuration(timeline)
@@ -146,8 +138,6 @@ export function useTtsManager({
       // 새로운 totalDuration 계산 (같은 sceneId를 가진 씬들 사이의 transition 제외)
       const newTotalDuration = calculateTotalDuration(newTimeline)
       
-      console.log(`[setSceneDurationFromAudio] totalDuration 변경: ${prevTotalDuration.toFixed(2)}s -> ${newTotalDuration.toFixed(2)}s`)
-      
       // 재생 중일 때 currentTime을 비례적으로 조정하여 재생바 튕김 방지
       if (isPlaying && prevTotalDuration > 0 && newTotalDuration > 0) {
         const ratio = newTotalDuration / prevTotalDuration
@@ -159,7 +149,6 @@ export function useTtsManager({
       }
       
       setTimeline(newTimeline)
-      console.log(`[setSceneDurationFromAudio] timeline 업데이트 완료: Scene ${sceneIndex}`)
     },
     [setTimeline, timeline, isPlaying, setCurrentTime, voiceTemplate]
   )

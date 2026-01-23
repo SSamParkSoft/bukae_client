@@ -183,12 +183,9 @@ export async function ensureSceneTts({
 
       // 강제 재생성이거나 저장소에 파일이 없으면 TTS 생성
       const p = (async () => {
-        // voiceTemplate에서 provider 정보 확인 (로깅용)
+        // voiceTemplate에서 provider 정보 확인
         const { voiceTemplateHelpers } = await import('@/store/useVideoCreateStore')
         const voiceInfo = voiceTemplateHelpers.getVoiceInfo(sceneVoiceTemplate)
-        if (voiceInfo) {
-          console.log(`[ensureSceneTts] Scene ${sceneIndex}, Part ${partIndex}: Provider=${voiceInfo.provider}, VoiceId=${voiceInfo.voiceId}`)
-        }
 
         const res = await fetch('/api/tts/synthesize', {
           method: 'POST',
@@ -214,12 +211,6 @@ export async function ensureSceneTts({
         const blob = await res.blob()
         const durationSec = await getMp3DurationSec(blob)
 
-        // Provider 정보 확인 (응답 헤더에서)
-        const providerHeader = res.headers.get('X-TTS-Provider')
-        if (providerHeader) {
-          console.log(`[ensureSceneTts] TTS 합성 완료: Provider=${providerHeader}, Duration=${durationSec.toFixed(2)}s`)
-        }
-
         // Supabase 업로드
         let url: string | null = null
         try {
@@ -227,11 +218,6 @@ export async function ensureSceneTts({
           // 파일 이름은 업로드 API에서 TTS 형식으로 생성 (타임스탬프_scene_{sceneId}_scene_{sceneId}_voice.mp3)
           formData.append('file', blob)
           formData.append('sceneId', String(scene.sceneId))
-          
-          if (voiceInfo) {
-            // Provider 정보를 메타데이터로 전달 (로깅용, 선택사항)
-            console.log(`[ensureSceneTts] Supabase 업로드 시작: Provider=${voiceInfo.provider}, SceneId=${scene.sceneId}`)
-          }
 
           const uploadRes = await fetch('/api/media/upload', {
             method: 'POST',
@@ -306,11 +292,8 @@ export async function ensureSceneTts({
 
   // 전체 씬 duration 업데이트 (모든 구간의 duration 합)
   const totalDuration = parts.reduce((sum, part) => sum + part.durationSec, 0)
-  console.log(`[ensureSceneTts] Scene ${sceneIndex} 총 duration 계산: parts=${parts.length}개, 각 part duration=[${parts.map(p => p.durationSec.toFixed(2)).join(', ')}]s, 합계=${totalDuration.toFixed(2)}s`)
   if (totalDuration > 0) {
     setSceneDurationFromAudio(sceneIndex, totalDuration)
-  } else {
-    console.warn(`[ensureSceneTts] Scene ${sceneIndex} totalDuration이 0이거나 음수: ${totalDuration}`)
   }
 
   // 변경 상태 제거 (모든 구간 처리 완료 후)

@@ -57,6 +57,56 @@ export function useTtsResources() {
     }
   }, [])
 
+  // [강화] TTS 캐시 크기 제한 상수
+  // 비활성화하려면 아래 상수들을 매우 큰 값으로 설정하거나 cleanupTtsCache 호출을 주석 처리
+  const MAX_TTS_CACHE_SIZE = 100 // 최대 캐시 항목 수
+  const MAX_CACHE_MEMORY_MB = 50 // 최대 메모리 사용량 (MB, 개발 모드에서만 체크)
+
+  // [강화] TTS 캐시 정리 함수
+  // 비활성화하려면 이 함수 전체를 주석 처리하고 resetTtsSession에서 호출 제거
+  const cleanupTtsCache = useCallback(() => {
+    const cache = ttsCacheRef.current
+    
+    // 1. 크기 제한: 오래된 항목부터 제거
+    if (cache.size > MAX_TTS_CACHE_SIZE) {
+      const entries = Array.from(cache.entries())
+      const toRemove = entries.slice(0, cache.size - MAX_TTS_CACHE_SIZE)
+      toRemove.forEach(([key, value]) => {
+        // URL 정리
+        if (value.url) {
+          URL.revokeObjectURL(value.url)
+        }
+        cache.delete(key)
+      })
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[TTS Cache] Cleaned up ${toRemove.length} old entries, remaining: ${cache.size}`)
+      }
+    }
+    
+    // 2. 메모리 사용량 체크 (개발 모드)
+    // TypeScript 타입 확장을 위한 타입 가드
+    const performanceWithMemory = performance as typeof performance & {
+      memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number }
+    }
+    if (process.env.NODE_ENV === 'development' && performanceWithMemory.memory) {
+      const usedMB = performanceWithMemory.memory.usedJSHeapSize / 1024 / 1024
+      if (usedMB > MAX_CACHE_MEMORY_MB) {
+        console.warn(`[TTS Cache] Memory usage high: ${usedMB.toFixed(2)}MB, cleaning cache...`)
+        // 절반만 유지
+        const entries = Array.from(cache.entries())
+        const toKeep = entries.slice(-Math.floor(cache.size / 2))
+        // 제거할 항목들의 URL 정리
+        entries.slice(0, entries.length - toKeep.length).forEach(([, value]) => {
+          if (value.url) {
+            URL.revokeObjectURL(value.url)
+          }
+        })
+        cache.clear()
+        toKeep.forEach(([key, value]) => cache.set(key, value))
+      }
+    }
+  }, [])
+
   // TTS 세션 리셋
   const resetTtsSession = useCallback(() => {
     stopTtsAudio()
@@ -64,8 +114,10 @@ export function useTtsResources() {
     ttsAbortRef.current?.abort()
     ttsAbortRef.current = null
     ttsInFlightRef.current.clear()
+    // [강화] 캐시 정리 후 clear (비활성화하려면 아래 줄 주석 처리)
+    cleanupTtsCache()
     ttsCacheRef.current.clear()
-  }, [stopTtsAudio, stopScenePreviewAudio])
+  }, [stopTtsAudio, stopScenePreviewAudio, cleanupTtsCache])
 
   return {
     ttsCacheRef,

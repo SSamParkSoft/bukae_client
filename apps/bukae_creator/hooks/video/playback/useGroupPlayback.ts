@@ -895,17 +895,21 @@ export function useGroupPlayback({
           const handleEnded = () => {
             cleanup()
             
-            // 오디오 재생 완료 후에도 텍스트가 표시되어 있는지 확인하고 다시 표시
-            if (currentTextToUpdate && currentPartText) {
-              if (containerRef.current && currentTextToUpdate.parent !== containerRef.current) {
-                if (currentTextToUpdate.parent) {
-                  currentTextToUpdate.parent.removeChild(currentTextToUpdate)
+            // [성능 최적화] requestAnimationFrame으로 DOM 조작을 다음 프레임으로 지연
+            // 이렇게 하면 ended 이벤트 핸들러가 빠르게 완료되어 Performance Violation 방지
+            requestAnimationFrame(() => {
+              // 오디오 재생 완료 후에도 텍스트가 표시되어 있는지 확인하고 다시 표시
+              if (currentTextToUpdate && currentPartText) {
+                if (containerRef.current && currentTextToUpdate.parent !== containerRef.current) {
+                  if (currentTextToUpdate.parent) {
+                    currentTextToUpdate.parent.removeChild(currentTextToUpdate)
+                  }
+                  containerRef.current.addChild(currentTextToUpdate)
                 }
-                containerRef.current.addChild(currentTextToUpdate)
+                currentTextToUpdate.visible = true
+                currentTextToUpdate.alpha = 1
               }
-              currentTextToUpdate.visible = true
-              currentTextToUpdate.alpha = 1
-            }
+            })
             resolve()
           }
           

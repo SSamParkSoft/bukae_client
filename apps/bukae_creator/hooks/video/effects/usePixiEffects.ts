@@ -957,9 +957,9 @@ export const usePixiEffects = ({
           mask.clear()
           // 마스크는 흰색으로 채워서 마스크 영역을 정의
           // 컨테이너의 글로벌 좌표계에서 스프라이트의 중심 위치를 기준으로 원 그리기
-          mask.beginFill(0xffffff, 1)
-          mask.drawCircle(centerX, centerY, state.r)
-          mask.endFill()
+          // [PixiJS v8] circle을 먼저 호출한 후 fill을 호출해야 함
+          mask.circle(centerX, centerY, state.r)
+          mask.fill({ color: 0xffffff, alpha: 1 })
         }
         
         // 초기 마스크 그리기 (반지름 0으로 시작 - 아무것도 보이지 않음)

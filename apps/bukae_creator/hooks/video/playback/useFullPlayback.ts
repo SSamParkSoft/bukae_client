@@ -221,230 +221,69 @@ export function useFullPlayback({
 
   // 재생 중지 함수
   const stopAllScenes = useCallback(() => {
-    // 일시정지 시 현재 재생 위치를 저장하기 위해 현재 시간 계산
-    let finalCurrentTime = 0
-    let targetSceneIndex = currentSceneIndexRef.current
-    let partStartAbsoluteTime = 0
+    // 일시정지 시 현재 재생 중인 씬의 첫 구간 시작 또는 씬 시작으로 이동
+    const targetSceneIndex = currentSceneIndexRef.current
     
-    if (isPlayingAllRef.current && groupPlaybackStartTimeRef.current !== null) {
-      // 실제 TTS 재생 시작 시점부터 경과한 시간 계산
-      const elapsed = (Date.now() - groupPlaybackStartTimeRef.current) / 1000
-      const elapsedWithSpeed = elapsed * (playbackSpeed ?? 1.0)
-      
-      // 현재 그룹의 진행 시간 계산
-      const currentGroupElapsed = Math.min(
-        elapsedWithSpeed,
-        currentGroupDurationRef.current
-      )
-      
-      // 전체 재생 시간 = 누적 시간 + 현재 그룹 진행 시간
-      finalCurrentTime = accumulatedTimeRef.current + currentGroupElapsed
-    } else if (currentTimeRef) {
-      // 재생이 시작되지 않았거나 이미 완료된 경우, ref에 저장된 현재 시간 사용
-      finalCurrentTime = currentTimeRef.current
+    if (!timeline || targetSceneIndex < 0 || targetSceneIndex >= timeline.scenes.length) {
+      // 애니메이션 정리만 수행
+      stopPlaybackCore({
+        sceneIndex: currentSceneIndexRef.current,
+        activeAnimationsRef,
+        spritesRef,
+        textsRef,
+        stopTtsAudio,
+        stopBgmAudio,
+      })
+      return
     }
     
-    // 일시정지 시 구간의 시작으로 이동: 현재 시간에 맞는 씬과 구간 계산 (멈춘 음성 파일의 시작점)
-    if (timeline && finalCurrentTime > 0 && buildSceneMarkup && makeTtsKey && voiceTemplate) {
-      // TTS duration만 사용하여 씬 인덱스 계산 (전체 재생과 동일한 방식)
-      let accumulated = 0
-      targetSceneIndex = timeline.scenes.length - 1
-      for (let i = 0; i < timeline.scenes.length; i++) {
-        const sceneDuration = timeline.scenes[i].duration
-        const sceneStart = accumulated
-        const sceneEnd = accumulated + sceneDuration
-        
-        if (finalCurrentTime >= sceneStart && finalCurrentTime < sceneEnd) {
-          targetSceneIndex = i
-          break
-        }
-        
-        if (i === timeline.scenes.length - 1 && finalCurrentTime >= sceneEnd) {
-          targetSceneIndex = i
-          break
-        }
-        
-        accumulated += sceneDuration
-      }
-      
-      const scene = timeline.scenes[targetSceneIndex]
-      
-      if (scene) {
-        // 씬의 시작 시간 계산 (TTS duration만 사용, transition duration 제외)
-        // 전체 재생에서는 TTS duration만 사용하므로 동일하게 계산
-        let sceneStartTime = 0
-        for (let i = 0; i < targetSceneIndex; i++) {
-          sceneStartTime += timeline.scenes[i].duration
-        }
-        
-        // 씬 내에서 경과 시간 계산
-        const elapsedInScene = finalCurrentTime - sceneStartTime
-        
-        // 씬의 자막 구간 파싱
-        const originalText = scene.text?.content || ''
-        const scriptParts = splitSubtitleByDelimiter(originalText)
-        
-        // 각 구간의 duration을 누적하여 현재 구간 찾기
-        let accumulatedPartTime = 0
-        let targetPartIndex = 0
-        
-        const markups = buildSceneMarkup(timeline, targetSceneIndex)
-        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
-        
-        for (let partIdx = 0; partIdx < scriptParts.length && partIdx < markups.length; partIdx++) {
-          const markup = markups[partIdx]
-          if (markup) {
-            const key = makeTtsKey(sceneVoiceTemplate, markup)
-            const cached = ttsCacheRef.current.get(key)
-            const partDuration = cached?.durationSec || scene.duration / scriptParts.length || 1
-            
-            // 현재 구간의 끝 시간
-            const partEndTime = accumulatedPartTime + partDuration
-            
-            // 현재 시간이 이 구간 내에 있으면 이 구간의 시작으로 이동
-            if (elapsedInScene >= accumulatedPartTime && elapsedInScene < partEndTime) {
-              targetPartIndex = partIdx
-              // 구간의 시작 시간 계산 (멈춘 음성 파일의 시작점)
-              partStartAbsoluteTime = sceneStartTime + accumulatedPartTime
-              break
-            }
-            
-            accumulatedPartTime = partEndTime
-          }
-        }
-        
-        // 타임라인 안정화: 모든 상태를 한 번에 배치 업데이트 (리렌더링 최소화)
-        // requestAnimationFrame을 사용하여 다음 프레임에 업데이트하여 불필요한 리렌더링 방지
-        requestAnimationFrame(() => {
-          // 1. 시간 업데이트 (구간의 시작 시간)
-          if (partStartAbsoluteTime > 0) {
-            if (setCurrentTime) {
-              setCurrentTime(partStartAbsoluteTime)
-            }
-            if (currentTimeRef) {
-              currentTimeRef.current = partStartAbsoluteTime
-            }
-          }
-          
-          // 2. 씬 인덱스 업데이트
-          currentSceneIndexRef.current = targetSceneIndex
-          lastRenderedSceneIndexRef.current = targetSceneIndex
-          if (setCurrentSceneIndex) {
-            setCurrentSceneIndex(targetSceneIndex)
-          }
-        })
-        
-        // 구간의 시작으로 이동: 텍스트와 이미지를 직접 업데이트하여 해당 구간 표시 (씬 전환 없이)
-        // renderSceneContent를 호출하면 updateCurrentScene이 호출되어 위치가 변경될 수 있으므로
-        // 직접 객체를 업데이트하는 방식 사용
-        
-        // 현재 씬의 이미지 표시
-        const currentSprite = spritesRef.current.get(targetSceneIndex)
-        if (currentSprite && containerRef.current) {
-          // 같은 그룹 내 씬인 경우 첫 번째 씬의 스프라이트 사용
-          let spriteToShow = currentSprite
-          if (scene.sceneId !== undefined) {
-            const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === scene.sceneId)
-            if (firstSceneIndexInGroup >= 0 && firstSceneIndexInGroup !== targetSceneIndex) {
-              const firstSprite = spritesRef.current.get(firstSceneIndexInGroup)
-              if (firstSprite) {
-                spriteToShow = firstSprite
-              }
-            }
-          }
-          
-          if (spriteToShow.parent !== containerRef.current) {
-            if (spriteToShow.parent) {
-              spriteToShow.parent.removeChild(spriteToShow)
-            }
-            containerRef.current.addChild(spriteToShow)
-            containerRef.current.setChildIndex(spriteToShow, 0) // 이미지를 맨 뒤로
-          }
-          spriteToShow.visible = true
-          spriteToShow.alpha = 1
-        }
-        
-        // 다른 씬의 이미지 숨기기
-        spritesRef.current.forEach((sprite, idx) => {
-          if (sprite && idx !== targetSceneIndex) {
-            // 같은 그룹이 아닌 경우에만 숨김
-            const otherScene = timeline.scenes[idx]
-            if (otherScene?.sceneId !== scene.sceneId) {
-              sprite.visible = false
-              sprite.alpha = 0
-            }
-          }
-        })
-        
-        // 텍스트 업데이트
-        if (scriptParts.length > 0 && targetPartIndex < scriptParts.length) {
-          const partText = scriptParts[targetPartIndex]?.trim()
-          if (partText) {
-            // 같은 그룹 내 씬인 경우 첫 번째 씬의 텍스트 객체 사용
-            let targetTextObj = textsRef.current.get(targetSceneIndex)
-            if (scene.sceneId !== undefined) {
-              const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === scene.sceneId)
-              if (firstSceneIndexInGroup >= 0 && firstSceneIndexInGroup !== targetSceneIndex) {
-                targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || targetTextObj
-              }
-            }
-            
-            if (targetTextObj) {
-              targetTextObj.text = partText
-              targetTextObj.visible = true
-              targetTextObj.alpha = 1
-              
-              // 컨테이너에 추가 (없는 경우)
-              if (containerRef.current && targetTextObj.parent !== containerRef.current) {
-                if (targetTextObj.parent) {
-                  targetTextObj.parent.removeChild(targetTextObj)
-                }
-                containerRef.current.addChild(targetTextObj)
-              }
-              
-              // 텍스트를 맨 위로 올림
-              if (containerRef.current && targetTextObj.parent === containerRef.current) {
-                const currentIndex = containerRef.current.getChildIndex(targetTextObj)
-                const maxIndex = containerRef.current.children.length - 1
-                if (currentIndex !== maxIndex) {
-                  containerRef.current.setChildIndex(targetTextObj, maxIndex)
-                }
-              }
-            }
-          }
-        }
-        
-        // 다른 씬의 텍스트 숨기기
-        textsRef.current.forEach((text, idx) => {
-          if (text && idx !== targetSceneIndex) {
-            // 같은 그룹이 아닌 경우에만 숨김
-            const otherScene = timeline.scenes[idx]
-            if (otherScene?.sceneId !== scene.sceneId) {
-              text.visible = false
-              text.alpha = 0
-            }
-          }
-        })
+    const scene = timeline.scenes[targetSceneIndex]
+    if (!scene) {
+      stopPlaybackCore({
+        sceneIndex: targetSceneIndex,
+        activeAnimationsRef,
+        spritesRef,
+        textsRef,
+        stopTtsAudio,
+        stopBgmAudio,
+      })
+      return
+    }
+    
+    // 씬의 시작 시간 계산
+    let sceneStartTime = 0
+    if (scene.startTime !== undefined) {
+      sceneStartTime = scene.startTime
+    } else {
+      for (let i = 0; i < targetSceneIndex; i++) {
+        sceneStartTime += timeline.scenes[i].duration
       }
     }
     
-    // 공통 재생 정지 로직 (애니메이션 정리, 스프라이트/텍스트 복원, 오디오 정지)
-    stopPlaybackCore({
-      sceneIndex: currentSceneIndexRef.current,
-      activeAnimationsRef,
-      spritesRef,
-      textsRef,
-      stopTtsAudio,
-      stopBgmAudio,
-    })
+    // 첫 구간의 시작 시간 찾기
+    let firstPartStartTime = sceneStartTime
+    const targetPartIndex = 0
     
-    // AbortController로 재생 중단
+    // 카드에 구간 정보가 있는지 확인
+    const hasPartTimes = scene.parts && Array.isArray(scene.parts) && scene.parts.length > 0
+    
+    if (hasPartTimes && scene.parts && scene.parts.length > 0) {
+      // 카드에 저장된 첫 구간의 시작 시간 사용
+      const firstPart = scene.parts[0]
+      if (firstPart && firstPart.startTime !== undefined) {
+        firstPartStartTime = firstPart.startTime
+      }
+    } else {
+      // TTS duration으로 첫 구간 계산 - 첫 구간은 씬 시작 시간과 동일 (이미 sceneStartTime으로 설정됨)
+    }
+    
+    // AbortController로 재생 중단 (먼저 중단)
     if (playbackAbortControllerRef.current) {
       playbackAbortControllerRef.current.abort()
       playbackAbortControllerRef.current = null
     }
 
-    // 재생 상태 초기화
+    // 재생 상태 초기화 (먼저 초기화)
     isPlayingAllRef.current = false
     setIsPlayingAll(false)
     setIsPlaying(false)
@@ -452,28 +291,74 @@ export function useFullPlayback({
     if (setTimelineIsPlaying) {
       setTimelineIsPlaying(false)
     }
+    
+    // 공통 재생 정지 로직을 먼저 호출하여 애니메이션 정리
+    stopPlaybackCore({
+      sceneIndex: targetSceneIndex,
+      activeAnimationsRef,
+      spritesRef,
+      textsRef,
+      stopTtsAudio,
+      stopBgmAudio,
+    })
+    
+    // 시간 업데이트 (첫 구간의 시작 시간 또는 씬 시작 시간) - 반드시 먼저 업데이트
+    if (currentTimeRef) {
+      currentTimeRef.current = firstPartStartTime
+    }
+    if (setCurrentTime) {
+      setCurrentTime(firstPartStartTime)
+    }
+    
+    // 씬 인덱스 업데이트
+    currentSceneIndexRef.current = targetSceneIndex
+    lastRenderedSceneIndexRef.current = targetSceneIndex
+    if (setCurrentSceneIndex) {
+      setCurrentSceneIndex(targetSceneIndex)
+    }
+    
+    // 씬 업데이트 (첫 구간 시작 지점으로 이동) - 시간 업데이트 후 실행
+    if (renderSceneContent) {
+      renderSceneContent(targetSceneIndex, targetPartIndex, {
+        forceTransition: 'none',
+        skipAnimation: true,
+        previousIndex: lastRenderedSceneIndexRef.current,
+        isPlaying: false,
+      })
+    }
 
     // 타임라인 안정화: 모든 상태 업데이트 완료 후 자동 업데이트 재활성화
-    // requestAnimationFrame을 사용하여 다음 프레임에 업데이트하여 리렌더링 최소화
     requestAnimationFrame(() => {
       // useTimelinePlayer의 자동 시간 업데이트 다시 활성화
       if (disableAutoTimeUpdateRef) {
         disableAutoTimeUpdateRef.current = false
       }
     })
-
-    // 재생바 업데이트 interval 정리
-    cleanupProgressInterval()
-
-    // groupPlaybackStartTimeRef 초기화 (다음 재생 시작 시점을 위해)
-    groupPlaybackStartTimeRef.current = null
-    
-    // 상태 초기화 (일시정지 시에는 accumulatedTimeRef를 유지하지 않음 - 재생 재개 시 다시 계산)
-    // accumulatedTimeRef는 재생 재개 시 현재 씬부터 다시 계산되므로 여기서 초기화해도 됨
-    currentGroupStartTimeRef.current = 0
-    currentGroupDurationRef.current = 0
-    bgmStartedRef.current = false
-  }, [stopPlaybackCore, setTimelineIsPlaying, cleanupProgressInterval, disableAutoTimeUpdateRef, activeAnimationsRef, spritesRef, textsRef, currentSceneIndexRef, stopTtsAudio, stopBgmAudio, setIsPlaying, setCurrentTime, playbackSpeed, currentTimeRef, timeline, setCurrentSceneIndex, renderSceneContent, lastRenderedSceneIndexRef])
+  }, [
+    timeline,
+    currentSceneIndexRef,
+    buildSceneMarkup,
+    makeTtsKey,
+    voiceTemplate,
+    ttsCacheRef,
+    stopPlaybackCore,
+    activeAnimationsRef,
+    spritesRef,
+    textsRef,
+    stopTtsAudio,
+    stopBgmAudio,
+    setCurrentTime,
+    currentTimeRef,
+    setCurrentSceneIndex,
+    lastRenderedSceneIndexRef,
+    renderSceneContent,
+    playbackAbortControllerRef,
+    setIsPlayingAll,
+    setIsPlaying,
+    setTimelineIsPlaying,
+    disableAutoTimeUpdateRef,
+    // ttsCacheRef는 내부에서만 사용되므로 dependency에서 제외
+  ])
 
   // 전체 재생 함수
   const playAllScenes = useCallback(async () => {
@@ -590,15 +475,123 @@ export function useFullPlayback({
       disableAutoTimeUpdateRef.current = true
     }
 
-    // 현재 선택된 씬부터 재생 시작 (ref만 업데이트, 상태는 업데이트하지 않아서 중복 렌더링 방지)
-    // setCurrentSceneIndex는 playGroup에서 자동으로 호출되므로 여기서는 호출하지 않음
-    const startSceneIndex = currentSceneIndexRef.current
-    currentSceneIndexRef.current = startSceneIndex
-
-    // 현재 씬까지의 누적 시간 계산 (TTS duration만 사용)
+    // 현재 시간 위치부터 재생 시작 (재생바에서 선택한 위치 반영)
+    // currentTimeRef를 확인하여 현재 시간 위치에 맞는 씬과 구간을 찾음
+    let startSceneIndex = currentSceneIndexRef.current
     let accumulatedTime = 0
-    for (let i = 0; i < startSceneIndex; i++) {
-      accumulatedTime += timeline.scenes[i].duration
+    
+    // currentTimeRef가 있으면 현재 시간 위치부터 재생
+    if (currentTimeRef && currentTimeRef.current > 0 && timeline && buildSceneMarkup && makeTtsKey && voiceTemplate) {
+      const currentTime = currentTimeRef.current
+      
+      // TTS duration만 사용하여 씬 인덱스 계산 (전체 재생과 동일한 방식)
+      let accumulated = 0
+      startSceneIndex = timeline.scenes.length - 1
+      for (let i = 0; i < timeline.scenes.length; i++) {
+        const sceneDuration = timeline.scenes[i].duration
+        const sceneStart = accumulated
+        const sceneEnd = accumulated + sceneDuration
+        
+        if (currentTime >= sceneStart && currentTime < sceneEnd) {
+          startSceneIndex = i
+          break
+        }
+        
+        if (i === timeline.scenes.length - 1 && currentTime >= sceneEnd) {
+          startSceneIndex = i
+          break
+        }
+        
+        accumulated += sceneDuration
+      }
+      
+      // 현재 씬까지의 누적 시간 계산
+      // 카드에 scene.startTime이 있으면 그걸 사용 (더 정확함)
+      const scene = timeline.scenes[startSceneIndex]
+      if (scene) {
+        if (scene.startTime !== undefined) {
+          accumulatedTime = scene.startTime
+        } else {
+          // TTS duration만 사용
+          accumulatedTime = 0
+          for (let i = 0; i < startSceneIndex; i++) {
+            accumulatedTime += timeline.scenes[i].duration
+          }
+        }
+        
+        // 현재 시간 위치에 맞는 구간의 시작 시간 계산
+        const sceneStartTime = accumulatedTime
+        const elapsedInScene = currentTime - sceneStartTime
+        
+        // 씬의 자막 구간 파싱
+        const originalText = scene.text?.content || ''
+        const scriptParts = splitSubtitleByDelimiter(originalText)
+        
+        // 각 구간의 duration을 누적하여 현재 구간 찾기
+        // 카드에 scene.parts[].startTime, scene.parts[].endTime이 있으면 그걸 사용 (더 정확함)
+        let accumulatedPartTime = 0
+        const markups = buildSceneMarkup(timeline, startSceneIndex)
+        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+        
+        // 카드에 구간 정보가 있는지 확인
+        const hasPartTimes = scene.parts && Array.isArray(scene.parts) && scene.parts.length > 0
+        
+        if (hasPartTimes && scene.parts) {
+          // 카드에 저장된 구간 정보 사용
+          for (let partIdx = 0; partIdx < scene.parts.length; partIdx++) {
+            const part = scene.parts[partIdx]
+            if (part && part.startTime !== undefined && part.endTime !== undefined) {
+              const partStartTime = part.startTime
+              const partEndTime = part.endTime
+              
+              // 현재 시간이 이 구간 내에 있으면 이 구간의 시작 시간 사용
+              if (currentTime >= partStartTime && currentTime < partEndTime) {
+                accumulatedTime = partStartTime
+                break
+              }
+            }
+          }
+        } else {
+          // 기존 로직: TTS duration을 계산하여 구간 찾기
+          for (let partIdx = 0; partIdx < scriptParts.length && partIdx < markups.length; partIdx++) {
+            const markup = markups[partIdx]
+            if (markup) {
+              const key = makeTtsKey(sceneVoiceTemplate, markup)
+              const cached = ttsCacheRef.current.get(key)
+              const partDuration = cached?.durationSec || scene.duration / scriptParts.length || 1
+              
+              // 현재 구간의 끝 시간
+              const partEndTime = accumulatedPartTime + partDuration
+              
+              // 현재 시간이 이 구간 내에 있으면 이 구간의 시작 시간 사용
+              if (elapsedInScene >= accumulatedPartTime && elapsedInScene < partEndTime) {
+                accumulatedTime = sceneStartTime + accumulatedPartTime
+                break
+              }
+              
+              accumulatedPartTime = partEndTime
+            }
+          }
+        }
+      } else {
+        // 씬이 없는 경우 기본 계산
+        accumulatedTime = 0
+        for (let i = 0; i < startSceneIndex; i++) {
+          accumulatedTime += timeline.scenes[i].duration
+        }
+      }
+      
+      // 씬 인덱스 업데이트
+      currentSceneIndexRef.current = startSceneIndex
+    } else {
+      // currentTimeRef가 없거나 0이면 기존 로직 사용
+      startSceneIndex = currentSceneIndexRef.current
+      currentSceneIndexRef.current = startSceneIndex
+      
+      // 현재 씬까지의 누적 시간 계산 (TTS duration만 사용)
+      for (let i = 0; i < startSceneIndex; i++) {
+        accumulatedTime += timeline.scenes[i].duration
+      }
     }
 
     // 상태 초기화
@@ -861,6 +854,9 @@ export function useFullPlayback({
         // 여기서는 초기화만 함
         groupPlaybackStartTimeRef.current = null
 
+        // 현재 그룹의 시작 시간 저장 (재생 재개 시 중복 계산 방지)
+        const groupStartTime = accumulatedTimeRef.current
+
         // BGM 재생 시작 (첫 번째 그룹만, 재생 시작 직전)
         if (!bgmStartedRef.current && bgmTemplate) {
           bgmStartedRef.current = true
@@ -913,13 +909,15 @@ export function useFullPlayback({
           // 실제 재생 시간이 예상 길이보다 길 수 있으므로, 실제 경과 시간을 우선 사용
           // (예상 길이보다 실제 재생 시간이 길면, 예상 길이를 늘림)
           actualGroupDuration = Math.max(actualElapsedWithSpeed, groupDuration)
-          accumulatedTimeRef.current += actualGroupDuration
+          // 그룹 시작 시간부터 계산하여 중복 계산 방지
+          accumulatedTimeRef.current = groupStartTime + actualGroupDuration
           
           // TTS duration 합계를 정확히 사용하므로 actualTotalDurationRef 업데이트하지 않음
         } else {
           // fallback: 계산된 duration 사용
           actualGroupDuration = groupDuration
-          accumulatedTimeRef.current += actualGroupDuration
+          // 그룹 시작 시간부터 계산하여 중복 계산 방지
+          accumulatedTimeRef.current = groupStartTime + actualGroupDuration
         }
         
         // 각 씬의 실제 재생 시간 설정 (그룹 전체 재생 시간을 각 씬의 TTS 재생 시간 비율로 할당)

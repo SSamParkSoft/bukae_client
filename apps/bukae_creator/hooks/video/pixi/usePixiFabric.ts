@@ -163,12 +163,18 @@ export function usePixiFabric({
           // Ticker에 렌더링 콜백 추가 (유일한 렌더링 지점)
           const tickerCallback = () => {
             // appRef.current가 null이거나 destroy되었는지 확인
-            if (!appRef.current || !appRef.current.canvas) {
+            const currentApp = appRef.current
+            if (!currentApp || !currentApp.canvas || currentApp.destroyed) {
               return
             }
             
-            // Canvas 렌더링 (유일한 렌더링 지점)
-            appRef.current.render()
+            try {
+              // Canvas 렌더링 (유일한 렌더링 지점)
+              currentApp.render()
+            } catch (error) {
+              // 렌더링 중 에러 발생 시 무시 (앱이 destroy된 경우 등)
+              console.warn('[usePixiFabric] Render error:', error)
+            }
           }
           app.ticker.add(tickerCallback)
           
