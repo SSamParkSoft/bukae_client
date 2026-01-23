@@ -218,11 +218,31 @@ export function useGroupPlayback({
 
     if (fullSubtitleFromStore) {
       // store의 fullSubtitle 사용 (자막 씬 분할 시 원본 전체 자막 포함)
+      // 하지만 필터링된 그룹의 경우, 원래 그룹의 첫 번째 씬부터 시작하는 자막만 사용해야 함
       const scriptParts = splitSubtitleByDelimiter(fullSubtitleFromStore)
-      for (let partIdx = 0; partIdx < scriptParts.length; partIdx++) {
+      
+      // 필터링된 그룹의 첫 번째 씬이 원래 그룹의 몇 번째 씬인지 찾기
+      let startPartIndex = 0
+      if (firstSceneStructure && firstSceneIndex !== firstSceneStructure.groupStartIndex) {
+        // 원래 그룹의 모든 씬 인덱스 찾기
+        const originalGroupIndices: number[] = []
+        for (let i = firstSceneStructure.groupStartIndex; i <= firstSceneStructure.groupEndIndex; i++) {
+          originalGroupIndices.push(i)
+        }
+        
+        // 필터링된 그룹의 첫 번째 씬이 원래 그룹의 몇 번째인지 찾기
+        const indexInOriginalGroup = originalGroupIndices.indexOf(firstSceneIndex)
+        if (indexInOriginalGroup >= 0) {
+          startPartIndex = indexInOriginalGroup
+        }
+      }
+      
+      // 필터링된 그룹의 첫 번째 씬부터 시작하는 자막만 사용
+      for (let partIdx = startPartIndex; partIdx < scriptParts.length; partIdx++) {
         const partText = scriptParts[partIdx]?.trim()
         if (partText) {
-          const sceneIndex = groupIndices[Math.min(partIdx, groupIndices.length - 1)]
+          const relativePartIndex = partIdx - startPartIndex
+          const sceneIndex = groupIndices[Math.min(relativePartIndex, groupIndices.length - 1)]
           mergedTextParts.push({
             text: partText,
             sceneIndex,
@@ -397,10 +417,10 @@ export function useGroupPlayback({
       // 오디오 정리
       cleanupAudio()
       
-      // 첫 번째 씬: 전환 효과만 표시
-      const firstSceneIndexForRender = groupIndices[0]
-        const firstSceneForRender = updatedTimeline.scenes[firstSceneIndexForRender]
-      currentSceneIndexRef.current = firstSceneIndexForRender
+      // 선택된 씬부터 시작 (groupIndices[0]는 이미 필터링된 그룹의 첫 번째 씬)
+      const startSceneIndex = groupIndices[0]
+      const startScene = updatedTimeline.scenes[startSceneIndex]
+      currentSceneIndexRef.current = startSceneIndex
       
       // 그룹 재생 시작 전에 컨테이너의 모든 자식 제거 및 숨김
       if (containerRef.current) {
@@ -433,37 +453,49 @@ export function useGroupPlayback({
       const mergedTextParts = parseMergedTextParts(groupIndices, updatedTimeline)
       // mergedTextParts.length === 0이어도 finally 블록이 실행되도록 try 블록 내에서 처리
 
+      // 선택된 씬의 첫 번째 파트 인덱스 찾기
+      let startPartIndex = 0
+      if (mergedTextParts.length > 0) {
+        // 선택된 씬의 첫 번째 파트를 찾음
+        const startPartIndexFound = mergedTextParts.findIndex(
+          (part) => part.sceneIndex === startSceneIndex
+        )
+        if (startPartIndexFound >= 0) {
+          startPartIndex = startPartIndexFound
+        }
+      }
+
       // 텍스트 객체 찾기
-      const textToUpdate = findTextObject(firstSceneIndex, updatedTimeline)
+      const textToUpdate = findTextObject(startSceneIndex, updatedTimeline)
       
       // 텍스트가 컨테이너에 없으면 추가하고 표시
         // 텍스트 재렌더링하지 않음 (이미 보이는 상태라면 그대로 유지)
       
-      if (renderSceneContent) {
-        // 렌더링 경로 확인: 그룹 재생 시작에서 renderSceneContent 사용
-        const isMovement = movements.some((m) => m.value === (firstSceneForRender?.transition || ''))
+      // 선택된 씬의 첫 번째 파트부터 렌더링 시작 (첫 번째 씬 전체를 렌더링하지 않음)
+      if (renderSceneContent && mergedTextParts.length > startPartIndex) {
+        const startPart = mergedTextParts[startPartIndex]
+        const isMovement = movements.some((m) => m.value === (startScene?.transition || ''))
         
-        // 첫 번째 구간의 실제 partIndex를 사용하여 TTS 듀레이션 계산
+        // 선택된 구간의 실제 partIndex를 사용하여 TTS 듀레이션 계산
         let transitionDurationForRender = 1
-        if (isMovement && mergedTextParts.length > 0) {
-          const firstPart = mergedTextParts[0]
-          const partDuration = getPartTtsDuration(firstPart.sceneIndex, firstPart.partIndex)
+        if (isMovement) {
+          const partDuration = getPartTtsDuration(startPart.sceneIndex, startPart.partIndex)
           transitionDurationForRender = Math.max(partDuration, 1)
         }
 
-        renderSceneContent(firstSceneIndexForRender, null, {
+        renderSceneContent(startSceneIndex, startPart.partIndex, {
           skipAnimation: false,
-          forceTransition: firstSceneForRender?.transition || 'none',
+          forceTransition: startScene?.transition || 'none',
           updateTimeline: false,
           prepareOnly: false,
           isPlaying: true,
           transitionDuration: transitionDurationForRender,
           onComplete: () => {
-            lastRenderedSceneIndexRef.current = firstSceneIndexForRender
+            lastRenderedSceneIndexRef.current = startSceneIndex
           },
         })
       } else {
-        lastRenderedSceneIndexRef.current = firstSceneIndexForRender
+        lastRenderedSceneIndexRef.current = startSceneIndex
       }
 
       
@@ -955,9 +987,9 @@ export function useGroupPlayback({
         }
       }
       
-      // TTS 재생 시작
-      if (mergedTextParts.length > 0) {
-        await playPart(0)
+      // TTS 재생 시작 (선택된 씬의 파트부터 시작)
+      if (mergedTextParts.length > startPartIndex) {
+        await playPart(startPartIndex)
       }
       
       // actualPlaybackDuration은 useFullPlayback에서 그룹 전체 재생 시간을 사용해서 설정하므로

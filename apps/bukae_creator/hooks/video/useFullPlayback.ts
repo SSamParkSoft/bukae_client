@@ -382,12 +382,19 @@ export function useFullPlayback({
       disableAutoTimeUpdateRef.current = true
     }
 
-    // 첫 번째 씬으로 이동 (ref만 업데이트, 상태는 업데이트하지 않아서 중복 렌더링 방지)
+    // 현재 선택된 씬부터 재생 시작 (ref만 업데이트, 상태는 업데이트하지 않아서 중복 렌더링 방지)
     // setCurrentSceneIndex는 playGroup에서 자동으로 호출되므로 여기서는 호출하지 않음
-    currentSceneIndexRef.current = 0
+    const startSceneIndex = currentSceneIndexRef.current
+    currentSceneIndexRef.current = startSceneIndex
+
+    // 현재 씬까지의 누적 시간 계산 (TTS duration만 사용)
+    let accumulatedTime = 0
+    for (let i = 0; i < startSceneIndex; i++) {
+      accumulatedTime += timeline.scenes[i].duration
+    }
 
     // 상태 초기화
-    accumulatedTimeRef.current = 0
+    accumulatedTimeRef.current = accumulatedTime
     currentGroupStartTimeRef.current = 0
     currentGroupDurationRef.current = 0
     bgmStartedRef.current = false
@@ -478,6 +485,16 @@ export function useFullPlayback({
       // 그룹 엔트리를 배열로 변환 (순서 유지)
       const groupEntries = Array.from(sceneGroups.entries())
 
+      // 현재 씬이 포함된 그룹 찾기
+      let startGroupIndex = 0
+      for (let i = 0; i < groupEntries.length; i++) {
+        const [, groupIndices] = groupEntries[i]
+        if (groupIndices.includes(startSceneIndex)) {
+          startGroupIndex = i
+          break
+        }
+      }
+
       // 그룹별로 순차 재생
       const playGroupsSequentially = async (
         groupEntries: Array<[number | undefined, number[]]>, 
@@ -517,13 +534,41 @@ export function useFullPlayback({
 
         const [sceneId, groupIndices] = groupEntries[groupIndex]
         
+        // 현재 씬이 포함된 그룹인 경우, 현재 씬부터 시작하도록 필터링
+        let filteredGroupIndices = groupIndices
+        let groupStartOffset = 0 // 그룹 내에서 건너뛴 씬들의 duration
+        if (groupIndex === startGroupIndex && groupIndices.includes(startSceneIndex)) {
+          // 현재 씬부터 시작하도록 필터링
+          const startIndexInGroup = groupIndices.indexOf(startSceneIndex)
+          filteredGroupIndices = groupIndices.slice(startIndexInGroup)
+          
+          // 건너뛴 씬들의 duration 계산 (그룹 내에서)
+          for (let i = 0; i < startIndexInGroup; i++) {
+            const skippedSceneIndex = groupIndices[i]
+            const skippedScene = timeline.scenes[skippedSceneIndex]
+            if (skippedScene) {
+              const sceneVoiceTemplate = skippedScene.voiceTemplate || voiceTemplate!
+              const markups = buildSceneMarkup(timeline, skippedSceneIndex)
+              for (const markup of markups) {
+                const key = makeTtsKey(sceneVoiceTemplate, markup)
+                const cached = ttsCacheRef.current.get(key)
+                if (cached?.durationSec) {
+                  groupStartOffset += cached.durationSec
+                } else {
+                  groupStartOffset += skippedScene.duration || 0
+                }
+              }
+            }
+          }
+        }
+        
         // 실제 TTS 재생 시간 계산 (정확한 타임라인 동기화를 위해)
         // TTS 캐시에서 직접 duration을 가져와서 계산
         // Transition duration은 제외하고 TTS duration만 계산
         let groupDuration = 0
-        if (sceneId !== undefined && groupIndices.length > 1) {
+        if (sceneId !== undefined && filteredGroupIndices.length > 1) {
           // 그룹 재생: 실제 TTS duration 계산 (transition 제외)
-          for (const sceneIndex of groupIndices) {
+          for (const sceneIndex of filteredGroupIndices) {
             const scene = timeline.scenes[sceneIndex]
             // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
             const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate!
@@ -545,7 +590,7 @@ export function useFullPlayback({
           // Transition duration은 제외 (TTS duration만 사용)
         } else {
           // 단일 씬 재생: 실제 TTS duration 계산 (transition 제외)
-          for (const sceneIndex of groupIndices) {
+          for (const sceneIndex of filteredGroupIndices) {
             const scene = timeline.scenes[sceneIndex]
             // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
             const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate!
@@ -569,7 +614,7 @@ export function useFullPlayback({
           }
         }
 
-        // 현재 그룹 duration 설정
+        // 현재 그룹 duration 설정 (그룹 내에서 건너뛴 부분 제외)
         currentGroupDurationRef.current = groupDuration
         // 그룹 재생 시작 시간은 playGroup 내부에서 실제 TTS 재생 시작 시점에 설정
         // 여기서는 초기화만 함
@@ -586,17 +631,17 @@ export function useFullPlayback({
         }
 
         // 모든 재생을 useGroupPlayback으로 통일 (그룹 재생과 단일 씬 재생 모두)
-        if (sceneId !== undefined && groupIndices.length > 1) {
+        if (sceneId !== undefined && filteredGroupIndices.length > 1) {
           // 그룹 재생
           // 실제 TTS 재생 시작 시점을 추적하기 위해 재생 시작 전 시간 기록
           // playGroup 내부에서 실제 TTS 재생이 시작되면 이 시간을 사용
           const playbackStartTime = Date.now()
           groupPlaybackStartTimeRef.current = playbackStartTime
           
-          await groupPlayback.playGroup(sceneId, groupIndices)
+          await groupPlayback.playGroup(sceneId, filteredGroupIndices)
         } else {
           // 단일 씬 재생도 useGroupPlayback 사용
-          for (const sceneIndex of groupIndices) {
+          for (const sceneIndex of filteredGroupIndices) {
             if (playbackAbortControllerRef.current?.signal.aborted || !isPlayingAllRef.current) {
               break
             }
@@ -692,8 +737,8 @@ export function useFullPlayback({
         }
       }
 
-      // 첫 번째 그룹부터 재생 시작
-      await playGroupsSequentially(groupEntries, 0)
+      // 현재 씬이 포함된 그룹부터 재생 시작
+      await playGroupsSequentially(groupEntries, startGroupIndex)
 
     } catch (error) {
       console.error('[useFullPlayback] 전체 재생 오류:', error)
