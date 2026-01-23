@@ -166,6 +166,16 @@ export default function VoiceSelector({
 
   const confirmSelection = useCallback(() => {
     if (!pendingVoiceName) return
+    
+    // 데모 오디오 정지
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+    }
+    setIsPlaying(false)
+    setPlayingVoiceName(null)
+    
     // VoiceInfo로 변환하여 직렬화
     const voice = voices.find(v => v.name === pendingVoiceName)
     let serialized: string | null = null
@@ -198,6 +208,15 @@ export default function VoiceSelector({
   // 전체에 적용하기: 전역 voiceTemplate 설정 + 모든 씬에 기본값으로 반영
   const applyToAllScenes = useCallback(() => {
     if (!pendingVoiceName) return
+    
+    // 데모 오디오 정지
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+    }
+    setIsPlaying(false)
+    setPlayingVoiceName(null)
     
     // VoiceInfo로 변환하여 직렬화 (confirmSelection과 동일한 로직 재사용)
     const voice = voices.find(v => v.name === pendingVoiceName)
