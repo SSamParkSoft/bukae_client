@@ -164,7 +164,7 @@ export function usePixiFabric({
           const tickerCallback = () => {
             // appRef.current가 null이거나 destroy되었는지 확인
             const currentApp = appRef.current
-            if (!currentApp || !currentApp.canvas || currentApp.destroyed) {
+            if (!currentApp || !currentApp.canvas) {
               return
             }
             

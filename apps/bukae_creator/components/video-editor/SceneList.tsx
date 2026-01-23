@@ -700,9 +700,7 @@ export function SceneList({
                             {timeline && (() => {
                               // 씬의 시작 시간 계산
                               let sceneStartTime = 0
-                              // @ts-expect-error - 카드에 startTime이 추가되면 사용
                               if (timeline.scenes[index]?.startTime !== undefined) {
-                                // @ts-expect-error
                                 sceneStartTime = timeline.scenes[index].startTime
                               } else {
                                 // TTS duration만 사용 (actualPlaybackDuration 우선)
@@ -869,9 +867,7 @@ export function SceneList({
                         {timeline && (() => {
                           // 씬의 시작 시간 계산
                           let sceneStartTime = 0
-                          // @ts-expect-error - 카드에 startTime이 추가되면 사용
                           if (timeline.scenes[index]?.startTime !== undefined) {
-                            // @ts-expect-error
                             sceneStartTime = timeline.scenes[index].startTime
                           } else {
                             // TTS duration만 사용
@@ -881,25 +877,20 @@ export function SceneList({
                           }
                           
                           // 구간의 시작/끝 시간 계산
-                          // @ts-expect-error - 카드에 parts 정보가 추가되면 사용
-                          const hasPartTimes = timeline.scenes[index]?.parts && Array.isArray(timeline.scenes[index].parts) && timeline.scenes[index].parts.length > partIndex
+                          const scene = timeline.scenes[index]
+                          const hasPartTimes = scene?.parts && Array.isArray(scene.parts) && scene.parts.length > partIndex
                           
                           let partStartTime = sceneStartTime
                           let partEndTime = sceneStartTime
                           
-                          if (hasPartTimes) {
-                            // @ts-expect-error
-                            const part = timeline.scenes[index].parts[partIndex]
-                            // @ts-expect-error
+                          if (hasPartTimes && scene?.parts) {
+                            const part = scene.parts[partIndex]
                             if (part && part.startTime !== undefined && part.endTime !== undefined) {
-                              // @ts-expect-error
                               partStartTime = part.startTime
-                              // @ts-expect-error
                               partEndTime = part.endTime
                             }
                           } else {
                             // 기존 로직: 씬 duration을 구간 개수로 나누어 계산 (actualPlaybackDuration 우선)
-                            const scene = timeline.scenes[index]
                             if (scene) {
                               const originalText = scene.text?.content || ''
                               const allParts = originalText.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
