@@ -8,7 +8,7 @@ import { voiceTemplateHelpers } from '@/store/useVideoCreateStore'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 
 interface SceneSettingsPopoverProps {
-  scene: TimelineScene
+  scene: TimelineScene | undefined
   globalVoiceTemplate: string | null
   isGrouped?: boolean
   groupFirstScene?: TimelineScene // 그룹의 첫 번째 씬 (애니메이션 공통 표시용)
@@ -22,6 +22,11 @@ export function SceneSettingsPopover({
   groupFirstScene,
   children,
 }: SceneSettingsPopoverProps) {
+  // scene이 없으면 렌더링하지 않음
+  if (!scene) {
+    return <>{children}</>
+  }
+
   // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
   const sceneVoiceTemplate = scene.voiceTemplate || globalVoiceTemplate
   

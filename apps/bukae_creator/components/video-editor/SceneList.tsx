@@ -483,7 +483,7 @@ export function SceneList({
                     {/* Scene 번호 - 버튼으로 변경 */}
                     <div className="flex items-center justify-between">
                       <SceneSettingsPopover
-                        scene={timeline?.scenes[firstSceneIndexInGroup] || timeline?.scenes[firstSceneIndex]!}
+                        scene={timeline?.scenes[firstSceneIndexInGroup] || timeline?.scenes[firstSceneIndex]}
                         globalVoiceTemplate={voiceTemplate}
                         isGrouped={false}
                       >
@@ -673,7 +673,7 @@ export function SceneList({
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col gap-1">
                             <SceneSettingsPopover
-                              scene={timeline?.scenes[index]!}
+                              scene={timeline?.scenes[index]}
                               globalVoiceTemplate={voiceTemplate}
                               isGrouped={isGrouped}
                               groupFirstScene={isGrouped ? timeline?.scenes[firstSceneIndex] : undefined}
