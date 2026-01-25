@@ -272,7 +272,7 @@ export function useSceneRenderer({
         const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
         
         // 텍스트 너비 계산
-        const stageWidth = appRef.current.screen.width
+        const stageWidth = appRef.current?.screen?.width || 1080
         let textWidth = stageWidth
         if (scene.text.transform?.width) {
           textWidth = scene.text.transform.width / (scene.text.transform.scaleX || 1)

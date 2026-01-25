@@ -1151,6 +1151,7 @@ export function useStep3Container() {
 
         // 마우스 좌표를 PixiJS 좌표로 변환
         const rect = canvas.getBoundingClientRect()
+        if (!app.screen || rect.width === 0 || rect.height === 0) return
         const scaleX = app.screen.width / rect.width
         const scaleY = app.screen.height / rect.height
         const pixiX = (e.clientX - rect.left) * scaleX
