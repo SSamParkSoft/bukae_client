@@ -270,7 +270,7 @@ export function useTtsPreview({
       const part = result.parts[currentPartIndex]
 
       // ||| 기준으로 텍스트 배열로 나누기 (원본 텍스트 사용)
-      const scriptParts = originalText.split(/\s*\|\|\|\s*/).map((p) => p.trim()).filter((p) => p.length > 0)
+      const scriptParts = (originalText || '').split(/\s*\|\|\|\s*/).map((p) => (p && typeof p === 'string' ? p.trim() : '')).filter((p) => p.length > 0)
       const currentPartText = scriptParts[currentPartIndex]?.trim() || ''
 
       // 자막 즉시 표시

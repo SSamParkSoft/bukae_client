@@ -225,9 +225,9 @@ export function useSceneLoader({
           }
 
           // ||| 구분자 제거: 첫 번째 구간만 표시하거나 구분자를 공백으로 대체
-          const textContent = scene.text.content
+          const textContent = (scene.text.content || '')
             .split(/\s*\|\|\|\s*/)
-            .map((part) => part.trim())
+            .map((part) => (part && typeof part === 'string' ? part.trim() : ''))
             .filter((part) => part.length > 0)
           const displayText = textContent.length > 0 ? textContent[0] : scene.text.content
 

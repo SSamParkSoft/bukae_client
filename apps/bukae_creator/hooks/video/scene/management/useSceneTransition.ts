@@ -225,6 +225,7 @@ export function useSceneTransition({
       }
 
       // 같은 씬 내 구간 전환 처리
+      // 확대/축소 효과는 같은 씬 내 구간 전환에서도 전환 효과를 적용해야 함
       const isSameSceneTransition =
         previousIndex === actualSceneIndex &&
         currentScene &&
@@ -233,8 +234,12 @@ export function useSceneTransition({
         partIndex !== null &&
         partIndex !== undefined &&
         !isManualSceneSelectRef.current
+      
+      // 확대/축소 효과는 같은 씬 내 구간 전환에서도 전환 효과를 적용
+      const isZoomEffect = forceTransition === 'zoom-in' || forceTransition === 'zoom-out' || 
+                          currentScene.transition === 'zoom-in' || currentScene.transition === 'zoom-out'
 
-      if (isSameSceneTransition) {
+      if (isSameSceneTransition && !isZoomEffect) {
         currentSprite.visible = true
         currentSprite.alpha = 1
         return
@@ -338,9 +343,9 @@ export function useSceneTransition({
             if (partIndex === null || partIndex === undefined) {
               displayText = currentScene.text.content
             } else {
-              const scriptParts = currentScene.text.content
+              const scriptParts = (currentScene.text.content || '')
                 .split(/\s*\|\|\|\s*/)
-                .map((part) => part.trim())
+                .map((part) => (part && typeof part === 'string' ? part.trim() : ''))
                 .filter((part) => part.length > 0)
               displayText = scriptParts.length > 1 ? scriptParts[0] : currentScene.text.content
             }

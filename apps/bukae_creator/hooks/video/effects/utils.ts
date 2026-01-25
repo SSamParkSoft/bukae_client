@@ -57,5 +57,6 @@ export interface TransitionParams {
   stageHeight: number
   duration: number
   timeline: gsap.core.Timeline
+  onComplete?: (toText?: PIXI.Text | null) => void
 }
 

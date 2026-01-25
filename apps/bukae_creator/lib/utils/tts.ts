@@ -15,7 +15,7 @@ export const buildSceneMarkup = (timeline: TimelineData | null, sceneIndex: numb
   if (!base) return []
   
   // ||| 구분자로 분할 (공백 유무와 관계없이 분할)
-  const parts = base.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+  const parts = base.split(/\s*\|\|\|\s*/).map(part => part?.trim() || '').filter(part => part.length > 0)
   
   
   // 각 구간별로 마크업 생성

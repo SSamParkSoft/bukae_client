@@ -340,7 +340,7 @@ export function useSceneRenderer({
         } else {
           // Transform이 없으면 기본 위치 설정
           const position = scene.text.position || 'bottom'
-          const stageHeight = appRef.current.screen.height
+          const stageHeight = appRef.current?.screen?.height || 1920
           if (position === 'top') {
             textObj.y = stageHeight * 0.15
           } else if (position === 'bottom') {
