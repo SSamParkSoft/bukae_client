@@ -43,8 +43,8 @@ export function applyZoomTransition(
 
   const targetScale = direction === 'in' ? originalScale * 1.15 : originalScale * 0.85
 
-  // 이전 애니메이션 제거 (겹침 방지)
-  timeline.clear()
+  // timeline.clear()를 제거 - 메인 타임라인의 onComplete가 제거되지 않도록 함
+  // 대신 이전 애니메이션은 메인 타임라인에서 이미 정리됨
   
   timeline.to(
     toZoomObj,
@@ -72,8 +72,12 @@ export function applyZoomTransition(
           toText.visible = true
         }
       },
+      // onComplete는 제거 - 메인 타임라인의 onComplete에서 처리하도록 함 (다른 효과들과 동일하게)
     },
     0
   )
+  
+  // 원래 스케일로 복귀는 메인 타임라인의 onComplete에서 처리 (다른 효과들과 동일하게)
+  // timeline.call() 제거 - 메인 타임라인의 onComplete가 항상 실행되도록 함
 }
 

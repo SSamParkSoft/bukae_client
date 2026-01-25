@@ -245,7 +245,7 @@ export async function playSceneLogic({
       const originalText = scene.text?.content || ''
 
       // ||| 기준으로 텍스트 배열로 나누기
-      const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
+      const scriptParts = (originalText || '').split(/\s*\|\|\|\s*/).map(p => (p && typeof p === 'string' ? p.trim() : '')).filter(p => p.length > 0)
 
       if (scriptParts.length === 0) {
         // TTS가 없으면 fallback duration 사용

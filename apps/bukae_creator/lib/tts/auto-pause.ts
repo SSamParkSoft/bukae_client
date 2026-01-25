@@ -20,7 +20,8 @@ export type AutoPauseOptions = {
 /**
  * 사용자가 텍스트에 직접 입력한 pause 태그는 UI 단순화를 위해 무시합니다.
  */
-export function stripUserPauseTags(text: string): string {
+export function stripUserPauseTags(text: string | null | undefined): string {
+  if (!text) return ''
   return text.replace(USER_PAUSE_TAG_RE, '').replace(/\s+/g, ' ').trim()
 }
 
@@ -31,7 +32,8 @@ export function stripUserPauseTags(text: string): string {
  *
  * NOTE: 반환된 markup은 합성 요청에만 사용하고, 사용자에게는 표시하지 않습니다.
  */
-export function makeMarkupFromPlainText(input: string, opts: AutoPauseOptions): string {
+export function makeMarkupFromPlainText(input: string | null | undefined, opts: AutoPauseOptions): string {
+  if (!input) return ''
   const cleaned = stripUserPauseTags(input)
   if (!cleaned) return ''
 

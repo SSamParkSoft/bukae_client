@@ -296,7 +296,7 @@ export function useSceneNavigation({
         
         // 다음 씬의 자막 텍스트 가져오기 (구간이 나뉘어져 있으면 첫 번째 구간만)
         const nextSceneText = nextScene.text?.content || ''
-        const scriptParts = nextSceneText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+        const scriptParts = (nextSceneText || '').split(/\s*\|\|\|\s*/).map(part => (part && typeof part === 'string' ? part.trim() : '')).filter(part => part.length > 0)
         const displayText = scriptParts.length > 1 ? scriptParts[0] : nextSceneText
         
         // timeline 업데이트하여 자막 변경
@@ -395,7 +395,7 @@ export function useSceneNavigation({
           const scene = timeline.scenes[index]
           let partIndexForScene: number | null = null
           if (scene?.text?.content) {
-            const scriptParts = scene.text.content.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+            const scriptParts = (scene.text.content || '').split(/\s*\|\|\|\s*/).map(part => (part && typeof part === 'string' ? part.trim() : '')).filter(part => part.length > 0)
             if (scriptParts.length > 1) {
               // 구간이 있으면 첫 번째 구간(0)만 표시
               partIndexForScene = 0

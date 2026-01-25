@@ -47,7 +47,11 @@ export const usePixiEffects = ({
       return
     }
     
-    const actualTransition = (forceTransition || transition || 'none').trim().toLowerCase() as TransitionEffect
+    // transition과 forceTransition이 문자열인지 확인하고 안전하게 처리
+    const transitionStr = typeof (forceTransition || transition) === 'string' 
+      ? (forceTransition || transition || 'none')
+      : 'none'
+    const actualTransition = (typeof transitionStr === 'string' && transitionStr && typeof transitionStr.trim === 'function' ? transitionStr.trim() : 'none').toLowerCase() as TransitionEffect
     const isMovementEffect = sceneId !== undefined && MOVEMENT_EFFECTS.includes(actualTransition)
     const actualDuration = duration
     const isLastInGroup = isMovementEffect && timeline && sceneId !== undefined
@@ -194,7 +198,7 @@ export const usePixiEffects = ({
           // timeline의 transform.width를 사용하여 정확한 너비 유지
           if (actualTransition === 'slide-left' && toText && timeline?.scenes[sceneIndex]?.text) {
             const scene = timeline.scenes[sceneIndex]
-            const stageWidth = appRef.current?.screen.width || 1080
+            const stageWidth = appRef.current?.screen?.width || 1080
             let textWidth = stageWidth
             if (scene.text?.transform?.width) {
               textWidth = scene.text.transform.width / (scene.text.transform.scaleX || 1)
@@ -304,6 +308,23 @@ export const usePixiEffects = ({
     
     // 초기 상태 설정 (렌더링은 PixiJS ticker가 처리)
 
+    // 같은 씬의 여러 구간에 확대/축소 효과를 연속으로 적용할 때 이전 타임라인 정리
+    // 확대/축소 효과는 같은 씬의 여러 구간에 연속으로 적용할 때도 전환 효과를 적용해야 하므로
+    // 이전 타임라인을 정리하여 충돌 방지
+    if (activeAnimationsRef.current.has(sceneIndex)) {
+      const previousTl = activeAnimationsRef.current.get(sceneIndex)
+      if (previousTl && (actualTransition === 'zoom-in' || actualTransition === 'zoom-out')) {
+        try {
+          if (previousTl.isActive()) {
+            previousTl.kill()
+          }
+        } catch (error) {
+          console.warn('[usePixiEffects] Error killing previous timeline:', error)
+        }
+        activeAnimationsRef.current.delete(sceneIndex)
+      }
+    }
+
     // Timeline 생성
     const tl = gsap.timeline({
       timeScale: playbackSpeed,
@@ -338,6 +359,14 @@ export const usePixiEffects = ({
           // 마스크 제거 (원형 등) - 항상 제거
           if (toSprite.mask) {
             toSprite.mask = null
+          }
+          
+          // 확대/축소 효과인 경우 원래 스케일로 복귀 (다른 효과들과 동일하게)
+          if (actualTransition === 'zoom-in' || actualTransition === 'zoom-out') {
+            // 원래 스케일로 복귀 (zoom.ts에서 timeline.call()로 이미 처리되지만, 여기서도 보장)
+            toSprite.scale.set(originalScaleX, originalScaleY)
+            toSprite.x = originalX
+            toSprite.y = originalY
           }
         }
         
@@ -450,6 +479,7 @@ export const usePixiEffects = ({
       stageHeight,
       duration: actualDuration,
       timeline: tl,
+      onComplete,
     }
 
     switch (actualTransition) {

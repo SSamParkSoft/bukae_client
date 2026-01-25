@@ -66,7 +66,7 @@ export function useSceneEditHandlers({
           const oldScene = timeline.scenes[index]
           if (oldScene) {
             // 변경 전 스크립트로 markup 생성
-            const oldScriptParts = currentScript.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
+            const oldScriptParts = (currentScript || '').split(/\s*\|\|\|\s*/).map(p => (p && typeof p === 'string' ? p.trim() : '')).filter(p => p.length > 0)
             const oldMarkups = oldScriptParts.map((part, partIndex) => {
               const isLast = index >= timeline.scenes.length - 1
               const isLastPart = isLast && partIndex === oldScriptParts.length - 1

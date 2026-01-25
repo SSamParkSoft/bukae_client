@@ -19,7 +19,7 @@ export function splitSubtitleByDelimiter(text: string): string[] {
   
   return text
     .split(/\s*\|\|\|\s*/)
-    .map(part => part.trim())
+    .map(part => (part && typeof part === 'string' ? part.trim() : ''))
     .filter(part => part.length > 0)
 }
 

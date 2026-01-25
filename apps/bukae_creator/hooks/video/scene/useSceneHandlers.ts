@@ -137,7 +137,7 @@ export function useSceneHandlers({
           const currentScene = nextTimeline.scenes[targetSceneIndex]
           let firstPartText: string | null = null
           if (currentScene?.text?.content) {
-            const scriptParts = currentScene.text.content.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+            const scriptParts = (currentScene.text.content || '').split(/\s*\|\|\|\s*/).map(part => (part && typeof part === 'string' ? part.trim() : '')).filter(part => part.length > 0)
             if (scriptParts.length > 1) {
               firstPartText = scriptParts[0]
               // 구간이 나뉘어져 있으면 첫 번째 구간만 표시하도록 timeline 업데이트

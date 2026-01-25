@@ -515,8 +515,11 @@ export function useGroupPlayback({
         // 구간별 전환 효과 적용: 각 분할 씬의 transition을 그대로 사용
         if (renderSceneContent && targetScene) {
           // 같은 씬이 이미 렌더링되어 있고 보이는 상태라면 renderSceneContent를 호출하지 않음 (재렌더링 방지)
+          // 단, 확대/축소 효과는 같은 씬의 여러 구간에 연속으로 적용할 때도 전환 효과를 적용해야 함
           const currentSprite = spritesRef.current.get(targetSceneIndex)
+          const isZoomEffect = targetScene.transition === 'zoom-in' || targetScene.transition === 'zoom-out'
           const isAlreadyRendered = 
+            !isZoomEffect && // 확대/축소 효과는 항상 렌더링
             lastRenderedSceneIndexRef.current === targetSceneIndex &&
             currentSprite?.visible &&
             currentSprite?.alpha === 1

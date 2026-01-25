@@ -733,8 +733,16 @@ export function useFullPlayback({
             disableAutoTimeUpdateRef.current = false
           }
           
-          stopBgmAudio()
-          stopTtsAudio()
+          // 재생 완료 후 스프라이트와 텍스트가 보이도록 보장
+          const finalSceneIndex = currentSceneIndexRef.current
+          stopPlaybackCore({
+            sceneIndex: finalSceneIndex,
+            activeAnimationsRef,
+            spritesRef,
+            textsRef,
+            stopTtsAudio,
+            stopBgmAudio,
+          })
           
           // 최종 시간 설정 (TTS duration 합계 사용)
           if (setCurrentTime) {
@@ -1007,8 +1015,16 @@ export function useFullPlayback({
         disableAutoTimeUpdateRef.current = false
       }
       
-      stopBgmAudio()
-      stopTtsAudio()
+      // 에러 발생 시에도 스프라이트와 텍스트가 보이도록 보장
+      const currentSceneIndex = currentSceneIndexRef.current
+      stopPlaybackCore({
+        sceneIndex: currentSceneIndex,
+        activeAnimationsRef,
+        spritesRef,
+        textsRef,
+        stopTtsAudio,
+        stopBgmAudio,
+      })
     } finally {
       playbackAbortControllerRef.current = null
     }
