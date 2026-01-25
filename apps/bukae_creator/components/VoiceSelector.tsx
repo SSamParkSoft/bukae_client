@@ -328,30 +328,30 @@ export default function VoiceSelector({
       // voice가 없거나 provider가 'elevenlabs'가 아닌 경우 Google TTS로 간주
       const isGoogleVoice = !voice || voice.provider === 'google' || !voice.provider
       if (isGoogleVoice) {
-        // voiceName을 슬러그 형식으로 변환 (예: ko-KR-Chirp3-HD-Achernar → chirp3-hd-achernar)
-        const slugName = voiceName
-          .replace(/^ko-KR[-_]?/i, '')
-          .replace(/[-_]/g, '-')
-          .toLowerCase()
-        
-        // 데모 파일 경로 시도 (Standard 데모는 standard 폴더에)
-        // 슬러그 형식 우선, 그 다음 원본 voiceName
-        const demoPaths = [
-          `/voice-demos/standard/${slugName}.wav`,  // 실제 파일 형식 우선
-          `/voice-demos/standard/${slugName}.mp3`,
-          `/voice-demos/standard/${encodeURIComponent(voiceName)}.wav`,
-          `/voice-demos/standard/${encodeURIComponent(voiceName)}.mp3`,
+        // Premium처럼 파싱: voiceName에서 마지막 부분 추출 (예: ko-KR-Chirp3-HD-Achernar → Achernar)
+        const shortName = getShortName(voiceName, voice)
+        // 카멜케이스 변환 함수 (첫 글자만 대문자)
+        const toPascalCase = (str: string) => {
+          if (!str) return str
+          return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
+        }
+        // 파일명 후보: PascalCase, 원본, 소문자 버전 모두 시도
+        const fileNameCandidates = [
+          `${toPascalCase(shortName)}_test.wav`,  // PascalCase (예: Achernar_test.wav)
+          `${shortName}_test.wav`,  // 원본 (예: Achernar_test.wav)
+          `${shortName.toLowerCase()}_test.wav`,  // 소문자 (예: achernar_test.wav)
         ]
-
-        // 데모 파일 존재 여부 확인 (HEAD 요청으로 404 오류 최소화)
-        for (const demoPath of demoPaths) {
+        
+        // 각 파일명 후보를 순차적으로 시도
+        for (const fileName of fileNameCandidates) {
+          const demoPath = `/voice-demos/standard/${fileName}`
+          
           try {
             const response = await fetch(demoPath, { 
               method: 'HEAD',
               cache: 'no-cache' 
             })
             if (response.ok) {
-              // 데모 파일이 있으면 재생
               const audio = new Audio(demoPath)
               audioRef.current = audio
 
@@ -368,13 +368,15 @@ export default function VoiceSelector({
               setPlayingVoiceName(voiceName)
               setIsPlaying(true)
               await audio.play()
-              return // 데모 파일 재생 성공
+              return // 정적 파일 재생 성공
             }
           } catch {
-            // 파일이 없으면 다음 경로 시도 (조용히 넘어감)
+            // 파일이 없으면 다음 후보 시도
             continue
           }
         }
+        // 모든 후보를 시도했지만 파일을 찾지 못한 경우
+        return
       }
 
       // 정적 파일이 없으면 재생 실패 (조용히 처리)
