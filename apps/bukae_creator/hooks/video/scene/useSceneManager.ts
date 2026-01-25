@@ -370,8 +370,8 @@ export const useSceneManager = ({
         } else if (scene.text) {
           // Transform이 없으면 기본 위치 설정
           const position = scene.text.position || 'bottom'
-          const stageHeight = appRef.current.screen.height
-          const stageWidth = appRef.current.screen.width
+          const stageHeight = appRef.current?.screen?.height || 1920
+          const stageWidth = appRef.current?.screen?.width || 1080
           if (position === 'top') {
             targetTextObj.y = stageHeight * 0.15
           } else if (position === 'bottom') {

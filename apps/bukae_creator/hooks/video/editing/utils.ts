@@ -14,7 +14,13 @@ export const STAGE_HEIGHT = 1920
  */
 export function getPixiCoordinates(e: MouseEvent, app: PIXI.Application): { x: number; y: number } {
   const canvas = app.canvas
+  if (!canvas || !app.screen) {
+    return { x: 0, y: 0 }
+  }
   const rect = canvas.getBoundingClientRect()
+  if (rect.width === 0 || rect.height === 0) {
+    return { x: 0, y: 0 }
+  }
   
   const scaleX = app.screen.width / rect.width
   const scaleY = app.screen.height / rect.height
