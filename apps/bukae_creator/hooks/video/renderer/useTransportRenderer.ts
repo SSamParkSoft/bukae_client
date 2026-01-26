@@ -1017,6 +1017,15 @@ export function useTransportRenderer({
       // 매 프레임마다 렌더링 (지연 없이 즉시 반영)
       // renderAt 내부의 중복 렌더링 방지 로직이 불필요한 렌더링을 막아줌
       const currentTime = transport.getTime()
+      const totalDuration = currentTransportState.totalDuration
+      
+      // 재생이 끝났는지 확인 (currentTime이 totalDuration에 도달했거나 넘어섰을 때)
+      if (totalDuration > 0 && currentTime >= totalDuration) {
+        // 재생 종료: Transport를 일시정지하여 isPlaying을 false로 변경
+        transport.pause()
+        renderLoopRef.current = null
+        return
+      }
       
       // segmentChanged 감지를 위해 getActiveSegment를 먼저 확인
       let segmentWillChange = false
