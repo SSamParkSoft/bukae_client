@@ -122,7 +122,7 @@ export function useStep3Container() {
     isTtsBootstrapping,
     // setIsTtsBootstrapping, // 사용하지 않음
     isPreparing,
-    // setIsPreparing, // 사용하지 않음
+    setIsPreparing, // 전체 재생 시 TTS 생성 로딩 표시용
     showReadyMessage,
     showVoiceRequiredMessage,
     setShowVoiceRequiredMessage,
@@ -833,7 +833,10 @@ export function useStep3Container() {
         
           // 필요한 씬들의 TTS 생성 (병렬로 처리하되 동시 요청 수 제한)
           // 각 씬 내부의 part들은 이미 병렬 처리되므로, 씬 간 병렬 처리로 전체 시간 단축
+          // 전체 재생, 씬 재생, 그룹 재생 모두 TTS 생성 중 로딩 스피너 표시
           if (scenesToLoad.length > 0) {
+            setIsPreparing(true)
+            
             // 첫 번째 씬을 우선 처리하여 재생 시작 시간 단축
             const firstSceneIndex = scenesToLoad[0]
             const remainingScenes = scenesToLoad.slice(1)
@@ -913,6 +916,9 @@ export function useStep3Container() {
           if (typeof window !== 'undefined' && ttsTrack.refreshSegments) {
             await ttsTrack.refreshSegments()
           }
+          
+          // TTS 생성 완료 후 로딩 스피너 숨김
+          setIsPreparing(false)
         }
       }
       
