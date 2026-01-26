@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useCallback, useEffect, useMemo } from 'react'
-import { useVideoCreateStore, TimelineData } from '@/store/useVideoCreateStore'
+import { TimelineData } from '@/store/useVideoCreateStore'
 import type { TimelineScene } from '@/store/useVideoCreateStore'
 import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
 import { ensureSceneTts as ensureSceneTtsUtil } from '@/lib/utils/tts-synthesis'
@@ -269,6 +269,7 @@ export function useTtsManager({
   }, [timeline, voiceTemplate])
   
   // 씬별 캐시 상태 메모이제이션 (캐시 확인 최적화)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const sceneCacheStatusMap = useMemo(() => {
     if (!timeline || !voiceTemplate || !sceneMarkupsMap) return new Map<number, { allCached: boolean; totalDuration: number }>()
     

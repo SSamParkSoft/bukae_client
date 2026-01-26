@@ -59,6 +59,7 @@ export type SynthesizeAndUploadTtsResult =
   | {
       success: true
       url: string
+      blobBase64: string // base64 인코딩된 blob (다운로드 단계 제거를 위해)
     }
   | {
       success: false
@@ -149,8 +150,12 @@ export async function synthesizeAndUploadTts({
     })
 
     const audioBuffer = result.audio
+    const uint8Array = new Uint8Array(audioBuffer)
 
-    // Supabase 업로드
+    // base64 인코딩 (즉시 처리)
+    const base64 = Buffer.from(uint8Array).toString('base64')
+
+    // Supabase 업로드 (병렬로 처리하되, 클라이언트는 base64로 즉시 진행 가능)
     const supabase = getSupabaseServiceClient()
     const timestamp = Date.now()
     const sceneIdValue = sceneId || 'unknown'
@@ -158,20 +163,24 @@ export async function synthesizeAndUploadTts({
     const filePath = `tts/${userId}/${fileName}`
 
     // Buffer를 File로 변환
-    const file = new File([new Uint8Array(audioBuffer)], fileName, {
+    const file = new File([uint8Array], fileName, {
       type: 'audio/mpeg',
     })
 
-    const { error: uploadError } = await supabase.storage
+    // 업로드 시작 (비동기로 처리하되, URL은 나중에 필요할 수 있으므로 await)
+    const uploadPromise = supabase.storage
       .from('media')
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: true,
       })
 
-    if (uploadError) {
-      console.error('[Server Action] Supabase 파일 업로드 실패:', uploadError)
-      return { success: false, error: `파일 업로드 실패: ${uploadError.message}` }
+    // 업로드 완료 대기
+    const uploadResult = await uploadPromise
+
+    if (uploadResult.error) {
+      console.error('[Server Action] Supabase 파일 업로드 실패:', uploadResult.error)
+      return { success: false, error: `파일 업로드 실패: ${uploadResult.error.message}` }
     }
 
     const { data: publicUrlData } = supabase.storage.from('media').getPublicUrl(filePath)
@@ -183,6 +192,7 @@ export async function synthesizeAndUploadTts({
     return {
       success: true,
       url: publicUrlData.publicUrl,
+      blobBase64: base64, // base64 인코딩된 blob 반환 (클라이언트에서 즉시 사용 가능)
     }
   } catch (error) {
     console.error('[Server Action] TTS 합성 및 업로드 오류:', error)

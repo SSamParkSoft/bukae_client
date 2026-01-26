@@ -7,7 +7,7 @@
 
 'use client'
 
-import { useSyncExternalStore, useRef, useEffect, useCallback, useState } from 'react'
+import { useSyncExternalStore, useRef, useEffect, useCallback } from 'react'
 import { Transport } from './Transport'
 import type { TransportState } from './types'
 
@@ -19,11 +19,9 @@ import type { TransportState } from './types'
  */
 export function useTransport(audioContext?: AudioContext) {
   const transportRef = useRef<Transport | null>(null)
-  const [isClient, setIsClient] = useState(false)
 
   // 클라이언트 마운트 확인 및 Transport 인스턴스 생성
   useEffect(() => {
-    setIsClient(true)
     // Transport 인스턴스 생성 (클라이언트에서만, 한 번만)
     // audioContext는 ref로 저장하여 dependency 문제 방지
     if (transportRef.current === null && typeof window !== 'undefined') {

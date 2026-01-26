@@ -585,7 +585,6 @@ export function useStep3Container() {
       }
     }, []),
     // TTS 세그먼트 종료 시 즉시 렌더링 업데이트 (실제로는 호출하지 않음 - Transport 렌더링 루프에 맡김)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     onSegmentEnd: useCallback((_segmentEndTime: number, _sceneIndex: number) => {
       const callback = onSegmentEndRef.current
       if (callback) {
@@ -739,7 +738,8 @@ export function useStep3Container() {
   })
   
   // TTS duration 변경 시 렌더링 즉시 업데이트를 위한 콜백 (useTtsManager 호출 이후에 정의)
-  const handleDurationChange = useCallback((sceneIndex: number, durationSec: number) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleDurationChange = useCallback((_sceneIndex: number, _durationSec: number) => {
     // TTS duration이 변경되면 ttsCacheRefShared를 먼저 동기화한 후 렌더링
     // useTtsManager의 ttsCacheRef가 업데이트되었으므로 ttsCacheRefShared에도 반영
     if (ttsCacheRef && ttsCacheRefShared) {
@@ -807,36 +807,70 @@ export function useStep3Container() {
         }
         
           // 필요한 씬들의 TTS 생성 (병렬로 처리하되 동시 요청 수 제한)
+          // 각 씬 내부의 part들은 이미 병렬 처리되므로, 씬 간 병렬 처리로 전체 시간 단축
           if (scenesToLoad.length > 0) {
-            const MAX_CONCURRENT = 3
-            for (let i = 0; i < scenesToLoad.length; i += MAX_CONCURRENT) {
-              const batch = scenesToLoad.slice(i, i + MAX_CONCURRENT)
-              await Promise.all(
-                batch.map(async (sceneIndex) => {
-                  try {
-                    await ensureSceneTts(sceneIndex)
-                    // 각 씬의 TTS 생성 완료 후 즉시 캐시 동기화
-                    if (ttsCacheRef && ttsCacheRefShared) {
-                      // 해당 씬의 모든 키를 찾아서 동기화
-                      const scene = timeline.scenes[sceneIndex]
-                      if (scene) {
-                        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
-                        const markups = buildSceneMarkupWithTimeline(timeline, sceneIndex)
-                        markups.forEach((markup) => {
-                          if (!markup) return
-                          const key = makeTtsKey(sceneVoiceTemplate, markup)
-                          const cached = ttsCacheRef.current.get(key)
-                          if (cached) {
-                            ttsCacheRefShared.current.set(key, cached)
-                          }
-                        })
-                      }
+            // 첫 번째 씬을 우선 처리하여 재생 시작 시간 단축
+            const firstSceneIndex = scenesToLoad[0]
+            const remainingScenes = scenesToLoad.slice(1)
+            
+            // 첫 번째 씬과 나머지 씬들을 동시에 시작 (첫 번째 씬이 먼저 완료되도록)
+            const firstScenePromise = firstSceneIndex !== undefined
+              ? ensureSceneTts(firstSceneIndex).then(() => {
+                  // 첫 번째 씬의 TTS 생성 완료 후 즉시 캐시 동기화
+                  if (ttsCacheRef && ttsCacheRefShared) {
+                    const scene = timeline.scenes[firstSceneIndex]
+                    if (scene) {
+                      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+                      const markups = buildSceneMarkupWithTimeline(timeline, firstSceneIndex)
+                      markups.forEach((markup) => {
+                        if (!markup) return
+                        const key = makeTtsKey(sceneVoiceTemplate, markup)
+                        const cached = ttsCacheRef.current.get(key)
+                        if (cached) {
+                          ttsCacheRefShared.current.set(key, cached)
+                        }
+                      })
                     }
-                  } catch  {
-                    // TTS 생성 실패 (로그 제거)
                   }
+                }).catch(() => {
+                  // TTS 생성 실패 (로그 제거)
                 })
-              )
+              : Promise.resolve()
+            
+            // 나머지 씬들은 모두 동시에 시작 (진짜 병렬 처리)
+            if (remainingScenes.length > 0) {
+              // 모든 씬을 한 번에 시작하여 진짜 병렬 처리
+              const remainingPromises = remainingScenes.map(async (sceneIndex) => {
+                try {
+                  await ensureSceneTts(sceneIndex)
+                  // 각 씬의 TTS 생성 완료 후 즉시 캐시 동기화
+                  if (ttsCacheRef && ttsCacheRefShared) {
+                    // 해당 씬의 모든 키를 찾아서 동기화
+                    const scene = timeline.scenes[sceneIndex]
+                    if (scene) {
+                      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+                      const markups = buildSceneMarkupWithTimeline(timeline, sceneIndex)
+                      markups.forEach((markup) => {
+                        if (!markup) return
+                        const key = makeTtsKey(sceneVoiceTemplate, markup)
+                        const cached = ttsCacheRef.current.get(key)
+                        if (cached) {
+                          ttsCacheRefShared.current.set(key, cached)
+                        }
+                      })
+                    }
+                  }
+                } catch (error) {
+                  console.error('[setIsPlaying] 씬 TTS 생성 실패:', error)
+                  alert('TTS 생성에 실패했습니다. 개발자에게 문의해주세요.')
+                }
+              })
+              
+              // 첫 번째 씬과 나머지 씬들을 모두 동시에 처리 (진짜 병렬 처리)
+              await Promise.all([firstScenePromise, ...remainingPromises])
+            } else {
+              // 첫 번째 씬만 있으면 첫 번째 씬만 처리
+              await firstScenePromise
             }
             
             // TTS 파일 생성 완료 후 전체 캐시 동기화 (중요!)
@@ -1077,7 +1111,7 @@ export function useStep3Container() {
         renderAtRef.current(segmentEndTime, { skipAnimation: false, forceSceneIndex: nextSceneIndex })
       }
     }
-  }, [timeline, setTimeline, voiceTemplate, buildSceneMarkupWithTimeline, makeTtsKey, ttsCacheRefShared]) // timeline과 setTimeline 추가
+  }, [timeline, setTimeline, voiceTemplate, buildSceneMarkupWithTimeline, ttsCacheRefShared]) // timeline과 setTimeline 추가
   
   // ttsTrack을 ref로 저장하여 안정적인 참조 유지
   const ttsTrackRef = useRef(ttsTrack)
@@ -1231,7 +1265,6 @@ export function useStep3Container() {
         sceneIndex // sceneIndex 전달
       )
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeline, setTimeline, setCurrentSceneIndex, currentSceneIndexRef, updateCurrentScene, renderSceneContentFromManager, renderSubtitlePart])
   
   // isPreviewingTransition (Transport에서는 별도 관리 필요)

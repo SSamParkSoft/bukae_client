@@ -113,9 +113,16 @@ function buildSegmentsFromTimeline(
         accumulatedTime += cached.durationSec || 0
         continue
       }
+      // blob이 있으면 blob URL을 사용하여 네트워크 요청 스킵
+      let segmentUrl = cached.url || ''
+      if (cached.blob) {
+        // blob이 있으면 blob URL 생성 (네트워크 요청 없음)
+        segmentUrl = URL.createObjectURL(cached.blob)
+      }
+      
       const segment: TtsSegment = {
         id: segmentId,
-        url: cached.url, // Supabase URL 직접 사용 (네트워크 요청 발생)
+        url: segmentUrl, // blob이 있으면 blob URL, 없으면 Supabase URL
         startSec: accumulatedTime,
         durationSec: cached.durationSec,
         sceneId: scene.sceneId,
@@ -201,16 +208,16 @@ export function useTtsTrack({
   
   // 외부 시스템(TTS 캐시) 상태 변화에 반응하여 state 업데이트 (일반적인 패턴)
   // 외부 시스템과 동기화하는 경우이므로 useEffect에서 setState 사용이 적절함
-  // React Compiler 경고: 외부 시스템 동기화를 위한 정당한 사용이므로 무시 가능
   useEffect(() => {
-    if (!timeline || !voiceTemplate || !isClient) {
-      setSegments([])
-      return
-    }
-
     // useEffect 내부에서 ref 접근 (허용됨)
-    const newSegments = buildSegmentsFromTimeline(timeline, voiceTemplate, ttsCacheRef, buildSceneMarkup, makeTtsKey)
+    const newSegments = (!timeline || !voiceTemplate || !isClient)
+      ? []
+      : buildSegmentsFromTimeline(timeline, voiceTemplate, ttsCacheRef, buildSceneMarkup, makeTtsKey)
+    
     setSegments(newSegments)
+  // ttsCacheRef는 ref이므로 dependency에 포함하지 않음 (변경되어도 re-render 트리거 안 함)
+  // cacheUpdateTrigger가 변경될 때마다 재계산되므로 캐시 변경은 트리거를 통해 반영됨
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, isClient, cacheUpdateTrigger])
 
   // 세그먼트 테이블이 변경되면 TtsTrack에 반영 (항상 호출되어야 함)

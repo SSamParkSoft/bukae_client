@@ -15,7 +15,7 @@ export class TtsTrack {
   private masterGain: GainNode
   private lookaheadInterval: number | null = null
   private readonly LOOKAHEAD_TIME = 0.1 // 100ms lookahead
-  private readonly MAX_CONCURRENT_LOADS = 3 // 동시 로딩 제한
+  private readonly MAX_CONCURRENT_LOADS = 6 // 동시 로딩 제한 (속도 개선을 위해 증가)
   private scheduledSegmentIds: Set<string> = new Set() // 이미 스케줄된 세그먼트 추적
   private sourceToSegmentId: Map<AudioBufferSourceNode, string> = new Map() // source와 segmentId 매핑
   private lastPlayedSceneIndex: number | null = null // 마지막으로 재생한 씬 인덱스
@@ -89,17 +89,27 @@ export class TtsTrack {
     }
 
     try {
-      // URL에서 오디오 로드
-      const response = await fetch(segment.url, {
-        cache: 'no-cache', // 캐시 방지하여 네트워크 탭에 표시되도록
-      })
-      if (!response.ok) {
-        throw new Error(`Failed to load audio: ${response.statusText}`)
-      }
-
-      const arrayBuffer = await response.arrayBuffer()
-      const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer)
+      let arrayBuffer: ArrayBuffer
       
+      // blob URL인 경우 (네트워크 요청 없음)
+      if (segment.url.startsWith('blob:')) {
+        const response = await fetch(segment.url)
+        if (!response.ok) {
+          throw new Error(`Failed to load blob audio: ${response.statusText}`)
+        }
+        arrayBuffer = await response.arrayBuffer()
+      } else {
+        // HTTP/HTTPS URL인 경우 (네트워크 요청 발생, 캐시 활용)
+        const response = await fetch(segment.url, {
+          cache: 'default', // 브라우저 캐시 활용하여 304 응답 최적화
+        })
+        if (!response.ok) {
+          throw new Error(`Failed to load audio: ${response.statusText}`)
+        }
+        arrayBuffer = await response.arrayBuffer()
+      }
+      
+      const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer)
       this.bufferMap.set(segment.id, audioBuffer)
     } catch {
       // 에러를 throw하지 않고 무시 (다른 세그먼트는 계속 로딩)
