@@ -9,7 +9,7 @@
 
 import { useSyncExternalStore, useRef, useEffect, useCallback, useState } from 'react'
 import { Transport } from './Transport'
-import type { ITransport, TransportState } from './types'
+import type { TransportState } from './types'
 
 /**
  * Transport 인스턴스를 생성하고 관리하는 훅
@@ -63,6 +63,10 @@ export function useTransport(audioContext?: AudioContext) {
   }, [transport])
   
   // getCurrentTimeSnapshot을 안정적인 참조로 캐싱 (transport 변경 시에도 같은 함수 참조 유지)
+  // useCallback을 사용하여 함수 참조를 안정적으로 유지
+  // 성능 최적화: 더 큰 시간 간격(200ms)으로 업데이트하여 과도한 렌더링 방지
+  const lastSnapshotTimeRef = useRef<number>(0)
+  const lastSnapshotUpdateTimeRef = useRef<number>(0)
   const getCurrentTimeSnapshot = useCallback(() => {
     const currentTransport = transportRefForTime.current
     if (!currentTransport) {
@@ -72,24 +76,46 @@ export function useTransport(audioContext?: AudioContext) {
       }
       return lastTimeSnapshotRef.current
     }
+    
+    // 성능 최적화: 마지막 업데이트로부터 200ms가 지나지 않았으면 이전 값 반환
+    const now = performance.now()
+    const timeSinceLastUpdate = now - lastSnapshotUpdateTimeRef.current
+    if (timeSinceLastUpdate < 200) {
+      return lastTimeSnapshotRef.current
+    }
+    
     const newTime = currentTransport.getTime()
-    // 소수점 3자리까지 반올림하여 안정적인 값 반환 (약 1ms 단위)
-    // 이렇게 하면 너무 자주 업데이트되지 않음
-    const roundedTime = Math.round(newTime * 1000) / 1000
+    
+    // 소수점 1자리까지 반올림하여 안정적인 값 반환 (약 100ms 단위)
+    const roundedTime = Math.round(newTime * 10) / 10
     
     // 값이 변경되지 않았으면 이전 객체 참조 반환 (같은 참조 유지)
     if (roundedTime === lastTimeSnapshotRef.current.value) {
+      lastSnapshotUpdateTimeRef.current = now
       return lastTimeSnapshotRef.current
     }
     
     // 값이 변경되었으면 새 객체 생성 및 반환
+    lastSnapshotTimeRef.current = newTime
     lastTimeSnapshotRef.current = { value: roundedTime }
+    lastSnapshotUpdateTimeRef.current = now
     return lastTimeSnapshotRef.current
   }, []) // 의존성 배열 비움 - transport는 ref로 접근
   
-  // 서버 사이드 렌더링용 스냅샷 (항상 같은 객체 참조 반환)
+  // 서버 스냅샷 함수 (useSyncExternalStore의 필수 인자)
+  // 
+  // 스냅샷이란? 외부 스토어(Transport)의 현재 상태를 읽은 값
+  // 
+  // 왜 필요한가?
+  // 1. 서버 렌더링 시: 브라우저 API(AudioContext)가 없어 getSnapshot을 호출할 수 없음
+  // 2. 하이드레이션 시: 서버와 클라이언트의 초기 렌더 결과가 일치해야 함
+  // 
+  // 현재 상황: 'use client' 지시어로 클라이언트 전용이지만,
+  // React 18의 useSyncExternalStore는 세 번째 인자를 필수로 요구함
   const serverTimeSnapshotRef = useRef<{ value: number }>({ value: 0 })
   const getServerTimeSnapshot = useCallback(() => {
+    // 서버에서는 항상 초기값(0) 반환
+    // 클라이언트에서는 getCurrentTimeSnapshot이 실제로 사용됨
     return serverTimeSnapshotRef.current
   }, [])
   
@@ -147,8 +173,11 @@ export function useTransport(audioContext?: AudioContext) {
     return newState
   }, []) // 의존성 배열 비움 - transport는 ref로 접근
   
+  // 서버 스냅샷 함수 (useSyncExternalStore의 필수 인자)
+  // Transport 상태의 서버 렌더링용 초기값 제공
   const getServerSnapshot = useCallback(() => {
-    // 서버에서는 더미 상태 반환
+    // 서버에서는 더미 상태(초기값) 반환
+    // 클라이언트에서는 getSnapshot이 실제로 사용됨
     if (!stateRef.current) {
       stateRef.current = dummyStateRef.current
     }

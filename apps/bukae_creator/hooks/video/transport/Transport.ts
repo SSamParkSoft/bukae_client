@@ -13,6 +13,8 @@ export class Transport implements ITransport {
   private subscribers: Set<TransportSubscriber>
   private tickInterval: number | null = null
   private readonly TICK_INTERVAL_MS = 16 // ~60fps
+  private lastNotifyTime: number = 0
+  private readonly NOTIFY_THROTTLE_MS = 100 // notifySubscribers throttle (100ms)
 
   constructor(audioContext?: AudioContext) {
     // AudioContext 생성 또는 재사용
@@ -203,9 +205,18 @@ export class Transport implements ITransport {
   }
 
   /**
-   * 구독자에게 시간 업데이트 알림
+   * 구독자에게 시간 업데이트 알림 (throttled)
    */
   private notifySubscribers(): void {
+    const now = performance.now()
+    const timeSinceLastNotify = now - this.lastNotifyTime
+    
+    // 100ms마다만 구독자에게 알림 (과도한 React 렌더링 방지)
+    if (timeSinceLastNotify < this.NOTIFY_THROTTLE_MS) {
+      return
+    }
+    
+    this.lastNotifyTime = now
     const currentTime = this.getTime()
     this.subscribers.forEach(callback => {
       try {

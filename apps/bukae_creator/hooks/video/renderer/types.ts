@@ -17,6 +17,10 @@ export interface RenderAtOptions {
   skipAnimation?: boolean
   /** 강제 전환 효과 */
   forceTransition?: string
+  /** 강제 씬 인덱스 (지정하면 tSec 계산 대신 이 씬을 직접 렌더링) */
+  forceSceneIndex?: number
+  /** 강제 렌더링 (중복 체크 우회) */
+  forceRender?: boolean
 }
 
 /**
@@ -61,6 +65,8 @@ export interface UseTransportRendererParams {
   buildSceneMarkup?: (timeline: TimelineData | null, sceneIndex: number) => string[]
   /** TTS 키 생성 함수 */
   makeTtsKey?: (voiceName: string, markup: string) => string
+  /** TTS 세그먼트 활성 세그먼트 조회 함수 (재생 중 TTS 파일 전환 감지용) */
+  getActiveSegment?: (tSec: number) => { segment: { id: string; sceneIndex?: number; partIndex?: number }; segmentIndex: number } | null
   /** 텍스처 로드 함수 */
   loadPixiTextureWithCache: (url: string) => Promise<PIXI.Texture>
   /** 전환 효과 적용 함수 */
@@ -95,6 +101,8 @@ export interface UseTransportRendererReturn {
   loadScene: (sceneIndex: number) => Promise<void>
   /** 모든 씬 로드 */
   loadAllScenes: () => Promise<void>
+  /** 렌더링 캐시 리셋 (TTS duration 변경 시 사용) */
+  resetRenderCache: () => void
 }
 
 /**

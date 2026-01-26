@@ -19,6 +19,8 @@ export class TtsTrack {
   private scheduledSegmentIds: Set<string> = new Set() // 이미 스케줄된 세그먼트 추적
   private sourceToSegmentId: Map<AudioBufferSourceNode, string> = new Map() // source와 segmentId 매핑
   private lastPlayedSceneIndex: number | null = null // 마지막으로 재생한 씬 인덱스
+  private onSegmentEndCallback: ((segmentEndTime: number, sceneIndex: number) => void) | null = null // 세그먼트 종료 콜백
+  private onSegmentStartCallback: ((segmentStartTime: number, sceneIndex: number) => void) | null = null // 세그먼트 시작 콜백 (씬 인덱스 포함)
 
   constructor(audioContext: AudioContext) {
     this.audioContext = audioContext
@@ -260,13 +262,33 @@ export class TtsTrack {
     source.connect(this.masterGain)
 
     const duration = segment.durationSec - offset
+    
+    // TTS 음성파일 시작 로그 (성능 최적화를 위해 주석 처리)
+    // console.log('[TtsTrack] 세그먼트 시작', {
+    //   segmentId: segment.id,
+    //   segmentStartSec: segment.startSec,
+    //   segmentDurationSec: segment.durationSec,
+    //   tSec: segment.startSec, // 타임라인 시간
+    //   sceneIndex: segment.sceneIndex,
+    //   partIndex: segment.partIndex,
+    //   audioContextStartTime: startTime,
+    //   offset,
+    //   duration,
+    // })
+    
+    // 세그먼트 시작 시 즉시 씬 전환 트리거 (TTS와 씬 전환 동기화)
+    // sceneIndex를 함께 전달하여 정확한 씬 전환 보장
+    if (this.onSegmentStartCallback && segment.sceneIndex !== undefined) {
+      this.onSegmentStartCallback(segment.startSec, segment.sceneIndex)
+    }
+    
     source.start(startTime, offset, duration)
 
     this.activeSources.push(source)
     this.scheduledSegmentIds.add(segment.id)
     this.sourceToSegmentId.set(source, segment.id)
 
-    // 재생 완료 시 정리
+    // 재생 완료 시 정리 및 콜백 호출
     source.onended = () => {
       const index = this.activeSources.indexOf(source)
       if (index > -1) {
@@ -274,6 +296,22 @@ export class TtsTrack {
       }
       this.scheduledSegmentIds.delete(segment.id)
       this.sourceToSegmentId.delete(source)
+      
+      // 세그먼트 종료 시간 계산 및 콜백 호출 (즉시 렌더링 업데이트)
+      if (this.onSegmentEndCallback && segment.sceneIndex !== undefined) {
+        const segmentEndTime = segment.startSec + segment.durationSec
+        // TTS 음성파일 종료 로그 (성능 최적화를 위해 주석 처리)
+        // console.log('[TtsTrack] 세그먼트 종료', {
+        //   segmentId: segment.id,
+        //   segmentStartSec: segment.startSec,
+        //   segmentDurationSec: segment.durationSec,
+        //   segmentEndTime,
+        //   tSec: segmentEndTime, // 타임라인 시간
+        //   sceneIndex: segment.sceneIndex,
+        //   partIndex: segment.partIndex,
+        // })
+        this.onSegmentEndCallback(segmentEndTime, segment.sceneIndex)
+      }
     }
   }
 
@@ -548,11 +586,27 @@ export class TtsTrack {
   }
 
   /**
+   * 세그먼트 종료 콜백 설정
+   * 세그먼트가 끝날 때 호출되는 콜백을 등록합니다.
+   * 
+   * @param callback 세그먼트 종료 시 호출될 콜백 (segmentEndTime: number) => void
+   */
+  setOnSegmentEnd(callback: ((segmentEndTime: number, sceneIndex: number) => void) | null): void {
+    this.onSegmentEndCallback = callback
+  }
+
+  setOnSegmentStart(callback: ((segmentStartTime: number, sceneIndex: number) => void) | null): void {
+    this.onSegmentStartCallback = callback
+  }
+
+  /**
    * 정리 (컴포넌트 언마운트 시 호출)
    */
   dispose(): void {
     this.stopAll()
     this.bufferMap.clear()
     this.segments = []
+    this.onSegmentEndCallback = null
+    this.onSegmentStartCallback = null
   }
 }

@@ -337,47 +337,46 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
 
       const shouldSkipAnimation = forceTransition === 'none'
 
-      // 재생 중일 때는 렌더링 시작 전에 이전 씬 정리 (중복 렌더링 방지)
-      if (isPlaying) {
-        const lastRenderedIndex = previousSceneIndexRef.current
-        if (lastRenderedIndex !== null && lastRenderedIndex !== sceneIndex) {
-          // 이전 씬의 스프라이트와 텍스트 숨기기
-          const previousSprite = spritesRef?.current.get(lastRenderedIndex)
-          const previousText = textsRef.current.get(lastRenderedIndex)
-          
-          if (previousSprite) {
-            previousSprite.visible = false
-            previousSprite.alpha = 0
-          }
+      // 렌더링 시작 전에 이전 씬 정리 (재생 중/비재생 중 모두 적용, 자막 누적 방지)
+      const lastRenderedIndex = previousSceneIndexRef.current
+      if (lastRenderedIndex !== null && lastRenderedIndex !== sceneIndex) {
+        // 이전 씬의 스프라이트와 텍스트 숨기기
+        const previousSprite = spritesRef?.current.get(lastRenderedIndex)
+        const previousText = textsRef.current.get(lastRenderedIndex)
+        
+        if (previousSprite) {
+          previousSprite.visible = false
+          previousSprite.alpha = 0
+        }
+        // 같은 그룹 내 씬이 아닌 경우에만 텍스트 숨기기
+        const previousScene = timeline.scenes[lastRenderedIndex]
+        const currentScene = timeline.scenes[sceneIndex]
+        if (previousText && previousScene?.sceneId !== currentScene?.sceneId) {
+          previousText.visible = false
+          previousText.alpha = 0
+        }
+      }
+      
+      // 다른 모든 씬도 숨기기 (현재 씬과 같은 그룹 제외)
+      const currentScene = timeline.scenes[sceneIndex]
+      const currentSceneId = currentScene?.sceneId
+      
+      spritesRef?.current.forEach((sprite, idx) => {
+        if (sprite && idx !== sceneIndex) {
+          sprite.visible = false
+          sprite.alpha = 0
+        }
+      })
+      textsRef.current.forEach((text, idx) => {
+        if (text && idx !== sceneIndex) {
           // 같은 그룹 내 씬이 아닌 경우에만 텍스트 숨기기
-          const previousScene = timeline.scenes[lastRenderedIndex]
-          const currentScene = timeline.scenes[sceneIndex]
-          if (previousText && previousScene?.sceneId !== currentScene?.sceneId) {
-            previousText.visible = false
-            previousText.alpha = 0
+          const otherScene = timeline.scenes[idx]
+          if (otherScene?.sceneId !== currentSceneId) {
+            text.visible = false
+            text.alpha = 0
           }
         }
-        
-        // 다른 모든 씬도 숨기기 (현재 씬과 같은 그룹 제외)
-        const currentScene = timeline.scenes[sceneIndex]
-        const currentSceneId = currentScene?.sceneId
-        
-        spritesRef?.current.forEach((sprite, idx) => {
-          if (sprite && idx !== sceneIndex) {
-            sprite.visible = false
-            sprite.alpha = 0
-          }
-        })
-        textsRef.current.forEach((text, idx) => {
-          if (text && idx !== sceneIndex) {
-            // 같은 그룹 내 씬이 아닌 경우에만 텍스트 숨기기
-            const otherScene = timeline.scenes[idx]
-            if (otherScene?.sceneId !== currentSceneId) {
-              text.visible = false
-              text.alpha = 0
-            }
-          }
-        })
+      })
         
         // 전환 효과가 'none'인 경우, 현재 씬의 스프라이트를 미리 표시
         // (updateCurrentScene 호출 전에 표시하여 즉시 보이도록 함)
@@ -408,7 +407,6 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
             spriteToShow.alpha = 1
           }
         }
-      }
 
       // 구간 인덱스가 있으면 해당 구간의 텍스트 추출
       let partText: string | null = null
@@ -507,18 +505,27 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
 
       // 텍스트 객체 업데이트 (prepareOnly가 아닐 때)
       if (targetTextObj && partText) {
+        // targetTextObj가 여전히 유효한지 확인 (비동기적으로 null이 될 수 있음)
+        if (!targetTextObj || targetTextObj.destroyed) {
+          if (onComplete) {
+            onComplete()
+          }
+          return
+        }
+        
         targetTextObj.text = partText
         
         // Transform 위치 적용 (재생 중에도 위치가 올바르게 설정되도록)
-        if (scene.text?.transform) {
+        if (scene.text?.transform && targetTextObj && !targetTextObj.destroyed) {
           const scaleX = scene.text.transform.scaleX ?? 1
           const scaleY = scene.text.transform.scaleY ?? 1
           targetTextObj.x = scene.text.transform.x
           targetTextObj.y = scene.text.transform.y
           targetTextObj.scale.set(scaleX, scaleY)
           targetTextObj.rotation = scene.text.transform.rotation ?? 0
-        } else if (scene.text) {
+        } else if (scene.text && targetTextObj && !targetTextObj.destroyed) {
           // Transform이 없으면 기본 위치 설정
+          // targetTextObj가 null이 아니고 destroyed되지 않았는지 확인
           const position = scene.text.position || 'bottom'
           const stageHeight = appRef.current?.screen?.height || 1920
           const stageWidth = appRef.current?.screen?.width || 1080
@@ -534,8 +541,10 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
           targetTextObj.rotation = 0
         }
         
-        // 밑줄 렌더링
-        renderUnderline(targetTextObj, scene)
+        // 밑줄 렌더링 (targetTextObj가 여전히 유효한지 확인)
+        if (targetTextObj && !targetTextObj.destroyed) {
+          renderUnderline(targetTextObj, scene)
+        }
       }
 
       // 같은 씬 내 구간 전환인지 확인
@@ -643,6 +652,20 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         previousSprite.visible = false
         previousSprite.alpha = 0
       }
+      
+      // 다른 씬의 텍스트 숨기기 (자막 누적 방지)
+      const currentScene = timeline.scenes[sceneIndex]
+      const currentSceneId = currentScene?.sceneId
+      textsRef.current.forEach((text, idx) => {
+        if (text && idx !== sceneIndex) {
+          // 같은 그룹 내 씬이 아닌 경우에만 텍스트 숨기기
+          const otherScene = timeline.scenes[idx]
+          if (otherScene?.sceneId !== currentSceneId) {
+            text.visible = false
+            text.alpha = 0
+          }
+        }
+      })
 
       if (currentSprite.parent !== containerRef.current) {
         if (currentSprite.parent) {

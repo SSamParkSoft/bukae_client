@@ -61,7 +61,29 @@ export function usePixiFabric({
     if (appRef.current) {
       const existingCanvas = container.querySelector('canvas')
       if (existingCanvas) container.removeChild(existingCanvas)
-      appRef.current.destroy(true, { children: true, texture: true })
+      const existingApp = appRef.current
+      try {
+        // texture 정리 전에 stage를 먼저 정리하여 안전하게 destroy
+        if (existingApp.stage) {
+          try {
+            existingApp.stage.destroy({ children: true })
+          } catch (stageError) {
+            console.warn('usePixiFabric: Error destroying stage', stageError)
+          }
+        }
+        // texture 정리를 제외하고 destroy (texture 정리 시 에러 발생 가능)
+        existingApp.destroy(true, { children: false, texture: false })
+      } catch (error) {
+        console.error('usePixiFabric: Error destroying existing app', error)
+        // 에러 발생 시에도 canvas를 제거
+        try {
+          if (existingApp.canvas && existingApp.canvas.parentNode) {
+            existingApp.canvas.parentNode.removeChild(existingApp.canvas)
+          }
+        } catch (cleanupError) {
+          console.warn('usePixiFabric: Error during cleanup', cleanupError)
+        }
+      }
       appRef.current = null
       containerRef.current = null
     }
@@ -209,9 +231,26 @@ export function usePixiFabric({
         // app이 null이 아니고 destroy 메서드가 존재하는지 확인
         if (app && typeof app.destroy === 'function') {
           try {
-            app.destroy(true, { children: true, texture: true })
+            // texture 정리 전에 stage를 먼저 정리하여 안전하게 destroy
+            if (app.stage) {
+              try {
+                app.stage.destroy({ children: true })
+              } catch (stageError) {
+                console.warn('usePixiFabric: Error destroying stage', stageError)
+              }
+            }
+            // texture 정리를 제외하고 destroy (texture 정리 시 에러 발생 가능)
+            app.destroy(true, { children: false, texture: false })
           } catch (error) {
             console.error('usePixiFabric: Error destroying app', error)
+            // 에러 발생 시에도 appRef를 null로 설정하여 무한 루프 방지
+            try {
+              if (app.canvas && app.canvas.parentNode) {
+                app.canvas.parentNode.removeChild(app.canvas)
+              }
+            } catch (cleanupError) {
+              console.warn('usePixiFabric: Error during cleanup', cleanupError)
+            }
           }
         }
         appRef.current = null

@@ -77,7 +77,7 @@ export async function ensureSceneTts({
   // 각 구간별로 TTS 생성 및 업로드 (순차적으로 처리하여 파일이 준비되는 대로 반환)
   const parts: TtsPart[] = []
   
-  // 순차적으로 처리하여 각 파일이 준비되는 대로 parts에 추가
+  // 순차적으로 처리하여 각 파일이 준비되는 대로 parts에 추가하고 즉시 duration 업데이트
   for (let partIndex = 0; partIndex < markups.length; partIndex++) {
     const markup = markups[partIndex]
     const part = await (async (): Promise<TtsPart> => {
@@ -257,9 +257,15 @@ export async function ensureSceneTts({
     })()
 
     parts.push(part)
+    
+    // 각 part가 완료될 때마다 현재까지의 duration을 계산하고 즉시 업데이트
+    const currentTotalDuration = parts.reduce((sum, p) => sum + p.durationSec, 0)
+    if (currentTotalDuration > 0) {
+      setSceneDurationFromAudio(sceneIndex, currentTotalDuration)
+    }
   }
 
-  // 전체 씬 duration 업데이트 (모든 구간의 duration 합)
+  // 최종 duration 업데이트 (모든 구간의 duration 합)
   const totalDuration = parts.reduce((sum, part) => sum + part.durationSec, 0)
   if (totalDuration > 0) {
     setSceneDurationFromAudio(sceneIndex, totalDuration)

@@ -51,29 +51,27 @@ export function calculateSceneFromTime(
     
     const sceneStartTime = getSceneStartTime(timeline, i)
     
-    // 씬의 duration 계산 (TTS 캐시 사용 가능하면 사용)
-    let sceneDuration = scene.duration
+    // 씬의 duration 계산: TTS 캐시에서만 계산 (TTS duration이 없으면 렌더링 불가)
+    let sceneDuration = 0
     
     if (options?.ttsCacheRef && options?.buildSceneMarkup && options?.makeTtsKey) {
       const sceneVoiceTemplate = scene.voiceTemplate || options.voiceTemplate
       if (sceneVoiceTemplate) {
         const markups = options.buildSceneMarkup(timeline, i)
-        let calculatedDuration = 0
-        let hasCachedDuration = false
         
         for (const markup of markups) {
           const key = options.makeTtsKey(sceneVoiceTemplate, markup)
           const cached = options.ttsCacheRef.current.get(key)
           if (cached?.durationSec && cached.durationSec > 0) {
-            calculatedDuration += cached.durationSec
-            hasCachedDuration = true
+            sceneDuration += cached.durationSec
           }
         }
-        
-        if (hasCachedDuration) {
-          sceneDuration = calculatedDuration
-        }
       }
+    }
+    
+    // TTS duration이 없으면 0으로 설정 (렌더링 불가)
+    if (sceneDuration === 0) {
+      sceneDuration = scene.duration // fallback (하지만 정확하지 않음)
     }
     
     // transitionDuration 계산: 다음 씬과의 전환 시간
@@ -114,6 +112,15 @@ export function calculateSceneFromTime(
           const markups = options.buildSceneMarkup(timeline, boundary.index)
           let partAccumulatedTime = boundary.start
           
+          // 디버깅: markups가 여러 개인지 확인 (첫 번째 part에서만)
+          if (markups.length > 1 && tSec >= boundary.start && tSec < boundary.start + 0.1) {
+            console.log('[calculateSceneFromTime] 여러 part 감지', {
+              sceneIndex: boundary.index,
+              partCount: markups.length,
+              tSec: tSec.toFixed(3),
+            })
+          }
+          
           for (let p = 0; p < markups.length; p++) {
             const markup = markups[p]
             const key = options.makeTtsKey(sceneVoiceTemplate, markup)
@@ -122,28 +129,58 @@ export function calculateSceneFromTime(
             
             const partEndTime = partAccumulatedTime + partDuration
             
+            // 음성 파일 전환 지점 감지: tSec가 partEndTime에 정확히 도달하거나 넘어서면 다음 part로 전환
             if (tSec >= partAccumulatedTime && tSec < partEndTime) {
               partIndex = p
               offsetInPart = tSec - partAccumulatedTime
               break
             }
             
+            // tSec가 partEndTime과 같거나 크면 다음 part로 전환 (음성 파일 전환 지점)
+            // 마지막 part가 아니면 계속 진행하여 다음 part 확인
+            if (tSec >= partEndTime) {
+              if (p < markups.length - 1) {
+                // 다음 part가 있으면 partAccumulatedTime 업데이트하고 continue
+                // 다음 반복에서 다음 part를 확인
+                partAccumulatedTime = partEndTime
+                continue
+              } else {
+                // 마지막 part인 경우 현재 part에 머물러야 함
+                partIndex = p
+                offsetInPart = partDuration // 마지막 part의 끝
+                break
+              }
+            }
+            
             partAccumulatedTime = partEndTime
+          }
+          
+          // 디버깅: 재생 중 part 전환 확인 (여러 part가 있을 때)
+          if (process.env.NODE_ENV === 'development' && markups.length > 1 && options.makeTtsKey && options.ttsCacheRef) {
+            // 첫 번째 part의 duration 확인
+            const firstPartKey = options.makeTtsKey(sceneVoiceTemplate, markups[0])
+            const firstPartDuration = options.ttsCacheRef.current.get(firstPartKey)?.durationSec || 0
+            const firstPartEndTime = boundary.start + firstPartDuration
+            
+            // 첫 번째 part가 끝나고 두 번째 part가 시작되는 순간 감지
+            if (tSec >= firstPartEndTime - 0.01 && tSec < firstPartEndTime + 0.1) {
+              console.log('[calculateSceneFromTime] 🔄 part 전환 지점 감지', {
+                tSec: tSec.toFixed(3),
+                sceneIndex: boundary.index,
+                firstPartEndTime: firstPartEndTime.toFixed(3),
+                계산된partIndex: partIndex,
+                partCount: markups.length,
+                partDurations: markups.map((m) => {
+                  const k = options.makeTtsKey!(sceneVoiceTemplate, m)
+                  return options.ttsCacheRef!.current.get(k)?.durationSec || 0
+                }),
+              })
+            }
           }
         }
       }
       
       break
-    }
-  }
-  
-  // 씬을 찾지 못한 경우: 기본값 반환
-  if (sceneIndex === -1) {
-    if (timeline.scenes.length > 0) {
-      // tSec가 0보다 작으면 첫 번째 씬, 그 외에는 마지막 씬
-      sceneIndex = tSec < 0 ? 0 : timeline.scenes.length - 1
-    } else {
-      sceneIndex = 0
     }
   }
   

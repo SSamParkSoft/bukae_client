@@ -45,11 +45,11 @@ export function useSceneEditHandlers({
       const scene = currentTimeline.scenes[sceneIndex]
       if (!scene) return
       
-      // 씬의 voiceTemplate 업데이트 및 actualPlaybackDuration 초기화
-      // (새로운 목소리로 재생성되므로 이전 재생 시간은 무효화)
+      // 씬의 voiceTemplate 업데이트 및 actualPlaybackDuration, duration 초기화
+      // (새로운 목소리로 재생성되므로 이전 재생 시간과 TTS 캐시 기반 duration 모두 무효화)
       const updatedScenes = currentTimeline.scenes.map((s, idx) =>
         idx === sceneIndex
-          ? { ...s, voiceTemplate: newVoiceTemplate, actualPlaybackDuration: undefined }
+          ? { ...s, voiceTemplate: newVoiceTemplate, actualPlaybackDuration: undefined, duration: 0 }
           : s
       )
       
@@ -61,6 +61,12 @@ export function useSceneEditHandlers({
       // TTS 캐시 무효화 (새로운 목소리로 재생성 필요)
       changedScenesRef.current.add(sceneIndex)
       invalidateSceneTtsCache(sceneIndex)
+      
+      console.log('[useSceneEditHandlers] 씬별 voiceTemplate 변경', {
+        sceneIndex,
+        newVoiceTemplate,
+        oldVoiceTemplate: scene.voiceTemplate,
+      })
     },
     [setTimeline, changedScenesRef, invalidateSceneTtsCache, timelineRef]
   )

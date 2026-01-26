@@ -14,6 +14,7 @@ interface UseTtsManagerProps {
   isPlaying: boolean
   setCurrentTime: React.Dispatch<React.SetStateAction<number>>
   changedScenesRef: React.MutableRefObject<Set<number>>
+  onDurationChange?: (sceneIndex: number, durationSec: number) => void
 }
 
 export function useTtsManager({
@@ -23,6 +24,7 @@ export function useTtsManager({
   isPlaying,
   setCurrentTime,
   changedScenesRef,
+  onDurationChange,
 }: UseTtsManagerProps) {
   // TTS 캐시 및 상태 관리
   const ttsCacheRef = useRef(
@@ -125,9 +127,6 @@ export function useTtsManager({
       // 실제 duration 사용 (최소 0.5초만 유지, 최대 제한 없음)
       const clamped = Math.max(0.5, finalDuration)
       
-      // 이전 totalDuration 계산 (같은 sceneId를 가진 씬들 사이의 transition 제외)
-      const prevTotalDuration = calculateTotalDuration(timeline)
-      
       // 부분 업데이트: 해당 씬의 duration만 변경
       const updatedScene = { ...scene, duration: clamped }
       const newTimeline = {
@@ -135,22 +134,36 @@ export function useTtsManager({
         scenes: timeline.scenes.map((s, i) => (i === sceneIndex ? updatedScene : s)),
       }
       
-      // 새로운 totalDuration 계산 (같은 sceneId를 가진 씬들 사이의 transition 제외)
-      const newTotalDuration = calculateTotalDuration(newTimeline)
-      
-      // 재생 중일 때 currentTime을 비례적으로 조정하여 재생바 튕김 방지
-      if (isPlaying && prevTotalDuration > 0 && newTotalDuration > 0) {
-        const ratio = newTotalDuration / prevTotalDuration
-        setCurrentTime((prevTime) => {
-          const adjustedTime = prevTime * ratio
-          // 조정된 시간이 새로운 totalDuration을 넘지 않도록
-          return Math.min(adjustedTime, newTotalDuration)
-        })
+      // 재생 중일 때만 totalDuration 계산 (렌더링 전에 먼저 콜백 호출하여 지연 최소화)
+      let prevTotalDuration = 0
+      let newTotalDuration = 0
+      if (isPlaying) {
+        // 이전 totalDuration 계산 (같은 sceneId를 가진 씬들 사이의 transition 제외)
+        prevTotalDuration = calculateTotalDuration(timeline)
+        // 새로운 totalDuration 계산 (같은 sceneId를 가진 씬들 사이의 transition 제외)
+        newTotalDuration = calculateTotalDuration(newTimeline)
+        
+        // 재생 중일 때 currentTime을 비례적으로 조정하여 재생바 튕김 방지
+        if (prevTotalDuration > 0 && newTotalDuration > 0) {
+          const ratio = newTotalDuration / prevTotalDuration
+          setCurrentTime((prevTime) => {
+            const adjustedTime = prevTime * ratio
+            // 조정된 시간이 새로운 totalDuration을 넘지 않도록
+            return Math.min(adjustedTime, newTotalDuration)
+          })
+        }
       }
       
+      // TTS duration 변경 시 렌더링 즉시 업데이트를 위한 콜백 호출 (setTimeline 전에 호출)
+      // timeline이 업데이트되기 전에 렌더링을 트리거하여 지연 최소화
+      if (onDurationChange) {
+        onDurationChange(sceneIndex, clamped)
+      }
+      
+      // timeline 업데이트 (렌더링 트리거 후)
       setTimeline(newTimeline)
     },
-    [setTimeline, timeline, isPlaying, setCurrentTime, voiceTemplate]
+    [setTimeline, timeline, isPlaying, setCurrentTime, voiceTemplate, onDurationChange]
   )
 
   // ensureSceneTts 래퍼
@@ -289,6 +302,8 @@ export function useTtsManager({
   }, [timeline, voiceTemplate, sceneMarkupsMap, ttsCacheRef.current])
   
   // Timeline의 duration을 계산 (TTS 캐시 기반)
+  // setSceneDurationFromAudio가 이미 scene.duration을 업데이트하므로,
+  // 이 useEffect는 캐시 변경을 감지하여 추가로 업데이트하는 역할을 합니다.
   useEffect(() => {
     if (!timeline || !voiceTemplate) return
     
@@ -306,13 +321,28 @@ export function useTtsManager({
         if (scene.actualPlaybackDuration && scene.actualPlaybackDuration > 0) {
           return Math.abs(scene.duration - scene.actualPlaybackDuration) <= 0.01
         }
-        // actualPlaybackDuration이 없으면 TTS 캐시 확인 (메모이제이션된 결과 사용)
-        const cacheStatus = sceneCacheStatusMap.get(index)
-        if (!cacheStatus) return false
+        // actualPlaybackDuration이 없으면 TTS 캐시를 직접 확인 (캐시 변경 즉시 감지)
+        const markups = sceneMarkupsMap.get(index) || []
+        if (markups.length === 0) return true
+        
+        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+        let totalTtsDuration = 0
+        let allPartsCached = true
+        
+        for (const markup of markups) {
+          const key = makeTtsKey(sceneVoiceTemplate, markup)
+          const cached = ttsCacheRef.current.get(key)
+          if (cached && cached.durationSec > 0) {
+            totalTtsDuration += cached.durationSec
+          } else {
+            allPartsCached = false
+            break
+          }
+        }
         
         // 모든 part가 캐시에 있고, duration이 이미 정확히 계산되어 있으면 OK
-        if (cacheStatus.allCached && cacheStatus.totalDuration > 0) {
-          return Math.abs(scene.duration - cacheStatus.totalDuration) <= 0.01
+        if (allPartsCached && totalTtsDuration > 0) {
+          return Math.abs(scene.duration - totalTtsDuration) <= 0.01
         }
         return false
       })
@@ -335,17 +365,32 @@ export function useTtsManager({
         return { ...scene, duration: scene.actualPlaybackDuration }
       }
       
-      // actualPlaybackDuration이 없을 때만 TTS 캐시 기반으로 계산 (메모이제이션된 결과 사용)
-      const cacheStatus = sceneCacheStatusMap.get(index)
-      if (!cacheStatus) return scene
+      // actualPlaybackDuration이 없을 때만 TTS 캐시를 직접 확인하여 계산 (캐시 변경 즉시 감지)
+      const markups = sceneMarkupsMap.get(index) || []
+      if (markups.length === 0) return scene
+      
+      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+      let totalTtsDuration = 0
+      let allPartsCached = true
+      
+      for (const markup of markups) {
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
+        const cached = ttsCacheRef.current.get(key)
+        if (cached && cached.durationSec > 0) {
+          totalTtsDuration += cached.durationSec
+        } else {
+          allPartsCached = false
+          break
+        }
+      }
       
       // 모든 part가 캐시에 있고 duration이 계산 가능한 경우만 업데이트
-      if (cacheStatus.allCached && cacheStatus.totalDuration > 0) {
+      if (allPartsCached && totalTtsDuration > 0) {
         // 기존 duration과 같으면 업데이트하지 않음
-        if (Math.abs(scene.duration - cacheStatus.totalDuration) <= 0.01) {
+        if (Math.abs(scene.duration - totalTtsDuration) <= 0.01) {
           return scene
         }
-        return { ...scene, duration: cacheStatus.totalDuration }
+        return { ...scene, duration: totalTtsDuration }
       }
       
       // TTS 캐시가 없으면 아무것도 하지 않음 (재생이 안되니까)
@@ -370,8 +415,15 @@ export function useTtsManager({
           return update ? update.scene : s
         }),
       })
+      
+      // TTS duration 변경 시 렌더링 즉시 업데이트를 위한 콜백 호출
+      scenesToUpdate.forEach(({ index, scene }) => {
+        if (onDurationChange && scene.duration > 0) {
+          onDurationChange(index, scene.duration)
+        }
+      })
     }
-  }, [voiceTemplate, setTimeline, timeline, sceneCacheStatusMap])
+  }, [voiceTemplate, setTimeline, timeline, sceneMarkupsMap, onDurationChange])
 
   return {
     ttsCacheRef,

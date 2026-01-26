@@ -1,11 +1,17 @@
 /**
  * 시간(초)을 MM:SS 형식으로 포맷합니다.
  * @param seconds 초 단위 시간
- * @returns MM:SS 형식 문자열
+ * @param includeMs 밀리초 포함 여부 (기본값: false)
+ * @returns MM:SS 또는 MM:SS.mmm 형식 문자열
  */
-export const formatTime = (seconds: number): string => {
+export const formatTime = (seconds: number, includeMs: boolean = false): string => {
   const mins = Math.floor(seconds / 60)
   const secs = Math.floor(seconds % 60)
+  const ms = Math.floor((seconds % 1) * 1000)
+  
+  if (includeMs) {
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`
+  }
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 

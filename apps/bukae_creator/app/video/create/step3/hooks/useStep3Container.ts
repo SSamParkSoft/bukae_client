@@ -5,6 +5,7 @@ import { TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { useSceneHandlers } from '@/hooks/video/scene/useSceneHandlers'
 import { calculateSceneIndexFromTime, getSceneStartTime } from '@/utils/timeline'
+import { calculateSceneFromTime } from '@/utils/timeline-render'
 import { usePixiFabric } from '@/hooks/video/pixi/usePixiFabric'
 import { usePixiEffects } from '@/hooks/video/effects/usePixiEffects'
 import { useSceneManager } from '@/hooks/video/scene/useSceneManager'
@@ -557,6 +558,17 @@ export function useStep3Container() {
     ? transport.getAudioContext() 
     : undefined
   
+  // Transport를 ref로 저장하여 안정적인 참조 유지
+  const transportRef = useRef(transport)
+  useEffect(() => {
+    transportRef.current = transport
+  }, [transport])
+  
+  // TTS 세그먼트 종료 콜백 (renderAtRef가 설정된 후 업데이트됨)
+  const onSegmentEndRef = useRef<((segmentEndTime: number, sceneIndex: number) => void) | null>(null)
+  // TTS 세그먼트 시작 콜백 (renderAtRef가 설정된 후 업데이트됨)
+  const onSegmentStartRef = useRef<((segmentStartTime: number, sceneIndex: number) => void) | null>(null)
+  
   const ttsTrack = useTtsTrack({
     timeline,
     voiceTemplate,
@@ -565,6 +577,22 @@ export function useStep3Container() {
     transportTime: transport.currentTime,
     buildSceneMarkup: buildSceneMarkupWithTimeline,
     makeTtsKey,
+    // TTS 세그먼트 시작 시 즉시 렌더링 업데이트 (TTS와 씬 전환 동기화)
+    onSegmentStart: useCallback((segmentStartTime: number, sceneIndex: number) => {
+      const callback = onSegmentStartRef.current
+      if (callback) {
+        callback(segmentStartTime, sceneIndex)
+      }
+    }, []),
+    // TTS 세그먼트 종료 시 즉시 렌더링 업데이트 (실제로는 호출하지 않음 - Transport 렌더링 루프에 맡김)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    onSegmentEnd: useCallback((_segmentEndTime: number, _sceneIndex: number) => {
+      const callback = onSegmentEndRef.current
+      if (callback) {
+        // 매개변수는 타입 호환성을 위해 전달하지만 실제로는 사용하지 않음
+        callback(_segmentEndTime, _sceneIndex)
+      }
+    }, []),
   })
 
   // totalDuration 계산 (Transport에 설정)
@@ -599,24 +627,35 @@ export function useStep3Container() {
     voiceTemplate,
     buildSceneMarkup: buildSceneMarkupWithTimeline,
     makeTtsKey,
+    getActiveSegment: ttsTrack.getActiveSegment, // TTS 세그먼트 전환 감지용
     loadPixiTextureWithCache,
     applyEnterEffect,
     onSceneLoadComplete: handleLoadComplete,
   })
 
   // renderAt ref (Transport 렌더러에서 설정됨)
-  const renderAtRef = useRef<((tSec: number, options?: { skipAnimation?: boolean }) => void) | undefined>(undefined)
+  const renderAtRef = useRef<((tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number }) => void) | undefined>(undefined)
+  
+  // TTS duration 변경 시 렌더링 즉시 업데이트를 위한 콜백 ref
+  const onDurationChangeRef = useRef<((sceneIndex: number, durationSec: number) => void) | undefined>(undefined)
 
   // Transport 기반 재생 상태 (초기 선언만, 실제 구현은 useTtsManager 이후)
   const isPlaying = transport.isPlaying
   const currentTime = transport.currentTime
   const setCurrentTime = ((time: number | ((prev: number) => number)) => {
     const targetTime = typeof time === 'function' ? time(transport.currentTime) : time
+    const wasPlaying = transport.isPlaying
     transport.seek(targetTime)
-    // TtsTrack도 seek (클라이언트에서만)
-    if (transport.isPlaying && typeof window !== 'undefined' && transport.transport && audioContext) {
+    // TtsTrack도 seek (재생 중일 때만, 클라이언트에서만)
+    // 재생 중이 아닐 때는 TTS 재생하지 않음 (씬 클릭 시 음성 재생 방지)
+    if (wasPlaying && typeof window !== 'undefined' && transport.transport && audioContext) {
       const audioCtxTime = audioContext.currentTime
       ttsTrack.playFrom(targetTime, audioCtxTime)
+    } else {
+      // 재생 중이 아닐 때는 TTS 정지 (씬 클릭 시 음성 재생 방지)
+      if (typeof window !== 'undefined') {
+        ttsTrack.stopAll()
+      }
     }
     // 시각적 렌더링 업데이트
     if (renderAtRef.current) {
@@ -633,7 +672,32 @@ export function useStep3Container() {
   // currentSceneIndex를 상태로 관리하여 씬 카드 클릭 시 수동 선택을 추적
   // 재생 중일 때는 계산된 값을 사용, 재생 중이 아닐 때는 수동 선택을 우선
   const [manualSceneIndex, setManualSceneIndex] = useState<number | null>(null)
-  const calculatedSceneIndex = timeline ? calculateSceneIndexFromTime(timeline, transport.currentTime) : 0
+  // 렌더링과 동일한 조건 사용: segmentChanged 감지 (TTS 파일 전환 시 즉시 업데이트)
+  // getActiveSegment를 사용해서 실제 TTS 파일 전환 시 하이라이트도 즉시 업데이트
+  const calculatedSceneIndex = timeline && ttsTrack.getActiveSegment
+    ? (() => {
+        // TTS 세그먼트에서 씬 인덱스 가져오기 (TTS 파일 전환 시 즉시 반영)
+        const activeSegment = ttsTrack.getActiveSegment(transport.currentTime)
+        if (activeSegment && activeSegment.segment.sceneIndex !== undefined) {
+          return activeSegment.segment.sceneIndex
+        }
+        // fallback: calculateSceneFromTime 사용
+        if (renderAtRef.current) {
+          const calculated = calculateSceneFromTime(
+            timeline,
+            transport.currentTime,
+            {
+              ttsCacheRef: ttsCacheRefShared,
+              voiceTemplate,
+              buildSceneMarkup: buildSceneMarkupWithTimeline,
+              makeTtsKey,
+            }
+          )
+          return calculated.sceneIndex
+        }
+        return calculateSceneIndexFromTime(timeline, transport.currentTime)
+      })()
+    : (timeline ? calculateSceneIndexFromTime(timeline, transport.currentTime) : 0)
   // 재생 중일 때는 계산된 값 사용, 재생 중이 아닐 때는 수동 선택 우선
   const currentSceneIndex = isPlaying 
     ? calculatedSceneIndex 
@@ -668,7 +732,44 @@ export function useStep3Container() {
     isPlaying,
     setCurrentTime,
     changedScenesRef,
+    onDurationChange: (sceneIndex, durationSec) => {
+      // ref를 통해 최신 콜백 호출
+      onDurationChangeRef.current?.(sceneIndex, durationSec)
+    },
   })
+  
+  // TTS duration 변경 시 렌더링 즉시 업데이트를 위한 콜백 (useTtsManager 호출 이후에 정의)
+  const handleDurationChange = useCallback((sceneIndex: number, durationSec: number) => {
+    // TTS duration이 변경되면 ttsCacheRefShared를 먼저 동기화한 후 렌더링
+    // useTtsManager의 ttsCacheRef가 업데이트되었으므로 ttsCacheRefShared에도 반영
+    if (ttsCacheRef && ttsCacheRefShared) {
+      // 최신 캐시를 ttsCacheRefShared에 동기화
+      ttsCacheRef.current.forEach((value, key) => {
+        if (!ttsCacheRefShared.current.has(key) || 
+            ttsCacheRefShared.current.get(key)?.durationSec !== value.durationSec) {
+          ttsCacheRefShared.current.set(key, value)
+        }
+      })
+    }
+    
+    // 렌더링 캐시 리셋 (TTS duration 변경으로 인한 씬 경계 변경을 감지하기 위해)
+    // 이렇게 하면 다음 renderAt 호출 시 중복 체크를 우회하여 강제 렌더링됨
+    if (transportRendererRef.current?.resetRenderCache) {
+      transportRendererRef.current.resetRenderCache()
+    }
+    
+    // 캐시 동기화 및 캐시 리셋 후 현재 재생 시간에서 렌더링을 즉시 수행
+    if (renderAtRef.current && transport) {
+      const currentTime = transport.currentTime
+      // 즉시 렌더링 (캐시 리셋으로 인해 중복 체크를 우회하여 TTS duration 변경 시 즉시 반영)
+      renderAtRef.current(currentTime, { skipAnimation: false })
+    }
+  }, [transport, ttsCacheRef, ttsCacheRefShared])
+  
+  // handleDurationChange를 ref에 저장하여 useTtsManager에서 사용 가능하도록
+  useEffect(() => {
+    onDurationChangeRef.current = handleDurationChange
+  }, [handleDurationChange])
 
   // TTS 캐시 동기화: useTtsManager의 ttsCacheRef를 ttsCacheRefShared에 동기화
   // useTtsManager가 내부에서 생성한 ttsCacheRef를 ttsCacheRefShared로 교체
@@ -731,7 +832,7 @@ export function useStep3Container() {
                         })
                       }
                     }
-                  } catch (error) {
+                  } catch  {
                     // TTS 생성 실패 (로그 제거)
                   }
                 })
@@ -893,12 +994,142 @@ export function useStep3Container() {
   // updateCurrentScene2를 ref로 감싸서 안정적인 참조 유지
   updateCurrentSceneRef.current = updateCurrentScene2
   
+  // transportRenderer를 ref로 저장하여 안정적인 참조 유지
+  const transportRendererRef = useRef(transportRenderer)
+  useEffect(() => {
+    transportRendererRef.current = transportRenderer
+  }, [transportRenderer])
+  
+  // 씬별 실제 재생 시간 추적 (씬 전환 시 actualPlaybackDuration 업데이트)
+  const sceneStartTimesRef = useRef<Map<number, number>>(new Map())
+  const lastSceneIndexRef = useRef<number>(-1)
+  
   // renderAt을 ref로 저장하여 setIsPlaying/setCurrentTime에서 사용 가능하도록
   useEffect(() => {
-    if (transportRenderer.renderAt) {
-      renderAtRef.current = transportRenderer.renderAt
+    const currentRenderer = transportRendererRef.current
+    if (currentRenderer?.renderAt) {
+      // renderAt을 래핑하여 씬 전환 시 실제 재생 시간 업데이트
+      const originalRenderAt = currentRenderer.renderAt
+      renderAtRef.current = (tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number }) => {
+        // 원본 renderAt 호출
+        originalRenderAt(tSec, options)
+        
+        // 성능 최적화: actualPlaybackDuration 업데이트는 씬 전환 시에만 비동기로 실행
+        // requestAnimationFrame 핸들러 내부에서 무거운 계산과 setTimeline 호출 방지
+        if (timeline && !options?.skipAnimation) {
+          // setTimeout으로 지연시켜 requestAnimationFrame 핸들러 블로킹 방지
+          setTimeout(() => {
+            const currentSceneIndex = lastSceneIndexRef.current
+            const previousSceneIndex = sceneStartTimesRef.current.size > 0 
+              ? Array.from(sceneStartTimesRef.current.keys()).pop() ?? -1 
+              : -1
+            
+            // 씬이 변경되었을 때만 actualPlaybackDuration 업데이트
+            if (previousSceneIndex >= 0 && previousSceneIndex !== currentSceneIndex && previousSceneIndex < timeline.scenes.length) {
+              // 이전 씬의 시작 시간 계산 (캐시 사용)
+              let previousSceneStartTime = sceneStartTimesRef.current.get(previousSceneIndex)
+              if (previousSceneStartTime === undefined) {
+                previousSceneStartTime = 0
+                for (let i = 0; i < previousSceneIndex; i++) {
+                  const prevScene = timeline.scenes[i]
+                  if (prevScene) {
+                    const prevDuration = prevScene.actualPlaybackDuration && prevScene.actualPlaybackDuration > 0
+                      ? prevScene.actualPlaybackDuration
+                      : prevScene.duration || 0
+                    previousSceneStartTime += prevDuration
+                  }
+                }
+                sceneStartTimesRef.current.set(previousSceneIndex, previousSceneStartTime)
+              }
+              
+              const previousSceneActualDuration = tSec - previousSceneStartTime
+              if (previousSceneActualDuration > 0 && previousSceneActualDuration < 1000) {
+                const previousScene = timeline.scenes[previousSceneIndex]
+                const currentActualDuration = previousScene?.actualPlaybackDuration ?? 0
+                
+                if (Math.abs(previousSceneActualDuration - currentActualDuration) >= 0.1) {
+                  const updatedScenes = timeline.scenes.map((scene, idx) =>
+                    idx === previousSceneIndex
+                      ? { ...scene, actualPlaybackDuration: previousSceneActualDuration }
+                      : scene
+                  )
+                  setTimeline({
+                    ...timeline,
+                    scenes: updatedScenes,
+                  })
+                }
+              }
+            }
+          }, 0) // 다음 이벤트 루프에서 실행
+        }
+      }
+      
+      // renderAt이 설정된 후 세그먼트 시작 콜백 업데이트 (TTS와 씬 전환 동기화)
+      onSegmentStartRef.current = (segmentStartTime: number, sceneIndex: number) => {
+        // 성능 최적화: console.log 제거 (과도한 로그가 성능 저하 유발)
+        // const currentTransport = transportRef.current
+        // const currentTransportTime = currentTransport.currentTime
+        // console.log('[useStep3Container] TTS 세그먼트 시작 감지', {
+        //   segmentStartTime,
+        //   sceneIndex,
+        //   currentTransportTime,
+        //   timeDiff: segmentStartTime - currentTransportTime,
+        // })
+        
+        if (renderAtRef.current) {
+          // 세그먼트 시작 시간과 씬 인덱스를 직접 사용하여 정확한 동기화 보장
+          // forceSceneIndex를 사용하여 calculateSceneFromTime의 계산 오류 방지
+          // console.log('[useStep3Container] renderAt 호출 (세그먼트 시작)', { segmentStartTime, sceneIndex, currentTransportTime })
+          renderAtRef.current(segmentStartTime, { skipAnimation: false, forceSceneIndex: sceneIndex })
+        }
+      }
+      
+      // renderAt이 설정된 후 세그먼트 종료 콜백 업데이트
+      // TTS 세그먼트 종료 시 정확한 씬 전환 보장
+      onSegmentEndRef.current = (segmentEndTime: number, sceneIndex: number) => {
+        if (!renderAtRef.current || !timeline) {
+          return
+        }
+        
+        // 세그먼트 종료 시점에 정확한 씬 전환 보장
+        // segmentEndTime은 현재 씬의 종료 시간이므로, 다음 씬으로 전환해야 함
+        const nextSceneIndex = sceneIndex + 1 < timeline.scenes.length ? sceneIndex + 1 : sceneIndex
+        
+        // segmentEndTime을 기반으로 정확한 씬을 렌더링
+        // forceSceneIndex를 사용하여 calculateSceneFromTime의 계산 오류 방지
+        renderAtRef.current(segmentEndTime, { skipAnimation: false, forceSceneIndex: nextSceneIndex })
+      }
     }
-  }, [transportRenderer.renderAt])
+  }, [timeline, setTimeline, voiceTemplate, buildSceneMarkupWithTimeline, makeTtsKey, ttsCacheRefShared]) // timeline과 setTimeline 추가
+  
+  // ttsTrack을 ref로 저장하여 안정적인 참조 유지
+  const ttsTrackRef = useRef(ttsTrack)
+  useEffect(() => {
+    ttsTrackRef.current = ttsTrack
+  }, [ttsTrack])
+  
+  // onSegmentStartRef와 onSegmentEndRef가 설정된 후 ttsTrack에 다시 설정
+  useEffect(() => {
+    const currentTtsTrack = ttsTrackRef.current.getTtsTrack()
+    if (currentTtsTrack) {
+      if (onSegmentStartRef.current) {
+        const startCallback = onSegmentStartRef.current
+        currentTtsTrack.setOnSegmentStart((segmentStartTime: number, sceneIndex: number) => {
+          startCallback(segmentStartTime, sceneIndex)
+        })
+        // console.log('[useStep3Container] TTS 세그먼트 시작 콜백 재설정 완료')
+      }
+      if (onSegmentEndRef.current) {
+        const endCallback = onSegmentEndRef.current
+        currentTtsTrack.setOnSegmentEnd((segmentEndTime: number, sceneIndex: number) => {
+          // 매개변수는 타입 호환성을 위해 전달하지만 실제로는 사용하지 않음
+          // 세그먼트 종료는 Transport의 정상적인 렌더링 루프로 처리됨
+          endCallback(segmentEndTime, sceneIndex)
+        })
+        // console.log('[useStep3Container] TTS 세그먼트 종료 콜백 재설정 완료')
+      }
+    }
+  }, []) // 의존성 배열 비움 - ttsTrack과 onSegmentStartRef, onSegmentEndRef는 ref로 접근
   
   // Transport 시간이 변경될 때 자동으로 TtsTrack 재생 업데이트 (재생 중일 때만)
   const lastTtsUpdateTimeRef = useRef<number>(-1)
@@ -1725,8 +1956,12 @@ export function useStep3Container() {
   // 씬 선택 핸들러
   const handleSceneSelect = useCallback((index: number) => {
     // Transport 기반에서는 재생 중에도 씬 선택 가능 (Transport가 자동으로 처리)
+    // 씬 클릭 시 TTS 재생 방지: 재생 중이 아니면 TTS 정지
+    if (!isPlaying && typeof window !== 'undefined') {
+      ttsTrack.stopAll()
+    }
     sceneNavigation.selectScene(index)
-  }, [sceneNavigation])
+  }, [sceneNavigation, isPlaying, ttsTrack])
 
   // 반환값 최적화
   return useMemo(() => ({

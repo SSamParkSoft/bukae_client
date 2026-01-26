@@ -28,6 +28,10 @@ interface UseTtsTrackParams {
   buildSceneMarkup: (timeline: TimelineData, sceneIndex: number) => string[]
   /** TTS 키 생성 함수 */
   makeTtsKey: (voiceName: string, markup: string) => string
+  /** 세그먼트 종료 시 렌더링 업데이트 콜백 (선택사항) */
+  onSegmentEnd?: (segmentEndTime: number, sceneIndex: number) => void
+  /** 세그먼트 시작 시 렌더링 업데이트 콜백 (선택사항) */
+  onSegmentStart?: (segmentStartTime: number, sceneIndex: number) => void
 }
 
 /**
@@ -131,6 +135,8 @@ export function useTtsTrack({
   transportTime,
   buildSceneMarkup,
   makeTtsKey,
+  onSegmentEnd,
+  onSegmentStart,
 }: UseTtsTrackParams) {
   const ttsTrackRef = useRef<TtsTrack | null>(null)
   // 클라이언트 마운트 확인 (useState 초기값으로 처리)
@@ -142,6 +148,26 @@ export function useTtsTrack({
       ttsTrackRef.current = new TtsTrack(audioContext)
     }
   }, [audioContext, isClient])
+  
+  // 세그먼트 종료 콜백 설정
+  useEffect(() => {
+    const currentTtsTrack = ttsTrackRef.current
+    if (currentTtsTrack && onSegmentEnd) {
+      currentTtsTrack.setOnSegmentEnd(onSegmentEnd)
+    } else if (currentTtsTrack) {
+      currentTtsTrack.setOnSegmentEnd(null)
+    }
+  }, [onSegmentEnd])
+
+  // 세그먼트 시작 콜백 설정
+  useEffect(() => {
+    const currentTtsTrack = ttsTrackRef.current
+    if (currentTtsTrack && onSegmentStart) {
+      currentTtsTrack.setOnSegmentStart(onSegmentStart)
+    } else if (currentTtsTrack) {
+      currentTtsTrack.setOnSegmentStart(null)
+    }
+  }, [onSegmentStart])
 
   // Timeline과 TTS 캐시로부터 세그먼트 테이블 생성
   // 폴링 방식 제거: TTS 파일 생성 완료 시점에만 업데이트하도록 변경
