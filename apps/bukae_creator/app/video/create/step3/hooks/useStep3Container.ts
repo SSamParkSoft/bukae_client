@@ -16,6 +16,7 @@ import { useGridManager } from '@/hooks/video/canvas/useGridManager'
 import { useCanvasSize } from '@/hooks/video/canvas/useCanvasSize'
 import { useFontLoader } from '@/hooks/video/canvas/useFontLoader'
 import { useBgmManager } from '@/hooks/video/audio/useBgmManager'
+import { useSoundEffectManager } from '@/hooks/video/audio/useSoundEffectManager'
 import { useTimelineInteraction } from '@/hooks/video/timeline/useTimelineInteraction'
 import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
 import { useSceneEditHandlers as useSceneEditHandlersFromVideo } from '@/hooks/video/scene/useSceneEditHandlers'
@@ -1199,6 +1200,18 @@ export function useStep3Container() {
   const handleSoundEffectConfirm = useCallback((effectId: string | null) => {
     setConfirmedSoundEffect(effectId)
   }, [setConfirmedSoundEffect])
+
+  // 효과음 관리 (세그먼트 전환 시점에 재생)
+  useSoundEffectManager({
+    timeline,
+    isPlaying,
+    currentTime: transport.currentTime,
+    ttsCacheRef: ttsCacheRefShared,
+    voiceTemplate,
+    buildSceneMarkup: buildSceneMarkupWithTimeline,
+    makeTtsKey,
+    getActiveSegment: ttsTrack.getActiveSegment,
+  })
 
   // TTS 유틸리티 함수들 (lib/utils/tts.ts에서 import)
   // buildSceneMarkup과 makeTtsKey는 유틸리티 함수로 직접 사용
