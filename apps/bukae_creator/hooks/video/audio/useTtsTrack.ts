@@ -65,8 +65,16 @@ function buildSegmentsFromTimeline(
       const key = makeTtsKey(sceneVoiceTemplate, markup)
       const cached = ttsCacheRef.current.get(key)
 
+      // 분할된 씬(splitIndex가 있는 경우)의 경우 partIndex를 splitIndex - 1로 설정
+      // 같은 그룹 내에서 순서를 나타내는 splitIndex를 partIndex로 사용
+      let finalPartIndex = partIndex
+      if (scene.splitIndex !== undefined) {
+        // splitIndex는 1부터 시작하므로 partIndex는 splitIndex - 1
+        finalPartIndex = scene.splitIndex - 1
+      }
+
       // 세그먼트 생성 (캐시가 없어도 생성하여 part 인식 가능하도록)
-      const segmentId = `scene-${sceneIndex}-part-${partIndex}`
+      const segmentId = `scene-${sceneIndex}-part-${finalPartIndex}`
       
       if (!cached) {
         // 캐시에 없으면 임시 세그먼트 생성 (durationSec은 0으로 설정)
@@ -78,7 +86,7 @@ function buildSegmentsFromTimeline(
           durationSec: 0, // 임시로 0 설정
           sceneId: scene.sceneId,
           sceneIndex,
-          partIndex,
+          partIndex: finalPartIndex,
           markup,
         }
         segments.push(segment)
@@ -98,7 +106,7 @@ function buildSegmentsFromTimeline(
           durationSec: cached.durationSec || 0,
           sceneId: scene.sceneId,
           sceneIndex,
-          partIndex,
+          partIndex: finalPartIndex,
           markup: cached.markup || markup,
         }
         segments.push(segment)
@@ -112,7 +120,7 @@ function buildSegmentsFromTimeline(
         durationSec: cached.durationSec,
         sceneId: scene.sceneId,
         sceneIndex,
-        partIndex,
+        partIndex: finalPartIndex,
         markup: cached.markup || markup,
       }
 

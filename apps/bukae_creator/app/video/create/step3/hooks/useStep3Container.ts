@@ -1204,46 +1204,22 @@ export function useStep3Container() {
         }
       }
       
-      // 텍스트 객체 업데이트
-      if (partIndex !== undefined && partIndex !== null) {
-        const scene = timeline?.scenes[sceneIndex]
-        if (scene) {
-          const originalText = scene.text?.content || ''
-          const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
-          const partText = scriptParts[partIndex]?.trim()
-          
-          if (partText) {
-            let targetTextObj: PIXI.Text | null = textsRef.current.get(sceneIndex) || null
-            
-            // 같은 그룹 내 첫 번째 씬의 텍스트 사용 (필요한 경우)
-            if (!targetTextObj || (!targetTextObj.visible && targetTextObj.alpha === 0)) {
-              const sceneId = scene.sceneId
-              if (sceneId !== undefined && timeline) {
-                const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
-                if (firstSceneIndexInGroup >= 0) {
-                  targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
-                }
-              }
-            }
-            
-            if (targetTextObj) {
-              targetTextObj.text = partText
-              targetTextObj.visible = true
-              targetTextObj.alpha = 1
-            }
-            
-            // 이미지는 전환 효과를 통해서만 렌더링되므로 여기서는 처리하지 않음
-            
-            // 같은 씬 내 구간 전환인 경우: 자막만 업데이트 (전환 효과 없음)
-            if (isSameSceneTransition) {
-              // 렌더링은 PixiJS ticker가 처리
-              if (options?.onComplete) {
-                options.onComplete()
-              }
-              return
-            }
-          }
+      // 텍스트 객체 업데이트 - renderSubtitlePart 훅 사용
+      if (partIndex !== undefined && partIndex !== null && renderSubtitlePart) {
+        // 같은 씬 내 구간 전환인 경우: 자막만 업데이트 (전환 효과 없음)
+        if (isSameSceneTransition) {
+          renderSubtitlePart(sceneIndex, partIndex, {
+            skipAnimation: true,
+            onComplete: options?.onComplete,
+          })
+          return
         }
+        
+        // 다른 씬으로 이동하는 경우: 씬 전환 후 자막 업데이트는 updateCurrentScene 콜백에서 처리
+        // 여기서는 자막만 미리 업데이트 (전환 효과는 updateCurrentScene에서 처리)
+        renderSubtitlePart(sceneIndex, partIndex, {
+          skipAnimation: true,
+        })
       }
       
       // 다른 씬으로 이동하는 경우: 씬 전환
@@ -1263,21 +1239,13 @@ export function useStep3Container() {
         options?.forceTransition || (options?.skipAnimation ? 'none' : undefined),
         () => {
           // 전환 완료 후 구간 텍스트가 올바르게 표시되었는지 확인
-          if (partIndex !== undefined && partIndex !== null && timeline) {
-            const scene = timeline.scenes[sceneIndex]
-            if (scene) {
-              const originalText = scene.text?.content || ''
-              const scriptParts = originalText.split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
-              const partText = scriptParts[partIndex]?.trim()
-              
-              if (partText) {
-                const finalText = textsRef.current.get(sceneIndex)
-                if (finalText && finalText.text !== partText) {
-                  finalText.text = partText
-                  // 렌더링은 PixiJS ticker가 처리
-                }
-              }
-            }
+          if (partIndex !== undefined && partIndex !== null && renderSubtitlePart) {
+            // renderSubtitlePart를 호출하여 텍스트 업데이트
+            renderSubtitlePart(sceneIndex, partIndex, {
+              skipAnimation: true,
+              onComplete: options?.onComplete,
+            })
+            return
           }
           if (options?.onComplete) {
             options.onComplete()
@@ -1289,7 +1257,7 @@ export function useStep3Container() {
       )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeline, setTimeline, setCurrentSceneIndex, currentSceneIndexRef, updateCurrentScene, renderSceneContentFromManager])
+  }, [timeline, setTimeline, setCurrentSceneIndex, currentSceneIndexRef, updateCurrentScene, renderSceneContentFromManager, renderSubtitlePart])
   
   // isPreviewingTransition (Transport에서는 별도 관리 필요)
   const isPreviewingTransition = false

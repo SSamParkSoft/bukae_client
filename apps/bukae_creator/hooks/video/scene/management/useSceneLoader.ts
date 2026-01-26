@@ -128,12 +128,24 @@ export function useSceneLoader({
         const isFirstSceneInGroup = firstSceneIndexInGroup === sceneIndex
 
         // 첫 번째 씬이 아니고 같은 그룹 내에 스프라이트가 이미 있으면 공유
+        // 단, 분할된 씬(splitIndex가 있는 경우)은 각 씬 인덱스별로 별도 텍스트 객체가 필요하므로 텍스트는 생성해야 함
         if (!isFirstSceneInGroup && firstSceneIndexInGroup >= 0) {
           const firstSceneSprite = spritesRef.current.get(firstSceneIndexInGroup)
           if (firstSceneSprite) {
             // 같은 그룹 내 씬들은 첫 번째 씬의 스프라이트를 참조
             spritesRef.current.set(sceneIndex, firstSceneSprite)
-            return
+            
+            // 분할된 씬이 아니면 텍스트도 공유하고 return
+            // 분할된 씬은 각 씬 인덱스별로 별도 텍스트 객체가 필요하므로 계속 진행
+            if (scene.splitIndex === undefined) {
+              const firstSceneText = textsRef.current.get(firstSceneIndexInGroup)
+              if (firstSceneText) {
+                // 같은 그룹 내 씬들은 첫 번째 씬의 텍스트 객체를 참조
+                textsRef.current.set(sceneIndex, firstSceneText)
+              }
+              return
+            }
+            // 분할된 씬의 경우 텍스트 객체는 아래에서 생성
           }
         }
 

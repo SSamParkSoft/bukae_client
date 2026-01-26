@@ -122,18 +122,63 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         return
       }
 
-      // 텍스트 객체 찾기
-      let targetTextObj: PIXI.Text | null = null
+      // 같은 그룹 내 모든 텍스트를 먼저 숨김 (겹침 방지)
+      // 같은 그룹 내에서 텍스트 객체를 공유하는 경우를 고려
       const sceneId = scene.sceneId
+      
+      // 디버깅: 같은 그룹 내 모든 텍스트 객체 상태 확인
       if (sceneId !== undefined) {
-        const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
-        if (firstSceneIndexInGroup >= 0) {
-          targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
-        }
+        // 같은 그룹 내 모든 씬 인덱스 찾기
+        const sameGroupSceneIndices = timeline.scenes
+          .map((s, idx) => (s.sceneId === sceneId ? idx : -1))
+          .filter((idx) => idx >= 0)
+        
+        // 같은 그룹 내 모든 텍스트 객체 수집 (중복 제거 - 같은 인스턴스)
+        const textObjectsToHide = new Set<PIXI.Text>()
+        sameGroupSceneIndices.forEach((groupSceneIndex) => {
+          const groupTextObj = textsRef.current.get(groupSceneIndex)
+          if (groupTextObj && !groupTextObj.destroyed) {
+            textObjectsToHide.add(groupTextObj)
+          }
+        })
+        
+        // 실제로 사용되는 모든 텍스트 객체 인스턴스 숨김
+        textObjectsToHide.forEach((textObj) => {
+          textObj.visible = false
+        })
+      } else {
+        // sceneId가 없으면 모든 텍스트 숨김
+        const textObjectsToHide = new Set<PIXI.Text>()
+        textsRef.current.forEach((textObj) => {
+          if (!textObj.destroyed) {
+            textObjectsToHide.add(textObj)
+          }
+        })
+        textObjectsToHide.forEach((textObj) => {
+          textObj.visible = false
+        })
       }
-
-      if (!targetTextObj) {
+      
+      // 텍스트 객체 찾기
+      // 분할된 씬(splitIndex가 있는 경우)의 경우 각 씬 인덱스별로 별도 텍스트 객체를 사용
+      // 분할되지 않은 씬의 경우 같은 그룹 내에서 텍스트 객체를 공유할 수 있음
+      let targetTextObj: PIXI.Text | null = null
+      
+      // 분할된 씬의 경우 현재 씬 인덱스의 텍스트 객체만 사용 (겹침 방지)
+      if (scene.splitIndex !== undefined) {
         targetTextObj = textsRef.current.get(sceneIndex) || null
+      } else {
+        // 분할되지 않은 씬의 경우 같은 그룹 내 첫 번째 씬 인덱스의 텍스트 객체 사용
+        if (sceneId !== undefined) {
+          const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+          if (firstSceneIndexInGroup >= 0) {
+            targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
+          }
+        }
+
+        if (!targetTextObj) {
+          targetTextObj = textsRef.current.get(sceneIndex) || null
+        }
       }
 
       if (!targetTextObj) {
@@ -198,6 +243,20 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
 
       if (prepareOnly) {
         targetTextObj.visible = true
+        
+        // 텍스트 표시 후 다시 한 번 같은 그룹 내 다른 텍스트 숨김 (겹침 방지)
+        if (sceneId !== undefined) {
+          const sameGroupSceneIndices = timeline.scenes
+            .map((s, idx) => (s.sceneId === sceneId ? idx : -1))
+            .filter((idx) => idx >= 0 && idx !== sceneIndex)
+          
+          sameGroupSceneIndices.forEach((groupSceneIndex) => {
+            const groupTextObj = textsRef.current.get(groupSceneIndex)
+            if (groupTextObj && !groupTextObj.destroyed && groupTextObj !== targetTextObj) {
+              groupTextObj.visible = false
+            }
+          })
+        }
         targetTextObj.alpha = 0
         if (onComplete) {
           onComplete()
@@ -208,7 +267,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
       // 표시
       targetTextObj.visible = true
       targetTextObj.alpha = 1
-
+      
       if (containerRef.current) {
         if (targetTextObj.parent !== containerRef.current) {
           if (targetTextObj.parent) {
@@ -492,6 +551,20 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         if (targetTextObj && partText) {
           targetTextObj.text = partText
           targetTextObj.visible = true
+        
+        // 텍스트 표시 후 다시 한 번 같은 그룹 내 다른 텍스트 숨김 (겹침 방지)
+        if (sceneId !== undefined) {
+          const sameGroupSceneIndices = timeline.scenes
+            .map((s, idx) => (s.sceneId === sceneId ? idx : -1))
+            .filter((idx) => idx >= 0 && idx !== sceneIndex)
+          
+          sameGroupSceneIndices.forEach((groupSceneIndex) => {
+            const groupTextObj = textsRef.current.get(groupSceneIndex)
+            if (groupTextObj && !groupTextObj.destroyed && groupTextObj !== targetTextObj) {
+              groupTextObj.visible = false
+            }
+          })
+        }
           targetTextObj.alpha = 0
           // 밑줄 렌더링
           renderUnderline(targetTextObj, scene)
@@ -560,6 +633,20 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         if (targetTextObj && partText) {
           targetTextObj.text = partText
           targetTextObj.visible = true
+        
+        // 텍스트 표시 후 다시 한 번 같은 그룹 내 다른 텍스트 숨김 (겹침 방지)
+        if (sceneId !== undefined) {
+          const sameGroupSceneIndices = timeline.scenes
+            .map((s, idx) => (s.sceneId === sceneId ? idx : -1))
+            .filter((idx) => idx >= 0 && idx !== sceneIndex)
+          
+          sameGroupSceneIndices.forEach((groupSceneIndex) => {
+            const groupTextObj = textsRef.current.get(groupSceneIndex)
+            if (groupTextObj && !groupTextObj.destroyed && groupTextObj !== targetTextObj) {
+              groupTextObj.visible = false
+            }
+          })
+        }
           targetTextObj.alpha = 1
           // 밑줄 렌더링
           renderUnderline(targetTextObj, scene)
@@ -710,7 +797,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         onComplete()
       }
     },
-    [timeline, appRef, containerRef, spritesRef, updateCurrentScene, currentSceneIndexRef]
+    [timeline, appRef, containerRef, spritesRef, textsRef, updateCurrentScene, currentSceneIndexRef]
   )
 
   // prepareImageAndSubtitle 함수 구현
@@ -767,6 +854,27 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         if (targetTextObj) {
           targetTextObj.text = partText
           targetTextObj.visible = true
+          
+        // 텍스트 표시 후 다시 한 번 같은 그룹 내 다른 텍스트 숨김 (겹침 방지)
+        // 같은 텍스트 객체 인스턴스가 여러 씬 인덱스에 매핑되어 있을 수 있으므로 Set으로 중복 제거
+        const currentSceneId = scene.sceneId
+        if (currentSceneId !== undefined) {
+          const sameGroupSceneIndices = timeline.scenes
+            .map((s, idx) => (s.sceneId === currentSceneId ? idx : -1))
+            .filter((idx) => idx >= 0 && idx !== sceneIndex)
+          
+          const textObjectsToHide = new Set<PIXI.Text>()
+          sameGroupSceneIndices.forEach((groupSceneIndex) => {
+            const groupTextObj = textsRef.current.get(groupSceneIndex)
+            if (groupTextObj && !groupTextObj.destroyed && groupTextObj !== targetTextObj) {
+              textObjectsToHide.add(groupTextObj)
+            }
+          })
+          
+          textObjectsToHide.forEach((textObj) => {
+            textObj.visible = false
+          })
+        }
           targetTextObj.alpha = 0
         }
       }

@@ -55,8 +55,6 @@ export function useTransportRenderer({
   // 렌더링 최적화를 위한 ref
   const lastRenderedTRef = useRef<number>(-1)
   const lastRenderedSceneIndexRef = useRef<number>(-1)
-  // partIndex는 구간 분할 인덱스이므로 제거 (실제 TTS 파일 전환은 segmentIndex로 감지)
-  // const lastRenderedPartIndexRef = useRef<number>(-1)
   const lastRenderedSegmentIndexRef = useRef<number>(-1) // 이전 segmentIndex 추적 (TTS 파일 전환 감지용)
   const TIME_EPSILON = 0.01 // 시간 비교 정밀도 (10ms로 증가하여 불필요한 렌더링 방지)
 
@@ -495,31 +493,53 @@ export function useTransportRenderer({
         return
       }
 
-      // 텍스트 객체 찾기
-      let targetTextObj: PIXI.Text | null = null
+      // 같은 그룹 내 모든 텍스트를 먼저 숨김 (겹침 방지)
+      // 같은 그룹 내에서 텍스트 객체를 공유하는 경우를 고려
       const sceneId = scene.sceneId
       if (sceneId !== undefined) {
-        const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
-        if (firstSceneIndexInGroup >= 0) {
-          targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
-        }
+        // 같은 그룹 내 모든 씬 인덱스 찾기
+        const sameGroupSceneIndices = timeline.scenes
+          .map((s, idx) => (s.sceneId === sceneId ? idx : -1))
+          .filter((idx) => idx >= 0)
+        
+        // 같은 그룹 내 모든 텍스트 객체 숨김
+        sameGroupSceneIndices.forEach((groupSceneIndex) => {
+          const groupTextObj = textsRef.current.get(groupSceneIndex)
+          if (groupTextObj && !groupTextObj.destroyed) {
+            groupTextObj.visible = false
+          }
+        })
+      } else {
+        // sceneId가 없으면 모든 텍스트 숨김
+        textsRef.current.forEach((textObj) => {
+          if (!textObj.destroyed) {
+            textObj.visible = false
+          }
+        })
       }
-
-      if (!targetTextObj) {
+      
+      // 텍스트 객체 찾기
+      // 분할된 씬(splitIndex가 있는 경우)의 경우 각 씬 인덱스별로 별도 텍스트 객체를 사용
+      // 분할되지 않은 씬의 경우 같은 그룹 내에서 텍스트 객체를 공유할 수 있음
+      let targetTextObj: PIXI.Text | null = null
+      
+      // 분할된 씬의 경우 현재 씬 인덱스의 텍스트 객체만 사용 (겹침 방지)
+      if (scene.splitIndex !== undefined) {
         targetTextObj = textsRef.current.get(sceneIndex) || null
-      }
-
-      // 텍스트 객체를 찾지 못한 경우 추가 검색 (같은 sceneId를 가진 씬만)
-      if (!targetTextObj) {
-        if (sceneId !== undefined) {
-          timeline.scenes.forEach((s, idx) => {
-            if (s.sceneId === sceneId && !targetTextObj) {
-              const text = textsRef.current.get(idx)
-              if (text) {
-                targetTextObj = text
-              }
+        // 분할된 씬인데 텍스트 객체가 없으면 같은 그룹 내 다른 씬 인덱스의 텍스트 객체를 찾지 않음
+        // 분할된 씬은 반드시 자신만의 텍스트 객체를 가져야 함
+      } else {
+        // 분할되지 않은 씬의 경우 현재 씬 인덱스의 텍스트 객체를 우선 사용
+        targetTextObj = textsRef.current.get(sceneIndex) || null
+        
+        // 현재 씬 인덱스의 텍스트 객체가 없으면 같은 그룹 내 첫 번째 씬 인덱스의 텍스트 객체 사용
+        if (!targetTextObj) {
+          if (sceneId !== undefined) {
+            const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+            if (firstSceneIndexInGroup >= 0) {
+              targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
             }
-          })
+          }
         }
       }
       
@@ -531,13 +551,6 @@ export function useTransportRenderer({
         }
         return
       }
-      
-      // 다른 씬의 텍스트 객체 숨기기 (자막 누적 방지)
-      textsRef.current.forEach((textObj, textSceneIndex) => {
-        if (textSceneIndex !== sceneIndex && !textObj.destroyed) {
-          textObj.visible = false
-        }
-      })
 
       // 텍스트 객체를 찾지 못했거나 파괴된 경우 조기 종료
       if (!targetTextObj || targetTextObj.destroyed) {
@@ -658,6 +671,20 @@ export function useTransportRenderer({
       // 표시
       targetTextObj.visible = true
       targetTextObj.alpha = 1
+      
+      // 텍스트 표시 후 다시 한 번 같은 그룹 내 다른 텍스트 숨김 (겹침 방지)
+      if (sceneId !== undefined) {
+        const sameGroupSceneIndices = timeline.scenes
+          .map((s, idx) => (s.sceneId === sceneId ? idx : -1))
+          .filter((idx) => idx >= 0 && idx !== sceneIndex)
+        
+        sameGroupSceneIndices.forEach((groupSceneIndex) => {
+          const groupTextObj = textsRef.current.get(groupSceneIndex)
+          if (groupTextObj && !groupTextObj.destroyed && groupTextObj !== targetTextObj) {
+            groupTextObj.visible = false
+          }
+        })
+      }
 
       if (options?.onComplete) {
         options.onComplete()
@@ -682,8 +709,8 @@ export function useTransportRenderer({
    */
   const renderAt = useCallback(
     (tSec: number, options?: RenderAtOptions) => {
-      // 성능 진단: renderAt 전체 시간 측정
-      const renderStartTime = performance.now()
+      // 성능 진단: 개발 환경에서만 측정
+      const renderStartTime = process.env.NODE_ENV === 'development' ? performance.now() : 0
       
       if (!timeline || !appRef.current) {
         return
@@ -699,7 +726,7 @@ export function useTransportRenderer({
       let partIndex: number
       let offsetInPart: number
       
-      const calcStartTime = performance.now()
+      const calcStartTime = process.env.NODE_ENV === 'development' ? performance.now() : 0
       if (options?.forceSceneIndex !== undefined) {
         // 강제 씬 인덱스가 지정되면 직접 사용 (TTS 세그먼트 시작 시 정확한 씬 전환 보장)
         sceneIndex = options.forceSceneIndex
@@ -733,10 +760,12 @@ export function useTransportRenderer({
         offsetInPart = calculated.offsetInPart
       }
       
-      
-      const calcTime = performance.now() - calcStartTime
-      if (calcTime > 10) {
-        console.warn('[renderAt] calculateSceneFromTime 느림:', calcTime.toFixed(2) + 'ms')
+      // 성능 진단: 개발 환경에서만 경고 출력
+      if (process.env.NODE_ENV === 'development') {
+        const calcTime = performance.now() - calcStartTime
+        if (calcTime > 10) {
+          console.warn('[renderAt] calculateSceneFromTime 느림:', calcTime.toFixed(2) + 'ms')
+        }
       }
 
       // 유효하지 않은 씬 인덱스면 렌더링하지 않음
@@ -746,37 +775,47 @@ export function useTransportRenderer({
 
       // 중복 렌더링 방지: segmentChanged만 체크 (TTS 파일 전환 시 즉시 렌더링)
       // 참고: segmentChanged는 실제 TTS 오디오 파일 세그먼트 인덱스 변경을 감지합니다.
-      //       timeChanged, sceneChanged는 segmentChanged의 결과이므로 불필요합니다.
+      //       하나의 세그먼트 = 하나의 part이므로, segmentChanged가 true이면 part도 변경된 것입니다.
       let segmentChanged = false
       let currentSegmentIndex = 0
       let activeSegmentFromTts: { segment: { id: string; sceneIndex?: number; partIndex?: number }; segmentIndex: number } | null = null
+      
+      // getActiveSegment가 있으면 segmentChanged 체크, 없으면 timeChanged fallback
+      let shouldRender = false
       if (getActiveSegment) {
         const activeSegment = getActiveSegment(tSec)
         if (activeSegment) {
           activeSegmentFromTts = activeSegment
           currentSegmentIndex = activeSegment.segmentIndex
           segmentChanged = currentSegmentIndex !== lastRenderedSegmentIndexRef.current
+          shouldRender = segmentChanged
           
           // segmentChanged가 true이고 activeSegment에 sceneIndex가 있으면 그것을 우선 사용
           // TTS 파일 전환 시 정확한 씬 인덱스를 보장
           if (segmentChanged && activeSegment.segment.sceneIndex !== undefined) {
             sceneIndex = activeSegment.segment.sceneIndex
           }
+          
+          // activeSegment에 partIndex가 있으면 그것을 우선 사용 (씬 분할 그룹)
+          // segmentChanged가 true이면 새로운 part로 전환된 것이므로 partIndex도 업데이트
+          if (activeSegment.segment.partIndex !== undefined) {
+            partIndex = activeSegment.segment.partIndex
+          }
         }
-      }
-      
-      // getActiveSegment가 없을 때는 timeChanged를 fallback으로 사용 (초기 로딩 시)
-      let shouldRender = false
-      if (getActiveSegment) {
-        // segmentChanged가 true이면 렌더링
-        shouldRender = segmentChanged
       } else {
-        // getActiveSegment가 없을 때는 timeChanged를 fallback으로 사용
+        // getActiveSegment가 없을 때는 timeChanged를 fallback으로 사용 (초기 로딩 시)
         const timeChanged = Math.abs(tSec - lastRenderedTRef.current) >= TIME_EPSILON
         shouldRender = timeChanged
       }
       
+      // 렌더링 조건: segmentChanged만 체크 (또는 getActiveSegment가 없을 때 timeChanged)
+      // 조기 반환으로 불필요한 계산 방지
+      if (!shouldRender) {
+        return
+      }
+      
       // 씬 전환 처리에 필요한 정보 (렌더링 조건이 아닌 씬 전환 처리용)
+      // shouldRender가 true일 때만 계산 (최적화)
       const sceneChanged = sceneIndex !== lastRenderedSceneIndexRef.current
       const previousRenderedSceneIndex = sceneChanged ? lastRenderedSceneIndexRef.current : null
       
@@ -792,11 +831,6 @@ export function useTransportRenderer({
           segmentId: activeSegmentFromTts.segment.id,
           partIndex: activeSegmentFromTts.segment.partIndex ?? partIndex,
         })
-      }
-      
-      // 렌더링 조건: segmentChanged만 체크 (또는 getActiveSegment가 없을 때 timeChanged)
-      if (!shouldRender) {
-        return
       }
       
       // segmentChanged가 true이면 lastRenderedTRef를 업데이트하여 다음 프레임에서 중복 렌더링 방지
@@ -815,9 +849,11 @@ export function useTransportRenderer({
       // 렌더링 시간과 씬 인덱스 업데이트 (씬 전환 처리 전에 업데이트)
       lastRenderedTRef.current = tSec
       lastRenderedSceneIndexRef.current = sceneIndex
-      // partIndex는 구간 분할 인덱스이므로 렌더링 조건에서 제거 (segmentIndex 사용)
-      // lastRenderedPartIndexRef.current = partIndex
-      if (getActiveSegment) {
+      // activeSegmentFromTts가 이미 계산되어 있으면 재사용 (중복 호출 방지)
+      if (activeSegmentFromTts) {
+        lastRenderedSegmentIndexRef.current = activeSegmentFromTts.segmentIndex
+      } else if (getActiveSegment) {
+        // fallback: activeSegmentFromTts가 없을 때만 호출
         const activeSegment = getActiveSegment(tSec)
         if (activeSegment) {
           lastRenderedSegmentIndexRef.current = activeSegment.segmentIndex
@@ -901,34 +937,39 @@ export function useTransportRenderer({
 
       // 2. 현재 씬의 이미지 렌더링
       if (sprite && !sprite.destroyed && containerRef.current) {
+        const container = containerRef.current
         // 스프라이트가 다른 부모에 있으면 제거
-        if (sprite.parent && sprite.parent !== containerRef.current) {
+        if (sprite.parent && sprite.parent !== container) {
           sprite.parent.removeChild(sprite)
         }
         // 이미 컨테이너에 있으면 추가하지 않음 (중복 방지)
-        if (!containerRef.current.children.includes(sprite)) {
-          containerRef.current.addChild(sprite)
+        // children.includes는 비용이 있으므로 parent 체크로 최적화
+        if (sprite.parent !== container) {
+          container.addChild(sprite)
         }
-        containerRef.current.setChildIndex(sprite, 0)
+        // 인덱스가 0이 아니면 변경 (불필요한 호출 방지)
+        if (container.getChildIndex(sprite) !== 0) {
+          container.setChildIndex(sprite, 0)
+        }
         sprite.visible = true
         sprite.alpha = 1
       }
 
       // 2-1. 현재 씬의 텍스트 객체를 컨테이너에 추가 (removeChildren 후 복원)
       if (sceneText && !sceneText.destroyed && containerRef.current) {
+        const container = containerRef.current
         // 텍스트 객체가 다른 부모에 있으면 제거
-        if (sceneText.parent && sceneText.parent !== containerRef.current) {
+        if (sceneText.parent && sceneText.parent !== container) {
           sceneText.parent.removeChild(sceneText)
         }
         // 컨테이너에 없으면 추가
-        if (!containerRef.current.children.includes(sceneText)) {
-          containerRef.current.addChild(sceneText)
+        if (sceneText.parent !== container) {
+          container.addChild(sceneText)
         }
         // 텍스트는 항상 최상위 레이어
-        const currentIndex = containerRef.current.getChildIndex(sceneText)
-        const maxIndex = containerRef.current.children.length - 1
-        if (currentIndex !== maxIndex) {
-          containerRef.current.setChildIndex(sceneText, maxIndex)
+        const maxIndex = container.children.length - 1
+        if (maxIndex > 0 && container.getChildIndex(sceneText) !== maxIndex) {
+          container.setChildIndex(sceneText, maxIndex)
         }
       }
 
@@ -940,7 +981,6 @@ export function useTransportRenderer({
       })
       
       // 4. 현재 씬/구간의 자막 렌더링
-      const subtitleStartTime = performance.now()
       renderSubtitlePart(sceneIndex, partIndex, {
         skipAnimation: options?.skipAnimation,
         onComplete: () => {
@@ -955,18 +995,17 @@ export function useTransportRenderer({
           }
         },
       })
-      const subtitleTime = performance.now() - subtitleStartTime
       
-      // 성능 진단: 전체 renderAt 시간 측정
-      const totalTime = performance.now() - renderStartTime
-      if (totalTime > 50) {
-        console.warn('[renderAt] 전체 렌더링 느림:', {
-          total: totalTime.toFixed(2) + 'ms',
-          calc: calcTime.toFixed(2) + 'ms',
-          subtitle: subtitleTime.toFixed(2) + 'ms',
-          sceneIndex,
-          tSec: tSec.toFixed(3)
-        })
+      // 성능 진단: 개발 환경에서만 전체 renderAt 시간 측정
+      if (process.env.NODE_ENV === 'development' && renderStartTime > 0) {
+        const totalTime = performance.now() - renderStartTime
+        if (totalTime > 50) {
+          console.warn('[renderAt] 전체 렌더링 느림:', {
+            total: totalTime.toFixed(2) + 'ms',
+            sceneIndex,
+            tSec: tSec.toFixed(3)
+          })
+        }
       }
     },
     [
@@ -1027,39 +1066,8 @@ export function useTransportRenderer({
         return
       }
       
-      // segmentChanged 감지를 위해 getActiveSegment를 먼저 확인
-      let segmentWillChange = false
-      if (getActiveSegment) {
-        const activeSegment = getActiveSegment(currentTime)
-        if (activeSegment) {
-          const currentSegmentIndex = activeSegment.segmentIndex
-          // lastRenderedSegmentIndexRef를 확인하여 세그먼트 전환 예측
-          // 주의: renderAt 내부에서도 확인하지만, 여기서 미리 확인하여 지연 최소화
-          segmentWillChange = currentSegmentIndex !== lastRenderedSegmentIndexRef.current
-        }
-      }
-      
-      // 디버깅: 재생 중 renderAt 호출 확인
-      if (process.env.NODE_ENV === 'development') {
-        // 매 60프레임마다 로그 출력 (약 1초마다, 너무 많은 로그 방지)
-        frameCountRef.current += 1
-        if (frameCountRef.current % 60 === 0) {
-          console.log('[renderLoop] 재생 중 renderAt 호출', {
-            currentTime: currentTime.toFixed(3),
-            isPlaying: currentTransportState.isPlaying,
-            frameCount: frameCountRef.current,
-            segmentWillChange,
-          })
-        }
-      }
-      
+      // renderAt 호출 (내부에서 segmentChanged 체크하므로 여기서는 중복 체크 제거)
       renderAt(currentTime, { skipAnimation: false })
-      
-      // 디버깅: 재생 중 partIndex 변경 확인 (매 60프레임마다)
-      if (process.env.NODE_ENV === 'development' && frameCountRef.current % 60 === 0) {
-        // renderAt 호출 후 lastRenderedPartIndexRef가 업데이트되었는지 확인
-        // 이 로그는 renderAt 내부에서 출력되는 로그와 함께 확인하면 유용함
-      }
       
       renderLoopRef.current = requestAnimationFrame(renderLoop)
     }
@@ -1080,8 +1088,6 @@ export function useTransportRenderer({
   const resetRenderCache = useCallback(() => {
     lastRenderedTRef.current = -1
     lastRenderedSceneIndexRef.current = -1
-    // partIndex는 구간 분할 인덱스이므로 제거 (segmentIndex 사용)
-    // lastRenderedPartIndexRef.current = -1
     lastRenderedSegmentIndexRef.current = -1
   }, [])
 
