@@ -593,9 +593,6 @@ export function useSceneTransition({
 
         // 현재 씬을 컨테이너에 추가
         if (!containerRef.current) {
-          console.error(
-            `[updateCurrentScene] containerRef.current가 null - sceneIndex: ${actualSceneIndex}`
-          )
           return
         }
 

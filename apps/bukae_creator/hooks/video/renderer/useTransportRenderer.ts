@@ -709,9 +709,6 @@ export function useTransportRenderer({
    */
   const renderAt = useCallback(
     (tSec: number, options?: RenderAtOptions) => {
-      // 성능 진단: 개발 환경에서만 측정
-      const renderStartTime = process.env.NODE_ENV === 'development' ? performance.now() : 0
-      
       if (!timeline || !appRef.current) {
         return
       }
@@ -725,8 +722,6 @@ export function useTransportRenderer({
       let sceneIndex: number
       let partIndex: number
       let offsetInPart: number
-      
-      const calcStartTime = process.env.NODE_ENV === 'development' ? performance.now() : 0
       if (options?.forceSceneIndex !== undefined) {
         // 강제 씬 인덱스가 지정되면 직접 사용 (TTS 세그먼트 시작 시 정확한 씬 전환 보장)
         sceneIndex = options.forceSceneIndex
@@ -758,14 +753,6 @@ export function useTransportRenderer({
         sceneIndex = calculated.sceneIndex
         partIndex = calculated.partIndex
         offsetInPart = calculated.offsetInPart
-      }
-      
-      // 성능 진단: 개발 환경에서만 경고 출력
-      if (process.env.NODE_ENV === 'development') {
-        const calcTime = performance.now() - calcStartTime
-        if (calcTime > 10) {
-          console.warn('[renderAt] calculateSceneFromTime 느림:', calcTime.toFixed(2) + 'ms')
-        }
       }
 
       // 유효하지 않은 씬 인덱스면 렌더링하지 않음
@@ -821,27 +808,11 @@ export function useTransportRenderer({
       
       // TTS 파일 전환 감지: segmentIndex가 변경되면 실제 TTS 파일이 끝나고 다음 파일이 시작됨
       // 재생 중에도 로그가 나오도록 return 전에 로그 출력
-      if (segmentChanged && lastRenderedSegmentIndexRef.current !== -1 && activeSegmentFromTts) {
-        const previousSegmentIndex = lastRenderedSegmentIndexRef.current
-        console.log('[renderAt] 🔊 TTS 파일 전환 (세그먼트)', {
-          tSec: tSec.toFixed(3),
-          sceneIndex: activeSegmentFromTts.segment.sceneIndex ?? sceneIndex,
-          이전세그먼트: `segment-${previousSegmentIndex}`,
-          다음세그먼트: `segment-${currentSegmentIndex}`,
-          segmentId: activeSegmentFromTts.segment.id,
-          partIndex: activeSegmentFromTts.segment.partIndex ?? partIndex,
-        })
-      }
       
       // segmentChanged가 true이면 lastRenderedTRef를 업데이트하여 다음 프레임에서 중복 렌더링 방지
       if (segmentChanged) {
         lastRenderedTRef.current = tSec
       }
-      
-      // 디버깅: 씬 전환 시 로그 (성능 최적화를 위해 주석 처리)
-      // if (sceneChanged && process.env.NODE_ENV === 'development') {
-      //   console.log(
-      //     `[renderAt] 씬 전환: ${previousRenderedSceneIndex} → ${sceneIndex}, ` +
       //     `tSec=${tSec.toFixed(3)}, partIndex=${partIndex}, offsetInPart=${offsetInPart.toFixed(3)}`
       //   )
       // }
@@ -995,18 +966,6 @@ export function useTransportRenderer({
           }
         },
       })
-      
-      // 성능 진단: 개발 환경에서만 전체 renderAt 시간 측정
-      if (process.env.NODE_ENV === 'development' && renderStartTime > 0) {
-        const totalTime = performance.now() - renderStartTime
-        if (totalTime > 50) {
-          console.warn('[renderAt] 전체 렌더링 느림:', {
-            total: totalTime.toFixed(2) + 'ms',
-            sceneIndex,
-            tSec: tSec.toFixed(3)
-          })
-        }
-      }
     },
     [
       timeline,

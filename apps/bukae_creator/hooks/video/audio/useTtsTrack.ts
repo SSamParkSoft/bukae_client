@@ -211,18 +211,6 @@ export function useTtsTrack({
     // useEffect 내부에서 ref 접근 (허용됨)
     const newSegments = buildSegmentsFromTimeline(timeline, voiceTemplate, ttsCacheRef, buildSceneMarkup, makeTtsKey)
     setSegments(newSegments)
-    
-    // 디버깅: segments에 URL이 포함되어 있는지 확인
-    if (newSegments.length > 0) {
-      const segmentsWithUrl = newSegments.filter(seg => seg.url && seg.url.trim() !== '')
-      if (segmentsWithUrl.length === 0) {
-        console.warn('[useTtsTrack] segments에 URL이 없습니다. TTS 캐시를 확인하세요.', {
-          totalSegments: newSegments.length,
-          cacheSize: ttsCacheRef.current.size,
-          firstSegment: newSegments[0],
-        })
-      }
-    }
   }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, isClient, cacheUpdateTrigger])
 
   // 세그먼트 테이블이 변경되면 TtsTrack에 반영 (항상 호출되어야 함)

@@ -846,18 +846,6 @@ export function useStep3Container() {
               ttsCacheRef.current.forEach((value, key) => {
                 ttsCacheRefShared.current.set(key, value)
               })
-              
-              // 디버깅: 캐시 동기화 확인
-              console.log('[useStep3Container] TTS 캐시 동기화 완료', {
-                sourceCacheSize: ttsCacheRef.current.size,
-                sharedCacheSize: ttsCacheRefShared.current.size,
-                sampleKeys: Array.from(ttsCacheRefShared.current.keys()).slice(0, 3),
-                sampleValues: Array.from(ttsCacheRefShared.current.values()).slice(0, 3).map(v => ({
-                  hasUrl: !!v.url,
-                  url: v.url,
-                  durationSec: v.durationSec,
-                })),
-              })
             }
           
           // TTS 파일 생성 완료 후 세그먼트 강제 업데이트 (폴링 방식 제거)
@@ -1066,20 +1054,9 @@ export function useStep3Container() {
       
       // renderAt이 설정된 후 세그먼트 시작 콜백 업데이트 (TTS와 씬 전환 동기화)
       onSegmentStartRef.current = (segmentStartTime: number, sceneIndex: number) => {
-        // 성능 최적화: console.log 제거 (과도한 로그가 성능 저하 유발)
-        // const currentTransport = transportRef.current
-        // const currentTransportTime = currentTransport.currentTime
-        // console.log('[useStep3Container] TTS 세그먼트 시작 감지', {
-        //   segmentStartTime,
-        //   sceneIndex,
-        //   currentTransportTime,
-        //   timeDiff: segmentStartTime - currentTransportTime,
-        // })
-        
         if (renderAtRef.current) {
           // 세그먼트 시작 시간과 씬 인덱스를 직접 사용하여 정확한 동기화 보장
           // forceSceneIndex를 사용하여 calculateSceneFromTime의 계산 오류 방지
-          // console.log('[useStep3Container] renderAt 호출 (세그먼트 시작)', { segmentStartTime, sceneIndex, currentTransportTime })
           renderAtRef.current(segmentStartTime, { skipAnimation: false, forceSceneIndex: sceneIndex })
         }
       }
@@ -1117,7 +1094,6 @@ export function useStep3Container() {
         currentTtsTrack.setOnSegmentStart((segmentStartTime: number, sceneIndex: number) => {
           startCallback(segmentStartTime, sceneIndex)
         })
-        // console.log('[useStep3Container] TTS 세그먼트 시작 콜백 재설정 완료')
       }
       if (onSegmentEndRef.current) {
         const endCallback = onSegmentEndRef.current
@@ -1126,7 +1102,6 @@ export function useStep3Container() {
           // 세그먼트 종료는 Transport의 정상적인 렌더링 루프로 처리됨
           endCallback(segmentEndTime, sceneIndex)
         })
-        // console.log('[useStep3Container] TTS 세그먼트 종료 콜백 재설정 완료')
       }
     }
   }, []) // 의존성 배열 비움 - ttsTrack과 onSegmentStartRef, onSegmentEndRef는 ref로 접근
