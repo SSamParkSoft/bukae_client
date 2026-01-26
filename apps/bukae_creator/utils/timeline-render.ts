@@ -83,7 +83,7 @@ export function calculateSceneFromTime(
     // 씬 사이 간격: 부동소수점 오차 방지 및 경계 명확화를 위한 작은 간격
     // 같은 sceneId를 가진 씬들 사이에는 간격 추가하지 않음 (같은 그룹이므로)
     // 마지막 씬의 경우 간격을 빼지 않음 (다음 씬이 없으므로)
-    const SCENE_GAP = 0.5 // 0.5초 간격
+    const SCENE_GAP = 0.01 // 0.5초 간격
     const isLastScene = i === timeline.scenes.length - 1
     const sceneGap = (isSameSceneId || isLastScene) ? 0 : SCENE_GAP
     
