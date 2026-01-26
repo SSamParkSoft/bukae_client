@@ -80,9 +80,18 @@ export function calculateSceneFromTime(
     const isSameSceneId = nextScene && scene.sceneId === nextScene.sceneId
     const transitionDuration = isSameSceneId ? 0 : (scene.transitionDuration || 0.5)
     
-    // 씬의 종료 시간 = 시작 시간 + duration + transitionDuration
+    // 씬 사이 간격: 부동소수점 오차 방지 및 경계 명확화를 위한 작은 간격
+    // 같은 sceneId를 가진 씬들 사이에는 간격 추가하지 않음 (같은 그룹이므로)
+    // 마지막 씬의 경우 간격을 빼지 않음 (다음 씬이 없으므로)
+    const SCENE_GAP = 0.5 // 0.5초 간격
+    const isLastScene = i === timeline.scenes.length - 1
+    const sceneGap = (isSameSceneId || isLastScene) ? 0 : SCENE_GAP
+    
+    // 씬의 종료 시간 = 시작 시간 + duration + transitionDuration - sceneGap
+    // sceneGap을 빼서 다음 씬 시작 시간과 겹치지 않도록 함
     // transitionDuration은 현재 씬의 범위에 포함됩니다 (다음 씬으로 전환하는 시간)
-    const sceneEndTime = sceneStartTime + sceneDuration + transitionDuration
+    // 마지막 씬의 경우 sceneGap이 0이므로 실제 종료 시간과 동일
+    const sceneEndTime = sceneStartTime + sceneDuration + transitionDuration - sceneGap
     sceneBoundaries.push({ start: sceneStartTime, end: sceneEndTime, index: i })
   }
 

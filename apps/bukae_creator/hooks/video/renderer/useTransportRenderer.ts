@@ -15,6 +15,7 @@ import { useCallback, useRef, useState, useEffect, useMemo } from 'react'
 import { useSyncExternalStore } from 'react'
 import * as PIXI from 'pixi.js'
 import { calculateSceneFromTime } from '@/utils/timeline-render'
+import { getSceneStartTime } from '@/utils/timeline'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import type {
@@ -47,6 +48,8 @@ export function useTransportRenderer({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   applyEnterEffect: _applyEnterEffect, // 타입 정의에 포함되어 있지만 현재 사용하지 않음
   onSceneLoadComplete,
+  playingSceneIndex,
+  playingGroupSceneId,
 }: UseTransportRendererParams): UseTransportRendererReturn {
   // 씬 로딩 상태 관리
   const [sceneLoadingStates, setSceneLoadingStates] = useState<SceneLoadingStateMap>(new Map())
@@ -720,24 +723,66 @@ export function useTransportRenderer({
 
       // t에서 씬과 구간 계산 (forceSceneIndex가 있으면 직접 사용)
       let sceneIndex: number
-      let partIndex: number
-      let offsetInPart: number
+      let partIndex: number = 0 // 초기값 설정
+      let offsetInPart: number = 0 // 초기값 설정
       if (options?.forceSceneIndex !== undefined) {
-        // 강제 씬 인덱스가 지정되면 직접 사용 (TTS 세그먼트 시작 시 정확한 씬 전환 보장)
+        // 강제 씬 인덱스가 지정되면 직접 사용 (씬/그룹 재생 시 해당 씬에 고정)
         sceneIndex = options.forceSceneIndex
-        // partIndex와 offsetInPart는 tSec 기반으로 계산
-        const calculated = calculateSceneFromTime(
-          timeline,
-          tSec,
-          {
-            ttsCacheRef,
-            voiceTemplate,
-            buildSceneMarkup,
-            makeTtsKey,
+        
+        // partIndex와 offsetInPart는 해당 씬 범위 내에서만 직접 계산 (calculateSceneFromTime 사용 안 함)
+        const sceneStartTime = getSceneStartTime(timeline, sceneIndex)
+        const scene = timeline.scenes[sceneIndex]
+        
+        if (!scene) {
+          // 씬이 없으면 기본값 반환
+          partIndex = 0
+          offsetInPart = 0
+        } else {
+          // 시간을 해당 씬의 시작 시간 기준으로 상대 시간 계산
+          const relativeTime = Math.max(0, tSec - sceneStartTime)
+          
+          // 해당 씬의 partIndex와 offsetInPart 직접 계산
+          // 초기값 설정 (항상 할당되도록 보장)
+          partIndex = 0
+          offsetInPart = 0
+          
+          if (ttsCacheRef && buildSceneMarkup && makeTtsKey) {
+            const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+            if (sceneVoiceTemplate) {
+              const markups = buildSceneMarkup(timeline, sceneIndex)
+              if (markups.length > 0) {
+                let partAccumulatedTime = 0
+                
+                // 각 part를 순회하며 해당하는 part 찾기
+                for (let p = 0; p < markups.length; p++) {
+                  const markup = markups[p]
+                  if (!markup) continue
+                  
+                  const key = makeTtsKey(sceneVoiceTemplate, markup)
+                  const cached = ttsCacheRef.current.get(key)
+                  const partDuration = cached?.durationSec || 0
+                  const partEndTime = partAccumulatedTime + partDuration
+                  
+                  // relativeTime이 이 part 범위에 있으면
+                  if (relativeTime >= partAccumulatedTime && relativeTime < partEndTime) {
+                    partIndex = p
+                    offsetInPart = relativeTime - partAccumulatedTime
+                    break
+                  }
+                  
+                  // 마지막 part이고 relativeTime이 partEndTime 이상이면 마지막 part 사용
+                  if (p === markups.length - 1 && relativeTime >= partEndTime) {
+                    partIndex = p
+                    offsetInPart = partDuration
+                    break
+                  }
+                  
+                  partAccumulatedTime = partEndTime
+                }
+              }
+            }
           }
-        )
-        partIndex = calculated.partIndex
-        offsetInPart = calculated.offsetInPart
+        }
       } else {
         // 일반적인 경우: tSec 기반으로 씬 계산
         const calculated = calculateSceneFromTime(
@@ -993,6 +1038,16 @@ export function useTransportRenderer({
   const frameCountRef = useRef<number>(0) // 디버깅용 프레임 카운터
   
   useEffect(() => {
+    // 씬/그룹 재생 중일 때는 렌더링 루프를 중지 (useStep3Container에서 직접 renderAt 호출)
+    if ((playingSceneIndex !== null && playingSceneIndex !== undefined) || 
+        (playingGroupSceneId !== null && playingGroupSceneId !== undefined)) {
+      if (renderLoopRef.current) {
+        cancelAnimationFrame(renderLoopRef.current)
+        renderLoopRef.current = null
+      }
+      return
+    }
+    
     if (!transport || !transportState.isPlaying) {
       // 재생 중이 아니면 렌더링 루프 중지
       if (renderLoopRef.current) {
@@ -1008,6 +1063,13 @@ export function useTransportRenderer({
       // transportState를 매번 새로 가져와서 최신 상태 확인
       const currentTransportState = transport?.getState()
       if (!transport || !currentTransportState?.isPlaying) {
+        renderLoopRef.current = null
+        return
+      }
+
+      // 씬/그룹 재생 중이면 렌더링 루프 중지
+      if ((playingSceneIndex !== null && playingSceneIndex !== undefined) || 
+          (playingGroupSceneId !== null && playingGroupSceneId !== undefined)) {
         renderLoopRef.current = null
         return
       }
@@ -1041,7 +1103,7 @@ export function useTransportRenderer({
       }
       frameCountRef.current = 0 // 프레임 카운터 리셋
     }
-  }, [transport, transportState.isPlaying, renderAt])
+  }, [transport, transportState.isPlaying, renderAt, playingSceneIndex, playingGroupSceneId])
 
   // 렌더링 캐시 리셋 함수 (TTS duration 변경 시 사용)
   const resetRenderCache = useCallback(() => {

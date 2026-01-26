@@ -3,16 +3,21 @@
 import { useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import type { TimelineData } from '@/store/useVideoCreateStore'
+import { getSceneStartTime } from '@/utils/timeline'
 
 interface UsePlaybackHandlersParams {
   timelineRef: React.MutableRefObject<TimelineData | null>
   voiceTemplateRef: React.MutableRefObject<string | null>
   isPlaying: boolean
-  setIsPlaying: (playing: boolean) => void | Promise<void>
+  setIsPlaying: (playing: boolean, options?: { sceneIndex?: number | null; groupSceneId?: number | null }) => void | Promise<void>
+  setCurrentTime: (time: number) => void
   setShowVoiceRequiredMessage: (show: boolean) => void
   setScenesWithoutVoice: (scenes: number[]) => void
   setRightPanelTab: (tab: string) => void
   router: ReturnType<typeof useRouter>
+  onGroupPlayStart?: (sceneId: number, endTime: number) => void
+  onScenePlayStart?: (sceneIndex: number, endTime: number) => void
+  onFullPlayStart?: () => void
 }
 
 /**
@@ -24,10 +29,13 @@ export function usePlaybackHandlers({
   voiceTemplateRef,
   isPlaying,
   setIsPlaying,
+  setCurrentTime,
   setShowVoiceRequiredMessage,
   setScenesWithoutVoice,
   setRightPanelTab,
   router,
+  onGroupPlayStart,
+  onScenePlayStart,
 }: UsePlaybackHandlersParams) {
   // 재생/일시정지 핸들러 (Transport 기반)
   const handlePlayPause = useCallback(() => {
@@ -79,14 +87,13 @@ export function usePlaybackHandlers({
         return
       }
       
-      // 모든 씬에 음성이 있으면 재생 시작
+      // 모든 씬에 음성이 있으면 재생 시작 (전체 재생이므로 종료 시간 없음)
       setShowVoiceRequiredMessage(false)
       void setIsPlaying(true)
     }
   }, [isPlaying, setIsPlaying, setRightPanelTab, setShowVoiceRequiredMessage, setScenesWithoutVoice, timelineRef, voiceTemplateRef])
 
-  // 그룹 재생 핸들러 (TODO: Transport 기반으로 재구현 필요)
-  // 현재는 전체 재생과 동일하게 처리 (Transport는 전체 타임라인을 재생)
+  // 그룹 재생 핸들러 (Transport 기반)
   const handleGroupPlay = useCallback(async (sceneId: number, groupIndices: number[]) => {
     const currentTimeline = timelineRef.current
     const currentVoiceTemplate = voiceTemplateRef.current
@@ -111,20 +118,48 @@ export function usePlaybackHandlers({
       return
     }
     
-    // TODO: 그룹 재생은 Transport 기반으로 재구현 필요
-    // 현재는 전체 재생과 동일하게 처리
+    // 그룹의 첫 번째 씬의 시작 시간 계산
+    const firstSceneIndex = groupIndices[0]
+    if (firstSceneIndex === undefined || firstSceneIndex < 0 || firstSceneIndex >= currentTimeline.scenes.length) {
+      return
+    }
+    
+    const startTime = getSceneStartTime(currentTimeline, firstSceneIndex)
+    
+    // 그룹의 마지막 씬의 종료 시간 계산
+    const lastSceneIndex = groupIndices[groupIndices.length - 1]
+    if (lastSceneIndex === undefined || lastSceneIndex < 0 || lastSceneIndex >= currentTimeline.scenes.length) {
+      return
+    }
+    
+    const lastScene = currentTimeline.scenes[lastSceneIndex]
+    const lastSceneStartTime = getSceneStartTime(currentTimeline, lastSceneIndex)
+    const endTime = lastSceneStartTime + lastScene.duration
+    
+    // 그룹 재생 시작 시간으로 이동
+    setCurrentTime(startTime)
+    
+    // 재생 시작 (그룹 재생 정보 전달)
     setShowVoiceRequiredMessage(false)
-    void setIsPlaying(true)
-  }, [setIsPlaying, setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, voiceTemplateRef])
+    void setIsPlaying(true, { groupSceneId: sceneId })
+    
+    // 그룹 재생 시작 콜백 호출 (종료 시간 포함)
+    if (onGroupPlayStart) {
+      onGroupPlayStart(sceneId, endTime)
+    }
+  }, [setIsPlaying, setCurrentTime, setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, voiceTemplateRef, onGroupPlayStart])
 
-  // 씬 재생 핸들러 (TODO: Transport 기반으로 재구현 필요 - 특정 씬부터 재생)
-  // 현재는 전체 재생과 동일하게 처리
+  // 씬 재생 핸들러 (Transport 기반 - 특정 씬부터 재생)
   const handleScenePlay = useCallback(async (sceneIndex: number) => {
     const currentTimeline = timelineRef.current
     const currentVoiceTemplate = voiceTemplateRef.current
     
     try {
       if (!currentTimeline) return
+      
+      if (sceneIndex < 0 || sceneIndex >= currentTimeline.scenes.length) {
+        return
+      }
       
       // 음성 선택 여부 확인 (null, undefined, 빈 문자열 모두 체크)
       const sceneVoice = currentTimeline.scenes[sceneIndex]?.voiceTemplate || currentVoiceTemplate
@@ -139,10 +174,24 @@ export function usePlaybackHandlers({
         return
       }
       
-      // TODO: 특정 씬부터 재생하는 기능은 Transport 기반으로 재구현 필요
-      // 현재는 전체 재생과 동일하게 처리
+      // 씬의 시작 시간 계산
+      const startTime = getSceneStartTime(currentTimeline, sceneIndex)
+      
+      // 씬의 종료 시간 계산
+      const scene = currentTimeline.scenes[sceneIndex]
+      const endTime = startTime + scene.duration
+      
+      // 씬 재생 시작 시간으로 이동
+      setCurrentTime(startTime)
+      
+      // 재생 시작 (씬 재생 정보 전달)
       setShowVoiceRequiredMessage(false)
-      void setIsPlaying(true)
+      void setIsPlaying(true, { sceneIndex })
+      
+      // 씬 재생 시작 콜백 호출 (종료 시간 포함)
+      if (onScenePlayStart) {
+        onScenePlayStart(sceneIndex, endTime)
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       
@@ -170,7 +219,7 @@ export function usePlaybackHandlers({
       // 기타 오류는 콘솔에만 출력
       console.error('[씬 재생] 오류:', error)
     }
-  }, [setIsPlaying, router, setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, voiceTemplateRef])
+  }, [setIsPlaying, setCurrentTime, router, setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, voiceTemplateRef, onScenePlayStart])
 
   return {
     handlePlayPause,

@@ -87,6 +87,10 @@ export interface UseTransportRendererParams {
   ) => void
   /** 씬 로드 완료 콜백 */
   onSceneLoadComplete?: (sceneIndex: number) => void
+  /** 씬 재생 중인 씬 인덱스 (null이면 전체 재생, optional) */
+  playingSceneIndex?: number | null | undefined
+  /** 그룹 재생 중인 그룹 sceneId (null이면 전체 재생, optional) */
+  playingGroupSceneId?: number | null | undefined
 }
 
 /**

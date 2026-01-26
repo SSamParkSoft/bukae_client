@@ -610,7 +610,21 @@ export function useStep3Container() {
     transport.setTotalDuration(calculatedTotalDuration)
   }, [transport, calculatedTotalDuration])
 
-  // PHASE0: Transport 기반 렌더링 시스템
+  // renderAt ref (Transport 렌더러에서 설정됨)
+  const renderAtRef = useRef<((tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number }) => void) | undefined>(undefined)
+  
+  // TTS duration 변경 시 렌더링 즉시 업데이트를 위한 콜백 ref
+  const onDurationChangeRef = useRef<((sceneIndex: number, durationSec: number) => void) | undefined>(undefined)
+
+  // Transport 기반 재생 상태 (초기 선언만, 실제 구현은 useTtsManager 이후)
+  const isPlaying = transport.isPlaying
+  const currentTime = transport.currentTime
+  
+  // 씬 재생 및 그룹 재생 상태 관리
+  const [playingSceneIndex, setPlayingSceneIndex] = useState<number | null>(null)
+  const [playingGroupSceneId, setPlayingGroupSceneId] = useState<number | null>(null)
+  
+  // PHASE0: Transport 기반 렌더링 시스템 (playingSceneIndex, playingGroupSceneId 선언 이후에 호출)
   const transportRenderer = useTransportRenderer({
     transport: transport.transport,
     timeline,
@@ -630,17 +644,10 @@ export function useStep3Container() {
     loadPixiTextureWithCache,
     applyEnterEffect,
     onSceneLoadComplete: handleLoadComplete,
+    playingSceneIndex,
+    playingGroupSceneId,
   })
-
-  // renderAt ref (Transport 렌더러에서 설정됨)
-  const renderAtRef = useRef<((tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number }) => void) | undefined>(undefined)
-  
-  // TTS duration 변경 시 렌더링 즉시 업데이트를 위한 콜백 ref
-  const onDurationChangeRef = useRef<((sceneIndex: number, durationSec: number) => void) | undefined>(undefined)
-
-  // Transport 기반 재생 상태 (초기 선언만, 실제 구현은 useTtsManager 이후)
-  const isPlaying = transport.isPlaying
-  const currentTime = transport.currentTime
+  const [playbackEndTime, setPlaybackEndTime] = useState<number | null>(null) // 재생 종료 시간
   const setCurrentTime = ((time: number | ((prev: number) => number)) => {
     const targetTime = typeof time === 'function' ? time(transport.currentTime) : time
     const wasPlaying = transport.isPlaying
@@ -779,13 +786,31 @@ export function useStep3Container() {
   // useEffect는 제거하고 setIsPlaying에서만 동기화하도록 변경
 
   // setIsPlaying 구현 (useTtsManager 이후에 선언하여 ensureSceneTts 사용 가능)
-  const setIsPlaying = async (playing: boolean) => { 
+  const setIsPlaying = useCallback(async (playing: boolean, options?: { sceneIndex?: number | null; groupSceneId?: number | null }) => { 
     if (playing) {
-      // 재생 시작 전에 모든 씬의 TTS 파일이 있는지 확인하고 없으면 생성
+      // 재생 시작 전에 필요한 씬의 TTS 파일이 있는지 확인하고 없으면 생성
       if (timeline && voiceTemplate) {
         const scenesToLoad: number[] = []
-        for (let sceneIndex = 0; sceneIndex < timeline.scenes.length; sceneIndex++) {
+        
+        // 씬/그룹 재생 중일 때는 해당 씬/그룹만 확인
+        let targetSceneIndices: number[] = []
+        if (options?.sceneIndex !== null && options?.sceneIndex !== undefined) {
+          // 씬 재생: 해당 씬만
+          targetSceneIndices = [options.sceneIndex]
+        } else if (options?.groupSceneId !== null && options?.groupSceneId !== undefined) {
+          // 그룹 재생: 해당 그룹의 모든 씬
+          targetSceneIndices = timeline.scenes
+            .map((scene, idx) => scene.sceneId === options.groupSceneId ? idx : -1)
+            .filter(idx => idx >= 0)
+        } else {
+          // 전체 재생: 모든 씬
+          targetSceneIndices = timeline.scenes.map((_, idx) => idx)
+        }
+        
+        for (const sceneIndex of targetSceneIndices) {
           const scene = timeline.scenes[sceneIndex]
+          if (!scene) continue
+          
           const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
           if (!sceneVoiceTemplate) continue
           
@@ -903,6 +928,11 @@ export function useStep3Container() {
       if (renderAtRef.current) {
         renderAtRef.current(currentT, { skipAnimation: false })
       }
+      
+      // 전체 재생 시작 시 씬/그룹 재생 상태 초기화 (종료 시간 없음)
+      if (playingSceneIndex === null && playingGroupSceneId === null) {
+        setPlaybackEndTime(null)
+      }
     } else {
       // 일시정지 전에 현재 시간을 먼저 가져옴 (pause()가 timelineOffsetSec를 업데이트하기 전)
       const currentT = transport.getTime()
@@ -913,8 +943,14 @@ export function useStep3Container() {
       if (renderAtRef.current) {
         renderAtRef.current(currentT, { skipAnimation: true })
       }
+      
+      // 재생 중지 시 씬/그룹 재생 상태 초기화
+      setPlayingSceneIndex(null)
+      setPlayingGroupSceneId(null)
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeline, voiceTemplate, buildSceneMarkupWithTimeline, ensureSceneTts, transport, ttsTrack, audioContext, playingSceneIndex, playingGroupSceneId, setPlaybackEndTime, setPlayingSceneIndex, setPlayingGroupSceneId])
+    // ttsCacheRef, ttsCacheRefShared, renderAtRef는 ref이므로 의존성 배열에서 제외
 
   // BGM 관리
   const {
@@ -1102,6 +1138,92 @@ export function useStep3Container() {
           return
         }
         
+        // 씬 재생 또는 그룹 재생 중일 때 마지막 세그먼트 종료 시 정지
+        const currentPlayingSceneIndex = playingSceneIndex
+        const currentPlayingGroupSceneId = playingGroupSceneId
+        const currentSegments = ttsTrack.segments
+        
+        if (currentPlayingSceneIndex !== null || currentPlayingGroupSceneId !== null) {
+          // 해당 씬/그룹의 마지막 세그먼트 찾기
+          let lastSegment: { segmentEndTime: number; sceneIndex: number } | null = null
+          
+          if (currentPlayingSceneIndex !== null) {
+            // 씬 재생: 해당 씬의 마지막 세그먼트 찾기
+            const sceneSegments = currentSegments.filter(seg => seg.sceneIndex === currentPlayingSceneIndex)
+            if (sceneSegments.length > 0) {
+              const lastSceneSegment = sceneSegments[sceneSegments.length - 1]
+              if (lastSceneSegment.sceneIndex !== undefined) {
+                const durationSec = lastSceneSegment.durationSec ?? 0
+                lastSegment = {
+                  segmentEndTime: lastSceneSegment.startSec + durationSec,
+                  sceneIndex: lastSceneSegment.sceneIndex,
+                }
+              }
+            }
+          } else if (currentPlayingGroupSceneId !== null) {
+            // 그룹 재생: 해당 그룹의 마지막 씬의 마지막 세그먼트 찾기
+            const groupScenes = timeline.scenes.filter(scene => scene.sceneId === currentPlayingGroupSceneId)
+            if (groupScenes.length > 0) {
+              // 그룹의 마지막 씬 인덱스 찾기
+              let lastGroupSceneIndex = -1
+              for (let i = timeline.scenes.length - 1; i >= 0; i--) {
+                if (timeline.scenes[i]?.sceneId === currentPlayingGroupSceneId) {
+                  lastGroupSceneIndex = i
+                  break
+                }
+              }
+              
+              if (lastGroupSceneIndex >= 0) {
+                const groupSegments = currentSegments.filter(seg => seg.sceneIndex === lastGroupSceneIndex)
+                if (groupSegments.length > 0) {
+                  const lastGroupSegment = groupSegments[groupSegments.length - 1]
+                  if (lastGroupSegment.sceneIndex !== undefined) {
+                    const durationSec = lastGroupSegment.durationSec ?? 0
+                    lastSegment = {
+                      segmentEndTime: lastGroupSegment.startSec + durationSec,
+                      sceneIndex: lastGroupSegment.sceneIndex,
+                    }
+                  }
+                }
+              }
+            }
+          }
+          
+          // 현재 종료된 세그먼트가 마지막 세그먼트인지 확인 (0.01초 오차 허용)
+          if (lastSegment && Math.abs(segmentEndTime - lastSegment.segmentEndTime) < 0.01) {
+            // 마지막 세그먼트가 끝났으므로 정지
+            // 재생 종료 전에 현재 씬의 마지막 프레임을 명시적으로 렌더링
+            const finalSceneIndex = lastSegment.sceneIndex
+            if (finalSceneIndex !== undefined && renderAtRef.current) {
+              // 마지막 세그먼트 종료 시간 이전으로 설정 (현재 씬에 머물도록)
+              const finalTime = Math.max(0, segmentEndTime - 0.01)
+              transport.seek(finalTime)
+              // 현재 씬의 마지막 프레임을 명시적으로 렌더링 (다음 씬으로 넘어가지 않도록)
+              renderAtRef.current(finalTime, { 
+                skipAnimation: true, 
+                forceSceneIndex: finalSceneIndex 
+              })
+            }
+            
+            setIsPlaying(false)
+            setPlaybackEndTime(null)
+            setPlayingSceneIndex(null)
+            setPlayingGroupSceneId(null)
+            // 허용된 씬 인덱스 제거
+            const currentTtsTrack = ttsTrackRef.current.getTtsTrack()
+            if (currentTtsTrack) {
+              currentTtsTrack.setAllowedSceneIndices(null)
+            }
+            // 씬/그룹 재생 중일 때는 다음 씬으로 전환하지 않고 현재 씬에 머물기
+            return
+          }
+          
+          // 씬/그룹 재생 중일 때는 마지막 세그먼트가 아니어도 다음 씬으로 전환하지 않음
+          // 현재 씬 내에서만 재생되도록 함
+          return
+        }
+        
+        // 전체 재생 중일 때만 세그먼트 종료 시 다음 씬으로 전환
         // 세그먼트 종료 시점에 정확한 씬 전환 보장
         // segmentEndTime은 현재 씬의 종료 시간이므로, 다음 씬으로 전환해야 함
         const nextSceneIndex = sceneIndex + 1 < timeline.scenes.length ? sceneIndex + 1 : sceneIndex
@@ -1111,7 +1233,7 @@ export function useStep3Container() {
         renderAtRef.current(segmentEndTime, { skipAnimation: false, forceSceneIndex: nextSceneIndex })
       }
     }
-  }, [timeline, setTimeline, voiceTemplate, buildSceneMarkupWithTimeline, ttsCacheRefShared]) // timeline과 setTimeline 추가
+  }, [timeline, setTimeline, voiceTemplate, buildSceneMarkupWithTimeline, ttsCacheRefShared, playingSceneIndex, playingGroupSceneId, ttsTrack.segments, setIsPlaying, setPlaybackEndTime, setPlayingSceneIndex, setPlayingGroupSceneId]) // timeline과 setTimeline 추가, 재생 상태 및 세그먼트 추가
   
   // ttsTrack을 ref로 저장하여 안정적인 참조 유지
   const ttsTrackRef = useRef(ttsTrack)
@@ -1140,6 +1262,10 @@ export function useStep3Container() {
     }
   }, []) // 의존성 배열 비움 - ttsTrack과 onSegmentStartRef, onSegmentEndRef는 ref로 접근
   
+  // 씬/그룹 재생 시 Transport 시간 고정을 위한 ref
+  const sceneGroupPlayStartTimeRef = useRef<number | null>(null)
+  const sceneGroupPlayStartAudioCtxTimeRef = useRef<number | null>(null)
+  
   // Transport 시간이 변경될 때 자동으로 TtsTrack 재생 업데이트 (재생 중일 때만)
   const lastTtsUpdateTimeRef = useRef<number>(-1)
   useEffect(() => {
@@ -1147,7 +1273,154 @@ export function useStep3Container() {
       return
     }
     
+    // 씬/그룹 재생 중일 때는 Transport 시간을 고정하고 TTS만 AudioContext 기준으로 재생
+    if (playingSceneIndex !== null || playingGroupSceneId !== null) {
+      const segments = ttsTrack.segments
+      let allowedSegments: typeof segments = []
+      let segmentStartTime = 0
+      
+      if (playingSceneIndex !== null) {
+        // 씬 재생: 해당 씬의 세그먼트만 필터링
+        allowedSegments = segments.filter(seg => seg.sceneIndex === playingSceneIndex)
+      } else if (playingGroupSceneId !== null && timeline) {
+        // 그룹 재생: 해당 그룹의 모든 씬의 세그먼트 필터링
+        const groupSceneIndices = timeline.scenes
+          .map((scene, idx) => scene.sceneId === playingGroupSceneId ? idx : -1)
+          .filter(idx => idx >= 0)
+        allowedSegments = segments.filter(seg => 
+          seg.sceneIndex !== undefined && groupSceneIndices.includes(seg.sceneIndex)
+        )
+      }
+      
+      if (allowedSegments.length > 0) {
+        const firstSegment = allowedSegments[0]
+        segmentStartTime = firstSegment.startSec
+        const lastSegment = allowedSegments[allowedSegments.length - 1]
+        const segmentEndTime = lastSegment.startSec + (lastSegment.durationSec ?? 0)
+        
+        // 재생 시작 시 Transport 시간을 고정하고 AudioContext 시간 기록
+        if (sceneGroupPlayStartTimeRef.current === null) {
+          sceneGroupPlayStartTimeRef.current = segmentStartTime
+          sceneGroupPlayStartAudioCtxTimeRef.current = audioContext.currentTime
+          // Transport 시간을 시작 시간으로 고정
+          transport.seek(segmentStartTime)
+        }
+        
+        // AudioContext 기준 상대 시간 계산 (0부터 시작)
+        const audioCtxNow = audioContext.currentTime
+        const relativeTime = sceneGroupPlayStartAudioCtxTimeRef.current !== null
+          ? audioCtxNow - sceneGroupPlayStartAudioCtxTimeRef.current
+          : 0
+        
+        // 상대 시간을 타임라인 시간으로 변환
+        const timelineTime = segmentStartTime + relativeTime
+        
+        // 범위를 벗어나면 정지
+        if (timelineTime >= segmentEndTime) {
+          // 재생 종료 전에 현재 씬의 마지막 프레임을 명시적으로 렌더링
+          // 마지막 세그먼트의 씬 인덱스를 찾아서 해당 씬의 마지막 프레임 렌더링
+          let finalSceneIndex: number | undefined = undefined
+          if (playingSceneIndex !== null) {
+            finalSceneIndex = playingSceneIndex
+          } else if (playingGroupSceneId !== null && timeline) {
+            // 그룹 재생: 마지막 세그먼트의 씬 인덱스 사용
+            const lastSegment = allowedSegments[allowedSegments.length - 1]
+            if (lastSegment && lastSegment.sceneIndex !== undefined) {
+              finalSceneIndex = lastSegment.sceneIndex
+            }
+          }
+          
+          // Transport 시간을 마지막 세그먼트 종료 시간 이전으로 설정 (현재 씬에 머물도록)
+          const finalTime = Math.max(segmentStartTime, segmentEndTime - 0.01)
+          transport.seek(finalTime)
+          
+          // 현재 씬의 마지막 프레임을 명시적으로 렌더링 (다음 씬으로 넘어가지 않도록)
+          if (renderAtRef.current && finalSceneIndex !== undefined) {
+            renderAtRef.current(finalTime, { 
+              skipAnimation: true, 
+              forceSceneIndex: finalSceneIndex 
+            })
+          }
+          
+          setIsPlaying(false)
+          setPlaybackEndTime(null)
+          setPlayingSceneIndex(null)
+          setPlayingGroupSceneId(null)
+          sceneGroupPlayStartTimeRef.current = null
+          sceneGroupPlayStartAudioCtxTimeRef.current = null
+          // 허용된 씬 인덱스 제거
+          const currentTtsTrack = ttsTrackRef.current.getTtsTrack()
+          if (currentTtsTrack) {
+            currentTtsTrack.setAllowedSceneIndices(null)
+          }
+          return
+        }
+        
+        // TTS 재생 업데이트 (상대 시간 기준)
+        const timeDiff = Math.abs(timelineTime - lastTtsUpdateTimeRef.current)
+        if (timeDiff >= 0.1 || lastTtsUpdateTimeRef.current < 0) {
+          ttsTrack.playFrom(timelineTime, audioCtxNow)
+          lastTtsUpdateTimeRef.current = timelineTime
+        }
+        
+        // 애니메이션을 위해 renderAt에 실제 재생 시간 전달
+        // 단, 씬/그룹 재생 중에는 해당 범위를 벗어나지 않도록 제한 (다음 씬 렌더링 방지)
+        if (renderAtRef.current) {
+          // 마지막 세그먼트 종료 시간까지만 렌더링 (다음 씬으로 넘어가지 않도록)
+          const renderTime = Math.min(timelineTime, segmentEndTime - 0.01) // 0.01초 여유를 두어 경계에서 멈춤
+          
+          // 씬/그룹 재생 중에는 현재 활성 세그먼트의 씬 인덱스 사용 (forceSceneIndex)
+          let forceSceneIndex: number | undefined = undefined
+          if (playingSceneIndex !== null) {
+            // 씬 재생: 해당 씬 인덱스 고정
+            forceSceneIndex = playingSceneIndex
+          } else if (playingGroupSceneId !== null) {
+            // 그룹 재생: 현재 활성 세그먼트의 씬 인덱스 사용
+            const activeSegment = ttsTrack.getActiveSegment(renderTime)
+            if (activeSegment && activeSegment.segment.sceneIndex !== undefined) {
+              // 활성 세그먼트가 그룹에 속하는지 확인
+              if (timeline) {
+                const scene = timeline.scenes[activeSegment.segment.sceneIndex]
+                if (scene && scene.sceneId === playingGroupSceneId) {
+                  forceSceneIndex = activeSegment.segment.sceneIndex
+                }
+              }
+            }
+          }
+          
+          renderAtRef.current(renderTime, { 
+            skipAnimation: false,
+            forceSceneIndex 
+          })
+        }
+        
+        // Transport 시간은 고정 유지 (업데이트하지 않음)
+        return
+      }
+    } else {
+      // 전체 재생 중일 때는 기존 로직 사용
+      sceneGroupPlayStartTimeRef.current = null
+      sceneGroupPlayStartAudioCtxTimeRef.current = null
+    }
+    
+    // 전체 재생 중일 때만 Transport 시간 기반으로 TTS 재생 업데이트
     const currentT = transport.currentTime
+    
+    // 씬/그룹 재생 종료 시간 체크 (백업 - 전체 재생용)
+    if (playbackEndTime !== null && currentT >= playbackEndTime) {
+      // 재생 종료 시간에 도달하면 자동 정지
+      setIsPlaying(false)
+      setPlaybackEndTime(null)
+      setPlayingSceneIndex(null)
+      setPlayingGroupSceneId(null)
+      // 허용된 씬 인덱스 제거
+      const currentTtsTrack = ttsTrackRef.current.getTtsTrack()
+      if (currentTtsTrack) {
+        currentTtsTrack.setAllowedSceneIndices(null)
+      }
+      return
+    }
+    
     // 이전 시간과 비교하여 씬이 변경되었거나 충분히 시간이 지났을 때만 업데이트
     const timeDiff = Math.abs(currentT - lastTtsUpdateTimeRef.current)
     
@@ -1157,7 +1430,7 @@ export function useStep3Container() {
       ttsTrack.playFrom(currentT, audioCtxTime)
       lastTtsUpdateTimeRef.current = currentT
     }
-  }, [transport.currentTime, isPlaying, audioContext, ttsTrack])
+  }, [transport.currentTime, isPlaying, audioContext, ttsTrack, playbackEndTime, setIsPlaying, playingSceneIndex, playingGroupSceneId, timeline])
   
   // renderSceneContent를 setCurrentSceneIndex와 함께 래핑
   const renderSceneContent = useCallback((
@@ -1303,10 +1576,11 @@ export function useStep3Container() {
   const fullPlayback = {
     ttsCacheRef: ttsCacheRefShared,
   }
+  
   const singleScenePlayback = {}
   const groupPlayback = {
-    playingSceneIndex: null as number | null,
-    playingGroupSceneId: null as number | null,
+    playingSceneIndex,
+    playingGroupSceneId,
   }
 
   // 씬 네비게이션 훅 (씬 선택/전환 로직)
@@ -1483,10 +1757,58 @@ export function useStep3Container() {
     voiceTemplateRef,
     isPlaying,
     setIsPlaying,
+    setCurrentTime,
     setShowVoiceRequiredMessage,
     setScenesWithoutVoice,
     setRightPanelTab,
     router,
+    onGroupPlayStart: (sceneId, endTime) => {
+      setPlayingGroupSceneId(sceneId)
+      setPlayingSceneIndex(null)
+      setPlaybackEndTime(endTime)
+      
+      // 그룹 재생 시 해당 그룹의 씬 인덱스들을 TtsTrack에 설정
+      if (timeline) {
+        const groupSceneIndices = timeline.scenes
+          .map((scene, idx) => scene.sceneId === sceneId ? idx : -1)
+          .filter(idx => idx >= 0)
+        const currentTtsTrack = ttsTrackRef.current.getTtsTrack()
+        if (currentTtsTrack && groupSceneIndices.length > 0) {
+          currentTtsTrack.setAllowedSceneIndices(groupSceneIndices)
+        }
+      }
+      
+      // 씬/그룹 재생 시작 시간 초기화 (다음 useEffect에서 설정됨)
+      sceneGroupPlayStartTimeRef.current = null
+      sceneGroupPlayStartAudioCtxTimeRef.current = null
+    },
+    onScenePlayStart: (sceneIndex, endTime) => {
+      setPlayingSceneIndex(sceneIndex)
+      setPlayingGroupSceneId(null)
+      setPlaybackEndTime(endTime)
+      
+      // 씬 재생 시 해당 씬 인덱스를 TtsTrack에 설정
+      const currentTtsTrack = ttsTrackRef.current.getTtsTrack()
+      if (currentTtsTrack) {
+        currentTtsTrack.setAllowedSceneIndices([sceneIndex])
+      }
+      
+      // 씬/그룹 재생 시작 시간 초기화 (다음 useEffect에서 설정됨)
+      sceneGroupPlayStartTimeRef.current = null
+      sceneGroupPlayStartAudioCtxTimeRef.current = null
+    },
+    onFullPlayStart: () => {
+      // 전체 재생 시작 시 종료 시간 제한 제거 및 허용된 씬 인덱스 제거
+      setPlaybackEndTime(null)
+      setPlayingSceneIndex(null)
+      setPlayingGroupSceneId(null)
+      
+      // 전체 재생 시 모든 씬 허용
+      const currentTtsTrack = ttsTrackRef.current.getTtsTrack()
+      if (currentTtsTrack) {
+        currentTtsTrack.setAllowedSceneIndices(null)
+      }
+    },
   })
   
   const {

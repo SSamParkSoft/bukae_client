@@ -21,6 +21,7 @@ export class TtsTrack {
   private lastPlayedSceneIndex: number | null = null // 마지막으로 재생한 씬 인덱스
   private onSegmentEndCallback: ((segmentEndTime: number, sceneIndex: number) => void) | null = null // 세그먼트 종료 콜백
   private onSegmentStartCallback: ((segmentStartTime: number, sceneIndex: number) => void) | null = null // 세그먼트 시작 콜백 (씬 인덱스 포함)
+  private allowedSceneIndices: Set<number> | null = null // 허용된 씬 인덱스 (씬/그룹 재생 시 사용)
 
   constructor(audioContext: AudioContext) {
     this.audioContext = audioContext
@@ -117,6 +118,18 @@ export class TtsTrack {
   }
 
   /**
+   * 허용된 씬 인덱스 설정 (씬/그룹 재생 시 사용)
+   * @param sceneIndices 허용된 씬 인덱스 배열, null이면 제한 해제
+   */
+  setAllowedSceneIndices(sceneIndices: number[] | null): void {
+    if (sceneIndices === null) {
+      this.allowedSceneIndices = null
+    } else {
+      this.allowedSceneIndices = new Set(sceneIndices)
+    }
+  }
+
+  /**
    * 특정 시간 `t`부터 재생 시작
    * 
    * @param tSec 타임라인 시간 (초)
@@ -139,6 +152,14 @@ export class TtsTrack {
 
     const { segment, offset, segmentIndex } = active
     const currentSceneIndex = segment.sceneIndex ?? null
+    
+    // 허용된 씬 인덱스가 설정되어 있고, 현재 세그먼트가 허용되지 않으면 재생하지 않음
+    if (this.allowedSceneIndices !== null && currentSceneIndex !== null) {
+      if (!this.allowedSceneIndices.has(currentSceneIndex)) {
+        // 허용되지 않은 씬의 세그먼트이므로 재생하지 않음
+        return
+      }
+    }
 
     // 씬이 변경되었으면 이전 씬의 세그먼트 정지
     if (this.lastPlayedSceneIndex !== null && this.lastPlayedSceneIndex !== currentSceneIndex) {
@@ -191,6 +212,13 @@ export class TtsTrack {
       const nextSegment = this.segments[i]
       // 같은 씬의 세그먼트만 스케줄
       if (nextSegment.sceneIndex === currentSceneIndex) {
+        // 허용된 씬 인덱스가 설정되어 있으면 확인
+        if (this.allowedSceneIndices !== null && nextSegment.sceneIndex !== undefined) {
+          if (!this.allowedSceneIndices.has(nextSegment.sceneIndex)) {
+            // 허용되지 않은 씬의 세그먼트이므로 중단
+            break
+          }
+        }
         const nextBuffer = this.bufferMap.get(nextSegment.id)
         if (nextBuffer && !this.scheduledSegmentIds.has(nextSegment.id)) {
           this.scheduleSegment(nextSegment, nextBuffer, currentTime, 0)
@@ -359,6 +387,14 @@ export class TtsTrack {
         const nextSegment = this.segments[nextIndex]
         // 같은 씬의 세그먼트만 스케줄
         if (nextSegment.sceneIndex === currentSceneIndex) {
+          // 허용된 씬 인덱스가 설정되어 있으면 확인
+          if (this.allowedSceneIndices !== null && nextSegment.sceneIndex !== undefined) {
+            if (!this.allowedSceneIndices.has(nextSegment.sceneIndex)) {
+              // 허용되지 않은 씬의 세그먼트이므로 루프 중지
+              this.stopLookaheadLoop()
+              return
+            }
+          }
           const buffer = this.bufferMap.get(nextSegment.id)
           if (buffer && !this.scheduledSegmentIds.has(nextSegment.id)) {
             // 마지막 소스의 종료 시간 계산
