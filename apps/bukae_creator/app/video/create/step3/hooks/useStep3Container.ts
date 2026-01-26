@@ -708,11 +708,12 @@ export function useStep3Container() {
   const currentSceneIndex = isPlaying 
     ? calculatedSceneIndex 
     : (manualSceneIndex !== null ? manualSceneIndex : calculatedSceneIndex)
-  const setCurrentSceneIndex = (index: number) => { 
+  const setCurrentSceneIndex = (index: number, options?: { skipSeek?: boolean }) => { 
     currentSceneIndexRef.current = index
     setManualSceneIndex(index) // 수동 선택 상태 업데이트
     // Transport seek도 함께 수행 (해당 씬의 시작 시간으로)
-    if (timeline) {
+    // 단, skipSeek 옵션이 true이면 seek하지 않음 (타임라인 클릭 시 정확한 시간 유지)
+    if (!options?.skipSeek && timeline) {
       const sceneStartTime = getSceneStartTime(timeline, index)
       transport.seek(sceneStartTime)
     }
@@ -957,11 +958,36 @@ export function useStep3Container() {
           transport.seek(startTime)
         }
       } else {
-        // 전체 재생: 현재 시간 사용
-        currentT = transport.currentTime
+        // 전체 재생: Transport의 현재 시간을 정확히 사용
+        // 클릭 후 시간이 설정되었을 수 있으므로 getTime() 사용
+        currentT = transport.getTime()
+        
+        // 재생 시작 전에 Transport 시간이 정확히 설정되었는지 확인
+        // 클릭 후 약간의 지연이 있을 수 있으므로 한 번 더 확인
+        const verifyTime = transport.getTime()
+        if (Math.abs(verifyTime - currentT) > 0.001) {
+          // 시간이 변경되었으면 최신 값 사용
+          currentT = verifyTime
+        }
+        
+        // 재생 시작 시점의 시간을 정확히 설정 (seek로 동기화)
+        if (Math.abs(transport.getTime() - currentT) > 0.001) {
+          transport.seek(currentT)
+          currentT = transport.getTime()
+        }
       }
       
       transport.play()
+      
+      // 재생 시작 직후 시간을 다시 확인하여 정확도 보장
+      // play() 호출 후 약간의 지연이 있을 수 있으므로 requestAnimationFrame 사용
+      requestAnimationFrame(() => {
+        const actualTime = transport.getTime()
+        if (Math.abs(actualTime - currentT) > 0.01) {
+          // 10ms 이상 차이나면 seek로 보정
+          transport.seek(currentT)
+        }
+      })
       
       // 씬/그룹 재생 시작 시 ref 초기화 (재시작 시에도 처음부터 시작하도록)
       // useEffect에서 Transport 시간 고정 및 TTS 재생을 처리하므로 여기서는 ref만 초기화
@@ -1145,6 +1171,11 @@ export function useStep3Container() {
     buildSceneMarkup: buildSceneMarkupWithTimeline,
     makeTtsKey: makeTtsKey,
     voiceTemplate: voiceTemplate,
+    renderAtRef,
+    transport,
+    ttsTrack,
+    audioContext,
+    totalDuration: calculatedTotalDuration, // progressRatio 계산과 동일한 totalDuration 사용
   })
   
   // useSceneManager를 setCurrentSceneIndex와 함께 다시 생성
@@ -1625,9 +1656,12 @@ export function useStep3Container() {
       
       // 다른 씬으로 이동하는 경우: 씬 전환
       // 재생 중일 때는 setCurrentSceneIndex를 호출하지 않아서 중복 렌더링 방지
+      // 타임라인 클릭/드래그 시에는 skipSeek: true로 설정하여 정확한 시간 유지
       if (!isSameSceneTransition && setCurrentSceneIndex && !options?.isPlaying) {
         currentSceneIndexRef.current = sceneIndex
-        setCurrentSceneIndex(sceneIndex)
+        // renderSceneContent는 씬 전환 시 호출되므로, 타임라인 클릭/드래그가 아닌 경우에만 seek 수행
+        // 타임라인 클릭/드래그는 이미 setCurrentTime으로 시간이 설정되었으므로 skipSeek: true
+        setCurrentSceneIndex(sceneIndex, { skipSeek: true })
       } else if (!isSameSceneTransition) {
         // 재생 중일 때는 ref만 업데이트
         currentSceneIndexRef.current = sceneIndex

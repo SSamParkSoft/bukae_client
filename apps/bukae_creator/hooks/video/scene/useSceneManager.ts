@@ -218,6 +218,14 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         targetTextObj.style = textStyle
 
         // 텍스트 Transform 적용
+        // targetTextObj가 null이 아닌지 다시 확인 (비동기적으로 null이 될 수 있음)
+        if (!targetTextObj || targetTextObj.destroyed) {
+          if (onComplete) {
+            onComplete()
+          }
+          return
+        }
+        
         if (scene.text.transform) {
           const scaleX = scene.text.transform.scaleX ?? 1
           const scaleY = scene.text.transform.scaleY ?? 1
@@ -660,7 +668,9 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
       // 다른 씬으로 이동하는 경우: 씬 전환
       if (setCurrentSceneIndex && !isPlaying) {
         currentSceneIndexRef.current = sceneIndex
-        setCurrentSceneIndex(sceneIndex)
+        // renderSceneContent는 씬 전환 시 호출되므로, 타임라인 클릭/드래그가 아닌 경우에만 seek 수행
+        // 타임라인 클릭/드래그는 이미 setCurrentTime으로 시간이 설정되었으므로 skipSeek: true
+        setCurrentSceneIndex(sceneIndex, { skipSeek: true })
       } else if (setCurrentSceneIndex) {
         currentSceneIndexRef.current = sceneIndex
       }

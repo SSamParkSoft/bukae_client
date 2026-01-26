@@ -990,11 +990,29 @@ export function useTransportRenderer({
       }
 
       // 3. 다른 씬의 텍스트 객체 숨기기 (자막 누적 방지)
+      // 드래그 중 쓰로틀링으로 인한 자막 겹침을 방지하기 위해 먼저 모든 텍스트 숨김
       textsRef.current.forEach((textObj, textSceneIndex) => {
         if (textSceneIndex !== sceneIndex && !textObj.destroyed) {
           textObj.visible = false
+          textObj.alpha = 0
         }
       })
+      
+      // 같은 그룹 내 다른 씬의 텍스트도 숨김 (같은 텍스트 객체를 공유하는 경우)
+      const currentScene = timeline.scenes[sceneIndex]
+      if (currentScene?.sceneId !== undefined) {
+        const sameGroupSceneIndices = timeline.scenes
+          .map((s, idx) => (s.sceneId === currentScene.sceneId ? idx : -1))
+          .filter((idx) => idx >= 0 && idx !== sceneIndex)
+        
+        sameGroupSceneIndices.forEach((groupSceneIndex) => {
+          const groupTextObj = textsRef.current.get(groupSceneIndex)
+          if (groupTextObj && !groupTextObj.destroyed) {
+            groupTextObj.visible = false
+            groupTextObj.alpha = 0
+          }
+        })
+      }
       
       // 4. 현재 씬/구간의 자막 렌더링
       renderSubtitlePart(sceneIndex, partIndex, {
