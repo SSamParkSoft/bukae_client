@@ -7,9 +7,8 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 interface UsePlaybackHandlersParams {
   timelineRef: React.MutableRefObject<TimelineData | null>
   voiceTemplateRef: React.MutableRefObject<string | null>
-  fullPlaybackRef: React.MutableRefObject<any>
-  groupPlaybackRef: React.MutableRefObject<any>
   isPlaying: boolean
+  setIsPlaying: (playing: boolean) => void | Promise<void>
   setShowVoiceRequiredMessage: (show: boolean) => void
   setScenesWithoutVoice: (scenes: number[]) => void
   setRightPanelTab: (tab: string) => void
@@ -23,26 +22,25 @@ interface UsePlaybackHandlersParams {
 export function usePlaybackHandlers({
   timelineRef,
   voiceTemplateRef,
-  fullPlaybackRef,
-  groupPlaybackRef,
   isPlaying,
+  setIsPlaying,
   setShowVoiceRequiredMessage,
   setScenesWithoutVoice,
   setRightPanelTab,
   router,
 }: UsePlaybackHandlersParams) {
-  // 재생/일시정지 핸들러
+  // 재생/일시정지 핸들러 (Transport 기반)
   const handlePlayPause = useCallback(() => {
     const currentIsPlaying = isPlaying
-    const currentFullPlayback = fullPlaybackRef.current
     const currentTimeline = timelineRef.current
     const currentVoiceTemplate = voiceTemplateRef.current
     
     if (currentIsPlaying) {
-      currentFullPlayback?.stopAllScenes()
+      // 일시정지
+      setIsPlaying(false)
       setShowVoiceRequiredMessage(false)
     } else {
-      // 모든 씬의 음성 선택 여부 확인
+      // 재생 시작 전 음성 선택 여부 확인
       if (!currentTimeline) {
         return
       }
@@ -51,8 +49,7 @@ export function usePlaybackHandlers({
       for (let i = 0; i < currentTimeline.scenes.length; i++) {
         const scene = currentTimeline.scenes[i]
         
-        // 씬별 voiceTemplate이 있으면 사용, 없으면(null/undefined/빈 문자열) 전역 voiceTemplate 사용
-        // scene.voiceTemplate이 null, undefined, 빈 문자열이 아닌 경우에만 사용
+        // 씬별 voiceTemplate이 있으면 사용, 없으면 전역 voiceTemplate 사용
         const hasSceneVoiceTemplate = scene?.voiceTemplate != null && 
                                       typeof scene.voiceTemplate === 'string' && 
                                       scene.voiceTemplate.trim() !== ''
@@ -60,10 +57,6 @@ export function usePlaybackHandlers({
           ? scene.voiceTemplate 
           : currentVoiceTemplate
         
-        // 최종적으로 voiceTemplate이 없으면 에러
-        // sceneVoiceTemplate이 null이거나 빈 문자열이면 음성이 없는 것으로 판단
-        // 하지만 sceneVoiceTemplate이 null이면 이미 voiceTemplate을 사용하도록 했으므로,
-        // 실제로는 sceneVoiceTemplate이 null이 아니어야 함
         const isEmpty = sceneVoiceTemplate == null || 
                        sceneVoiceTemplate === '' ||
                        (typeof sceneVoiceTemplate === 'string' && sceneVoiceTemplate.trim() === '')
@@ -86,22 +79,23 @@ export function usePlaybackHandlers({
         return
       }
       
+      // 모든 씬에 음성이 있으면 재생 시작
       setShowVoiceRequiredMessage(false)
-      void currentFullPlayback?.playAllScenes()
+      void setIsPlaying(true)
     }
-  }, [isPlaying, setRightPanelTab, setShowVoiceRequiredMessage, setScenesWithoutVoice, timelineRef, voiceTemplateRef, fullPlaybackRef])
+  }, [isPlaying, setIsPlaying, setRightPanelTab, setShowVoiceRequiredMessage, setScenesWithoutVoice, timelineRef, voiceTemplateRef])
 
-  // 그룹 재생 핸들러 (useGroupPlayback 훅 사용)
+  // 그룹 재생 핸들러 (TODO: Transport 기반으로 재구현 필요)
+  // 현재는 전체 재생과 동일하게 처리 (Transport는 전체 타임라인을 재생)
   const handleGroupPlay = useCallback(async (sceneId: number, groupIndices: number[]) => {
-    const currentGroupPlayback = groupPlaybackRef.current
     const currentTimeline = timelineRef.current
     const currentVoiceTemplate = voiceTemplateRef.current
     
-    if (!currentGroupPlayback) return
+    if (!currentTimeline) return
     
     // 대상 그룹에 대한 음성 템플릿 존재 여부 확인 (씬별 voiceTemplate 우선, 없으면 전역 voiceTemplate)
     const hasVoiceForGroup = groupIndices.every((idx) => {
-      const sceneVoice = currentTimeline?.scenes[idx]?.voiceTemplate
+      const sceneVoice = currentTimeline.scenes[idx]?.voiceTemplate
       const resolvedVoice = sceneVoice || currentVoiceTemplate
       return !!resolvedVoice && resolvedVoice.trim() !== ''
     })
@@ -117,25 +111,23 @@ export function usePlaybackHandlers({
       return
     }
     
-    // 이미 같은 그룹이 재생 중이면 정지
-    if (currentGroupPlayback.playingGroupSceneId === sceneId) {
-      currentGroupPlayback.stopGroup()
-      return
-    }
-    
+    // TODO: 그룹 재생은 Transport 기반으로 재구현 필요
+    // 현재는 전체 재생과 동일하게 처리
     setShowVoiceRequiredMessage(false)
-    await currentGroupPlayback.playGroup(sceneId, groupIndices)
-  }, [setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, voiceTemplateRef, groupPlaybackRef])
+    void setIsPlaying(true)
+  }, [setIsPlaying, setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, voiceTemplateRef])
 
-  // 씬 재생 핸들러 (useGroupPlayback 훅 사용 - 단일 씬도 그룹으로 처리)
+  // 씬 재생 핸들러 (TODO: Transport 기반으로 재구현 필요 - 특정 씬부터 재생)
+  // 현재는 전체 재생과 동일하게 처리
   const handleScenePlay = useCallback(async (sceneIndex: number) => {
-    const currentGroupPlayback = groupPlaybackRef.current
     const currentTimeline = timelineRef.current
     const currentVoiceTemplate = voiceTemplateRef.current
     
     try {
+      if (!currentTimeline) return
+      
       // 음성 선택 여부 확인 (null, undefined, 빈 문자열 모두 체크)
-      const sceneVoice = currentTimeline?.scenes[sceneIndex]?.voiceTemplate || currentVoiceTemplate
+      const sceneVoice = currentTimeline.scenes[sceneIndex]?.voiceTemplate || currentVoiceTemplate
       if (!sceneVoice || sceneVoice.trim() === '') {
         setShowVoiceRequiredMessage(true)
         // 음성 탭으로 자동 이동
@@ -147,20 +139,10 @@ export function usePlaybackHandlers({
         return
       }
       
-      // 이미 같은 씬이 재생 중이면 정지
-      if (currentGroupPlayback?.playingSceneIndex === sceneIndex) {
-        currentGroupPlayback.stopGroup()
-        return
-      }
-      
-      // 단일 씬도 useGroupPlayback을 사용하여 재생
-      // sceneId는 undefined로 전달하고, groupIndices는 [sceneIndex]로 전달
-      const scene = currentTimeline?.scenes[sceneIndex]
-      const sceneId = scene?.sceneId
+      // TODO: 특정 씬부터 재생하는 기능은 Transport 기반으로 재구현 필요
+      // 현재는 전체 재생과 동일하게 처리
       setShowVoiceRequiredMessage(false)
-      if (currentGroupPlayback) {
-        await currentGroupPlayback.playGroup(sceneId, [sceneIndex])
-      }
+      void setIsPlaying(true)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       
@@ -188,8 +170,7 @@ export function usePlaybackHandlers({
       // 기타 오류는 콘솔에만 출력
       console.error('[씬 재생] 오류:', error)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router, setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, voiceTemplateRef, groupPlaybackRef])
+  }, [setIsPlaying, router, setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, voiceTemplateRef])
 
   return {
     handlePlayPause,

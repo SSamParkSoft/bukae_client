@@ -355,6 +355,7 @@ export function useSceneNavigation({
         
         // 수동으로 씬을 클릭한 경우(!skipStopPlaying)에는 자동 전환하지 않음
         // 재생 중일 때만 자동 전환 (skipStopPlaying이 true일 때)
+        // skipStopPlaying이 false일 때(즉, 재생 중이 아닐 때)는 autoAdvanceToNextInGroup을 호출하지 않음
         if (skipStopPlaying && !isPlayingRef.current) {
           // 약간의 지연을 두고 호출하여 전환 효과가 완전히 완료된 후 자동 전환 시작
           setTimeout(() => {
@@ -451,6 +452,8 @@ export function useSceneNavigation({
       
       // 수동으로 씬을 클릭한 경우(!skipStopPlaying)에는 자동 전환하지 않음
       // 재생 중일 때만 자동 전환 (skipStopPlaying이 true일 때)
+      // skipStopPlaying이 false일 때(즉, 재생 중이 아닐 때)는 autoAdvanceToNextInGroup을 호출하지 않음
+      // 씬 카드 클릭 시 모든 TTS 음성파일이 재생되는 버그 방지
       if (skipStopPlaying && !isPlayingRef.current) {
         const selectedScene = timeline.scenes[index]
         const nextScene = index + 1 < timeline.scenes.length ? timeline.scenes[index + 1] : null

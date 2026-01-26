@@ -1,30 +1,31 @@
 'use client'
 
-import { useRef, useEffect, useMemo, useCallback } from 'react'
+import { useRef, useEffect, useMemo, useCallback, useState } from 'react'
 import { TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { useSceneHandlers } from '@/hooks/video/scene/useSceneHandlers'
-import { useTimelinePlayer } from '@/hooks/video/playback/useTimelinePlayer'
+import { calculateSceneIndexFromTime, getSceneStartTime } from '@/utils/timeline'
 import { usePixiFabric } from '@/hooks/video/pixi/usePixiFabric'
 import { usePixiEffects } from '@/hooks/video/effects/usePixiEffects'
 import { useSceneManager } from '@/hooks/video/scene/useSceneManager'
 import { usePixiEditor } from '@/hooks/video/editing/usePixiEditor'
 import { useSceneNavigation } from '@/hooks/video/scene/useSceneNavigation'
-import { useFullPlayback } from '@/hooks/video/playback/useFullPlayback'
 import { useTimelineInitializer } from '@/hooks/video/timeline/useTimelineInitializer'
 import { useGridManager } from '@/hooks/video/canvas/useGridManager'
 import { useCanvasSize } from '@/hooks/video/canvas/useCanvasSize'
 import { useFontLoader } from '@/hooks/video/canvas/useFontLoader'
 import { useBgmManager } from '@/hooks/video/audio/useBgmManager'
 import { useTimelineInteraction } from '@/hooks/video/timeline/useTimelineInteraction'
-import { usePlaybackStateSync } from '@/hooks/video/playback/usePlaybackStateSync'
 import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
-import { getMp3DurationSec } from '@/lib/utils/audio'
 import { useSceneEditHandlers as useSceneEditHandlersFromVideo } from '@/hooks/video/scene/useSceneEditHandlers'
 import { useVideoExport } from '@/hooks/video/export/useVideoExport'
 import { loadPixiTexture } from '@/utils/pixi'
 import { useTtsManager } from './useTtsManager'
-import { useTtsPreview } from '@/hooks/video/tts/useTtsPreview'
+// PHASE0: Transport 및 TtsTrack 통합
+import { useTransport } from '@/hooks/video/transport/useTransport'
+import { useTtsTrack } from '@/hooks/video/audio/useTtsTrack'
+import { useTransportRenderer } from '@/hooks/video/renderer/useTransportRenderer'
+import { calculateTotalDuration } from '@/utils/timeline'
 import { useFabricHandlers } from '@/hooks/video/editing/useFabricHandlers'
 import { transitionLabels, transitions, movements, allTransitions } from '@/lib/data/transitions'
 import { useVideoCreateAuth } from '@/hooks/auth/useVideoCreateAuth'
@@ -62,8 +63,8 @@ export function useStep3Container() {
     theme,
     timelineRef,
     voiceTemplateRef,
-    fullPlaybackRef,
-    groupPlaybackRef,
+    // fullPlaybackRef, // 레거시 제거
+    // groupPlaybackRef, // 레거시 제거
     pixiContainerRef,
     appRef,
     containerRef,
@@ -118,9 +119,9 @@ export function useStep3Container() {
     fabricReady,
     setFabricReady,
     isTtsBootstrapping,
-    setIsTtsBootstrapping,
+    // setIsTtsBootstrapping, // 사용하지 않음
     isPreparing,
-    setIsPreparing,
+    // setIsPreparing, // 사용하지 않음
     showReadyMessage,
     showVoiceRequiredMessage,
     setShowVoiceRequiredMessage,
@@ -309,7 +310,7 @@ export function useStep3Container() {
     isPlayingRef, // 재생 중인지 확인용
   })
 
-  // 씬 관리 hook (setCurrentSceneIndex는 useTimelinePlayer 이후에 설정됨)
+  // 씬 관리 hook
   // 임시로 undefined로 설정하고, 나중에 업데이트
   const sceneManagerResult1 = useSceneManager({
     appRef,
@@ -537,68 +538,127 @@ export function useStep3Container() {
   
   // timeline 변경 시 저장된 씬 인덱스 복원 (더 이상 필요 없음 - 편집 종료 버튼에서 직접 처리)
 
-  // buildSceneMarkupWithTimeline을 먼저 선언 (useTimelinePlayer에서 사용)
+  // buildSceneMarkupWithTimeline을 먼저 선언
   const buildSceneMarkupWithTimeline = useCallback(
     (timelineParam: TimelineData | null, sceneIndex: number) => buildSceneMarkup(timelineParam, sceneIndex),
     []
   )
 
-  // TTS 캐시 ref를 먼저 생성 (useTimelinePlayer와 useTtsManager에서 공유)
+  // TTS 캐시 ref를 먼저 생성 (useTransport와 useTtsManager에서 공유)
   const ttsCacheRefShared = useRef(
     new Map<string, { blob: Blob; durationSec: number; markup: string; url?: string | null }>()
   )
 
-  // useTimelinePlayer (재생 루프 관리) - 먼저 선언하여 currentSceneIndex 등을 얻음
-  const {
-    isPlaying: timelineIsPlaying,
-    setIsPlaying: setTimelineIsPlaying,
-    isPreviewingTransition: timelineIsPreviewingTransition,
-    setIsPreviewingTransition: setTimelineIsPreviewingTransition,
-    currentSceneIndex: timelineCurrentSceneIndex,
-    setCurrentSceneIndex: setTimelineCurrentSceneIndex,
-    currentTime,
-    setCurrentTime,
-    currentTimeRef: timelineCurrentTimeRef,
-    progressRatio,
-    playbackSpeed,
-    setPlaybackSpeed,
-    totalDuration,
-  } = useTimelinePlayer({
+  // PHASE0: Transport 및 TtsTrack 통합
+  const transport = useTransport()
+  
+  // 클라이언트에서만 audioContext 가져오기 (서버에서는 undefined)
+  const audioContext = typeof window !== 'undefined' && transport.transport 
+    ? transport.getAudioContext() 
+    : undefined
+  
+  const ttsTrack = useTtsTrack({
     timeline,
-    updateCurrentScene: () => {
-      // useTimelinePlayer는 skipAnimation만 받지만, 새로운 시그니처는 explicitPreviousIndex를 받음
-      // 빈 함수로 래핑 (실제로는 사용되지 않음)
-    },
-    loadAllScenes,
-    appRef,
-    containerRef,
-    pixiReady,
-    previousSceneIndexRef,
-    onSceneChange: (index: number) => {
-      // 임시로 빈 함수, 나중에 sceneNavigation.selectScene으로 업데이트
-      if (selectSceneRef.current) {
-        selectSceneRef.current(index, true)
-      }
-    },
-    disableAutoTimeUpdateRef,
-    // TTS 캐시를 사용하여 더 정확한 duration 계산
+    voiceTemplate,
     ttsCacheRef: ttsCacheRefShared,
-    voiceTemplate: voiceTemplate,
+    audioContext: audioContext as AudioContext | undefined,
+    transportTime: transport.currentTime,
     buildSceneMarkup: buildSceneMarkupWithTimeline,
-    makeTtsKey: makeTtsKey,
+    makeTtsKey,
   })
 
-  // 통합된 상태 사용
-  const isPlaying = timelineIsPlaying
-  const setIsPlaying = setTimelineIsPlaying
-  const currentSceneIndex = timelineCurrentSceneIndex
-  const setCurrentSceneIndex = setTimelineCurrentSceneIndex
+  // totalDuration 계산 (Transport에 설정)
+  const calculatedTotalDuration = useMemo(() => {
+    if (!timeline) return 0
+    return calculateTotalDuration(timeline, {
+      ttsCacheRef: ttsCacheRefShared,
+      voiceTemplate,
+      buildSceneMarkup: buildSceneMarkupWithTimeline,
+      makeTtsKey,
+    })
+  }, [timeline, voiceTemplate, buildSceneMarkupWithTimeline])
 
-  // TTS 관리 (useTimelinePlayer 이후에 호출하여 isPlaying과 setCurrentTime 사용)
+  // Transport에 totalDuration 설정
+  useEffect(() => {
+    transport.setTotalDuration(calculatedTotalDuration)
+  }, [transport, calculatedTotalDuration])
+
+  // PHASE0: Transport 기반 렌더링 시스템
+  const transportRenderer = useTransportRenderer({
+    transport: transport.transport,
+    timeline,
+    appRef,
+    containerRef,
+    spritesRef,
+    textsRef,
+    currentSceneIndexRef,
+    previousSceneIndexRef,
+    activeAnimationsRef,
+    stageDimensions,
+    ttsCacheRef: ttsCacheRefShared,
+    voiceTemplate,
+    buildSceneMarkup: buildSceneMarkupWithTimeline,
+    makeTtsKey,
+    loadPixiTextureWithCache,
+    applyEnterEffect,
+    onSceneLoadComplete: handleLoadComplete,
+  })
+
+  // renderAt ref (Transport 렌더러에서 설정됨)
+  const renderAtRef = useRef<((tSec: number, options?: { skipAnimation?: boolean }) => void) | undefined>(undefined)
+
+  // Transport 기반 재생 상태 (초기 선언만, 실제 구현은 useTtsManager 이후)
+  const isPlaying = transport.isPlaying
+  const currentTime = transport.currentTime
+  const setCurrentTime = ((time: number | ((prev: number) => number)) => {
+    const targetTime = typeof time === 'function' ? time(transport.currentTime) : time
+    transport.seek(targetTime)
+    // TtsTrack도 seek (클라이언트에서만)
+    if (transport.isPlaying && typeof window !== 'undefined' && transport.transport && audioContext) {
+      const audioCtxTime = audioContext.currentTime
+      ttsTrack.playFrom(targetTime, audioCtxTime)
+    }
+    // 시각적 렌더링 업데이트
+    if (renderAtRef.current) {
+      renderAtRef.current(targetTime, { skipAnimation: true })
+    }
+  }) as React.Dispatch<React.SetStateAction<number>>
+  
+  // Transport 렌더러는 내부에서 currentTime 구독 및 자동 렌더링 처리
+  // 외부에서는 setIsPlaying/setCurrentTime에서만 renderAt 호출
+  const progressRatio = calculatedTotalDuration > 0 ? transport.currentTime / calculatedTotalDuration : 0
+  const playbackSpeed = transport.playbackRate
+  const setPlaybackSpeed = transport.setRate
+  const totalDuration = calculatedTotalDuration
+  // currentSceneIndex를 상태로 관리하여 씬 카드 클릭 시 수동 선택을 추적
+  // 재생 중일 때는 계산된 값을 사용, 재생 중이 아닐 때는 수동 선택을 우선
+  const [manualSceneIndex, setManualSceneIndex] = useState<number | null>(null)
+  const calculatedSceneIndex = timeline ? calculateSceneIndexFromTime(timeline, transport.currentTime) : 0
+  // 재생 중일 때는 계산된 값 사용, 재생 중이 아닐 때는 수동 선택 우선
+  const currentSceneIndex = isPlaying 
+    ? calculatedSceneIndex 
+    : (manualSceneIndex !== null ? manualSceneIndex : calculatedSceneIndex)
+  const setCurrentSceneIndex = (index: number) => { 
+    currentSceneIndexRef.current = index
+    setManualSceneIndex(index) // 수동 선택 상태 업데이트
+    // Transport seek도 함께 수행 (해당 씬의 시작 시간으로)
+    if (timeline) {
+      const sceneStartTime = getSceneStartTime(timeline, index)
+      transport.seek(sceneStartTime)
+    }
+  }
+  
+  // 재생 중일 때는 계산된 값으로 currentSceneIndexRef 동기화
+  useEffect(() => {
+    if (isPlaying && calculatedSceneIndex !== currentSceneIndexRef.current) {
+      currentSceneIndexRef.current = calculatedSceneIndex
+    }
+  }, [isPlaying, calculatedSceneIndex])
+  // TTS 관리
   // ttsCacheRefShared를 useTtsManager와 공유하여 동기화 보장
   const {
     ttsCacheRef,
-    stopScenePreviewAudio,
+    // stopScenePreviewAudio, // 사용하지 않음
     ensureSceneTts,
     invalidateSceneTtsCache,
   } = useTtsManager({
@@ -612,22 +672,133 @@ export function useStep3Container() {
 
   // TTS 캐시 동기화: useTtsManager의 ttsCacheRef를 ttsCacheRefShared에 동기화
   // useTtsManager가 내부에서 생성한 ttsCacheRef를 ttsCacheRefShared로 교체
-  useEffect(() => {
-    if (ttsCacheRef && ttsCacheRefShared) {
-      // useTtsManager의 ttsCacheRef 내용을 ttsCacheRefShared에 복사
-      ttsCacheRefShared.current.clear()
-      ttsCacheRef.current.forEach((value, key) => {
-        ttsCacheRefShared.current.set(key, value)
-      })
+  // 폴링 방식 제거: TTS 파일 생성 완료 시점에만 refreshSegments 호출
+  // 주의: 여기서는 동기화만 수행하고 refreshSegments는 호출하지 않음 (무한 루프 방지)
+  // ref는 변경을 감지할 수 없으므로, 주기적으로 체크하거나 setIsPlaying에서만 동기화
+  // useEffect는 제거하고 setIsPlaying에서만 동기화하도록 변경
+
+  // setIsPlaying 구현 (useTtsManager 이후에 선언하여 ensureSceneTts 사용 가능)
+  const setIsPlaying = async (playing: boolean) => { 
+    if (playing) {
+      // 재생 시작 전에 모든 씬의 TTS 파일이 있는지 확인하고 없으면 생성
+      if (timeline && voiceTemplate) {
+        const scenesToLoad: number[] = []
+        for (let sceneIndex = 0; sceneIndex < timeline.scenes.length; sceneIndex++) {
+          const scene = timeline.scenes[sceneIndex]
+          const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+          if (!sceneVoiceTemplate) continue
+          
+          const markups = buildSceneMarkupWithTimeline(timeline, sceneIndex)
+          let needsTts = false
+          
+          for (const markup of markups) {
+            if (!markup) continue
+            const key = makeTtsKey(sceneVoiceTemplate, markup)
+            if (!ttsCacheRefShared.current.has(key)) {
+              needsTts = true
+              break
+            }
+          }
+          
+          if (needsTts) {
+            scenesToLoad.push(sceneIndex)
+          }
+        }
+        
+          // 필요한 씬들의 TTS 생성 (병렬로 처리하되 동시 요청 수 제한)
+          if (scenesToLoad.length > 0) {
+            const MAX_CONCURRENT = 3
+            for (let i = 0; i < scenesToLoad.length; i += MAX_CONCURRENT) {
+              const batch = scenesToLoad.slice(i, i + MAX_CONCURRENT)
+              await Promise.all(
+                batch.map(async (sceneIndex) => {
+                  try {
+                    await ensureSceneTts(sceneIndex)
+                    // 각 씬의 TTS 생성 완료 후 즉시 캐시 동기화
+                    if (ttsCacheRef && ttsCacheRefShared) {
+                      // 해당 씬의 모든 키를 찾아서 동기화
+                      const scene = timeline.scenes[sceneIndex]
+                      if (scene) {
+                        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+                        const markups = buildSceneMarkupWithTimeline(timeline, sceneIndex)
+                        markups.forEach((markup) => {
+                          if (!markup) return
+                          const key = makeTtsKey(sceneVoiceTemplate, markup)
+                          const cached = ttsCacheRef.current.get(key)
+                          if (cached) {
+                            ttsCacheRefShared.current.set(key, cached)
+                          }
+                        })
+                      }
+                    }
+                  } catch (error) {
+                    // TTS 생성 실패 (로그 제거)
+                  }
+                })
+              )
+            }
+            
+            // TTS 파일 생성 완료 후 전체 캐시 동기화 (중요!)
+            // useTtsManager의 ttsCacheRef를 ttsCacheRefShared에 동기화
+            if (ttsCacheRef && ttsCacheRefShared) {
+              ttsCacheRefShared.current.clear()
+              ttsCacheRef.current.forEach((value, key) => {
+                ttsCacheRefShared.current.set(key, value)
+              })
+              
+              // 디버깅: 캐시 동기화 확인
+              console.log('[useStep3Container] TTS 캐시 동기화 완료', {
+                sourceCacheSize: ttsCacheRef.current.size,
+                sharedCacheSize: ttsCacheRefShared.current.size,
+                sampleKeys: Array.from(ttsCacheRefShared.current.keys()).slice(0, 3),
+                sampleValues: Array.from(ttsCacheRefShared.current.values()).slice(0, 3).map(v => ({
+                  hasUrl: !!v.url,
+                  url: v.url,
+                  durationSec: v.durationSec,
+                })),
+              })
+            }
+          
+          // TTS 파일 생성 완료 후 세그먼트 강제 업데이트 (폴링 방식 제거)
+          // refreshSegments를 호출하여 segments를 재계산하고 preload 실행
+          // refreshSegments가 Promise를 반환하므로 segments 업데이트 및 preload 완료를 기다림
+          if (typeof window !== 'undefined' && ttsTrack.refreshSegments) {
+            await ttsTrack.refreshSegments()
+          }
+        }
+      }
+      
+      const currentT = transport.currentTime
+      transport.play()
+      // TtsTrack 재생 시작 (클라이언트에서만)
+      // preload가 완료된 후에 호출되므로 버퍼가 로드되어 있음
+      if (typeof window !== 'undefined' && transport.transport && audioContext) {
+        const audioCtxTime = audioContext.currentTime
+        ttsTrack.playFrom(currentT, audioCtxTime)
+      }
+      // 시각적 렌더링 업데이트 (현재 위치에서 재생 시작)
+      if (renderAtRef.current) {
+        renderAtRef.current(currentT, { skipAnimation: false })
+      }
+    } else {
+      // 일시정지 전에 현재 시간을 먼저 가져옴 (pause()가 timelineOffsetSec를 업데이트하기 전)
+      const currentT = transport.getTime()
+      transport.pause()
+      ttsTrack.stopAll()
+      // 시각적 렌더링 업데이트 (현재 위치에서 일시정지)
+      // skipAnimation=true로 설정하여 애니메이션 없이 즉시 렌더링
+      if (renderAtRef.current) {
+        renderAtRef.current(currentT, { skipAnimation: true })
+      }
     }
-  }, [ttsCacheRef])
+  }
 
   // BGM 관리
   const {
     confirmedBgmTemplate,
     isBgmBootstrapping,
-    stopBgmAudio,
-    startBgmAudio,
+    // stopBgmAudio, // 사용하지 않음
+    // startBgmAudio, // 사용하지 않음
     handleBgmConfirm,
   } = useBgmManager({
     bgmTemplate,
@@ -639,6 +810,26 @@ export function useStep3Container() {
   const handleSoundEffectConfirm = useCallback((effectId: string | null) => {
     setConfirmedSoundEffect(effectId)
   }, [setConfirmedSoundEffect])
+
+  // TTS 유틸리티 함수들 (lib/utils/tts.ts에서 import)
+  // buildSceneMarkup과 makeTtsKey는 유틸리티 함수로 직접 사용
+  // 다른 hook에 전달하기 위한 래퍼 함수
+  // buildSceneMarkup은 timeline.scenes의 text.content와 scenes.length만 사용하므로 최적화
+  const scenesTextContents = useMemo(() => {
+    if (!timeline || !timeline.scenes) return []
+    return timeline.scenes.map(s => s.text?.content || '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeline?.scenes])
+  
+  const scenesTextContentKey = useMemo(() => {
+    return scenesTextContents.join('|||') + `|length:${scenesTextContents.length}`
+  }, [scenesTextContents])
+  
+  const buildSceneMarkupWrapper = useCallback(
+    (sceneIndex: number) => buildSceneMarkup(timelineRef.current, sceneIndex),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scenesTextContentKey]
+  )
 
   // 타임라인 인터랙션
   const { handleTimelineMouseDown } = useTimelineInteraction({
@@ -658,6 +849,7 @@ export function useStep3Container() {
   })
   
   // useSceneManager를 setCurrentSceneIndex와 함께 다시 생성
+  // PHASE0: renderAt(t) 패턴을 위한 추가 파라미터들 (타입 호환을 위해 타입 단언 사용)
   const sceneManagerResult2 = useSceneManager({
     appRef,
     containerRef,
@@ -678,6 +870,16 @@ export function useStep3Container() {
     onLoadComplete: handleLoadComplete,
     setTimeline,
     setCurrentSceneIndex,
+    // PHASE0: renderAt(t) 패턴을 위한 파라미터들
+    ttsCacheRef: ttsCacheRefShared,
+    voiceTemplate,
+    buildSceneMarkup: buildSceneMarkupWrapper,
+    makeTtsKey,
+  } as Parameters<typeof useSceneManager>[0] & {
+    ttsCacheRef?: typeof ttsCacheRefShared
+    voiceTemplate?: string | null
+    buildSceneMarkup?: (sceneIndex: number) => string[]
+    makeTtsKey?: (voice: string, markup: string) => string
   })
   
   const { 
@@ -690,6 +892,32 @@ export function useStep3Container() {
   
   // updateCurrentScene2를 ref로 감싸서 안정적인 참조 유지
   updateCurrentSceneRef.current = updateCurrentScene2
+  
+  // renderAt을 ref로 저장하여 setIsPlaying/setCurrentTime에서 사용 가능하도록
+  useEffect(() => {
+    if (transportRenderer.renderAt) {
+      renderAtRef.current = transportRenderer.renderAt
+    }
+  }, [transportRenderer.renderAt])
+  
+  // Transport 시간이 변경될 때 자동으로 TtsTrack 재생 업데이트 (재생 중일 때만)
+  const lastTtsUpdateTimeRef = useRef<number>(-1)
+  useEffect(() => {
+    if (!isPlaying || !audioContext || !transport.transport) {
+      return
+    }
+    
+    const currentT = transport.currentTime
+    // 이전 시간과 비교하여 씬이 변경되었거나 충분히 시간이 지났을 때만 업데이트
+    const timeDiff = Math.abs(currentT - lastTtsUpdateTimeRef.current)
+    
+    // 씬이 변경되었거나 0.1초 이상 지났을 때만 업데이트 (과도한 호출 방지)
+    if (timeDiff >= 0.1 || lastTtsUpdateTimeRef.current < 0) {
+      const audioCtxTime = audioContext.currentTime
+      ttsTrack.playFrom(currentT, audioCtxTime)
+      lastTtsUpdateTimeRef.current = currentT
+    }
+  }, [transport.currentTime, isPlaying, audioContext, ttsTrack])
   
   // renderSceneContent를 setCurrentSceneIndex와 함께 래핑
   const renderSceneContent = useCallback((
@@ -831,8 +1059,10 @@ export function useStep3Container() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeline, setTimeline, setCurrentSceneIndex, currentSceneIndexRef, updateCurrentScene, renderSceneContentFromManager])
-  const isPreviewingTransition = timelineIsPreviewingTransition
-  const setIsPreviewingTransition = setTimelineIsPreviewingTransition
+  
+  // isPreviewingTransition (Transport에서는 별도 관리 필요)
+  const isPreviewingTransition = false
+  const setIsPreviewingTransition = () => {}
 
 
 
@@ -853,78 +1083,24 @@ export function useStep3Container() {
 
   // playTimeoutRef는 useStep3State에서 가져옴
 
-  // TTS 유틸리티 함수들 (lib/utils/tts.ts에서 import)
-  // buildSceneMarkup과 makeTtsKey는 유틸리티 함수로 직접 사용
-  // 다른 hook에 전달하기 위한 래퍼 함수
-  // buildSceneMarkup은 timeline.scenes의 text.content와 scenes.length만 사용하므로 최적화
-  const scenesTextContents = useMemo(() => {
-    if (!timeline || !timeline.scenes) return []
-    return timeline.scenes.map(s => s.text?.content || '')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeline?.scenes])
-  
-  const scenesTextContentKey = useMemo(() => {
-    return scenesTextContents.join('|||') + `|length:${scenesTextContents.length}`
-  }, [scenesTextContents])
-  
-  const buildSceneMarkupWrapper = useCallback(
-    (sceneIndex: number) => buildSceneMarkup(timelineRef.current, sceneIndex),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scenesTextContentKey]
-  )
-  
-  // useGroupPlayback용 래퍼 (timeline을 파라미터로 받음)
-  // buildSceneMarkupWithTimeline은 위에서 이미 선언됨
 
 
+  // TODO: TTS 미리보기 기능은 TtsTrack 기반으로 재구현 필요
+  const handleSceneTtsPreview = useCallback(async () => {
+    // Transport 기반 TTS 미리보기 구현 필요
+    // TTS 미리보기는 아직 구현되지 않음 (로그 제거)
+  }, [])
 
-  // TTS 미리보기 hook 사용
-  const { handleSceneTtsPreview } = useTtsPreview({
-    timeline,
-    voiceTemplate,
-    ensureSceneTts,
-    stopScenePreviewAudio,
-    setTimeline,
-    updateCurrentScene,
-    textsRef,
-    renderSceneContent,
-    changedScenesRef,
-  })
-
-  // 전체 재생 훅 (먼저 선언하여 리소스 가져오기)
-  const fullPlayback = useFullPlayback({
-    timeline,
-    voiceTemplate,
-    bgmTemplate: confirmedBgmTemplate,
-    playbackSpeed: timeline?.playbackSpeed ?? 1.0,
-    buildSceneMarkup: buildSceneMarkupWithTimeline,
-    makeTtsKey,
-    ensureSceneTts,
-    setCurrentSceneIndex,
-    currentSceneIndexRef,
-    lastRenderedSceneIndexRef,
-    setCurrentTime,
-    setTimelineIsPlaying,
-    setIsPreparing,
-    setIsTtsBootstrapping,
-    startBgmAudio,
-    stopBgmAudio,
-    changedScenesRef,
-    renderSceneContent,
-    renderSceneImage,
-    renderSubtitlePart,
-    prepareImageAndSubtitle,
-    textsRef,
-    spritesRef,
-    containerRef,
-    getMp3DurationSec,
-    setTimeline,
-    disableAutoTimeUpdateRef,
-    currentTimeRef: timelineCurrentTimeRef,
-    totalDuration,
-    timelineBarRef,
-    activeAnimationsRef,
-  })
+  // 레거시 재생 시스템 제거 완료 - Transport 기반으로 완전 전환
+  // 호환성을 위해 더미 객체 유지 (다른 컴포넌트에서 참조할 수 있음)
+  const fullPlayback = {
+    ttsCacheRef: ttsCacheRefShared,
+  }
+  const singleScenePlayback = {}
+  const groupPlayback = {
+    playingSceneIndex: null as number | null,
+    playingGroupSceneId: null as number | null,
+  }
 
   // 씬 네비게이션 훅 (씬 선택/전환 로직)
   const sceneNavigation = useSceneNavigation({
@@ -938,8 +1114,8 @@ export function useStep3Container() {
     isManualSceneSelectRef,
     updateCurrentScene,
     setTimeline,
-    isPlaying: fullPlayback.isPlaying,
-    setIsPlaying: fullPlayback.setIsPlaying,
+    isPlaying: isPlaying,
+    setIsPlaying: setIsPlaying,
     isPreviewingTransition,
     setIsPreviewingTransition,
     setCurrentTime,
@@ -966,16 +1142,8 @@ export function useStep3Container() {
   // isPlaying 상태와 ref 동기화
   isPlayingRef.current = isPlaying
   
-  // 재생 상태 동기화
-  usePlaybackStateSync({
-    videoPlaybackIsPlaying: fullPlayback.isPlaying,
-    timelineIsPlaying,
-    setTimelineIsPlaying,
-    videoPlaybackSetIsPlaying: fullPlayback.setIsPlaying,
-  })
-
-  // 비디오 재생 중일 때 useTimelinePlayer의 자동 시간 업데이트 비활성화
-  disableAutoTimeUpdateRef.current = fullPlayback.isPlaying || fullPlayback.isPlayingAll
+  // 비디오 재생 중일 때 자동 시간 업데이트 비활성화
+  disableAutoTimeUpdateRef.current = isPlaying
 
   // 재생 중지 시 timeout 정리
   if (!isPlaying && playTimeoutRef.current) {
@@ -1073,7 +1241,7 @@ export function useStep3Container() {
     bgmTemplate,
     subtitleFont,
     selectedProducts,
-    ttsCacheRef: fullPlayback.ttsCacheRef,
+    ttsCacheRef: ttsCacheRefShared,
     ensureSceneTts,
     spritesRef,
     textsRef,
@@ -1082,13 +1250,9 @@ export function useStep3Container() {
   // 씬 순서 변경 핸들러는 useSceneEditHandlers에서 제공
   const handleSceneReorder = handleSceneReorderFromHook
 
-  // useGroupPlayback과 useSingleScenePlayback은 useFullPlayback 내부에서 생성됨
-  // 외부에서 접근하기 위해 fullPlayback에서 가져옴
-  const { singleScenePlayback, groupPlayback } = fullPlayback
-  
-  // fullPlayback과 groupPlayback ref 업데이트 (핸들러 최적화를 위해)
-  fullPlaybackRef.current = fullPlayback
-  groupPlaybackRef.current = groupPlayback
+  // 레거시 ref 제거 - 더 이상 필요 없음
+  // fullPlaybackRef.current = fullPlayback
+  // groupPlaybackRef.current = groupPlayback
 
   // 씬 구조 정보 자동 업데이트
   useEffect(() => {
@@ -1097,7 +1261,7 @@ export function useStep3Container() {
     sceneStructureStore.updateStructure({
       scenes,
       timeline,
-      ttsCacheRef: fullPlayback.ttsCacheRef,
+      ttsCacheRef: ttsCacheRefShared,
       voiceTemplate,
       buildSceneMarkup: buildSceneMarkupWithTimeline,
       makeTtsKey,
@@ -1106,13 +1270,12 @@ export function useStep3Container() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenes, timeline, voiceTemplate])
 
-  // 재생 핸들러 훅
+  // 재생 핸들러 훅 (Transport 기반)
   const playbackHandlers = usePlaybackHandlers({
     timelineRef,
     voiceTemplateRef,
-    fullPlaybackRef,
-    groupPlaybackRef,
     isPlaying,
+    setIsPlaying,
     setShowVoiceRequiredMessage,
     setScenesWithoutVoice,
     setRightPanelTab,
@@ -1494,8 +1657,8 @@ export function useStep3Container() {
 
   // 재생 시작 시 편집 모드 해제
   useEffect(() => {
-    // isPlaying은 나중에 선언되므로 timelineIsPlaying 사용
-    const playing = timelineIsPlaying
+    // isPlaying 사용 (Transport 또는 레거시)
+    const playing = isPlaying
     if (playing && editMode !== 'none') {
       // 재생 중에는 편집 모드 해제
       setEditMode('none')
@@ -1518,7 +1681,7 @@ export function useStep3Container() {
     }
     // ref는 변경되어도 리렌더링을 트리거하지 않으므로 dependency에 포함할 필요 없음
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timelineIsPlaying, editMode, setEditMode, setSelectedElementIndex, setSelectedElementType])
+  }, [isPlaying, editMode, setEditMode, setSelectedElementIndex, setSelectedElementType])
 
 
 
@@ -1561,14 +1724,8 @@ export function useStep3Container() {
 
   // 씬 선택 핸들러
   const handleSceneSelect = useCallback((index: number) => {
-    // 씬 재생 중일 때는 씬 선택 무시 (중복 렌더링 방지)
-    const currentGroupPlayback = groupPlaybackRef.current
-    if (currentGroupPlayback?.playingSceneIndex !== null) {
-      return
-    }
+    // Transport 기반에서는 재생 중에도 씬 선택 가능 (Transport가 자동으로 처리)
     sceneNavigation.selectScene(index)
-    // ref는 변경되어도 리렌더링을 트리거하지 않으므로 dependency에 포함할 필요 없음
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sceneNavigation])
 
   // 반환값 최적화
@@ -1666,6 +1823,7 @@ export function useStep3Container() {
     // For subtitle underline overlay
     textsRef,
     appRef,
+    renderAt: transportRenderer.renderAt,
     // ref는 변경되어도 리렌더링을 트리거하지 않으므로 dependency에 포함할 필요 없음
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [
@@ -1739,5 +1897,6 @@ export function useStep3Container() {
     setTimeline,
     groupPlayback.playingSceneIndex,
     groupPlayback.playingGroupSceneId,
+    transportRenderer.renderAt,
   ])
 }

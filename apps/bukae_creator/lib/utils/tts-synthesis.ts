@@ -181,94 +181,63 @@ export async function ensureSceneTts({
       // 저장소에서 파일 경로를 추측해서 다운로드하는 로직 제거
       // 이제는 업로드 후 반환되는 URL만 사용 (랜덤 파일 이름 사용)
 
-      // 강제 재생성이거나 저장소에 파일이 없으면 TTS 생성
+      // 강제 재생성이거나 저장소에 파일이 없으면 TTS 생성 (서버 액션 사용)
       const p = (async () => {
-        // voiceTemplate에서 provider 정보 확인
-        const { voiceTemplateHelpers } = await import('@/store/useVideoCreateStore')
-        const voiceInfo = voiceTemplateHelpers.getVoiceInfo(sceneVoiceTemplate)
-
-        const res = await fetch('/api/tts/synthesize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-          signal,
-          body: JSON.stringify({
-            voiceTemplate: sceneVoiceTemplate,
-            mode: 'markup',
-            markup,
-          }),
+        // 서버 액션으로 TTS 합성 및 업로드
+        const { synthesizeAndUploadTts } = await import('@/lib/actions/tts')
+        
+        const result = await synthesizeAndUploadTts({
+          accessToken,
+          voiceTemplate: sceneVoiceTemplate,
+          markup,
+          sceneId: scene.sceneId,
         })
 
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string; message?: string }
-          const errorMessage = data?.error || data?.message || 'TTS 합성 실패'
-          const error = new Error(errorMessage)
-          if (res.status === 429) {
+        if (!result.success) {
+          const error = new Error(result.error)
+          if (result.isRateLimit) {
             (error as any).isRateLimit = true
           }
           throw error
         }
 
-        const blob = await res.blob()
-        const durationSec = await getMp3DurationSec(blob)
+        // 서버에서 업로드된 URL로 다운로드해서 Blob 생성
+        const url = result.url
+        let blob: Blob | null = null
+        let durationSec = 0
 
-        // Supabase 업로드
-        let url: string | null = null
         try {
-          const formData = new FormData()
-          // 파일 이름은 업로드 API에서 TTS 형식으로 생성 (타임스탬프_scene_{sceneId}_scene_{sceneId}_voice.mp3)
-          formData.append('file', blob)
-          formData.append('sceneId', String(scene.sceneId))
-
-          const uploadRes = await fetch('/api/media/upload', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${accessToken}` },
-            body: formData,
-          })
-
-          if (uploadRes.ok) {
-            const uploadData = await uploadRes.json()
-            url = uploadData.url || null
-            
-            // 업로드 후 저장소에서 다운로드해서 캐시에 저장 (최신 파일 보장)
-            // 다운로드는 선택적이므로 실패해도 생성한 blob 사용
-            if (url) {
-              try {
-                // URL이 유효한지 확인
-                if (url.startsWith('http://') || url.startsWith('https://')) {
-                  const downloadRes = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                      'Accept': 'audio/mpeg, audio/*, */*',
-                    },
-                  })
-                  if (downloadRes.ok) {
-                    const downloadedBlob = await downloadRes.blob()
-                    const downloadedDurationSec = await getMp3DurationSec(downloadedBlob)
-                    
-                    // 캐시에 저장 (다운로드한 파일 사용)
-                    const entry = { 
-                      blob: downloadedBlob, 
-                      durationSec: downloadedDurationSec, 
-                      markup, 
-                      url, 
-                      sceneId: scene.sceneId, 
-                      sceneIndex 
-                    }
-                    ttsCacheRef.current.set(key, entry)
-                    return entry
-                  }
-                }
-              } catch (downloadError) {
-                // 다운로드 실패 무시 (생성한 blob 사용)
-              }
+          if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+            const downloadRes = await fetch(url, {
+              method: 'GET',
+              headers: {
+                'Accept': 'audio/mpeg, audio/*, */*',
+              },
+              signal,
+            })
+            if (downloadRes.ok) {
+              blob = await downloadRes.blob()
+              durationSec = await getMp3DurationSec(blob)
             }
           }
-        } catch (error) {
-          // 업로드 실패 무시
+        } catch (downloadError) {
+          // 다운로드 실패 시 에러
+          throw new Error(`파일 다운로드 실패: ${downloadError instanceof Error ? downloadError.message : '알 수 없는 오류'}`)
         }
 
-        // 업로드 실패하거나 다운로드 실패한 경우 생성한 blob 사용
-        const entry = { blob, durationSec, markup, url, sceneId: scene.sceneId, sceneIndex }
+        if (!blob) {
+          throw new Error('TTS 파일을 다운로드할 수 없습니다.')
+        }
+
+        // 캐시에 저장
+        const entry = { 
+          blob, 
+          durationSec, 
+          markup, 
+          url, 
+          sceneId: scene.sceneId, 
+          sceneIndex 
+        }
         ttsCacheRef.current.set(key, entry)
         return entry
       })().finally(() => {

@@ -59,7 +59,7 @@ export function usePixiRenderHandlers({
     
     // 편집 모드일 때 스프라이트와 텍스트를 먼저 표시 (핸들을 그리기 전에)
     const currentEditMode = editModeRef.current
-    // isPlaying은 useTimelinePlayer에서 가져오므로 여기서는 ref를 직접 사용
+    // isPlaying은 Transport에서 가져오므로 여기서는 ref를 직접 사용
     // 재생 중이 아니라고 가정 (편집 모드이므로)
     const isPlaying = false
     

@@ -1,6 +1,13 @@
 /**
  * 씬 매니저 통합 훅
- * 분리된 훅들을 조합하여 씬 관리 기능을 제공합니다.
+ * 
+ * 씬 로딩, 전환, Fabric 동기화, 렌더링 함수들을 통합하여 제공합니다.
+ * - useSceneLoader: 씬 리소스 로딩
+ * - useSceneTransition: 씬 전환 효과
+ * - useFabricSync: Fabric.js와 씬 상태 동기화
+ * - 렌더링 함수들: renderSceneContent, renderSceneImage, renderSubtitlePart, prepareImageAndSubtitle
+ * 
+ * 주의: renderAt 함수는 useTransportRenderer에서 제공되므로 이 훅에서는 제공하지 않습니다.
  */
 
 import { useCallback, useRef, useEffect } from 'react'
@@ -9,37 +16,39 @@ import * as fabric from 'fabric'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { useFabricSync } from './management/useFabricSync'
 import { useSceneLoader } from './management/useSceneLoader'
-import { useSceneRenderer } from './management/useSceneRenderer'
 import { useSceneTransition } from './management/useSceneTransition'
+import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import type { UseSceneManagerParams } from '../types/scene'
 import type { TimelineScene } from '@/lib/types/domain/timeline'
 
 /**
  * 씬 매니저 통합 훅
- * 분리된 훅들을 조합하여 씬 관리 기능을 제공합니다.
+ * 
+ * 씬 로딩, 전환, Fabric 동기화, 렌더링 함수들을 통합하여 제공합니다.
  */
-export const useSceneManager = ({
-  appRef,
-  containerRef,
-  spritesRef,
-  textsRef,
-  currentSceneIndexRef,
-  previousSceneIndexRef,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  activeAnimationsRef, // 현재 사용되지 않지만 타입 호환성을 위해 유지
-  fabricCanvasRef,
-  fabricScaleRatioRef,
-  isSavingTransformRef,
-  isManualSceneSelectRef,
-  timeline,
-  stageDimensions,
-  useFabricEditing,
-  loadPixiTextureWithCache,
-  applyEnterEffect,
-  onLoadComplete,
-  setTimeline,
-  setCurrentSceneIndex,
-}: UseSceneManagerParams) => {
+export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) => {
+  const {
+    appRef,
+    containerRef,
+    spritesRef,
+    textsRef,
+    currentSceneIndexRef,
+    previousSceneIndexRef,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    activeAnimationsRef, // 현재 사용되지 않지만 타입 호환성을 위해 유지
+    fabricCanvasRef,
+    fabricScaleRatioRef,
+    isSavingTransformRef,
+    isManualSceneSelectRef,
+    timeline,
+    stageDimensions,
+    useFabricEditing,
+    loadPixiTextureWithCache,
+    applyEnterEffect,
+    onLoadComplete,
+    setTimeline,
+    setCurrentSceneIndex,
+  } = useSceneManagerParams
   // renderSubtitlePart를 ref로 저장 (useSceneTransition에서 사용하기 위해)
   const renderSubtitlePartRef = useRef<
     ((
@@ -64,26 +73,167 @@ export const useSceneManager = ({
     renderSubtitlePartRef,
   })
 
-  // useSceneRenderer: renderSceneImage, renderSubtitlePart, prepareImageAndSubtitle 제공
-  const {
-    renderSceneImage,
-    renderSubtitlePart,
-    prepareImageAndSubtitle,
-    renderSubtitlePartRef: renderSubtitlePartRefFromRenderer,
-  } = useSceneRenderer({
-    appRef,
-    containerRef,
-    spritesRef,
-    textsRef,
-    currentSceneIndexRef,
-    timeline,
-    updateCurrentScene,
-  })
+  // renderSubtitlePart 함수 구현 (useSceneTransition에서 사용)
+  const renderSubtitlePart = useCallback(
+    (sceneIndex: number, partIndex: number | null, options?: { skipAnimation?: boolean; onComplete?: () => void; prepareOnly?: boolean }) => {
+      if (!timeline || !appRef.current) {
+        if (options?.onComplete) {
+          options.onComplete()
+        }
+        return
+      }
 
-  // renderSubtitlePartRef 동기화 (useEffect에서 처리)
+      const scene = timeline.scenes[sceneIndex]
+      if (!scene) {
+        if (options?.onComplete) {
+          options.onComplete()
+        }
+        return
+      }
+
+      const { onComplete, prepareOnly = false } = options || {}
+      const originalText = scene.text?.content || ''
+      const scriptParts = splitSubtitleByDelimiter(originalText)
+      const hasSegments = scriptParts.length > 1
+
+      let partText: string | null = null
+      if (partIndex === null) {
+        if (hasSegments) {
+          partText = scriptParts[0]?.trim() || originalText
+        } else {
+          partText = originalText
+        }
+      } else {
+        if (partIndex >= 0 && partIndex < scriptParts.length) {
+          partText = scriptParts[partIndex]?.trim() || null
+        } else {
+          if (scriptParts.length > 0) {
+            partText = scriptParts[0]?.trim() || null
+          } else {
+            partText = originalText
+          }
+        }
+      }
+
+      if (!partText) {
+        if (onComplete) {
+          onComplete()
+        }
+        return
+      }
+
+      // 텍스트 객체 찾기
+      let targetTextObj: PIXI.Text | null = null
+      const sceneId = scene.sceneId
+      if (sceneId !== undefined) {
+        const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+        if (firstSceneIndexInGroup >= 0) {
+          targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
+        }
+      }
+
+      if (!targetTextObj) {
+        targetTextObj = textsRef.current.get(sceneIndex) || null
+      }
+
+      if (!targetTextObj) {
+        if (onComplete) {
+          onComplete()
+        }
+        return
+      }
+
+      // 텍스트 업데이트
+      targetTextObj.text = partText
+
+      // 자막 스타일 업데이트
+      if (scene.text) {
+        const fontFamily = resolveSubtitleFontFamily(scene.text.font)
+        const fontWeight = scene.text.fontWeight ?? (scene.text.style?.bold ? 700 : 400)
+        const stageWidth = appRef.current?.screen?.width || 1080
+        let textWidth = stageWidth
+        if (scene.text.transform?.width) {
+          textWidth = scene.text.transform.width / (scene.text.transform.scaleX || 1)
+        }
+
+        const styleConfig: Record<string, unknown> = {
+          fontFamily,
+          fontSize: scene.text.fontSize || 80,
+          fill: scene.text.color || '#ffffff',
+          align: scene.text.style?.align || 'center',
+          fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
+          fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
+          wordWrap: true,
+          wordWrapWidth: textWidth,
+          breakWords: true,
+          stroke: { color: '#000000', width: 10 },
+        }
+
+        const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
+        targetTextObj.style = textStyle
+
+        // 텍스트 Transform 적용
+        if (scene.text.transform) {
+          const scaleX = scene.text.transform.scaleX ?? 1
+          const scaleY = scene.text.transform.scaleY ?? 1
+          targetTextObj.x = scene.text.transform.x
+          targetTextObj.y = scene.text.transform.y
+          targetTextObj.scale.set(scaleX, scaleY)
+          targetTextObj.rotation = scene.text.transform.rotation ?? 0
+        } else {
+          const position = scene.text.position || 'bottom'
+          const stageHeight = appRef.current?.screen?.height || 1920
+          if (position === 'top') {
+            targetTextObj.y = stageHeight * 0.15
+          } else if (position === 'bottom') {
+            targetTextObj.y = stageHeight * 0.85
+          } else {
+            targetTextObj.y = stageHeight * 0.5
+          }
+          targetTextObj.x = stageWidth * 0.5
+          targetTextObj.scale.set(1, 1)
+          targetTextObj.rotation = 0
+        }
+      }
+
+      if (prepareOnly) {
+        targetTextObj.visible = true
+        targetTextObj.alpha = 0
+        if (onComplete) {
+          onComplete()
+        }
+        return
+      }
+
+      // 표시
+      targetTextObj.visible = true
+      targetTextObj.alpha = 1
+
+      if (containerRef.current) {
+        if (targetTextObj.parent !== containerRef.current) {
+          if (targetTextObj.parent) {
+            targetTextObj.parent.removeChild(targetTextObj)
+          }
+          containerRef.current.addChild(targetTextObj)
+        }
+        const currentIndex = containerRef.current.getChildIndex(targetTextObj)
+        const maxIndex = containerRef.current.children.length - 1
+        if (currentIndex !== maxIndex) {
+          containerRef.current.setChildIndex(targetTextObj, maxIndex)
+        }
+      }
+
+      if (onComplete) {
+        onComplete()
+      }
+    },
+    [timeline, appRef, containerRef, textsRef]
+  )
+
+  // renderSubtitlePartRef 동기화
   useEffect(() => {
-    renderSubtitlePartRef.current = renderSubtitlePartRefFromRenderer.current
-  }, [renderSubtitlePartRefFromRenderer])
+    renderSubtitlePartRef.current = renderSubtitlePart
+  }, [renderSubtitlePart])
 
   // useSceneLoader: loadAllScenes 제공
   const { loadAllScenes } = useSceneLoader({
@@ -460,6 +610,151 @@ export const useSceneManager = ({
     ]
   )
 
+  // renderSceneImage 함수 구현 (최소한의 구현)
+  const renderSceneImage = useCallback(
+    (sceneIndex: number, options?: { skipAnimation?: boolean; forceTransition?: string; previousIndex?: number | null; onComplete?: () => void; prepareOnly?: boolean }) => {
+      if (!timeline || !appRef.current || !containerRef.current) {
+        if (options?.onComplete) {
+          options.onComplete()
+        }
+        return
+      }
+
+      const scene = timeline.scenes[sceneIndex]
+      if (!scene) {
+        if (options?.onComplete) {
+          options.onComplete()
+        }
+        return
+      }
+
+      const { forceTransition, previousIndex, onComplete, prepareOnly = false } = options || {}
+      const currentSprite = spritesRef.current.get(sceneIndex)
+      if (!currentSprite) {
+        if (onComplete) {
+          onComplete()
+        }
+        return
+      }
+
+      const previousSprite = previousIndex !== null && previousIndex !== undefined ? spritesRef.current.get(previousIndex) : null
+
+      if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
+        previousSprite.visible = false
+        previousSprite.alpha = 0
+      }
+
+      if (currentSprite.parent !== containerRef.current) {
+        if (currentSprite.parent) {
+          currentSprite.parent.removeChild(currentSprite)
+        }
+        containerRef.current.addChild(currentSprite)
+      }
+
+      if (prepareOnly) {
+        currentSprite.visible = true
+        currentSprite.alpha = 0
+        if (onComplete) {
+          onComplete()
+        }
+        return
+      }
+
+      if (forceTransition === 'none') {
+        currentSprite.visible = true
+        currentSprite.alpha = 1
+      } else {
+        updateCurrentScene(
+          previousIndex !== undefined ? previousIndex : currentSceneIndexRef.current,
+          forceTransition,
+          () => {
+            const finalSprite = spritesRef.current.get(sceneIndex)
+            if (finalSprite) {
+              finalSprite.visible = true
+              finalSprite.alpha = 1
+            }
+            if (onComplete) {
+              onComplete()
+            }
+          },
+          false,
+          null
+        )
+        return
+      }
+
+      if (onComplete) {
+        onComplete()
+      }
+    },
+    [timeline, appRef, containerRef, spritesRef, updateCurrentScene, currentSceneIndexRef]
+  )
+
+  // prepareImageAndSubtitle 함수 구현
+  const prepareImageAndSubtitle = useCallback(
+    (sceneIndex: number, partIndex: number = 0, options?: { onComplete?: () => void }) => {
+      if (!timeline || !appRef.current) {
+        if (options?.onComplete) {
+          options.onComplete()
+        }
+        return
+      }
+
+      const scene = timeline.scenes[sceneIndex]
+      if (!scene) {
+        if (options?.onComplete) {
+          options.onComplete()
+        }
+        return
+      }
+
+      const { onComplete } = options || {}
+
+      // 이미지 준비
+      const currentSprite = spritesRef.current.get(sceneIndex)
+      if (currentSprite && containerRef.current) {
+        if (currentSprite.parent !== containerRef.current) {
+          if (currentSprite.parent) {
+            currentSprite.parent.removeChild(currentSprite)
+          }
+          containerRef.current.addChild(currentSprite)
+        }
+        currentSprite.visible = true
+        currentSprite.alpha = 0
+      }
+
+      // 자막 준비
+      const originalText = scene.text?.content || ''
+      const scriptParts = splitSubtitleByDelimiter(originalText)
+      const partText = scriptParts[partIndex]?.trim() || null
+
+      if (partText) {
+        let targetTextObj: PIXI.Text | null = textsRef.current.get(sceneIndex) || null
+
+        if (!targetTextObj || (!targetTextObj.visible && targetTextObj.alpha === 0)) {
+          const sceneId = scene.sceneId
+          if (sceneId !== undefined) {
+            const firstSceneIndexInGroup = timeline.scenes.findIndex((s) => s.sceneId === sceneId)
+            if (firstSceneIndexInGroup >= 0) {
+              targetTextObj = textsRef.current.get(firstSceneIndexInGroup) || null
+            }
+          }
+        }
+
+        if (targetTextObj) {
+          targetTextObj.text = partText
+          targetTextObj.visible = true
+          targetTextObj.alpha = 0
+        }
+      }
+
+      if (onComplete) {
+        onComplete()
+      }
+    },
+    [timeline, appRef, containerRef, spritesRef, textsRef]
+  )
+
   return {
     updateCurrentScene,
     syncFabricWithScene,
@@ -468,5 +763,6 @@ export const useSceneManager = ({
     renderSceneImage,
     renderSubtitlePart,
     prepareImageAndSubtitle,
+    // renderAt은 useTransportRenderer에서 제공되므로 제거
   }
 }

@@ -29,10 +29,14 @@ export const getSceneDuration = (script: string): number => {
  * @returns 씬의 시작 시간 (초)
  */
 export const getSceneStartTime = (timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number }> }, sceneIndex: number): number => {
-  if (!timeline) return 0
+  if (!timeline || !timeline.scenes || timeline.scenes.length === 0) return 0
+  if (sceneIndex < 0 || sceneIndex >= timeline.scenes.length) return 0
+  
   let time = 0
   for (let i = 0; i < sceneIndex; i++) {
     const currentScene = timeline.scenes[i]
+    if (!currentScene) continue
+    
     const nextScene = timeline.scenes[i + 1]
     // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
     const isSameSceneId = nextScene && currentScene.sceneId === nextScene.sceneId

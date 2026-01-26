@@ -557,36 +557,18 @@ export function useSceneTransition({
         let transition: string
         let transitionDuration: number
 
-        if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
-          const firstSceneInGroup = timeline.scenes[firstSceneIndex]
-          transition = forceTransition || firstSceneInGroup?.transition || 'fade'
-
-          if (firstSceneIndex === actualSceneIndex) {
-            transitionDuration =
-              overrideTransitionDuration !== undefined
-                ? overrideTransitionDuration
-                : currentScene.transitionDuration && currentScene.transitionDuration > 0
-                  ? currentScene.transitionDuration
-                  : currentScene.duration && currentScene.duration > 0
-                    ? currentScene.duration
-                    : 0.5
-          } else {
-            transitionDuration =
-              overrideTransitionDuration !== undefined
-                ? overrideTransitionDuration
-                : currentScene.duration && currentScene.duration > 0
-                  ? currentScene.duration
-                  : 0.5
-          }
-        } else {
-          transition = forceTransition || currentScene.transition || 'fade'
-          transitionDuration =
-            overrideTransitionDuration !== undefined
-              ? overrideTransitionDuration
-              : currentScene.transitionDuration && currentScene.transitionDuration > 0
-                ? currentScene.transitionDuration
+        // 씬별로 개별 전환 효과를 적용하도록 수정
+        // 같은 그룹 내 씬들도 각각의 transition 속성을 사용
+        // forceTransition이 있으면 우선 사용, 없으면 현재 씬의 transition 사용
+        transition = forceTransition || currentScene.transition || 'fade'
+        transitionDuration =
+          overrideTransitionDuration !== undefined
+            ? overrideTransitionDuration
+            : currentScene.transitionDuration && currentScene.transitionDuration > 0
+              ? currentScene.transitionDuration
+              : currentScene.duration && currentScene.duration > 0
+                ? currentScene.duration
                 : 0.5
-        }
 
         const { width, height } = stageDimensions
 

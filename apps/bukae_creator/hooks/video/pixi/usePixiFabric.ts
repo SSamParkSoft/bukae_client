@@ -198,11 +198,16 @@ export function usePixiFabric({
       if (appRef.current) {
         // ticker를 먼저 중지하여 콜백이 더 이상 실행되지 않도록 함
         if (appRef.current.ticker) {
-          appRef.current.ticker.stop()
+          try {
+            appRef.current.ticker.stop()
+          } catch (error) {
+            console.warn('usePixiFabric: Error stopping ticker', error)
+          }
         }
         // app이 유효한지 확인 후 destroy (destroy 호출 전에 다시 확인)
         const app = appRef.current
-        if (app) {
+        // app이 null이 아니고 destroy 메서드가 존재하는지 확인
+        if (app && typeof app.destroy === 'function') {
           try {
             app.destroy(true, { children: true, texture: true })
           } catch (error) {

@@ -109,7 +109,7 @@ export const PreviewPanel = memo(function PreviewPanel({
             }}
           >
             {/* 격자 오버레이 (크기 조정하기 템플릿 가이드) */}
-            {gridOverlaySize && (
+            {gridOverlaySize && gridOverlaySize.width > 0 && gridOverlaySize.height > 0 && (
               <div 
                 className="absolute pointer-events-none z-50"
                 style={{ 
