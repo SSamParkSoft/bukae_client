@@ -11,6 +11,8 @@ interface TimelineBarProps {
   playbackSpeed: number
   isPlaying: boolean
   onTimelineMouseDown: (e: React.MouseEvent<HTMLDivElement>) => void
+  timeline?: unknown
+  bgmTemplate?: string | null
 }
 
 export const TimelineBar = memo(function TimelineBar({
@@ -49,25 +51,27 @@ export const TimelineBar = memo(function TimelineBar({
         </span>
       </div>
       
-      <div
-        ref={timelineBarRef}
-        className="w-full h-1 bg-white rounded-full cursor-pointer relative shadow-sm hover:shadow-md transition-shadow group"
-        onMouseDown={onTimelineMouseDown}
-      >
+      <div className="relative">
         <div
-          className="h-full rounded-full bg-brand-teal transition-all"
-          style={{
-            width: `${progressRatio * 100}%`,
-            transition: isPlaying ? 'none' : 'width 0.1s ease-out'
-          }}
-        />
-        {/* 진행 위치 표시 핸들 */}
-        <div
-          className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-brand-teal rounded-full border-2 border-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
-          style={{
-            left: `${progressRatio * 100}%`,
-          }}
-        />
+          ref={timelineBarRef}
+          className="w-full h-1 bg-white rounded-full cursor-pointer relative shadow-sm hover:shadow-md transition-shadow group"
+          onMouseDown={onTimelineMouseDown}
+        >
+          <div
+            className="h-full rounded-full bg-brand-teal transition-all"
+            style={{
+              width: `${progressRatio * 100}%`,
+              transition: isPlaying ? 'none' : 'width 0.1s ease-out'
+            }}
+          />
+          {/* 진행 위치 표시 핸들 */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 bg-brand-teal rounded-full border-2 border-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{
+              left: `${progressRatio * 100}%`,
+            }}
+          />
+        </div>
       </div>
     </div>
   )

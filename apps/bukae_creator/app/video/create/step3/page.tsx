@@ -49,6 +49,7 @@ export default function Step3Page() {
             currentSceneIndex={container.currentSceneIndex}
             textsRef={container.textsRef}
             appRef={container.appRef}
+            bgmTemplate={container.bgmTemplate}
           />
         </div>
 

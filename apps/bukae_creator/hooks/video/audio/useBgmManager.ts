@@ -24,13 +24,16 @@ export function useBgmManager({
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null)
   const bgmAudioUrlRef = useRef<string | null>(null)
   const bgmStartTimeRef = useRef<number | null>(null)
+  const isUserConfirmingRef = useRef(false) // 사용자가 직접 확정 중인지 추적
 
-  // bgmTemplate이 변경되면 confirmedBgmTemplate도 초기화
+  // bgmTemplate이 변경되면 confirmedBgmTemplate도 동기화 (새로고침 후 유지)
   useEffect(() => {
-    if (bgmTemplate !== confirmedBgmTemplate) {
-      // bgmTemplate이 변경되었지만 아직 확정되지 않은 경우에만 초기화하지 않음
-      // 사용자가 직접 확정한 경우는 유지
+    // 사용자가 직접 확정 중이 아닐 때만 동기화
+    if (!isUserConfirmingRef.current && bgmTemplate !== confirmedBgmTemplate) {
+      setConfirmedBgmTemplate(bgmTemplate)
     }
+    // 동기화 후 플래그 리셋
+    isUserConfirmingRef.current = false
   }, [bgmTemplate, confirmedBgmTemplate])
 
   // 배속 변경 시 재생 중인 BGM의 playbackRate 업데이트 (비활성화: BGM은 배속 적용 안 함)
@@ -57,7 +60,31 @@ export function useBgmManager({
     }
   }, [])
 
-  const startBgmAudio = useCallback(async (templateId: string | null, playbackSpeed: number, shouldPlay: boolean = false): Promise<void> => {
+  // BGM 일시정지 (재생 상태 유지)
+  const pauseBgmAudio = useCallback(() => {
+    const a = bgmAudioRef.current
+    if (a) {
+      try {
+        a.pause()
+      } catch {
+        // ignore
+      }
+    }
+  }, [])
+
+  // BGM 재개 (일시정지된 위치에서 계속 재생)
+  const resumeBgmAudio = useCallback(async () => {
+    const a = bgmAudioRef.current
+    if (a) {
+      try {
+        await a.play()
+      } catch {
+        // ignore
+      }
+    }
+  }, [])
+
+  const startBgmAudio = useCallback(async (templateId: string | null, playbackSpeed: number, shouldPlay: boolean = false, timelineTime?: number): Promise<void> => {
     if (!templateId) {
       stopBgmAudio()
       return
@@ -107,6 +134,16 @@ export function useBgmManager({
         const playingPromise = new Promise<void>((resolve, reject) => {
           let resolved = false
           
+          const handleLoadedMetadata = () => {
+            // 메타데이터가 로드된 후 타임라인 시간에 맞춰 BGM 위치 설정
+            if (timelineTime !== undefined && audio.duration > 0) {
+              // BGM이 loop이므로 타임라인 시간을 BGM duration으로 나눈 나머지 사용
+              const bgmTime = timelineTime % audio.duration
+              audio.currentTime = bgmTime
+            }
+            audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
+          }
+          
           const handlePlaying = () => {
             if (!resolved) {
               resolved = true
@@ -121,6 +158,7 @@ export function useBgmManager({
           const handleError = () => {
             if (!resolved) {
               resolved = true
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
               audio.removeEventListener('playing', handlePlaying)
               audio.removeEventListener('error', handleError)
               stopBgmAudio()
@@ -128,6 +166,8 @@ export function useBgmManager({
             }
           }
           
+          // 메타데이터 로드 이벤트 리스너 추가
+          audio.addEventListener('loadedmetadata', handleLoadedMetadata)
           audio.addEventListener('playing', handlePlaying)
           audio.addEventListener('error', handleError)
           
@@ -135,6 +175,7 @@ export function useBgmManager({
           audio.play().catch((err) => {
             if (!resolved) {
               resolved = true
+              audio.removeEventListener('loadedmetadata', handleLoadedMetadata)
               audio.removeEventListener('playing', handlePlaying)
               audio.removeEventListener('error', handleError)
               reject(err)
@@ -155,7 +196,18 @@ export function useBgmManager({
   }, [stopBgmAudio])
 
   const handleBgmConfirm = useCallback((templateId: string | null) => {
+    isUserConfirmingRef.current = true // 사용자가 직접 확정 중
     setConfirmedBgmTemplate(templateId)
+  }, [])
+
+  // 타임라인 시간에 맞춰 BGM 재생 위치 업데이트
+  const seekBgmAudio = useCallback((timelineTime: number) => {
+    const audio = bgmAudioRef.current
+    if (audio && audio.duration > 0) {
+      // BGM이 loop이므로 타임라인 시간을 BGM duration으로 나눈 나머지 사용
+      const bgmTime = timelineTime % audio.duration
+      audio.currentTime = bgmTime
+    }
   }, [])
 
   return {
@@ -167,7 +219,10 @@ export function useBgmManager({
     bgmAudioRef,
     bgmStartTimeRef,
     stopBgmAudio,
+    pauseBgmAudio,
+    resumeBgmAudio,
     startBgmAudio,
+    seekBgmAudio,
     handleBgmConfirm,
   }
 }

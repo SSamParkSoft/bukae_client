@@ -35,6 +35,7 @@ interface PreviewPanelProps {
   currentSceneIndex?: number
   textsRef?: React.MutableRefObject<Map<number, PIXI.Text>>
   appRef?: React.RefObject<PIXI.Application | null>
+  bgmTemplate?: string | null
 }
 
 export const PreviewPanel = memo(function PreviewPanel({
@@ -63,6 +64,7 @@ export const PreviewPanel = memo(function PreviewPanel({
   currentSceneIndex = 0,
   textsRef,
   appRef,
+  bgmTemplate,
 }: PreviewPanelProps) {
   const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
 
@@ -185,6 +187,8 @@ export const PreviewPanel = memo(function PreviewPanel({
             playbackSpeed={speed}
             isPlaying={isPlaying}
             onTimelineMouseDown={onTimelineMouseDown}
+            timeline={timeline}
+            bgmTemplate={bgmTemplate}
           />
 
           <PlaybackControls

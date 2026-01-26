@@ -663,6 +663,10 @@ export function useStep3Container() {
         ttsTrack.stopAll()
       }
     }
+    // BGM도 타임라인 시간에 맞춰 seek (재생 중일 때만)
+    if (wasPlaying && typeof window !== 'undefined' && confirmedBgmTemplate) {
+      seekBgmAudio(targetTime)
+    }
     // 시각적 렌더링 업데이트
     if (renderAtRef.current) {
       renderAtRef.current(targetTime, { skipAnimation: true })
@@ -979,6 +983,26 @@ export function useStep3Container() {
       
       transport.play()
       
+      // BGM 재생 시작 (확정된 BGM이 있는 경우)
+      // 타임라인 시간에 맞춰 BGM 재생 위치 설정
+      if (confirmedBgmTemplate && typeof window !== 'undefined') {
+        const bgmAudio = bgmAudioRef.current
+        if (bgmAudio && bgmAudio.paused === false) {
+          // 이미 재생 중이면 재개만 하면 됨
+          resumeBgmAudio().catch(() => {
+            // 재개 실패 시 다시 시작
+            startBgmAudio(confirmedBgmTemplate, playbackSpeed, true, currentT).catch(() => {
+              // BGM 재생 실패 시 무시
+            })
+          })
+        } else {
+          // 재생 중이 아니면 새로 시작
+          startBgmAudio(confirmedBgmTemplate, playbackSpeed, true, currentT).catch(() => {
+            // BGM 재생 실패 시 무시 (에러 로그만 출력하지 않음)
+          })
+        }
+      }
+      
       // 재생 시작 직후 시간을 다시 확인하여 정확도 보장
       // play() 호출 후 약간의 지연이 있을 수 있으므로 requestAnimationFrame 사용
       requestAnimationFrame(() => {
@@ -1088,6 +1112,11 @@ export function useStep3Container() {
           transport.pause()
           ttsTrack.stopAll()
           
+          // BGM 일시정지 (재생 상태 유지)
+          if (typeof window !== 'undefined' && confirmedBgmTemplate) {
+            pauseBgmAudio()
+          }
+          
           // 씬/그룹 재생 중 정지 시 Transport 시간 조정 (렌더링은 하지 않음)
           if (finalSceneIndex !== undefined && finalTime !== currentT) {
             transport.seek(finalTime)
@@ -1122,14 +1151,49 @@ export function useStep3Container() {
   const {
     confirmedBgmTemplate,
     isBgmBootstrapping,
-    // stopBgmAudio, // 사용하지 않음
-    // startBgmAudio, // 사용하지 않음
+    bgmAudioRef,
+    stopBgmAudio,
+    pauseBgmAudio,
+    resumeBgmAudio,
+    startBgmAudio,
+    seekBgmAudio,
     handleBgmConfirm,
   } = useBgmManager({
     bgmTemplate,
     playbackSpeed,
     isPlaying,
   })
+
+  // confirmedBgmTemplate이 변경되고 재생 중이면 BGM 재생
+  // 타임라인 시간에 맞춰 BGM 재생 위치 설정
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    
+    if (isPlaying && confirmedBgmTemplate) {
+      const currentT = transport.getTime()
+      const bgmAudio = bgmAudioRef.current
+      if (bgmAudio && !bgmAudio.paused) {
+        // 이미 재생 중이면 재개만 하면 됨 (템플릿 변경이 아닌 경우)
+        resumeBgmAudio().catch(() => {
+          // 재개 실패 시 다시 시작
+          startBgmAudio(confirmedBgmTemplate, playbackSpeed, true, currentT).catch(() => {
+            // BGM 재생 실패 시 무시
+          })
+        })
+      } else {
+        // 재생 중이 아니면 새로 시작
+        startBgmAudio(confirmedBgmTemplate, playbackSpeed, true, currentT).catch(() => {
+          // BGM 재생 실패 시 무시
+        })
+      }
+    } else if (!isPlaying && confirmedBgmTemplate) {
+      // 일시정지 (BGM은 유지)
+      pauseBgmAudio()
+    } else if (!confirmedBgmTemplate) {
+      // BGM 템플릿이 없으면 완전히 정지
+      stopBgmAudio()
+    }
+  }, [confirmedBgmTemplate, isPlaying, playbackSpeed, startBgmAudio, pauseBgmAudio, resumeBgmAudio, stopBgmAudio, transport, bgmAudioRef])
 
   // 효과음 확정 핸들러
   const handleSoundEffectConfirm = useCallback((effectId: string | null) => {
