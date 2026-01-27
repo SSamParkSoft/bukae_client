@@ -61,42 +61,51 @@ export function applySlideTransition(
       break
   }
 
+  // toSprite를 로컬 변수로 저장하여 클로저에서 안전하게 접근
+  const spriteRef = toSprite
+  
   // 이전 애니메이션 제거 전에 원래 위치로 복귀 (두 번째 구간 이후 원래 위치 복귀 보장)
   // timeline.clear()가 호출되면 이전 애니메이션의 onComplete가 실행되지 않을 수 있으므로
   // 미리 원래 위치로 설정하여 다음 구간이 올바른 위치에서 시작하도록 함
-  toSprite.x = originalX
-  toSprite.y = originalY
+  if (spriteRef) {
+    spriteRef.x = originalX
+    spriteRef.y = originalY
+  }
 
   // 이전 애니메이션 제거 (겹침 방지)
   timeline.clear()
 
   // 시작 위치 설정 (원래 위치 기준으로 계산된 시작 위치)
-  if (direction === 'left' || direction === 'right') {
-    toSprite.x = startX
-  } else {
-    toSprite.y = startY
+  if (spriteRef) {
+    if (direction === 'left' || direction === 'right') {
+      spriteRef.x = startX
+    } else {
+      spriteRef.y = startY
+    }
   }
 
   // 스프라이트만 컨테이너에 추가 (텍스트는 applyEnterEffect에서 이미 처리됨)
   // 텍스트를 여기서 추가하면 같은 씬의 구간 전환 시 중복 렌더링이 발생할 수 있음
   // 특히 슬라이드 좌 효과는 오른쪽에서 시작하므로, 이전 씬의 텍스트가 남아있을 수 있음
-  if (toSprite && containerRef.current) {
-    if (toSprite.parent !== containerRef.current) {
-      if (toSprite.parent) {
-        toSprite.parent.removeChild(toSprite)
-      }
-      containerRef.current.addChild(toSprite)
+  if (!spriteRef || !containerRef.current) {
+    return
+  }
+  
+  if (spriteRef.parent !== containerRef.current) {
+    if (spriteRef.parent) {
+      spriteRef.parent.removeChild(spriteRef)
     }
-    // 슬라이드 좌 효과일 때는 이미지를 맨 뒤로 보내서 자막이 위에 오도록 보장
-    if (direction === 'left') {
-      containerRef.current.setChildIndex(toSprite, 0)
-    }
+    containerRef.current.addChild(spriteRef)
+  }
+  // 슬라이드 좌 효과일 때는 이미지를 맨 뒤로 보내서 자막이 위에 오도록 보장
+  if (direction === 'left') {
+    containerRef.current.setChildIndex(spriteRef, 0)
   }
 
   // 전환 효과 시작: 스프라이트를 표시하고 시작 위치로 이동
   // 슬라이드 효과는 위치 이동만 하므로 alpha는 항상 1로 유지
-  toSprite.visible = true
-  toSprite.alpha = 1
+  spriteRef.visible = true
+  spriteRef.alpha = 1
 
   const targetX = direction === 'left' || direction === 'right' ? originalX : undefined
   const targetY = direction === 'up' || direction === 'down' ? originalY : undefined
@@ -112,27 +121,29 @@ export function applySlideTransition(
       duration,
       ease: 'none', // 선형 애니메이션으로 정확한 듀레이션 보장
       onUpdate: function () {
-        if (toSprite && containerRef.current) {
-          // ensureInContainer는 매 프레임마다 호출하지 않음 (이미 컨테이너에 추가되어 있음)
-          // 위치만 업데이트
-          if (direction === 'left' || direction === 'right') {
-            toSprite.x = (slideObj as { x: number }).x
-          } else {
-            toSprite.y = (slideObj as { y: number }).y
-          }
-          toSprite.visible = true
-          toSprite.alpha = 1  // 슬라이드 효과는 alpha 변경 없음
+        // 매 프레임마다 null 체크 (애니메이션 중에 toSprite가 null이 될 수 있음)
+        if (!spriteRef || spriteRef.destroyed || !containerRef.current) {
+          return
         }
+        // ensureInContainer는 매 프레임마다 호출하지 않음 (이미 컨테이너에 추가되어 있음)
+        // 위치만 업데이트
+        if (direction === 'left' || direction === 'right') {
+          spriteRef.x = (slideObj as { x: number }).x
+        } else {
+          spriteRef.y = (slideObj as { y: number }).y
+        }
+        spriteRef.visible = true
+        spriteRef.alpha = 1  // 슬라이드 효과는 alpha 변경 없음
       },
       onComplete: function () {
         // 슬라이드 효과 완료 후 원래 위치로 확실히 설정
         // anchor가 (0.5, 0.5)이므로 originalX, originalY는 이미 중심점 좌표
-        if (toSprite) {
+        if (spriteRef && !spriteRef.destroyed) {
           // 모든 방향에서 원래 위치로 복귀
-          toSprite.x = originalX
-          toSprite.y = originalY
-          toSprite.visible = true
-          toSprite.alpha = 1
+          spriteRef.x = originalX
+          spriteRef.y = originalY
+          spriteRef.visible = true
+          spriteRef.alpha = 1
         }
       },
     },

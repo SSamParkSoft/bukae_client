@@ -260,12 +260,32 @@ export function useSceneHandlers({
     [setPlaybackSpeed, setTimeline, timeline],
   )
 
+  const handleSceneMotionChange = useCallback(
+    (index: number, motion: import('@/hooks/video/effects/motion/types').MotionConfig | null) => {
+      if (!timeline) return
+      
+      const nextTimeline: TimelineData = {
+        ...timeline,
+        scenes: timeline.scenes.map((scene, i) => {
+          if (i !== index) return scene
+          return {
+            ...scene,
+            motion: motion || undefined,
+          }
+        }),
+      }
+      setTimeline(nextTimeline)
+    },
+    [setTimeline, timeline],
+  )
+
   return {
     handleSceneScriptChange,
     handleSceneDurationChange,
     handleSceneTransitionChange,
     handleSceneImageFitChange,
     handlePlaybackSpeedChange,
+    handleSceneMotionChange,
   }
 }
 

@@ -11,19 +11,35 @@
 
 'use client'
 
-import { useCallback, useRef, useState, useEffect, useMemo } from 'react'
-import { useSyncExternalStore } from 'react'
+import { useCallback, useRef, useState, useEffect } from 'react'
 import * as PIXI from 'pixi.js'
-import { calculateSceneFromTime } from '@/utils/timeline-render'
-import { getSceneStartTime } from '@/utils/timeline'
+import type { TimelineData } from '@/store/useVideoCreateStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
+import { TransitionShaderManager } from '../effects/transitions/shader/TransitionShaderManager'
+import { useContainerManager } from './containers/useContainerManager'
+import { useSubtitleRenderer } from './subtitle/useSubtitleRenderer'
+import { useTransitionEffects } from './transitions/useTransitionEffects'
+import { useTransportState } from './transport/useTransportState'
+import { useRenderLoop } from './playback/useRenderLoop'
+import { resetBaseState } from './utils/resetBaseState'
+import {
+  step1CalculateScenePart,
+  step2PrepareResources,
+  step3SetupContainers,
+  step4ResetBaseState,
+  step5ApplyMotion,
+  step6ApplyTransition,
+  step7ApplySubtitle,
+  step8CheckDuplicateRender,
+} from './pipeline'
 import type {
   UseTransportRendererParams,
   UseTransportRendererReturn,
   RenderAtOptions,
   SceneLoadingStateMap,
 } from './types'
+import type { PipelineContext } from './pipeline/types'
 
 /**
  * Transport 기반 렌더링 훅
@@ -37,7 +53,7 @@ export function useTransportRenderer({
   textsRef,
   currentSceneIndexRef,
   previousSceneIndexRef,
-  activeAnimationsRef,
+  activeAnimationsRef, // 타입 호환성을 위해 유지 (현재 사용되지 않음)
   stageDimensions,
   ttsCacheRef,
   voiceTemplate,
@@ -45,11 +61,12 @@ export function useTransportRenderer({
   makeTtsKey,
   getActiveSegment,
   loadPixiTextureWithCache,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  applyEnterEffect: _applyEnterEffect, // 타입 정의에 포함되어 있지만 현재 사용하지 않음
+  applyEnterEffect: _applyEnterEffect, // ANIMATION.md 표준: GSAP 제거, applyDirectTransition으로 대체
   onSceneLoadComplete,
   playingSceneIndex,
   playingGroupSceneId,
+  fabricCanvasRef,
+  fabricScaleRatioRef,
 }: UseTransportRendererParams): UseTransportRendererReturn {
   // 씬 로딩 상태 관리
   const [sceneLoadingStates, setSceneLoadingStates] = useState<SceneLoadingStateMap>(new Map())
@@ -60,73 +77,90 @@ export function useTransportRenderer({
   const lastRenderedSceneIndexRef = useRef<number>(-1)
   const lastRenderedSegmentIndexRef = useRef<number>(-1) // 이전 segmentIndex 추적 (TTS 파일 전환 감지용)
   const TIME_EPSILON = 0.01 // 시간 비교 정밀도 (10ms로 증가하여 불필요한 렌더링 방지)
-
-  // Transport currentTime 구독 제거: 독립적인 렌더링 루프에서 transport.getTime() 직접 호출
-  // useSyncExternalStore를 사용하면 React 렌더링 사이클과 결합되어 성능 문제 발생
-  // 대신 독립적인 requestAnimationFrame 루프에서 transport.getTime()을 직접 호출
-
-  // Transport 상태 구독
-  const transportStateRef = useRef(transport?.getState() || null)
-  const transportRef = useRef(transport)
   
-  // transport ref 업데이트
+  // 성능 최적화: 마지막 렌더링 상태 추적 (중복 렌더 스킵 강화)
+  const lastRenderedStateRef = useRef<{
+    t: number
+    sceneIndex: number
+    partIndex: number
+    transitionProgress: number
+    motionProgress: number
+  } | null>(null)
+  
+  // Transition 로그 출력 추적 (중복 로그 방지)
+  const lastTransitionLogRef = useRef<{
+    sceneIndex: number
+    progress: number
+    logType: 'READY' | 'IN_PROGRESS' | 'COMPLETED' | null
+  } | null>(null)
+
+  // Container 관리
+  const {
+    sceneContainersRef,
+    transitionQuadContainerRef,
+    subtitleContainerRef,
+    createSceneContainer, // eslint-disable-line @typescript-eslint/no-unused-vars
+    getOrCreateSceneContainer,
+    cleanupSceneContainer,
+  } = useContainerManager(appRef, containerRef)
+
+  // Transition Shader Manager (Shader 기반 Transition 관리)
+  const transitionShaderManagerRef = useRef<TransitionShaderManager | null>(null)
+
+  // Transition 효과 적용 훅
+  const { applyShaderTransition, applyDirectTransition } = useTransitionEffects({
+    timeline,
+    appRef,
+    containerRef,
+    sceneContainersRef,
+    transitionShaderManagerRef,
+    fabricCanvasRef,
+    fabricScaleRatioRef,
+    stageDimensions,
+  })
+
+  /**
+   * Base State 리셋 함수 래퍼 (ANIMATION.md 표준 파이프라인 4단계)
+   * 매 프레임 sprite/text를 기본값으로 리셋하여 누적 업데이트/상태 누수 방지
+   */
+  const resetBaseStateCallback = useCallback((
+    sprite: PIXI.Sprite | null,
+    text: PIXI.Text | null,
+    sceneIndex: number,
+    scene: TimelineData['scenes'][number]
+  ): void => {
+    resetBaseState(
+      sprite,
+      text,
+      sceneIndex,
+      scene,
+      fabricCanvasRef,
+      fabricScaleRatioRef,
+      stageDimensions
+    )
+  }, [stageDimensions, fabricCanvasRef, fabricScaleRatioRef])
+
+  // Transition Shader Manager 초기화 (app이 준비되면)
   useEffect(() => {
-    transportRef.current = transport
-  }, [transport])
-
-  // getServerSnapshot을 상수로 캐싱하여 무한 루프 방지
-  const defaultTransportState = useMemo(
-    () => ({ isPlaying: false, timelineOffsetSec: 0, audioCtxStartSec: 0, playbackRate: 1.0, totalDuration: 0 }),
-    []
-  )
-
-  // defaultTransportState를 ref에 저장하여 항상 같은 참조 유지
-  const defaultStateRef = useRef(defaultTransportState)
-  useEffect(() => {
-    defaultStateRef.current = defaultTransportState
-  }, [defaultTransportState])
-
-  // getSnapshot을 안정적인 참조로 캐싱 (transport 변경 시에도 같은 함수 참조 유지)
-  // 중요한 점: 같은 상태면 항상 같은 객체 참조를 반환해야 함
-  const getTransportStateSnapshot = useCallback(() => {
-    const currentTransport = transportRef.current
-    if (!currentTransport) {
-      // transport가 없으면 기본 상태 반환 (항상 같은 참조)
-      if (!transportStateRef.current) {
-        transportStateRef.current = defaultStateRef.current
-      }
-      return transportStateRef.current
+    if (appRef.current && !transitionShaderManagerRef.current) {
+      transitionShaderManagerRef.current = new TransitionShaderManager(
+        appRef.current,
+        stageDimensions,
+        spritesRef
+      )
     }
-    const newState = currentTransport.getState()
-    
-    // 상태가 변경되지 않았으면 이전 참조 반환 (중요!)
-    if (transportStateRef.current &&
-        transportStateRef.current.isPlaying === newState.isPlaying &&
-        transportStateRef.current.timelineOffsetSec === newState.timelineOffsetSec &&
-        transportStateRef.current.audioCtxStartSec === newState.audioCtxStartSec &&
-        transportStateRef.current.playbackRate === newState.playbackRate &&
-        transportStateRef.current.totalDuration === newState.totalDuration) {
-      return transportStateRef.current
-    }
-    
-    // 상태가 변경되었으면 새 상태 저장 및 반환
-    transportStateRef.current = newState
-    return newState
-  }, []) // 의존성 배열 비움 - transport는 ref로 접근
 
-  const transportState = useSyncExternalStore(
-    (onStoreChange) => {
-      const currentTransport = transportRef.current
-      if (!currentTransport) {
-        return () => {}
+    return () => {
+      // 정리
+      if (transitionShaderManagerRef.current) {
+        transitionShaderManagerRef.current.destroy()
+        transitionShaderManagerRef.current = null
       }
-      return currentTransport.subscribe(() => {
-        onStoreChange()
-      }, true)
-    },
-    getTransportStateSnapshot,
-    () => defaultStateRef.current
-  )
+    }
+  }, [appRef, stageDimensions, spritesRef])
+
+  // Transport 상태 관리
+  const { transportState } = useTransportState({ transport })
 
   /**
    * 단일 씬 로드 함수
@@ -258,6 +292,11 @@ export function useTransportRenderer({
         sprite.rotation = 0
       }
 
+      // 씬별 Container에 sprite 추가 (기존 containerRef 대신)
+      const sceneContainer = getOrCreateSceneContainer(sceneIndex)
+      sceneContainer.addChild(sprite)
+      
+      // 기존 containerRef에도 추가 (하위 호환성 유지, 나중에 제거 예정)
       container.addChild(sprite)
       spritesRef.current.set(sceneIndex, sprite)
 
@@ -328,6 +367,11 @@ export function useTransportRenderer({
           text.rotation = 0
         }
 
+        // 씬별 Container에 text 추가 (기존 containerRef 대신)
+        const sceneContainer = getOrCreateSceneContainer(sceneIndex)
+        sceneContainer.addChild(text)
+        
+        // 기존 containerRef에도 추가 (하위 호환성 유지, 나중에 제거 예정)
         container.addChild(text)
         textsRef.current.set(sceneIndex, text)
 
@@ -388,6 +432,7 @@ export function useTransportRenderer({
     loadPixiTextureWithCache,
     sceneLoadingStates,
     onSceneLoadComplete,
+    getOrCreateSceneContainer,
   ])
 
   /**
@@ -428,6 +473,36 @@ export function useTransportRenderer({
     })
     spritesRef.current.clear()
 
+    // 씬별 Container 정리
+    sceneContainersRef.current.forEach((sceneContainer, sceneIndex) => {
+      try {
+        cleanupSceneContainer(sceneIndex)
+      } catch {
+        // Error cleaning up scene container (로그 제거)
+      }
+    })
+    sceneContainersRef.current.clear()
+
+    // 자막 Container 정리
+    if (subtitleContainerRef.current) {
+      try {
+        subtitleContainerRef.current.removeChildren()
+        // Container 자체는 유지 (재사용)
+      } catch {
+        // Error cleaning up subtitle container (로그 제거)
+      }
+    }
+
+    // Transition Quad Container 정리
+    if (transitionQuadContainerRef.current) {
+      try {
+        transitionQuadContainerRef.current.removeChildren()
+        // Container 자체는 유지 (재사용)
+      } catch {
+        // Error cleaning up transition quad container (로그 제거)
+      }
+    }
+
     textsRef.current.forEach((text) => {
       try {
         if (text && text.parent) {
@@ -444,12 +519,27 @@ export function useTransportRenderer({
 
     // 모든 씬 로드
     await Promise.all(timeline.scenes.map((_, index) => loadScene(index)))
-  }, [timeline, appRef, containerRef, spritesRef, textsRef, loadScene])
+  }, [timeline, appRef, containerRef, spritesRef, textsRef, loadScene, cleanupSceneContainer, sceneContainersRef, subtitleContainerRef, transitionQuadContainerRef])
+
+  // 자막 렌더링
+  const {
+    renderSubtitlePart,
+    normalizeAnchorToTopLeft,
+    calculateTextPositionInBox,
+  } = useSubtitleRenderer({
+    timeline: timeline!,
+    appRef,
+    containerRef,
+    subtitleContainerRef,
+    textsRef,
+  })
 
   /**
-   * 자막 렌더링 헬퍼 함수
+   * 자막 렌더링 헬퍼 함수 (레거시 - useSubtitleRenderer로 대체됨)
+   * @deprecated useSubtitleRenderer의 renderSubtitlePart를 사용하세요
    */
-  const renderSubtitlePart = useCallback(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _renderSubtitlePartLegacy = useCallback(
     (sceneIndex: number, partIndex: number | null, options?: { skipAnimation?: boolean; onComplete?: () => void }) => {
       if (!timeline || !appRef.current) {
         if (options?.onComplete) {
@@ -564,8 +654,18 @@ export function useTransportRenderer({
         return
       }
 
-      // 텍스트 객체를 컨테이너에 추가 (컨테이너는 이미 비워진 상태)
-      if (containerRef.current) {
+      // 텍스트 객체를 자막 Container에 추가 (Shader Transition을 위한 분리)
+      if (subtitleContainerRef.current) {
+        // 이전 부모에서 제거
+        if (targetTextObj.parent && targetTextObj.parent !== subtitleContainerRef.current) {
+          targetTextObj.parent.removeChild(targetTextObj)
+        }
+        // 자막 Container에 추가
+        if (!targetTextObj.parent) {
+          subtitleContainerRef.current.addChild(targetTextObj)
+        }
+      } else if (containerRef.current) {
+        // 자막 Container가 없으면 기존 방식 사용 (하위 호환성)
         // 이전 부모에서 제거
         if (targetTextObj.parent && targetTextObj.parent !== containerRef.current) {
           targetTextObj.parent.removeChild(targetTextObj)
@@ -613,7 +713,104 @@ export function useTransportRenderer({
         const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
         textObj.style = textStyle
 
-        // 밑줄 렌더링
+        // 텍스트 Transform 적용 (ANIMATION.md 박스+정렬 규칙)
+        // 텍스트 스타일이 설정된 후에 bounds를 계산할 수 있도록 여기서 처리
+        if (scene.text.transform) {
+          const transform = scene.text.transform
+          const scaleX = transform.scaleX ?? 1
+          const scaleY = transform.scaleY ?? 1
+          
+          // Anchor 및 정렬 기본값 설정 (하위 호환성)
+          const anchorX = transform.anchor?.x ?? 0.5
+          const anchorY = transform.anchor?.y ?? 0.5
+          const hAlign = transform.hAlign ?? 'center'
+          // vAlign은 middle 고정 (ANIMATION.md 6.3)
+          
+          // Anchor→TopLeft 정규화 (ANIMATION.md 6.2)
+          const { boxX, boxY, boxW, boxH } = normalizeAnchorToTopLeft(
+            transform.x,
+            transform.y,
+            transform.width,
+            transform.height,
+            scaleX,
+            scaleY,
+            anchorX,
+            anchorY
+          )
+          
+          // 텍스트 실제 크기 계산 (PIXI.Text의 getLocalBounds 사용)
+          // 스타일이 설정된 후이므로 bounds를 계산할 수 있음
+          const textBounds = textObj.getLocalBounds()
+          const measuredTextWidth = textBounds.width || 0
+          const measuredTextHeight = textBounds.height || 0
+          
+          // 박스 내부 정렬 계산 (ANIMATION.md 6.3)
+          // vAlign은 middle 고정이므로 파라미터로 전달하지 않음
+          const { textX, textY } = calculateTextPositionInBox(
+            boxX,
+            boxY,
+            boxW,
+            boxH,
+            measuredTextWidth,
+            measuredTextHeight,
+            hAlign
+          )
+          
+          // 디버깅 로그 (개발 모드)
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[useTransportRenderer] Subtitle Box+Align Calculation:', {
+              sceneIndex,
+              partIndex,
+              transform: {
+                x: transform.x,
+                y: transform.y,
+                width: transform.width,
+                height: transform.height,
+                scaleX,
+                scaleY,
+                anchorX,
+                anchorY,
+                hAlign,
+              },
+              box: {
+                boxX: boxX.toFixed(2),
+                boxY: boxY.toFixed(2),
+                boxW: boxW.toFixed(2),
+                boxH: boxH.toFixed(2),
+              },
+              text: {
+                measuredWidth: measuredTextWidth.toFixed(2),
+                measuredHeight: measuredTextHeight.toFixed(2),
+                textX: textX.toFixed(2),
+                textY: textY.toFixed(2),
+              },
+            })
+          }
+          
+          // PIXI.Text의 anchor를 (0, 0)으로 설정하고 계산된 위치 사용
+          textObj.anchor.set(0, 0)
+          textObj.x = textX
+          textObj.y = textY
+          textObj.scale.set(scaleX, scaleY)
+          textObj.rotation = transform.rotation ?? 0
+        } else {
+          const position = scene.text.position || 'bottom'
+          const stageHeight = appRef.current?.screen?.height || 1920
+          if (position === 'top') {
+            textObj.y = stageHeight * 0.15
+          } else if (position === 'bottom') {
+            textObj.y = stageHeight * 0.85
+          } else {
+            textObj.y = stageHeight * 0.5
+          }
+          textObj.x = stageWidth * 0.5
+          textObj.scale.set(1, 1)
+          textObj.rotation = 0
+          // 기존 방식: anchor를 중앙으로 설정
+          textObj.anchor.set(0.5, 0.5)
+        }
+
+        // 밑줄 렌더링 (Transform 적용 후에 처리)
         const removeUnderline = () => {
           const underlineChildren = textObj.children.filter(
             (child) => child instanceof PIXI.Graphics && (child as PIXI.Graphics & { __isUnderline?: boolean }).__isUnderline
@@ -646,29 +843,6 @@ export function useTransportRenderer({
             textObj.addChild(underline)
           })
         }
-
-        // 텍스트 Transform 적용
-        if (scene.text.transform) {
-          const scaleX = scene.text.transform.scaleX ?? 1
-          const scaleY = scene.text.transform.scaleY ?? 1
-          textObj.x = scene.text.transform.x
-          textObj.y = scene.text.transform.y
-          textObj.scale.set(scaleX, scaleY)
-          textObj.rotation = scene.text.transform.rotation ?? 0
-        } else {
-          const position = scene.text.position || 'bottom'
-          const stageHeight = appRef.current?.screen?.height || 1920
-          if (position === 'top') {
-            textObj.y = stageHeight * 0.15
-          } else if (position === 'bottom') {
-            textObj.y = stageHeight * 0.85
-          } else {
-            textObj.y = stageHeight * 0.5
-          }
-          textObj.x = stageWidth * 0.5
-          textObj.scale.set(1, 1)
-          textObj.rotation = 0
-        }
       }
 
       // 표시
@@ -693,7 +867,7 @@ export function useTransportRenderer({
         options.onComplete()
       }
     },
-    [timeline, appRef, containerRef, textsRef]
+    [timeline, appRef, containerRef, textsRef, normalizeAnchorToTopLeft, calculateTextPositionInBox, subtitleContainerRef]
   )
 
   /**
@@ -712,168 +886,76 @@ export function useTransportRenderer({
    */
   const renderAt = useCallback(
     (tSec: number, options?: RenderAtOptions) => {
+      // ============================================================
+      // ANIMATION.md 표준 파이프라인 8단계
+      // ============================================================
+      
+      // 초기 검증
       if (!timeline || !appRef.current) {
         return
       }
-
-      // timeline.scenes가 없으면 렌더링하지 않음
       if (!timeline.scenes || timeline.scenes.length === 0) {
         return
       }
 
-      // t에서 씬과 구간 계산 (forceSceneIndex가 있으면 직접 사용)
-      let sceneIndex: number
-      let partIndex: number = 0 // 초기값 설정
-      let offsetInPart: number = 0 // 초기값 설정
-      if (options?.forceSceneIndex !== undefined) {
-        // 강제 씬 인덱스가 지정되면 직접 사용 (씬/그룹 재생 시 해당 씬에 고정)
-        sceneIndex = options.forceSceneIndex
-        
-        // partIndex와 offsetInPart는 해당 씬 범위 내에서만 직접 계산 (calculateSceneFromTime 사용 안 함)
-        const sceneStartTime = getSceneStartTime(timeline, sceneIndex)
-        const scene = timeline.scenes[sceneIndex]
-        
-        if (!scene) {
-          // 씬이 없으면 기본값 반환
-          partIndex = 0
-          offsetInPart = 0
-        } else {
-          // 시간을 해당 씬의 시작 시간 기준으로 상대 시간 계산
-          const relativeTime = Math.max(0, tSec - sceneStartTime)
-          
-          // 해당 씬의 partIndex와 offsetInPart 직접 계산
-          // 초기값 설정 (항상 할당되도록 보장)
-          partIndex = 0
-          offsetInPart = 0
-          
-          if (ttsCacheRef && buildSceneMarkup && makeTtsKey) {
-            const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
-            if (sceneVoiceTemplate) {
-              const markups = buildSceneMarkup(timeline, sceneIndex)
-              if (markups.length > 0) {
-                let partAccumulatedTime = 0
-                
-                // 각 part를 순회하며 해당하는 part 찾기
-                for (let p = 0; p < markups.length; p++) {
-                  const markup = markups[p]
-                  if (!markup) continue
-                  
-                  const key = makeTtsKey(sceneVoiceTemplate, markup)
-                  const cached = ttsCacheRef.current.get(key)
-                  const partDuration = cached?.durationSec || 0
-                  const partEndTime = partAccumulatedTime + partDuration
-                  
-                  // relativeTime이 이 part 범위에 있으면
-                  if (relativeTime >= partAccumulatedTime && relativeTime < partEndTime) {
-                    partIndex = p
-                    offsetInPart = relativeTime - partAccumulatedTime
-                    break
-                  }
-                  
-                  // 마지막 part이고 relativeTime이 partEndTime 이상이면 마지막 part 사용
-                  if (p === markups.length - 1 && relativeTime >= partEndTime) {
-                    partIndex = p
-                    offsetInPart = partDuration
-                    break
-                  }
-                  
-                  partAccumulatedTime = partEndTime
-                }
-              }
-            }
-          }
-        }
-      } else {
-        // 일반적인 경우: tSec 기반으로 씬 계산
-        const calculated = calculateSceneFromTime(
-          timeline,
-          tSec,
-          {
-            ttsCacheRef,
-            voiceTemplate,
-            buildSceneMarkup,
-            makeTtsKey,
-          }
-        )
-        sceneIndex = calculated.sceneIndex
-        partIndex = calculated.partIndex
-        offsetInPart = calculated.offsetInPart
+      // 파이프라인 컨텍스트 생성
+      const pipelineContext: PipelineContext = {
+        timeline,
+        tSec,
+        options,
+        appRef,
+        containerRef,
+        spritesRef,
+        textsRef,
+        currentSceneIndexRef,
+        previousSceneIndexRef,
+        lastRenderedTRef,
+        lastRenderedSceneIndexRef,
+        lastRenderedSegmentIndexRef,
+        lastRenderedStateRef,
+        lastTransitionLogRef,
+        sceneContainersRef,
+        subtitleContainerRef,
+        transitionQuadContainerRef,
+        transitionShaderManagerRef,
+        fabricCanvasRef,
+        fabricScaleRatioRef,
+        sceneLoadingStates,
+        loadScene,
+        resetBaseStateCallback,
+        applyShaderTransition,
+        applyDirectTransition,
+        renderSubtitlePart,
+        getActiveSegment,
+        ttsCacheRef,
+        voiceTemplate,
+        buildSceneMarkup,
+        makeTtsKey,
+        stageDimensions,
+        TIME_EPSILON,
       }
 
-      // 유효하지 않은 씬 인덱스면 렌더링하지 않음
-      if (sceneIndex < 0 || sceneIndex >= timeline.scenes.length) {
+      // ============================================================
+      // 1단계: 씬/파트 계산
+      // ============================================================
+      const step1Result = step1CalculateScenePart(pipelineContext)
+      if (!step1Result) {
         return
       }
+      let { sceneIndex, partIndex } = step1Result
 
-      // 중복 렌더링 방지: segmentChanged만 체크 (TTS 파일 전환 시 즉시 렌더링)
-      // 참고: segmentChanged는 실제 TTS 오디오 파일 세그먼트 인덱스 변경을 감지합니다.
-      //       하나의 세그먼트 = 하나의 part이므로, segmentChanged가 true이면 part도 변경된 것입니다.
-      let segmentChanged = false
-      let currentSegmentIndex = 0
-      let activeSegmentFromTts: { segment: { id: string; sceneIndex?: number; partIndex?: number }; segmentIndex: number } | null = null
+      // ============================================================
+      // 8단계: 중복 렌더 스킵 (조기 반환 체크)
+      // ============================================================
+      const step8Result = step8CheckDuplicateRender(pipelineContext, step1Result)
       
-      // getActiveSegment가 있으면 segmentChanged 체크, 없으면 timeChanged fallback
-      let shouldRender = false
-      if (getActiveSegment) {
-        const activeSegment = getActiveSegment(tSec)
-        if (activeSegment) {
-          activeSegmentFromTts = activeSegment
-          currentSegmentIndex = activeSegment.segmentIndex
-          segmentChanged = currentSegmentIndex !== lastRenderedSegmentIndexRef.current
-          shouldRender = segmentChanged
-          
-          // segmentChanged가 true이고 activeSegment에 sceneIndex가 있으면 그것을 우선 사용
-          // TTS 파일 전환 시 정확한 씬 인덱스를 보장
-          if (segmentChanged && activeSegment.segment.sceneIndex !== undefined) {
-            sceneIndex = activeSegment.segment.sceneIndex
-          }
-          
-          // activeSegment에 partIndex가 있으면 그것을 우선 사용 (씬 분할 그룹)
-          // segmentChanged가 true이면 새로운 part로 전환된 것이므로 partIndex도 업데이트
-          if (activeSegment.segment.partIndex !== undefined) {
-            partIndex = activeSegment.segment.partIndex
-          }
-        }
-      } else {
-        // getActiveSegment가 없을 때는 timeChanged를 fallback으로 사용 (초기 로딩 시)
-        const timeChanged = Math.abs(tSec - lastRenderedTRef.current) >= TIME_EPSILON
-        shouldRender = timeChanged
-      }
-      
-      // 렌더링 조건: segmentChanged만 체크 (또는 getActiveSegment가 없을 때 timeChanged)
-      // 조기 반환으로 불필요한 계산 방지
-      if (!shouldRender) {
+      // Step 8에서 sceneIndex/partIndex가 업데이트될 수 있음
+      sceneIndex = step8Result.sceneIndex
+      partIndex = step8Result.partIndex
+
+      // 조기 반환 체크
+      if (step8Result.shouldSkip) {
         return
-      }
-      
-      // 씬 전환 처리에 필요한 정보 (렌더링 조건이 아닌 씬 전환 처리용)
-      // shouldRender가 true일 때만 계산 (최적화)
-      const sceneChanged = sceneIndex !== lastRenderedSceneIndexRef.current
-      const previousRenderedSceneIndex = sceneChanged ? lastRenderedSceneIndexRef.current : null
-      
-      // TTS 파일 전환 감지: segmentIndex가 변경되면 실제 TTS 파일이 끝나고 다음 파일이 시작됨
-      // 재생 중에도 로그가 나오도록 return 전에 로그 출력
-      
-      // segmentChanged가 true이면 lastRenderedTRef를 업데이트하여 다음 프레임에서 중복 렌더링 방지
-      if (segmentChanged) {
-        lastRenderedTRef.current = tSec
-      }
-      //     `tSec=${tSec.toFixed(3)}, partIndex=${partIndex}, offsetInPart=${offsetInPart.toFixed(3)}`
-      //   )
-      // }
-      
-      // 렌더링 시간과 씬 인덱스 업데이트 (씬 전환 처리 전에 업데이트)
-      lastRenderedTRef.current = tSec
-      lastRenderedSceneIndexRef.current = sceneIndex
-      // activeSegmentFromTts가 이미 계산되어 있으면 재사용 (중복 호출 방지)
-      if (activeSegmentFromTts) {
-        lastRenderedSegmentIndexRef.current = activeSegmentFromTts.segmentIndex
-      } else if (getActiveSegment) {
-        // fallback: activeSegmentFromTts가 없을 때만 호출
-        const activeSegment = getActiveSegment(tSec)
-        if (activeSegment) {
-          lastRenderedSegmentIndexRef.current = activeSegment.segmentIndex
-        }
       }
 
       const scene = timeline.scenes[sceneIndex]
@@ -893,241 +975,93 @@ export function useTransportRenderer({
         currentSceneIndexRef.current = sceneIndex
       }
 
-      // 씬이 로드되었는지 확인
-      const sprite = spritesRef.current.get(sceneIndex)
-      const sceneText = textsRef.current.get(sceneIndex)
-      const sceneLoaded = sprite !== undefined || sceneText !== undefined
+      // ============================================================
+      // 2단계: 리소스 준비 (로드/캐시)
+      // ============================================================
+      const step2Result = step2PrepareResources(pipelineContext, sceneIndex)
+      if (!step2Result.shouldContinue) {
+        return
+      }
+      const { sprite, sceneText } = step2Result
 
-      // 씬이 로드되지 않았으면 사전 로드
-      if (!sceneLoaded) {
-        const loadingState = sceneLoadingStates.get(sceneIndex)
-        if (loadingState !== 'loading' && loadingState !== 'loaded') {
-          // 비동기로 로드 시작 (await하지 않음)
-          loadScene(sceneIndex).catch(() => {
-            // 씬 로드 실패 (로그 제거)
-          })
-        }
+      // ============================================================
+      // 3단계: 컨테이너 구성 보장
+      // ============================================================
+      if (!step3SetupContainers(pipelineContext, sceneIndex, sprite, sceneText, step8Result)) {
         return
       }
 
-      // 결정적 렌더링: 매 프레임마다 canvas를 비우고 현재 씬/구간만 새로 렌더링
-      // 단, 전환 효과가 진행 중일 때는 컨테이너를 비우지 않음 (전환 효과가 묻어나오도록)
-      if (!containerRef.current) {
-        return
-      }
+      // ============================================================
+      // 4단계: Base State 리셋 (ANIMATION.md 표준: 매 프레임 항상 실행)
+      // ============================================================
+      step4ResetBaseState(pipelineContext, sprite || null, sceneText || null, sceneIndex, scene)
 
-      // 전환 효과가 진행 중인지 확인
-      const isTransitioning = activeAnimationsRef && activeAnimationsRef.current.size > 0
-      
-      // 1. 컨테이너 비우기 (전환 효과가 진행 중이 아니고 씬이 변경되었을 때만)
-      // 전환 효과가 진행 중일 때는 이전 씬과 현재 씬을 모두 유지하여 전환 효과가 보이도록 함
-      if (!isTransitioning && previousRenderedSceneIndex !== null && previousRenderedSceneIndex !== sceneIndex && containerRef.current) {
-        // 이전 씬의 스프라이트와 텍스트만 제거 (현재 씬의 것은 유지)
-        const previousSprite = spritesRef.current.get(previousRenderedSceneIndex)
-        const previousText = textsRef.current.get(previousRenderedSceneIndex)
-        
-        if (previousSprite && !previousSprite.destroyed && previousSprite.parent === containerRef.current) {
-          containerRef.current.removeChild(previousSprite)
-        }
-        if (previousText && !previousText.destroyed && previousText.parent === containerRef.current) {
-          containerRef.current.removeChild(previousText)
-        }
-        
-        // 모든 텍스트 객체를 숨기고 현재 씬의 텍스트만 표시 (자막 누적 방지)
-        textsRef.current.forEach((textObj, textSceneIndex) => {
-          if (textSceneIndex !== sceneIndex && !textObj.destroyed) {
-            textObj.visible = false
-          }
-        })
-      } else if (!isTransitioning && containerRef.current) {
-        // 전환 효과가 없고 씬이 변경되지 않았으면 전체 비우기
-        containerRef.current.removeChildren()
-        
-        // 모든 텍스트 객체 숨기기 (자막 누적 방지)
-        textsRef.current.forEach((textObj) => {
-          if (!textObj.destroyed) {
-            textObj.visible = false
-          }
-        })
-      }
+      // ============================================================
+      // 5단계: Motion 적용
+      // ============================================================
+      const step5Result = step5ApplyMotion(pipelineContext, sceneIndex, scene, sprite || null, step8Result)
 
-      // 2. 현재 씬의 이미지 렌더링
-      if (sprite && !sprite.destroyed && containerRef.current) {
-        const container = containerRef.current
-        // 스프라이트가 다른 부모에 있으면 제거
-        if (sprite.parent && sprite.parent !== container) {
-          sprite.parent.removeChild(sprite)
-        }
-        // 이미 컨테이너에 있으면 추가하지 않음 (중복 방지)
-        // children.includes는 비용이 있으므로 parent 체크로 최적화
-        if (sprite.parent !== container) {
-          container.addChild(sprite)
-        }
-        // 인덱스가 0이 아니면 변경 (불필요한 호출 방지)
-        if (container.getChildIndex(sprite) !== 0) {
-          container.setChildIndex(sprite, 0)
-        }
-        sprite.visible = true
-        sprite.alpha = 1
-      }
+      // ============================================================
+      // 6단계: Transition 적용
+      // ============================================================
+      step6ApplyTransition(pipelineContext, sceneIndex, scene, sceneText, step8Result)
 
-      // 2-1. 현재 씬의 텍스트 객체를 컨테이너에 추가 (removeChildren 후 복원)
-      if (sceneText && !sceneText.destroyed && containerRef.current) {
-        const container = containerRef.current
-        // 텍스트 객체가 다른 부모에 있으면 제거
-        if (sceneText.parent && sceneText.parent !== container) {
-          sceneText.parent.removeChild(sceneText)
-        }
-        // 컨테이너에 없으면 추가
-        if (sceneText.parent !== container) {
-          container.addChild(sceneText)
-        }
-        // 텍스트는 항상 최상위 레이어
-        const maxIndex = container.children.length - 1
-        if (maxIndex > 0 && container.getChildIndex(sceneText) !== maxIndex) {
-          container.setChildIndex(sceneText, maxIndex)
-        }
-      }
-
-      // 3. 다른 씬의 텍스트 객체 숨기기 (자막 누적 방지)
-      // 드래그 중 쓰로틀링으로 인한 자막 겹침을 방지하기 위해 먼저 모든 텍스트 숨김
-      textsRef.current.forEach((textObj, textSceneIndex) => {
-        if (textSceneIndex !== sceneIndex && !textObj.destroyed) {
-          textObj.visible = false
-          textObj.alpha = 0
-        }
-      })
-      
-      // 같은 그룹 내 다른 씬의 텍스트도 숨김 (같은 텍스트 객체를 공유하는 경우)
-      const currentScene = timeline.scenes[sceneIndex]
-      if (currentScene?.sceneId !== undefined) {
-        const sameGroupSceneIndices = timeline.scenes
-          .map((s, idx) => (s.sceneId === currentScene.sceneId ? idx : -1))
-          .filter((idx) => idx >= 0 && idx !== sceneIndex)
-        
-        sameGroupSceneIndices.forEach((groupSceneIndex) => {
-          const groupTextObj = textsRef.current.get(groupSceneIndex)
-          if (groupTextObj && !groupTextObj.destroyed) {
-            groupTextObj.visible = false
-            groupTextObj.alpha = 0
-          }
-        })
-      }
-      
-      // 4. 현재 씬/구간의 자막 렌더링
-      renderSubtitlePart(sceneIndex, partIndex, {
-        skipAnimation: options?.skipAnimation,
-        onComplete: () => {
-          // GSAP 애니메이션 seek (해당 씬의 애니메이션이 있으면)
-          if (activeAnimationsRef) {
-            const animation = activeAnimationsRef.current.get(sceneIndex)
-            if (animation) {
-              // 구간 내 오프셋을 GSAP timeline 시간으로 변환하여 seek
-              // offsetInPart는 이미 구간 내 오프셋이므로 직접 사용
-              animation.seek(offsetInPart)
-            }
-          }
-        },
-      })
+      // ============================================================
+      // 7단계: 자막 적용
+      // ============================================================
+      step7ApplySubtitle(
+        pipelineContext,
+        sceneIndex,
+        partIndex,
+        scene,
+        sprite || null,
+        step5Result.spriteAfterMotion,
+        step5Result.sceneLocalT
+      )
     },
     [
-      timeline,
-      appRef,
-      containerRef,
-      spritesRef,
-      textsRef,
-      currentSceneIndexRef,
-      previousSceneIndexRef,
-      activeAnimationsRef,
-      renderSubtitlePart,
-      ttsCacheRef,
-      voiceTemplate,
-      buildSceneMarkup,
-      makeTtsKey,
-      getActiveSegment,
-      sceneLoadingStates,
-      loadScene,
+        timeline,
+        appRef,
+        containerRef,
+        spritesRef,
+        textsRef,
+        currentSceneIndexRef,
+        previousSceneIndexRef,
+        renderSubtitlePart,
+        ttsCacheRef,
+        voiceTemplate,
+        buildSceneMarkup,
+        makeTtsKey,
+        getActiveSegment,
+        sceneLoadingStates,
+        loadScene,
+        resetBaseStateCallback,
+        applyShaderTransition,
+        applyDirectTransition,
+        stageDimensions,
+        fabricCanvasRef,
+        fabricScaleRatioRef,
+        sceneContainersRef,
+        subtitleContainerRef,
+        transitionQuadContainerRef,
     ]
   )
 
-  // Transport currentTime 변화에 자동 렌더링 (재생 중일 때만)
-  // 매 프레임마다 렌더링하여 TTS duration 변경 등이 즉시 반영되도록 함
-  const renderLoopRef = useRef<number | null>(null)
-  const frameCountRef = useRef<number>(0) // 디버깅용 프레임 카운터
-  
-  useEffect(() => {
-    // 씬/그룹 재생 중일 때는 렌더링 루프를 중지 (useStep3Container에서 직접 renderAt 호출)
-    if ((playingSceneIndex !== null && playingSceneIndex !== undefined) || 
-        (playingGroupSceneId !== null && playingGroupSceneId !== undefined)) {
-      if (renderLoopRef.current) {
-        cancelAnimationFrame(renderLoopRef.current)
-        renderLoopRef.current = null
-      }
-      return
-    }
-    
-    if (!transport || !transportState.isPlaying) {
-      // 재생 중이 아니면 렌더링 루프 중지
-      if (renderLoopRef.current) {
-        cancelAnimationFrame(renderLoopRef.current)
-        renderLoopRef.current = null
-      }
-      return
-    }
-    
-
-    // 독립적인 렌더링 루프 시작 (매 프레임마다 실행)
-    const renderLoop = () => {
-      // transportState를 매번 새로 가져와서 최신 상태 확인
-      const currentTransportState = transport?.getState()
-      if (!transport || !currentTransportState?.isPlaying) {
-        renderLoopRef.current = null
-        return
-      }
-
-      // 씬/그룹 재생 중이면 렌더링 루프 중지
-      if ((playingSceneIndex !== null && playingSceneIndex !== undefined) || 
-          (playingGroupSceneId !== null && playingGroupSceneId !== undefined)) {
-        renderLoopRef.current = null
-        return
-      }
-
-      // 매 프레임마다 렌더링 (지연 없이 즉시 반영)
-      // renderAt 내부의 중복 렌더링 방지 로직이 불필요한 렌더링을 막아줌
-      const currentTime = transport.getTime()
-      const totalDuration = currentTransportState.totalDuration
-      
-      // 재생이 끝났는지 확인 (currentTime이 totalDuration에 도달했거나 넘어섰을 때)
-      if (totalDuration > 0 && currentTime >= totalDuration) {
-        // 재생 종료: Transport를 일시정지하여 isPlaying을 false로 변경
-        transport.pause()
-        renderLoopRef.current = null
-        return
-      }
-      
-      // renderAt 호출 (내부에서 segmentChanged 체크하므로 여기서는 중복 체크 제거)
-      renderAt(currentTime, { skipAnimation: false })
-      
-      renderLoopRef.current = requestAnimationFrame(renderLoop)
-    }
-
-    // 렌더링 루프 시작
-    renderLoopRef.current = requestAnimationFrame(renderLoop)
-    
-    return () => {
-      if (renderLoopRef.current) {
-        cancelAnimationFrame(renderLoopRef.current)
-        renderLoopRef.current = null
-      }
-      frameCountRef.current = 0 // 프레임 카운터 리셋
-    }
-  }, [transport, transportState.isPlaying, renderAt, playingSceneIndex, playingGroupSceneId])
+  // 렌더링 루프 (재생 중일 때만)
+  useRenderLoop({
+    transport,
+    transportState,
+    renderAt,
+    playingSceneIndex,
+    playingGroupSceneId,
+  })
 
   // 렌더링 캐시 리셋 함수 (TTS duration 변경 시 사용)
   const resetRenderCache = useCallback(() => {
     lastRenderedTRef.current = -1
     lastRenderedSceneIndexRef.current = -1
     lastRenderedSegmentIndexRef.current = -1
+    lastRenderedStateRef.current = null
   }, [])
 
   return {

@@ -43,6 +43,7 @@ export function useTimelineInitializer({
           transitionDuration: existingScene?.transitionDuration || 0.5,
           image: scene.imageUrl || selectedImages[index] || '',
           imageFit: existingScene?.imageFit || 'contain', // 기본값을 contain으로 변경하여 이미지 비율을 유지하면서 영역에 맞춤
+          motion: existingScene?.motion, // Motion 설정 보존
           text: {
             content: scene.script,
             font: existingScene?.text?.font ?? subtitleFont ?? SUBTITLE_DEFAULT_FONT_ID,

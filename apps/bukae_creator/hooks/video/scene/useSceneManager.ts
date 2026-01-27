@@ -188,8 +188,8 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         return
       }
 
-      // 텍스트 업데이트
-      targetTextObj.text = partText
+      // 텍스트 업데이트 (null이 되지 않도록 보장)
+      targetTextObj.text = partText || ''
 
       // 자막 스타일 업데이트
       if (scene.text) {
@@ -557,7 +557,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         }
 
         if (targetTextObj && partText) {
-          targetTextObj.text = partText
+          targetTextObj.text = partText || ''
           targetTextObj.visible = true
         
         // 텍스트 표시 후 다시 한 번 같은 그룹 내 다른 텍스트 숨김 (겹침 방지)
@@ -594,7 +594,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
           return
         }
         
-        targetTextObj.text = partText
+        targetTextObj.text = partText || ''
         
         // Transform 위치 적용 (재생 중에도 위치가 올바르게 설정되도록)
         if (scene.text?.transform && targetTextObj && !targetTextObj.destroyed) {
@@ -639,7 +639,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
       // 같은 씬 내 구간 전환인 경우: 자막만 업데이트 (전환 효과 없음)
       if (isSameSceneTransition) {
         if (targetTextObj && partText) {
-          targetTextObj.text = partText
+          targetTextObj.text = partText || ''
           targetTextObj.visible = true
         
         // 텍스트 표시 후 다시 한 번 같은 그룹 내 다른 텍스트 숨김 (겹침 방지)
@@ -670,7 +670,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         currentSceneIndexRef.current = sceneIndex
         // renderSceneContent는 씬 전환 시 호출되므로, 타임라인 클릭/드래그가 아닌 경우에만 seek 수행
         // 타임라인 클릭/드래그는 이미 setCurrentTime으로 시간이 설정되었으므로 skipSeek: true
-        setCurrentSceneIndex(sceneIndex, { skipSeek: true })
+        setCurrentSceneIndex(sceneIndex)
       } else if (setCurrentSceneIndex) {
         currentSceneIndexRef.current = sceneIndex
       }
@@ -862,7 +862,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         }
 
         if (targetTextObj) {
-          targetTextObj.text = partText
+          targetTextObj.text = partText || ''
           targetTextObj.visible = true
           
         // 텍스트 표시 후 다시 한 번 같은 그룹 내 다른 텍스트 숨김 (겹침 방지)

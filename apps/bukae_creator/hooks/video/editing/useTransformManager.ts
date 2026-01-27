@@ -37,6 +37,10 @@ export function useTransformManager({
         return
       }
 
+      if (sprite.destroyed) {
+        return
+      }
+
       const isResizing = isResizingRef.current
 
       let width: number
@@ -44,19 +48,18 @@ export function useTransformManager({
       let scaleX: number
       let scaleY: number
 
-      if (isResizing) {
-        const bounds = sprite.getBounds()
-        width = bounds.width
-        height = bounds.height
-        scaleX = sprite.scale.x
-        scaleY = sprite.scale.y
-      } else {
-        const bounds = sprite.getBounds()
-        width = bounds.width
-        height = bounds.height
-        scaleX = sprite.scale.x
-        scaleY = sprite.scale.y
+      let bounds: PIXI.Bounds
+      try {
+        bounds = sprite.getBounds()
+      } catch {
+        // getBounds 실패 시 종료
+        return
       }
+
+      width = bounds.width
+      height = bounds.height
+      scaleX = sprite.scale.x
+      scaleY = sprite.scale.y
 
       const transform = {
         x: sprite.x,
@@ -163,25 +166,25 @@ export function useTransformManager({
       let baseWidth: number
       let baseHeight: number
 
-      if (isResizing) {
-        const bounds = text.getBounds()
-        const currentWordWrapWidth = text.style?.wordWrapWidth || bounds.width
-        width = bounds.width
-        height = bounds.height
-        scaleX = 1
-        scaleY = 1
-        baseWidth = currentWordWrapWidth
-        baseHeight = bounds.height
-      } else {
-        const bounds = text.getBounds()
-        const currentWordWrapWidth = text.style?.wordWrapWidth || bounds.width
-        width = bounds.width
-        height = bounds.height
-        scaleX = 1
-        scaleY = 1
-        baseWidth = currentWordWrapWidth
-        baseHeight = bounds.height
+      if (text.destroyed) {
+        return
       }
+
+      let bounds: PIXI.Bounds
+      try {
+        bounds = text.getBounds()
+      } catch {
+        // getBounds 실패 시 종료
+        return
+      }
+
+      const currentWordWrapWidth = text.style?.wordWrapWidth || bounds.width
+      width = bounds.width
+      height = bounds.height
+      scaleX = 1
+      scaleY = 1
+      baseWidth = currentWordWrapWidth
+      baseHeight = bounds.height
 
       const transform = {
         x: text.x,
@@ -239,7 +242,8 @@ export function useTransformManager({
         const wordWrapWidth = transform.baseWidth ?? transform.width ?? 0
         if (wordWrapWidth > 0) {
           text.style.wordWrapWidth = wordWrapWidth
-          text.text = text.text
+          // text.text가 null이 되지 않도록 보장
+          text.text = text.text || ''
         }
       }
     },

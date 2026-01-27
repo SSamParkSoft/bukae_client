@@ -647,6 +647,8 @@ export function useStep3Container() {
     onSceneLoadComplete: handleLoadComplete,
     playingSceneIndex,
     playingGroupSceneId,
+    fabricCanvasRef: step3State.fabricCanvasRef,
+    fabricScaleRatioRef: step3State.fabricScaleRatioRef,
   })
   const [playbackEndTime, setPlaybackEndTime] = useState<number | null>(null) // 재생 종료 시간
   const setCurrentTime = ((time: number | ((prev: number) => number)) => {
@@ -1868,6 +1870,7 @@ export function useStep3Container() {
     handleSceneTransitionChange: originalHandleSceneTransitionChange,
     handleSceneImageFitChange,
     handlePlaybackSpeedChange,
+    handleSceneMotionChange: originalHandleSceneMotionChange,
   } = useSceneHandlers({
     scenes,
     timeline,
@@ -1938,9 +1941,20 @@ export function useStep3Container() {
     // currentSceneIndexRef를 먼저 설정하여 updateCurrentScene이 올바른 씬 인덱스를 사용하도록 함
     currentSceneIndexRef.current = index
     originalHandleSceneTransitionChange(index, value)
+    // timeline 업데이트는 originalHandleSceneTransitionChange에서 처리됨
+    // timeline 변경 감지 useEffect에서 자동으로 renderAt 호출됨
     // ref는 변경되어도 리렌더링을 트리거하지 않으므로 dependency에 포함할 필요 없음
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [originalHandleSceneTransitionChange])
+
+  const handleSceneMotionChange = useCallback((index: number, motion: import('@/hooks/video/effects/motion/types').MotionConfig | null) => {
+    currentSceneIndexRef.current = index
+    originalHandleSceneMotionChange(index, motion)
+    // timeline 업데이트는 originalHandleSceneMotionChange에서 처리됨
+    // timeline 변경 감지 useEffect에서 자동으로 renderAt 호출됨
+    // ref는 변경되어도 리렌더링을 트리거하지 않으므로 dependency에 포함할 필요 없음
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [originalHandleSceneMotionChange])
 
   // 비디오 내보내기 hook
   const { isExporting, handleExport } = useVideoExport({
@@ -1980,6 +1994,33 @@ export function useStep3Container() {
     
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scenes, timeline, voiceTemplate])
+
+  // timeline의 motion/transition 변경 감지 및 렌더링 업데이트
+  // ANIMATION.md 표준: renderAt은 Transport 루프에서만 호출되어야 하지만,
+  // timeline 변경 시에는 현재 시간에서 즉시 렌더링하여 변경사항 반영
+  const timelineMotionTransitionKey = useMemo(() => {
+    if (!timeline || !timeline.scenes) return ''
+    return timeline.scenes.map((scene, idx) => {
+      const motionKey = scene.motion 
+        ? `${scene.motion.type}-${scene.motion.startSecInScene}-${scene.motion.durationSec}-${scene.motion.easing}`
+        : 'none'
+      const transitionKey = scene.transition || 'none'
+      return `${idx}:motion:${motionKey}:transition:${transitionKey}`
+    }).join('|')
+  }, [timeline])
+
+  useEffect(() => {
+    // timeline이 준비되지 않았거나 renderAt이 설정되지 않았으면 스킵
+    if (!timeline || !renderAtRef.current || !pixiReady) return
+    
+    // 재생 중이 아닐 때만 수동 렌더링 (재생 중에는 Transport 루프가 자동으로 처리)
+    if (!isPlaying) {
+      const currentTime = transport.currentTime
+      // timeline 변경 시 현재 시간에서 렌더링하여 변경사항 반영
+      renderAtRef.current(currentTime, { skipAnimation: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timelineMotionTransitionKey, pixiReady, isPlaying])
 
   // 재생 핸들러 훅 (Transport 기반)
   const playbackHandlers = usePlaybackHandlers({
@@ -2102,15 +2143,31 @@ export function useStep3Container() {
         })
 
         // 스프라이트나 텍스트를 클릭하지 않고, 핸들도 클릭하지 않은 경우 (빈 공간)
-        const spriteBounds = clickedSprite?.getBounds()
-        const clickedOnSprite = clickedSprite && spriteBounds && clickedSprite.visible && clickedSprite.alpha > 0 &&
-          pixiX >= spriteBounds.x && pixiX <= spriteBounds.x + spriteBounds.width &&
-          pixiY >= spriteBounds.y && pixiY <= spriteBounds.y + spriteBounds.height
+        let clickedOnSprite = false
+        if (clickedSprite && !clickedSprite.destroyed) {
+          try {
+            const spriteBounds = clickedSprite.getBounds()
+            if (spriteBounds && clickedSprite.visible && clickedSprite.alpha > 0) {
+              clickedOnSprite = pixiX >= spriteBounds.x && pixiX <= spriteBounds.x + spriteBounds.width &&
+                pixiY >= spriteBounds.y && pixiY <= spriteBounds.y + spriteBounds.height
+            }
+          } catch {
+            // getBounds 실패 시 무시
+          }
+        }
         
-        const textBounds = clickedText?.getBounds()
-        const clickedOnText = clickedText && textBounds && clickedText.visible && clickedText.alpha > 0 &&
-          pixiX >= textBounds.x && pixiX <= textBounds.x + textBounds.width &&
-          pixiY >= textBounds.y && pixiY <= textBounds.y + textBounds.height
+        let clickedOnText = false
+        if (clickedText && !clickedText.destroyed) {
+          try {
+            const textBounds = clickedText.getBounds()
+            if (textBounds && clickedText.visible && clickedText.alpha > 0) {
+              clickedOnText = pixiX >= textBounds.x && pixiX <= textBounds.x + textBounds.width &&
+                pixiY >= textBounds.y && pixiY <= textBounds.y + textBounds.height
+            }
+          } catch {
+            // getBounds 실패 시 무시
+          }
+        }
         
         if (!clickedOnHandle && !clickedOnSprite && !clickedOnText) {
           // 빈 공간 클릭: 선택 해제 및 편집 모드 종료
@@ -2557,6 +2614,7 @@ export function useStep3Container() {
     handleSceneDuplicate,
     handleSceneTtsPreview,
     handleSceneTransitionChange,
+    handleSceneMotionChange,
     handleGroupDuplicate,
     handleGroupPlay,
     handleGroupDelete,
@@ -2643,6 +2701,7 @@ export function useStep3Container() {
     handleSceneDuplicate,
     handleSceneTtsPreview,
     handleSceneTransitionChange,
+    handleSceneMotionChange,
     handleGroupDuplicate,
     handleGroupPlay,
     handleGroupDelete,

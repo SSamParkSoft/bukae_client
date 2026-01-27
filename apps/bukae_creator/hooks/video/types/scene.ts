@@ -67,7 +67,8 @@ export type ApplyEnterEffectFunction = (
   previousIndex?: number | null,
   groupTransitionTimelinesRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>,
   sceneId?: number,
-  isPlaying?: boolean
+  isPlaying?: boolean,
+  fromSprite?: PIXI.Sprite | null // 이전 씬의 스프라이트 (페이드 아웃용)
 ) => void
 
 /**

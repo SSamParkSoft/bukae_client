@@ -110,6 +110,7 @@ export default function Step3Page() {
             scenesWithoutVoice={container.scenesWithoutVoice}
             globalVoiceTemplate={container.voiceTemplate}
             onVoiceTemplateChange={container.handleSceneVoiceTemplateChange}
+            onMotionChange={container.handleSceneMotionChange}
           />
         </div>
       </motion.div>

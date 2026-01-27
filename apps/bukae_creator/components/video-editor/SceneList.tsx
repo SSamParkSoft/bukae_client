@@ -763,7 +763,7 @@ export function SceneList({
                               const sceneDuration = hasActualPlaybackDuration
                                 ? scene.actualPlaybackDuration
                                 : scene.duration
-                              const sceneEndTime = sceneStartTime + sceneDuration
+                              const sceneEndTime = sceneStartTime + (sceneDuration ?? 0)
                               
                               // 모든 경우에 밀리초까지 표시
                               return (

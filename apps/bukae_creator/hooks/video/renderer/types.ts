@@ -5,6 +5,7 @@
 
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
+import * as fabric from 'fabric'
 import { TimelineData } from '@/store/useVideoCreateStore'
 import type { ITransport } from '../transport/types'
 import type { StageDimensions } from '../types/common'
@@ -83,7 +84,8 @@ export interface UseTransportRendererParams {
     previousIndex?: number | null,
     groupTransitionTimelinesRef?: React.MutableRefObject<Map<number, gsap.core.Timeline>>,
     sceneId?: number,
-    isPlaying?: boolean
+    isPlaying?: boolean,
+    fromSprite?: PIXI.Sprite | null // 이전 씬의 스프라이트 (페이드 아웃용)
   ) => void
   /** 씬 로드 완료 콜백 */
   onSceneLoadComplete?: (sceneIndex: number) => void
@@ -91,6 +93,10 @@ export interface UseTransportRendererParams {
   playingSceneIndex?: number | null | undefined
   /** 그룹 재생 중인 그룹 sceneId (null이면 전체 재생, optional) */
   playingGroupSceneId?: number | null | undefined
+  /** Fabric.js Canvas ref (원래 위치 가져오기용) */
+  fabricCanvasRef?: React.RefObject<fabric.Canvas | null>
+  /** Fabric.js 스케일 비율 ref */
+  fabricScaleRatioRef?: React.MutableRefObject<number>
 }
 
 /**

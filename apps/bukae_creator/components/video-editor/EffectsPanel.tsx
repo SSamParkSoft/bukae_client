@@ -4,6 +4,7 @@ import { SoundEffectSelector } from '@/components/video-editor/SoundEffectSelect
 import { SubtitleSettings } from '@/components/video-editor/SubtitleSettings'
 import VoiceSelector from '@/components/VoiceSelector'
 import type { TimelineData } from '@/store/useVideoCreateStore'
+import type { MotionConfig, MotionType } from '@/hooks/video/effects/motion/types'
 
 interface EffectsPanelProps {
   theme: string | undefined
@@ -28,6 +29,7 @@ interface EffectsPanelProps {
   scenesWithoutVoice?: number[]
   globalVoiceTemplate?: string | null
   onVoiceTemplateChange?: (sceneIndex: number, voiceTemplate: string | null) => void
+  onMotionChange?: (sceneIndex: number, motion: MotionConfig | null) => void
 }
 
 export function EffectsPanel({
@@ -52,6 +54,7 @@ export function EffectsPanel({
   scenesWithoutVoice = [],
   globalVoiceTemplate,
   onVoiceTemplateChange,
+  onMotionChange,
 }: EffectsPanelProps) {
   // transitions와 movements가 제공되면 사용, 아니면 allTransitions 사용 (하위 호환성)
   const displayTransitions = transitions || allTransitions
@@ -254,11 +257,11 @@ export function EffectsPanel({
                 </div>
               )}
 
-              {/* 움직임 섹션 */}
-              {displayMovements.length > 0 && (
-                <div className="space-y-6">
+              {/* 움직임 (Motion) 섹션 */}
+              {onMotionChange && (
+                <div className="space-y-6 mt-6">
                   <h3 
-                    className="font-bold text-text-dark mb-4 tracking-[-0.4px] mt-6"
+                    className="font-bold text-text-dark mb-4 tracking-[-0.4px]"
                     style={{ 
                       fontSize: 'var(--font-size-20)',
                       lineHeight: '28px'
@@ -267,15 +270,58 @@ export function EffectsPanel({
                     움직임
                   </h3>
                   <div className="h-0.5 bg-[#bbc9c9]" />
+                  
+                  {/* Motion 없음 옵션 */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {displayMovements.map((movement) => {
-                      const isSelected = timeline?.scenes[currentSceneIndex]?.transition === movement.value
+                    <button
+                      onClick={() => {
+                        if (timeline && currentSceneIndex >= 0) {
+                          onMotionChange(currentSceneIndex, null)
+                        }
+                      }}
+                      className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
+                        !timeline?.scenes[currentSceneIndex]?.motion
+                          ? 'bg-[#5e8790] text-white border-[#5e8790]'
+                          : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
+                      }`}
+                      style={{ 
+                        fontSize: 'var(--font-size-14)',
+                        lineHeight: '22.4px'
+                      }}
+                    >
+                      없음
+                    </button>
+                  </div>
+
+                  {/* Motion 타입 옵션 */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {([
+                      { type: 'slide-left' as MotionType, label: '왼쪽으로' },
+                      { type: 'slide-right' as MotionType, label: '오른쪽으로' },
+                      { type: 'slide-up' as MotionType, label: '위로' },
+                      { type: 'slide-down' as MotionType, label: '아래로' },
+                      { type: 'zoom-in' as MotionType, label: '확대' },
+                      { type: 'zoom-out' as MotionType, label: '축소' },
+                    ]).map((motionOption) => {
+                      const currentMotion = timeline?.scenes[currentSceneIndex]?.motion
+                      const isSelected = currentMotion?.type === motionOption.type
                       return (
                         <button
-                          key={movement.value}
+                          key={motionOption.type}
                           onClick={() => {
                             if (timeline && currentSceneIndex >= 0) {
-                              onTransitionChange(currentSceneIndex, movement.value)
+                              const motionConfig: MotionConfig = {
+                                type: motionOption.type,
+                                startSecInScene: 0,
+                                durationSec: 2,
+                                easing: 'ease-out',
+                                params: motionOption.type.startsWith('slide')
+                                  ? { distance: 200 }
+                                  : motionOption.type.startsWith('zoom')
+                                  ? { scaleFrom: motionOption.type === 'zoom-in' ? 1 : 1.2, scaleTo: motionOption.type === 'zoom-in' ? 1.2 : 1 }
+                                  : {},
+                              }
+                              onMotionChange(currentSceneIndex, motionConfig)
                             }
                           }}
                           className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
@@ -288,7 +334,7 @@ export function EffectsPanel({
                             lineHeight: '22.4px'
                           }}
                         >
-                          {movement.label}
+                          {motionOption.label}
                         </button>
                       )
                     })}

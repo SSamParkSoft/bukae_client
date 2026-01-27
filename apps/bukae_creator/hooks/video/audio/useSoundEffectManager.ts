@@ -200,7 +200,7 @@ export function useSoundEffectManager({
 
     const sceneIndex = activeSegment.segment.sceneIndex
     const partIndex = activeSegment.segment.partIndex
-    const segmentIndex = 'segmentIndex' in activeSegment ? activeSegment.segmentIndex : -1
+    const segmentIndex: number = 'segmentIndex' in activeSegment ? (activeSegment.segmentIndex as number) : -1
 
     // 세그먼트 전환 감지
     const segmentChanged = segmentIndex !== lastSegmentIndexRef.current

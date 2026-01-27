@@ -29,11 +29,14 @@ export function applyZoomTransition(
 
   if (!containerRef.current || !toSprite) return
 
+  // toSprite를 로컬 변수로 저장하여 클로저에서 안전하게 접근
+  const spriteRef = toSprite
+
   const toZoomObj = { scale: originalScale }
-  toSprite.scale.set(originalScaleX, originalScaleY)
+  spriteRef.scale.set(originalScaleX, originalScaleY)
   // 페이드 효과 제거: alpha를 항상 1로 설정
-  toSprite.alpha = 1
-  toSprite.visible = true
+  spriteRef.alpha = 1
+  spriteRef.visible = true
 
   // anchor가 (0.5, 0.5)이므로 originalX, originalY는 이미 중심점 좌표
   const centerX = originalX
@@ -53,21 +56,23 @@ export function applyZoomTransition(
       duration,
       ease: 'none', // 선형 애니메이션으로 정확한 듀레이션 보장
       onUpdate: function () {
-        if (toSprite && containerRef.current) {
-          ensureInContainer(toSprite, toText, containerRef.current)
-          const scaleFactor = toZoomObj.scale
-          toSprite.visible = true
-          // 페이드 효과 제거: alpha를 항상 1로 유지
-          toSprite.alpha = 1
-          toSprite.scale.set(scaleFactor, scaleFactor * scaleRatio)
-
-          // anchor가 (0.5, 0.5)이므로 중심점 좌표를 그대로 사용
-          toSprite.x = centerX
-          toSprite.y = centerY
+        // 매 프레임마다 null 체크 (애니메이션 중에 toSprite가 null이 될 수 있음)
+        if (!spriteRef || spriteRef.destroyed || !containerRef.current) {
+          return
         }
+        ensureInContainer(spriteRef, toText, containerRef.current)
+        const scaleFactor = toZoomObj.scale
+        spriteRef.visible = true
+        // 페이드 효과 제거: alpha를 항상 1로 유지
+        spriteRef.alpha = 1
+        spriteRef.scale.set(scaleFactor, scaleFactor * scaleRatio)
+
+        // anchor가 (0.5, 0.5)이므로 중심점 좌표를 그대로 사용
+        spriteRef.x = centerX
+        spriteRef.y = centerY
 
         if (toText && containerRef.current) {
-          ensureInContainer(toSprite, toText, containerRef.current)
+          ensureInContainer(spriteRef, toText, containerRef.current)
           toText.alpha = 1
           toText.visible = true
         }

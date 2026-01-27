@@ -30,6 +30,7 @@ export interface ImageTransform {
 
 /**
  * 텍스트 Transform 정보
+ * ANIMATION.md 표준: 박스(TextBox) + 정렬(Align) 규칙
  */
 export interface TextTransform {
   x: number
@@ -41,6 +42,9 @@ export interface TextTransform {
   rotation: number
   baseWidth?: number // 원본 텍스트 너비 (scale 제거)
   baseHeight?: number // 원본 텍스트 높이 (scale 제거)
+  anchor?: { x: number; y: number } // 박스 내 기준점 위치 (0..1), 기본값: { x: 0.5, y: 0.5 }
+  hAlign?: 'left' | 'center' | 'right' // 가로 정렬, 기본값: 'center'
+  vAlign?: 'middle' // 세로 정렬, 기본값: 'middle' (서버와 동일)
 }
 
 /**
@@ -99,6 +103,34 @@ export interface ScenePart {
 }
 
 /**
+ * Motion 설정 (ANIMATION.md 표준)
+ * motion/types.ts의 MotionConfig와 동일한 구조
+ */
+export interface MotionConfig {
+  type: 'slide-left' | 'slide-right' | 'slide-up' | 'slide-down' | 'zoom-in' | 'zoom-out' | 'rotate' | 'fade'
+  startSecInScene: number // 씬 내 시작 시간 (초)
+  durationSec: number // 지속 시간 (초)
+  easing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'ease-out-cubic' | 'ease-in-cubic'
+  params: {
+    // 슬라이드 방향 및 거리
+    direction?: 'left' | 'right' | 'up' | 'down'
+    distance?: number // 픽셀
+    
+    // 확대/축소 비율
+    scaleFrom?: number
+    scaleTo?: number
+    
+    // 회전 각도 (도 단위)
+    rotationFrom?: number
+    rotationTo?: number
+    
+    // 페이드
+    alphaFrom?: number
+    alphaTo?: number
+  }
+}
+
+/**
  * Timeline Scene
  * 타임라인의 개별 씬을 나타냅니다.
  */
@@ -119,6 +151,7 @@ export interface TimelineScene {
   text: TextSettings
   soundEffect?: string | null
   voiceTemplate?: string | null // 씬별 TTS 목소리 템플릿 (없으면 전역 voiceTemplate 사용)
+  motion?: MotionConfig // Motion(이미지 움직임) 설정 (ANIMATION.md 표준)
 }
 
 /**

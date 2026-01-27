@@ -153,6 +153,10 @@ export const usePixiEditor = ({
       const handlesContainer = new PIXI.Container()
       handlesContainer.interactive = true
 
+      if (sprite.destroyed) {
+        return
+      }
+
       const wasVisible = sprite.visible
       const wasAlpha = sprite.alpha
       if (!sprite.visible || sprite.alpha === 0) {
@@ -160,7 +164,15 @@ export const usePixiEditor = ({
         sprite.alpha = 1
       }
 
-      const bounds = sprite.getBounds()
+      let bounds: PIXI.Bounds
+      try {
+        bounds = sprite.getBounds()
+      } catch {
+        // getBounds 실패 시 복원 후 종료
+        sprite.visible = wasVisible
+        sprite.alpha = wasAlpha
+        return
+      }
 
       if (bounds.width === 0 || bounds.height === 0 || !isFinite(bounds.x) || !isFinite(bounds.y)) {
         sprite.visible = wasVisible
@@ -419,7 +431,19 @@ export const usePixiEditor = ({
         text.alpha = 1
       }
 
-      const bounds = text.getBounds()
+      if (text.destroyed) {
+        return
+      }
+
+      let bounds: PIXI.Bounds
+      try {
+        bounds = text.getBounds()
+      } catch {
+        // getBounds 실패 시 복원 후 종료
+        text.visible = wasVisible
+        text.alpha = wasAlpha
+        return
+      }
 
       if (bounds.width === 0 || bounds.height === 0 || !isFinite(bounds.x) || !isFinite(bounds.y)) {
         text.visible = wasVisible
@@ -707,7 +731,7 @@ export const usePixiEditor = ({
   // 스프라이트 드래그 설정
   const setupSpriteDrag = useCallback(
     (sprite: PIXI.Sprite, sceneIndex: number) => {
-      if (!sprite) {
+      if (!sprite || sprite.destroyed) {
         return
       }
 
@@ -716,7 +740,7 @@ export const usePixiEditor = ({
       sprite.off('pointerup')
       sprite.off('pointerupoutside')
 
-      if (!sprite.visible || sprite.alpha === 0) {
+      if (!sprite.visible || sprite.alpha === 0 || sprite.destroyed) {
         sprite.interactive = false
         return
       }
