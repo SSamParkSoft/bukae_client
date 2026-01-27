@@ -321,7 +321,8 @@ export function useResizeHandler({
         if (Math.abs(currentWordWrapWidth - newWordWrapWidth) > 1) {
           text.style.wordWrapWidth = newWordWrapWidth
           const originalText = text.text
-          text.text = originalText
+          // originalText가 null이 되지 않도록 보장
+          text.text = originalText || ''
         }
       }
 

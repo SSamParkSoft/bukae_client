@@ -698,28 +698,74 @@ export function SceneList({
                             </SceneSettingsPopover>
                             {/* 시작/끝 시간 표시 */}
                             {timeline && (() => {
-                              // 씬의 시작 시간 계산
+                              // 씬의 시작 시간 계산 (actualPlaybackDuration 우선, 없으면 TTS 캐시 기반 duration 사용)
                               let sceneStartTime = 0
                               if (timeline.scenes[index]?.startTime !== undefined) {
                                 sceneStartTime = timeline.scenes[index].startTime
                               } else {
-                                // TTS duration만 사용 (actualPlaybackDuration 우선)
+                                // actualPlaybackDuration 우선, 없으면 TTS 캐시 기반 duration 사용
                                 for (let i = 0; i < index; i++) {
                                   const prevScene = timeline.scenes[i]
                                   const prevDuration = prevScene?.actualPlaybackDuration && prevScene.actualPlaybackDuration > 0
                                     ? prevScene.actualPlaybackDuration
-                                    : prevScene?.duration || 0
+                                    : (prevScene?.duration && prevScene.duration > 0 ? prevScene.duration : 0)
                                   sceneStartTime += prevDuration
                                 }
                               }
                               
-                              // 씬의 끝 시간 계산 (actualPlaybackDuration 우선 사용)
+                              // 씬의 duration 확인 (actualPlaybackDuration 우선, 없으면 TTS 캐시 기반 duration)
                               const scene = timeline.scenes[index]
-                              const sceneDuration = scene?.actualPlaybackDuration && scene.actualPlaybackDuration > 0
-                                ? scene.actualPlaybackDuration
-                                : scene?.duration || 0
-                              const sceneEndTime = sceneStartTime + sceneDuration
+                              const hasActualPlaybackDuration = scene?.actualPlaybackDuration !== undefined && scene.actualPlaybackDuration !== null && scene.actualPlaybackDuration > 0
+                              const hasTtsCacheDuration = !hasActualPlaybackDuration && scene?.duration && scene.duration > 0
                               
+                              // actualPlaybackDuration 또는 TTS 캐시 기반 duration이 없으면 --:-- 표시
+                              if (!hasActualPlaybackDuration && !hasTtsCacheDuration) {
+                                return (
+                                  <span 
+                                    className="text-xs text-gray-500 font-medium tracking-[-0.12px]"
+                                    style={{ 
+                                      fontSize: 'var(--font-size-12)',
+                                      lineHeight: 'var(--line-height-12-140)'
+                                    }}
+                                  >
+                                    --:-- - --:--
+                                  </span>
+                                )
+                              }
+                              
+                              // 이전 씬들 중 하나라도 duration이 없으면 시작 시간 계산 불가
+                              let hasAllPreviousDurations = true
+                              for (let i = 0; i < index; i++) {
+                                const prevScene = timeline.scenes[i]
+                                const prevHasDuration = (prevScene?.actualPlaybackDuration && prevScene.actualPlaybackDuration > 0) ||
+                                                       (prevScene?.duration && prevScene.duration > 0)
+                                if (!prevHasDuration) {
+                                  hasAllPreviousDurations = false
+                                  break
+                                }
+                              }
+                              
+                              if (!hasAllPreviousDurations) {
+                                return (
+                                  <span 
+                                    className="text-xs text-gray-500 font-medium tracking-[-0.12px]"
+                                    style={{ 
+                                      fontSize: 'var(--font-size-12)',
+                                      lineHeight: 'var(--line-height-12-140)'
+                                    }}
+                                  >
+                                    --:-- - --:--
+                                  </span>
+                                )
+                              }
+                              
+                              // actualPlaybackDuration 우선, 없으면 TTS 캐시 기반 duration 사용
+                              const sceneDuration = hasActualPlaybackDuration
+                                ? scene.actualPlaybackDuration
+                                : scene.duration
+                              const sceneEndTime = sceneStartTime + (sceneDuration ?? 0)
+                              
+                              // 모든 경우에 밀리초까지 표시
                               return (
                                 <span 
                                   className="text-xs text-gray-500 font-medium tracking-[-0.12px]"
@@ -728,7 +774,7 @@ export function SceneList({
                                     lineHeight: 'var(--line-height-12-140)'
                                   }}
                                 >
-                                  {formatTime(sceneStartTime)} - {formatTime(sceneEndTime)}
+                                  {formatTime(sceneStartTime, true)} - {formatTime(sceneEndTime, true)}
                                 </span>
                               )
                             })()}
@@ -865,14 +911,18 @@ export function SceneList({
                         />
                         {/* 구간별 시작/끝 시간 표시 */}
                         {timeline && (() => {
-                          // 씬의 시작 시간 계산
+                          // 씬의 시작 시간 계산 (actualPlaybackDuration 우선, 없으면 TTS 캐시 기반 duration 사용)
                           let sceneStartTime = 0
                           if (timeline.scenes[index]?.startTime !== undefined) {
                             sceneStartTime = timeline.scenes[index].startTime
                           } else {
-                            // TTS duration만 사용
+                            // actualPlaybackDuration 우선, 없으면 TTS 캐시 기반 duration 사용
                             for (let i = 0; i < index; i++) {
-                              sceneStartTime += timeline.scenes[i]?.duration || 0
+                              const prevScene = timeline.scenes[i]
+                              const prevDuration = prevScene?.actualPlaybackDuration && prevScene.actualPlaybackDuration > 0
+                                ? prevScene.actualPlaybackDuration
+                                : (prevScene?.duration && prevScene.duration > 0 ? prevScene.duration : 0)
+                              sceneStartTime += prevDuration
                             }
                           }
                           
@@ -890,15 +940,15 @@ export function SceneList({
                               partEndTime = part.endTime
                             }
                           } else {
-                            // 기존 로직: 씬 duration을 구간 개수로 나누어 계산 (actualPlaybackDuration 우선)
+                            // 기존 로직: 씬 duration을 구간 개수로 나누어 계산 (actualPlaybackDuration 우선, 없으면 TTS 캐시 기반 duration)
                             if (scene) {
                               const originalText = scene.text?.content || ''
                               const allParts = originalText.split(/\s*\|\|\|\s*/).map(p => p.trim()).filter(p => p.length > 0)
                               const partCount = allParts.length || 1
-                              // actualPlaybackDuration이 있으면 우선 사용
+                              // actualPlaybackDuration 우선, 없으면 TTS 캐시 기반 duration 사용
                               const sceneDuration = scene.actualPlaybackDuration && scene.actualPlaybackDuration > 0
                                 ? scene.actualPlaybackDuration
-                                : scene.duration || 0
+                                : (scene.duration && scene.duration > 0 ? scene.duration : 0)
                               const partDuration = sceneDuration / partCount
                               
                               partStartTime = sceneStartTime + (partDuration * partIndex)
@@ -914,7 +964,35 @@ export function SceneList({
                                 lineHeight: 'var(--line-height-12-140)'
                               }}
                             >
-                              {formatTime(partStartTime)} - {formatTime(partEndTime)}
+                              {(() => {
+                                // actualPlaybackDuration 또는 TTS 캐시 기반 duration 확인
+                                const scene = timeline.scenes[index]
+                                const hasActualPlaybackDuration = scene?.actualPlaybackDuration && scene.actualPlaybackDuration > 0
+                                const hasTtsCacheDuration = !hasActualPlaybackDuration && scene?.duration && scene.duration > 0
+                                
+                                if (!hasActualPlaybackDuration && !hasTtsCacheDuration) {
+                                  return '--:-- - --:--'
+                                }
+                                
+                                // 이전 씬들 중 하나라도 duration이 없으면 시작 시간 계산 불가
+                                let hasAllPreviousDurations = true
+                                for (let i = 0; i < index; i++) {
+                                  const prevScene = timeline.scenes[i]
+                                  const prevHasDuration = (prevScene?.actualPlaybackDuration && prevScene.actualPlaybackDuration > 0) ||
+                                                         (prevScene?.duration && prevScene.duration > 0)
+                                  if (!prevHasDuration) {
+                                    hasAllPreviousDurations = false
+                                    break
+                                  }
+                                }
+                                
+                                if (!hasAllPreviousDurations) {
+                                  return '--:-- - --:--'
+                                }
+                                
+                                // 모든 경우에 밀리초까지 표시
+                                return `${formatTime(partStartTime, true)} - ${formatTime(partEndTime, true)}`
+                              })()}
                             </span>
                           )
                         })()}

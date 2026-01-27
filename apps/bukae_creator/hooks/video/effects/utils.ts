@@ -44,8 +44,9 @@ export function applyTextFade(text: PIXI.Text | null): void {
  * 전환 효과 공통 파라미터
  */
 export interface TransitionParams {
-  toSprite: PIXI.Sprite
+  toSprite: PIXI.Sprite | null
   toText: PIXI.Text | null
+  fromSprite?: PIXI.Sprite | null // 이전 씬의 스프라이트 (페이드 아웃용)
   containerRef: React.RefObject<PIXI.Container | null>
   originalX: number
   originalY: number

@@ -204,7 +204,7 @@ export function useSceneNavigation({
     const previousScene = prevIndex !== null ? timeline.scenes[prevIndex] : null
     // 같은 sceneId를 가진 씬들 사이에서는 transition 무시
     const isSameSceneId = previousScene && previousScene.sceneId === selectedScene?.sceneId
-    const transition = isSameSceneId ? 'none' : (selectedScene?.transition || 'fade')
+    const transition = isSameSceneId ? 'none' : (selectedScene?.transition || 'none')
     
     // 씬 리스트에서 선택할 때는 이전 씬을 보여주지 않고 검은 캔버스에서 시작
     // 단, 이전 씬이 같은 그룹 내 씬이고 현재 씬도 같은 그룹의 첫 번째 씬이 아닌 경우에만 prevIndex 유지
@@ -355,6 +355,7 @@ export function useSceneNavigation({
         
         // 수동으로 씬을 클릭한 경우(!skipStopPlaying)에는 자동 전환하지 않음
         // 재생 중일 때만 자동 전환 (skipStopPlaying이 true일 때)
+        // skipStopPlaying이 false일 때(즉, 재생 중이 아닐 때)는 autoAdvanceToNextInGroup을 호출하지 않음
         if (skipStopPlaying && !isPlayingRef.current) {
           // 약간의 지연을 두고 호출하여 전환 효과가 완전히 완료된 후 자동 전환 시작
           setTimeout(() => {
@@ -451,6 +452,8 @@ export function useSceneNavigation({
       
       // 수동으로 씬을 클릭한 경우(!skipStopPlaying)에는 자동 전환하지 않음
       // 재생 중일 때만 자동 전환 (skipStopPlaying이 true일 때)
+      // skipStopPlaying이 false일 때(즉, 재생 중이 아닐 때)는 autoAdvanceToNextInGroup을 호출하지 않음
+      // 씬 카드 클릭 시 모든 TTS 음성파일이 재생되는 버그 방지
       if (skipStopPlaying && !isPlayingRef.current) {
         const selectedScene = timeline.scenes[index]
         const nextScene = index + 1 < timeline.scenes.length ? timeline.scenes[index + 1] : null
@@ -538,12 +541,21 @@ export function useSceneNavigation({
       isManualSceneSelectRef.current = false
     }
     
-    // 같은 씬 내 구간 전환인 경우: 자막만 업데이트
-    if (isSameScene && renderSubtitlePart) {
-      renderSubtitlePart(sceneIndex, partIndex, {
-        skipAnimation: true,
-        onComplete: transitionCompleteCallback,
-      })
+    // 같은 씬 내 구간 전환: 이미지와 자막 모두 즉시 렌더링
+    if (isSameScene) {
+      // 이미지 렌더링
+      if (renderSceneImage) {
+        renderSceneImage(sceneIndex, { skipAnimation: true })
+      }
+      // 자막 렌더링
+      if (renderSubtitlePart) {
+        renderSubtitlePart(sceneIndex, partIndex, {
+          skipAnimation: true,
+          onComplete: transitionCompleteCallback,
+        })
+      } else {
+        transitionCompleteCallback()
+      }
       return
     }
     
@@ -559,19 +571,28 @@ export function useSceneNavigation({
         isPlaying: false,
         onComplete: transitionCompleteCallback,
       })
-    } else if (renderSubtitlePart) {
-      // renderSceneContent가 없으면 updateCurrentScene 후 renderSubtitlePart 사용
-      if (updateCurrentScene) {
-        // skipAnimation 파라미터 제거: forceTransition으로 처리
-        updateCurrentScene(prevIndex, scene.transition, () => {
+    } else if (updateCurrentScene) {
+      // renderSceneContent가 없으면 updateCurrentScene 사용
+      // 전환 완료 후 이미지와 자막 모두 렌더링 보장
+      updateCurrentScene(prevIndex, scene.transition, () => {
+        // 이미지 렌더링
+        if (renderSceneImage) {
+          renderSceneImage(sceneIndex, { skipAnimation: true })
+        }
+        // 자막 렌더링
+        if (renderSubtitlePart) {
           renderSubtitlePart(sceneIndex, partIndex, {
             skipAnimation: true,
             onComplete: transitionCompleteCallback,
           })
-        }, false, partIndex, sceneIndex)
-      }
+        } else {
+          transitionCompleteCallback()
+        }
+      }, false, partIndex, sceneIndex)
+    } else {
+      transitionCompleteCallback()
     }
-  }, [timeline, setSelectedPart, renderSceneContent, renderSubtitlePart, updateCurrentScene, previousSceneIndexRef, isManualSceneSelectRef, currentSceneIndexRef, setCurrentSceneIndex, lastRenderedSceneIndexRef, setIsPreviewingTransition])
+  }, [timeline, setSelectedPart, renderSceneContent, renderSubtitlePart, renderSceneImage, updateCurrentScene, previousSceneIndexRef, isManualSceneSelectRef, currentSceneIndexRef, setCurrentSceneIndex, lastRenderedSceneIndexRef, setIsPreviewingTransition])
 
   return {
     selectScene,

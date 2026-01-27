@@ -74,13 +74,18 @@ export async function ensureSceneTts({
     // 변경 상태는 모든 구간 처리 완료 후 제거 (아래에서 처리)
   }
 
-  // 각 구간별로 TTS 생성 및 업로드 (순차적으로 처리하여 파일이 준비되는 대로 반환)
-  const parts: TtsPart[] = []
+  // 각 구간별로 TTS 생성 및 업로드 (병렬 처리로 최적화)
+  // 동시 요청 수를 제한하여 레이트 리밋 및 브라우저 연결 제한 고려
+  // 브라우저는 도메인당 보통 6개 동시 연결만 허용하므로, 레이트 리밋(10개/분)과 함께 고려하여 5개로 제한
+  const MAX_CONCURRENT_PARTS = 5
   
-  // 순차적으로 처리하여 각 파일이 준비되는 대로 parts에 추가
-  for (let partIndex = 0; partIndex < markups.length; partIndex++) {
-    const markup = markups[partIndex]
-    const part = await (async (): Promise<TtsPart> => {
+  // 배치로 나눠서 처리 (동시 요청 수 제한)
+  const allParts: TtsPart[] = []
+  
+  for (let i = 0; i < markups.length; i += MAX_CONCURRENT_PARTS) {
+    const batch = markups.slice(i, i + MAX_CONCURRENT_PARTS)
+    const batchPromises = batch.map(async (markup, batchIndex): Promise<TtsPart> => {
+      const partIndex = i + batchIndex
       const key = makeTtsKey(sceneVoiceTemplate, markup)
 
       // 강제 재생성이면 캐시와 저장소 다운로드 모두 스킵하고 바로 TTS 생성
@@ -116,7 +121,8 @@ export async function ensureSceneTts({
                 ttsCacheRef.current.set(key, { ...cached, url })
               }
             } catch (error) {
-              // 업로드 실패 무시
+              console.error('[ensureSceneTts] 업로드 실패:', error)
+              alert('파일 업로드에 실패했습니다. 개발자에게 문의해주세요.')
             }
           } else if (url && !blob) {
             // URL은 있지만 blob이 없으면 저장소에서 다운로드
@@ -129,7 +135,8 @@ export async function ensureSceneTts({
                 ttsCacheRef.current.set(key, { ...cached, blob, durationSec, url })
               }
             } catch (error) {
-              // 다운로드 실패 무시
+              console.error('[ensureSceneTts] 다운로드 실패:', error)
+              alert('파일 다운로드에 실패했습니다. 개발자에게 문의해주세요.')
             }
           }
 
@@ -165,7 +172,7 @@ export async function ensureSceneTts({
         // 이제는 업로드 후 반환되는 URL만 사용 (랜덤 파일 이름 사용)
       }
 
-      // 진행 중인 요청 확인
+      // 진행 중인 요청 확인 (중복 체크)
       const inflight = ttsInFlightRef.current.get(key)
       if (inflight) {
         const result = await inflight
@@ -181,117 +188,109 @@ export async function ensureSceneTts({
       // 저장소에서 파일 경로를 추측해서 다운로드하는 로직 제거
       // 이제는 업로드 후 반환되는 URL만 사용 (랜덤 파일 이름 사용)
 
-      // 강제 재생성이거나 저장소에 파일이 없으면 TTS 생성
+      // 강제 재생성이거나 저장소에 파일이 없으면 TTS 생성 (직접 API 호출로 병렬 처리 보장)
+      // promise를 즉시 생성하고 시작 (병렬 처리 보장)
       const p = (async () => {
-        // voiceTemplate에서 provider 정보 확인
-        const { voiceTemplateHelpers } = await import('@/store/useVideoCreateStore')
-        const voiceInfo = voiceTemplateHelpers.getVoiceInfo(sceneVoiceTemplate)
-
-        const res = await fetch('/api/tts/synthesize', {
+        // 1. TTS 합성 API 호출 (직접 fetch로 병렬 처리 보장)
+        const synthesizeRes = await fetch('/api/tts/synthesize', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-          signal,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
           body: JSON.stringify({
             voiceTemplate: sceneVoiceTemplate,
             mode: 'markup',
             markup,
           }),
+          signal,
         })
 
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string; message?: string }
-          const errorMessage = data?.error || data?.message || 'TTS 합성 실패'
-          const error = new Error(errorMessage)
-          if (res.status === 429) {
-            (error as any).isRateLimit = true
+        if (!synthesizeRes.ok) {
+          const errorData = await synthesizeRes.json().catch(() => ({ error: 'TTS 합성 실패' }))
+          const error = new Error(errorData.error || 'TTS 합성 실패')
+          if (synthesizeRes.status === 429) {
+            ;(error as Error & { isRateLimit?: boolean }).isRateLimit = true
           }
           throw error
         }
 
-        const blob = await res.blob()
+        // 2. 오디오 blob 받기
+        const blob = await synthesizeRes.blob()
         const durationSec = await getMp3DurationSec(blob)
 
-        // Supabase 업로드
+        // 3. Supabase 업로드 (병렬 처리 가능하지만 여기서는 순차 처리)
         let url: string | null = null
         try {
           const formData = new FormData()
-          // 파일 이름은 업로드 API에서 TTS 형식으로 생성 (타임스탬프_scene_{sceneId}_scene_{sceneId}_voice.mp3)
-          formData.append('file', blob)
+          formData.append('file', blob, `scene_${sceneIndex}_part${partIndex + 1}.mp3`)
+          formData.append('sceneIndex', String(sceneIndex))
+          formData.append('partIndex', String(partIndex))
           formData.append('sceneId', String(scene.sceneId))
 
           const uploadRes = await fetch('/api/media/upload', {
             method: 'POST',
             headers: { Authorization: `Bearer ${accessToken}` },
             body: formData,
+            signal,
           })
 
           if (uploadRes.ok) {
             const uploadData = await uploadRes.json()
             url = uploadData.url || null
-            
-            // 업로드 후 저장소에서 다운로드해서 캐시에 저장 (최신 파일 보장)
-            // 다운로드는 선택적이므로 실패해도 생성한 blob 사용
-            if (url) {
-              try {
-                // URL이 유효한지 확인
-                if (url.startsWith('http://') || url.startsWith('https://')) {
-                  const downloadRes = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                      'Accept': 'audio/mpeg, audio/*, */*',
-                    },
-                  })
-                  if (downloadRes.ok) {
-                    const downloadedBlob = await downloadRes.blob()
-                    const downloadedDurationSec = await getMp3DurationSec(downloadedBlob)
-                    
-                    // 캐시에 저장 (다운로드한 파일 사용)
-                    const entry = { 
-                      blob: downloadedBlob, 
-                      durationSec: downloadedDurationSec, 
-                      markup, 
-                      url, 
-                      sceneId: scene.sceneId, 
-                      sceneIndex 
-                    }
-                    ttsCacheRef.current.set(key, entry)
-                    return entry
-                  }
-                }
-              } catch (downloadError) {
-                // 다운로드 실패 무시 (생성한 blob 사용)
-              }
-            }
+          } else {
+            console.error('[ensureSceneTts] 업로드 실패:', uploadRes.status, uploadRes.statusText)
+            alert('파일 업로드에 실패했습니다. 개발자에게 문의해주세요.')
           }
-        } catch (error) {
-          // 업로드 실패 무시
+        } catch (uploadError) {
+          console.error('[ensureSceneTts] 업로드 실패:', uploadError)
+          alert('파일 업로드에 실패했습니다. 개발자에게 문의해주세요.')
         }
 
-        // 업로드 실패하거나 다운로드 실패한 경우 생성한 blob 사용
-        const entry = { blob, durationSec, markup, url, sceneId: scene.sceneId, sceneIndex }
+        // 캐시에 저장
+        const entry = { 
+          blob, 
+          durationSec, 
+          markup, 
+          url, 
+          sceneId: scene.sceneId, 
+          sceneIndex 
+        }
         ttsCacheRef.current.set(key, entry)
         return entry
       })().finally(() => {
         ttsInFlightRef.current.delete(key)
       })
 
+      // promise를 즉시 시작하고 ttsInFlightRef에 저장 (병렬 처리 보장)
       ttsInFlightRef.current.set(key, p)
-      const result = await p
-
-      return {
+      
+      // promise를 즉시 반환 (진짜 병렬 처리)
+      return p.then((result) => ({
         blob: result.blob,
         durationSec: result.durationSec,
         url: result.url || null,
         partIndex,
         markup,
-      }
-    })()
-
-    parts.push(part)
+      }))
+    })
+    
+    // 배치 내의 모든 promise를 동시에 시작하고 완료 대기
+    const batchResults = await Promise.all(batchPromises)
+    allParts.push(...batchResults)
   }
 
-  // 전체 씬 duration 업데이트 (모든 구간의 duration 합)
-  const totalDuration = parts.reduce((sum, part) => sum + part.durationSec, 0)
+  // 모든 part를 배치별로 순차 처리 (배치 내에서는 병렬)
+  const parts: TtsPart[] = allParts
+  
+  // partIndex 순서대로 정렬 (원래 순서 유지)
+  parts.sort((a: TtsPart, b: TtsPart) => a.partIndex - b.partIndex)
+  
+  // 최종 duration만 업데이트 (병렬 처리로 모든 part가 동시에 완료되므로)
+  // 각 part 완료 시마다 업데이트하는 것은 불필요 (성능 최적화)
+
+  // 최종 duration 업데이트 (모든 구간의 duration 합)
+  const totalDuration = parts.reduce((sum: number, part: TtsPart) => sum + part.durationSec, 0)
   if (totalDuration > 0) {
     setSceneDurationFromAudio(sceneIndex, totalDuration)
   }

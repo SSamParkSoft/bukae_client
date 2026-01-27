@@ -45,51 +45,58 @@ export function useFabricSync({
 
     // 이미지 (좌표를 스케일 비율에 맞게 조정)
     if (scene.image) {
-      const img = await (fabric.Image.fromURL as (url: string, options?: { crossOrigin?: string }) => Promise<fabric.Image>)(
-        scene.image,
-        { crossOrigin: 'anonymous' }
-      ) as fabric.Image
-      
-      if (img) {
-        const transform = scene.imageTransform
-        let centerX: number, centerY: number, imgScaleX: number, imgScaleY: number, angleDeg: number
+      try {
+        const img = await (fabric.Image.fromURL as (url: string, options?: { crossOrigin?: string }) => Promise<fabric.Image>)(
+          scene.image,
+          { crossOrigin: 'anonymous' }
+        ) as fabric.Image
         
-        if (transform) {
-          angleDeg = (transform.rotation || 0) * (180 / Math.PI)
-          const effectiveWidth = transform.width * (transform.scaleX || 1)
-          const effectiveHeight = transform.height * (transform.scaleY || 1)
-          imgScaleX = (effectiveWidth / img.width) * scale
-          imgScaleY = (effectiveHeight / img.height) * scale
-          // transform.x와 transform.y는 중심점 좌표
-          centerX = transform.x * scale
-          centerY = transform.y * scale
+        // img가 null이 아니고, 이미지가 제대로 로드되었는지 확인
+        if (img && img.width && img.height && img.width > 0 && img.height > 0) {
+          const transform = scene.imageTransform
+          let centerX: number, centerY: number, imgScaleX: number, imgScaleY: number, angleDeg: number
+          
+          if (transform) {
+            angleDeg = (transform.rotation || 0) * (180 / Math.PI)
+            const effectiveWidth = transform.width * (transform.scaleX || 1)
+            const effectiveHeight = transform.height * (transform.scaleY || 1)
+            imgScaleX = (effectiveWidth / img.width) * scale
+            imgScaleY = (effectiveHeight / img.height) * scale
+            // transform.x와 transform.y는 중심점 좌표
+            centerX = transform.x * scale
+            centerY = transform.y * scale
+          } else {
+            // 초기 contain/cover 계산과 동일하게 배치
+            const params = calculateSpriteParams(img.width, img.height, width, height, scene.imageFit || 'contain')
+            imgScaleX = (params.width / img.width) * scale
+            imgScaleY = (params.height / img.height) * scale
+            // params.x와 params.y도 중심점 좌표
+            centerX = params.x * scale
+            centerY = params.y * scale
+            angleDeg = 0
+          }
+          
+          // originX: 'center', originY: 'center'일 때 Fabric.js의 left/top 속성은 중심점 좌표를 의미함
+          img.set({
+            originX: 'center',
+            originY: 'center',
+            left: centerX, // 중심점 x 좌표
+            top: centerY,  // 중심점 y 좌표
+            scaleX: imgScaleX,
+            scaleY: imgScaleY,
+            angle: angleDeg,
+            selectable: true,
+            evented: true,
+            centeredScaling: true, // 리사이즈 시 중심점 유지
+            centeredRotation: true, // 회전 시 중심점 유지
+          })
+          ;(img as fabric.Image & { dataType?: 'image' | 'text' }).dataType = 'image'
+          fabricCanvas.add(img)
         } else {
-          // 초기 contain/cover 계산과 동일하게 배치
-          const params = calculateSpriteParams(img.width, img.height, width, height, scene.imageFit || 'contain')
-          imgScaleX = (params.width / img.width) * scale
-          imgScaleY = (params.height / img.height) * scale
-          // params.x와 params.y도 중심점 좌표
-          centerX = params.x * scale
-          centerY = params.y * scale
-          angleDeg = 0
+          console.warn('[useFabricSync] 이미지 로드 실패 또는 유효하지 않은 이미지:', scene.image)
         }
-        
-        // originX: 'center', originY: 'center'일 때 Fabric.js의 left/top 속성은 중심점 좌표를 의미함
-        img.set({
-          originX: 'center',
-          originY: 'center',
-          left: centerX, // 중심점 x 좌표
-          top: centerY,  // 중심점 y 좌표
-          scaleX: imgScaleX,
-          scaleY: imgScaleY,
-          angle: angleDeg,
-          selectable: true,
-          evented: true,
-          centeredScaling: true, // 리사이즈 시 중심점 유지
-          centeredRotation: true, // 회전 시 중심점 유지
-        })
-        ;(img as fabric.Image & { dataType?: 'image' | 'text' }).dataType = 'image'
-        fabricCanvas.add(img)
+      } catch (error) {
+        console.error('[useFabricSync] 이미지 로드 중 에러:', error)
       }
     }
 
@@ -135,7 +142,19 @@ export function useFabricSync({
       fabricCanvas.add(textObj)
     }
 
-    fabricCanvas.renderAll()
+    // renderAll 전에 모든 객체가 유효한지 확인
+    try {
+      const objects = fabricCanvas.getObjects()
+      // destroyed된 객체나 null 객체 제거
+      objects.forEach((obj, index) => {
+        if (!obj || (obj as fabric.Object & { destroyed?: boolean }).destroyed) {
+          fabricCanvas.remove(obj)
+        }
+      })
+      fabricCanvas.renderAll()
+    } catch (error) {
+      console.error('[useFabricSync] renderAll 에러:', error)
+    }
   }, [useFabricEditing, fabricCanvasRef, fabricScaleRatioRef, currentSceneIndexRef, timeline, stageDimensions])
 
   return {

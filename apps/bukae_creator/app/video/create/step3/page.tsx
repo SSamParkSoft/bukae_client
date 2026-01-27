@@ -49,6 +49,7 @@ export default function Step3Page() {
             currentSceneIndex={container.currentSceneIndex}
             textsRef={container.textsRef}
             appRef={container.appRef}
+            bgmTemplate={container.bgmTemplate}
           />
         </div>
 
@@ -109,6 +110,7 @@ export default function Step3Page() {
             scenesWithoutVoice={container.scenesWithoutVoice}
             globalVoiceTemplate={container.voiceTemplate}
             onVoiceTemplateChange={container.handleSceneVoiceTemplateChange}
+            onMotionChange={container.handleSceneMotionChange}
           />
         </div>
       </motion.div>

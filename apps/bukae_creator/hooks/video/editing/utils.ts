@@ -35,17 +35,26 @@ export function getPixiCoordinates(e: MouseEvent, app: PIXI.Application): { x: n
  * 요소가 canvas 밖으로 나갔는지 체크
  */
 export function isOutsideCanvas(element: PIXI.Sprite | PIXI.Text): boolean {
-  const bounds = element.getBounds()
-  
-  if (
-    bounds.x + bounds.width < 0 ||
-    bounds.x > STAGE_WIDTH ||
-    bounds.y + bounds.height < 0 ||
-    bounds.y > STAGE_HEIGHT
-  ) {
+  if (!element || element.destroyed) {
     return true
   }
-  return false
+  
+  try {
+    const bounds = element.getBounds()
+    
+    if (
+      bounds.x + bounds.width < 0 ||
+      bounds.x > STAGE_WIDTH ||
+      bounds.y + bounds.height < 0 ||
+      bounds.y > STAGE_HEIGHT
+    ) {
+      return true
+    }
+    return false
+  } catch (error) {
+    // getBounds 실패 시 true 반환 (canvas 밖으로 간 것으로 간주)
+    return true
+  }
 }
 
 /**

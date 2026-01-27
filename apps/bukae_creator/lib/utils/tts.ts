@@ -43,3 +43,8 @@ export const makeTtsKey = (voiceName: string, markup: string): string => {
   return `${voiceName}::${markup}`
 }
 
+/**
+ * TTS 키 생성 함수 타입
+ */
+export type MakeTtsKeyFunction = (voiceName: string, markup: string) => string
+

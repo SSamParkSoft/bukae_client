@@ -36,8 +36,10 @@ export function usePixiFabric({
   editMode,
   mounted = true,
   setCanvasSize,
-  activeAnimationsRef,
+  activeAnimationsRef: _activeAnimationsRef,
 }: UsePixiFabricParams) {
+  // activeAnimationsRef는 현재 사용되지 않지만 향후 사용을 위해 유지
+  void _activeAnimationsRef
   // PixiJS 초기화
   useEffect(() => {
     if (!mounted) {
@@ -61,7 +63,29 @@ export function usePixiFabric({
     if (appRef.current) {
       const existingCanvas = container.querySelector('canvas')
       if (existingCanvas) container.removeChild(existingCanvas)
-      appRef.current.destroy(true, { children: true, texture: true })
+      const existingApp = appRef.current
+      try {
+        // texture 정리 전에 stage를 먼저 정리하여 안전하게 destroy
+        if (existingApp.stage) {
+          try {
+            existingApp.stage.destroy({ children: true })
+          } catch (stageError) {
+            console.warn('usePixiFabric: Error destroying stage', stageError)
+          }
+        }
+        // texture 정리를 제외하고 destroy (texture 정리 시 에러 발생 가능)
+        existingApp.destroy(true, { children: false, texture: false })
+      } catch (error) {
+        console.error('usePixiFabric: Error destroying existing app', error)
+        // 에러 발생 시에도 canvas를 제거
+        try {
+          if (existingApp.canvas && existingApp.canvas.parentNode) {
+            existingApp.canvas.parentNode.removeChild(existingApp.canvas)
+          }
+        } catch (cleanupError) {
+          console.warn('usePixiFabric: Error during cleanup', cleanupError)
+        }
+      }
       appRef.current = null
       containerRef.current = null
     }
@@ -160,6 +184,12 @@ export function usePixiFabric({
             currentApp.ticker.start()
           }
           
+          // GSAP ticker를 PIXI ticker와 동기화
+          // GSAP의 기본 ticker는 requestAnimationFrame을 사용하므로 자동으로 업데이트됨
+          // 하지만 PIXI ticker와 동기화를 위해 PIXI ticker 콜백에서 GSAP을 업데이트
+          // GSAP ticker는 기본적으로 활성화되어 있으므로 별도 설정 불필요
+          // PIXI ticker 콜백에서 GSAP 애니메이션이 자동으로 업데이트됨
+          
           // Ticker에 렌더링 콜백 추가 (유일한 렌더링 지점)
           const tickerCallback = () => {
             // appRef.current가 null이거나 destroy되었는지 확인
@@ -168,14 +198,33 @@ export function usePixiFabric({
               return
             }
             
+            // 컨테이너의 모든 자식 객체가 유효한지 확인 (destroyed된 객체 제거)
+            if (containerRef.current) {
+              const children = Array.from(containerRef.current.children)
+              children.forEach((child) => {
+                // destroyed 속성을 직접 체크 (PIXI.js의 모든 DisplayObject는 destroyed 속성을 가짐)
+                if (child && 'destroyed' in child && child.destroyed) {
+                  try {
+                    containerRef.current?.removeChild(child)
+                  } catch {
+                    // 제거 실패 시 무시
+                  }
+                }
+              })
+            }
+            
             try {
               // Canvas 렌더링 (유일한 렌더링 지점)
               currentApp.render()
             } catch (error) {
               // 렌더링 중 에러 발생 시 무시 (앱이 destroy된 경우 등)
-              console.warn('[usePixiFabric] Render error:', error)
+              // 에러 로그는 개발 환경에서만 출력
+              if (process.env.NODE_ENV === 'development') {
+                console.warn('[usePixiFabric] Render error:', error)
+              }
             }
           }
+          
           app.ticker.add(tickerCallback)
           
           // Canvas 크기 상태 업데이트
@@ -198,15 +247,37 @@ export function usePixiFabric({
       if (appRef.current) {
         // ticker를 먼저 중지하여 콜백이 더 이상 실행되지 않도록 함
         if (appRef.current.ticker) {
-          appRef.current.ticker.stop()
+          try {
+            appRef.current.ticker.stop()
+          } catch (error) {
+            console.warn('usePixiFabric: Error stopping ticker', error)
+          }
         }
         // app이 유효한지 확인 후 destroy (destroy 호출 전에 다시 확인)
         const app = appRef.current
-        if (app) {
+        // app이 null이 아니고 destroy 메서드가 존재하는지 확인
+        if (app && typeof app.destroy === 'function') {
           try {
-            app.destroy(true, { children: true, texture: true })
+            // texture 정리 전에 stage를 먼저 정리하여 안전하게 destroy
+            if (app.stage) {
+              try {
+                app.stage.destroy({ children: true })
+              } catch (stageError) {
+                console.warn('usePixiFabric: Error destroying stage', stageError)
+              }
+            }
+            // texture 정리를 제외하고 destroy (texture 정리 시 에러 발생 가능)
+            app.destroy(true, { children: false, texture: false })
           } catch (error) {
             console.error('usePixiFabric: Error destroying app', error)
+            // 에러 발생 시에도 appRef를 null로 설정하여 무한 루프 방지
+            try {
+              if (app.canvas && app.canvas.parentNode) {
+                app.canvas.parentNode.removeChild(app.canvas)
+              }
+            } catch (cleanupError) {
+              console.warn('usePixiFabric: Error during cleanup', cleanupError)
+            }
           }
         }
         appRef.current = null
@@ -222,7 +293,21 @@ export function usePixiFabric({
       setFabricReady(false)
       setPixiReady(false)
     }
-  }, [mounted, stageDimensions, setPixiReady, setFabricReady])
+  }, [
+    mounted,
+    stageDimensions.width,
+    stageDimensions.height,
+    setPixiReady,
+    setFabricReady,
+    // ref들은 안정적이므로 의존성 배열에서 제외
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    appRef,
+    containerRef,
+    fabricCanvasElementRef,
+    fabricCanvasRef,
+    pixiContainerRef,
+    setCanvasSize,
+  ])
 
   // Fabric.js 초기화 (편집 오버레이)
   useEffect(() => {
@@ -355,11 +440,13 @@ export function usePixiFabric({
       }
       setFabricReady(false)
     }
+    // ref들은 안정적이므로 의존성 배열에서 제외
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     mounted,
     useFabricEditing,
-    stageDimensions,
-    fabricScaleRatioRef,
+    stageDimensions.width,
+    stageDimensions.height,
     editMode,
     setFabricReady,
   ])

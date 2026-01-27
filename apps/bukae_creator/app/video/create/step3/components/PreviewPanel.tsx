@@ -35,6 +35,7 @@ interface PreviewPanelProps {
   currentSceneIndex?: number
   textsRef?: React.MutableRefObject<Map<number, PIXI.Text>>
   appRef?: React.RefObject<PIXI.Application | null>
+  bgmTemplate?: string | null
 }
 
 export const PreviewPanel = memo(function PreviewPanel({
@@ -63,6 +64,7 @@ export const PreviewPanel = memo(function PreviewPanel({
   currentSceneIndex = 0,
   textsRef,
   appRef,
+  bgmTemplate,
 }: PreviewPanelProps) {
   const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
 
@@ -109,7 +111,7 @@ export const PreviewPanel = memo(function PreviewPanel({
             }}
           >
             {/* 격자 오버레이 (크기 조정하기 템플릿 가이드) */}
-            {gridOverlaySize && (
+            {gridOverlaySize && gridOverlaySize.width > 0 && gridOverlaySize.height > 0 && (
               <div 
                 className="absolute pointer-events-none z-50"
                 style={{ 
@@ -185,6 +187,8 @@ export const PreviewPanel = memo(function PreviewPanel({
             playbackSpeed={speed}
             isPlaying={isPlaying}
             onTimelineMouseDown={onTimelineMouseDown}
+            timeline={timeline}
+            bgmTemplate={bgmTemplate}
           />
 
           <PlaybackControls

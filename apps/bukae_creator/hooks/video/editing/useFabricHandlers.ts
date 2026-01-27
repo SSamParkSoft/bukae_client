@@ -53,8 +53,21 @@ export function useFabricHandlers({
 
       // Fabric.js의 이미지는 originX: 'center', originY: 'center'로 설정되어 있음
       // 따라서 left와 top이 이미 중심점 좌표임
-      const scaledWidth = target.getScaledWidth() ?? (target.width || 0)
-      const scaledHeight = target.getScaledHeight() ?? (target.height || 0)
+      // target이 null이거나 destroyed 상태인지 확인
+      if (!target || (target as fabric.Object & { destroyed?: boolean }).destroyed) {
+        return
+      }
+      
+      let scaledWidth: number
+      let scaledHeight: number
+      try {
+        scaledWidth = target.getScaledWidth?.() ?? (target.width || 0)
+        scaledHeight = target.getScaledHeight?.() ?? (target.height || 0)
+      } catch (error) {
+        console.warn('[useFabricHandlers] getScaledWidth/getScaledHeight 에러:', error)
+        scaledWidth = target.width || 0
+        scaledHeight = target.height || 0
+      }
       const centerX = target.left ?? 0
       const centerY = target.top ?? 0
 
@@ -102,14 +115,30 @@ export function useFabricHandlers({
         return
       }
 
+      // target이 null이거나 destroyed 상태인지 확인
+      if (!target || (target as fabric.Object & { destroyed?: boolean }).destroyed) {
+        return
+      }
+
       const scale = fabricScaleRatioRef.current || 1
       const invScale = 1 / scale
+
+      let scaledWidth: number
+      let scaledHeight: number
+      try {
+        scaledWidth = target.getScaledWidth?.() ?? (target.width || 0)
+        scaledHeight = target.getScaledHeight?.() ?? (target.height || 0)
+      } catch (error) {
+        console.warn('[useFabricHandlers] getScaledWidth/getScaledHeight 에러:', error)
+        scaledWidth = target.width || 0
+        scaledHeight = target.height || 0
+      }
 
       const nextTransform = {
         x: (target.left ?? 0) * invScale,
         y: (target.top ?? 0) * invScale,
-        width: (target.getScaledWidth() ?? (target.width || 0)) * invScale,
-        height: (target.getScaledHeight() ?? (target.height || 0)) * invScale,
+        width: scaledWidth * invScale,
+        height: scaledHeight * invScale,
         scaleX: 1,
         scaleY: 1,
         rotation: ((target.angle || 0) * Math.PI) / 180,
@@ -147,13 +176,17 @@ export function useFabricHandlers({
       setTimeline(nextTimeline)
 
       // 리사이즈 후 scale을 1로 리셋하고 fontSize를 실제 크기로 설정
-      if (fabricCanvasRef.current) {
-        target.set({
-          fontSize: baseFontSize * textScaleY,
-          scaleX: 1,
-          scaleY: 1,
-        })
-        fabricCanvasRef.current.requestRenderAll()
+      if (fabricCanvasRef.current && target && !(target as fabric.Object & { destroyed?: boolean }).destroyed) {
+        try {
+          target.set({
+            fontSize: baseFontSize * textScaleY,
+            scaleX: 1,
+            scaleY: 1,
+          })
+          fabricCanvasRef.current.requestRenderAll()
+        } catch (error) {
+          console.warn('[useFabricHandlers] target.set 에러:', error)
+        }
       }
 
     },
@@ -178,7 +211,8 @@ export function useFabricHandlers({
       const target = e?.target as fabric.Object & { dataType?: 'image' | 'text' }
       const sceneIndex = currentSceneIndexRef.current
 
-      if (!target) {
+      // target이 null이거나 destroyed 상태인지 확인
+      if (!target || (target as fabric.Object & { destroyed?: boolean }).destroyed) {
         return
       }
 
@@ -196,11 +230,15 @@ export function useFabricHandlers({
       savedSceneIndexRef.current = savedIndex
       isManualSceneSelectRef.current = true
 
-      if (target.dataType === 'image') {
-        saveImageTransform(target, savedIndex)
-      } else if (target.dataType === 'text') {
-        const textbox = target as fabric.Textbox
-        saveTextTransform(textbox, savedIndex, true)
+      try {
+        if (target.dataType === 'image') {
+          saveImageTransform(target, savedIndex)
+        } else if (target.dataType === 'text') {
+          const textbox = target as fabric.Textbox
+          saveTextTransform(textbox, savedIndex, true)
+        }
+      } catch (error) {
+        console.error('[useFabricHandlers] handleModified 에러:', error)
       }
 
       clearFlags()
@@ -214,7 +252,8 @@ export function useFabricHandlers({
   const handleTextChanged = useCallback(
     (e: fabric.ModifiedEvent<fabric.TPointerEvent>) => {
       const target = e?.target as fabric.Textbox & { dataType?: 'image' | 'text' }
-      if (!target || target.dataType !== 'text') {
+      // target이 null이거나 destroyed 상태인지 확인
+      if (!target || (target as fabric.Object & { destroyed?: boolean }).destroyed || target.dataType !== 'text') {
         return
       }
 
@@ -263,7 +302,8 @@ export function useFabricHandlers({
   const handleTextEditingExited = useCallback(
     (e: fabric.ModifiedEvent<fabric.TPointerEvent>) => {
       const target = e?.target as fabric.Textbox & { dataType?: 'image' | 'text' }
-      if (!target || target.dataType !== 'text') {
+      // target이 null이거나 destroyed 상태인지 확인
+      if (!target || (target as fabric.Object & { destroyed?: boolean }).destroyed || target.dataType !== 'text') {
         return
       }
 
@@ -273,8 +313,12 @@ export function useFabricHandlers({
       savedSceneIndexRef.current = savedIndex
       isManualSceneSelectRef.current = true
 
-      const textbox = target as fabric.Textbox
-      saveTextTransform(textbox, savedIndex, true)
+      try {
+        const textbox = target as fabric.Textbox
+        saveTextTransform(textbox, savedIndex, true)
+      } catch (error) {
+        console.error('[useFabricHandlers] handleTextEditingExited 에러:', error)
+      }
 
       clearFlags()
     },

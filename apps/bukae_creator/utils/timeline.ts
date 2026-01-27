@@ -1,11 +1,17 @@
 /**
  * 시간(초)을 MM:SS 형식으로 포맷합니다.
  * @param seconds 초 단위 시간
- * @returns MM:SS 형식 문자열
+ * @param includeMs 밀리초 포함 여부 (기본값: false)
+ * @returns MM:SS 또는 MM:SS.mmm 형식 문자열
  */
-export const formatTime = (seconds: number): string => {
+export const formatTime = (seconds: number, includeMs: boolean = false): string => {
   const mins = Math.floor(seconds / 60)
   const secs = Math.floor(seconds % 60)
+  const ms = Math.floor((seconds % 1) * 1000)
+  
+  if (includeMs) {
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`
+  }
   return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 
@@ -29,15 +35,26 @@ export const getSceneDuration = (script: string): number => {
  * @returns 씬의 시작 시간 (초)
  */
 export const getSceneStartTime = (timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number }> }, sceneIndex: number): number => {
-  if (!timeline) return 0
+  if (!timeline || !timeline.scenes || timeline.scenes.length === 0) return 0
+  if (sceneIndex < 0 || sceneIndex >= timeline.scenes.length) return 0
+  
+  // 씬 사이 간격: 부동소수점 오차 방지 및 경계 명확화를 위한 작은 간격
+  const SCENE_GAP = 0.001 // 1ms 간격 (부동소수점 오차 방지)
+  
   let time = 0
   for (let i = 0; i < sceneIndex; i++) {
     const currentScene = timeline.scenes[i]
+    if (!currentScene) continue
+    
     const nextScene = timeline.scenes[i + 1]
     // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
     const isSameSceneId = nextScene && currentScene.sceneId === nextScene.sceneId
     const transitionDuration = isSameSceneId ? 0 : (currentScene.transitionDuration || 0.5)
-    time += currentScene.duration + transitionDuration
+    const sceneGap = isSameSceneId ? 0 : SCENE_GAP
+    
+    // 다음 씬 시작 시간 = 현재 씬 시작 시간 + duration + transitionDuration + sceneGap
+    // sceneGap을 더해서 이전 씬 종료 시간과 겹치지 않도록 함
+    time += currentScene.duration + transitionDuration + sceneGap
   }
   return time
 }
@@ -55,7 +72,7 @@ export const calculateTotalDuration = (
   options?: {
     ttsCacheRef?: React.MutableRefObject<Map<string, { durationSec: number }>>,
     voiceTemplate?: string | null,
-    buildSceneMarkup?: (timeline: any, sceneIndex: number) => string[],
+    buildSceneMarkup?: (timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number; voiceTemplate?: string | null; text?: { content?: string } }> } | null, sceneIndex: number) => string[],
     makeTtsKey?: (voiceName: string, markup: string) => string,
   }
 ): number => {

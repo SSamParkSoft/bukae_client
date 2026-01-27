@@ -172,7 +172,7 @@ export function useSceneTransition({
       const previousScene = previousIndex !== null ? timeline.scenes[previousIndex] : null
 
       // 전환 효과 결정
-      const transition = forceTransition || currentScene?.transition || 'fade'
+      const transition = forceTransition || currentScene?.transition || 'none'
 
       // 같은 씬 내 구간 전환 중인지 확인
       const isSameScene =
@@ -239,9 +239,37 @@ export function useSceneTransition({
       const isZoomEffect = forceTransition === 'zoom-in' || forceTransition === 'zoom-out' || 
                           currentScene.transition === 'zoom-in' || currentScene.transition === 'zoom-out'
 
+      // UX 개선: 같은 씬 전환 시 (효과 변경 포함) 현재 씬의 스프라이트와 텍스트를 명시적으로 표시
       if (isSameSceneTransition && !isZoomEffect) {
-        currentSprite.visible = true
-        currentSprite.alpha = 1
+        // 현재 씬의 스프라이트 명시적으로 표시
+        if (currentSprite) {
+          currentSprite.visible = true
+          currentSprite.alpha = 1
+        }
+        // 현재 씬의 텍스트도 명시적으로 표시 (자막이 사라지지 않도록)
+        if (renderSubtitlePartRef.current) {
+          renderSubtitlePartRef.current(actualSceneIndex, partIndex ?? null, {
+            skipAnimation: true,
+          })
+        }
+        return
+      }
+      
+      // UX 개선: 효과 변경 시 (previousIndex === actualSceneIndex) 현재 씬 렌더링 보장
+      if (previousIndex === actualSceneIndex) {
+        // 같은 씬에서 효과만 변경하는 경우
+        // 현재 씬의 스프라이트와 텍스트를 명시적으로 표시
+        if (currentSprite) {
+          currentSprite.visible = true
+          currentSprite.alpha = 1
+        }
+        // 자막도 보장
+        if (renderSubtitlePartRef.current) {
+          renderSubtitlePartRef.current(actualSceneIndex, partIndex ?? null, {
+            skipAnimation: true,
+          })
+        }
+        // 효과 변경은 applyEnterEffect에서 처리하므로 여기서는 기본 렌더링만 보장
         return
       }
 
@@ -260,25 +288,11 @@ export function useSceneTransition({
           }
         })
 
-        // 현재 씬의 텍스트 표시 (편집 모드)
-        const currentText = textsRef.current.get(actualSceneIndex)
-        if (currentText && containerRef.current) {
-          if (currentText.parent !== containerRef.current) {
-            if (currentText.parent) {
-              currentText.parent.removeChild(currentText)
-            }
-            containerRef.current.addChild(currentText)
-          }
-          currentText.visible = true
-          currentText.alpha = 1
-          
-          // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
-          // 이미 맨 위가 아니면만 setChildIndex 호출 (깜빡임 방지)
-          const currentIndex = containerRef.current.getChildIndex(currentText)
-          const maxIndex = containerRef.current.children.length - 1
-          if (currentIndex !== maxIndex) {
-            containerRef.current.setChildIndex(currentText, maxIndex)
-          }
+        // 현재 씬의 텍스트 표시 (편집 모드) - renderSubtitlePart 사용
+        if (renderSubtitlePartRef.current) {
+          renderSubtitlePartRef.current(actualSceneIndex, partIndex ?? null, {
+            skipAnimation: true,
+          })
         }
 
         // 씬이 넘어갔을 때만 이전 씬의 텍스트 숨김
@@ -302,16 +316,20 @@ export function useSceneTransition({
       const hasSplitIndex = currentScene.splitIndex !== undefined
       const previousHasSplitIndex = previousScene?.splitIndex !== undefined
 
+      // UX 개선: 분할된 씬(splitIndex)도 같은 그룹으로 인식하여 안정적 렌더링 보장
+      // 단, 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 다른 그룹 간 전환으로 처리하여 전환 효과 적용
       const isInSameGroup =
         previousScene &&
         currentScene &&
         hasSceneId &&
         previousScene.sceneId === currentScene.sceneId &&
-        !hasSplitIndex &&
-        !previousHasSplitIndex
+        // 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 다른 그룹 간 전환으로 처리 (전환 효과 적용)
+        !(previousHasSplitIndex === false && hasSplitIndex === true)
 
+      // UX 개선: firstSceneIndex 계산을 isInSameGroup 조건과 분리
+      // 분할된 씬으로 전환할 때도 올바르게 계산되어 첫 번째 구간임을 정확히 인식
       const firstSceneIndex =
-        isInSameGroup && hasSceneId
+        hasSceneId && currentScene.sceneId !== undefined
           ? timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
           : -1
       const isFirstSceneInGroup = firstSceneIndex === actualSceneIndex
@@ -325,36 +343,14 @@ export function useSceneTransition({
       }
 
       // 같은 그룹 내 씬 전환 (첫 번째 씬이 아닌 경우)
-      if (isInSameGroup && !isFirstSceneInGroup) {
-        if (!isManualSceneSelectRef.current) {
-          let textToUpdate = currentText
-
-          if (!textToUpdate && currentScene.sceneId !== undefined) {
-            const firstSceneIndexInGroup = timeline.scenes.findIndex(
-              (s) => s.sceneId === currentScene.sceneId
-            )
-            if (firstSceneIndexInGroup >= 0) {
-              textToUpdate = textsRef.current.get(firstSceneIndexInGroup) || undefined
-            }
-          }
-
-          if (textToUpdate && currentScene.text?.content) {
-            let displayText: string
-            if (partIndex === null || partIndex === undefined) {
-              displayText = currentScene.text.content
-            } else {
-              const scriptParts = (currentScene.text.content || '')
-                .split(/\s*\|\|\|\s*/)
-                .map((part) => (part && typeof part === 'string' ? part.trim() : ''))
-                .filter((part) => part.length > 0)
-              displayText = scriptParts.length > 1 ? scriptParts[0] : currentScene.text.content
-            }
-            if (textToUpdate.text !== displayText) {
-              textToUpdate.text = displayText
-            }
-            textToUpdate.visible = displayText.length > 0
-            textToUpdate.alpha = displayText.length > 0 ? 1 : 0
-          }
+      // 단, 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 다른 그룹 간 전환이므로 전환 효과 적용
+      const isTransitionToSplitScene = previousHasSplitIndex === false && hasSplitIndex === true
+      if (isInSameGroup && !isFirstSceneInGroup && !isTransitionToSplitScene) {
+        if (!isManualSceneSelectRef.current && renderSubtitlePartRef.current) {
+          // renderSubtitlePart를 사용하여 텍스트 렌더링 (중복 제거)
+          renderSubtitlePartRef.current(actualSceneIndex, partIndex ?? null, {
+            skipAnimation: true,
+          })
         }
 
         previousSceneIndexRef.current = actualSceneIndex
@@ -362,8 +358,14 @@ export function useSceneTransition({
       }
 
       // 전환 효과 시작 전에 이전 씬 숨기기
+      // UX 개선: 같은 그룹 내 씬 전환 시 이전 씬을 숨기지 않아서 분할된 씬에서 안정적 렌더링 보장
+      // 단, 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 이전 씬을 숨겨서 전환 효과가 보이도록 함
+      // isTransitionToSplitScene은 위에서 이미 선언됨
       const shouldHidePreviousBeforeTransition =
-        previousIndex !== null && previousIndex !== actualSceneIndex && !isFirstSceneInGroup
+        previousIndex !== null && 
+        previousIndex !== actualSceneIndex && 
+        (!isFirstSceneInGroup || isTransitionToSplitScene) && // 분할된 씬으로 전환할 때는 첫 번째 구간이어도 이전 씬 숨김
+        !isInSameGroup // 같은 그룹 내 씬 전환 시 이전 씬 숨김 방지
       if (shouldHidePreviousBeforeTransition && previousIndex !== null) {
         const prevSprite = spritesRef.current.get(previousIndex)
         const prevText = textsRef.current.get(previousIndex)
@@ -521,15 +523,17 @@ export function useSceneTransition({
             : -1
         const isFirstSceneInGroup = firstSceneIndex === actualSceneIndex
 
+        // UX 개선: Line 321-327의 로직과 일치하도록 isInSameGroup 재계산
+        // 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 다른 그룹 간 전환으로 처리
         let isInSameGroup = false
         const currentHasSplitIndex = currentScene.splitIndex !== undefined
-        if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined && !currentHasSplitIndex) {
+        const previousHasSplitIndexForRecalc = previousScene?.splitIndex !== undefined
+        if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
           if (previousIndex !== null && previousScene !== null) {
-            const previousHasSplitIndex = previousScene.splitIndex !== undefined
             isInSameGroup =
-              (previousScene.sceneId === currentScene.sceneId ||
-                previousIndex === actualSceneIndex) &&
-              !previousHasSplitIndex
+              previousScene.sceneId === currentScene.sceneId &&
+              // 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 다른 그룹 간 전환으로 처리
+              !(previousHasSplitIndexForRecalc === false && currentHasSplitIndex === true)
           } else {
             const lastRenderedIndex = previousSceneIndexRef.current
             if (lastRenderedIndex !== null) {
@@ -538,7 +542,8 @@ export function useSceneTransition({
               if (
                 lastRenderedScene &&
                 lastRenderedScene.sceneId === currentScene.sceneId &&
-                !lastRenderedHasSplitIndex
+                // 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 다른 그룹 간 전환으로 처리
+                !(lastRenderedHasSplitIndex === false && currentHasSplitIndex === true)
               ) {
                 isInSameGroup = true
               }
@@ -554,39 +559,18 @@ export function useSceneTransition({
           }
         }
 
-        let transition: string
-        let transitionDuration: number
-
-        if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
-          const firstSceneInGroup = timeline.scenes[firstSceneIndex]
-          transition = forceTransition || firstSceneInGroup?.transition || 'fade'
-
-          if (firstSceneIndex === actualSceneIndex) {
-            transitionDuration =
-              overrideTransitionDuration !== undefined
-                ? overrideTransitionDuration
-                : currentScene.transitionDuration && currentScene.transitionDuration > 0
-                  ? currentScene.transitionDuration
-                  : currentScene.duration && currentScene.duration > 0
-                    ? currentScene.duration
-                    : 0.5
-          } else {
-            transitionDuration =
-              overrideTransitionDuration !== undefined
-                ? overrideTransitionDuration
-                : currentScene.duration && currentScene.duration > 0
-                  ? currentScene.duration
-                  : 0.5
-          }
-        } else {
-          transition = forceTransition || currentScene.transition || 'fade'
-          transitionDuration =
-            overrideTransitionDuration !== undefined
-              ? overrideTransitionDuration
-              : currentScene.transitionDuration && currentScene.transitionDuration > 0
-                ? currentScene.transitionDuration
+        // 씬별로 개별 전환 효과를 적용하도록 수정
+        // 같은 그룹 내 씬들도 각각의 transition 속성을 사용
+        // forceTransition이 있으면 우선 사용, 없으면 현재 씬의 transition 사용
+        const transition: string = forceTransition || currentScene.transition || 'none'
+        const transitionDuration: number =
+          overrideTransitionDuration !== undefined
+            ? overrideTransitionDuration
+            : currentScene.transitionDuration && currentScene.transitionDuration > 0
+              ? currentScene.transitionDuration
+              : currentScene.duration && currentScene.duration > 0
+                ? currentScene.duration
                 : 0.5
-        }
 
         const { width, height } = stageDimensions
 
@@ -615,17 +599,16 @@ export function useSceneTransition({
           spriteToUse.visible = true
           spriteToUse.alpha = 1
 
-          if (currentText) {
-            if (currentText.parent !== containerRef.current && containerRef.current) {
+          // 텍스트는 renderSubtitlePart에서 처리하므로 여기서는 컨테이너에 추가만 수행
+          if (currentText && containerRef.current) {
+            if (currentText.parent !== containerRef.current) {
               if (currentText.parent) {
                 currentText.parent.removeChild(currentText)
               }
               containerRef.current.addChild(currentText)
             }
-            currentText.visible = true
-            currentText.alpha = 1
+            // 텍스트 visible/alpha는 renderSubtitlePart에서 처리
             // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
-            // 이미 맨 위가 아니면만 setChildIndex 호출 (깜빡임 방지)
             if (containerRef.current) {
               const currentIndex = containerRef.current.getChildIndex(currentText)
               const maxIndex = containerRef.current.children.length - 1
@@ -633,6 +616,13 @@ export function useSceneTransition({
                 containerRef.current.setChildIndex(currentText, maxIndex)
               }
             }
+          }
+          
+          // renderSubtitlePart를 사용하여 텍스트 렌더링
+          if (renderSubtitlePartRef.current) {
+            renderSubtitlePartRef.current(actualSceneIndex, partIndex ?? null, {
+              skipAnimation: true,
+            })
           }
 
           previousSceneIndexRef.current = actualSceneIndex
@@ -646,9 +636,6 @@ export function useSceneTransition({
 
         // 현재 씬을 컨테이너에 추가
         if (!containerRef.current) {
-          console.error(
-            `[updateCurrentScene] containerRef.current가 null - sceneIndex: ${actualSceneIndex}`
-          )
           return
         }
 
@@ -680,8 +667,8 @@ export function useSceneTransition({
           containerRef.current.addChild(spriteToUse)
         }
 
-        // 텍스트 처리
-        // 현재 씬의 텍스트 표시
+        // 텍스트 처리 - renderSubtitlePart에서 처리하므로 여기서는 컨테이너에 추가만 수행
+        // renderSubtitlePart가 텍스트 표시를 담당하므로 중복 렌더링 방지
         if (currentText && containerRef.current) {
           if (currentText.parent !== containerRef.current) {
             if (currentText.parent) {
@@ -689,9 +676,6 @@ export function useSceneTransition({
             }
             containerRef.current.addChild(currentText)
           }
-          currentText.visible = true
-          currentText.alpha = 1
-          
           // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
           // 이미 맨 위가 아니면만 setChildIndex 호출 (깜빡임 방지)
           const currentIndex = containerRef.current.getChildIndex(currentText)
@@ -700,15 +684,7 @@ export function useSceneTransition({
             containerRef.current.setChildIndex(currentText, maxIndex)
           }
         }
-        
-        // 씬이 넘어갔을 때만 이전 씬의 텍스트 숨김
-        if (previousSceneIndexRef.current !== null && previousSceneIndexRef.current !== actualSceneIndex) {
-          const previousText = textsRef.current.get(previousSceneIndexRef.current)
-          if (previousText && previousText !== currentText) {
-            previousText.visible = false
-            previousText.alpha = 0
-          }
-        }
+        // 텍스트 visible/alpha 설정은 renderSubtitlePart에서 처리
 
         // spriteToUse의 visibility 설정
         // 재생 중이고 전환 효과가 있는 경우, applyEnterEffect에서 alpha를 설정하므로
@@ -730,16 +706,15 @@ export function useSceneTransition({
           // alpha는 applyEnterEffect에서 전환 효과 시작 시 설정됨
         }
 
-        if (currentText && !isManualSceneSelectRef.current) {
-          if (currentText.parent !== containerRef.current && containerRef.current) {
+        // 텍스트는 renderSubtitlePart에서 처리하므로 여기서는 컨테이너에 추가만 수행
+        if (currentText && !isManualSceneSelectRef.current && containerRef.current) {
+          if (currentText.parent !== containerRef.current) {
             if (currentText.parent) {
               currentText.parent.removeChild(currentText)
             }
             containerRef.current.addChild(currentText)
           }
-          // 재생 중 깜빡임 방지를 위해 미리 표시 상태 고정
-          currentText.visible = true
-          currentText.alpha = 1
+          // 텍스트 visible/alpha는 renderSubtitlePart에서 처리
           // 텍스트를 맨 위로 올림 (자막이 이미지 위에 보이도록)
           // 이미 맨 위가 아니면만 setChildIndex 호출 (깜빡임 방지)
           if (containerRef.current) {
@@ -765,80 +740,19 @@ export function useSceneTransition({
           }
         }
 
-        // 같은 그룹 내 씬인 경우
+        // 같은 그룹 내 씬인 경우 - renderSubtitlePart를 사용하여 텍스트 렌더링 (중복 제거)
         if (isInSameGroup && !isFirstSceneInGroup) {
-          let textToUpdate = currentText
-
-          if (!textToUpdate && firstSceneIndex >= 0) {
-            textToUpdate = textsRef.current.get(firstSceneIndex) || undefined
-          }
-
-          if (currentScene.sceneId !== undefined) {
-            let textWithDebugId: PIXI.Text | null = null
-            let maxDebugId = ''
-            textsRef.current.forEach((text, idx) => {
-              if (text) {
-                const textScene = timeline.scenes[idx]
-                const debugId = (text as PIXI.Text & { __debugId?: string }).__debugId
-                const matchesSceneId = textScene?.sceneId === currentScene.sceneId
-                const matchesIndex = idx === actualSceneIndex
-                if (matchesIndex || matchesSceneId) {
-                  if (debugId && debugId.startsWith('text_')) {
-                    if (debugId > maxDebugId) {
-                      maxDebugId = debugId
-                      textWithDebugId = text
-                    }
-                  }
-                }
-              }
-            })
-
-            if (textWithDebugId !== null) {
-              textToUpdate = textWithDebugId
-            } else {
-              let visibleText: PIXI.Text | null = null
-              textsRef.current.forEach((text, idx) => {
-                if (text && text.visible && text.alpha > 0) {
-                  const textScene = timeline.scenes[idx]
-                  if (textScene?.sceneId === currentScene.sceneId || idx === actualSceneIndex) {
-                    visibleText = text
-                  }
-                }
-              })
-
-              if (visibleText) {
-                textToUpdate = visibleText
-              } else if (firstSceneIndex >= 0) {
-                const firstText = textsRef.current.get(firstSceneIndex)
-                if (firstText) {
-                  textToUpdate = firstText
-                }
-              }
-            }
-          }
-
-          if (!textToUpdate) {
-            if (currentText) {
-              textToUpdate = currentText
-            } else if (firstSceneIndex >= 0) {
-              textToUpdate = textsRef.current.get(firstSceneIndex) || undefined
-            }
-          }
-
-          if (!isManualSceneSelectRef.current) {
+          if (!isManualSceneSelectRef.current && renderSubtitlePartRef.current) {
+            // 이전 텍스트 숨기기
             if (previousText && previousIndex !== null && previousIndex !== actualSceneIndex) {
               previousText.visible = false
               previousText.alpha = 0
             }
-
-            if (textToUpdate && appRef.current) {
-              if (textToUpdate.parent !== containerRef.current) {
-                if (textToUpdate.parent) {
-                  textToUpdate.parent.removeChild(textToUpdate)
-                }
-                containerRef.current.addChild(textToUpdate)
-              }
-            }
+            
+            // renderSubtitlePart를 사용하여 텍스트 렌더링
+            renderSubtitlePartRef.current(actualSceneIndex, partIndex ?? null, {
+              skipAnimation: true,
+            })
           }
 
           previousSceneIndexRef.current = actualSceneIndex
@@ -897,7 +811,7 @@ export function useSceneTransition({
             actualSceneIndex,
             forceTransition,
             () => {
-              // 전환 효과 완료 후 텍스트를 항상 보이게 함
+              // 전환 효과 완료 후 텍스트 렌더링 - renderSubtitlePart 사용
               if (currentText && containerRef.current) {
                 if (currentText.parent !== containerRef.current) {
                   if (currentText.parent) {
@@ -905,8 +819,7 @@ export function useSceneTransition({
                   }
                   containerRef.current.addChild(currentText)
                 }
-                currentText.visible = true
-                currentText.alpha = 1
+                // 텍스트 visible/alpha는 renderSubtitlePart에서 처리
                 const currentIndex = containerRef.current.getChildIndex(currentText)
                 const maxIndex = containerRef.current.children.length - 1
                 if (currentIndex !== maxIndex) {
@@ -916,6 +829,14 @@ export function useSceneTransition({
                   currentText.mask = null
                 }
               }
+              
+              // renderSubtitlePart를 사용하여 텍스트 렌더링
+              if (renderSubtitlePartRef.current) {
+                renderSubtitlePartRef.current(actualSceneIndex, partIndex ?? null, {
+                  skipAnimation: true,
+                })
+              }
+              
               previousSceneIndexRef.current = actualSceneIndex
               wrappedOnComplete()
             },
@@ -944,12 +865,10 @@ export function useSceneTransition({
           }
         })
 
-        if (!isManualSceneSelectRef.current) {
-          textsRef.current.forEach((text, index) => {
-            if (text?.parent) {
-              text.visible = index === actualSceneIndex
-              text.alpha = index === actualSceneIndex ? 1 : 0
-            }
+        // 텍스트 렌더링은 renderSubtitlePart에서 처리
+        if (!isManualSceneSelectRef.current && renderSubtitlePartRef.current) {
+          renderSubtitlePartRef.current(actualSceneIndex, partIndex ?? null, {
+            skipAnimation: true,
           })
         }
 
@@ -967,6 +886,7 @@ export function useSceneTransition({
       currentSceneIndexRef,
       previousSceneIndexRef,
       isManualSceneSelectRef,
+      renderSubtitlePartRef,
     ]
   )
 

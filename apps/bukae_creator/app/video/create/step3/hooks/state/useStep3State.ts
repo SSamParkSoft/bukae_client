@@ -50,13 +50,9 @@ export function useStep3State() {
     voiceTemplateRef.current = voiceTemplate
   }, [voiceTemplate])
   
-  // FullPlayback ref (핸들러 최적화를 위해 사용, 렌더링 불필요)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const fullPlaybackRef = useRef<any>(null)
-  
-  // GroupPlayback ref (핸들러 최적화를 위해 사용, 렌더링 불필요)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const groupPlaybackRef = useRef<any>(null)
+  // 레거시 재생 시스템 ref 제거 - Transport 기반으로 완전 전환
+  // const fullPlaybackRef = useRef<any>(null)
+  // const groupPlaybackRef = useRef<any>(null)
   
   // PixiJS DOM 및 객체 참조 (렌더링 불필요, 내부 로직에서만 사용)
   const pixiContainerRef = useRef<HTMLDivElement>(null)
@@ -202,8 +198,8 @@ export function useStep3State() {
     // Refs
     timelineRef,
     voiceTemplateRef,
-    fullPlaybackRef,
-    groupPlaybackRef,
+    // fullPlaybackRef, // 레거시 제거
+    // groupPlaybackRef, // 레거시 제거
     pixiContainerRef,
     appRef,
     containerRef,

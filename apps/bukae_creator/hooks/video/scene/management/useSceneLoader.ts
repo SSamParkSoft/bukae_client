@@ -74,10 +74,15 @@ export function useSceneLoader({
     // spritesRef의 모든 스프라이트 destroy
     spritesRef.current.forEach((sprite) => {
       try {
-        if (sprite && sprite.parent) {
-          sprite.parent.removeChild(sprite)
-        }
         if (sprite) {
+          // 이벤트 시스템에서 접근하지 않도록 interactive를 false로 설정
+          sprite.interactive = false
+          sprite.cursor = 'default'
+          // 모든 이벤트 리스너 제거
+          sprite.removeAllListeners()
+          if (sprite.parent) {
+            sprite.parent.removeChild(sprite)
+          }
           sprite.destroy({ children: true })
         }
       } catch (error) {
@@ -101,10 +106,15 @@ export function useSceneLoader({
     // textsRef의 모든 텍스트 객체 destroy
     textsRef.current.forEach((text) => {
       try {
-        if (text && text.parent) {
-          text.parent.removeChild(text)
-        }
         if (text) {
+          // 이벤트 시스템에서 접근하지 않도록 interactive를 false로 설정
+          text.interactive = false
+          text.cursor = 'default'
+          // 모든 이벤트 리스너 제거
+          text.removeAllListeners()
+          if (text.parent) {
+            text.parent.removeChild(text)
+          }
           text.destroy({ children: true })
         }
       } catch (error) {
@@ -128,12 +138,24 @@ export function useSceneLoader({
         const isFirstSceneInGroup = firstSceneIndexInGroup === sceneIndex
 
         // 첫 번째 씬이 아니고 같은 그룹 내에 스프라이트가 이미 있으면 공유
+        // 단, 분할된 씬(splitIndex가 있는 경우)은 각 씬 인덱스별로 별도 텍스트 객체가 필요하므로 텍스트는 생성해야 함
         if (!isFirstSceneInGroup && firstSceneIndexInGroup >= 0) {
           const firstSceneSprite = spritesRef.current.get(firstSceneIndexInGroup)
           if (firstSceneSprite) {
             // 같은 그룹 내 씬들은 첫 번째 씬의 스프라이트를 참조
             spritesRef.current.set(sceneIndex, firstSceneSprite)
-            return
+            
+            // 분할된 씬이 아니면 텍스트도 공유하고 return
+            // 분할된 씬은 각 씬 인덱스별로 별도 텍스트 객체가 필요하므로 계속 진행
+            if (scene.splitIndex === undefined) {
+              const firstSceneText = textsRef.current.get(firstSceneIndexInGroup)
+              if (firstSceneText) {
+                // 같은 그룹 내 씬들은 첫 번째 씬의 텍스트 객체를 참조
+                textsRef.current.set(sceneIndex, firstSceneText)
+              }
+              return
+            }
+            // 분할된 씬의 경우 텍스트 객체는 아래에서 생성
           }
         }
 
@@ -268,7 +290,8 @@ export function useSceneLoader({
             if (text.style && scene.text.transform.width) {
               const baseWidth = scene.text.transform.width / scaleX
               text.style.wordWrapWidth = baseWidth
-              text.text = text.text // 스타일 변경 적용
+              // text.text가 null이 되지 않도록 보장
+              text.text = text.text || ''
             }
           } else {
             // Transform이 없으면 자막 위치 설정 (top / center / bottom)
@@ -294,7 +317,7 @@ export function useSceneLoader({
               ;(text as PIXI.Text & { __debugId?: string }).__debugId = savedData.debugId
               // 수동 업데이트된 텍스트인 경우 텍스트 내용도 복원
               if (savedData.text && savedData.text !== '와 대박!') {
-                text.text = savedData.text
+                text.text = savedData.text || ''
               }
             }
           }
