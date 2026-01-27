@@ -164,9 +164,29 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
       // 분할되지 않은 씬의 경우 같은 그룹 내에서 텍스트 객체를 공유할 수 있음
       let targetTextObj: PIXI.Text | null = null
       
-      // 분할된 씬의 경우 현재 씬 인덱스의 텍스트 객체만 사용 (겹침 방지)
+      // 분할된 씬의 경우 현재 씬 인덱스의 텍스트 객체를 우선 사용
       if (scene.splitIndex !== undefined) {
         targetTextObj = textsRef.current.get(sceneIndex) || null
+        
+        // 분할된 씬인데 텍스트 객체가 없으면 같은 그룹 내 다른 씬의 텍스트 객체를 찾아서 사용
+        // 단, 분할된 씬은 각각 별도의 텍스트 객체를 가져야 하므로, 아직 생성되지 않았을 경우 임시로 사용
+        if (!targetTextObj && sceneId !== undefined) {
+          // 같은 그룹 내 모든 씬 인덱스 찾기
+          const sameGroupSceneIndices = timeline.scenes
+            .map((s, idx) => (s.sceneId === sceneId ? idx : -1))
+            .filter((idx) => idx >= 0 && idx !== sceneIndex)
+          
+          // 같은 그룹 내 씬들 중 텍스트 객체가 있는 첫 번째 씬 찾기
+          for (const groupSceneIndex of sameGroupSceneIndices) {
+            const groupTextObj = textsRef.current.get(groupSceneIndex)
+            if (groupTextObj && !groupTextObj.destroyed) {
+              // 분할된 씬은 별도의 텍스트 객체가 필요하지만, 아직 생성되지 않았을 경우
+              // 같은 그룹 내 다른 씬의 텍스트 객체를 임시로 사용 (렌더링 보장)
+              targetTextObj = groupTextObj
+              break
+            }
+          }
+        }
       } else {
         // 분할되지 않은 씬의 경우 같은 그룹 내 첫 번째 씬 인덱스의 텍스트 객체 사용
         if (sceneId !== undefined) {
@@ -735,7 +755,32 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
       }
 
       const { forceTransition, previousIndex, onComplete, prepareOnly = false } = options || {}
-      const currentSprite = spritesRef.current.get(sceneIndex)
+      
+      // 분할된 씬(splitIndex)의 경우 같은 그룹 내 첫 번째 씬의 스프라이트를 사용
+      // useSceneLoader에서 분할된 씬은 첫 번째 씬의 스프라이트를 참조하도록 설정됨
+      let currentSprite = spritesRef.current.get(sceneIndex)
+      
+      // 스프라이트가 없고 분할된 씬인 경우, 같은 그룹 내 모든 씬의 스프라이트 찾기
+      if (!currentSprite && scene.sceneId !== undefined) {
+        // 같은 그룹 내 모든 씬 인덱스 찾기
+        const sameGroupSceneIndices = timeline.scenes
+          .map((s, idx) => (s.sceneId === scene.sceneId ? idx : -1))
+          .filter((idx) => idx >= 0)
+        
+        // 같은 그룹 내 씬들 중 스프라이트가 있는 첫 번째 씬 찾기
+        for (const groupSceneIndex of sameGroupSceneIndices) {
+          const groupSprite = spritesRef.current.get(groupSceneIndex)
+          if (groupSprite) {
+            currentSprite = groupSprite
+            // 분할된 씬의 인덱스에도 스프라이트 참조 설정 (다음 번 호출 시 빠른 접근)
+            if (groupSceneIndex !== sceneIndex) {
+              spritesRef.current.set(sceneIndex, groupSprite)
+            }
+            break
+          }
+        }
+      }
+      
       if (!currentSprite) {
         if (onComplete) {
           onComplete()
@@ -743,7 +788,31 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         return
       }
 
-      const previousSprite = previousIndex !== null && previousIndex !== undefined ? spritesRef.current.get(previousIndex) : null
+      // 이전 씬의 스프라이트 찾기 (분할된 씬 처리 포함)
+      let previousSprite: PIXI.Sprite | null = null
+      if (previousIndex !== null && previousIndex !== undefined && previousIndex < timeline.scenes.length) {
+        previousSprite = spritesRef.current.get(previousIndex) || null
+        
+        // 분할된 씬인 경우 같은 그룹 내 모든 씬의 스프라이트 찾기
+        if (!previousSprite) {
+          const previousScene = timeline.scenes[previousIndex]
+          if (previousScene?.sceneId !== undefined) {
+            // 같은 그룹 내 모든 씬 인덱스 찾기
+            const sameGroupSceneIndices = timeline.scenes
+              .map((s, idx) => (s.sceneId === previousScene.sceneId ? idx : -1))
+              .filter((idx) => idx >= 0)
+            
+            // 같은 그룹 내 씬들 중 스프라이트가 있는 첫 번째 씬 찾기
+            for (const groupSceneIndex of sameGroupSceneIndices) {
+              const groupSprite = spritesRef.current.get(groupSceneIndex)
+              if (groupSprite) {
+                previousSprite = groupSprite
+                break
+              }
+            }
+          }
+        }
+      }
 
       if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
         previousSprite.visible = false
@@ -788,7 +857,30 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
           previousIndex !== undefined ? previousIndex : currentSceneIndexRef.current,
           forceTransition,
           () => {
-            const finalSprite = spritesRef.current.get(sceneIndex)
+            // 전환 완료 후 최종 스프라이트 찾기 (분할된 씬 처리 포함)
+            let finalSprite = spritesRef.current.get(sceneIndex)
+            
+            // 분할된 씬인 경우 같은 그룹 내 모든 씬의 스프라이트 찾기
+            if (!finalSprite && scene.sceneId !== undefined) {
+              // 같은 그룹 내 모든 씬 인덱스 찾기
+              const sameGroupSceneIndices = timeline.scenes
+                .map((s, idx) => (s.sceneId === scene.sceneId ? idx : -1))
+                .filter((idx) => idx >= 0)
+              
+              // 같은 그룹 내 씬들 중 스프라이트가 있는 첫 번째 씬 찾기
+              for (const groupSceneIndex of sameGroupSceneIndices) {
+                const groupSprite = spritesRef.current.get(groupSceneIndex)
+                if (groupSprite) {
+                  finalSprite = groupSprite
+                  // 분할된 씬의 인덱스에도 스프라이트 참조 설정
+                  if (groupSceneIndex !== sceneIndex) {
+                    spritesRef.current.set(sceneIndex, groupSprite)
+                  }
+                  break
+                }
+              }
+            }
+            
             if (finalSprite) {
               finalSprite.visible = true
               finalSprite.alpha = 1

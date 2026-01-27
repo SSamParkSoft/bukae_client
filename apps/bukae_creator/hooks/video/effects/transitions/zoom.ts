@@ -32,19 +32,25 @@ export function applyZoomTransition(
   // toSprite를 로컬 변수로 저장하여 클로저에서 안전하게 접근
   const spriteRef = toSprite
 
-  const toZoomObj = { scale: originalScale }
-  spriteRef.scale.set(originalScaleX, originalScaleY)
-  // 페이드 효과 제거: alpha를 항상 1로 설정
-  spriteRef.alpha = 1
-  spriteRef.visible = true
-
   // anchor가 (0.5, 0.5)이므로 originalX, originalY는 이미 중심점 좌표
   const centerX = originalX
   const centerY = originalY
 
   applyTextFade(toText)
 
-  const targetScale = direction === 'in' ? originalScale * 1.15 : originalScale * 0.85
+  // zoom-in: 작은 것에서 큰 것으로 (확대) - originalScale * 0.85 → originalScale
+  // zoom-out: 큰 것에서 작은 것으로 (축소) - originalScale * 1.5 → originalScale
+  // useTransitionEffects.ts와 일치하도록 1.5 사용
+  const startScale = direction === 'in' ? originalScale * 0.85 : originalScale * 1.5
+  const targetScale = originalScale
+  
+  // 시작 스케일로 설정
+  spriteRef.scale.set(startScale, startScale * scaleRatio)
+  // 페이드 효과 제거: alpha를 항상 1로 설정
+  spriteRef.alpha = 1
+  spriteRef.visible = true
+
+  const toZoomObj = { scale: startScale }
 
   // timeline.clear()를 제거 - 메인 타임라인의 onComplete가 제거되지 않도록 함
   // 대신 이전 애니메이션은 메인 타임라인에서 이미 정리됨

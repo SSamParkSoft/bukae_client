@@ -541,12 +541,21 @@ export function useSceneNavigation({
       isManualSceneSelectRef.current = false
     }
     
-    // 같은 씬 내 구간 전환인 경우: 자막만 업데이트
-    if (isSameScene && renderSubtitlePart) {
-      renderSubtitlePart(sceneIndex, partIndex, {
-        skipAnimation: true,
-        onComplete: transitionCompleteCallback,
-      })
+    // 같은 씬 내 구간 전환: 이미지와 자막 모두 즉시 렌더링
+    if (isSameScene) {
+      // 이미지 렌더링
+      if (renderSceneImage) {
+        renderSceneImage(sceneIndex, { skipAnimation: true })
+      }
+      // 자막 렌더링
+      if (renderSubtitlePart) {
+        renderSubtitlePart(sceneIndex, partIndex, {
+          skipAnimation: true,
+          onComplete: transitionCompleteCallback,
+        })
+      } else {
+        transitionCompleteCallback()
+      }
       return
     }
     
@@ -562,19 +571,28 @@ export function useSceneNavigation({
         isPlaying: false,
         onComplete: transitionCompleteCallback,
       })
-    } else if (renderSubtitlePart) {
-      // renderSceneContent가 없으면 updateCurrentScene 후 renderSubtitlePart 사용
-      if (updateCurrentScene) {
-        // skipAnimation 파라미터 제거: forceTransition으로 처리
-        updateCurrentScene(prevIndex, scene.transition, () => {
+    } else if (updateCurrentScene) {
+      // renderSceneContent가 없으면 updateCurrentScene 사용
+      // 전환 완료 후 이미지와 자막 모두 렌더링 보장
+      updateCurrentScene(prevIndex, scene.transition, () => {
+        // 이미지 렌더링
+        if (renderSceneImage) {
+          renderSceneImage(sceneIndex, { skipAnimation: true })
+        }
+        // 자막 렌더링
+        if (renderSubtitlePart) {
           renderSubtitlePart(sceneIndex, partIndex, {
             skipAnimation: true,
             onComplete: transitionCompleteCallback,
           })
-        }, false, partIndex, sceneIndex)
-      }
+        } else {
+          transitionCompleteCallback()
+        }
+      }, false, partIndex, sceneIndex)
+    } else {
+      transitionCompleteCallback()
     }
-  }, [timeline, setSelectedPart, renderSceneContent, renderSubtitlePart, updateCurrentScene, previousSceneIndexRef, isManualSceneSelectRef, currentSceneIndexRef, setCurrentSceneIndex, lastRenderedSceneIndexRef, setIsPreviewingTransition])
+  }, [timeline, setSelectedPart, renderSceneContent, renderSubtitlePart, renderSceneImage, updateCurrentScene, previousSceneIndexRef, isManualSceneSelectRef, currentSceneIndexRef, setCurrentSceneIndex, lastRenderedSceneIndexRef, setIsPreviewingTransition])
 
   return {
     selectScene,

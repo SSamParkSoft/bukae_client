@@ -349,13 +349,14 @@ export class GSAPTransportAdapter {
     const easedProgress = ease(progress)
 
     if (transitionType === 'zoom-in') {
-      // 줌 인: startScale = originalScale * 1.15, endScale = originalScale
-      const startScale = this.originalScaleX * 1.15
+      // 줌 인 (확대): 작은 것에서 큰 것으로 - startScale = originalScale * 0.85, endScale = originalScale
+      const startScale = this.originalScaleX * 0.85
       const targetScale = gsap.utils.mapRange(0, 1, startScale, this.originalScaleX, easedProgress)
       toSprite.scale.set(targetScale, targetScale * this.scaleRatio)
     } else {
-      // 줌 아웃: startScale = originalScale * 0.85, endScale = originalScale
-      const startScale = this.originalScaleX * 0.85
+      // 줌 아웃 (축소): 큰 것에서 작은 것으로 - startScale = originalScale * 1.5, endScale = originalScale
+      // useTransitionEffects.ts와 일치하도록 1.5 사용
+      const startScale = this.originalScaleX * 1.5
       const targetScale = gsap.utils.mapRange(0, 1, startScale, this.originalScaleX, easedProgress)
       toSprite.scale.set(targetScale, targetScale * this.scaleRatio)
     }

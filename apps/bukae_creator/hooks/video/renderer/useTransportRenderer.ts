@@ -623,11 +623,29 @@ export function useTransportRenderer({
       // 분할되지 않은 씬의 경우 같은 그룹 내에서 텍스트 객체를 공유할 수 있음
       let targetTextObj: PIXI.Text | null = null
       
-      // 분할된 씬의 경우 현재 씬 인덱스의 텍스트 객체만 사용 (겹침 방지)
+      // 분할된 씬의 경우 현재 씬 인덱스의 텍스트 객체를 우선 사용
       if (scene.splitIndex !== undefined) {
         targetTextObj = textsRef.current.get(sceneIndex) || null
-        // 분할된 씬인데 텍스트 객체가 없으면 같은 그룹 내 다른 씬 인덱스의 텍스트 객체를 찾지 않음
-        // 분할된 씬은 반드시 자신만의 텍스트 객체를 가져야 함
+        
+        // 분할된 씬인데 텍스트 객체가 없으면 같은 그룹 내 다른 씬의 텍스트 객체를 찾아서 사용
+        // 단, 분할된 씬은 각각 별도의 텍스트 객체를 가져야 하므로, 아직 생성되지 않았을 경우 임시로 사용
+        if (!targetTextObj && sceneId !== undefined) {
+          // 같은 그룹 내 모든 씬 인덱스 찾기
+          const sameGroupSceneIndices = timeline.scenes
+            .map((s, idx) => (s.sceneId === sceneId ? idx : -1))
+            .filter((idx) => idx >= 0 && idx !== sceneIndex)
+          
+          // 같은 그룹 내 씬들 중 텍스트 객체가 있는 첫 번째 씬 찾기
+          for (const groupSceneIndex of sameGroupSceneIndices) {
+            const groupTextObj = textsRef.current.get(groupSceneIndex)
+            if (groupTextObj && !groupTextObj.destroyed) {
+              // 분할된 씬은 별도의 텍스트 객체가 필요하지만, 아직 생성되지 않았을 경우
+              // 같은 그룹 내 다른 씬의 텍스트 객체를 임시로 사용 (렌더링 보장)
+              targetTextObj = groupTextObj
+              break
+            }
+          }
+        }
       } else {
         // 분할되지 않은 씬의 경우 현재 씬 인덱스의 텍스트 객체를 우선 사용
         targetTextObj = textsRef.current.get(sceneIndex) || null

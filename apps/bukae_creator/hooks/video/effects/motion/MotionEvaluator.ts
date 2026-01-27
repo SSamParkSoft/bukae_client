@@ -167,16 +167,16 @@ export class MotionEvaluator {
     const { scaleFrom = 1, scaleTo = 1.5 } = motion.params
 
     if (motion.type === 'zoom-in') {
-      // 확대: 원래 크기(baseScale 또는 1)에서 확대된 크기로
-      // baseScale에서 baseScale * scaleTo로 확대
-      const fromScale = baseScale > 0 ? baseScale : 1
-      const toScale = fromScale * scaleTo
+      // 확대: 작은 것에서 큰 것으로
+      // baseScale * scaleFrom에서 baseScale * scaleTo로 확대
+      const fromScale = baseScale > 0 ? baseScale * (scaleFrom || 0.8) : (scaleFrom || 0.8)
+      const toScale = baseScale > 0 ? baseScale * scaleTo : scaleTo
       return fromScale + (toScale - fromScale) * eased
     } else if (motion.type === 'zoom-out') {
-      // 축소: 원래 크기(baseScale 또는 1)에서 축소된 크기로
-      // baseScale에서 baseScale * scaleFrom으로 축소
-      const fromScale = baseScale > 0 ? baseScale : 1
-      const toScale = fromScale * scaleFrom
+      // 축소: 큰 것에서 작은 것으로
+      // baseScale * scaleFrom에서 baseScale * scaleTo로 축소
+      const fromScale = baseScale > 0 ? baseScale * (scaleFrom || 1.2) : (scaleFrom || 1.2)
+      const toScale = baseScale > 0 ? baseScale * scaleTo : scaleTo
       return fromScale + (toScale - fromScale) * eased
     }
 
