@@ -38,6 +38,10 @@ export function step3SetupContainers(
     subtitleContainerRef,
     transitionQuadContainerRef,
     lastRenderedSceneIndexRef,
+    resetBaseStateCallback,
+    fabricCanvasRef,
+    fabricScaleRatioRef,
+    stageDimensions,
   } = context
 
   const { sceneChanged, previousRenderedSceneIndex, isTransitionInProgress, isTransitionInProgressForRender } = step8Result
@@ -97,12 +101,9 @@ export function step3SetupContainers(
       }
     }
 
-    // 모든 텍스트 객체를 숨기고 현재 씬의 텍스트만 표시 (자막 누적 방지)
-    textsRef.current.forEach((textObj, textSceneIndex) => {
-      if (textSceneIndex !== sceneIndex && !textObj.destroyed) {
-        textObj.visible = false
-      }
-    })
+    // 텍스트 객체 관리는 step7에서 처리하므로 여기서는 건드리지 않음
+    // step7에서 매 프레임마다 자막을 렌더링하므로, step3에서 텍스트를 숨기면 자막이 사라지는 문제 발생
+    // 자막의 visible/alpha는 step7의 renderSubtitlePart에서 관리됨
   } else if (!isTransitionInProgress && !sceneChanged && containerRef.current) {
     // 전환 효과가 없고 씬이 변경되지 않았으면 전체 비우기
     // 단, sceneChanged가 true이면 Transition 처리가 진행될 예정이므로 removeChildren()을 호출하지 않음
@@ -137,54 +138,63 @@ export function step3SetupContainers(
       containerRef.current?.removeChild(child)
     })
 
-    // 모든 텍스트 객체 숨기기 (자막 누적 방지)
-    textsRef.current.forEach((textObj) => {
-      if (!textObj.destroyed && textObj !== sceneText) {
-        textObj.visible = false
-      }
-    })
+    // 텍스트 객체 관리는 step7에서 처리하므로 여기서는 건드리지 않음
+    // step7에서 매 프레임마다 자막을 렌더링하므로, step3에서 텍스트를 숨기면 자막이 사라지는 문제 발생
+    // 자막의 visible/alpha는 step7의 renderSubtitlePart에서 관리됨
   }
 
   // 현재 씬의 이미지 렌더링 (컨테이너에 추가)
+  // 숨기는 로직: 씬이 변경되면 이전 씬 스프라이트를 즉시 숨김
   if (sprite && !sprite.destroyed && containerRef.current) {
     const container = containerRef.current
-    const spriteAlreadyInContainer = sprite.parent === container
-
-    // 스프라이트가 다른 부모에 있으면 제거
-    if (sprite.parent && sprite.parent !== container) {
-      console.log('[useTransportRenderer] Removing sprite from different parent:', {
-        tSec: tSec.toFixed(3),
-        sceneIndex,
-        oldParent: sprite.parent.constructor.name,
-      })
-      sprite.parent.removeChild(sprite)
-    }
-
-    // 이미 컨테이너에 있으면 추가하지 않음 (중복 방지)
-    // children.includes는 비용이 있으므로 parent 체크로 최적화
-    if (!spriteAlreadyInContainer) {
-      // 중복 체크: 같은 스프라이트가 이미 컨테이너에 있는지 확인 (더 엄격하게)
-      const existingSpriteIndex = container.children.findIndex((child) => child === sprite)
-      const isDuplicate = existingSpriteIndex >= 0
-
-      if (!isDuplicate) {
-        // 로그 제거됨
-        container.addChild(sprite)
-      } else {
-        // 중복된 스프라이트가 있으면 제거 후 다시 추가
-        container.removeChildAt(existingSpriteIndex)
-        container.addChild(sprite)
+    
+    // 씬이 변경되면 이전 씬의 스프라이트를 숨김 (한 번만 실행)
+    // Transition 진행 중일 때는 step6에서 처리하므로 여기서는 건드리지 않음
+    // 중요: sceneChanged가 true이고 Transition이 진행 중가 아닐 때만 실행
+    // step6에서 Transition 진행 중일 때 이전 스프라이트를 보이게 하므로 충돌 방지
+    if (sceneChanged && previousRenderedSceneIndex !== null && previousRenderedSceneIndex !== sceneIndex) {
+      // Transition이 진행 중이 아닐 때만 즉시 숨김
+      // step6에서 Transition 진행 중일 때 이전 스프라이트를 보이게 하므로 여기서는 건드리지 않음
+      if (!isTransitionInProgress && !isTransitionInProgressForRender) {
+        // 이전 씬의 스프라이트만 숨김
+        const previousSprite = spritesRef.current.get(previousRenderedSceneIndex)
+        if (previousSprite && !previousSprite.destroyed) {
+          previousSprite.visible = false
+          previousSprite.alpha = 0
+        }
+        
+        // 다른 모든 씬의 스프라이트도 숨김 (현재 씬 제외)
+        spritesRef.current.forEach((spriteRef, spriteSceneIndex) => {
+          if (spriteSceneIndex !== sceneIndex && spriteSceneIndex !== previousRenderedSceneIndex && spriteRef && !spriteRef.destroyed) {
+            spriteRef.visible = false
+            spriteRef.alpha = 0
+          }
+        })
       }
     }
+    
+    // Transition 진행 중가 아닐 때 현재 씬이 아닌 다른 스프라이트 숨김 (매 프레임 체크)
+    // 하지만 Transition 진행 중일 때는 step6에서 이전 스프라이트를 보이게 하므로 건드리지 않음
+    if (!isTransitionInProgress && !isTransitionInProgressForRender && !sceneChanged) {
+      // 씬이 변경되지 않았고 Transition도 진행 중가 아니면 다른 스프라이트 숨김
+      spritesRef.current.forEach((spriteRef, spriteSceneIndex) => {
+        if (spriteSceneIndex !== sceneIndex && spriteRef && !spriteRef.destroyed) {
+          spriteRef.visible = false
+          spriteRef.alpha = 0
+        }
+      })
+    }
 
-    // 인덱스가 0이 아니면 변경 (불필요한 호출 방지)
-    const currentIndex = container.getChildIndex(sprite)
-    if (currentIndex !== 0 && currentIndex >= 0) {
+    // 현재 씬 스프라이트가 컨테이너에 없으면 추가
+    if (sprite.parent !== container) {
+      if (sprite.parent) {
+        sprite.parent.removeChild(sprite)
+      }
+      container.addChild(sprite)
       container.setChildIndex(sprite, 0)
     }
 
-    // 중복 스프라이트 체크: 같은 스프라이트가 여러 번 있는지 확인 (같은 참조)
-    // 먼저 같은 스프라이트가 여러 번 있는지 확인
+    // 중복 스프라이트 체크: 같은 스프라이트가 여러 번 있는지 확인
     const spriteIndices: number[] = []
     container.children.forEach((child, idx) => {
       if (child === sprite) {
@@ -201,39 +211,13 @@ export function step3SetupContainers(
       }
     }
 
-    // 다른 씬의 스프라이트가 남아있는지 확인 (Transition 진행 중이 아닐 때만)
-    if (!isTransitionInProgress && !isTransitionInProgressForRender) {
-      const spriteSceneMap = new Map<PIXI.Sprite, number>()
-      spritesRef.current.forEach((spriteRef, sceneIdx) => {
-        spriteSceneMap.set(spriteRef, sceneIdx)
-      })
-
-      const duplicateSprites: Array<{ sprite: PIXI.Sprite; sceneIndex: number; index: number }> = []
-      container.children.forEach((child, idx) => {
-        if (child instanceof PIXI.Sprite && child !== sprite) {
-          const childSceneIndex = spriteSceneMap.get(child)
-          if (childSceneIndex !== undefined && childSceneIndex !== sceneIndex) {
-            // 현재 씬의 스프라이트가 아니고, 다른 씬의 스프라이트인 경우
-            duplicateSprites.push({ sprite: child, sceneIndex: childSceneIndex, index: idx })
-          }
-        }
-      })
-
-      if (duplicateSprites.length > 0) {
-        duplicateSprites.forEach((dup) => {
-          if (dup.sprite.parent === container) {
-            container.removeChild(dup.sprite)
-          }
-        })
-      }
-    }
-
     // Checking transition conditions 로그 제거 (불필요한 로그 정리)
     if (sceneChanged && process.env.NODE_ENV === 'development') {
       // 로그 제거됨
     }
 
     // ANIMATION.md 표준: progress 기반 Transition 직접 계산 (GSAP 제거)
+    // 씬이 변경될 때만 실행 (렌더링 충돌 방지)
     if (sceneChanged && !options?.skipAnimation) {
       const previousSceneIndex = lastRenderedSceneIndexRef.current
 
@@ -266,13 +250,6 @@ export function step3SetupContainers(
           // 첫 번째 씬이거나 이전 씬이 없으면 즉시 표시
           sprite.visible = true
           sprite.alpha = 1
-          if (process.env.NODE_ENV === 'development') {
-            console.log('%c🎬 TRANSITION SKIPPED (First scene)', 'color: #9E9E9E; font-weight: bold; font-size: 11px;', {
-              tSec: tSec.toFixed(3),
-              sceneIndex,
-              previousRenderedSceneIndex,
-            })
-          }
         } else {
           // 전환 효과 정보 가져오기
           const nextScene = timeline.scenes[sceneIndex + 1]
@@ -280,20 +257,17 @@ export function step3SetupContainers(
           const transitionDuration = isSameSceneId ? 0 : (currentScene?.transitionDuration || 0.5)
 
           if (transitionDuration > 0) {
-            // 이전 스프라이트도 컨테이너에 추가 (페이드 아웃 효과를 위해)
-            if (previousSprite && !previousSprite.destroyed && previousSprite.parent !== container) {
-              if (previousSprite.parent) {
-                previousSprite.parent.removeChild(previousSprite)
+            // Transition이 설정되어 있으면 step6에서 처리
+            // 여기서는 이전 스프라이트를 숨김 (step6에서 Transition 진행 중일 때만 보이게 함)
+            // Transition 진행 중가 아닐 때만 숨김 (렌더링 충돌 방지)
+            if (!isTransitionInProgress && !isTransitionInProgressForRender) {
+              if (previousSprite && !previousSprite.destroyed) {
+                previousSprite.visible = false
+                previousSprite.alpha = 0
               }
-              container.addChild(previousSprite)
-              container.setChildIndex(previousSprite, 0)
             }
-
-            // Transition은 매 프레임 업데이트 부분에서만 적용
-            // 씬 변경 시점에는 스프라이트만 컨테이너에 추가하고, Transition 적용은 매 프레임 업데이트에서 처리
-            // 이렇게 하면 progress가 올바르게 계산되어 Transition이 제대로 진행됨
           } else {
-            // 전환 효과가 없으면 즉시 표시
+            // 전환 효과가 없으면 즉시 표시하고 이전 스프라이트는 숨김
             sprite.visible = true
             sprite.alpha = 1
             if (previousSprite && !previousSprite.destroyed) {
@@ -303,10 +277,13 @@ export function step3SetupContainers(
           }
         }
       }
-    } else {
+    } else if (!sceneChanged) {
       // 씬이 변경되지 않았거나 skipAnimation이면 즉시 표시
-      sprite.visible = true
-      sprite.alpha = 1
+      // 하지만 Transition 진행 중일 때는 step6에서 처리하므로 건드리지 않음
+      if (!isTransitionInProgress && !isTransitionInProgressForRender) {
+        sprite.visible = true
+        sprite.alpha = 1
+      }
     }
 
     // 스프라이트 렌더링 완료 (로그 제거)

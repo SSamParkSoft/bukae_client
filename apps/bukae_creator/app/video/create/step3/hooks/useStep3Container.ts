@@ -543,8 +543,8 @@ export function useStep3Container() {
   // buildSceneMarkupWithTimeline을 먼저 선언
   const buildSceneMarkupWithTimeline = useCallback(
     (timelineParam: TimelineData | null, sceneIndex: number) => buildSceneMarkup(timelineParam, sceneIndex),
-    []
-  )
+    [buildSceneMarkup]
+  ) as (timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number; voiceTemplate?: string | null; text?: { content?: string } }> } | null, sceneIndex: number) => string[]
 
   // TTS 캐시 ref를 먼저 생성 (useTransport와 useTtsManager에서 공유)
   const ttsCacheRefShared = useRef(
@@ -671,8 +671,11 @@ export function useStep3Container() {
       seekBgmAudio(targetTime)
     }
     // 시각적 렌더링 업데이트
+    // 재생 중이 아닐 때는 애니메이션 적용 (미리보기 목적)
+    // 재생 중일 때는 기존 동작 유지 (skipAnimation: true)
     if (renderAtRef.current) {
-      renderAtRef.current(targetTime, { skipAnimation: true })
+      const shouldSkipAnimation = wasPlaying // 재생 중이면 애니메이션 스킵 (기존 동작 유지)
+      renderAtRef.current(targetTime, { skipAnimation: shouldSkipAnimation })
     }
   }) as React.Dispatch<React.SetStateAction<number>>
   

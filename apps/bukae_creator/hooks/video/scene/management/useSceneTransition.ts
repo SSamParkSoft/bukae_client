@@ -172,7 +172,7 @@ export function useSceneTransition({
       const previousScene = previousIndex !== null ? timeline.scenes[previousIndex] : null
 
       // 전환 효과 결정
-      const transition = forceTransition || currentScene?.transition || 'fade'
+      const transition = forceTransition || currentScene?.transition || 'none'
 
       // 같은 씬 내 구간 전환 중인지 확인
       const isSameScene =
@@ -519,7 +519,7 @@ export function useSceneTransition({
         // 씬별로 개별 전환 효과를 적용하도록 수정
         // 같은 그룹 내 씬들도 각각의 transition 속성을 사용
         // forceTransition이 있으면 우선 사용, 없으면 현재 씬의 transition 사용
-        const transition: string = forceTransition || currentScene.transition || 'fade'
+        const transition: string = forceTransition || currentScene.transition || 'none'
         const transitionDuration: number =
           overrideTransitionDuration !== undefined
             ? overrideTransitionDuration

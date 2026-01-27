@@ -5,7 +5,7 @@
 
 'use client'
 
-import { useCallback, useRef } from 'react'
+import { useCallback } from 'react'
 import * as PIXI from 'pixi.js'
 import * as fabric from 'fabric'
 import { getSceneStartTime } from '@/utils/timeline'
@@ -81,7 +81,7 @@ export function useTransitionEffects({
     sceneIndex: number,
     previousSceneIndex: number | null,
     transitionType: string,
-    scene: TimelineData['scenes'][number]
+    _scene: TimelineData['scenes'][number]
   ): void => {
     const manager = transitionShaderManagerRef.current
     if (!manager || !appRef.current || !containerRef.current) {
@@ -95,27 +95,60 @@ export function useTransitionEffects({
       return
     }
 
-    // 씬 Container 가져오기
-    const sceneAContainer = previousSceneIndex !== null
-      ? sceneContainersRef.current.get(previousSceneIndex)
-      : null
-    const sceneBContainer = sceneContainersRef.current.get(sceneIndex)
-
-    if (!sceneBContainer) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[useTransitionEffects] Shader Transition: Scene B container not found', {
-          sceneIndex,
-        })
-      }
+    // 첫 번째 씬으로 전환하는 경우 (이전 씬이 없음) shader transition 건너뛰기
+    // previousSceneIndex가 null이거나 -1이면 이전 씬이 없으므로 shader transition 불가능
+    if (previousSceneIndex === null || previousSceneIndex < 0) {
+      // 첫 번째 씬으로 전환하는 경우는 shader transition을 건너뛰고 direct transition 사용
       return
+    }
+
+    // 씬 Container 가져오기 (없으면 생성)
+    let sceneAContainer = sceneContainersRef.current.get(previousSceneIndex)
+    
+    // Scene A container가 없거나 destroyed 상태면 생성 (이전 씬이 있는 경우)
+    if (!sceneAContainer || sceneAContainer.destroyed) {
+      sceneAContainer = new PIXI.Container()
+      sceneContainersRef.current.set(previousSceneIndex, sceneAContainer)
+      
+      // 메인 container에 추가 (아직 추가되지 않은 경우)
+      if (containerRef.current && !containerRef.current.children.includes(sceneAContainer)) {
+        containerRef.current.addChild(sceneAContainer)
+      }
+    }
+    
+    // Scene B container가 없거나 destroyed 상태면 생성
+    let sceneBContainer = sceneContainersRef.current.get(sceneIndex)
+    if (!sceneBContainer || sceneBContainer.destroyed) {
+      // Scene B container 생성
+      sceneBContainer = new PIXI.Container()
+      sceneContainersRef.current.set(sceneIndex, sceneBContainer)
+      
+      // 메인 container에 추가 (아직 추가되지 않은 경우)
+      if (containerRef.current && !containerRef.current.children.includes(sceneBContainer)) {
+        containerRef.current.addChild(sceneBContainer)
+      }
     }
 
     // Transition 시작 (처음 한 번만)
     if (!manager.isActive()) {
-      if (!sceneAContainer) {
+      // sceneAContainer와 sceneBContainer 유효성 검사
+      if (!sceneAContainer || sceneAContainer.destroyed) {
         if (process.env.NODE_ENV === 'development') {
-          console.warn('[useTransitionEffects] Shader Transition: Scene A container not found, skipping', {
+          console.warn('[useTransitionEffects] Shader Transition: Scene A container is invalid, skipping', {
             previousSceneIndex,
+            hasContainer: !!sceneAContainer,
+            isDestroyed: sceneAContainer?.destroyed,
+          })
+        }
+        return
+      }
+
+      if (!sceneBContainer || sceneBContainer.destroyed) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[useTransitionEffects] Shader Transition: Scene B container is invalid, skipping', {
+            sceneIndex,
+            hasContainer: !!sceneBContainer,
+            isDestroyed: sceneBContainer?.destroyed,
           })
         }
         return
@@ -160,9 +193,11 @@ export function useTransitionEffects({
     if (!timeline) {
       return
     }
-    const transitionDuration = scene.transitionDuration || 0.5
+    // Transition duration을 1초로 고정 (움직임효과만 TTS 캐시 duration 사용)
+    const transitionDuration = 1.0
     const sceneStartTime = getSceneStartTime(timeline, sceneIndex)
-    const transitionStartTime = sceneStartTime - transitionDuration
+    // Transition은 씬 시작 시점에 시작되도록 함
+    const transitionStartTime = sceneStartTime
     const relativeTime = Math.max(0, t - transitionStartTime)
     const progress = Math.min(1, relativeTime / transitionDuration)
 
@@ -383,12 +418,182 @@ export function useTransitionEffects({
       case 'wipe-right':
       case 'wipe-up':
       case 'wipe-down':
-        // Wipe: 마스크 기반 효과 (간단 버전 - fade로 대체)
+        // Wipe: Shader 기반 효과 (shader transition이 실패했을 때만 fallback으로 사용)
+        // 일반적으로는 step6에서 shader transition으로 처리되므로 이 코드는 실행되지 않음
         toSprite.alpha = eased
         toSprite.visible = true
         if (fromSprite && !fromSprite.destroyed) {
           fromSprite.alpha = 1 - eased
           fromSprite.visible = clampedProgress < 1
+        }
+        break
+
+      case 'circle':
+      case 'circular':
+        // Circle: 원형으로 확장되며 나타남 (마스크 + 페이드)
+        toSprite.width = originalWidth
+        toSprite.height = originalHeight
+        toSprite.x = originalX
+        toSprite.y = originalY
+        toSprite.alpha = eased // 페이드 효과 추가
+        toSprite.visible = true
+        
+        // 원형 마스크 생성 (이미지 중심에서 확장)
+        // 마스크 좌표는 스프라이트의 부모 컨테이너 좌표계를 사용
+        // 스프라이트의 anchor가 (0.5, 0.5)이므로, originalX와 originalY는 이미 이미지의 중심점 좌표
+        // 따라서 마스크의 중심점도 originalX, originalY를 사용
+        const centerX = originalX
+        const centerY = originalY
+        
+        // 이미지의 대각선 길이를 기준으로 최대 반지름 설정 (이미지 크기에 맞춤)
+        const imageDiagonal = Math.sqrt(
+          Math.pow(originalWidth, 2) + Math.pow(originalHeight, 2)
+        )
+        const maxRadius = imageDiagonal * 0.6 // 반지름을 조금 더 줄임
+        const currentRadius = eased * maxRadius
+        
+        // Graphics를 사용하여 원형 마스크 생성
+        // 마스크는 스프라이트와 같은 부모 컨테이너에 있어야 함
+        let mask: PIXI.Graphics
+        const spriteParent = toSprite.parent || containerRef.current
+        
+        if (!toSprite.mask || !(toSprite.mask instanceof PIXI.Graphics)) {
+          // 기존 마스크가 있으면 제거
+          const existingMask = toSprite.mask
+          if (existingMask && existingMask instanceof PIXI.Graphics) {
+            if (existingMask.parent) {
+              existingMask.parent.removeChild(existingMask)
+            }
+            existingMask.destroy()
+          }
+          
+          mask = new PIXI.Graphics()
+          toSprite.mask = mask
+          
+          // 마스크를 스프라이트와 같은 부모에 추가
+          if (spriteParent) {
+            spriteParent.addChild(mask)
+            // 마스크를 스프라이트 뒤에 배치 (렌더링 순서)
+            const spriteIndex = spriteParent.getChildIndex(toSprite)
+            spriteParent.setChildIndex(mask, Math.max(0, spriteIndex))
+          }
+          
+          // 마스크는 보이지 않아야 함 (렌더링되지 않음)
+          mask.visible = true
+          mask.renderable = true
+        } else {
+          mask = toSprite.mask as PIXI.Graphics
+          // 마스크가 부모에 없으면 추가
+          if (!mask.parent && spriteParent) {
+            spriteParent.addChild(mask)
+            const spriteIndex = spriteParent.getChildIndex(toSprite)
+            spriteParent.setChildIndex(mask, Math.max(0, spriteIndex))
+          }
+          
+          // 마스크는 보이지 않아야 함
+          mask.visible = true
+          mask.renderable = true
+        }
+        
+        // 마스크 위치를 부모 컨테이너 좌표계에 맞춤 (부모 컨테이너의 원점 기준)
+        mask.x = 0
+        mask.y = 0
+        
+        // 마스크를 매 프레임마다 다시 그리기
+        // 중심점은 부모 컨테이너 좌표계 기준
+        // 마스크는 흰색 영역이 보이는 영역, 검은색/투명 영역이 숨겨지는 영역
+        mask.clear()
+        mask.beginFill(0x000000, 0.0)
+        mask.drawCircle(centerX, centerY, currentRadius)
+        mask.endFill()
+        
+        // 이전 씬 페이드 아웃
+        if (fromSprite && !fromSprite.destroyed) {
+          fromSprite.alpha = 1 - eased
+          fromSprite.visible = clampedProgress < 1
+        }
+        break
+
+      case 'rotate':
+        // Rotate: 회전하며 나타남
+        toSprite.width = originalWidth
+        toSprite.height = originalHeight
+        toSprite.x = originalX
+        toSprite.y = originalY
+        // 회전: -360도에서 0도로
+        const rotationAngle = -Math.PI * 2 * (1 - eased) // -2π에서 0으로
+        toSprite.rotation = rotationAngle
+        toSprite.alpha = eased
+        toSprite.visible = true
+        if (fromSprite && !fromSprite.destroyed) {
+          fromSprite.alpha = 1 - eased
+          fromSprite.visible = clampedProgress < 1
+        }
+        break
+
+      case 'blur':
+        // Blur: 블러에서 선명하게
+        toSprite.width = originalWidth
+        toSprite.height = originalHeight
+        toSprite.alpha = 1
+        toSprite.visible = true
+        
+        // 블러 필터 적용 (progress에 따라 블러 강도 조절)
+        // progress가 0일 때 최대 블러, 1일 때 블러 없음
+        const blurStrength = 30 * (1 - eased) // 30에서 0으로
+        if (blurStrength > 0.1) {
+          // 블러가 필요한 경우 필터 추가
+          if (!toSprite.filters || toSprite.filters.length === 0 || !(toSprite.filters[0] instanceof PIXI.BlurFilter)) {
+            toSprite.filters = [new PIXI.BlurFilter()]
+          }
+          const blurFilter = toSprite.filters[0] as PIXI.BlurFilter
+          blurFilter.blur = blurStrength
+        } else {
+          // 블러가 거의 없으면 필터 제거
+          toSprite.filters = []
+        }
+        
+        if (fromSprite && !fromSprite.destroyed) {
+          fromSprite.alpha = 1 - eased
+          fromSprite.visible = clampedProgress < 1
+        }
+        break
+
+      case 'glitch':
+        // Glitch: 랜덤 위치 이동하며 나타남
+        toSprite.width = originalWidth
+        toSprite.height = originalHeight
+        toSprite.alpha = eased
+        toSprite.visible = true
+        
+        // 글리치 효과: 시간 기반 랜덤 오프셋 (진행률에 따라 안정적으로 계산)
+        const glitchIntensity = 20 * (1 - eased) // 진행에 따라 감소
+        // progress를 기반으로 시드 생성하여 일관된 랜덤 값 생성
+        const seed = Math.floor(clampedProgress * 100) // 0~100 정수로 변환
+        const pseudoRandom1 = ((seed * 9301 + 49297) % 233280) / 233280 // 간단한 PRNG
+        const pseudoRandom2 = ((seed * 9301 + 49297 + 1) % 233280) / 233280
+        const glitchOffsetX = (pseudoRandom1 - 0.5) * glitchIntensity
+        const glitchOffsetY = (pseudoRandom2 - 0.5) * glitchIntensity * 0.5 // 세로는 약하게
+        toSprite.x = originalX + glitchOffsetX
+        toSprite.y = originalY + glitchOffsetY
+        
+        if (fromSprite && !fromSprite.destroyed) {
+          fromSprite.alpha = 1 - eased
+          fromSprite.visible = clampedProgress < 1
+        }
+        break
+
+      case 'circle':
+      case 'circular':
+        // Circle: Shader Transition으로만 처리됨 (Direct Transition에서는 처리하지 않음)
+        // Shader Transition이 활성화되지 않은 경우 즉시 전환
+        toSprite.width = originalWidth
+        toSprite.height = originalHeight
+        toSprite.alpha = 1
+        toSprite.visible = true
+        if (fromSprite && !fromSprite.destroyed) {
+          fromSprite.visible = false
+          fromSprite.alpha = 0
         }
         break
 
@@ -405,7 +610,7 @@ export function useTransitionEffects({
         }
         break
     }
-  }, [timeline, fabricCanvasRef, fabricScaleRatioRef, stageDimensions])
+  }, [timeline, fabricCanvasRef, fabricScaleRatioRef, stageDimensions, containerRef])
 
   return {
     applyShaderTransition,

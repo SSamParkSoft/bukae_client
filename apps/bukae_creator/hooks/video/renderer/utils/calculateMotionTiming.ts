@@ -108,22 +108,20 @@ export function calculateMotionDuration({
     segmentDuration = scene.duration || 0
   }
   
-  // 슬라이드 효과는 세그먼트 시작부터 시작
-  // Motion의 startSecInScene을 세그먼트 시작 시간(0)으로 설정
+  // Motion은 렌더링되자마자 시작되도록 항상 startSecInScene = 0으로 설정
+  // 씬이 렌더링되는 순간부터 Motion 효과 시작
+  motionStartSecInScene = 0
+  
+  // Motion duration은 세그먼트 duration 또는 씬 duration 사용
   if (getActiveSegment && activeSegmentFromTts) {
-    // 세그먼트 시작부터 시작하도록 설정
-    motionStartSecInScene = 0
     // 세그먼트의 TTS 캐시 duration 사용
     motionDurationSec = segmentDuration
   } else {
-    // 세그먼트 정보가 없으면 기존 로직 사용
-    const motionStartTime = scene.motion.startSecInScene || 0
-    const availableDuration = Math.max(0, segmentDuration - motionStartTime)
-    
+    // 세그먼트 정보가 없으면 씬 duration 사용
     if (scene.motion.durationSec > 0) {
-      motionDurationSec = Math.min(scene.motion.durationSec, availableDuration)
+      motionDurationSec = Math.min(scene.motion.durationSec, segmentDuration)
     } else {
-      motionDurationSec = availableDuration
+      motionDurationSec = segmentDuration
     }
   }
   
@@ -143,17 +141,18 @@ export function calculateMotionLocalTime({
   getActiveSegment,
   activeSegmentFromTts,
 }: Pick<CalculateMotionTimingParams, 'sceneLocalT' | 'sceneStartTime' | 'getActiveSegment' | 'activeSegmentFromTts'>): MotionLocalTimeResult {
-  // 슬라이드 효과는 세그먼트 시작부터 시작하므로 세그먼트 로컬 시간 사용
+  // Motion은 렌더링되자마자 시작되므로 씬 로컬 시간을 그대로 사용
+  // 씬이 렌더링되는 순간(sceneLocalT = 0)부터 Motion 시작
+  // 세그먼트 시작 시간이 있으면 세그먼트 기준으로 계산
   let motionLocalT = sceneLocalT
-  if (getActiveSegment && activeSegmentFromTts && 'startSec' in activeSegmentFromTts.segment) {
-    // 세그먼트 시작 시간 계산
-    const segmentStartTime = (activeSegmentFromTts.segment as { startSec?: number }).startSec
-    if (segmentStartTime !== undefined) {
-      // 씬 시작 시간과 세그먼트 시작 시간의 차이를 계산
-      const segmentStartInScene = segmentStartTime - sceneStartTime
-      // 세그먼트 로컬 시간 사용 (세그먼트 시작부터 0)
-      motionLocalT = Math.max(0, sceneLocalT - segmentStartInScene)
-    }
+  
+  if (activeSegmentFromTts && 'startSec' in activeSegmentFromTts.segment && activeSegmentFromTts.segment.startSec !== undefined) {
+    // 세그먼트 시작 시간을 기준으로 Motion 로컬 시간 계산
+    // sceneStartTime + sceneLocalT = 타임라인 시간
+    // 타임라인 시간 - 세그먼트 시작 시간 = 세그먼트 로컬 시간
+    const timelineTime = sceneStartTime + sceneLocalT
+    const segmentStartTime = activeSegmentFromTts.segment.startSec
+    motionLocalT = Math.max(0, timelineTime - segmentStartTime)
   }
   
   return { motionLocalT }

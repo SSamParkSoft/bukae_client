@@ -72,7 +72,7 @@ export const calculateTotalDuration = (
   options?: {
     ttsCacheRef?: React.MutableRefObject<Map<string, { durationSec: number }>>,
     voiceTemplate?: string | null,
-    buildSceneMarkup?: (timeline: any, sceneIndex: number) => string[],
+    buildSceneMarkup?: (timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number; voiceTemplate?: string | null; text?: { content?: string } }> } | null, sceneIndex: number) => string[],
     makeTtsKey?: (voiceName: string, markup: string) => string,
   }
 ): number => {

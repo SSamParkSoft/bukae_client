@@ -5,6 +5,8 @@
 
 import { TransitionFactory } from '../../effects/transitions/TransitionFactory'
 import { isShaderTransition } from '../../effects/transitions/shader/shaders'
+import { calculateTransitionStartTime } from '../utils/calculateTransitionTiming'
+import { applyMotionToSprite } from './step5-applyMotion'
 import type { PipelineContext, Step8Result } from './types'
 import type { TimelineScene } from '@/lib/types/domain/timeline'
 import * as PIXI from 'pixi.js'
@@ -43,21 +45,16 @@ export function step6ApplyTransition(
     makeTtsKey,
   } = context
 
-  // Transition Shader Pass 또는 GSAP 기반 Transition 처리
+  // Transition Shader Pass 처리 (Shader Transition만 별도 처리)
+  // Shader Transition이 활성화되어 있고 지원되는 타입이면 Shader Transition 사용
+  // 그 외의 경우는 아래의 Direct Transition으로 처리됨
   if (step8Result.isTransitionInProgress && !options?.skipAnimation) {
     const transitionType = scene.transition || 'none'
     const transitionMode = TransitionFactory.getMode(sceneIndex)
 
-    // 디버깅 로그 (개발 모드)
-    // Transition state 로그 제거 (불필요한 로그 정리)
-    const DEBUG_TRANSITION = process.env.NODE_ENV === 'development'
-    if (DEBUG_TRANSITION && Math.floor(tSec * 30) % 10 === 0) {
-      // 로그 제거됨
-    }
-
     // Shader 기반 Transition인지 확인
     if (transitionMode === 'shader' && isShaderTransition(transitionType)) {
-      // Shader Transition 처리
+      // Shader Transition 처리 (fade, wipe, circle 등)
       applyShaderTransition(
         tSec,
         sceneIndex,
@@ -65,9 +62,8 @@ export function step6ApplyTransition(
         transitionType,
         scene
       )
-    } else {
-      // Shader가 지원되지 않는 Transition은 applyDirectTransition으로 처리됨
-      // (아래의 Transition 매 프레임 업데이트 부분에서 처리)
+      // Shader Transition을 사용하면 Direct Transition은 실행하지 않음
+      return
     }
   } else {
     // Transition이 없으면 Shader Manager 정리
@@ -113,30 +109,9 @@ export function step6ApplyTransition(
     }
   }
 
-  // 다른 씬의 텍스트 객체 숨기기 (자막 누적 방지)
-  // 드래그 중 쓰로틀링으로 인한 자막 겹침을 방지하기 위해 먼저 모든 텍스트 숨김
-  textsRef.current.forEach((textObj, textSceneIndex) => {
-    if (textSceneIndex !== sceneIndex && !textObj.destroyed) {
-      textObj.visible = false
-      textObj.alpha = 0
-    }
-  })
-
-  // 같은 그룹 내 다른 씬의 텍스트도 숨김 (같은 텍스트 객체를 공유하는 경우)
-  const currentScene = timeline.scenes[sceneIndex]
-  if (currentScene?.sceneId !== undefined) {
-    const sameGroupSceneIndices = timeline.scenes
-      .map((s, idx) => (s.sceneId === currentScene.sceneId ? idx : -1))
-      .filter((idx) => idx >= 0 && idx !== sceneIndex)
-
-    sameGroupSceneIndices.forEach((groupSceneIndex) => {
-      const groupTextObj = textsRef.current.get(groupSceneIndex)
-      if (groupTextObj && !groupTextObj.destroyed) {
-        groupTextObj.visible = false
-        groupTextObj.alpha = 0
-      }
-    })
-  }
+  // 텍스트 객체 관리는 step7에서 처리하므로 여기서는 건드리지 않음
+  // step7에서 매 프레임마다 자막을 렌더링하므로, step6에서 텍스트를 숨기면 자막이 사라지는 문제 발생
+  // 자막의 visible/alpha는 step7의 renderSubtitlePart에서 관리됨
 
   // Transition 매 프레임 업데이트 (ANIMATION.md 표준: progress 기반)
   // GSAP timeline 동기화 로직 제거 → applyDirectTransition으로 대체
@@ -144,49 +119,30 @@ export function step6ApplyTransition(
     const currentScene = timeline.scenes[sceneIndex]
     const nextScene = timeline.scenes[sceneIndex + 1]
     const isSameSceneId = nextScene && currentScene?.sceneId === nextScene.sceneId
-    const transitionDuration = isSameSceneId ? 0 : (currentScene?.transitionDuration || 0.5)
+    
+    // Transition duration을 1초로 고정 (움직임효과만 TTS 캐시 duration 사용)
+    let transitionDuration = 0
+    if (!isSameSceneId) {
+      transitionDuration = 1.0 // 1초로 고정
+    }
 
     // Transition이 있을 때만 업데이트
     // 주의: hasPreviousScene 체크 제거 - Transition 진행 중에는 이전 씬 스프라이트를 찾아서 사용
     if (transitionDuration > 0) {
-      const currentTransition = (currentScene?.transition || 'fade').toLowerCase()
+      const currentTransition = (currentScene?.transition || 'none').toLowerCase()
       const currentSprite = spritesRef.current.get(sceneIndex)
 
       // Transition 시작 시간 계산 (TTS 캐시 사용하여 정확한 duration 계산)
-      // Transition은 현재 씬이 시작되기 전에 시작되어야 함
-      let sceneStartTime = 0
-      for (let i = 0; i < sceneIndex; i++) {
-        const prevScene = timeline.scenes[i]
-        if (!prevScene) continue
-
-        let sceneDuration = 0
-        if (ttsCacheRef && buildSceneMarkup && makeTtsKey) {
-          const sceneVoiceTemplate = prevScene.voiceTemplate || voiceTemplate
-          if (sceneVoiceTemplate) {
-            const markups = buildSceneMarkup(timeline, i)
-            for (const markup of markups) {
-              const key = makeTtsKey(sceneVoiceTemplate, markup)
-              const cached = ttsCacheRef.current.get(key)
-              if (cached?.durationSec && cached.durationSec > 0) {
-                sceneDuration += cached.durationSec
-              }
-            }
-          }
-        }
-
-        if (sceneDuration === 0) {
-          sceneDuration = prevScene.duration || 0
-        }
-
-        const prevNextScene = timeline.scenes[i + 1]
-        const prevIsSameSceneId = prevNextScene && prevScene.sceneId === prevNextScene.sceneId
-        const prevTransitionDuration = prevIsSameSceneId ? 0 : (prevScene.transitionDuration || 0.5)
-
-        sceneStartTime += sceneDuration + prevTransitionDuration
-      }
-
-      // Transition 시작 시간 = 현재 씬 시작 시간 - transitionDuration
-      const transitionStartTime = sceneStartTime - transitionDuration
+      // Transition은 씬 시작 시점에 시작되도록 함
+      // calculateTransitionStartTime 함수 사용하여 일관성 유지
+      const transitionStartTime = calculateTransitionStartTime({
+        timeline,
+        sceneIndex,
+        ttsCacheRef,
+        voiceTemplate,
+        buildSceneMarkup,
+        makeTtsKey,
+      })
       const relativeTime = tSec - transitionStartTime
 
       // Transition 진행 중이거나 방금 끝난 경우 업데이트
@@ -195,30 +151,29 @@ export function step6ApplyTransition(
 
       // Transition 진행 중에는 매 프레임마다 렌더링되어야 함
       if (isTransitionActive || isJustCompleted) {
-        // Transition이 완료되면 이전 씬 스프라이트 제거 (먼저 처리)
-        if (isJustCompleted || (isTransitionActive && relativeTime >= transitionDuration - 0.01)) {
+        const progress = Math.min(1, Math.max(0, relativeTime / transitionDuration))
+        
+        // Transition이 완료되면 이전 씬 스프라이트 숨김 (progress가 1에 가까울 때)
+        if (progress >= 0.99 || isJustCompleted) {
           const previousSceneIndex = sceneIndex > 0 ? sceneIndex - 1 : null
           const previousSprite = previousSceneIndex !== null
             ? spritesRef.current.get(previousSceneIndex)
             : null
 
-          if (previousSprite && !previousSprite.destroyed && containerRef.current) {
-            // Transition 완료 후 이전 씬 스프라이트 제거 (로그 없음 - 정상 동작)
-            if (previousSprite.parent === containerRef.current) {
-              containerRef.current.removeChild(previousSprite)
-            }
+          if (previousSprite && !previousSprite.destroyed) {
+            // Transition 완료 후 이전 씬 스프라이트 숨김
             previousSprite.visible = false
             previousSprite.alpha = 0
+            // 컨테이너에서도 제거 (선택사항 - 숨김만으로도 충분하지만 깔끔하게 제거)
+            if (containerRef.current && previousSprite.parent === containerRef.current) {
+              containerRef.current.removeChild(previousSprite)
+            }
           }
         }
-        const progress = Math.min(1, Math.max(0, relativeTime / transitionDuration))
 
         // 스프라이트가 없으면 생성해야 함
         if (!currentSprite && containerRef.current) {
           // 스프라이트가 아직 로드되지 않았을 수 있음 - 다음 프레임에 다시 시도
-          if (process.env.NODE_ENV === 'development') {
-            console.warn(`[Transition] Sprite not found for scene ${sceneIndex} at t=${tSec.toFixed(3)}`)
-          }
         }
 
         // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
@@ -258,8 +213,36 @@ export function step6ApplyTransition(
             ? spritesRef.current.get(previousSceneIndex)
             : null
 
+          // Transition 진행 중일 때만 이전 스프라이트를 보이게 함
+          // step3에서 숨긴 것을 여기서 다시 보이게 함 (Transition에 필요)
+          if (previousSprite && !previousSprite.destroyed && containerRef.current && previousSceneIndex !== null && previousSceneIndex >= 0) {
+            // 이전 씬의 Motion을 중지하기 위해 원래 위치로 리셋 (한 번만)
+            // 매 프레임마다 리셋하면 성능 저하이므로, 첫 프레임에만 리셋
+            if (progress < 0.01) {
+              const previousScene = timeline.scenes[previousSceneIndex]
+              if (previousScene) {
+                const { resetBaseStateCallback } = context
+                resetBaseStateCallback(previousSprite, null, previousSceneIndex, previousScene)
+              }
+            }
+            
+            // 이전 스프라이트를 컨테이너에 추가하고 보이게 함
+            if (previousSprite.parent !== containerRef.current) {
+              if (previousSprite.parent) {
+                previousSprite.parent.removeChild(previousSprite)
+              }
+              containerRef.current.addChild(previousSprite)
+              containerRef.current.setChildIndex(previousSprite, 0)
+            }
+            // Transition 진행 중이므로 이전 스프라이트를 보이게 함
+            // applyDirectTransition이 alpha를 설정하므로 여기서는 visible만 설정
+            previousSprite.visible = true
+            // alpha는 applyDirectTransition에서 설정하므로 여기서는 설정하지 않음
+          }
+
           // applyDirectTransition으로 Transition 적용 (ANIMATION.md 표준)
           // Transition 진행 중에는 매 프레임마다 호출되어야 함
+          // applyDirectTransition이 toSprite와 fromSprite의 alpha를 설정함
           applyDirectTransition(
             currentSprite,
             previousSprite && !previousSprite.destroyed ? previousSprite : null,
@@ -268,39 +251,12 @@ export function step6ApplyTransition(
             sceneIndex
           )
 
-          // Transition 로그 출력 (디버깅용 - 최소화)
-          if (process.env.NODE_ENV === 'development') {
-            const lastLog = lastTransitionLogRef.current
-            const isNewTransition = !lastLog || lastLog.sceneIndex !== sceneIndex
-
-            // IN PROGRESS는 Transition 진행 중에 출력 (샘플링: 매 3프레임마다)
-            if (progress > 0 && progress < 1) {
-              const shouldLog = Math.floor(relativeTime * 30) % 3 === 0 // 매 3프레임마다
-              if (shouldLog) {
-                console.log(`%c🎬 TRANSITION IN PROGRESS`, `color: #9C27B0; font-weight: bold; font-size: 11px;`, {
-                  progress: progress.toFixed(3),
-                  tSec: tSec.toFixed(3),
-                  sceneIndex,
-                  relativeTime: relativeTime.toFixed(3),
-                  transitionDuration: transitionDuration.toFixed(3),
-                })
-                lastTransitionLogRef.current = { sceneIndex, progress, logType: 'IN_PROGRESS' }
-              }
-            }
-            // COMPLETED는 Transition이 끝날 때 한 번만 출력
-            else if (progress >= 1 || relativeTime >= transitionDuration) {
-              if (isNewTransition || lastLog?.logType !== 'COMPLETED') {
-                console.log(`%c🎬 TRANSITION COMPLETED`, `color: #4CAF50; font-weight: bold; font-size: 11px;`, {
-                  progress: progress.toFixed(3),
-                  tSec: tSec.toFixed(3),
-                  sceneIndex,
-                  relativeTime: relativeTime.toFixed(3),
-                  transitionDuration: transitionDuration.toFixed(3),
-                })
-                lastTransitionLogRef.current = { sceneIndex, progress, logType: 'COMPLETED' }
-              }
-            }
+          // Transition 적용 후 Motion을 다시 적용 (Transition이 적용한 위치를 기준으로 Motion 추가 적용)
+          // Transition과 Motion을 동시에 적용하여 씬 전환 중에도 이미지 움직임 효과 가능
+          if (currentSprite && !currentSprite.destroyed && scene.motion) {
+            applyMotionToSprite(context, sceneIndex, scene, currentSprite, step8Result, true)
           }
+
         }
       }
     }

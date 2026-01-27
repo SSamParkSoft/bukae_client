@@ -290,8 +290,9 @@ export function useTimelineInteraction({
     // setCurrentTime 내부에서도 renderAt을 호출하지만, 정확도를 위해 한 번 더 호출
     if (renderAtRef?.current) {
       // Transport의 실제 시간을 사용하여 렌더링 (더 정확)
+      // skipAnimation: false로 설정하여 애니메이션(Motion/Transition) 효과 표시
       const renderTime = transport ? transport.getTime() : targetTime
-      renderAtRef.current(renderTime, { skipAnimation: true })
+      renderAtRef.current(renderTime, { skipAnimation: false })
       
       // renderAt 후 실제 렌더링된 씬 인덱스를 사용하여 상태 업데이트
       // renderAt 내부에서 이미 currentSceneIndexRef를 업데이트하므로
@@ -360,8 +361,8 @@ export function useTimelineInteraction({
             const renderTime = pendingRenderTimeRef.current
             if (renderTime !== null && renderAtRef?.current) {
               lastRenderTimeRef.current = performance.now()
-              // renderAt 내부에서 다른 씬의 텍스트를 숨기는 로직이 있음
-              renderAtRef.current(renderTime, { skipAnimation: true })
+              // 드래그 중에도 애니메이션 적용 (미리보기 목적)
+              renderAtRef.current(renderTime, { skipAnimation: false })
               renderThrottleRef.current = null
               pendingRenderTimeRef.current = null
             }
@@ -370,8 +371,8 @@ export function useTimelineInteraction({
           // 즉시 렌더링
           lastRenderTimeRef.current = now
           if (renderAtRef?.current) {
-            // renderAt 내부에서 다른 씬의 텍스트를 숨기는 로직이 있음
-            renderAtRef.current(targetTime, { skipAnimation: true })
+            // 드래그 중에도 애니메이션 적용 (미리보기 목적)
+            renderAtRef.current(targetTime, { skipAnimation: false })
           }
           renderThrottleRef.current = null
           pendingRenderTimeRef.current = null

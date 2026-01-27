@@ -32,7 +32,9 @@ export class MotionEvaluator {
    */
   static isActive(sceneLocalT: number, motion: MotionConfig): boolean {
     const elapsed = sceneLocalT - motion.startSecInScene
-    return elapsed >= 0 && elapsed <= motion.durationSec
+    // 렌더링 시작 시점부터 Motion이 즉시 시작되도록 부동소수점 오차 허용 (-0.001초까지 허용)
+    // durationSec까지 정확히 실행되도록 부동소수점 오차 허용 (+0.001초까지 허용)
+    return elapsed >= -0.001 && elapsed <= motion.durationSec + 0.001
   }
 
   /**

@@ -39,16 +39,30 @@ export class RenderTexturePool {
   /**
    * RenderTexture 획득 (풀에서 가져오거나 새로 생성)
    */
-  acquire(): PIXI.RenderTexture {
+  acquire(): PIXI.RenderTexture | null {
     let texture = this.pool.pop()
     if (!texture) {
-      texture = PIXI.RenderTexture.create({
-        width: this.width,
-        height: this.height,
-        resolution: this.resolution,
-      })
+      try {
+        texture = PIXI.RenderTexture.create({
+          width: this.width,
+          height: this.height,
+          resolution: this.resolution,
+        })
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[RenderTexturePool] Failed to create RenderTexture', {
+            width: this.width,
+            height: this.height,
+            resolution: this.resolution,
+            error,
+          })
+        }
+        return null
+      }
     }
-    this.inUse.add(texture)
+    if (texture) {
+      this.inUse.add(texture)
+    }
     return texture
   }
 

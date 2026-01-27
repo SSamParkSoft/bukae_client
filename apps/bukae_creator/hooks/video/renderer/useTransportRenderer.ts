@@ -16,6 +16,7 @@ import * as PIXI from 'pixi.js'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
+import { getSceneStartTime } from '@/utils/timeline'
 import { TransitionShaderManager } from '../effects/transitions/shader/TransitionShaderManager'
 import { useContainerManager } from './containers/useContainerManager'
 import { useSubtitleRenderer } from './subtitle/useSubtitleRenderer'
@@ -140,8 +141,8 @@ export function useTransportRenderer({
     )
   }, [stageDimensions, fabricCanvasRef, fabricScaleRatioRef])
 
-  // Transition Shader Manager 초기화 (app이 준비되면)
-  useEffect(() => {
+  // Transition Shader Manager 초기화 함수 (renderAt에서도 호출됨)
+  const ensureTransitionShaderManager = () => {
     if (appRef.current && !transitionShaderManagerRef.current) {
       transitionShaderManagerRef.current = new TransitionShaderManager(
         appRef.current,
@@ -149,6 +150,11 @@ export function useTransportRenderer({
         spritesRef
       )
     }
+  }
+
+  // Transition Shader Manager 초기화 (app이 준비되면)
+  useEffect(() => {
+    ensureTransitionShaderManager()
 
     return () => {
       // 정리
@@ -157,7 +163,8 @@ export function useTransportRenderer({
         transitionShaderManagerRef.current = null
       }
     }
-  }, [appRef, stageDimensions, spritesRef])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stageDimensions]) // appRef와 spritesRef는 ref이므로 의존성 배열에 포함하지 않음
 
   // Transport 상태 관리
   const { transportState } = useTransportState({ transport })
@@ -898,6 +905,9 @@ export function useTransportRenderer({
         return
       }
 
+      // Transition Shader Manager 초기화 확인 (renderAt 호출 시점에 확인)
+      ensureTransitionShaderManager()
+
       // 파이프라인 컨텍스트 생성
       const pipelineContext: PipelineContext = {
         timeline,
@@ -954,8 +964,21 @@ export function useTransportRenderer({
       partIndex = step8Result.partIndex
 
       // 조기 반환 체크
-      if (step8Result.shouldSkip) {
-        return
+      // 단, 자막은 매 프레임마다 업데이트되어야 하므로 shouldSkip과 관계없이 렌더링 필요
+      // step4에서 text.visible = false, text.alpha = 0으로 리셋하므로,
+      // step7을 스킵하면 자막이 계속 숨겨진 상태로 남아있게 됨
+      const shouldSkipMainRendering = step8Result.shouldSkip
+      
+      // 디버깅: shouldSkip 확인
+      if (shouldSkipMainRendering && Math.floor(tSec * 10) % 10 === 0) {
+        console.log('[renderAt] shouldSkipMainRendering = true', {
+          tSec: tSec.toFixed(3),
+          sceneIndex,
+          shouldSkip: step8Result.shouldSkip,
+          isTransitionInProgress: step8Result.isTransitionInProgress,
+          isTransitionInProgressForRender: step8Result.isTransitionInProgressForRender,
+          motionProgress: step8Result.motionProgress?.toFixed(3),
+        })
       }
 
       const scene = timeline.scenes[sceneIndex]
@@ -980,6 +1003,14 @@ export function useTransportRenderer({
       // ============================================================
       const step2Result = step2PrepareResources(pipelineContext, sceneIndex)
       if (!step2Result.shouldContinue) {
+        // 디버깅: 리소스 준비 실패
+        if (Math.floor(tSec * 10) % 10 === 0) {
+          console.log('[renderAt] step2PrepareResources failed', {
+            tSec: tSec.toFixed(3),
+            sceneIndex,
+            shouldContinue: step2Result.shouldContinue,
+          })
+        }
         return
       }
       const { sprite, sceneText } = step2Result
@@ -999,25 +1030,42 @@ export function useTransportRenderer({
       // ============================================================
       // 5단계: Motion 적용
       // ============================================================
-      const step5Result = step5ApplyMotion(pipelineContext, sceneIndex, scene, sprite || null, step8Result)
+      let step5Result
+      if (shouldSkipMainRendering) {
+        // 중복 렌더링이면 기본값 사용 (자막 렌더링을 위해 최소한의 값만 필요)
+        const sceneStartTime = getSceneStartTime(timeline, sceneIndex)
+        const sceneLocalT = Math.max(0, tSec - sceneStartTime)
+        step5Result = { motionProgress: 0, spriteAfterMotion: null, sceneLocalT, sceneStartTime }
+      } else {
+        step5Result = step5ApplyMotion(pipelineContext, sceneIndex, scene, sprite || null, step8Result)
+      }
 
       // ============================================================
       // 6단계: Transition 적용
       // ============================================================
-      step6ApplyTransition(pipelineContext, sceneIndex, scene, sceneText, step8Result)
+      if (!shouldSkipMainRendering) {
+        step6ApplyTransition(pipelineContext, sceneIndex, scene, sceneText, step8Result)
+      }
 
       // ============================================================
       // 7단계: 자막 적용
       // ============================================================
-      step7ApplySubtitle(
-        pipelineContext,
-        sceneIndex,
-        partIndex,
-        scene,
-        sprite || null,
-        step5Result.spriteAfterMotion,
-        step5Result.sceneLocalT
-      )
+      // 자막은 매 프레임마다 업데이트되어야 하므로 중복 렌더 체크와 관계없이 항상 실행
+      // step4에서 text.visible = false, text.alpha = 0으로 리셋하므로,
+      // step7을 스킵하면 자막이 계속 숨겨진 상태로 남아있게 됨
+      // Transition 진행 중에도 자막이 표시되어야 하므로 항상 실행
+      if (scene.text?.content) {
+        step7ApplySubtitle(
+          pipelineContext,
+          sceneIndex,
+          partIndex,
+          scene,
+          sprite || null,
+          step5Result.spriteAfterMotion,
+          step5Result.sceneLocalT
+        )
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     },
     [
         timeline,

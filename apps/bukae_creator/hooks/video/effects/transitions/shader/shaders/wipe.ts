@@ -78,23 +78,46 @@ export function createWipeShader(params: WipeShaderParams = {}): PIXI.Filter {
     }
   `
 
-  // PixiJS v8 방식: GlProgram과 resources 사용
-  const glProgram = new PIXI.GlProgram({
-    vertex: vertexShader,
-    fragment: fragmentShader,
-  })
+  // 빈 텍스처로 초기화 (null 대신)
+  const emptyTexture = PIXI.Texture.EMPTY
 
-  const filter = new PIXI.Filter({
-    glProgram,
-    resources: {
+  // PixiJS v8 방식: GlProgram을 먼저 생성하고 검증
+  let glProgram: PIXI.GlProgram
+  try {
+    glProgram = new PIXI.GlProgram({
+      fragment: fragmentShader,
+      vertex: vertexShader,
+    })
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[createWipeShader] Failed to create GlProgram', error)
+    }
+    // Fallback: 빈 필터 반환
+    return new PIXI.Filter({})
+  }
+
+  // Filter 생성자가 glProgram을 파싱할 때 match 에러가 발생하므로
+  // 빈 Filter를 생성한 후 glProgram과 resources를 직접 설정
+  try {
+    const filter = new PIXI.Filter({})
+    
+    // glProgram과 resources를 직접 설정
+    ;(filter as unknown as { glProgram: PIXI.GlProgram }).glProgram = glProgram
+    ;(filter as unknown as { resources: Record<string, unknown> }).resources = {
       transitionUniforms: {
-        uTextureA: { value: null, type: 'sampler2D' },
-        uTextureB: { value: null, type: 'sampler2D' },
+        uTextureA: { value: emptyTexture },
+        uTextureB: { value: emptyTexture },
         progress: { value: 0.0, type: 'f32' },
         softness: { value: softness, type: 'f32' },
       },
-    },
-  })
-
-  return filter
+    }
+    
+    return filter
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[createWipeShader] Failed to create Filter', error)
+    }
+    // Fallback: 빈 필터 반환
+    return new PIXI.Filter({})
+  }
 }

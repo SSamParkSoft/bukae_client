@@ -65,11 +65,60 @@ export class SceneCapture {
    */
   static captureScene(
     sceneContainer: PIXI.Container,
-    renderTexture: PIXI.RenderTexture,
+    renderTexture: PIXI.RenderTexture | null,
     app: PIXI.Application,
     sceneIndex: number,
     spritesRef: MutableRefObject<Map<number, PIXI.Sprite>>
   ): void {
+    // RenderTexture 유효성 검사
+    if (!renderTexture) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[SceneCapture] RenderTexture is null', { sceneIndex })
+      }
+      return
+    }
+
+    // sceneContainer 유효성 검사
+    if (!sceneContainer || sceneContainer.destroyed) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[SceneCapture] SceneContainer is null or destroyed', {
+          sceneIndex,
+          hasContainer: !!sceneContainer,
+          isDestroyed: sceneContainer?.destroyed,
+        })
+      }
+      return
+    }
+
+    // app.renderer 유효성 검사
+    if (!app || !app.renderer || app.destroyed) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[SceneCapture] App or renderer is invalid', {
+          sceneIndex,
+          hasApp: !!app,
+          hasRenderer: !!app?.renderer,
+          appDestroyed: app?.destroyed,
+        })
+      }
+      return
+    }
+
+    // sceneContainer의 children이 유효한지 확인
+    // Container.collectRenderablesWithBounds에서 children의 length를 읽으려고 할 때 null이면 에러 발생
+    // children이 배열인지 확인하고, length 속성이 있는지 확인
+    if (!sceneContainer.children || !Array.isArray(sceneContainer.children) || typeof sceneContainer.children.length !== 'number') {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[SceneCapture] SceneContainer children is invalid', {
+          sceneIndex,
+          hasChildren: !!sceneContainer.children,
+          childrenType: typeof sceneContainer.children,
+          isArray: Array.isArray(sceneContainer.children),
+          childrenLength: sceneContainer.children?.length,
+        })
+      }
+      return
+    }
+
     // 공유 스프라이트의 상태 저장
     const savedStates = new Map<PIXI.Sprite, SpriteState>()
     const sprite = spritesRef.current.get(sceneIndex)
@@ -83,7 +132,22 @@ export class SceneCapture {
     }
 
     // RenderTexture로 렌더링
-    app.renderer.render(sceneContainer, { renderTexture })
+    // PixiJS v8: renderTexture를 옵션 객체로 전달
+    try {
+      app.renderer.render(sceneContainer, { renderTexture })
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[SceneCapture] Failed to render scene', {
+          sceneIndex,
+          error,
+          renderTexture: !!renderTexture,
+          hasContainer: !!sceneContainer,
+          containerDestroyed: sceneContainer?.destroyed,
+          childrenCount: sceneContainer?.children?.length,
+        })
+      }
+      return
+    }
 
     // 상태 복원
     savedStates.forEach((state, sprite) => {

@@ -53,9 +53,43 @@ export class TransitionShaderManager {
     sceneAIndex: number,
     sceneBIndex: number
   ): void {
+    // Container 유효성 검사
+    if (!sceneAContainer || sceneAContainer.destroyed) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[TransitionShaderManager] Scene A container is invalid', {
+          sceneAIndex,
+          hasContainer: !!sceneAContainer,
+          isDestroyed: sceneAContainer?.destroyed,
+        })
+      }
+      return
+    }
+
+    if (!sceneBContainer || sceneBContainer.destroyed) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[TransitionShaderManager] Scene B container is invalid', {
+          sceneBIndex,
+          hasContainer: !!sceneBContainer,
+          isDestroyed: sceneBContainer?.destroyed,
+        })
+      }
+      return
+    }
+
     // RenderTexture 획득
     this.textureA = this.texturePool.acquire()
     this.textureB = this.texturePool.acquire()
+
+    // RenderTexture가 null인지 확인
+    if (!this.textureA || !this.textureB) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[TransitionShaderManager] Failed to acquire RenderTexture', {
+          textureA: !!this.textureA,
+          textureB: !!this.textureB,
+        })
+      }
+      return
+    }
 
     // 씬 A 캡처
     SceneCapture.captureScene(
@@ -87,10 +121,12 @@ export class TransitionShaderManager {
     this.cleanup()
 
     // Transition Quad 생성 (화면 전체를 덮는 Sprite)
+    // Shader filter를 사용하므로 texture는 중요하지 않지만, 투명한 texture 사용
     const quadTexture = PIXI.Texture.WHITE
     this.transitionQuad = new PIXI.Sprite(quadTexture)
     this.transitionQuad.width = this.stageDimensions.width
     this.transitionQuad.height = this.stageDimensions.height
+    this.transitionQuad.alpha = 1.0 // 완전히 불투명하게 설정
     this.transitionQuad.filters = [shader]
     this.currentShader = shader
 
@@ -101,6 +137,11 @@ export class TransitionShaderManager {
     // 최상위 레이어로 설정 (자막 아래)
     const maxIndex = container.children.length - 1
     container.setChildIndex(this.transitionQuad, maxIndex)
+    
+    // 초기 uniform 업데이트 (텍스처 설정)
+    if (this.textureA && this.textureB) {
+      this.updateProgress(0)
+    }
   }
 
   /**
@@ -113,12 +154,10 @@ export class TransitionShaderManager {
     }
 
     // Shader uniform 업데이트
-    // PixiJS v8 방식: resources를 통해 uniform 접근
-    // resources의 구조: { transitionUniforms: UniformGroup }
-    // UniformGroup에는 uniforms 속성이 있음
+    // PixiJS v8 방식: resources.transitionUniforms.uniforms를 통해 접근
     const filter = this.currentShader as PIXI.Filter & {
       resources?: {
-        transitionUniforms?: PIXI.UniformGroup & {
+        transitionUniforms?: {
           uniforms?: {
             progress?: { value?: number }
             uTextureA?: { value?: PIXI.Texture | null }
@@ -130,19 +169,29 @@ export class TransitionShaderManager {
       }
     }
     
-    // UniformGroup의 uniforms 속성에 접근
-    // PixiJS v8에서는 uniforms가 { value: ... } 형태의 객체
-    if (filter.resources?.transitionUniforms?.uniforms) {
-      const uniforms = filter.resources.transitionUniforms.uniforms
-      if (uniforms.progress) {
-        uniforms.progress.value = Math.max(0, Math.min(1, progress))
-      }
-      if (uniforms.uTextureA) {
-        uniforms.uTextureA.value = this.textureA
-      }
-      if (uniforms.uTextureB) {
-        uniforms.uTextureB.value = this.textureB
-      }
+    // resources.transitionUniforms가 UniformGroup으로 변환되어 uniforms 속성을 가짐
+    const uniformGroup = filter.resources?.transitionUniforms
+    if (!uniformGroup) {
+      return
+    }
+
+    // UniformGroup은 uniforms 속성을 가짐
+    const uniforms = uniformGroup.uniforms
+    if (!uniforms) {
+      return
+    }
+    
+    // progress 업데이트
+    if (uniforms.progress && typeof uniforms.progress === 'object' && 'value' in uniforms.progress) {
+      uniforms.progress.value = Math.max(0, Math.min(1, progress))
+    }
+    
+    // 텍스처 업데이트 (항상 업데이트하여 최신 상태 유지)
+    if (uniforms.uTextureA && typeof uniforms.uTextureA === 'object' && 'value' in uniforms.uTextureA) {
+      uniforms.uTextureA.value = this.textureA
+    }
+    if (uniforms.uTextureB && typeof uniforms.uTextureB === 'object' && 'value' in uniforms.uTextureB) {
+      uniforms.uTextureB.value = this.textureB
     }
   }
 

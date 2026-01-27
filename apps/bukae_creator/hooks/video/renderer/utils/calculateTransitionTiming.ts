@@ -4,6 +4,7 @@
  */
 
 import type { TimelineData } from '@/store/useVideoCreateStore'
+import { getSceneStartTime } from '@/utils/timeline'
 
 /**
  * Transition 시간 계산 파라미터
@@ -52,12 +53,17 @@ export function calculateTransitionStartTime({
     return 0
   }
 
-  // 씬 시작 시간 계산 (TTS duration 기반)
+  // Transition 시작 시간 = 씬 시작 시간 (씬 시작 시점에 Transition 시작)
+  // Transition은 씬 시작 시점에 시작되므로, 이전 씬들의 TTS 캐시 duration만 합산
+  // Transition duration은 포함하지 않음 (Transition은 씬 시작과 동시에 시작되므로)
+  const SCENE_GAP = 0.001 // 1ms 간격 (부동소수점 오차 방지)
+  
   let sceneStartTime = 0
   for (let i = 0; i < sceneIndex; i++) {
     const prevScene = timeline.scenes[i]
     if (!prevScene) continue
     
+    // 이전 씬의 TTS 캐시 duration 계산
     let sceneDuration = 0
     if (ttsCacheRef && buildSceneMarkup && makeTtsKey) {
       const sceneVoiceTemplate = prevScene.voiceTemplate || voiceTemplate
@@ -77,14 +83,59 @@ export function calculateTransitionStartTime({
       sceneDuration = prevScene.duration || 0
     }
     
+    // 씬 사이 간격 확인 (같은 sceneId를 가진 씬들 사이에는 간격 없음)
     const prevNextScene = timeline.scenes[i + 1]
     const prevIsSameSceneId = prevNextScene && prevScene.sceneId === prevNextScene.sceneId
-    const prevTransitionDuration = prevIsSameSceneId ? 0 : (prevScene.transitionDuration || 0.5)
+    const sceneGap = prevIsSameSceneId ? 0 : SCENE_GAP
     
-    sceneStartTime += sceneDuration + prevTransitionDuration
+    // 씬 시작 시간 = 이전 씬들의 TTS 캐시 duration만 합산
+    // Transition duration은 포함하지 않음 (Transition은 씬 시작 시점에 시작되므로)
+    sceneStartTime += sceneDuration + sceneGap
   }
 
-  return sceneStartTime - transitionDuration
+  // Transition 시작 시간 = 씬 시작 시간 (씬 시작 시점에 Transition 시작)
+  return sceneStartTime
+}
+
+/**
+ * 현재 씬의 TTS 캐시 duration 계산
+ * 
+ * @param params 계산 파라미터
+ * @returns 씬의 TTS 캐시 duration (초)
+ */
+function calculateSceneTtsDuration({
+  timeline,
+  sceneIndex,
+  ttsCacheRef,
+  voiceTemplate,
+  buildSceneMarkup,
+  makeTtsKey,
+}: Omit<CalculateTransitionTimingParams, 'tSec'>): number {
+  const currentScene = timeline.scenes[sceneIndex]
+  if (!currentScene) {
+    return 0
+  }
+
+  let sceneDuration = 0
+  if (ttsCacheRef && buildSceneMarkup && makeTtsKey) {
+    const sceneVoiceTemplate = currentScene.voiceTemplate || voiceTemplate
+    if (sceneVoiceTemplate) {
+      const markups = buildSceneMarkup(timeline, sceneIndex)
+      for (const markup of markups) {
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
+        const cached = ttsCacheRef.current.get(key)
+        if (cached?.durationSec && cached.durationSec > 0) {
+          sceneDuration += cached.durationSec
+        }
+      }
+    }
+  }
+
+  if (sceneDuration === 0) {
+    sceneDuration = currentScene.duration || 0
+  }
+
+  return sceneDuration
 }
 
 /**
@@ -109,7 +160,12 @@ export function calculateTransitionProgress({
 
   const nextScene = timeline.scenes[sceneIndex + 1]
   const isSameSceneId = nextScene && currentScene.sceneId === nextScene.sceneId
-  const transitionDuration = isSameSceneId ? 0 : (currentScene.transitionDuration || 0.5)
+  
+  // Transition duration을 1초로 고정 (움직임효과만 TTS 캐시 duration 사용)
+  let transitionDuration = 0
+  if (!isSameSceneId) {
+    transitionDuration = 1.0 // 1초로 고정
+  }
 
   if (transitionDuration <= 0) {
     return 0
@@ -150,7 +206,12 @@ export function isTransitionInProgress({
 
   const nextScene = timeline.scenes[sceneIndex + 1]
   const isSameSceneId = nextScene && currentScene.sceneId === nextScene.sceneId
-  const transitionDuration = isSameSceneId ? 0 : (currentScene.transitionDuration || 0.5)
+  
+  // Transition duration을 1초로 고정 (움직임효과만 TTS 캐시 duration 사용)
+  let transitionDuration = 0
+  if (!isSameSceneId) {
+    transitionDuration = 1.0 // 1초로 고정
+  }
 
   if (transitionDuration <= 0) {
     return false

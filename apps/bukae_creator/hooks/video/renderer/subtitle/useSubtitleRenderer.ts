@@ -145,27 +145,27 @@ export function useSubtitleRenderer({
         return
       }
 
-      // 같은 그룹 내 모든 텍스트를 먼저 숨김 (겹침 방지)
-      // 같은 그룹 내에서 텍스트 객체를 공유하는 경우를 고려
+      // 모든 텍스트를 먼저 숨김 (겹침 방지)
+      // Transition 진행 중에도 현재 씬의 자막만 표시하고 다른 씬의 텍스트는 숨김
+      textsRef.current.forEach((textObj, textSceneIndex) => {
+        if (textObj && !textObj.destroyed && textSceneIndex !== sceneIndex) {
+          textObj.visible = false
+          textObj.alpha = 0
+        }
+      })
+      
+      // 같은 그룹 내 다른 씬의 텍스트도 숨김 (같은 텍스트 객체를 공유하는 경우)
       const sceneId = scene.sceneId
       if (sceneId !== undefined) {
-        // 같은 그룹 내 모든 씬 인덱스 찾기
         const sameGroupSceneIndices = timeline.scenes
           .map((s, idx) => (s.sceneId === sceneId ? idx : -1))
-          .filter((idx) => idx >= 0)
+          .filter((idx) => idx >= 0 && idx !== sceneIndex)
         
-        // 같은 그룹 내 모든 텍스트 객체 숨김
         sameGroupSceneIndices.forEach((groupSceneIndex) => {
           const groupTextObj = textsRef.current.get(groupSceneIndex)
           if (groupTextObj && !groupTextObj.destroyed) {
             groupTextObj.visible = false
-          }
-        })
-      } else {
-        // sceneId가 없으면 모든 텍스트 숨김
-        textsRef.current.forEach((textObj) => {
-          if (!textObj.destroyed) {
-            textObj.visible = false
+            groupTextObj.alpha = 0
           }
         })
       }
@@ -404,7 +404,7 @@ export function useSubtitleRenderer({
         }
       }
 
-      // 표시
+      // 표시 (강제로 설정하여 다른 로직에 의해 숨겨진 경우에도 보이도록 함)
       targetTextObj.visible = true
       targetTextObj.alpha = 1
       
@@ -418,9 +418,23 @@ export function useSubtitleRenderer({
           const groupTextObj = textsRef.current.get(groupSceneIndex)
           if (groupTextObj && !groupTextObj.destroyed && groupTextObj !== targetTextObj) {
             groupTextObj.visible = false
+            groupTextObj.alpha = 0
           }
         })
       }
+      
+      // 다른 씬의 텍스트도 명시적으로 숨김 (중복 방지)
+      textsRef.current.forEach((textObj, textSceneIndex) => {
+        if (textObj && !textObj.destroyed && textSceneIndex !== sceneIndex && textObj !== targetTextObj) {
+          // 같은 그룹 내 텍스트는 위에서 이미 처리했으므로 제외
+          const otherScene = timeline.scenes[textSceneIndex]
+          const isSameGroup = sceneId !== undefined && otherScene?.sceneId === sceneId
+          if (!isSameGroup) {
+            textObj.visible = false
+            textObj.alpha = 0
+          }
+        }
+      })
 
       if (options?.onComplete) {
         options.onComplete()

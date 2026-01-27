@@ -204,7 +204,7 @@ export function useSceneNavigation({
     const previousScene = prevIndex !== null ? timeline.scenes[prevIndex] : null
     // 같은 sceneId를 가진 씬들 사이에서는 transition 무시
     const isSameSceneId = previousScene && previousScene.sceneId === selectedScene?.sceneId
-    const transition = isSameSceneId ? 'none' : (selectedScene?.transition || 'fade')
+    const transition = isSameSceneId ? 'none' : (selectedScene?.transition || 'none')
     
     // 씬 리스트에서 선택할 때는 이전 씬을 보여주지 않고 검은 캔버스에서 시작
     // 단, 이전 씬이 같은 그룹 내 씬이고 현재 씬도 같은 그룹의 첫 번째 씬이 아닌 경우에만 prevIndex 유지

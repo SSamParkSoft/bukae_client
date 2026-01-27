@@ -16,9 +16,7 @@ import { createCircleShader } from './circle'
  */
 export function createTransitionShader(type: string, params?: Record<string, unknown>): PIXI.Filter | null {
   switch (type) {
-    case 'fade':
-      return createFadeShader()
-    
+    // fade는 direct transition으로 처리되므로 shader transition에서 제외
     case 'wipe':
     case 'wipe-left':
     case 'wipe-right':
@@ -34,13 +32,7 @@ export function createTransitionShader(type: string, params?: Record<string, unk
         softness: (params?.softness as number) || 0.1,
       })
     
-    case 'circle':
-    case 'circular':
-      return createCircleShader({
-        center: (params?.center as { x: number; y: number }) || { x: 0.5, y: 0.5 },
-        softness: (params?.softness as number) || 0.1,
-      })
-    
+    // circle과 circular는 direct transition으로 처리되므로 shader transition에서 제외
     default:
       // 알 수 없는 타입이면 null 반환 (GSAP fallback)
       return null
@@ -49,8 +41,9 @@ export function createTransitionShader(type: string, params?: Record<string, unk
 
 /**
  * Shader 기반 Transition 타입인지 확인
+ * fade와 circle은 direct transition으로 처리되므로 shader transition에서 제외
  */
 export function isShaderTransition(type: string): boolean {
-  const shaderTypes = ['fade', 'wipe', 'wipe-left', 'wipe-right', 'wipe-up', 'wipe-down', 'circle', 'circular']
+  const shaderTypes = ['wipe', 'wipe-left', 'wipe-right', 'wipe-up', 'wipe-down']
   return shaderTypes.includes(type)
 }

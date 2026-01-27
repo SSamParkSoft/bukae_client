@@ -4,7 +4,9 @@
  * 실제로는 가장 먼저 실행되는 단계
  */
 
+import { getSceneStartTime } from '@/utils/timeline'
 import { calculateTransitionProgress, isTransitionInProgress as calculateIsTransitionInProgress } from '../utils/calculateTransitionTiming'
+import { calculateMotionProgress } from '../utils/calculateMotionTiming'
 import type { PipelineContext, Step8Result, Step1Result } from './types'
 
 /**
@@ -36,33 +38,24 @@ export function step8CheckDuplicateRender(
 
   let { sceneIndex, partIndex } = step1Result
 
-  // 중복 렌더링 방지: segmentChanged만 체크 (TTS 파일 전환 시 즉시 렌더링)
-  // 참고: segmentChanged는 실제 TTS 오디오 파일 세그먼트 인덱스 변경을 감지합니다.
-  //       하나의 세그먼트 = 하나의 part이므로, segmentChanged가 true이면 part도 변경된 것입니다.
-  let segmentChanged = false
-  let currentSegmentIndex = 0
+  // 렌더링 시점 결정: t(시간) 기반으로 통일 (ANIMATION.md 원칙: "시간의 정답은 t 하나")
+  // 세그먼트는 참고용으로만 사용 (씬/파트 인덱스 보정용)
   let activeSegmentFromTts: {
     segment: { id: string; sceneIndex?: number; partIndex?: number; durationSec?: number; startSec?: number }
     segmentIndex: number
   } | null = null
 
-  // getActiveSegment가 있으면 segmentChanged 체크, 없으면 timeChanged fallback
-  let shouldRender = false
+  // 세그먼트 정보는 참고용으로만 가져옴 (씬/파트 인덱스 보정용)
   if (getActiveSegment) {
     const activeSegment = getActiveSegment(tSec)
     if (activeSegment) {
       activeSegmentFromTts = activeSegment
-      currentSegmentIndex = activeSegment.segmentIndex
-      segmentChanged = currentSegmentIndex !== lastRenderedSegmentIndexRef.current
 
-      // segmentChanged가 true이고 activeSegment에 sceneIndex가 있으면 그것을 우선 사용
-      // TTS 파일 전환 시 정확한 씬 인덱스를 보장
-      if (segmentChanged && activeSegment.segment.sceneIndex !== undefined) {
+      // 세그먼트의 sceneIndex/partIndex가 있으면 보정 (TTS 파일 전환 시 정확성 보장)
+      // 하지만 렌더링 시점 결정은 t 기반으로 함
+      if (activeSegment.segment.sceneIndex !== undefined) {
         sceneIndex = activeSegment.segment.sceneIndex
       }
-
-      // activeSegment에 partIndex가 있으면 그것을 우선 사용 (씬 분할 그룹)
-      // segmentChanged가 true이면 새로운 part로 전환된 것이므로 partIndex도 업데이트
       if (activeSegment.segment.partIndex !== undefined) {
         partIndex = activeSegment.segment.partIndex
       }
@@ -84,18 +77,17 @@ export function step8CheckDuplicateRender(
     })
   }
 
-  // 렌더링 조건: segmentChanged 또는 Transition 진행 중 또는 timeChanged
-  if (getActiveSegment) {
-    shouldRender = segmentChanged || isTransitionInProgressForRender
-  } else {
-    // getActiveSegment가 없을 때는 timeChanged를 fallback으로 사용 (초기 로딩 시)
-    const timeChanged = Math.abs(tSec - lastRenderedTRef.current) >= TIME_EPSILON
-    shouldRender = timeChanged || isTransitionInProgressForRender
-  }
+  // 렌더링 조건: t(시간) 기반으로 결정
+  // ANIMATION.md 원칙: "시간의 정답은 t 하나(Transport)"
+  // - 시간이 변경되었거나 (timeChanged)
+  // - Transition 진행 중이거나 (매 프레임 렌더링 필요)
+  const timeChanged = Math.abs(tSec - lastRenderedTRef.current) >= TIME_EPSILON
+  const shouldRender = timeChanged || isTransitionInProgressForRender
 
   // 씬 전환 처리에 필요한 정보 (렌더링 조건 체크 전에 계산)
   const sceneChanged = sceneIndex !== lastRenderedSceneIndexRef.current
   const previousRenderedSceneIndex = sceneChanged ? lastRenderedSceneIndexRef.current : null
+  
 
   // 전환 효과 진행 중인지 확인 (중복 렌더링 체크 전에 확인)
   // 전환 효과가 진행 중일 때는 매 프레임마다 업데이트해야 하므로 중복 렌더링 체크를 우회
@@ -124,15 +116,47 @@ export function step8CheckDuplicateRender(
       })
     : 0
 
-  // Motion 진행률 계산은 scene과 sceneLocalT가 정의된 후에 수행
-  // 여기서는 초기값만 설정 (실제 계산은 나중에)
-  let motionProgress = 0 // 나중에 재할당됨
+  // Motion 진행률 계산 (중복 렌더 체크를 위해 여기서도 계산)
+  // step5와 동일한 방식으로 계산하여 일관성 유지
+  let motionProgress = 0
+  const scene = timeline.scenes[sceneIndex]
+  if (scene?.motion && !options?.skipAnimation) {
+    const sceneStartTime = getSceneStartTime(timeline, sceneIndex)
+    const sceneLocalT = Math.max(0, tSec - sceneStartTime)
+    
+    // step5와 동일한 calculateMotionProgress 함수 사용
+    const { motionProgress: calculatedMotionProgress } = calculateMotionProgress({
+      timeline,
+      sceneIndex,
+      sceneLocalT,
+      sceneStartTime,
+      ttsCacheRef,
+      voiceTemplate,
+      buildSceneMarkup,
+      makeTtsKey,
+      getActiveSegment,
+      activeSegmentFromTts,
+    })
+    motionProgress = calculatedMotionProgress
+  }
+  
+  // Motion 진행 중인지 확인
+  // Motion이 활성화되는 순간부터 완료 전까지 진행 중으로 간주
+  // motionProgress가 0보다 크고 1보다 작으면 Motion이 진행 중
+  // 단, Motion이 있는 경우 씬이 렌더링되는 순간부터 Motion이 시작되므로,
+  // Motion이 완료되지 않았으면(motionProgress < 1) 항상 진행 중으로 간주하여 렌더링 보장
+  const hasMotion = scene?.motion && !options?.skipAnimation
+  // Motion이 있고, 진행률이 0 이상이고 1 미만이면 진행 중
+  // motionProgress = 0일 때는 Motion 시작 순간이므로 진행 중으로 간주
+  const isMotionInProgress = hasMotion && motionProgress >= 0 && motionProgress < 1
 
   // 중복 렌더 체크 강화: Transition/Motion 진행 중이 아니고, 상태가 동일하면 스킵
   // Transition 진행 중에는 항상 렌더링해야 하므로 중복 체크에서 제외
+  // Motion 진행 중에도 항상 렌더링해야 하므로 중복 체크에서 제외
   const lastState = lastRenderedStateRef.current
   const isDuplicateRender = !isTransitionInProgress &&
     !isTransitionInProgressForRender && // Transition 진행 중이 아닐 때만 중복 체크
+    !isMotionInProgress && // Motion 진행 중이 아닐 때만 중복 체크
     !options?.forceRender &&
     (!needsRender ||
       (lastState &&
@@ -143,25 +167,9 @@ export function step8CheckDuplicateRender(
         Math.abs(motionProgress - lastState.motionProgress) < 0.001))
 
   // 디버깅: 중복 렌더링 체크 로그
-  // 전환 효과 진행 중일 때는 중복 렌더링이 방지되면 안 되므로 항상 로그 출력
+  // 전환 효과 진행 중일 때는 중복 렌더링이 방지되면 안 됨
   if (isDuplicateRender) {
-    // 전환 효과 진행 중이 아닐 때만 샘플링
-    const shouldLog = isTransitionInProgress || Math.floor(tSec * 100) % 100 === 0
-    if (shouldLog) {
-      console.log('[useTransportRenderer] Duplicate render prevented:', {
-        tSec: tSec.toFixed(3),
-        sceneIndex,
-        lastRenderedSceneIndex: lastRenderedSceneIndexRef.current,
-        lastRenderedT: lastRenderedTRef.current.toFixed(3),
-        timeDiff: Math.abs(tSec - lastRenderedTRef.current).toFixed(4),
-        needsRender,
-        shouldRender,
-        sceneChanged,
-        isTransitionInProgress,
-        // 전환 효과 진행 중인데도 중복 렌더링이 방지되면 문제
-        warning: isTransitionInProgress ? 'WARNING: Transition in progress but duplicate render prevented!' : undefined,
-      })
-    }
+    // 중복 렌더링 방지 (로그 제거)
   }
 
   // needsRender가 true일 때만 상태 업데이트

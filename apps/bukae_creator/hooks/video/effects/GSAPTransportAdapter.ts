@@ -83,15 +83,17 @@ export class GSAPTransportAdapter {
       case 'glitch':
       case 'ripple':
       case 'circle':
-      case 'wave':
       case 'circular':
+        // Circle: Shader Transition으로 처리됨 (GSAP에서는 처리하지 않음)
+        return this.renderNone.bind(this)
+      case 'wave':
         // 복잡한 전환효과는 일단 fade로 처리 (나중에 개별 구현 가능)
         return this.renderFade.bind(this)
       case 'none':
         return this.renderNone.bind(this)
       default:
-        console.warn('[GSAPTransportAdapter] Unknown transition type, using fade:', transitionType)
-        return this.renderFade.bind(this) // 기본값: fade
+        console.warn('[GSAPTransportAdapter] Unknown transition type, using none:', transitionType)
+        return this.renderNone.bind(this) // 기본값: none
     }
   }
 
