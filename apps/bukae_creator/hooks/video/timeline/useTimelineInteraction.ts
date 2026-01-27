@@ -249,7 +249,7 @@ export function useTimelineInteraction({
     const effectiveTotalDuration = totalDuration ?? (timeline ? calculateTotalDuration(timeline, {
       ttsCacheRef,
       voiceTemplate,
-      buildSceneMarkup,
+      buildSceneMarkup: buildSceneMarkup as ((timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number; voiceTemplate?: string | null; text?: { content?: string } }> } | null, sceneIndex: number) => string[]) | undefined,
       makeTtsKey,
     }) : 0)
     
@@ -401,7 +401,7 @@ export function useTimelineInteraction({
         const effectiveTotalDuration = totalDuration ?? (timeline ? calculateTotalDuration(timeline, {
           ttsCacheRef,
           voiceTemplate,
-          buildSceneMarkup,
+          buildSceneMarkup: buildSceneMarkup as ((timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number; voiceTemplate?: string | null; text?: { content?: string } }> } | null, sceneIndex: number) => string[]) | undefined,
           makeTtsKey,
         }) : 0)
         
@@ -471,7 +471,7 @@ export function useTimelineInteraction({
           const effectiveTotalDuration = totalDuration ?? (timeline ? calculateTotalDuration(timeline, {
             ttsCacheRef,
             voiceTemplate,
-            buildSceneMarkup,
+            buildSceneMarkup: buildSceneMarkup as ((timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number; voiceTemplate?: string | null; text?: { content?: string } }> } | null, sceneIndex: number) => string[]) | undefined,
             makeTtsKey,
           }) : 0)
           finalTime = Math.max(0, Math.min(effectiveTotalDuration, Math.round((ratio * effectiveTotalDuration) * 1000) / 1000))

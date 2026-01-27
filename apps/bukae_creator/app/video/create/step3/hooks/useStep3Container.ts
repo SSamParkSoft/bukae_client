@@ -36,6 +36,7 @@ import { useBgmPlayback, useTtsDurationSync } from './audio'
 // [강화] 리소스 모니터링 및 상태 동기화 검증 (비활성화됨)
 import * as PIXI from 'pixi.js'
 import * as fabric from 'fabric'
+import type { TtsTrack } from '@/hooks/video/audio/TtsTrack'
 
 export function useStep3Container() {
   // 상태 관리 훅 (모든 refs와 state)
@@ -721,7 +722,7 @@ export function useStep3Container() {
     resumeBgmAudio,
     sceneGroupPlayStartTimeRef,
     sceneGroupPlayStartAudioCtxTimeRef,
-    ttsTrackRef: ttsTrackRef as React.MutableRefObject<{ getTtsTrack: () => ReturnType<typeof import('@/hooks/video/audio/useTtsTrack').useTtsTrack> | null }>,
+    ttsTrackRef: ttsTrackRef as React.MutableRefObject<{ getTtsTrack: () => TtsTrack | null }>,
     setIsPreparing,
   })
   const { setIsPlaying } = playbackStateResult
@@ -747,7 +748,7 @@ export function useStep3Container() {
     transportRendererRef,
     sceneGroupPlayStartTimeRef,
     sceneGroupPlayStartAudioCtxTimeRef,
-    ttsTrackRef: ttsTrackRef as React.MutableRefObject<{ getTtsTrack: () => ReturnType<typeof import('@/hooks/video/audio/useTtsTrack').useTtsTrack> | null }>,
+    ttsTrackRef: ttsTrackRef as React.MutableRefObject<{ getTtsTrack: () => TtsTrack | null }>,
     lastTtsUpdateTimeRef,
   })
 

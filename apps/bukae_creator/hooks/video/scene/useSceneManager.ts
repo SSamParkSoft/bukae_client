@@ -823,7 +823,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
       }
 
       // 이전 씬의 스프라이트 숨기기 (같은 그룹이 아닌 경우에만)
-      if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
+      if (previousSprite && previousIndex != null && previousIndex !== sceneIndex) {
         const previousScene = timeline.scenes[previousIndex]
         const currentScene = timeline.scenes[sceneIndex]
         const isPrevInSameGroup = 

@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect } from 'react'
-import type { ReturnType as TransportReturnType } from '@/hooks/video/transport/useTransport'
+import type { useTransport } from '@/hooks/video/transport/useTransport'
 
 interface UseBgmIntegrationParams {
   isPlaying: boolean
   confirmedBgmTemplate: string | null
   playbackSpeed: number
-  transport: TransportReturnType<typeof import('@/hooks/video/transport/useTransport').useTransport>
+  transport: ReturnType<typeof useTransport>
   bgmAudioRef: React.MutableRefObject<HTMLAudioElement | null>
   startBgmAudio: (templateId: string, speed: number, loop: boolean, startTime: number) => Promise<void>
   pauseBgmAudio: () => void

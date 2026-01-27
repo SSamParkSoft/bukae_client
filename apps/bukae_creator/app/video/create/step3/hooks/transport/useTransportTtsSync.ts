@@ -5,6 +5,7 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { useTransport } from '@/hooks/video/transport/useTransport'
 import type { useTtsTrack } from '@/hooks/video/audio/useTtsTrack'
 import type { TtsSegment } from '@/hooks/video/audio/types'
+import type { TtsTrack } from '@/hooks/video/audio/TtsTrack'
 
 type UseTransportReturnType = ReturnType<typeof useTransport>
 type UseTtsTrackReturnType = ReturnType<typeof useTtsTrack>
@@ -28,7 +29,7 @@ interface UseTransportTtsSyncParams {
   transportRendererRef: React.MutableRefObject<{ renderAt: (tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number }) => void } | null>
   sceneGroupPlayStartTimeRef: React.MutableRefObject<number | null>
   sceneGroupPlayStartAudioCtxTimeRef: React.MutableRefObject<number | null>
-  ttsTrackRef: React.MutableRefObject<{ getTtsTrack: () => UseTtsTrackReturnType | null }>
+  ttsTrackRef: React.MutableRefObject<{ getTtsTrack: () => TtsTrack | null }>
   lastTtsUpdateTimeRef: React.MutableRefObject<number>
 }
 

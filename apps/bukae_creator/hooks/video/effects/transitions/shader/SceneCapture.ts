@@ -91,13 +91,12 @@ export class SceneCapture {
     }
 
     // app.renderer 유효성 검사
-    if (!app || !app.renderer || app.destroyed) {
+    if (!app || !app.renderer) {
       if (process.env.NODE_ENV === 'development') {
         console.error('[SceneCapture] App or renderer is invalid', {
           sceneIndex,
           hasApp: !!app,
           hasRenderer: !!app?.renderer,
-          appDestroyed: app?.destroyed,
         })
       }
       return

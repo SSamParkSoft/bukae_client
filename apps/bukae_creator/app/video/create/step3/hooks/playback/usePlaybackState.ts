@@ -4,6 +4,7 @@ import { useCallback } from 'react'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { getSceneStartTime } from '@/utils/timeline'
 import type { MakeTtsKeyFunction } from '@/lib/utils/tts'
+import type { TtsTrack } from '@/hooks/video/audio/TtsTrack'
 
 interface UsePlaybackStateParams {
   // Timeline and TTS
@@ -41,7 +42,7 @@ interface UsePlaybackStateParams {
   // Refs
   sceneGroupPlayStartTimeRef: React.MutableRefObject<number | null>
   sceneGroupPlayStartAudioCtxTimeRef: React.MutableRefObject<number | null>
-  ttsTrackRef: React.MutableRefObject<{ getTtsTrack: () => ReturnType<typeof import('@/hooks/video/audio/useTtsTrack').useTtsTrack> | null }>
+  ttsTrackRef: React.MutableRefObject<{ getTtsTrack: () => TtsTrack | null }>
   
   // UI state
   setIsPreparing: (preparing: boolean) => void
