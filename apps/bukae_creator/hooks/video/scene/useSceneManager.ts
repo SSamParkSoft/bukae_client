@@ -431,13 +431,13 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         const previousSprite = spritesRef?.current.get(lastRenderedIndex)
         const previousText = textsRef.current.get(lastRenderedIndex)
         
-        if (previousSprite) {
+        // 같은 그룹 내 씬이 아닌 경우에만 스프라이트와 텍스트 숨기기
+        const previousScene = timeline.scenes[lastRenderedIndex]
+        const currentScene = timeline.scenes[sceneIndex]
+        if (previousSprite && previousScene?.sceneId !== currentScene?.sceneId) {
           previousSprite.visible = false
           previousSprite.alpha = 0
         }
-        // 같은 그룹 내 씬이 아닌 경우에만 텍스트 숨기기
-        const previousScene = timeline.scenes[lastRenderedIndex]
-        const currentScene = timeline.scenes[sceneIndex]
         if (previousText && previousScene?.sceneId !== currentScene?.sceneId) {
           previousText.visible = false
           previousText.alpha = 0
@@ -445,13 +445,21 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
       }
       
       // 다른 모든 씬도 숨기기 (현재 씬과 같은 그룹 제외)
+      // UX 개선: 같은 그룹 내 씬은 숨기지 않아서 분할된 씬 전환 시 안정적 렌더링 보장
       const currentScene = timeline.scenes[sceneIndex]
       const currentSceneId = currentScene?.sceneId
       
       spritesRef?.current.forEach((sprite, idx) => {
         if (sprite && idx !== sceneIndex) {
-          sprite.visible = false
-          sprite.alpha = 0
+          // 같은 그룹 내 씬이 아닌 경우에만 스프라이트 숨기기
+          const otherScene = timeline.scenes[idx]
+          const isOtherInSameGroup = 
+            otherScene && currentScene && currentSceneId !== undefined && 
+            otherScene.sceneId === currentSceneId
+          if (!isOtherInSameGroup) {
+            sprite.visible = false
+            sprite.alpha = 0
+          }
         }
       })
       textsRef.current.forEach((text, idx) => {
@@ -465,7 +473,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         }
       })
         
-        // 전환 효과가 'none'인 경우, 현재 씬의 스프라이트를 미리 표시
+        // UX 개선: 전환 효과가 'none'인 경우, 현재 씬의 스프라이트와 텍스트를 미리 표시
         // (updateCurrentScene 호출 전에 표시하여 즉시 보이도록 함)
         if (shouldSkipAnimation || forceTransition === 'none' || currentScene.transition === 'none') {
           const currentSprite = spritesRef?.current.get(sceneIndex)
@@ -814,9 +822,20 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         }
       }
 
+      // 이전 씬의 스프라이트 숨기기 (같은 그룹이 아닌 경우에만)
       if (previousSprite && previousIndex !== null && previousIndex !== sceneIndex) {
-        previousSprite.visible = false
-        previousSprite.alpha = 0
+        const previousScene = timeline.scenes[previousIndex]
+        const currentScene = timeline.scenes[sceneIndex]
+        const isPrevInSameGroup = 
+          previousScene && currentScene && 
+          previousScene.sceneId !== undefined && 
+          previousScene.sceneId === currentScene.sceneId
+        
+        // 같은 그룹이 아닌 경우에만 숨기기
+        if (!isPrevInSameGroup) {
+          previousSprite.visible = false
+          previousSprite.alpha = 0
+        }
       }
       
       // 다른 씬의 텍스트 숨기기 (자막 누적 방지)

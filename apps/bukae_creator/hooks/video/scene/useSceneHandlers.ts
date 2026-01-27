@@ -129,43 +129,22 @@ export function useSceneHandlers({
         setCurrentSceneIndex(targetSceneIndex)
       }
       
+      // 효과 변경 시 현재 렌더링된 씬 인덱스 확인
+      const currentRenderedIndex = lastRenderedSceneIndexRef.current ?? currentSceneIndex
+      
       requestAnimationFrame(() => {
         setTimeout(() => {
           // 전환 효과 변경 시에는 같은 씬에서 전환 효과만 변경하므로
-          // previousIndex는 null로 설정하여 페이드 인 효과 적용
-          // 자막은 현재 씬의 첫 번째 구간만 표시 (구간이 나뉘어져 있으면)
-          const currentScene = nextTimeline.scenes[targetSceneIndex]
-          let firstPartText: string | null = null
-          if (currentScene?.text?.content) {
-            const scriptParts = (currentScene.text.content || '').split(/\s*\|\|\|\s*/).map(part => (part && typeof part === 'string' ? part.trim() : '')).filter(part => part.length > 0)
-            if (scriptParts.length > 1) {
-              firstPartText = scriptParts[0]
-              // 구간이 나뉘어져 있으면 첫 번째 구간만 표시하도록 timeline 업데이트
-              const updatedTimeline: TimelineData = {
-                ...nextTimeline,
-                scenes: nextTimeline.scenes.map((scene, i) =>
-                  i === targetSceneIndex
-                    ? {
-                        ...scene,
-                        text: {
-                          ...scene.text,
-                          content: scriptParts[0], // 첫 번째 구간만 표시
-                        },
-                      }
-                    : scene
-                ),
-              }
-              setTimeline(updatedTimeline)
-            }
-          }
+          // previousIndex를 현재 씬 인덱스로 설정하여 같은 씬으로 인식
+          // timeline의 text.content는 변경하지 않고 원본 유지 (자막이 사라지지 않도록)
           
           // renderSceneContent 사용 (통합 렌더링 함수)
           if (renderSceneContent) {
             renderSceneContent(targetSceneIndex, null, {
               skipAnimation: false,
               forceTransition: value,
-              previousIndex: null,
-              updateTimeline: false, // 이미 timeline 업데이트 완료
+              previousIndex: targetSceneIndex, // null 대신 현재 씬 인덱스 사용하여 같은 씬으로 인식
+              updateTimeline: false, // timeline text.content 변경하지 않음
               onComplete: () => {
                 lastRenderedSceneIndexRef.current = targetSceneIndex
                 const transitionDuration =
@@ -180,8 +159,8 @@ export function useSceneHandlers({
             })
           } else {
             // fallback: 기존 방식
-            // skipAnimation 파라미터 제거: forceTransition으로 처리
-            updateCurrentScene(null, value, undefined, undefined, undefined, undefined, targetSceneIndex)
+            // previousIndex를 현재 씬 인덱스로 설정하여 같은 씬으로 인식
+            updateCurrentScene(targetSceneIndex, value, undefined, undefined, undefined, undefined, targetSceneIndex)
             
             lastRenderedSceneIndexRef.current = targetSceneIndex
 

@@ -12,6 +12,7 @@ interface UseTimelineChangeHandlerParams {
   pixiReady: boolean
   isPlaying: boolean
   transport: UseTransportReturnType
+  isPreviewingTransitionRef?: React.MutableRefObject<boolean> // 효과 변경 중 자동 렌더링 스킵을 위한 ref
 }
 
 export function useTimelineChangeHandler({
@@ -20,6 +21,7 @@ export function useTimelineChangeHandler({
   pixiReady,
   isPlaying,
   transport,
+  isPreviewingTransitionRef,
 }: UseTimelineChangeHandlerParams) {
   // timeline의 motion/transition 변경 감지 및 렌더링 업데이트
   // ANIMATION.md 표준: renderAt은 Transport 루프에서만 호출되어야 하지만,
@@ -39,6 +41,11 @@ export function useTimelineChangeHandler({
     // timeline이 준비되지 않았거나 renderAt이 설정되지 않았으면 스킵
     if (!timeline || !renderAtRef.current || !pixiReady) return
     
+    // UX 개선: 효과 변경 중에는 자동 렌더링을 스킵하여 렌더링 충돌 방지
+    if (isPreviewingTransitionRef?.current) {
+      return
+    }
+    
     // 재생 중이 아닐 때만 수동 렌더링 (재생 중에는 Transport 루프가 자동으로 처리)
     if (!isPlaying) {
       const currentTime = transport.currentTime
@@ -46,5 +53,5 @@ export function useTimelineChangeHandler({
       renderAtRef.current(currentTime, { skipAnimation: false })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timelineMotionTransitionKey, pixiReady, isPlaying])
+  }, [timelineMotionTransitionKey, pixiReady, isPlaying, isPreviewingTransitionRef])
 }

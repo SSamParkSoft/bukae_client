@@ -110,7 +110,10 @@ export function useSceneContentRenderer({
     }
     
     // 같은 씬 내 구간 전환인지 확인
-    const isSameSceneTransition = currentSceneIndexRef.current === sceneIndex
+    // previousIndex가 현재 씬 인덱스와 같을 때도 같은 씬 전환으로 인식 (효과 변경 시)
+    const isSameSceneTransition = 
+      currentSceneIndexRef.current === sceneIndex || 
+      (options?.previousIndex !== null && options?.previousIndex === sceneIndex)
     
     // timeline 업데이트 (필요한 경우)
     if (options?.updateTimeline && partIndex !== undefined && partIndex !== null && timeline) {

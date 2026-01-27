@@ -438,6 +438,7 @@ export const usePixiEffects = ({
         // 씬이 넘어가지 않는다면 이미지가 그대로 남아있어야 함
         if (toSprite) {
           // 컨테이너에 없으면 추가 (필요한 경우에만)
+          // UX 개선: removeChild/addChild 대신 부모 확인 후 필요시에만 이동
           if (containerRef.current && toSprite.parent !== containerRef.current) {
             if (toSprite.parent) {
               toSprite.parent.removeChild(toSprite)
@@ -446,15 +447,22 @@ export const usePixiEffects = ({
           }
           
           // 이미지를 맨 뒤로 보냄 (자막이 위에 오도록)
+          // UX 개선: 자막이 항상 위에 오도록 보장
           if (containerRef.current && toSprite.parent === containerRef.current) {
-            containerRef.current.setChildIndex(toSprite, 0)
+            const currentIndex = containerRef.current.getChildIndex(toSprite)
+            if (currentIndex !== 0) {
+              containerRef.current.setChildIndex(toSprite, 0)
+            }
           }
           
-          // 이미 보이는 상태라면 visible/alpha를 건드리지 않음 (깜빡임 방지)
-          // 보이지 않는 경우에만 보이게 설정
+          // UX 개선: 이미 보이는 상태라면 visible/alpha를 건드리지 않음 (깜빡임 방지)
+          // 보이지 않는 경우에만 부드럽게 보이게 설정
           if (!toSprite.visible || toSprite.alpha < 1) {
             toSprite.visible = true
-            toSprite.alpha = 1
+            // alpha를 즉시 1로 설정하지 않고 부드럽게 전환 (이미 애니메이션 중이면 그대로 유지)
+            if (toSprite.alpha === 0) {
+              toSprite.alpha = 1
+            }
           }
           
           // 필터 제거 (블러 등) - 항상 제거

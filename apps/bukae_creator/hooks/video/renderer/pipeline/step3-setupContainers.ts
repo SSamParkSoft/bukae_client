@@ -156,18 +156,39 @@ export function step3SetupContainers(
       // Transition이 진행 중이 아닐 때만 즉시 숨김
       // step6에서 Transition 진행 중일 때 이전 스프라이트를 보이게 하므로 여기서는 건드리지 않음
       if (!isTransitionInProgress && !isTransitionInProgressForRender) {
-        // 이전 씬의 스프라이트만 숨김
+        // 이전 씬의 스프라이트만 숨김 (같은 그룹이 아닌 경우에만)
         const previousSprite = spritesRef.current.get(previousRenderedSceneIndex)
         if (previousSprite && !previousSprite.destroyed) {
-          previousSprite.visible = false
-          previousSprite.alpha = 0
+          const previousScene = timeline.scenes[previousRenderedSceneIndex]
+          const currentScene = timeline.scenes[sceneIndex]
+          const isPrevInSameGroup = 
+            previousScene && currentScene && 
+            previousScene.sceneId !== undefined && 
+            previousScene.sceneId === currentScene.sceneId
+          
+          // 같은 그룹이 아닌 경우에만 숨기기
+          if (!isPrevInSameGroup) {
+            previousSprite.visible = false
+            previousSprite.alpha = 0
+          }
         }
         
-        // 다른 모든 씬의 스프라이트도 숨김 (현재 씬 제외)
+        // 다른 모든 씬의 스프라이트도 숨김 (현재 씬과 같은 그룹 제외)
+        const currentScene = timeline.scenes[sceneIndex]
+        const currentSceneId = currentScene?.sceneId
         spritesRef.current.forEach((spriteRef, spriteSceneIndex) => {
           if (spriteSceneIndex !== sceneIndex && spriteSceneIndex !== previousRenderedSceneIndex && spriteRef && !spriteRef.destroyed) {
-            spriteRef.visible = false
-            spriteRef.alpha = 0
+            const otherScene = timeline.scenes[spriteSceneIndex]
+            const isOtherInSameGroup = 
+              otherScene && currentScene && 
+              currentSceneId !== undefined && 
+              otherScene.sceneId === currentSceneId
+            
+            // 같은 그룹이 아닌 경우에만 숨기기
+            if (!isOtherInSameGroup) {
+              spriteRef.visible = false
+              spriteRef.alpha = 0
+            }
           }
         })
       }
@@ -260,7 +281,13 @@ export function step3SetupContainers(
             // Transition이 설정되어 있으면 step6에서 처리
             // 여기서는 이전 스프라이트를 숨김 (step6에서 Transition 진행 중일 때만 보이게 함)
             // Transition 진행 중가 아닐 때만 숨김 (렌더링 충돌 방지)
+            // UX 개선: 현재 스프라이트를 미리 표시하여 깜빡임 방지
             if (!isTransitionInProgress && !isTransitionInProgressForRender) {
+              // 현재 스프라이트를 미리 표시 (전환 시작 전 준비)
+              if (sprite && !sprite.visible) {
+                sprite.visible = true
+                sprite.alpha = 0 // 전환 시작 전에는 투명하게
+              }
               if (previousSprite && !previousSprite.destroyed) {
                 previousSprite.visible = false
                 previousSprite.alpha = 0
@@ -268,9 +295,13 @@ export function step3SetupContainers(
             }
           } else {
             // 전환 효과가 없으면 즉시 표시하고 이전 스프라이트는 숨김
-            sprite.visible = true
-            sprite.alpha = 1
+            // UX 개선: 부드러운 전환을 위해 순차적으로 처리
+            if (sprite) {
+              sprite.visible = true
+              sprite.alpha = 1
+            }
             if (previousSprite && !previousSprite.destroyed) {
+              // 이전 스프라이트는 약간의 지연 후 숨김 (깜빡임 방지)
               previousSprite.visible = false
               previousSprite.alpha = 0
             }

@@ -239,9 +239,37 @@ export function useSceneTransition({
       const isZoomEffect = forceTransition === 'zoom-in' || forceTransition === 'zoom-out' || 
                           currentScene.transition === 'zoom-in' || currentScene.transition === 'zoom-out'
 
+      // UX 개선: 같은 씬 전환 시 (효과 변경 포함) 현재 씬의 스프라이트와 텍스트를 명시적으로 표시
       if (isSameSceneTransition && !isZoomEffect) {
-        currentSprite.visible = true
-        currentSprite.alpha = 1
+        // 현재 씬의 스프라이트 명시적으로 표시
+        if (currentSprite) {
+          currentSprite.visible = true
+          currentSprite.alpha = 1
+        }
+        // 현재 씬의 텍스트도 명시적으로 표시 (자막이 사라지지 않도록)
+        if (renderSubtitlePartRef.current) {
+          renderSubtitlePartRef.current(actualSceneIndex, partIndex ?? null, {
+            skipAnimation: true,
+          })
+        }
+        return
+      }
+      
+      // UX 개선: 효과 변경 시 (previousIndex === actualSceneIndex) 현재 씬 렌더링 보장
+      if (previousIndex === actualSceneIndex) {
+        // 같은 씬에서 효과만 변경하는 경우
+        // 현재 씬의 스프라이트와 텍스트를 명시적으로 표시
+        if (currentSprite) {
+          currentSprite.visible = true
+          currentSprite.alpha = 1
+        }
+        // 자막도 보장
+        if (renderSubtitlePartRef.current) {
+          renderSubtitlePartRef.current(actualSceneIndex, partIndex ?? null, {
+            skipAnimation: true,
+          })
+        }
+        // 효과 변경은 applyEnterEffect에서 처리하므로 여기서는 기본 렌더링만 보장
         return
       }
 
@@ -288,13 +316,15 @@ export function useSceneTransition({
       const hasSplitIndex = currentScene.splitIndex !== undefined
       const previousHasSplitIndex = previousScene?.splitIndex !== undefined
 
+      // UX 개선: 분할된 씬(splitIndex)도 같은 그룹으로 인식하여 안정적 렌더링 보장
+      // 단, 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 다른 그룹 간 전환으로 처리하여 전환 효과 적용
       const isInSameGroup =
         previousScene &&
         currentScene &&
         hasSceneId &&
         previousScene.sceneId === currentScene.sceneId &&
-        !hasSplitIndex &&
-        !previousHasSplitIndex
+        // 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 다른 그룹 간 전환으로 처리 (전환 효과 적용)
+        !(previousHasSplitIndex === false && hasSplitIndex === true)
 
       const firstSceneIndex =
         isInSameGroup && hasSceneId
@@ -311,7 +341,9 @@ export function useSceneTransition({
       }
 
       // 같은 그룹 내 씬 전환 (첫 번째 씬이 아닌 경우)
-      if (isInSameGroup && !isFirstSceneInGroup) {
+      // 단, 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 다른 그룹 간 전환이므로 전환 효과 적용
+      const isTransitionToSplitScene = previousHasSplitIndex === false && hasSplitIndex === true
+      if (isInSameGroup && !isFirstSceneInGroup && !isTransitionToSplitScene) {
         if (!isManualSceneSelectRef.current && renderSubtitlePartRef.current) {
           // renderSubtitlePart를 사용하여 텍스트 렌더링 (중복 제거)
           renderSubtitlePartRef.current(actualSceneIndex, partIndex ?? null, {
@@ -324,8 +356,12 @@ export function useSceneTransition({
       }
 
       // 전환 효과 시작 전에 이전 씬 숨기기
+      // UX 개선: 같은 그룹 내 씬 전환 시 이전 씬을 숨기지 않아서 분할된 씬에서 안정적 렌더링 보장
       const shouldHidePreviousBeforeTransition =
-        previousIndex !== null && previousIndex !== actualSceneIndex && !isFirstSceneInGroup
+        previousIndex !== null && 
+        previousIndex !== actualSceneIndex && 
+        !isFirstSceneInGroup &&
+        !isInSameGroup // 같은 그룹 내 씬 전환 시 이전 씬 숨김 방지
       if (shouldHidePreviousBeforeTransition && previousIndex !== null) {
         const prevSprite = spritesRef.current.get(previousIndex)
         const prevText = textsRef.current.get(previousIndex)

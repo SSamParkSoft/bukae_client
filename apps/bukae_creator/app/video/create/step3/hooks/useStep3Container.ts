@@ -785,9 +785,15 @@ export function useStep3Container() {
     renderSceneImage,
   })
   
-  // isPreviewingTransition (Transport에서는 별도 관리 필요)
-  const isPreviewingTransition = false
-  const setIsPreviewingTransition = () => {}
+  // UX 개선: 효과 변경 중 자동 렌더링 스킵을 위한 ref
+  const isPreviewingTransitionRef = useRef<boolean>(false)
+  const [isPreviewingTransition, setIsPreviewingTransitionState] = useState<boolean>(false)
+  
+  // setIsPreviewingTransition 래퍼: ref와 state 모두 업데이트
+  const setIsPreviewingTransition = useCallback((value: boolean) => {
+    isPreviewingTransitionRef.current = value
+    setIsPreviewingTransitionState(value)
+  }, [])
 
 
 
@@ -1003,12 +1009,14 @@ export function useStep3Container() {
   })
 
   // 타임라인 변경 감지 및 렌더링 업데이트 (useTimelineChangeHandler 훅 사용)
+  // UX 개선: 효과 변경 중에는 자동 렌더링을 스킵하여 렌더링 충돌 방지
   useTimelineChangeHandler({
     timeline,
     renderAtRef,
     pixiReady,
     isPlaying,
     transport,
+    isPreviewingTransitionRef,
   })
 
   // 재생 핸들러 훅 (Transport 기반)

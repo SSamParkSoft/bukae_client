@@ -154,6 +154,7 @@ export function step6ApplyTransition(
         const progress = Math.min(1, Math.max(0, relativeTime / transitionDuration))
         
         // Transition이 완료되면 이전 씬 스프라이트 숨김 (progress가 1에 가까울 때)
+        // UX 개선: removeChild 대신 visible/alpha만 변경하여 깜빡임 방지
         if (progress >= 0.99 || isJustCompleted) {
           const previousSceneIndex = sceneIndex > 0 ? sceneIndex - 1 : null
           const previousSprite = previousSceneIndex !== null
@@ -162,21 +163,22 @@ export function step6ApplyTransition(
 
           if (previousSprite && !previousSprite.destroyed) {
             // Transition 완료 후 이전 씬 스프라이트 숨김
+            // removeChild는 깜빡임을 유발할 수 있으므로 visible/alpha만 변경
             previousSprite.visible = false
             previousSprite.alpha = 0
-            // 컨테이너에서도 제거 (선택사항 - 숨김만으로도 충분하지만 깔끔하게 제거)
-            if (containerRef.current && previousSprite.parent === containerRef.current) {
-              containerRef.current.removeChild(previousSprite)
-            }
+            // 컨테이너에서 제거하지 않음 - 숨김만으로 충분하며 더 부드러운 전환
           }
         }
 
-        // 스프라이트가 없으면 생성해야 함
+        // UX 개선: 스프라이트가 없으면 생성해야 함
         if (!currentSprite && containerRef.current) {
           // 스프라이트가 아직 로드되지 않았을 수 있음 - 다음 프레임에 다시 시도
+          // 로딩 중에는 이전 씬을 유지하여 깜빡임 방지
+          return
         }
 
-        // 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
+        // UX 개선: 스프라이트가 컨테이너에 있는지 확인하고 없으면 추가
+        // 부드러운 전환을 위해 컨테이너 관리 최적화
         if (currentSprite && !currentSprite.destroyed && containerRef.current) {
           // 중복 체크: 같은 스프라이트가 이미 컨테이너에 있는지 확인
           const spriteAlreadyInContainer = currentSprite.parent === containerRef.current

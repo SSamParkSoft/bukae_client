@@ -231,15 +231,21 @@ export function useSubtitleRenderer({
         return
       }
 
-      // 텍스트 객체를 자막 Container에 추가 (Shader Transition을 위한 분리)
+      // UX 개선: 텍스트 객체를 자막 Container에 추가 (Shader Transition을 위한 분리)
       if (subtitleContainerRef.current) {
-        // 이전 부모에서 제거
+        // 이전 부모에서 제거 (부드러운 전환을 위해 필요시에만)
         if (targetTextObj.parent && targetTextObj.parent !== subtitleContainerRef.current) {
           targetTextObj.parent.removeChild(targetTextObj)
         }
-        // 자막 Container에 추가
+        // 자막 Container에 추가 (중복 체크로 깜빡임 방지)
         if (!targetTextObj.parent) {
           subtitleContainerRef.current.addChild(targetTextObj)
+        }
+        // UX 개선: 자막을 항상 맨 위로 올려서 가시성 보장
+        const currentIndex = subtitleContainerRef.current.getChildIndex(targetTextObj)
+        const maxIndex = subtitleContainerRef.current.children.length - 1
+        if (currentIndex !== maxIndex) {
+          subtitleContainerRef.current.setChildIndex(targetTextObj, maxIndex)
         }
       } else if (containerRef.current) {
         // 자막 Container가 없으면 기존 방식 사용 (하위 호환성)

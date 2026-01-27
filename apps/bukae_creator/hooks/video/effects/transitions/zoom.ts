@@ -20,8 +20,10 @@ export function applyZoomTransition(
     originalX,
     originalY,
     originalScale,
-    originalScaleX,
-    originalScaleY,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    originalScaleX, // 타입 호환성을 위해 유지 (사용되지 않음)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    originalScaleY, // 타입 호환성을 위해 유지 (사용되지 않음)
     scaleRatio,
     duration,
     timeline,
@@ -62,25 +64,36 @@ export function applyZoomTransition(
       duration,
       ease: 'none', // 선형 애니메이션으로 정확한 듀레이션 보장
       onUpdate: function () {
-        // 매 프레임마다 null 체크 (애니메이션 중에 toSprite가 null이 될 수 있음)
+        // UX 개선: 매 프레임마다 null 체크 (애니메이션 중에 toSprite가 null이 될 수 있음)
         if (!spriteRef || spriteRef.destroyed || !containerRef.current) {
           return
         }
         ensureInContainer(spriteRef, toText, containerRef.current)
         const scaleFactor = toZoomObj.scale
-        spriteRef.visible = true
+        
+        // UX 개선: visible/alpha 변경 최소화로 깜빡임 방지
+        if (!spriteRef.visible) {
+          spriteRef.visible = true
+        }
         // 페이드 효과 제거: alpha를 항상 1로 유지
-        spriteRef.alpha = 1
+        if (spriteRef.alpha !== 1) {
+          spriteRef.alpha = 1
+        }
         spriteRef.scale.set(scaleFactor, scaleFactor * scaleRatio)
 
         // anchor가 (0.5, 0.5)이므로 중심점 좌표를 그대로 사용
         spriteRef.x = centerX
         spriteRef.y = centerY
 
+        // UX 개선: 텍스트도 부드럽게 처리
         if (toText && containerRef.current) {
           ensureInContainer(spriteRef, toText, containerRef.current)
-          toText.alpha = 1
-          toText.visible = true
+          if (toText.alpha !== 1) {
+            toText.alpha = 1
+          }
+          if (!toText.visible) {
+            toText.visible = true
+          }
         }
       },
       // onComplete는 제거 - 메인 타임라인의 onComplete에서 처리하도록 함 (다른 효과들과 동일하게)
