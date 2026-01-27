@@ -326,8 +326,10 @@ export function useSceneTransition({
         // 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 다른 그룹 간 전환으로 처리 (전환 효과 적용)
         !(previousHasSplitIndex === false && hasSplitIndex === true)
 
+      // UX 개선: firstSceneIndex 계산을 isInSameGroup 조건과 분리
+      // 분할된 씬으로 전환할 때도 올바르게 계산되어 첫 번째 구간임을 정확히 인식
       const firstSceneIndex =
-        isInSameGroup && hasSceneId
+        hasSceneId && currentScene.sceneId !== undefined
           ? timeline.scenes.findIndex((s) => s.sceneId === currentScene.sceneId)
           : -1
       const isFirstSceneInGroup = firstSceneIndex === actualSceneIndex
@@ -357,10 +359,12 @@ export function useSceneTransition({
 
       // 전환 효과 시작 전에 이전 씬 숨기기
       // UX 개선: 같은 그룹 내 씬 전환 시 이전 씬을 숨기지 않아서 분할된 씬에서 안정적 렌더링 보장
+      // 단, 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 이전 씬을 숨겨서 전환 효과가 보이도록 함
+      // isTransitionToSplitScene은 위에서 이미 선언됨
       const shouldHidePreviousBeforeTransition =
         previousIndex !== null && 
         previousIndex !== actualSceneIndex && 
-        !isFirstSceneInGroup &&
+        (!isFirstSceneInGroup || isTransitionToSplitScene) && // 분할된 씬으로 전환할 때는 첫 번째 구간이어도 이전 씬 숨김
         !isInSameGroup // 같은 그룹 내 씬 전환 시 이전 씬 숨김 방지
       if (shouldHidePreviousBeforeTransition && previousIndex !== null) {
         const prevSprite = spritesRef.current.get(previousIndex)
@@ -519,15 +523,17 @@ export function useSceneTransition({
             : -1
         const isFirstSceneInGroup = firstSceneIndex === actualSceneIndex
 
+        // UX 개선: Line 321-327의 로직과 일치하도록 isInSameGroup 재계산
+        // 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 다른 그룹 간 전환으로 처리
         let isInSameGroup = false
         const currentHasSplitIndex = currentScene.splitIndex !== undefined
-        if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined && !currentHasSplitIndex) {
+        const previousHasSplitIndexForRecalc = previousScene?.splitIndex !== undefined
+        if (firstSceneIndex >= 0 && currentScene.sceneId !== undefined) {
           if (previousIndex !== null && previousScene !== null) {
-            const previousHasSplitIndex = previousScene.splitIndex !== undefined
             isInSameGroup =
-              (previousScene.sceneId === currentScene.sceneId ||
-                previousIndex === actualSceneIndex) &&
-              !previousHasSplitIndex
+              previousScene.sceneId === currentScene.sceneId &&
+              // 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 다른 그룹 간 전환으로 처리
+              !(previousHasSplitIndexForRecalc === false && currentHasSplitIndex === true)
           } else {
             const lastRenderedIndex = previousSceneIndexRef.current
             if (lastRenderedIndex !== null) {
@@ -536,7 +542,8 @@ export function useSceneTransition({
               if (
                 lastRenderedScene &&
                 lastRenderedScene.sceneId === currentScene.sceneId &&
-                !lastRenderedHasSplitIndex
+                // 분할되지 않은 씬에서 분할된 씬으로 전환할 때는 다른 그룹 간 전환으로 처리
+                !(lastRenderedHasSplitIndex === false && currentHasSplitIndex === true)
               ) {
                 isInSameGroup = true
               }
