@@ -188,31 +188,9 @@ export function EffectsPanel({
                   </h3>
                   <div className="h-0.5 bg-[#bbc9c9]" />
                   <div className="space-y-6">
-                    {/* 전환 효과 없음 옵션 */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-6">
-                      <button
-                        onClick={() => {
-                          if (timeline && currentSceneIndex >= 0) {
-                            onTransitionChange(currentSceneIndex, 'none')
-                          }
-                        }}
-                        className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
-                          timeline?.scenes[currentSceneIndex]?.transition === 'none' || !timeline?.scenes[currentSceneIndex]?.transition
-                            ? 'bg-[#5e8790] text-white border-[#5e8790]'
-                            : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
-                        }`}
-                        style={{ 
-                          fontSize: 'var(--font-size-14)',
-                          lineHeight: '22.4px'
-                        }}
-                      >
-                        없음
-                      </button>
-                    </div>
-
-                    {/* 전환 효과 리스트 */}
-                    {transitionsWithoutNone.length > 0 && (
-                      <div className="space-y-6">
+                    {/* 전환 효과 섹션 */}
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
                         <h3 
                           className="font-bold text-text-dark tracking-[-0.4px]"
                           style={{ 
@@ -222,53 +200,99 @@ export function EffectsPanel({
                         >
                           전환 효과
                         </h3>
-                        <div className="h-0.5 bg-[#bbc9c9]" />
+                        <span 
+                          className="text-[#5d5d5d] tracking-[-0.14px] mt-2"
+                          style={{ 
+                            fontSize: 'var(--font-size-12)',
+                            lineHeight: '19.2px'
+                          }}
+                        >
+                          씬 간에 효과를 나타내요!
+                        </span>
+                      </div>
+                      <div className="h-0.5 bg-[#bbc9c9]" />
+                      
+                      {/* 전환 효과 없음 옵션 */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <button
+                          onClick={() => {
+                            if (timeline && currentSceneIndex >= 0) {
+                              onTransitionChange(currentSceneIndex, 'none')
+                            }
+                          }}
+                          className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
+                            timeline?.scenes[currentSceneIndex]?.transition === 'none' || !timeline?.scenes[currentSceneIndex]?.transition
+                              ? 'bg-[#5e8790] text-white border-[#5e8790]'
+                              : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
+                          }`}
+                          style={{ 
+                            fontSize: 'var(--font-size-14)',
+                            lineHeight: '22.4px'
+                          }}
+                        >
+                          없음
+                        </button>
+                      </div>
+                      
+                      {/* 전환 효과 리스트 */}
+                      {transitionsWithoutNone.length > 0 && (
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           {transitionsWithoutNone
                             .filter((transition) => transition.value !== 'ripple')
                             .map((transition) => {
-                            const isSelected = timeline?.scenes[currentSceneIndex]?.transition === transition.value
-                            return (
-                              <button
-                                key={transition.value}
-                                onClick={() => {
-                                  if (timeline && currentSceneIndex >= 0) {
-                                    onTransitionChange(currentSceneIndex, transition.value)
-                                  }
-                                }}
-                                className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
-                                  isSelected
-                                    ? 'bg-[#5e8790] text-white border-[#5e8790]'
-                                    : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
-                                }`}
-                                style={{ 
-                                  fontSize: 'var(--font-size-14)',
-                                  lineHeight: '22.4px'
-                                }}
-                              >
-                                {transition.label}
-                              </button>
-                            )
-                          })}
+                              const isSelected = timeline?.scenes[currentSceneIndex]?.transition === transition.value
+                              return (
+                                <button
+                                  key={transition.value}
+                                  onClick={() => {
+                                    if (timeline && currentSceneIndex >= 0) {
+                                      onTransitionChange(currentSceneIndex, transition.value)
+                                    }
+                                  }}
+                                  className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
+                                    isSelected
+                                      ? 'bg-[#5e8790] text-white border-[#5e8790]'
+                                      : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
+                                  }`}
+                                  style={{ 
+                                    fontSize: 'var(--font-size-14)',
+                                    lineHeight: '22.4px'
+                                  }}
+                                >
+                                  {transition.label}
+                                </button>
+                              )
+                            })}
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* 움직임 (Motion) 섹션 */}
               {onMotionChange && (
-                <div className="space-y-6 mt-6">
-                  <h3 
-                    className="font-bold text-text-dark mb-4 tracking-[-0.4px]"
-                    style={{ 
-                      fontSize: 'var(--font-size-20)',
-                      lineHeight: '28px'
-                    }}
-                  >
-                    움직임
-                  </h3>
+                <div className="space-y-4 mt-6">
+                  <div className="flex items-center gap-2">
+                    <h3 
+                      className="font-bold text-text-dark tracking-[-0.4px]"
+                      style={{ 
+                        fontSize: 'var(--font-size-20)',
+                        lineHeight: '28px'
+                      }}
+                    >
+                      움직임
+                    </h3>
+                    <span 
+                      className="text-[#5d5d5d] tracking-[-0.14px] mt-2"
+                      style={{ 
+                        fontSize: 'var(--font-size-12)',
+                        lineHeight: '19.2px'
+                      }}
+                    >
+                      이미지 움직임 효과
+                    </span>
+                  </div>
                   <div className="h-0.5 bg-[#bbc9c9]" />
                   
                   {/* Motion 없음 옵션 */}
