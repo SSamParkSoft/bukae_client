@@ -308,7 +308,7 @@ export default function Step1Page() {
             {/* 검색 결과 표시 - 무한 스크롤 */}
             <div className="mb-[84px] mt-20">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col items-center gap-3">
                   <h2 
                     className="font-bold text-[#15252c] tracking-[-0.64px]"
                     style={{ 
@@ -330,11 +330,12 @@ export default function Step1Page() {
                 </div>
                 <button
                   onClick={container.resetSearchData}
-                  className="flex items-center justify-center gap-3 px-10 h-[68px] rounded-2xl bg-[#5e8790] text-white font-bold hover:bg-[#3b6574] transition-colors tracking-[-0.48px]"
+                  className="flex items-center justify-center gap-3 px-10 h-[84px] rounded-2xl bg-[#e4eeed] text-[#234b60] font-bold border-0.5 border-[#234b60] hover:bg-[#d4e0df] transition-colors tracking-[-0.48px]"
                   style={{ 
                     fontSize: 'var(--font-size-24)',
                     lineHeight: 'var(--line-height-24-140)',
-                    minWidth: '320px'
+                    minWidth: '216px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                   }}
                 >
                   <Image 
@@ -342,7 +343,7 @@ export default function Step1Page() {
                     alt="다시 검색하기" 
                     width={16} 
                     height={16}
-                    className="w-4 h-4 brightness-0 invert"
+                    className="w-4 h-4"
                   />
                   다시 검색하기
                 </button>
