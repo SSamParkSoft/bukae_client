@@ -610,7 +610,9 @@ export function SceneList({
                     onClick={(e) => {
                       // 버튼이나 입력 필드가 아닌 경우에만 씬 선택
                       const target = e.target as HTMLElement
-                      if (target.tagName !== 'BUTTON' && target.tagName !== 'TEXTAREA' && !target.closest('button') && !target.closest('textarea')) {
+                      if (target.tagName !== 'BUTTON' && target.tagName !== 'TEXTAREA' && !target.closest('button') && !target.closest('textarea') && !target.closest('[role="button"]')) {
+                        e.preventDefault()
+                        e.stopPropagation()
                         onSelect(index)
                       }
                     }}

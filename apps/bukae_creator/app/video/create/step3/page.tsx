@@ -51,6 +51,7 @@ export default function Step3Page() {
             onPlaybackSpeedChange={container.handlePlaybackSpeedChange}
             onToggleGrid={() => container.setShowGrid(!container.showGrid)}
             onResizeTemplate={container.handleResizeTemplate}
+            onImageFitChange={container.handleSceneImageFitChange}
             currentSceneIndex={container.currentSceneIndex}
             textsRef={container.textsRef}
             appRef={container.appRef}

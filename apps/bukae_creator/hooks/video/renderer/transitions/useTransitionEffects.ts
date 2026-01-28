@@ -245,12 +245,19 @@ export function useTransitionEffects({
     const scene = timeline?.scenes[sceneIndex]
     if (!scene) return
     
+    // 텍스처의 원본 크기 추출 (스프라이트의 현재 렌더링 크기가 아닌 텍스처 원본 크기)
+    const texture = toSprite.texture
+    const spriteTexture = texture && texture.width > 0 && texture.height > 0
+      ? { width: texture.width, height: texture.height }
+      : null
+    
     const position = getFabricImagePosition(
       sceneIndex,
       scene,
       fabricCanvasRef,
       fabricScaleRatioRef,
-      stageDimensions
+      stageDimensions,
+      spriteTexture
     )
     const { x: originalX, y: originalY, width: originalWidth, height: originalHeight } = position
     
@@ -288,12 +295,18 @@ export function useTransitionEffects({
           const prevSceneIndex = sceneIndex > 0 ? sceneIndex - 1 : 0
           const prevScene = timeline?.scenes[prevSceneIndex]
           if (prevScene) {
+            // 이전 씬의 텍스처 원본 크기 추출
+            const prevTexture = fromSprite.texture
+            const prevSpriteTexture = prevTexture && prevTexture.width > 0 && prevTexture.height > 0
+              ? { width: prevTexture.width, height: prevTexture.height }
+              : null
             const prevPosition = getFabricImagePosition(
               prevSceneIndex,
               prevScene,
               fabricCanvasRef,
               fabricScaleRatioRef,
-              stageDimensions
+              stageDimensions,
+              prevSpriteTexture
             )
             fromSprite.x = prevPosition.x - slideLeftOffset * eased
           } else {
@@ -315,12 +328,18 @@ export function useTransitionEffects({
           const prevSceneIndex = sceneIndex > 0 ? sceneIndex - 1 : 0
           const prevScene = timeline?.scenes[prevSceneIndex]
           if (prevScene) {
+            // 이전 씬의 텍스처 원본 크기 추출
+            const prevTexture = fromSprite.texture
+            const prevSpriteTexture = prevTexture && prevTexture.width > 0 && prevTexture.height > 0
+              ? { width: prevTexture.width, height: prevTexture.height }
+              : null
             const prevPosition = getFabricImagePosition(
               prevSceneIndex,
               prevScene,
               fabricCanvasRef,
               fabricScaleRatioRef,
-              stageDimensions
+              stageDimensions,
+              prevSpriteTexture
             )
             fromSprite.x = prevPosition.x + slideRightOffset * eased
           } else {
@@ -342,12 +361,18 @@ export function useTransitionEffects({
           const prevSceneIndex = sceneIndex > 0 ? sceneIndex - 1 : 0
           const prevScene = timeline?.scenes[prevSceneIndex]
           if (prevScene) {
+            // 이전 씬의 텍스처 원본 크기 추출
+            const prevTexture = fromSprite.texture
+            const prevSpriteTexture = prevTexture && prevTexture.width > 0 && prevTexture.height > 0
+              ? { width: prevTexture.width, height: prevTexture.height }
+              : null
             const prevPosition = getFabricImagePosition(
               prevSceneIndex,
               prevScene,
               fabricCanvasRef,
               fabricScaleRatioRef,
-              stageDimensions
+              stageDimensions,
+              prevSpriteTexture
             )
             fromSprite.y = prevPosition.y - slideUpOffset * eased
           } else {
@@ -370,12 +395,18 @@ export function useTransitionEffects({
           const prevSceneIndex = sceneIndex > 0 ? sceneIndex - 1 : 0
           const prevScene = timeline?.scenes[prevSceneIndex]
           if (prevScene) {
+            // 이전 씬의 텍스처 원본 크기 추출
+            const prevTexture = fromSprite.texture
+            const prevSpriteTexture = prevTexture && prevTexture.width > 0 && prevTexture.height > 0
+              ? { width: prevTexture.width, height: prevTexture.height }
+              : null
             const prevPosition = getFabricImagePosition(
               prevSceneIndex,
               prevScene,
               fabricCanvasRef,
               fabricScaleRatioRef,
-              stageDimensions
+              stageDimensions,
+              prevSpriteTexture
             )
             fromSprite.y = prevPosition.y + slideDownOffset * eased
           } else {

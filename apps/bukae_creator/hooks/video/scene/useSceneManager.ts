@@ -18,6 +18,7 @@ import { useFabricSync } from './management/useFabricSync'
 import { useSceneLoader } from './management/useSceneLoader'
 import { useSceneTransition } from './management/useSceneTransition'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
+import { getSubtitlePosition } from '../renderer/utils/getSubtitlePosition'
 import type { UseSceneManagerParams } from '../types/scene'
 import type { TimelineScene } from '@/lib/types/domain/timeline'
 
@@ -71,6 +72,8 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
     stageDimensions,
     applyEnterEffect,
     renderSubtitlePartRef,
+    fabricCanvasRef: (fabricCanvasRef || { current: null }) as React.RefObject<fabric.Canvas | null>,
+    fabricScaleRatioRef: (fabricScaleRatioRef || { current: 1 }) as React.MutableRefObject<number>,
   })
 
   // renderSubtitlePart 함수 구현 (useSceneTransition에서 사용)
@@ -254,18 +257,12 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
           targetTextObj.scale.set(scaleX, scaleY)
           targetTextObj.rotation = scene.text.transform.rotation ?? 0
         } else {
-          const position = scene.text.position || 'bottom'
-          const stageHeight = appRef.current?.screen?.height || 1920
-          if (position === 'top') {
-            targetTextObj.y = stageHeight * 0.15
-          } else if (position === 'bottom') {
-            targetTextObj.y = stageHeight * 0.85
-          } else {
-            targetTextObj.y = stageHeight * 0.5
-          }
-          targetTextObj.x = stageWidth * 0.5
-          targetTextObj.scale.set(1, 1)
-          targetTextObj.rotation = 0
+          // transform이 없을 때 공통 함수 사용
+          const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
+          targetTextObj.x = subtitlePosition.x
+          targetTextObj.y = subtitlePosition.y
+          targetTextObj.scale.set(subtitlePosition.scaleX, subtitlePosition.scaleY)
+          targetTextObj.rotation = subtitlePosition.rotation
         }
       }
 
@@ -635,19 +632,12 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         } else if (scene.text && targetTextObj && !targetTextObj.destroyed) {
           // Transform이 없으면 기본 위치 설정
           // targetTextObj가 null이 아니고 destroyed되지 않았는지 확인
-          const position = scene.text.position || 'bottom'
-          const stageHeight = appRef.current?.screen?.height || 1920
-          const stageWidth = appRef.current?.screen?.width || 1080
-          if (position === 'top') {
-            targetTextObj.y = stageHeight * 0.15
-          } else if (position === 'bottom') {
-            targetTextObj.y = stageHeight * 0.85
-          } else {
-            targetTextObj.y = stageHeight * 0.5
-          }
-          targetTextObj.x = stageWidth * 0.5
-          targetTextObj.scale.set(1, 1)
-          targetTextObj.rotation = 0
+          // transform이 없을 때 공통 함수 사용
+          const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
+          targetTextObj.x = subtitlePosition.x
+          targetTextObj.y = subtitlePosition.y
+          targetTextObj.scale.set(subtitlePosition.scaleX, subtitlePosition.scaleY)
+          targetTextObj.rotation = subtitlePosition.rotation
         }
         
         // 밑줄 렌더링 (targetTextObj가 여전히 유효한지 확인)

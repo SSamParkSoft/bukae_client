@@ -9,6 +9,7 @@ import * as fabric from 'fabric'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import type { TimelineData } from '@/store/useVideoCreateStore'
+import { getSubtitlePosition } from '../utils/getSubtitlePosition'
 
 /**
  * Anchor 좌표를 Box Top-left 좌표로 정규화
@@ -77,6 +78,8 @@ export function calculateTextPositionInBox(
   return { textX, textY }
 }
 
+import type { StageDimensions } from '../../types/common'
+
 /**
  * 자막 렌더링 함수 파라미터
  */
@@ -86,6 +89,7 @@ export interface RenderSubtitlePartParams {
   containerRef: React.RefObject<PIXI.Container | null>
   subtitleContainerRef: React.MutableRefObject<PIXI.Container | null>
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
+  stageDimensions: StageDimensions
 }
 
 /**
@@ -97,6 +101,7 @@ export function useSubtitleRenderer({
   containerRef,
   subtitleContainerRef,
   textsRef,
+  stageDimensions,
 }: RenderSubtitlePartParams) {
   const renderSubtitlePart = useCallback(
     (sceneIndex: number, partIndex: number | null, options?: { skipAnimation?: boolean; onComplete?: () => void }) => {
@@ -377,18 +382,13 @@ export function useSubtitleRenderer({
           textObj.scale.set(scaleX, scaleY)
           textObj.rotation = transform.rotation ?? 0
         } else {
-          const position = scene.text.position || 'bottom'
-          const stageHeight = appRef.current?.screen?.height || 1920
-          if (position === 'top') {
-            textObj.y = stageHeight * 0.15
-          } else if (position === 'bottom') {
-            textObj.y = stageHeight * 0.85
-          } else {
-            textObj.y = stageHeight * 0.5
-          }
-          textObj.x = stageWidth * 0.5
-          textObj.scale.set(1, 1)
-          textObj.rotation = 0
+          // transform이 없을 때 공통 함수 사용
+          const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
+          
+          textObj.x = subtitlePosition.x
+          textObj.y = subtitlePosition.y
+          textObj.scale.set(subtitlePosition.scaleX, subtitlePosition.scaleY)
+          textObj.rotation = subtitlePosition.rotation
           // 기존 방식: anchor를 중앙으로 설정
           textObj.anchor.set(0.5, 0.5)
         }
@@ -464,7 +464,7 @@ export function useSubtitleRenderer({
         options.onComplete()
       }
     },
-    [timeline, appRef, containerRef, subtitleContainerRef, textsRef]
+    [timeline, appRef, containerRef, subtitleContainerRef, textsRef, stageDimensions]
   )
 
   return {

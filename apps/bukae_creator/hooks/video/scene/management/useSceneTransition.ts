@@ -5,11 +5,13 @@
 
 import { useCallback, useRef } from 'react'
 import * as PIXI from 'pixi.js'
+import * as fabric from 'fabric'
 import { gsap } from 'gsap'
 import { TimelineData } from '@/store/useVideoCreateStore'
 import { MOVEMENT_EFFECTS } from '../../types/effects'
 import type { StageDimensions } from '../../types/common'
 import type { ApplyEnterEffectFunction } from '../../types/scene'
+import { getFabricImagePosition } from '../../renderer/utils/getFabricPosition'
 
 interface UseSceneTransitionParams {
   appRef: React.RefObject<PIXI.Application | null>
@@ -29,6 +31,48 @@ interface UseSceneTransitionParams {
       options?: { skipAnimation?: boolean; onComplete?: () => void; prepareOnly?: boolean }
     ) => void) | null
   >
+  fabricCanvasRef?: React.RefObject<fabric.Canvas | null>
+  fabricScaleRatioRef?: React.MutableRefObject<number>
+}
+
+/**
+ * 스프라이트 위치를 업데이트하는 헬퍼 함수
+ */
+function updateSpritePosition(
+  sprite: PIXI.Sprite,
+  sceneIndex: number,
+  scene: TimelineData['scenes'][number],
+  fabricCanvasRef: React.RefObject<fabric.Canvas | null> | undefined,
+  fabricScaleRatioRef: React.MutableRefObject<number> | undefined,
+  stageDimensions: StageDimensions
+): void {
+  if (sprite.destroyed) return
+
+  const texture = sprite.texture
+  const spriteTexture = texture && texture.width > 0 && texture.height > 0
+    ? { width: texture.width, height: texture.height }
+    : null
+
+  const position = getFabricImagePosition(
+    sceneIndex,
+    scene,
+    fabricCanvasRef,
+    fabricScaleRatioRef,
+    stageDimensions,
+    spriteTexture
+  )
+
+  sprite.x = position.x
+  sprite.y = position.y
+  sprite.rotation = position.rotation
+
+  if (texture && texture.width > 0 && texture.height > 0) {
+    const calculatedScaleX = position.width / texture.width
+    const calculatedScaleY = position.height / texture.height
+    sprite.scale.set(calculatedScaleX, calculatedScaleY)
+  } else {
+    sprite.scale.set(position.scaleX, position.scaleY)
+  }
 }
 
 /**
@@ -47,6 +91,8 @@ export function useSceneTransition({
   stageDimensions,
   applyEnterEffect,
   renderSubtitlePartRef,
+  fabricCanvasRef,
+  fabricScaleRatioRef,
 }: UseSceneTransitionParams) {
   // 그룹별 전환 효과 애니메이션 Timeline 추적 (sceneId를 키로 사용)
   const groupTransitionTimelinesRef = useRef<Map<number, gsap.core.Timeline>>(new Map())
@@ -57,6 +103,7 @@ export function useSceneTransition({
     ({
       actualSceneIndex,
       previousIndex,
+      currentScene,
       currentSprite,
       previousSprite,
       previousText,
@@ -104,7 +151,15 @@ export function useSceneTransition({
       // (이 부분은 제거 - 씬이 넘어갔을 때만 이전 씬을 숨기도록 변경)
 
       // 현재 씬 표시
-      if (currentSprite) {
+      if (currentSprite && currentScene) {
+        updateSpritePosition(
+          currentSprite,
+          actualSceneIndex,
+          currentScene,
+          fabricCanvasRef,
+          fabricScaleRatioRef,
+          stageDimensions
+        )
         currentSprite.visible = true
         currentSprite.alpha = 1
       }
@@ -132,7 +187,7 @@ export function useSceneTransition({
         onAnimationComplete?.(actualSceneIndex)
       }
     },
-    [previousSceneIndexRef, renderSubtitlePartRef]
+    [previousSceneIndexRef, renderSubtitlePartRef, fabricCanvasRef, fabricScaleRatioRef, stageDimensions]
   )
 
   // 현재 씬 업데이트
@@ -187,7 +242,15 @@ export function useSceneTransition({
 
       if (isSameScenePartTransition) {
         const currentSprite = spritesRef.current.get(actualSceneIndex)
-        if (currentSprite) {
+        if (currentSprite && currentScene) {
+          updateSpritePosition(
+            currentSprite,
+            actualSceneIndex,
+            currentScene,
+            fabricCanvasRef,
+            fabricScaleRatioRef,
+            stageDimensions
+          )
           currentSprite.visible = true
           currentSprite.alpha = 1
         }
@@ -200,7 +263,15 @@ export function useSceneTransition({
         (previousIndex === null && currentSceneIndexRef.current === actualSceneIndex)
       if (isManualSceneSelectRef.current && isSameSceneForNull && partIndex === null) {
         const currentSprite = spritesRef.current.get(actualSceneIndex)
-        if (currentSprite) {
+        if (currentSprite && currentScene) {
+          updateSpritePosition(
+            currentSprite,
+            actualSceneIndex,
+            currentScene,
+            fabricCanvasRef,
+            fabricScaleRatioRef,
+            stageDimensions
+          )
           currentSprite.visible = true
           currentSprite.alpha = 1
         }
@@ -242,7 +313,15 @@ export function useSceneTransition({
       // UX 개선: 같은 씬 전환 시 (효과 변경 포함) 현재 씬의 스프라이트와 텍스트를 명시적으로 표시
       if (isSameSceneTransition && !isZoomEffect) {
         // 현재 씬의 스프라이트 명시적으로 표시
-        if (currentSprite) {
+        if (currentSprite && currentScene) {
+          updateSpritePosition(
+            currentSprite,
+            actualSceneIndex,
+            currentScene,
+            fabricCanvasRef,
+            fabricScaleRatioRef,
+            stageDimensions
+          )
           currentSprite.visible = true
           currentSprite.alpha = 1
         }
@@ -259,7 +338,15 @@ export function useSceneTransition({
       if (previousIndex === actualSceneIndex) {
         // 같은 씬에서 효과만 변경하는 경우
         // 현재 씬의 스프라이트와 텍스트를 명시적으로 표시
-        if (currentSprite) {
+        if (currentSprite && currentScene) {
+          updateSpritePosition(
+            currentSprite,
+            actualSceneIndex,
+            currentScene,
+            fabricCanvasRef,
+            fabricScaleRatioRef,
+            stageDimensions
+          )
           currentSprite.visible = true
           currentSprite.alpha = 1
         }
@@ -279,6 +366,16 @@ export function useSceneTransition({
         spritesRef.current.forEach((sprite, idx) => {
           if (sprite) {
             if (idx === actualSceneIndex) {
+              if (currentScene) {
+                updateSpritePosition(
+                  sprite,
+                  actualSceneIndex,
+                  currentScene,
+                  fabricCanvasRef,
+                  fabricScaleRatioRef,
+                  stageDimensions
+                )
+              }
               sprite.visible = true
               sprite.alpha = 1
             } else {

@@ -36,13 +36,29 @@ export function resetBaseState(
   // Sprite 기본값 리셋
   if (sprite && !sprite.destroyed) {
     // 원래 위치는 Fabric canvas에서 사용자가 설정한 위치를 가져옴
+    // sprite의 텍스처 크기를 전달하여 정확한 imageFit 계산
+    const texture = sprite.texture
+    const spriteTexture = texture && texture.width > 0 && texture.height > 0
+      ? { width: texture.width, height: texture.height }
+      : null
     const position = getFabricImagePosition(
       sceneIndex,
       scene,
       fabricCanvasRef,
       fabricScaleRatioRef,
-      stageDimensions
+      stageDimensions,
+      spriteTexture
     )
+
+    // 디버깅: position 계산 결과 확인
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.01) {
+      console.log('[resetBaseState] position 계산 결과:', {
+        sceneIndex,
+        imageFit: scene.imageFit,
+        imageTransform: scene.imageTransform ? '있음' : '없음',
+        position,
+      })
+    }
 
     // 사용자가 Fabric에서 설정한 원래 위치로 리셋
     // PIXI에서 width/height와 scale은 서로 영향을 주므로, 원본 텍스처 크기를 기준으로 계산
@@ -52,7 +68,6 @@ export function resetBaseState(
     
     // 원본 텍스처 크기를 기준으로 width/height를 설정한 후 scale 적용
     // 이렇게 하면 Motion 적용 시 scale 변경이 올바르게 작동함
-    const texture = sprite.texture
     if (texture && texture.width > 0 && texture.height > 0) {
       // 원본 텍스처 크기를 기준으로 목표 크기 계산
       const targetWidth = position.width

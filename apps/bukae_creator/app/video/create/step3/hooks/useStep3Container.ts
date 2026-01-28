@@ -908,6 +908,10 @@ export function useStep3Container() {
     containerRef,
     loadAllScenes,
     setPlaybackSpeed,
+    spritesRef,
+    stageDimensions,
+    fabricCanvasRef,
+    fabricScaleRatioRef,
     renderSceneContent,
   })
 
