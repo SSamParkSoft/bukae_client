@@ -133,7 +133,7 @@ export const PreviewPanel = memo(function PreviewPanel({
                     backgroundColor: 'rgba(34, 197, 94, 0.1)',
                   }}
                 >
-                  <span className="absolute top-1 left-1 text-xs text-green-400 bg-black/50 px-1 rounded">
+                  <span className="absolute top-1 left-1 text-xs text-green-400 bg-black/50 rounded">
                     이미지 영역
                   </span>
                 </div>
@@ -149,7 +149,7 @@ export const PreviewPanel = memo(function PreviewPanel({
                     backgroundColor: 'rgba(59, 130, 246, 0.15)',
                   }}
                 >
-                  <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs text-blue-400 bg-black/50 px-1 rounded whitespace-nowrap">
+                  <span className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-xs text-blue-400 bg-black/50 rounded whitespace-nowrap">
                     자막 영역
                   </span>
                 </div>
@@ -173,7 +173,7 @@ export const PreviewPanel = memo(function PreviewPanel({
 
         {/* 재생 컨트롤 */}
         <div 
-          className="px-3 py-2 space-y-2 shrink-0 mx-auto"
+          className="py-2 space-y-2 shrink-0 mx-auto"
           style={{
             width: canvasActualWidth ? `${canvasActualWidth}px` : '100%',
             maxWidth: '100%',

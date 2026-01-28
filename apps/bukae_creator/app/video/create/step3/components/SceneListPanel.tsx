@@ -1,6 +1,6 @@
 'use client'
 
-import React, { memo } from 'react'
+import React, { memo, useEffect, useRef, useState } from 'react'
 import { SceneList } from '@/components/video-editor/SceneList'
 import type { TimelineData, SceneScript } from '@/store/useVideoCreateStore'
 
@@ -61,9 +61,41 @@ export const SceneListPanel = memo(function SceneListPanel({
   onPlayScene,
   onVoiceTemplateChange,
 }: SceneListPanelProps) {
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const [showScrollGutter, setShowScrollGutter] = useState(false)
+
+  useEffect(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+
+    const updateGutterVisibility = () => {
+      const hasScrollableContent = el.scrollHeight > el.clientHeight + 1
+      const isActuallyScrolled = el.scrollTop > 0
+      setShowScrollGutter(hasScrollableContent && isActuallyScrolled)
+    }
+
+    updateGutterVisibility()
+
+    el.addEventListener('scroll', updateGutterVisibility)
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateGutterVisibility()
+    })
+    resizeObserver.observe(el)
+
+    return () => {
+      el.removeEventListener('scroll', updateGutterVisibility)
+      resizeObserver.disconnect()
+    }
+  }, [])
+
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-1 overflow-y-auto px-6 pt-0 pb-6 min-h-0">
+    <div className="relative flex flex-col h-full overflow-hidden">
+      {/* 중앙 패널만 세로 스크롤 가능 */}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto pr-[24px] pt-0 pb-6 min-h-0"
+      >
         <div className="space-y-4">
           <SceneList
             scenes={scenes}
@@ -95,6 +127,11 @@ export const SceneListPanel = memo(function SceneListPanel({
           />
         </div>
       </div>
+
+      {/* 스크롤바가 생겼을 때에만 오른쪽 영역에 흰색 배경 표시 */}
+      {showScrollGutter && (
+        <div className="pointer-events-none absolute top-0 right-0 h-full w-[12px] bg-white" />
+      )}
     </div>
   )
 })
