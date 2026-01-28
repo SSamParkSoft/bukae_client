@@ -302,7 +302,7 @@ export default function Step1Page() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
-            className="relative pb-[260px]" // 선택된 상품 고정 영역 높이만큼 여유를 둬 스크롤 시 마지막 카드가 가려지지 않도록 처리
+            className="relative pb-[160px]" // 선택된 상품 고정 영역 높이만큼 여유를 둬 스크롤 시 마지막 카드가 가려지지 않도록 처리
           >
 
             {/* 검색 결과 표시 - 무한 스크롤 */}
@@ -393,46 +393,43 @@ export default function Step1Page() {
               )
               return (
                 <div
-                  className="fixed bottom-8 z-50 w-[792px] max-w-[calc(100vw-2rem)] transform origin-bottom-right"
+                  className="fixed bottom-2 z-50 w-fit transform origin-bottom-right"
                   style={{
                     right: 'calc((100vw - 1194px) / 2 + 24px)',
                   }}
                 >
-                  <div className="rounded-2xl bg-[#5E8790]/20 p-6 shadow-(--shadow-card-default) backdrop-blur-lg transform origin-bottom-right relative">
-                    <button
-                      type="button"
-                      onClick={() => container.handleProductToggle(product)}
-                      className="absolute top-3 right-3 flex items-center justify-center w-8 h-8 rounded-xl hover:bg-white/20 transition-colors"
-                    >
-                      <X className="w-5 h-5 text-black" />
-                    </button>
-                    <div className="flex items-end gap-4">
+                  <div className="rounded-2xl bg-[#5E8790]/20 p-4 shadow-(--shadow-card-default) backdrop-blur-lg transform origin-bottom-right">
+                    {/* 상품 내용과 X 버튼을 나란히 배치 */}
+                    <div className="flex items-start gap-4 mb-3 shrink-0">
                       {/* 선택된 상품 카드 */}
-                      <div style={{ width: '514px' }}>
+                      <div style={{ width: '440px' }}>
                         <SelectedProductCard
                           key={product.id}
                           product={product}
                           productResponse={productResponse}
                         />
                       </div>
-                      
-                      {/* 다음 단계 버튼 */}
-                      <div className="flex items-end">
-                        <button
-                          onClick={() => router.push('/video/create/step2')}
-                          className="px-6 py-4 rounded-2xl bg-[#e4eeed] text-[#234b60] font-bold flex items-center justify-center gap-2 hover:bg-[#d4e0df] transition-colors tracking-[-0.48px] shadow-(--shadow-card-default)"
-                          style={{ 
-                            fontSize: 'var(--font-size-20)',
-                            lineHeight: 'var(--line-height-20-140)',
-                            minWidth: '222px',
-                            height: '74px'
-                          }}
-                        >
-                          다음 단계
-                          <ArrowRight className="w-5 h-5" />
-                        </button>
-                      </div>
+                      {/* X 버튼 */}
+                      <button
+                        type="button"
+                        onClick={() => container.handleProductToggle(product)}
+                        className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-white/20 transition-colors shrink-0"
+                      >
+                        <X className="w-5 h-5 text-black" />
+                      </button>
                     </div>
+                    {/* 다음 단계 버튼 - 상품 내용 + X 버튼의 전체 너비 사용 */}
+                    <button
+                      onClick={() => router.push('/video/create/step2')}
+                      className="h-20 rounded-2xl bg-[#5e8790] text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3b6574] transition-colors tracking-[-0.48px] shadow-(--shadow-card-default) w-full"
+                      style={{ 
+                        fontSize: 'var(--font-size-24)',
+                        lineHeight: 'var(--line-height-16-140)',
+                      }}
+                    >
+                      다음 단계
+                      <ArrowRight className="w-6 h-6" />
+                    </button>
                   </div>
                 </div>
               )

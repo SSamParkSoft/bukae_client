@@ -126,7 +126,7 @@ export const ProductCard = memo(function ProductCard({
             {/* 예상 수익 카드 - 피그마 디자인대로 (하나의 카드에 예상 수익과 수수료율 포함, 내용 크기에 맞춰 오른쪽 배치) */}
             {priceInfo.expectedRevenue !== null && (
               <div className="flex justify-end mt-2">
-                <div className="rounded-2xl bg-white border border-[#5e8790] px-4 py-1 w-fit">
+                <div className="rounded-2xl bg-white border-2 border-[#5e8790] px-4 py-1 w-fit">
                   <div className="flex items-center gap-2 mb-0">
                     <span 
                       className="text-[12px] font-medium text-[#111111] whitespace-nowrap"
