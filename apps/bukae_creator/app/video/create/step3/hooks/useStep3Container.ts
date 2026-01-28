@@ -663,6 +663,14 @@ export function useStep3Container() {
     ttsTrackRef.current = ttsTrack
   }, [ttsTrack])
   
+  // Transport의 playbackRate 변경 시 TtsTrack에 전달
+  useEffect(() => {
+    const currentTtsTrack = ttsTrackRef.current.getTtsTrack()
+    if (currentTtsTrack && 'setPlaybackRate' in currentTtsTrack) {
+      (currentTtsTrack as { setPlaybackRate: (rate: number) => void }).setPlaybackRate(playbackSpeed)
+    }
+  }, [playbackSpeed])
+  
   // onSegmentStartRef와 onSegmentEndRef가 설정된 후 ttsTrack에 다시 설정
   useEffect(() => {
     const currentTtsTrack = ttsTrackRef.current.getTtsTrack()

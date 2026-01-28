@@ -193,8 +193,8 @@ export function EffectsPanel({
                 </TabsList>
               </div>
 
-              {/* 내용 영역 - 오른쪽 패널은 자체 스크롤 없이 중앙 패널만 세로 스크롤 */}
-              <div className="flex-1 overflow-hidden min-h-0" style={{ width: '100%', maxWidth: '100%', minWidth: 0, overflowX: 'hidden' }}>
+              {/* 내용 영역 - 스크롤 가능 */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0" style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
                 <TabsContent value="animation" className="px-6 pt-6 w-full max-w-full overflow-x-hidden">
               {/* 전환 효과 섹션 */}
               {displayTransitions.length > 0 && (
