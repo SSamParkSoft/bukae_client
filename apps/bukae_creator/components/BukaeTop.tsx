@@ -129,7 +129,7 @@ export default function BukaeTop({
             })
           }}
         >
-          <div className="max-w-[1760px] mx-auto pb-4 flex justify-start" style={{ paddingLeft: '80px', paddingRight: '80px' }}>
+          <div className="max-w-[1760px] mx-auto pb-8 flex justify-start" style={{ paddingLeft: '80px', paddingRight: '80px' }}>
             <StepNavigation
               steps={steps || defaultSteps}
               currentStep={detectedCurrentStep}
