@@ -475,7 +475,7 @@ export function EffectsPanel({
             </div> */}
                 </TabsContent>
 
-                <TabsContent value="bgm" className="pt-6 w-full max-w-full overflow-x-hidden">
+                <TabsContent value="bgm" className="px-6 pt-6 w-full max-w-full overflow-x-hidden">
                   <div className="w-full max-w-full overflow-x-hidden box-border">
                     <BgmSelector 
                       bgmTemplate={bgmTemplate} 
