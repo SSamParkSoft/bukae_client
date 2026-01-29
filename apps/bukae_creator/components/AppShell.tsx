@@ -41,9 +41,9 @@ export default function AppShell({ children }: AppShellProps) {
       case 3:
         // Step3: 하단 배치
         return {
-          position1: { bottom: '30%', left: '15%', transform: 'translateY(50%)' },
-          position2: { bottom: '15%', left: '-19%', transform: 'translateY(50%)' },
-          position3: { bottom: '10%', right: '-13%', transform: 'translateY(50%)' },
+          position1: { bottom: '30%', left: '15%', transform: 'translateY(10%)' },
+          position2: { bottom: '15%', left: '-19%', transform: 'translateY(10%)' },
+          position3: { bottom: '15%', right: '-13%', transform: 'translateY(10%)' },
         }
       default:
         // 기본값: 하단 배치

@@ -133,14 +133,14 @@ export function EffectsPanel({
         >
           {/* 탭바와 내용을 하나의 박스로 연결 */}
           <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
-            <div className="bg-white/60 rounded-2xl flex flex-col h-full" style={{ overflowY: 'hidden', overflowX: 'visible' }}>
-              {/* 탭바 */}
-              <div className="px-1 pb-1 shrink-0 scrollbar-hide" style={{ overflowX: 'auto', overflowY: 'hidden' }}>
+            <div className="bg-white/60 rounded-2xl flex flex-col h-full overflow-hidden" style={{ overflowY: 'hidden', overflowX: 'visible' }}>
+              {/* 탭바 - 패널과 같은 너비로 상단을 채움 */}
+              <div className="shrink-0 w-full scrollbar-hide" style={{ overflowX: 'auto', overflowY: 'hidden' }}>
                 <TabsList
                   className={cn(
-                    'bg-white rounded-2xl px-1 py-1 scrollbar-hide flex gap-1'
+                    'w-full bg-white rounded-b-none px-0 py-6 scrollbar-hide flex gap-0'
                   )}
-                  style={{ minWidth: 'max-content' }}
+                  style={{ minWidth: '100%' }}
                 >
                   {EFFECTS_TABS.map(({ id, label, Icon }) => {
                     const isActive = rightPanelTab === id
@@ -149,7 +149,7 @@ export function EffectsPanel({
                         key={id}
                         value={id}
                         className={cn(
-                          'relative flex items-center gap-1.5 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2',
+                          'relative flex items-center py-3.5 sm:py-4',
                           'transition-all whitespace-nowrap md:flex-1 text-[13px] tracking-[-0.14px]',
                           // 기본 상태: 옅은 회색 텍스트
                           'text-[#5d5d5d] font-semibold',
@@ -160,7 +160,7 @@ export function EffectsPanel({
                       >
                         <span
                           className={cn(
-                            'flex items-center gap-1.5 transition-transform',
+                            'flex items-center transition-transform',
                             isActive && 'scale-[1.03]'
                           )}
                         >
@@ -179,10 +179,10 @@ export function EffectsPanel({
                             {label}
                           </span>
                         </span>
-                        {/* 하단 인디케이터 */}
+                        {/* 선택된 탭 하단 표시선 */}
                         <span
                           className={cn(
-                            'pointer-events-none absolute inset-x-2 -bottom-[3px] h-[3px] rounded-full',
+                            'pointer-events-none absolute bottom-0 h-[7px] w-full',
                             'transition-opacity duration-200',
                             isActive ? 'opacity-100 bg-[#5e8790]' : 'opacity-0'
                           )}
@@ -475,7 +475,7 @@ export function EffectsPanel({
             </div> */}
                 </TabsContent>
 
-                <TabsContent value="bgm" className="px-6 pt-6 w-full max-w-full overflow-x-hidden">
+                <TabsContent value="bgm" className="pt-6 w-full max-w-full overflow-x-hidden">
                   <div className="w-full max-w-full overflow-x-hidden box-border">
                     <BgmSelector 
                       bgmTemplate={bgmTemplate} 
