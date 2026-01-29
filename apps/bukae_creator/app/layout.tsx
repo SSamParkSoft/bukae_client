@@ -20,6 +20,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
         />
+        <link
+          rel="stylesheet"
+          href="https://fonts.cdnfonts.com/css/zeroes"
+        />
       </head>
       <body className="transition-colors">
         <ThemeInitializer />

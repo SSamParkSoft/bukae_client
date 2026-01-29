@@ -1045,6 +1045,7 @@ export function useStep3Container() {
     router,
     playingSceneIndex,
     playingGroupSceneId,
+    currentSceneIndex,
     onGroupPlayStart: (sceneId, endTime) => {
       setPlayingGroupSceneId(sceneId)
       setPlayingSceneIndex(null)

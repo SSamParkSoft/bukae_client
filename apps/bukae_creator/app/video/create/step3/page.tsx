@@ -88,6 +88,7 @@ export default function Step3Page() {
             onDeleteGroup={container.handleGroupDelete}
             onPlayScene={container.handleScenePlay}
             onVoiceTemplateChange={container.handleSceneVoiceTemplateChange}
+            onOpenEffectPanel={(tab) => container.setRightPanelTab(tab)}
           />
           </div>
 

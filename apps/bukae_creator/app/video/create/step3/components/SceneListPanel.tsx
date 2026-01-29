@@ -31,6 +31,7 @@ interface SceneListPanelProps {
   onDeleteGroup: (sceneId: number, groupIndices: number[]) => void
   onPlayScene: (sceneIndex: number) => Promise<void>
   onVoiceTemplateChange: (sceneIndex: number, voiceTemplate: string | null) => void
+  onOpenEffectPanel?: (tab: 'animation' | 'subtitle' | 'voice' | 'sound') => void
 }
 
 export const SceneListPanel = memo(function SceneListPanel({
@@ -60,6 +61,7 @@ export const SceneListPanel = memo(function SceneListPanel({
   onDeleteGroup,
   onPlayScene,
   onVoiceTemplateChange,
+  onOpenEffectPanel,
 }: SceneListPanelProps) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const [showScrollGutter, setShowScrollGutter] = useState(false)
@@ -124,6 +126,7 @@ export const SceneListPanel = memo(function SceneListPanel({
             isTtsBootstrapping={isTtsBootstrapping}
             voiceTemplate={voiceTemplate}
             onVoiceTemplateChange={onVoiceTemplateChange}
+            onOpenEffectPanel={onOpenEffectPanel}
           />
         </div>
       </div>
