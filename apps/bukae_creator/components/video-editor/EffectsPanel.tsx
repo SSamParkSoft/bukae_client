@@ -135,10 +135,10 @@ export function EffectsPanel({
           <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
             <div className="bg-white/60 rounded-2xl flex flex-col h-full overflow-hidden" style={{ overflowY: 'hidden', overflowX: 'visible' }}>
               {/* 탭바 - 패널과 같은 너비로 상단을 채움 */}
-              <div className="shrink-0 w-full scrollbar-hide" style={{ overflowX: 'auto', overflowY: 'hidden' }}>
+              <div className="px-1 shrink-0 w-full overflow-x-auto overflow-y-visible scrollbar-hide">
                 <TabsList
                   className={cn(
-                    'w-full bg-white rounded-b-none px-0 py-6 scrollbar-hide flex gap-0'
+                    'w-full h-auto bg-white rounded-b-none scrollbar-hide inline-flex items-center rounded-t-2xl'
                   )}
                   style={{ minWidth: '100%' }}
                 >
@@ -149,8 +149,8 @@ export function EffectsPanel({
                         key={id}
                         value={id}
                         className={cn(
-                          'relative flex items-center py-3.5 sm:py-4',
-                          'transition-all whitespace-nowrap md:flex-1 text-[13px] tracking-[-0.14px]',
+                          'relative flex flex-1 min-w-0 items-center justify-center gap-2 py-4 sm:py-5',
+                          'transition-all whitespace-nowrap text-[14px] tracking-[-0.14px]',
                           // 기본 상태: 옅은 회색 텍스트
                           'text-[#5d5d5d] font-semibold',
                           // 활성 상태: 텍스트만 조금 더 진하게, 배경/그림자는 투명 유지
@@ -160,20 +160,19 @@ export function EffectsPanel({
                       >
                         <span
                           className={cn(
-                            'flex items-center transition-transform',
+                            'flex items-center gap-2 transition-transform',
                             isActive && 'scale-[1.03]'
                           )}
                         >
-                          <Icon
-                            className={cn(
-                              'h-4 w-4',
-                              isActive ? 'text-[#000000]' : 'text-[#5d5d5d]'
-                            )}
-                          />
+                          {isActive && (
+                            <Icon
+                              className="h-5 w-5 shrink-0 text-[#000000]"
+                            />
+                          )}
                           <span
                             className={cn(
-                              'leading-[19.6px]',
-                              isActive && 'text-[14px] leading-[22.4px]'
+                              'leading-[20px]',
+                              isActive && 'text-[15px] leading-[22px]'
                             )}
                           >
                             {label}
@@ -182,7 +181,7 @@ export function EffectsPanel({
                         {/* 선택된 탭 하단 표시선 */}
                         <span
                           className={cn(
-                            'pointer-events-none absolute bottom-0 h-[7px] w-full',
+                            'pointer-events-none absolute bottom-0 left-0 right-0 h-[3px] z-10',
                             'transition-opacity duration-200',
                             isActive ? 'opacity-100 bg-[#5e8790]' : 'opacity-0'
                           )}
@@ -414,7 +413,7 @@ export function EffectsPanel({
                   <div className="w-full max-w-full overflow-x-hidden box-border">
                     <VoiceSelector
                       theme={theme ?? 'light'}
-                      title="목소리 선택"
+                      title="보이스 선택"
                       disabled={!timeline || currentSceneIndex < 0}
                       layout="panel"
                       sceneVoiceTemplate={sceneVoiceTemplate}

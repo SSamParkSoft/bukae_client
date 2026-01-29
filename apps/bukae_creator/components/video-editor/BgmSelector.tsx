@@ -136,7 +136,7 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
           lineHeight: '28px'
         }}
       >
-        배경음악 선택
+        BGM 선택
       </h3>
       <div className="h-0.5 bg-[#bbc9c9] mb-6 shrink-0" />
       <div className="flex-1 overflow-y-auto space-y-2 min-h-0">

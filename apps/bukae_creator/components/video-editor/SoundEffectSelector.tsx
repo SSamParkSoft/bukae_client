@@ -214,7 +214,7 @@ export function SoundEffectSelector({
             lineHeight: '28px'
           }}
         >
-          효과음 선택
+          사운드 선택
         </h3>
         <div className="h-0.5 bg-[#bbc9c9] mb-6 shrink-0" />
         <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center">
@@ -233,7 +233,7 @@ export function SoundEffectSelector({
           lineHeight: '28px'
         }}
       >
-        효과음 선택
+        사운드 선택
       </h3>
       <div className="h-0.5 bg-[#bbc9c9] mb-6 shrink-0" />
       <div className="flex-1 overflow-y-auto space-y-6 min-h-0 pb-6">
