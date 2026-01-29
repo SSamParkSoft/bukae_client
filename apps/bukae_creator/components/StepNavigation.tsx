@@ -43,21 +43,22 @@ export default function StepNavigation({
           <div key={step.number} className="flex items-center">
             <button
               onClick={() => handleStepClick(step)}
-              className="flex items-center gap-2 group"
+              className="flex items-center gap-4 group"
             >
               {/* 원형 스텝 번호/아이콘 */}
               <div
                 className={cn(
-                  'flex items-center justify-center rounded-full font-bold transition-all',
+                  'flex items-center justify-center rounded-lg transition-all',
                   isActive
                     ? 'bg-[#5e8790] text-white w-8 h-8'
                     : isCompleted
                       ? 'bg-[#d2dedd] text-[#111111] w-8 h-8'
-                      : 'bg-[#e3e3e3] text-[#5d5d5d] w-8 h-8'
+                      : 'bg-white text-[#454545] w-8 h-8'
                 )}
                 style={{
-                  fontSize: 'var(--font-size-14)',
-                  fontWeight: 'var(--font-weight-bold)',
+                  fontSize: '14px',
+                  fontWeight: isActive ? 700 : 600,
+                  fontFamily: 'Pretendard, sans-serif',
                   boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.15)'
                 }}
               >
@@ -69,27 +70,32 @@ export default function StepNavigation({
               </div>
               {/* 스텝 라벨 (원형 옆) */}
               <span
-                className="font-bold whitespace-nowrap"
+                className={cn(
+                  'whitespace-nowrap',
+                  isActive ? 'font-bold' : 'font-medium'
+                )}
                 style={{
-                  fontSize: 'var(--font-size-14)',
-                  fontWeight: 'var(--font-weight-bold)'
+                  fontSize: '14px',
+                  fontWeight: isActive ? 700 : 500,
+                  fontFamily: 'Pretendard, sans-serif',
+                  color: isActive ? '#111111' : '#454545'
                 }}
               >
                 {step.label}
               </span>
             </button>
 
-            {/* 스텝 사이 연결선 (진행된 단계: " - ", 진행 남은 단계: " > ") */}
+            {/* 스텝 사이 연결선 */}
             {index < steps.length - 1 && (
-              <div className="flex items-center" style={{ marginLeft: '32px', marginRight: '32px' }}>
+              <div className="flex items-center" style={{ marginLeft: '16px', marginRight: '16px' }}>
                 <span
                   className="text-[#111111]"
                   style={{
-                    fontSize: 'var(--font-size-14)',
+                    fontSize: '14px',
                     fontWeight: 'var(--font-weight-bold)'
                   }}
                 >
-                  {isCompleted ? ' - ' : ' > '}
+                  {' > '}
                 </span>
               </div>
             )}

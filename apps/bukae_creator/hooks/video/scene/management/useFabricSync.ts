@@ -66,13 +66,14 @@ export function useFabricSync({
             centerX = transform.x * scale
             centerY = transform.y * scale
           } else {
-            // 초기 contain/cover 계산과 동일하게 배치
-            const params = calculateSpriteParams(img.width, img.height, width, height, scene.imageFit || 'contain')
+            // Transform이 없으면 imageFit을 사용하여 이미지 크기/위치 계산
+            const imageFit = scene.imageFit || 'contain'
+            const params = calculateSpriteParams(img.width, img.height, width, height, imageFit)
             imgScaleX = (params.width / img.width) * scale
             imgScaleY = (params.height / img.height) * scale
-            // params.x와 params.y도 중심점 좌표
-            centerX = params.x * scale
-            centerY = params.y * scale
+            // anchor가 (0.5, 0.5)이므로 중심점 좌표로 변환
+            centerX = (params.x + params.width / 2) * scale
+            centerY = (params.y + params.height / 2) * scale
             angleDeg = 0
           }
           

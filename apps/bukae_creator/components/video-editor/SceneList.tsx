@@ -7,7 +7,7 @@ import type { TimelineData } from '@/lib/types/domain/timeline'
 import type { SceneScript } from '@/lib/types/domain/script'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import { getScenePlaceholder } from '@/lib/utils/placeholder-image'
-import { SceneSettingsPopover } from './SceneSettingsPopover'
+import { SceneCard } from './SceneCard'
 import { formatTime } from '@/utils/timeline'
 
 interface SceneListProps {
@@ -37,6 +37,7 @@ interface SceneListProps {
   isTtsBootstrapping?: boolean // TTS 부트스트래핑 중인지 여부
   voiceTemplate?: string | null // 전역 voiceTemplate
   onVoiceTemplateChange?: (sceneIndex: number, voiceTemplate: string | null) => void // 씬별 voiceTemplate 변경 핸들러
+  onOpenEffectPanel?: (tab: 'animation' | 'subtitle' | 'voice' | 'sound') => void // 효과 패널 탭 열기 (씬 카드 효과 아이콘 클릭 시)
 }
 
 export function SceneList({
@@ -64,6 +65,7 @@ export function SceneList({
   isTtsBootstrapping,
   voiceTemplate = null,
   onVoiceTemplateChange,
+  onOpenEffectPanel,
 }: SceneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
@@ -380,10 +382,9 @@ export function SceneList({
                     onSelect(firstSceneIndexInGroup)
                   }}
                 >
-                  {/* 오른쪽 상단 버튼들 */}
-                  <div className="absolute top-0 right-0 flex flex-col items-end gap-2 z-10">
-                    {/* 삭제 버튼 */}
-                    {onDeleteGroup && (
+                  {/* 오른쪽 상단 삭제 버튼만 */}
+                  {onDeleteGroup && (
+                    <div className="absolute top-0 right-0 z-10">
                       <button
                         type="button"
                         onClick={(e) => {
@@ -397,9 +398,52 @@ export function SceneList({
                       >
                         <X className="w-5 h-5 text-gray-600" />
                       </button>
-                    )}
-                    
-                    {/* 복사, 재생 버튼들 */}
+                    </div>
+                  )}
+                  
+                  <div className="flex items-start gap-3">
+                  {/* 드래그 핸들 */}
+                  <GripVertical className="w-5 h-5 cursor-move text-text-tertiary shrink-0 mt-6" />
+                  
+                  {/* 썸네일 - 왼쪽 */}
+                  <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-200 shrink-0">
+                    {sceneThumbnails[firstSceneIndex] && (() => {
+                      const thumbnailUrl = sceneThumbnails[firstSceneIndex] as string
+                      const validUrl = thumbnailUrl.startsWith('http://') || thumbnailUrl.startsWith('https://')
+                        ? thumbnailUrl
+                        : thumbnailUrl.startsWith('//')
+                        ? `https:${thumbnailUrl}`
+                        : thumbnailUrl.startsWith('/')
+                        ? thumbnailUrl
+                        : getScenePlaceholder(firstSceneIndex)
+                      
+                      return (
+                        <Image
+                          src={validUrl}
+                          alt={`Scene ${firstSceneIndex + 1}`}
+                          width={64}
+                          height={64}
+                          className="w-full h-full object-cover"
+                          unoptimized
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement
+                            target.src = getScenePlaceholder(firstSceneIndex)
+                          }}
+                        />
+                      )
+                    })()}
+                  </div>
+                  
+                  {/* 오른쪽: 그룹 이름, 그 아래 그룹 복사/재생 버튼 */}
+                  <div className="flex flex-col gap-2 flex-1">
+                    {/* 그룹 이름 (Scene 번호) */}
+                    <span
+                      className="text-sm text-brand-teal text-left"
+                      style={{ fontFamily: '"Zeroes Two", sans-serif', fontWeight: 400 }}
+                    >
+                      Scene {sceneOrderNumber}
+                    </span>
+                    {/* 그룹 복사, 그룹 재생 버튼 */}
                     <div className="flex items-center gap-2">
                       {onDuplicateGroup && (
                         <button
@@ -438,128 +482,10 @@ export function SceneList({
                           ) : playingGroupSceneId === group.sceneId ? (
                             <Pause className="w-4 h-4 text-[#2c2c2c]" />
                           ) : (
-                          <Play className="w-4 h-4 text-[#2c2c2c]" />
+                            <Play className="w-4 h-4 text-[#2c2c2c]" />
                           )}
                         </button>
                       )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-3">
-                  {/* 드래그 핸들 */}
-                  <GripVertical className="w-5 h-5 cursor-move text-text-tertiary shrink-0 mt-6" />
-                  
-                  {/* 썸네일 - 왼쪽 */}
-                  <div className="w-16 h-16 rounded-md overflow-hidden bg-gray-200 shrink-0">
-                    {sceneThumbnails[firstSceneIndex] && (() => {
-                      const thumbnailUrl = sceneThumbnails[firstSceneIndex] as string
-                      const validUrl = thumbnailUrl.startsWith('http://') || thumbnailUrl.startsWith('https://')
-                        ? thumbnailUrl
-                        : thumbnailUrl.startsWith('//')
-                        ? `https:${thumbnailUrl}`
-                        : thumbnailUrl.startsWith('/')
-                        ? thumbnailUrl
-                        : getScenePlaceholder(firstSceneIndex)
-                      
-                      return (
-                        <Image
-                          src={validUrl}
-                          alt={`Scene ${firstSceneIndex + 1}`}
-                          width={64}
-                          height={64}
-                          className="w-full h-full object-cover"
-                          unoptimized
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement
-                            target.src = getScenePlaceholder(firstSceneIndex)
-                          }}
-                        />
-                      )
-                    })()}
-                  </div>
-                  
-                  {/* 오른쪽: Scene 번호와 전환 효과/이미지 비율 */}
-                  <div className="flex flex-col gap-2 flex-1">
-                    {/* Scene 번호 - 버튼으로 변경 */}
-                    <div className="flex items-center justify-between">
-                      <SceneSettingsPopover
-                        scene={timeline?.scenes[firstSceneIndexInGroup] || timeline?.scenes[firstSceneIndex]}
-                        globalVoiceTemplate={voiceTemplate}
-                        isGrouped={false}
-                      >
-                        <button
-                          type="button"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-sm font-semibold text-text-dark hover:text-[#5e8790] transition-colors cursor-pointer"
-                        >
-                          Scene {sceneOrderNumber}
-                        </button>
-                      </SceneSettingsPopover>
-                    </div>
-                    
-                    {/* 이미지 비율 - 아래쪽 */}
-                    <div className="flex items-center gap-2 text-xs flex-wrap justify-start">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            onClick={(e) => e.stopPropagation()}
-                            className="px-2.5 py-1.5 rounded-lg bg-white border border-[#88a9ac] text-text-dark hover:bg-gray-50 transition-all font-bold tracking-[-0.14px] flex items-center gap-1"
-                            style={{ 
-                              fontSize: 'var(--font-size-12)',
-                              lineHeight: 'var(--line-height-12-140)'
-                            }}
-                          >
-                            {timeline?.scenes[firstSceneIndex]?.imageFit === 'cover' ? '꽉 채우기' : 
-                             timeline?.scenes[firstSceneIndex]?.imageFit === 'fill' ? '늘려 채우기' : 
-                             '비율 유지'}
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent 
-                          className="w-40 p-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="flex flex-col">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onImageFitChange(firstSceneIndex, 'cover')
-                              }}
-                              className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
-                                timeline?.scenes[firstSceneIndex]?.imageFit === 'cover' ? 'bg-gray-100 font-semibold' : ''
-                              }`}
-                            >
-                              꽉 채우기
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onImageFitChange(firstSceneIndex, 'contain')
-                              }}
-                              className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
-                                timeline?.scenes[firstSceneIndex]?.imageFit === 'contain' ? 'bg-gray-100 font-semibold' : ''
-                              }`}
-                            >
-                              비율 유지
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onImageFitChange(firstSceneIndex, 'fill')
-                              }}
-                              className={`px-3 py-2 text-left text-sm rounded-md hover:bg-gray-100 transition-colors ${
-                                timeline?.scenes[firstSceneIndex]?.imageFit === 'fill' ? 'bg-gray-100 font-semibold' : ''
-                              }`}
-                            >
-                              늘려 채우기
-                            </button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
                     </div>
                   </div>
                 </div>
@@ -594,27 +520,90 @@ export function SceneList({
                     onDrop={handleDrop}
                     onDragLeave={() => setDragOver(null)}
                     onDragEnd={handleDragEnd}
-                    className={`relative rounded-2xl p-4 transition-all cursor-pointer shadow-(--shadow-card-default) ${
-                      isGrouped ? 'ml-6' : ''
-                    } ${
-                      draggedIndex === index
-                        ? 'opacity-50'
-                        : isPlaying
-                          ? 'bg-[#5e8790]/20 shadow-lg shadow-[#5e8790]/30'
-                          : currentSceneIndex === index
-                            ? 'bg-[#5e8790]/40'
-                            : isGrouped
-                              ? 'bg-gray-50/80'
-                              : 'bg-white/80'
-                    }`}
+                    className={
+                      !hasDelimiters
+                        ? `relative transition-all cursor-pointer ${isGrouped ? 'ml-6' : ''} ${draggedIndex === index ? 'opacity-50' : ''}`
+                        : `relative rounded-2xl p-4 transition-all cursor-pointer shadow-(--shadow-card-default) ${isGrouped ? 'ml-6' : ''} ${
+                            draggedIndex === index
+                              ? 'opacity-50'
+                              : isPlaying
+                                ? 'bg-[#5e8790]/20 shadow-lg shadow-[#5e8790]/30'
+                                : currentSceneIndex === index
+                                  ? 'bg-[#5e8790]/40'
+                                  : 'bg-white/80'
+                          }`
+                    }
                     onClick={(e) => {
                       // 버튼이나 입력 필드가 아닌 경우에만 씬 선택
                       const target = e.target as HTMLElement
-                      if (target.tagName !== 'BUTTON' && target.tagName !== 'TEXTAREA' && !target.closest('button') && !target.closest('textarea')) {
+                      if (target.tagName !== 'BUTTON' && target.tagName !== 'TEXTAREA' && !target.closest('button') && !target.closest('textarea') && !target.closest('[role="button"]')) {
+                        e.preventDefault()
+                        e.stopPropagation()
                         onSelect(index)
                       }
                     }}
                   >
+                    {!hasDelimiters ? (() => {
+                      // 씬 시작/끝 시간 계산 (SceneCard duration 표시용)
+                      let sceneStartTime: number | undefined
+                      let sceneEndTime: number | undefined
+                      if (timeline?.scenes?.[index]) {
+                        let start = 0
+                        if (timeline.scenes[index].startTime !== undefined) {
+                          start = timeline.scenes[index].startTime
+                        } else {
+                          for (let i = 0; i < index; i++) {
+                            const prev = timeline.scenes[i]
+                            const d = prev?.actualPlaybackDuration != null && prev.actualPlaybackDuration > 0
+                              ? prev.actualPlaybackDuration
+                              : (prev?.duration ?? 0)
+                            start += d
+                          }
+                        }
+                        const tlScene = timeline.scenes[index]
+                        const duration = (tlScene?.actualPlaybackDuration != null && tlScene.actualPlaybackDuration > 0)
+                          ? tlScene.actualPlaybackDuration
+                          : (tlScene?.duration ?? 0)
+                        if (duration > 0) {
+                          sceneStartTime = start
+                          sceneEndTime = start + duration
+                        }
+                      }
+                      return (
+                      <SceneCard
+                        sceneIndex={index}
+                        scene={scene}
+                        timelineScene={timeline?.scenes[index]}
+                        thumbnailUrl={sceneThumbnails[index]}
+                        sceneOrderNumber={sceneOrderNumber}
+                        isPlaying={isPlaying}
+                        isSelected={currentSceneIndex === index}
+                        isGrouped={isGrouped}
+                        voiceTemplate={voiceTemplate ?? null}
+                        onSelect={() => onSelect(index)}
+                        onScriptChange={(v) => onScriptChange(index, v)}
+                        onPlayScene={async () => {
+                          try {
+                            await onPlayScene?.(index)
+                          } catch (_) {}
+                        }}
+                        onDuplicateScene={() => onDuplicateScene?.(index)}
+                        onSplitScene={() => onSplitScene?.(index)}
+                        onDeleteScene={
+                          onDeleteScene ? () => onDeleteScene(index) : undefined
+                        }
+                        isPreparing={isPreparing}
+                        isTtsBootstrapping={isTtsBootstrapping}
+                        onOpenEffectPanel={onOpenEffectPanel}
+                        dragHandle={
+                          <GripVertical className="w-5 h-5 cursor-move text-text-tertiary shrink-0" />
+                        }
+                        sceneStartTime={sceneStartTime}
+                        sceneEndTime={sceneEndTime}
+                      />
+                      )
+                    })() : (
+                    <>
                     {/* 삭제 버튼 - 오른쪽 상단 */}
                     {onDeleteScene && (
                       <button
@@ -672,30 +661,23 @@ export function SceneList({
                       <div className="flex-1 min-w-0 space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex flex-col gap-1">
-                            <SceneSettingsPopover
-                              scene={timeline?.scenes[index]}
-                              globalVoiceTemplate={voiceTemplate}
-                              isGrouped={isGrouped}
-                              groupFirstScene={isGrouped ? timeline?.scenes[firstSceneIndex] : undefined}
+                            <span
+                              className="text-brand-teal tracking-[-0.36px] text-left"
+                              style={{
+                                fontSize: 'var(--font-size-16)',
+                                lineHeight: 'var(--line-height-16-140)',
+                                fontFamily: '"Zeroes Two", sans-serif',
+                                fontWeight: 400,
+                              }}
                             >
-                              <button
-                                type="button"
-                                onClick={(e) => e.stopPropagation()}
-                                className="font-bold text-text-dark tracking-[-0.36px] hover:text-[#5e8790] transition-colors cursor-pointer text-left"
-                                style={{ 
-                                  fontSize: 'var(--font-size-18)',
-                                  lineHeight: 'var(--line-height-18-140)'
-                                }}
-                              >
-                                {hasDelimiters
-                                  ? `Scene ${sceneOrderNumber} (${scriptParts.length}개 구간)`
-                                  : !isGrouped
-                                  ? `Scene ${sceneOrderNumber}`
-                                  : scene.splitIndex
-                                  ? `Scene ${sceneOrderNumber}-${groupSceneOrderNumber}`
-                                  : `Scene ${sceneOrderNumber}`}
-                              </button>
-                            </SceneSettingsPopover>
+                              {hasDelimiters
+                                ? `Scene ${sceneOrderNumber} (${scriptParts.length}개 구간)`
+                                : !isGrouped
+                                ? `Scene ${sceneOrderNumber}`
+                                : scene.splitIndex
+                                ? `Scene ${sceneOrderNumber}-${groupSceneOrderNumber}`
+                                : `Scene ${sceneOrderNumber}`}
+                            </span>
                             {/* 시작/끝 시간 표시 */}
                             {timeline && (() => {
                               // 씬의 시작 시간 계산 (actualPlaybackDuration 우선, 없으면 TTS 캐시 기반 duration 사용)
@@ -1153,6 +1135,7 @@ export function SceneList({
                 )}
                       </div>
                     </div>
+                    </> )}
                   </div>
                   {dragOver && dragOver.index === index && dragOver.position === 'after' && (
                     <div className="h-0.5 bg-brand-teal rounded-full" />

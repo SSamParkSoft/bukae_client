@@ -80,7 +80,8 @@ export function applyMotionToSprite(
           scene,
           fabricCanvasRef as any,
           fabricScaleRatioRef,
-          stageDimensions
+          stageDimensions,
+          undefined
         )
 
     // baseState 계산: Transition이 적용한 현재 위치를 기준으로 Motion 추가 적용
@@ -237,7 +238,8 @@ export function step5ApplyMotion(
         scene,
         fabricCanvasRef as any,
         fabricScaleRatioRef,
-        stageDimensions
+        stageDimensions,
+        undefined
       )
 
       // baseState의 scale은 resetBaseState에서 설정한 실제 sprite scale을 사용해야 함

@@ -22,6 +22,7 @@ export class TtsTrack {
   private onSegmentEndCallback: ((segmentEndTime: number, sceneIndex: number) => void) | null = null // 세그먼트 종료 콜백
   private onSegmentStartCallback: ((segmentStartTime: number, sceneIndex: number) => void) | null = null // 세그먼트 시작 콜백 (씬 인덱스 포함)
   private allowedSceneIndices: Set<number> | null = null // 허용된 씬 인덱스 (씬/그룹 재생 시 사용)
+  private playbackRate: number = 1.0 // 재생 속도 (배속)
 
   constructor(audioContext: AudioContext) {
     this.audioContext = audioContext
@@ -298,6 +299,7 @@ export class TtsTrack {
     const source = this.audioContext.createBufferSource()
     source.buffer = buffer
     source.connect(this.masterGain)
+    source.playbackRate.value = this.playbackRate // 배속 적용
 
     const duration = segment.durationSec - offset
     
@@ -643,6 +645,24 @@ export class TtsTrack {
 
   setOnSegmentStart(callback: ((segmentStartTime: number, sceneIndex: number) => void) | null): void {
     this.onSegmentStartCallback = callback
+  }
+
+  /**
+   * 재생 속도 설정
+   */
+  setPlaybackRate(rate: number): void {
+    if (rate <= 0) {
+      throw new Error('재생 속도는 0보다 커야 합니다.')
+    }
+    this.playbackRate = rate
+    
+    // 이미 재생 중인 세그먼트들의 playbackRate도 업데이트
+    // AudioBufferSourceNode의 playbackRate는 AudioParam이므로 value 속성으로 설정
+    this.activeSources.forEach(source => {
+      if (source.playbackRate) {
+        source.playbackRate.value = rate
+      }
+    })
   }
 
   /**

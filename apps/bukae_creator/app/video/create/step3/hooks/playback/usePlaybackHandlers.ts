@@ -9,7 +9,7 @@ interface UsePlaybackHandlersParams {
   timelineRef: React.MutableRefObject<TimelineData | null>
   voiceTemplateRef: React.MutableRefObject<string | null>
   isPlaying: boolean
-  setIsPlaying: (playing: boolean, options?: { sceneIndex?: number | null; groupSceneId?: number | null }) => void | Promise<void>
+  setIsPlaying: (playing: boolean, options?: { sceneIndex?: number | null; groupSceneId?: number | null; startFromSceneIndex?: number }) => void | Promise<void>
   setCurrentTime: (time: number) => void
   setShowVoiceRequiredMessage: (show: boolean) => void
   setScenesWithoutVoice: (scenes: number[]) => void
@@ -20,6 +20,8 @@ interface UsePlaybackHandlersParams {
   onFullPlayStart?: () => void
   playingSceneIndex: number | null
   playingGroupSceneId: number | null
+  /** 전체 재생 시 이 씬의 세그먼트 시작 시점부터 재생 (선택된 씬이 있을 때) */
+  currentSceneIndex: number
 }
 
 /**
@@ -40,6 +42,7 @@ export function usePlaybackHandlers({
   onScenePlayStart,
   playingSceneIndex,
   playingGroupSceneId,
+  currentSceneIndex,
 }: UsePlaybackHandlersParams) {
   // 재생/일시정지 핸들러 (Transport 기반)
   const handlePlayPause = useCallback(() => {
@@ -91,11 +94,13 @@ export function usePlaybackHandlers({
         return
       }
       
-      // 모든 씬에 음성이 있으면 재생 시작 (전체 재생이므로 종료 시간 없음)
+      // 모든 씬에 음성이 있으면 재생 시작 (전체 재생). 선택된 씬이 있으면 해당 씬 세그먼트 시작부터 재생
       setShowVoiceRequiredMessage(false)
-      void setIsPlaying(true)
+      void setIsPlaying(true, {
+        startFromSceneIndex: currentSceneIndex >= 0 ? currentSceneIndex : undefined,
+      })
     }
-  }, [isPlaying, setIsPlaying, setRightPanelTab, setShowVoiceRequiredMessage, setScenesWithoutVoice, timelineRef, voiceTemplateRef])
+  }, [isPlaying, setIsPlaying, setRightPanelTab, setShowVoiceRequiredMessage, setScenesWithoutVoice, timelineRef, voiceTemplateRef, currentSceneIndex])
 
   // 그룹 재생 핸들러 (Transport 기반)
   const handleGroupPlay = useCallback(async (sceneId: number, groupIndices: number[]) => {

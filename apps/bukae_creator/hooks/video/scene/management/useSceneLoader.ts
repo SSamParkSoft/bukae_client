@@ -8,6 +8,8 @@ import * as PIXI from 'pixi.js'
 import { TimelineData } from '@/store/useVideoCreateStore'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
+import { calculateSpriteParams } from '@/utils/pixi/sprite'
+import { getSubtitlePosition } from '../../renderer/utils/getSubtitlePosition'
 import type { StageDimensions } from '../../types/common'
 
 interface UseSceneLoaderParams {
@@ -224,12 +226,24 @@ export function useSceneLoader({
           sprite.height = baseScene.imageTransform.height
           sprite.rotation = baseScene.imageTransform.rotation
         } else {
-          // Transform이 없으면 기초 상태 사용: 상단 15%부터 시작, 가로 100%, 높이 70%
-          const imageY = height * 0.15
-          sprite.x = width * 0.5
-          sprite.y = imageY + (height * 0.7) * 0.5
-          sprite.width = width
-          sprite.height = height * 0.7
+          // Transform이 없으면 imageFit을 사용하여 스프라이트 크기/위치 계산
+          const imageFit = baseScene.imageFit || 'contain'
+          const textureWidth = texture.width > 0 ? texture.width : width
+          const textureHeight = texture.height > 0 ? texture.height : height
+          
+          const params = calculateSpriteParams(
+            textureWidth,
+            textureHeight,
+            width,
+            height,
+            imageFit
+          )
+          
+          // anchor가 (0.5, 0.5)이므로 중심점 좌표로 변환
+          sprite.x = params.x + params.width / 2
+          sprite.y = params.y + params.height / 2
+          sprite.width = params.width
+          sprite.height = params.height
           sprite.rotation = 0
         }
 
@@ -294,18 +308,12 @@ export function useSceneLoader({
               text.text = text.text || ''
             }
           } else {
-            // Transform이 없으면 자막 위치 설정 (top / center / bottom)
-            const position = scene.text.position || 'bottom'
-            const textY =
-              position === 'top'
-                ? height * 0.15
-                : position === 'bottom'
-                  ? height * 0.85
-                  : height * 0.5
-            text.x = width / 2
-            text.y = textY
-            text.scale.set(1, 1)
-            text.rotation = 0
+            // Transform이 없을 때 공통 함수 사용
+            const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
+            text.x = subtitlePosition.x
+            text.y = subtitlePosition.y
+            text.scale.set(subtitlePosition.scaleX, subtitlePosition.scaleY)
+            text.rotation = subtitlePosition.rotation
           }
 
           container.addChild(text)

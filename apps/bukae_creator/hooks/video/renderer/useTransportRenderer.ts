@@ -17,6 +17,7 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { getSceneStartTime } from '@/utils/timeline'
+import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import { TransitionShaderManager } from '../effects/transitions/shader/TransitionShaderManager'
 import { useContainerManager } from './containers/useContainerManager'
 import { useSubtitleRenderer } from './subtitle/useSubtitleRenderer'
@@ -24,6 +25,7 @@ import { useTransitionEffects } from './transitions/useTransitionEffects'
 import { useTransportState } from './transport/useTransportState'
 import { useRenderLoop } from './playback/useRenderLoop'
 import { resetBaseState } from './utils/resetBaseState'
+import { getSubtitlePosition } from './utils/getSubtitlePosition'
 import {
   step1CalculateScenePart,
   step2PrepareResources,
@@ -291,11 +293,24 @@ export function useTransportRenderer({
         sprite.height = baseScene.imageTransform.height
         sprite.rotation = baseScene.imageTransform.rotation
       } else {
-        const imageY = height * 0.15
-        sprite.x = width * 0.5
-        sprite.y = imageY + (height * 0.7) * 0.5
-        sprite.width = width
-        sprite.height = height * 0.7
+        // Transform이 없으면 imageFit을 사용하여 스프라이트 크기/위치 계산
+        const imageFit = baseScene.imageFit || 'contain'
+        const textureWidth = texture.width > 0 ? texture.width : width
+        const textureHeight = texture.height > 0 ? texture.height : height
+        
+        const params = calculateSpriteParams(
+          textureWidth,
+          textureHeight,
+          width,
+          height,
+          imageFit
+        )
+        
+        // anchor가 (0.5, 0.5)이므로 중심점 좌표로 변환
+        sprite.x = params.x + params.width / 2
+        sprite.y = params.y + params.height / 2
+        sprite.width = params.width
+        sprite.height = params.height
         sprite.rotation = 0
       }
 
@@ -361,17 +376,12 @@ export function useTransportRenderer({
             text.text = text.text
           }
         } else {
-          const position = scene.text.position || 'bottom'
-          const textY =
-            position === 'top'
-              ? height * 0.15
-              : position === 'bottom'
-                ? height * 0.85
-                : height * 0.5
-          text.x = width / 2
-          text.y = textY
-          text.scale.set(1, 1)
-          text.rotation = 0
+          // transform이 없을 때 공통 함수 사용
+          const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
+          text.x = subtitlePosition.x
+          text.y = subtitlePosition.y
+          text.scale.set(subtitlePosition.scaleX, subtitlePosition.scaleY)
+          text.rotation = subtitlePosition.rotation
         }
 
         // 씬별 Container에 text 추가 (기존 containerRef 대신)
@@ -539,6 +549,7 @@ export function useTransportRenderer({
     containerRef,
     subtitleContainerRef,
     textsRef,
+    stageDimensions,
   })
 
   /**
@@ -819,18 +830,12 @@ export function useTransportRenderer({
           textObj.scale.set(scaleX, scaleY)
           textObj.rotation = transform.rotation ?? 0
         } else {
-          const position = scene.text.position || 'bottom'
-          const stageHeight = appRef.current?.screen?.height || 1920
-          if (position === 'top') {
-            textObj.y = stageHeight * 0.15
-          } else if (position === 'bottom') {
-            textObj.y = stageHeight * 0.85
-          } else {
-            textObj.y = stageHeight * 0.5
-          }
-          textObj.x = stageWidth * 0.5
-          textObj.scale.set(1, 1)
-          textObj.rotation = 0
+          // transform이 없을 때 공통 함수 사용
+          const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
+          textObj.x = subtitlePosition.x
+          textObj.y = subtitlePosition.y
+          textObj.scale.set(subtitlePosition.scaleX, subtitlePosition.scaleY)
+          textObj.rotation = subtitlePosition.rotation
           // 기존 방식: anchor를 중앙으로 설정
           textObj.anchor.set(0.5, 0.5)
         }
@@ -1002,6 +1007,16 @@ export function useTransportRenderer({
       const scene = timeline.scenes[sceneIndex]
       if (!scene) {
         return
+      }
+
+      // 디버깅: scene 데이터 확인
+      if (process.env.NODE_ENV === 'development' && Math.floor(tSec * 10) % 10 === 0) {
+        console.log('[renderAt] scene 데이터 확인:', {
+          sceneIndex,
+          imageFit: scene.imageFit,
+          imageTransform: scene.imageTransform ? '있음' : '없음',
+          timelineScenesLength: timeline.scenes.length,
+        })
       }
 
       // 현재 씬 인덱스 업데이트

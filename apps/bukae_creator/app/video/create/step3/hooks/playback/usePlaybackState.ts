@@ -76,7 +76,10 @@ export function usePlaybackState({
   ttsTrackRef,
   setIsPreparing,
 }: UsePlaybackStateParams) {
-  const setIsPlaying = useCallback(async (playing: boolean, options?: { sceneIndex?: number | null; groupSceneId?: number | null }) => { 
+  const setIsPlaying = useCallback(async (
+    playing: boolean,
+    options?: { sceneIndex?: number | null; groupSceneId?: number | null; startFromSceneIndex?: number }
+  ) => { 
     if (playing) {
       // 재생 시작 전에 필요한 씬의 TTS 파일이 있는지 확인하고 없으면 생성
       if (timeline && voiceTemplate) {
@@ -232,9 +235,17 @@ export function usePlaybackState({
             forceSceneIndex = firstSceneIndex
           }
         }
+      } else if (
+        options?.startFromSceneIndex != null &&
+        options.startFromSceneIndex >= 0 &&
+        timeline &&
+        options.startFromSceneIndex < timeline.scenes.length
+      ) {
+        // 전체 재생이지만 선택된 씬이 있으면: 해당 씬의 세그먼트 시작 시점부터 재생
+        startTime = getSceneStartTime(timeline, options.startFromSceneIndex)
       }
       
-      // 씬/그룹 재생이면 시작 시간으로 이동, 아니면 현재 시간 사용
+      // 씬/그룹/시작씬 지정이면 시작 시간으로 이동, 아니면 현재 시간 사용
       let currentT: number
       if (startTime !== undefined) {
         // 씬/그룹 재생: 항상 시작 시간으로 이동 (처음부터 시작)

@@ -3,7 +3,10 @@
 import { useCallback } from 'react'
 import type { MutableRefObject } from 'react'
 import * as PIXI from 'pixi.js'
+import * as fabric from 'fabric'
 import type { SceneScript, TimelineData } from '@/store/useVideoCreateStore'
+import type { StageDimensions } from '../types/common'
+import { getFabricImagePosition } from '../renderer/utils/getFabricPosition'
 
 interface UseSceneHandlersParams {
   scenes: SceneScript[]
@@ -22,6 +25,10 @@ interface UseSceneHandlersParams {
   containerRef: MutableRefObject<PIXI.Container | null>
   loadAllScenes: () => Promise<void>
   setPlaybackSpeed: (speed: number) => void
+  spritesRef: MutableRefObject<Map<number, PIXI.Sprite>>
+  stageDimensions: StageDimensions
+  fabricCanvasRef: React.RefObject<fabric.Canvas | null>
+  fabricScaleRatioRef: MutableRefObject<number>
   renderSceneContent?: (
     sceneIndex: number,
     partIndex?: number | null,
@@ -54,6 +61,10 @@ export function useSceneHandlers({
   containerRef,
   loadAllScenes,
   setPlaybackSpeed,
+  spritesRef,
+  stageDimensions,
+  fabricCanvasRef,
+  fabricScaleRatioRef,
   renderSceneContent,
 }: UseSceneHandlersParams) {
   const handleSceneScriptChange = useCallback(
@@ -194,6 +205,7 @@ export function useSceneHandlers({
     (index: number, value: 'cover' | 'contain' | 'fill') => {
       if (!timeline) return
       isManualSceneSelectRef.current = true
+      
       // imageFit이 변경되면 imageTransform을 제거하여 새로운 imageFit이 적용되도록 함
       const nextTimeline: TimelineData = {
         ...timeline,
@@ -205,24 +217,83 @@ export function useSceneHandlers({
       }
       setTimeline(nextTimeline)
 
+      // 스프라이트 위치/크기를 직접 업데이트
       if (pixiReady && appRef.current && containerRef.current) {
-        loadAllScenes().then(() => {
-          // 현재 씬이 변경된 씬이면 업데이트
-          if (index === currentSceneIndex) {
-            // skipAnimation 파라미터 제거: forceTransition === 'none'으로 처리
-            updateCurrentScene(null, 'none')
-          }
+        const scene = nextTimeline.scenes[index]
+        if (!scene) {
           setTimeout(() => {
             isManualSceneSelectRef.current = false
           }, 50)
-        })
+          return
+        }
+
+        // 같은 그룹 내 첫 번째 씬의 스프라이트 찾기 (같은 그룹은 같은 스프라이트를 공유)
+        const sceneId = scene.sceneId
+        let targetSprite: PIXI.Sprite | undefined
+        let targetSceneIndex = index
+
+        if (sceneId !== undefined) {
+          // 같은 그룹 내 첫 번째 씬 찾기
+          const firstSceneIndexInGroup = nextTimeline.scenes.findIndex((s) => s.sceneId === sceneId)
+          if (firstSceneIndexInGroup >= 0) {
+            targetSprite = spritesRef.current.get(firstSceneIndexInGroup)
+            targetSceneIndex = firstSceneIndexInGroup
+          }
+        }
+
+        // 스프라이트를 찾지 못한 경우 현재 인덱스에서 찾기
+        if (!targetSprite) {
+          targetSprite = spritesRef.current.get(index)
+        }
+
+        // 스프라이트가 있으면 위치/크기 업데이트
+        if (targetSprite && !targetSprite.destroyed) {
+          const texture = targetSprite.texture
+          const spriteTexture = texture && texture.width > 0 && texture.height > 0
+            ? { width: texture.width, height: texture.height }
+            : null
+
+          const position = getFabricImagePosition(
+            targetSceneIndex,
+            scene,
+            fabricCanvasRef,
+            fabricScaleRatioRef,
+            stageDimensions,
+            spriteTexture
+          )
+
+          // 스프라이트 속성 직접 업데이트
+          targetSprite.x = position.x
+          targetSprite.y = position.y
+          targetSprite.rotation = position.rotation
+
+          // 원본 텍스처 크기를 기준으로 scale 계산
+          if (texture && texture.width > 0 && texture.height > 0) {
+            const calculatedScaleX = position.width / texture.width
+            const calculatedScaleY = position.height / texture.height
+            targetSprite.scale.set(calculatedScaleX, calculatedScaleY)
+          } else {
+            targetSprite.scale.set(position.scaleX, position.scaleY)
+          }
+
+          // 같은 그룹 내 다른 씬들도 같은 스프라이트를 공유하므로 자동으로 업데이트됨
+        }
+
+        // 현재 씬이 변경된 씬이면 업데이트
+        if (index === currentSceneIndex) {
+          updateCurrentScene(null, 'none')
+        }
+
+        setTimeout(() => {
+          isManualSceneSelectRef.current = false
+        }, 50)
       } else {
         setTimeout(() => {
           isManualSceneSelectRef.current = false
         }, 50)
       }
     },
-    [appRef, containerRef, currentSceneIndex, isManualSceneSelectRef, loadAllScenes, pixiReady, setTimeline, timeline, updateCurrentScene],
+    [appRef, containerRef, currentSceneIndex, isManualSceneSelectRef, pixiReady, setTimeline, timeline, updateCurrentScene, spritesRef, stageDimensions, fabricCanvasRef, fabricScaleRatioRef],
   )
 
   const handlePlaybackSpeedChange = useCallback(

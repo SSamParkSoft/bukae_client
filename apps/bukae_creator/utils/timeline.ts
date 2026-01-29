@@ -30,11 +30,15 @@ export const getSceneDuration = (script: string): number => {
 
 /**
  * 특정 씬의 시작 시간을 계산합니다.
+ * actualPlaybackDuration이 있으면 사용하여 실제 TTS 세그먼트 경계와 일치시킵니다.
  * @param timeline Timeline 객체
  * @param sceneIndex 씬 인덱스
  * @returns 씬의 시작 시간 (초)
  */
-export const getSceneStartTime = (timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number }> }, sceneIndex: number): number => {
+export const getSceneStartTime = (
+  timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number; actualPlaybackDuration?: number }> },
+  sceneIndex: number
+): number => {
   if (!timeline || !timeline.scenes || timeline.scenes.length === 0) return 0
   if (sceneIndex < 0 || sceneIndex >= timeline.scenes.length) return 0
   
@@ -46,6 +50,12 @@ export const getSceneStartTime = (timeline: { scenes: Array<{ sceneId: number; d
     const currentScene = timeline.scenes[i]
     if (!currentScene) continue
     
+    // 실제 재생 시간이 있으면 사용 (TTS 세그먼트 경계와 일치)
+    const sceneDuration =
+      currentScene.actualPlaybackDuration != null && currentScene.actualPlaybackDuration > 0
+        ? currentScene.actualPlaybackDuration
+        : currentScene.duration
+    
     const nextScene = timeline.scenes[i + 1]
     // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
     const isSameSceneId = nextScene && currentScene.sceneId === nextScene.sceneId
@@ -53,8 +63,7 @@ export const getSceneStartTime = (timeline: { scenes: Array<{ sceneId: number; d
     const sceneGap = isSameSceneId ? 0 : SCENE_GAP
     
     // 다음 씬 시작 시간 = 현재 씬 시작 시간 + duration + transitionDuration + sceneGap
-    // sceneGap을 더해서 이전 씬 종료 시간과 겹치지 않도록 함
-    time += currentScene.duration + transitionDuration + sceneGap
+    time += sceneDuration + transitionDuration + sceneGap
   }
   return time
 }

@@ -254,17 +254,17 @@ export function useSceneEditHandlers({
       const targetSceneScript = scenes[index]
       const targetTimelineScene = timeline.scenes[index]
 
-      // 그룹 내 세부 씬인지 확인 (splitIndex가 있는지 확인)
-      const isGroupedScene = targetSceneScript.splitIndex !== undefined
+      // 같은 그룹 내의 모든 세부 씬들 찾기 (같은 sceneId + splitIndex 있는 것만)
+      const groupSceneId = targetSceneScript.sceneId
+      const sameGroupScenes = scenes
+        .map((s, i) => ({ scene: s, index: i }))
+        .filter(({ scene }) => scene.sceneId === groupSceneId && scene.splitIndex !== undefined)
+
+      // 그룹 복사: splitIndex가 있고, 같은 그룹에 씬이 2개 이상일 때만. 혼자 남은 씬은 씬 복사로 처리
+      const isGroupedScene = targetSceneScript.splitIndex !== undefined && sameGroupScenes.length > 1
 
       if (isGroupedScene) {
         // 그룹 내 세부 씬을 복사하는 경우: 같은 그룹 내에 새로운 세부 씬으로 추가
-        const groupSceneId = targetSceneScript.sceneId
-
-        // 같은 그룹 내의 모든 세부 씬들 찾기
-        const sameGroupScenes = scenes
-          .map((s, i) => ({ scene: s, index: i }))
-          .filter(({ scene }) => scene.sceneId === groupSceneId && scene.splitIndex !== undefined)
 
         // 최대 splitIndex 구하기
         const maxSplitIndex = sameGroupScenes.reduce((max, { scene }) => {
