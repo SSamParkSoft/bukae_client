@@ -96,7 +96,7 @@ export const SceneListPanel = memo(function SceneListPanel({
       {/* 중앙 패널만 세로 스크롤 가능 */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto pr-[24px] pt-0 pb-6 min-h-0"
+        className="relative z-10 flex-1 overflow-y-auto pr-[24px] pt-0 pb-6 min-h-0"
       >
         <div className="space-y-4">
           <SceneList
@@ -131,9 +131,9 @@ export const SceneListPanel = memo(function SceneListPanel({
         </div>
       </div>
 
-      {/* 스크롤바가 생겼을 때에만 오른쪽 영역에 흰색 배경 표시 */}
+      {/* 스크롤바가 생겼을 때 오른쪽 흰색 배경 (z-0으로 스크롤 영역·스크롤바 아래에 둠) */}
       {showScrollGutter && (
-        <div className="pointer-events-none absolute top-0 right-0 h-full w-[12px] bg-white" />
+        <div className="pointer-events-none absolute top-0 right-0 z-0 h-full w-[12px] bg-white" />
       )}
     </div>
   )
