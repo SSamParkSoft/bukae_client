@@ -698,6 +698,7 @@ export function useStep3Container() {
   // 씬/그룹 재생 시 Transport 시간 고정을 위한 ref
   const sceneGroupPlayStartTimeRef = useRef<number | null>(null)
   const sceneGroupPlayStartAudioCtxTimeRef = useRef<number | null>(null)
+  const sceneGroupPlayEndTimeRef = useRef<number | null>(null)
 
   // ensureSceneTts 래퍼 함수 (usePlaybackState가 기대하는 타입으로 변환)
   const ensureSceneTtsWrapper = useCallback(async (sceneIndex: number): Promise<void> => {
@@ -757,6 +758,7 @@ export function useStep3Container() {
     transportRendererRef,
     sceneGroupPlayStartTimeRef,
     sceneGroupPlayStartAudioCtxTimeRef,
+    sceneGroupPlayEndTimeRef,
     ttsTrackRef: ttsTrackRef as React.MutableRefObject<{ getTtsTrack: () => TtsTrack | null }>,
     lastTtsUpdateTimeRef,
   })
@@ -1070,9 +1072,10 @@ export function useStep3Container() {
         }
       }
       
-      // 씬/그룹 재생 시작 시간 초기화 (다음 useEffect에서 설정됨)
+      // 씬/그룹 재생 시작 시간·종료 시간 초기화 (다음 useEffect에서 설정됨)
       sceneGroupPlayStartTimeRef.current = null
       sceneGroupPlayStartAudioCtxTimeRef.current = null
+      sceneGroupPlayEndTimeRef.current = null
     },
     onScenePlayStart: (sceneIndex, endTime) => {
       setPlayingSceneIndex(sceneIndex)
@@ -1085,9 +1088,10 @@ export function useStep3Container() {
         currentTtsTrack.setAllowedSceneIndices([sceneIndex])
       }
       
-      // 씬/그룹 재생 시작 시간 초기화 (다음 useEffect에서 설정됨)
+      // 씬/그룹 재생 시작 시간·종료 시간 초기화 (다음 useEffect에서 설정됨)
       sceneGroupPlayStartTimeRef.current = null
       sceneGroupPlayStartAudioCtxTimeRef.current = null
+      sceneGroupPlayEndTimeRef.current = null
     },
     onFullPlayStart: () => {
       // 전체 재생 시작 시 종료 시간 제한 제거 및 허용된 씬 인덱스 제거
