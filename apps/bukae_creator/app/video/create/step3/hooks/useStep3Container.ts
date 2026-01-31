@@ -32,6 +32,7 @@ import { useSceneLoader } from './scene-loading'
 import { useTransportTtsIntegration, useTransportTtsSync, useTransportSeek } from './transport'
 import { useSceneIndexManager, useSceneThumbnails, useSceneStructureSync } from './scene'
 import { useTimelineChangeHandler } from './timeline'
+import { getPreviousSegmentEndTime } from '@/utils/timeline'
 import { useBgmPlayback, useTtsDurationSync } from './audio'
 // [강화] 리소스 모니터링 및 상태 동기화 검증 (비활성화됨)
 import * as PIXI from 'pixi.js'
@@ -844,6 +845,12 @@ export function useStep3Container() {
   }
 
   // 씬 네비게이션 훅 (씬 선택/전환 로직)
+  const getSeekTimeForScene = useCallback(
+    (index: number) =>
+      timeline ? getPreviousSegmentEndTime(timeline, index, ttsTrack.segments || []) : 0,
+    [timeline, ttsTrack.segments]
+  )
+
   const sceneNavigation = useSceneNavigation({
     timeline,
     scenes,
@@ -860,6 +867,7 @@ export function useStep3Container() {
     isPreviewingTransition,
     setIsPreviewingTransition,
     setCurrentTime,
+    getSeekTimeForScene,
     voiceTemplate,
     playbackSpeed: timeline?.playbackSpeed ?? 1.0,
     buildSceneMarkup: buildSceneMarkupWrapper,

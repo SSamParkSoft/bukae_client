@@ -68,6 +68,33 @@ export const getSceneStartTime = (
   return time
 }
 
+/** TTS 세그먼트 최소 타입 (getPreviousSegmentEndTime용) */
+type SegmentLike = { sceneIndex?: number; startSec: number; durationSec: number }
+
+/**
+ * 선택된 씬의 전환효과가 시작되는 시점 = 이전 씬의 마지막 TTS 세그먼트 끝 시점
+ * @param timeline Timeline 객체
+ * @param sceneIndex 씬 인덱스
+ * @param segments TTS 세그먼트 목록 (ttsTrack.segments)
+ * @returns 이전 세그먼트 끝 시간 (초), 씬 0이면 0, 세그먼트 없으면 getSceneStartTime 폴백
+ */
+export const getPreviousSegmentEndTime = (
+  timeline: { scenes: Array<{ sceneId: number; duration: number; transitionDuration?: number; actualPlaybackDuration?: number }> },
+  sceneIndex: number,
+  segments: SegmentLike[]
+): number => {
+  if (sceneIndex <= 0 || !segments?.length) return 0
+  const prevSceneIndex = sceneIndex - 1
+  const prevSceneSegments = segments.filter(
+    (seg) => seg.sceneIndex === prevSceneIndex
+  )
+  if (prevSceneSegments.length === 0) {
+    return getSceneStartTime(timeline, sceneIndex)
+  }
+  const last = prevSceneSegments[prevSceneSegments.length - 1]
+  return last.startSec + (last.durationSec ?? 0)
+}
+
 /**
  * 타임라인의 전체 duration을 계산합니다.
  * Transition duration은 제외하고 TTS duration만 합산합니다.

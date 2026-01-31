@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { calculateSceneIndexFromTime } from '@/utils/timeline'
 import { calculateSceneFromTime } from '@/utils/timeline-render'
-import { getSceneStartTime } from '@/utils/timeline'
+import { getSceneStartTime, getPreviousSegmentEndTime } from '@/utils/timeline'
 import type { MakeTtsKeyFunction } from '@/lib/utils/tts'
 
 interface UseSceneIndexManagerParams {
@@ -74,11 +74,11 @@ export function useSceneIndexManager({
   const setCurrentSceneIndex = (index: number, options?: { skipSeek?: boolean }) => { 
     currentSceneIndexRef.current = index
     setManualSceneIndex(index) // 수동 선택 상태 업데이트
-    // Transport seek도 함께 수행 (해당 씬의 시작 시간으로)
+    // Transport seek: 이전 세그먼트 끝 시점으로 이동 (선택된 씬의 전환효과부터 시작)
     // 단, skipSeek 옵션이 true이면 seek하지 않음 (타임라인 클릭 시 정확한 시간 유지)
     if (!options?.skipSeek && timeline) {
-      const sceneStartTime = getSceneStartTime(timeline, index)
-      transport.seek(sceneStartTime)
+      const seekTime = getPreviousSegmentEndTime(timeline, index, ttsTrack.segments || [])
+      transport.seek(seekTime)
     }
   }
   
