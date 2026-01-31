@@ -25,7 +25,7 @@ import { useFabricHandlers } from '@/hooks/video/editing/useFabricHandlers'
 import { transitionLabels, transitions, movements, allTransitions } from '@/lib/data/transitions'
 import { useVideoCreateAuth } from '@/hooks/auth/useVideoCreateAuth'
 import { useStep3State } from './state'
-import { usePlaybackHandlers, usePlaybackState, usePlaybackDurationTracker } from './playback'
+import { usePlaybackHandlers, usePlaybackState, usePlaybackDurationTracker, usePlaybackStop, useHandlersWithStopPlayback } from './playback'
 import { useSceneEditHandlers, useEditModeManager, useEditHandlesManager } from './editing'
 import { usePixiRenderHandlers, useSceneContentRenderer } from './rendering'
 import { useSceneLoader } from './scene-loading'
@@ -491,8 +491,8 @@ export function useStep3Container() {
     isPlaying,
   })
   
-  // Transport Seek 로직
-  const setCurrentTime = useTransportSeek({
+  // Transport Seek 로직 (설정 변경 시 재생 정지용 래퍼는 stopPlaybackIfPlaying 정의 후 적용)
+  const setCurrentTimeRaw = useTransportSeek({
     transport,
     ttsTrack,
     audioContext,
@@ -529,7 +529,7 @@ export function useStep3Container() {
     voiceTemplate,
     setTimeline,
     isPlaying,
-    setCurrentTime,
+    setCurrentTime: setCurrentTimeRaw,
     changedScenesRef,
     onDurationChange: (sceneIndex, durationSec) => {
       // ref를 통해 최신 콜백 호출
@@ -763,6 +763,28 @@ export function useStep3Container() {
     lastTtsUpdateTimeRef,
   })
 
+  // 설정 변경 시 재생 정지 (씬/그룹/전체 재생 공통, 일시정지 제외)
+  const { stopPlaybackIfPlaying } = usePlaybackStop({
+    isPlaying,
+    playingSceneIndex,
+    playingGroupSceneId,
+    transport,
+    setIsPlaying,
+    setPlayingSceneIndex,
+    setPlayingGroupSceneId,
+    setPlaybackEndTime,
+    ttsTrackRef: ttsTrackRef as React.MutableRefObject<{ getTtsTrack: () => unknown }>,
+  })
+
+  const setCurrentTime = useCallback(
+    (time: React.SetStateAction<number>) => {
+      stopPlaybackIfPlaying()
+      const target = typeof time === 'function' ? time(transport.currentTime) : time
+      setCurrentTimeRaw(target)
+    },
+    [stopPlaybackIfPlaying, setCurrentTimeRaw, transport]
+  )
+
   // 타임라인 인터랙션 (setIsPlaying이 선언된 후에 호출)
   const { handleTimelineMouseDown } = useTimelineInteraction({
     timeline,
@@ -906,8 +928,8 @@ export function useStep3Container() {
   const {
     handleSceneScriptChange: originalHandleSceneScriptChange,
     handleSceneTransitionChange: originalHandleSceneTransitionChange,
-    handleSceneImageFitChange,
-    handlePlaybackSpeedChange,
+    handleSceneImageFitChange: handleSceneImageFitChangeBase,
+    handlePlaybackSpeedChange: handlePlaybackSpeedChangeBase,
     handleSceneMotionChange: originalHandleSceneMotionChange,
   } = useSceneHandlers({
     scenes,
@@ -935,10 +957,10 @@ export function useStep3Container() {
 
   // 씬 편집 핸들러 훅 (그룹 복사, 삭제, voiceTemplate 변경, 템플릿 리사이즈)
   const {
-    handleGroupDuplicate,
-    handleGroupDelete,
-    handleSceneVoiceTemplateChange,
-    handleResizeTemplate,
+    handleGroupDuplicate: handleGroupDuplicateBase,
+    handleGroupDelete: handleGroupDeleteBase,
+    handleSceneVoiceTemplateChange: handleSceneVoiceTemplateChangeBase,
+    handleResizeTemplate: handleResizeTemplateBase,
   } = useSceneEditHandlers({
     timeline,
     scenes,
@@ -956,10 +978,10 @@ export function useStep3Container() {
 
   // 씬 편집 핸들러들 (useSceneEditHandlers는 @/hooks/video/useSceneEditHandlers를 사용)
   const {
-    handleSceneScriptChange,
-    handleSceneSplit,
-    handleSceneDelete,
-    handleSceneDuplicate,
+    handleSceneScriptChange: handleSceneScriptChangeBase,
+    handleSceneSplit: handleSceneSplitBase,
+    handleSceneDelete: handleSceneDeleteBase,
+    handleSceneDuplicate: handleSceneDuplicateBase,
     handleSceneReorder: handleSceneReorderFromHook,
   } = useSceneEditHandlersFromVideo({
     scenes,
@@ -980,6 +1002,7 @@ export function useStep3Container() {
 
   // 전환 효과 변경 핸들러 래핑: currentSceneIndexRef를 먼저 설정
   const handleSceneTransitionChange = useCallback((index: number, value: string) => {
+    stopPlaybackIfPlaying()
     // currentSceneIndexRef를 먼저 설정하여 updateCurrentScene이 올바른 씬 인덱스를 사용하도록 함
     currentSceneIndexRef.current = index
     originalHandleSceneTransitionChange(index, value)
@@ -987,16 +1010,17 @@ export function useStep3Container() {
     // timeline 변경 감지 useEffect에서 자동으로 renderAt 호출됨
     // ref는 변경되어도 리렌더링을 트리거하지 않으므로 dependency에 포함할 필요 없음
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [originalHandleSceneTransitionChange])
+  }, [stopPlaybackIfPlaying, originalHandleSceneTransitionChange])
 
   const handleSceneMotionChange = useCallback((index: number, motion: import('@/hooks/video/effects/motion/types').MotionConfig | null) => {
+    stopPlaybackIfPlaying()
     currentSceneIndexRef.current = index
     originalHandleSceneMotionChange(index, motion)
     // timeline 업데이트는 originalHandleSceneMotionChange에서 처리됨
     // timeline 변경 감지 useEffect에서 자동으로 renderAt 호출됨
     // ref는 변경되어도 리렌더링을 트리거하지 않으므로 dependency에 포함할 필요 없음
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [originalHandleSceneMotionChange])
+  }, [stopPlaybackIfPlaying, originalHandleSceneMotionChange])
 
   // 비디오 내보내기 hook
   const { isExporting, handleExport } = useVideoExport({
@@ -1014,8 +1038,32 @@ export function useStep3Container() {
     textsRef,
   })
 
-  // 씬 순서 변경 핸들러는 useSceneEditHandlers에서 제공
-  const handleSceneReorder = handleSceneReorderFromHook
+  // 설정 변경 시 재생 정지 후 실제 핸들러 호출 (한 훅으로 묶음)
+  const {
+    handleSceneScriptChange,
+    handleSceneSplit,
+    handleSceneDelete,
+    handleSceneDuplicate,
+    handleSceneReorder,
+    handleSceneImageFitChange,
+    handlePlaybackSpeedChange,
+    handleGroupDuplicate,
+    handleGroupDelete,
+    handleSceneVoiceTemplateChange,
+    handleResizeTemplate,
+  } = useHandlersWithStopPlayback(stopPlaybackIfPlaying, {
+    handleSceneScriptChange: handleSceneScriptChangeBase,
+    handleSceneSplit: handleSceneSplitBase,
+    handleSceneDelete: handleSceneDeleteBase,
+    handleSceneDuplicate: handleSceneDuplicateBase,
+    handleSceneReorder: handleSceneReorderFromHook,
+    handleSceneImageFitChange: handleSceneImageFitChangeBase,
+    handlePlaybackSpeedChange: handlePlaybackSpeedChangeBase,
+    handleGroupDuplicate: handleGroupDuplicateBase,
+    handleGroupDelete: handleGroupDeleteBase,
+    handleSceneVoiceTemplateChange: handleSceneVoiceTemplateChangeBase,
+    handleResizeTemplate: handleResizeTemplateBase,
+  })
 
   // 레거시 ref 제거 - 더 이상 필요 없음
   // fullPlaybackRef.current = fullPlayback
@@ -1230,13 +1278,13 @@ export function useStep3Container() {
 
   // 씬 선택 핸들러
   const handleSceneSelect = useCallback((index: number) => {
-    // Transport 기반에서는 재생 중에도 씬 선택 가능 (Transport가 자동으로 처리)
+    stopPlaybackIfPlaying()
     // 씬 클릭 시 TTS 재생 방지: 재생 중이 아니면 TTS 정지
     if (!isPlaying && typeof window !== 'undefined') {
       ttsTrack.stopAll()
     }
     sceneNavigation.selectScene(index)
-  }, [sceneNavigation, isPlaying, ttsTrack])
+  }, [sceneNavigation, isPlaying, ttsTrack, stopPlaybackIfPlaying])
 
   // 반환값 최적화
   return useMemo(() => ({

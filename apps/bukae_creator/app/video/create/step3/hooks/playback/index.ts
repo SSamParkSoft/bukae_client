@@ -1,3 +1,5 @@
 export { usePlaybackHandlers } from './usePlaybackHandlers'
 export { usePlaybackState } from './usePlaybackState'
 export { usePlaybackDurationTracker } from './usePlaybackDurationTracker'
+export { usePlaybackStop, useHandlersWithStopPlayback } from './usePlaybackStop'
+export { stopPlaybackIfPlaying } from './stopPlayback'

@@ -84,12 +84,13 @@ export function SceneCard({
   )
   const hasSubtitle = Boolean(
     timelineScene?.text?.content?.trim() ||
-    (scene.script && scene.script.replace(/\s*\|\|\|\s*/g, ' ').trim())
+    (scene.script && scene.script.replace(/\s*\|\|\|\s*/g, ' ').trim().length > 0)
   )
   const hasVoice = Boolean(timelineScene?.voiceTemplate ?? voiceTemplate)
   const hasSound = Boolean(timelineScene?.soundEffect != null && timelineScene.soundEffect !== '')
 
-  const displayScript = scene.script.replace(/\s*\|\|\|\s*/g, ' ').trim()
+  // 표시용: ||| 만 공백으로 치환 (띄어쓰기 유지를 위해 trim 하지 않음)
+  const displayScript = scene.script.replace(/\s*\|\|\|\s*/g, ' ')
 
   const validThumbnailUrl =
     thumbnailUrl == null || thumbnailUrl === ''
