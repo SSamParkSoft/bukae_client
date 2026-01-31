@@ -21,6 +21,9 @@ interface UseFabricHandlersParams {
   savedSceneIndexRef: React.MutableRefObject<number | null>
   isManualSceneSelectRef: React.MutableRefObject<boolean>
   useFabricEditing?: boolean // Fabric.js 편집 모드 활성화 여부
+  /** 포인터/선택 UI 동기화용 (단일 책임: Fabric 캔버스 UI 상태) */
+  fabricCanvasElementRef?: React.RefObject<HTMLCanvasElement | null>
+  editMode?: 'none' | 'image' | 'text'
 }
 
 /**
@@ -38,7 +41,37 @@ export function useFabricHandlers({
   savedSceneIndexRef,
   isManualSceneSelectRef,
   useFabricEditing = false,
+  fabricCanvasElementRef,
+  editMode,
 }: UseFabricHandlersParams) {
+  // Fabric 포인터 활성화 상태 (lower/upper 캔버스)
+  useEffect(() => {
+    if (!fabricCanvasElementRef?.current || editMode === undefined) return
+    const lower = fabricCanvasElementRef.current
+    const upper = fabricCanvasRef.current?.upperCanvasEl
+    const pointer = useFabricEditing ? 'auto' : 'none'
+    if (lower) lower.style.pointerEvents = pointer
+    if (upper) upper.style.pointerEvents = pointer
+  }, [editMode, useFabricEditing, fabricCanvasRef, fabricCanvasElementRef])
+
+  // Fabric 오브젝트 선택 가능 여부 (편집 모드에 맞춰 갱신)
+  useEffect(() => {
+    if (!fabricReady || !fabricCanvasRef.current || !useFabricEditing) return
+    const fabricCanvas = fabricCanvasRef.current
+    fabricCanvas.selection = true
+    fabricCanvas.forEachObject((obj: fabric.Object & { dataType?: 'image' | 'text' }) => {
+      obj.set({
+        selectable: true,
+        evented: true,
+        lockScalingFlip: true,
+        hoverCursor: 'move',
+        moveCursor: 'move',
+      })
+    })
+    fabricCanvas.discardActiveObject()
+    fabricCanvas.renderAll()
+  }, [fabricReady, editMode, useFabricEditing, fabricCanvasRef])
+
   /**
    * 이미지 Transform을 타임라인에 저장
    */

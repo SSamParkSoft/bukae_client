@@ -66,6 +66,17 @@ export function useTransportTtsSync({
 }: UseTransportTtsSyncParams) {
   const sceneGroupRenderLoopRef = useRef<number | null>(null)
 
+  // Transport playbackRate 변경 시 TtsTrack에 반영 (단일 책임: TTS 동기화)
+  useEffect(() => {
+    const rate = transport.playbackRate
+    const currentTtsTrack = ttsTrackRef.current.getTtsTrack()
+    if (currentTtsTrack && 'setPlaybackRate' in currentTtsTrack) {
+      (currentTtsTrack as { setPlaybackRate: (r: number) => void }).setPlaybackRate(rate)
+    }
+    // ttsTrackRef는 ref이므로 의존성에서 제외 (playbackRate 변경 시에만 동기화)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transport.playbackRate])
+
   // 씬/그룹 재생 시 매 프레임 renderAt 호출 (전환·움직임 효과 끊김 방지)
   // useRenderLoop는 씬/그룹 재생 시 중지되므로, 여기서 rAF로 시간을 계산해 렌더링
   useEffect(() => {
