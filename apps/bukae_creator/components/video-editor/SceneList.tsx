@@ -499,8 +499,8 @@ export function SceneList({
             {group.indices.map((index, groupSceneIndex) => {
               const scene = scenes[index]
               if (!scene) return null
-              // ||| 구분자로 분할된 구간 확인 (공백 유무와 관계없이 분할)
-              const scriptParts = (scene.script || '').split(/\s*\|\|\|\s*/).map(part => part.trim()).filter(part => part.length > 0)
+              // ||| 구분자로 분할 (띄어쓰기 유지를 위해 trim 하지 않음)
+              const scriptParts = (scene.script || '').split(/\s*\|\|\|\s*/)
               const hasDelimiters = scriptParts.length > 1
               // 그룹 내 씬의 순서 번호 (splitIndex가 있으면 사용, 없으면 그룹 내 인덱스 + 1)
               const groupSceneOrderNumber = scene.splitIndex || groupSceneIndex + 1

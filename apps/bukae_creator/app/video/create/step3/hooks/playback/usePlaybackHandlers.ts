@@ -94,11 +94,9 @@ export function usePlaybackHandlers({
         return
       }
       
-      // 모든 씬에 음성이 있으면 재생 시작 (전체 재생). 선택된 씬이 있으면 해당 씬 세그먼트 시작부터 재생
+      // 모든 씬에 음성이 있으면 재생 시작 (전체 재생). 타임라인 클릭/드래그한 현재 위치에서 재생
       setShowVoiceRequiredMessage(false)
-      void setIsPlaying(true, {
-        startFromSceneIndex: currentSceneIndex >= 0 ? currentSceneIndex : undefined,
-      })
+      void setIsPlaying(true)
     }
   }, [isPlaying, setIsPlaying, setRightPanelTab, setShowVoiceRequiredMessage, setScenesWithoutVoice, timelineRef, voiceTemplateRef, currentSceneIndex])
 

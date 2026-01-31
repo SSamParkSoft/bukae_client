@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react'
 import type { TimelineData } from '@/store/useVideoCreateStore'
-import { getSceneStartTime } from '@/utils/timeline'
+import { getSceneStartTime, getPreviousSegmentEndTime } from '@/utils/timeline'
 import type { MakeTtsKeyFunction } from '@/lib/utils/tts'
 import type { TtsTrack } from '@/hooks/video/audio/TtsTrack'
 
@@ -220,18 +220,18 @@ export function usePlaybackState({
       let forceSceneIndex: number | undefined = undefined
       
       if (options?.sceneIndex !== null && options?.sceneIndex !== undefined && timeline) {
-        // 씬 재생: 해당 씬의 시작 시간으로 이동
-        startTime = getSceneStartTime(timeline, options.sceneIndex)
+        // 씬 재생: 이전 세그먼트 끝 시점으로 이동 (선택된 씬의 전환효과부터 재생)
+        startTime = getPreviousSegmentEndTime(timeline, options.sceneIndex, ttsTrack.segments || [])
         forceSceneIndex = options.sceneIndex
       } else if (options?.groupSceneId !== null && options?.groupSceneId !== undefined && timeline) {
-        // 그룹 재생: 그룹의 첫 번째 씬의 시작 시간으로 이동
+        // 그룹 재생: 그룹 첫 씬의 이전 세그먼트 끝 시점으로 이동
         const groupSceneIndices = timeline.scenes
           .map((scene, idx) => scene.sceneId === options.groupSceneId ? idx : -1)
           .filter(idx => idx >= 0)
         if (groupSceneIndices.length > 0) {
           const firstSceneIndex = groupSceneIndices[0]
           if (firstSceneIndex !== undefined) {
-            startTime = getSceneStartTime(timeline, firstSceneIndex)
+            startTime = getPreviousSegmentEndTime(timeline, firstSceneIndex, ttsTrack.segments || [])
             forceSceneIndex = firstSceneIndex
           }
         }
@@ -258,8 +258,10 @@ export function usePlaybackState({
           transport.seek(startTime)
         }
       } else {
-        // 전체 재생: Transport의 현재 시간을 정확히 사용
-        // 클릭 후 시간이 설정되었을 수 있으므로 getTime() 사용
+        // 전체 재생: 씬/그룹 재생 상태를 초기화하여 useTransportTtsSync가 구간 시작으로 seek하지 않도록 함
+        setPlayingSceneIndex(null)
+        setPlayingGroupSceneId(null)
+        // Transport의 현재 시간을 정확히 사용 (타임라인 클릭/드래그한 위치에서 재생)
         currentT = transport.getTime()
         
         // 재생 시작 전에 Transport 시간이 정확히 설정되었는지 확인

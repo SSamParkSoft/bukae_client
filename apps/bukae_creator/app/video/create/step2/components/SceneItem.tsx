@@ -85,10 +85,12 @@ export const SceneItem = memo(function SceneItem({
           <div className="flex-1 space-y-2">
             <div className="flex items-center justify-between">
               <p 
-                className="font-bold text-text-dark tracking-[-0.36px]"
+                className="text-brand-teal tracking-[-0.36px]"
                 style={{ 
                   fontSize: 'var(--font-size-18)',
-                  lineHeight: 'var(--line-height-18-140)'
+                  lineHeight: 'var(--line-height-18-140)',
+                  fontFamily: '"Zeroes Two", sans-serif',
+                  fontWeight: 400,
                 }}
               >
                 Scene {index + 1}

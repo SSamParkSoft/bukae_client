@@ -5,6 +5,7 @@ import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 import type { SceneScript } from '@/lib/types/domain/script'
+import { getSceneStartTime } from '@/utils/timeline'
 import { useTtsResources } from '../tts/useTtsResources'
 
 interface UseSceneNavigationParams {
@@ -23,6 +24,8 @@ interface UseSceneNavigationParams {
   isPreviewingTransition: boolean
   setIsPreviewingTransition: (previewing: boolean) => void
   setCurrentTime: (time: number) => void
+  /** 씬 선택 시 이동할 시간(초). 미제공 시 getSceneStartTime 사용 */
+  getSeekTimeForScene?: (index: number) => number
   voiceTemplate: string | null
   playbackSpeed: number
   buildSceneMarkup: (sceneIndex: number) => string[]
@@ -92,6 +95,7 @@ export function useSceneNavigation({
   isPreviewingTransition: _isPreviewingTransition,
   setIsPreviewingTransition,
   setCurrentTime,
+  getSeekTimeForScene,
   voiceTemplate,
   playbackSpeed,
   buildSceneMarkup,
@@ -153,16 +157,8 @@ export function useSceneNavigation({
     })
     activeAnimationsRef.current.clear()
     
-    let timeUntilScene = 0
-    for (let i = 0; i < index; i++) {
-      const scene = timeline.scenes[i]
-      const isLastScene = i === timeline.scenes.length - 1
-      const nextScene = !isLastScene ? timeline.scenes[i + 1] : null
-      const isSameSceneId = nextScene && scene.sceneId === nextScene.sceneId
-      // 같은 그룹 내 씬들 사이에서는 transitionDuration을 0으로 계산
-      const transitionDuration = isLastScene ? 0 : (isSameSceneId ? 0 : (scene.transitionDuration || 0.5))
-      timeUntilScene += scene.duration + transitionDuration
-    }
+    // 이전 세그먼트 끝 시점으로 이동 (선택된 씬의 전환효과부터 시작)
+    const seekTime = getSeekTimeForScene?.(index) ?? getSceneStartTime(timeline, index)
     
     // 전환 효과 미리보기 활성화
     setIsPreviewingTransition(true)
@@ -198,7 +194,7 @@ export function useSceneNavigation({
       }
     }
     
-    setCurrentTime(timeUntilScene)
+    setCurrentTime(seekTime)
     // 선택된 씬의 전환 효과 가져오기
     const selectedScene = timeline.scenes[index]
     const previousScene = prevIndex !== null ? timeline.scenes[prevIndex] : null

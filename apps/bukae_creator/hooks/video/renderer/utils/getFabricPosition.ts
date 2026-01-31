@@ -76,20 +76,6 @@ export function getFabricImagePosition(
       imageFit
     )
     
-    // 디버깅: imageFit 적용 확인
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[getFabricImagePosition] imageFit 적용 (우선순위 1):', {
-        sceneIndex,
-        imageFit,
-        textureWidth,
-        textureHeight,
-        stageWidth: width,
-        stageHeight: height,
-        calculatedParams: params,
-        hasImageTransform: !!scene.imageTransform,
-      })
-    }
-    
     // anchor가 (0.5, 0.5)이므로 중심점 좌표로 변환
     return {
       x: params.x + params.width / 2,
@@ -122,19 +108,6 @@ export function getFabricImagePosition(
       height,
       imageFit
     )
-    
-    // 디버깅: imageFit 적용 확인
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[getFabricImagePosition] imageFit 적용:', {
-        sceneIndex,
-        imageFit,
-        textureWidth,
-        textureHeight,
-        stageWidth: width,
-        stageHeight: height,
-        calculatedParams: params,
-      })
-    }
     
     // anchor가 (0.5, 0.5)이므로 중심점 좌표로 변환
     return {

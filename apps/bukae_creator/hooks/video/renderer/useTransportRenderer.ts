@@ -991,32 +991,10 @@ export function useTransportRenderer({
       // step4에서 text.visible = false, text.alpha = 0으로 리셋하므로,
       // step7을 스킵하면 자막이 계속 숨겨진 상태로 남아있게 됨
       const shouldSkipMainRendering = step8Result.shouldSkip
-      
-      // 디버깅: shouldSkip 확인
-      if (shouldSkipMainRendering && Math.floor(tSec * 10) % 10 === 0) {
-        console.log('[renderAt] shouldSkipMainRendering = true', {
-          tSec: tSec.toFixed(3),
-          sceneIndex,
-          shouldSkip: step8Result.shouldSkip,
-          isTransitionInProgress: step8Result.isTransitionInProgress,
-          isTransitionInProgressForRender: step8Result.isTransitionInProgressForRender,
-          motionProgress: step8Result.motionProgress?.toFixed(3),
-        })
-      }
 
       const scene = timeline.scenes[sceneIndex]
       if (!scene) {
         return
-      }
-
-      // 디버깅: scene 데이터 확인
-      if (process.env.NODE_ENV === 'development' && Math.floor(tSec * 10) % 10 === 0) {
-        console.log('[renderAt] scene 데이터 확인:', {
-          sceneIndex,
-          imageFit: scene.imageFit,
-          imageTransform: scene.imageTransform ? '있음' : '없음',
-          timelineScenesLength: timeline.scenes.length,
-        })
       }
 
       // 현재 씬 인덱스 업데이트
@@ -1036,14 +1014,6 @@ export function useTransportRenderer({
       // ============================================================
       const step2Result = step2PrepareResources(pipelineContext, sceneIndex)
       if (!step2Result.shouldContinue) {
-        // 디버깅: 리소스 준비 실패
-        if (Math.floor(tSec * 10) % 10 === 0) {
-          console.log('[renderAt] step2PrepareResources failed', {
-            tSec: tSec.toFixed(3),
-            sceneIndex,
-            shouldContinue: step2Result.shouldContinue,
-          })
-        }
         return
       }
       const { sprite, sceneText } = step2Result
