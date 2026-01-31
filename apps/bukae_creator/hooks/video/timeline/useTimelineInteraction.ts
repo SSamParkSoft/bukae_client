@@ -459,8 +459,7 @@ export function useTimelineInteraction({
           renderThrottleRef.current = null
         }
         
-        // 마우스 업 시 구간 시작 지점으로 스냅
-        // 드래그 종료 시 최종 위치를 정밀하게 계산
+        // 드래그 종료 시 놓은 위치 그대로 사용 (스냅 없이 정확한 위치로, 재생 위치와 일치)
         let finalTime = lastDragTimeRef.current
         if (timelineBarRef.current) {
           const rect = timelineBarRef.current.getBoundingClientRect()
@@ -476,20 +475,19 @@ export function useTimelineInteraction({
           }) : 0)
           finalTime = Math.max(0, Math.min(effectiveTotalDuration, Math.round((ratio * effectiveTotalDuration) * 1000) / 1000))
         }
-        const snappedTime = snapToPartStart(finalTime)
-        setCurrentTime(snappedTime)
+        setCurrentTime(finalTime)
         
         // Transport seek
         if (transport) {
-          transport.seek(snappedTime)
+          transport.seek(finalTime)
         }
         
-        const sceneIndex = calculateSceneIndexFromTime(timeline, snappedTime)
+        const sceneIndex = calculateSceneIndexFromTime(timeline, finalTime)
         setCurrentSceneIndex(sceneIndex, { skipSeek: true })
         
         // 드래그 종료 시 최종 위치로 즉시 렌더링 (쓰로틀링 없이)
         if (renderAtRef?.current) {
-          renderAtRef.current(snappedTime, { skipAnimation: true })
+          renderAtRef.current(finalTime, { skipAnimation: true })
         } else {
           // renderAt이 없는 경우에만 updateCurrentScene 사용 (fallback)
           updateCurrentScene(null, 'none')

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useEffect } from 'react'
+import { useEffect } from 'react'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { useTransport } from '@/hooks/video/transport/useTransport'
 import type { useTtsTrack } from '@/hooks/video/audio/useTtsTrack'
@@ -65,15 +65,17 @@ export function useTransportTtsSync({
   useEffect(() => {
     // renderAt이 이미 usePlaybackDurationTracker에서 래핑되었으므로, 여기서는 세그먼트 콜백만 설정
     onSegmentStartRef.current = (segmentStartTime: number, sceneIndex: number) => {
-      if (renderAtRef.current) {
-        // 세그먼트 시작 시간과 씬 인덱스를 직접 사용하여 정확한 동기화 보장
-        // forceSceneIndex를 사용하여 calculateSceneFromTime의 계산 오류 방지
-        renderAtRef.current(segmentStartTime, { skipAnimation: false, forceSceneIndex: sceneIndex })
+      if (renderAtRef.current && transport) {
+        // 세그먼트 중간에서 재생 시작한 경우: 현재 transport 시간으로 렌더링
+        // (전환/움직임 효과가 구간 시작 프레임으로 튀어 보이는 현상 방지)
+        const currentT = transport.getTime()
+        const renderTime = Math.abs(currentT - segmentStartTime) > 0.01 ? currentT : segmentStartTime
+        renderAtRef.current(renderTime, { skipAnimation: false, forceSceneIndex: sceneIndex })
       }
     }
     // renderAt이 설정된 후 세그먼트 종료 콜백은 setIsPlaying 선언 이후에 설정됨
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [transport])
 
   // renderAt이 설정된 후 세그먼트 종료 콜백 업데이트 (setIsPlaying 선언 이후에 설정)
   // TTS 세그먼트 종료 시 정확한 씬 전환 보장

@@ -258,8 +258,10 @@ export function usePlaybackState({
           transport.seek(startTime)
         }
       } else {
-        // 전체 재생: Transport의 현재 시간을 정확히 사용
-        // 클릭 후 시간이 설정되었을 수 있으므로 getTime() 사용
+        // 전체 재생: 씬/그룹 재생 상태를 초기화하여 useTransportTtsSync가 구간 시작으로 seek하지 않도록 함
+        setPlayingSceneIndex(null)
+        setPlayingGroupSceneId(null)
+        // Transport의 현재 시간을 정확히 사용 (타임라인 클릭/드래그한 위치에서 재생)
         currentT = transport.getTime()
         
         // 재생 시작 전에 Transport 시간이 정확히 설정되었는지 확인

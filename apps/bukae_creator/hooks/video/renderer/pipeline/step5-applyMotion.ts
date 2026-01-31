@@ -78,7 +78,7 @@ export function applyMotionToSprite(
       : getFabricImagePosition(
           sceneIndex,
           scene,
-          fabricCanvasRef as any,
+          fabricCanvasRef,
           fabricScaleRatioRef,
           stageDimensions,
           undefined
@@ -236,7 +236,7 @@ export function step5ApplyMotion(
       const position = getFabricImagePosition(
         sceneIndex,
         scene,
-        fabricCanvasRef as any,
+        fabricCanvasRef,
         fabricScaleRatioRef,
         stageDimensions,
         undefined
