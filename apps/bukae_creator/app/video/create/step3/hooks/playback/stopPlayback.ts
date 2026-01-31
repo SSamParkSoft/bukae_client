@@ -12,7 +12,11 @@ export interface StopPlaybackParams {
   setPlayingSceneIndex: (index: number | null) => void
   setPlayingGroupSceneId: (sceneId: number | null) => void
   setPlaybackEndTime: (time: number | null) => void
-  getTtsTrack: () => { setAllowedSceneIndices: (indices: number[] | null) => void } | null
+  /** TTS 정지·허용 인덱스 초기화 (stopAll으로 음성 즉시 끔, setAllowedSceneIndices로 재생 범위 해제) */
+  getTtsTrack: () => {
+    setAllowedSceneIndices: (indices: number[] | null) => void
+    stopAll: () => void
+  } | null
 }
 
 /**
@@ -42,7 +46,12 @@ export function stopPlaybackIfPlaying(params: StopPlaybackParams): void {
   setPlaybackEndTime(null)
 
   const tts = getTtsTrack()
-  if (tts && 'setAllowedSceneIndices' in tts) {
-    tts.setAllowedSceneIndices(null)
+  if (tts) {
+    if ('stopAll' in tts && typeof tts.stopAll === 'function') {
+      tts.stopAll()
+    }
+    if ('setAllowedSceneIndices' in tts) {
+      tts.setAllowedSceneIndices(null)
+    }
   }
 }

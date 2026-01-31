@@ -25,7 +25,7 @@ import { useFabricHandlers } from '@/hooks/video/editing/useFabricHandlers'
 import { transitionLabels, transitions, movements, allTransitions } from '@/lib/data/transitions'
 import { useVideoCreateAuth } from '@/hooks/auth/useVideoCreateAuth'
 import { useStep3State } from './state'
-import { usePlaybackHandlers, usePlaybackState, usePlaybackDurationTracker, usePlaybackStop, useHandlersWithStopPlayback } from './playback'
+import { usePlaybackHandlers, usePlaybackState, usePlaybackDurationTracker, usePlaybackStop, useHandlersWithStopPlayback, type StopPlaybackHandlerFn } from './playback'
 import { useSceneEditHandlers, useEditModeManager, useEditHandlesManager } from './editing'
 import { usePixiRenderHandlers, useSceneContentRenderer } from './rendering'
 import { useSceneLoader } from './scene-loading'
@@ -728,6 +728,7 @@ export function useStep3Container() {
     sceneGroupPlayEndTimeRef,
     ttsTrackRef: ttsTrackRef as React.MutableRefObject<{ getTtsTrack: () => TtsTrack | null }>,
     lastTtsUpdateTimeRef,
+    isPlayingRef,
   })
 
   // ---- 5. 재생 정지·설정 변경 핸들러 ----
@@ -741,6 +742,7 @@ export function useStep3Container() {
     setPlayingGroupSceneId,
     setPlaybackEndTime,
     ttsTrackRef: ttsTrackRef as React.MutableRefObject<{ getTtsTrack: () => unknown }>,
+    isPlayingRef,
   })
 
   const setCurrentTime = useCallback(
@@ -1030,7 +1032,19 @@ export function useStep3Container() {
     handleGroupDelete: handleGroupDeleteBase,
     handleSceneVoiceTemplateChange: handleSceneVoiceTemplateChangeBase,
     handleResizeTemplate: handleResizeTemplateBase,
-  })
+  } as Record<string, StopPlaybackHandlerFn>) as {
+    handleSceneScriptChange: typeof handleSceneScriptChangeBase
+    handleSceneSplit: typeof handleSceneSplitBase
+    handleSceneDelete: typeof handleSceneDeleteBase
+    handleSceneDuplicate: typeof handleSceneDuplicateBase
+    handleSceneReorder: typeof handleSceneReorderFromHook
+    handleSceneImageFitChange: typeof handleSceneImageFitChangeBase
+    handlePlaybackSpeedChange: typeof handlePlaybackSpeedChangeBase
+    handleGroupDuplicate: typeof handleGroupDuplicateBase
+    handleGroupDelete: typeof handleGroupDeleteBase
+    handleSceneVoiceTemplateChange: typeof handleSceneVoiceTemplateChangeBase
+    handleResizeTemplate: typeof handleResizeTemplateBase
+  }
 
   // 씬 구조 정보 동기화
   useSceneStructureSync({
@@ -1205,12 +1219,12 @@ export function useStep3Container() {
   // 씬 선택 핸들러
   const handleSceneSelect = useCallback((index: number) => {
     stopPlaybackIfPlaying()
-    // 씬 클릭 시 TTS 재생 방지: 재생 중이 아니면 TTS 정지
-    if (!isPlaying && typeof window !== 'undefined') {
+    // 씬 클릭 시 TTS 즉시 정지 (전체 재생 중 클릭이어도 선택된 씬 세그먼트가 재생되지 않도록)
+    if (typeof window !== 'undefined') {
       ttsTrack.stopAll()
     }
     sceneNavigation.selectScene(index)
-  }, [sceneNavigation, isPlaying, ttsTrack, stopPlaybackIfPlaying])
+  }, [sceneNavigation, ttsTrack, stopPlaybackIfPlaying])
 
   // ---- 7. 반환값 (useMemo로 참조 안정화) ----
   return useMemo(() => ({

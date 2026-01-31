@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import * as PIXI from 'pixi.js'
+import type { TimelineData } from '@/store/useVideoCreateStore'
 
 interface UseEditHandlesManagerParams {
   containerRef: React.RefObject<PIXI.Container>
@@ -25,7 +26,7 @@ interface UseEditHandlesManagerParams {
   handleTextResizeRef: React.MutableRefObject<(handle: string, deltaX: number, deltaY: number) => void>
   saveTextTransformRef: React.MutableRefObject<() => void>
   setupTextDragRef: React.MutableRefObject<(text: PIXI.Text, sceneIndex: number) => void>
-  timelineRef: React.MutableRefObject<any>
+  timelineRef: React.MutableRefObject<TimelineData | null>
 }
 
 /**

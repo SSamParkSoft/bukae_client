@@ -33,6 +33,8 @@ interface UseTransportTtsSyncParams {
   sceneGroupPlayEndTimeRef: React.MutableRefObject<number | null>
   ttsTrackRef: React.MutableRefObject<{ getTtsTrack: () => TtsTrack | null }>
   lastTtsUpdateTimeRef: React.MutableRefObject<number>
+  /** 정지 시 동기적으로 false로 두어, effect가 같은 틱에 '재생 중 아님'을 보게 함 */
+  isPlayingRef?: React.MutableRefObject<boolean>
 }
 
 /**
@@ -63,6 +65,7 @@ export function useTransportTtsSync({
   sceneGroupPlayEndTimeRef,
   ttsTrackRef,
   lastTtsUpdateTimeRef,
+  isPlayingRef,
 }: UseTransportTtsSyncParams) {
   const sceneGroupRenderLoopRef = useRef<number | null>(null)
 
@@ -79,7 +82,9 @@ export function useTransportTtsSync({
 
   // 씬/그룹 재생 시 매 프레임 renderAt 호출 (전환·움직임 효과 끊김 방지)
   // useRenderLoop는 씬/그룹 재생 시 중지되므로, 여기서 rAF로 시간을 계산해 렌더링
+  // isPlayingRef는 정지 시 동기적으로 false로 두어 같은 틱에 effect가 재생 중 아님을 인지
   useEffect(() => {
+    if (isPlayingRef && !isPlayingRef.current) return
     const isSceneOrGroupPlay =
       isPlaying &&
       (playingSceneIndex !== null || playingGroupSceneId !== null) &&
@@ -306,7 +311,9 @@ export function useTransportTtsSync({
   }, [timeline, setIsPlaying, playingSceneIndex, playingGroupSceneId, ttsTrack.segments, setPlaybackEndTime, setPlayingSceneIndex, setPlayingGroupSceneId, transport, ttsTrackRef])
 
   // Transport 시간이 변경될 때 자동으로 TtsTrack 재생 업데이트 (재생 중일 때만)
+  // isPlayingRef는 정지 시 동기적으로 false로 두어 같은 틱에 effect가 재생 중 아님을 인지
   useEffect(() => {
+    if (isPlayingRef && !isPlayingRef.current) return
     if (!isPlaying || !audioContext || !transport.transport) {
       return
     }
