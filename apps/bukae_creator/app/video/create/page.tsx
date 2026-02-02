@@ -17,15 +17,15 @@ export default function VideoCreatePage() {
   return (
     <div className="max-w-container-xl mx-auto px-6 pb-8 pt-header-gap">
       {/* 메인 콘텐츠 */}
-      <div className="text-center mb-8">
+      <div className="text-center mb-15">
         <h1 
-          className="mb-4 font-(--font-weight-bold) leading-(--line-height-28-140) bg-gradient-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-(--letter-spacing-3xl)"
+          className="mb-4 font-bold leading-(--line-height-28-140) bg-gradient-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-(--letter-spacing-3xl)"
           style={{ fontSize: 'var(--font-size-28)' }}
         >
           안녕하세요.
         </h1>
         <h2 
-          className="mb-2 font-(--font-weight-bold) leading-(--line-height-32-140) bg-gradient-to-r from-text-dark to-brand-teal-dark bg-clip-text text-transparent tracking-(--letter-spacing-4xl)"
+          className="mb-2 font-bold leading-(--line-height-32-140) bg-gradient-to-r from-text-dark to-brand-teal-dark bg-clip-text text-transparent tracking-(--letter-spacing-4xl)"
           style={{ fontSize: 'var(--font-size-32)' }}
         >
           나에게 맞는 제작 방식을 선택하세요
@@ -49,13 +49,13 @@ export default function VideoCreatePage() {
               aria-label="Fast Track 선택 - 실속 N잡러를 위한 빠른 AI 영상 제작"
             >
               <h3 
-                className="font-(--font-weight-bold) leading-(--line-height-32-140) text-brand-teal-dark mb-2 tracking-(--letter-spacing-4xl)"
+                className="font-bold leading-(--line-height-32-140) text-brand-teal-dark mb-2 tracking-(--letter-spacing-4xl)"
                 style={{ fontSize: 'var(--font-size-32)' }}
               >
                 Fast Track
               </h3>
               <p 
-                className="font-(--font-weight-bold) leading-(--line-height-16-140) text-text-muted tracking-(--letter-spacing-base)"
+                className="font-bold leading-(--line-height-16-140) text-text-muted tracking-(--letter-spacing-base)"
                 style={{ fontSize: 'var(--font-size-16)' }}
               >
                 실속 N잡러를 위한 빠른 AI 영상 제작
@@ -69,13 +69,13 @@ export default function VideoCreatePage() {
               aria-label="Pro Track 선택 - 예비창업가를 위한 전문적인 AI 영상 제작"
             >
               <h3 
-                className="font-(--font-weight-bold) leading-(--line-height-32-140) text-white mb-2 tracking-(--letter-spacing-4xl)"
+                className="font-bold leading-(--line-height-32-140) text-white mb-2 tracking-(--letter-spacing-4xl)"
                 style={{ fontSize: 'var(--font-size-32)' }}
               >
                 Pro Track
               </h3>
               <p 
-                className="font-(--font-weight-bold) leading-(--line-height-16-140) text-white tracking-(--letter-spacing-base)"
+                className="font-bold leading-(--line-height-16-140) text-white tracking-(--letter-spacing-base)"
                 style={{ fontSize: 'var(--font-size-16)' }}
               >
                 예비창업가를 위한 전문적인 AI 영상 제작
