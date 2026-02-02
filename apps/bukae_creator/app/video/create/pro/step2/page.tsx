@@ -182,20 +182,16 @@ export default function ProStep2Page() {
   }, [voicePanelOpen, selectedSceneIndex])
 
   const handleVoiceSelect = useCallback((voiceTemplate: string | null, voiceLabel: string) => {
-    console.log('handleVoiceSelect called:', { voiceTemplate, voiceLabel, selectedSceneIndex })
     if (selectedSceneIndex === null) {
-      console.log('handleVoiceSelect early return: selectedSceneIndex is null')
       return
     }
     updateScenes((prev) => {
-      console.log('handleVoiceSelect setScenes prev:', prev)
       const next = [...prev]
       next[selectedSceneIndex] = {
         ...next[selectedSceneIndex],
         voiceTemplate,
         voiceLabel,
       }
-      console.log('handleVoiceSelect setScenes next:', next)
       return next
     })
     setHasUnsavedChanges(true)
@@ -204,19 +200,15 @@ export default function ProStep2Page() {
   }, [selectedSceneIndex, setHasUnsavedChanges, updateScenes])
 
   const handleVoiceSelectForAll = useCallback((voiceTemplate: string | null, voiceLabel: string) => {
-    console.log('handleVoiceSelectForAll called:', { voiceTemplate, voiceLabel })
     updateScenes((prev) => {
-      console.log('setScenes prev:', prev)
-      const updated = prev.map((scene, index) => {
+      const updated = prev.map((scene) => {
         const newScene = {
           ...scene,
           voiceTemplate,
           voiceLabel,
         }
-        console.log(`Scene ${index} updated:`, newScene)
         return newScene
       })
-      console.log('Updated scenes:', updated)
       return updated
     })
     setHasUnsavedChanges(true)
@@ -375,7 +367,6 @@ export default function ProStep2Page() {
               key="voice-panel"
               open={voicePanelOpen}
               onOpenChange={handleVoicePanelClose}
-              sceneIndex={selectedSceneIndex}
               currentVoiceTemplate={scenes[selectedSceneIndex]?.voiceTemplate}
               onVoiceSelect={handleVoiceSelect}
               onVoiceSelectForAll={handleVoiceSelectForAll}

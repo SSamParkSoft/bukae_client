@@ -51,7 +51,6 @@ const GENDER_BY_SHORT_NAME: Record<string, GenderGroup> = {
 export interface ProVoicePanelProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  sceneIndex: number
   currentVoiceTemplate?: string | null
   onVoiceSelect: (voiceTemplate: string | null, voiceLabel: string) => void
   onVoiceSelectForAll?: (voiceTemplate: string | null, voiceLabel: string) => void
@@ -59,13 +58,11 @@ export interface ProVoicePanelProps {
 
 export function ProVoicePanel({
   open,
-  onOpenChange,
-  sceneIndex,
+  onOpenChange, 
   currentVoiceTemplate,
   onVoiceSelect,
   onVoiceSelectForAll,
 }: ProVoicePanelProps) {
-  console.log('ProVoicePanel rendered:', { hasOnVoiceSelectForAll: !!onVoiceSelectForAll, sceneIndex })
   const [voices, setVoices] = useState<PublicVoiceInfo[]>([])
   const [isLoadingVoices, setIsLoadingVoices] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -87,7 +84,7 @@ export function ProVoicePanel({
 
   // voiceTemplate이 변경되면 탭도 업데이트
   useEffect(() => {
-    const voiceInfo = voiceTemplateHelpers.getVoiceInfo(currentVoiceTemplate)
+    const voiceInfo = voiceTemplateHelpers.getVoiceInfo(currentVoiceTemplate ?? null)
     if (voiceInfo) {
       setVoiceTab(voiceInfo.provider === 'elevenlabs' ? 'premium' : 'standard')
     }
@@ -329,15 +326,13 @@ export function ProVoicePanel({
         }
         return
       }
-    } catch (err) {
-      console.error('음성 재생 실패:', err)
+    } catch {
       setIsPlaying(false)
       setPlayingVoiceName(null)
     }
   }, [isPlaying, playingVoiceName, voices, getShortName])
 
   const openConfirm = useCallback((voiceName: string) => {
-    console.log('openConfirm called:', { voiceName, voicesCount: voices.length })
     // voices 배열에서 해당 voiceName을 가진 보이스를 찾아서 정확한 name 사용
     const voice = voices.find(v => v.name === voiceName)
     if (!voice) {
@@ -348,29 +343,18 @@ export function ProVoicePanel({
         (v.displayName && v.displayName === voiceName)
       )
       if (partialMatch) {
-        console.log('Found partial match:', { 
-          original: voiceName, 
-          found: partialMatch.name,
-          provider: partialMatch.provider 
-        })
         setPendingVoiceName(partialMatch.name)
         setConfirmOpen(true)
         return
       }
     }
     const actualVoiceName = voice ? voice.name : voiceName
-    console.log('Setting pendingVoiceName:', { voiceName, actualVoiceName, found: !!voice })
     setPendingVoiceName(actualVoiceName)
     setConfirmOpen(true)
-    console.log('Popover should open now with pendingVoiceName:', actualVoiceName)
   }, [voices])
 
   const confirmSelection = useCallback(() => {
-    console.log('confirmSelection called:', { pendingVoiceName })
-    if (!pendingVoiceName) {
-      console.log('confirmSelection early return: no pendingVoiceName')
-      return
-    }
+    if (!pendingVoiceName) return
     
     // 데모 오디오 정지
     if (audioRef.current) {
@@ -400,7 +384,6 @@ export function ProVoicePanel({
       voiceLabel = getShortName(pendingVoiceName, undefined)
     }
     
-    console.log('confirmSelection calling onVoiceSelect:', { serialized, voiceLabel })
     // 이 씬만 적용
     onVoiceSelect(serialized, voiceLabel)
     setConfirmOpen(false)
@@ -409,9 +392,7 @@ export function ProVoicePanel({
   }, [pendingVoiceName, voices, onVoiceSelect, onOpenChange, getShortName])
 
   const applyToAllScenes = useCallback(() => {
-    console.log('applyToAllScenes called:', { pendingVoiceName, hasOnVoiceSelectForAll: !!onVoiceSelectForAll })
     if (!pendingVoiceName || !onVoiceSelectForAll) {
-      console.log('applyToAllScenes early return:', { pendingVoiceName, onVoiceSelectForAll })
       return
     }
     
@@ -443,7 +424,6 @@ export function ProVoicePanel({
       voiceLabel = getShortName(pendingVoiceName, undefined)
     }
     
-    console.log('applyToAllScenes calling onVoiceSelectForAll:', { serialized, voiceLabel })
     // 전체 씬에 적용
     onVoiceSelectForAll(serialized, voiceLabel)
     setConfirmOpen(false)
@@ -452,7 +432,7 @@ export function ProVoicePanel({
   }, [pendingVoiceName, voices, onVoiceSelectForAll, onOpenChange, getShortName])
 
   const renderVoiceItem = useCallback((v: PublicVoiceInfo) => {
-    const currentVoiceInfo = voiceTemplateHelpers.getVoiceInfo(currentVoiceTemplate)
+    const currentVoiceInfo = voiceTemplateHelpers.getVoiceInfo(currentVoiceTemplate ?? null)
     const isSelected = currentVoiceInfo
       ? (currentVoiceInfo.provider === (v.provider || 'google') &&
         (v.provider === 'elevenlabs'
@@ -460,27 +440,14 @@ export function ProVoicePanel({
           : currentVoiceInfo.voiceId === v.name))
       : currentVoiceTemplate === v.name
     const label = getShortName(v.name, v)
-    const isCurrentlyPlaying = isPlaying && playingVoiceName === v.name
 
     const isPopoverOpen = confirmOpen && pendingVoiceName === v.name
-    // 디버깅: Popover가 열리지 않는 경우만 로그 (너무 많은 로그 방지)
-    if (confirmOpen && pendingVoiceName && pendingVoiceName !== v.name) {
-      // 일치하지 않는 경우만 로그
-    } else if (confirmOpen && pendingVoiceName === v.name) {
-      console.log('Popover OPEN:', { 
-        voiceName: v.name, 
-        pendingVoiceName, 
-        match: true,
-        isPopoverOpen: true
-      })
-    }
 
     return (
       <Popover
         key={`${v.provider || 'google'}:${v.voiceId || v.name}`}
         open={isPopoverOpen}
         onOpenChange={(open) => {
-          console.log('Popover onOpenChange:', { open, voiceName: v.name })
           if (!open) {
             setConfirmOpen(false)
             setPendingVoiceName(null)
@@ -507,13 +474,6 @@ export function ProVoicePanel({
             <div
               onClick={(e) => {
                 e.stopPropagation()
-                console.log('보이스 클릭:', { 
-                  voiceName: v.name, 
-                  voiceId: v.voiceId,
-                  provider: v.provider,
-                  displayName: v.displayName
-                })
-                // v.name을 정확히 사용하여 일치하도록 함
                 openConfirm(v.name)
               }}
               className={`flex-1 rounded-lg border h-[46px] flex items-center cursor-pointer min-w-0 ${
@@ -545,8 +505,8 @@ export function ProVoicePanel({
           align="center"
           sideOffset={12}
           className="w-80 p-5 relative bg-white border-gray-200 z-60"
-          onOpenAutoFocus={(e) => {
-            console.log('PopoverContent opened')
+          onOpenAutoFocus={() => {
+            // Popover opened
           }}
           onInteractOutside={(e) => {
             // 버튼 클릭은 허용
@@ -594,7 +554,6 @@ export function ProVoicePanel({
                 onClick={(e) => {
                   e.stopPropagation()
                   e.preventDefault()
-                  console.log('다시 선택하기 버튼 클릭됨')
                   setConfirmOpen(false)
                   setPendingVoiceName(null)
                 }}
@@ -607,25 +566,12 @@ export function ProVoicePanel({
                 size="sm"
                 onMouseDown={(e) => {
                   e.stopPropagation()
-                  console.log('이 씬만 버튼 마우스다운')
                 }}
                 onClick={(e) => {
                   e.stopPropagation()
                   e.preventDefault()
-                  console.log('이 씬만 버튼 클릭됨', { 
-                    pendingVoiceName, 
-                    hasOnVoiceSelect: !!onVoiceSelect,
-                    confirmOpen,
-                    eventType: e.type
-                  })
-                  if (!pendingVoiceName) {
-                    console.error('pendingVoiceName이 없습니다!')
-                    return
-                  }
-                  if (!onVoiceSelect) {
-                    console.error('onVoiceSelect가 없습니다!')
-                    return
-                  }
+                  if (!pendingVoiceName) return
+                  if (!onVoiceSelect) return
                   confirmSelection()
                 }}
                 className="flex-1 bg-brand-teal hover:bg-brand-teal-dark text-white cursor-pointer"
@@ -639,25 +585,12 @@ export function ProVoicePanel({
                   size="sm"
                   onMouseDown={(e) => {
                     e.stopPropagation()
-                    console.log('전체 버튼 마우스다운')
                   }}
                   onClick={(e) => {
                     e.stopPropagation()
                     e.preventDefault()
-                    console.log('전체 버튼 클릭됨', { 
-                      pendingVoiceName, 
-                      onVoiceSelectForAll: !!onVoiceSelectForAll,
-                      confirmOpen,
-                      eventType: e.type
-                    })
-                    if (!pendingVoiceName) {
-                      console.error('pendingVoiceName이 없습니다!')
-                      return
-                    }
-                    if (!onVoiceSelectForAll) {
-                      console.error('onVoiceSelectForAll이 없습니다!')
-                      return
-                    }
+                    if (!pendingVoiceName) return
+                    if (!onVoiceSelectForAll) return
                     applyToAllScenes()
                   }}
                   className="flex-1 bg-[#344e57] hover:bg-[#2a3f46] text-white cursor-pointer"
@@ -695,7 +628,7 @@ export function ProVoicePanel({
         </PopoverContent>
       </Popover>
     )
-  }, [currentVoiceTemplate, isPlaying, playingVoiceName, getShortName, playDemo, confirmOpen, pendingVoiceName, openConfirm, confirmSelection, applyToAllScenes, onVoiceSelectForAll])
+  }, [currentVoiceTemplate, getShortName, playDemo, confirmOpen, pendingVoiceName, openConfirm, confirmSelection, applyToAllScenes, onVoiceSelectForAll, onVoiceSelect])
 
   const renderGenderColumn = useCallback((voices: PublicVoiceInfo[], genderLabel: string) => {
     if (voices.length === 0) return null
