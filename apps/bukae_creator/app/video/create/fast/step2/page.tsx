@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
 import { useStep2Container } from './hooks/useStep2Container'
+import { ScriptStyleSection } from '@/app/video/create/_components'
 import {
   HeaderSection,
   LoadingIndicator,
-  ScriptStyleSection,
   ImageSelectionSection,
   SelectedImageList,
   NextStepButton,
