@@ -1,8 +1,8 @@
 'use client'
 
 import { memo } from 'react'
-import Image from 'next/image'
 import { Card, CardContent } from '@/components/ui/card'
+import { AiScriptGenerateButton } from '@/app/video/create/_components'
 import { SceneItem } from './SceneItem'
 import type { SceneScript } from '@/lib/types/domain/script'
 
@@ -47,32 +47,7 @@ export const SelectedImageList = memo(function SelectedImageList({
       className="bg-white/40 border-white/10 shadow-[var(--shadow-container)]"
     >
       <CardContent>
-        {/* AI 스크립트 생성 버튼 */}
-        <div className="m-6">
-          <button
-            type="button"
-            onClick={onGenerateAllScripts}
-            disabled={isGeneratingAll}
-            className="w-full h-14 sm:h-[82px] rounded-2xl bg-[#5e8790] text-white hover:bg-[#5e8790]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-[var(--shadow-card-default)]"
-          >
-            <Image 
-              src="/exclude.svg" 
-              alt="AI" 
-              width={24} 
-              height={12}
-              className="flex-shrink-0"
-            />
-            <span 
-              className="font-bold tracking-[-0.48px]"
-              style={{ 
-                fontSize: 'var(--font-size-24)',
-                lineHeight: '33.6px'
-              }}
-            >
-              {isGeneratingAll ? 'AI 스크립트 생성 중...' : 'AI 스크립트 생성'}
-            </span>
-          </button>
-        </div>
+        <AiScriptGenerateButton onClick={onGenerateAllScripts} loading={isGeneratingAll} />
 
         <div 
           className="space-y-4"

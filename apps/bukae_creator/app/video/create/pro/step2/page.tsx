@@ -1,14 +1,24 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { ScriptStyleSection } from '@/app/video/create/_components'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { ScriptStyleSection, AiScriptGenerateButton } from '@/app/video/create/_components'
+import { ProSceneCard } from './components'
 import { conceptOptions } from '@/lib/data/templates'
 import type { ConceptType } from '@/lib/data/templates'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 
+const DEFAULT_SCENE_COUNT = 4
+
 export default function ProStep2Page() {
   const { scriptStyle, setScriptStyle, setHasUnsavedChanges } = useVideoCreateStore()
+  const [scenes, setScenes] = useState<Array<{ script: string; voiceLabel?: string }>>(() =>
+    Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ script: '' }))
+  )
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
 
   const handleScriptStyleSelect = useCallback(
     (concept: ConceptType) => {
@@ -22,6 +32,75 @@ export default function ProStep2Page() {
     },
     [scriptStyle, setScriptStyle, setHasUnsavedChanges]
   )
+
+  const handleScriptChange = useCallback((index: number, value: string) => {
+    setScenes((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], script: value }
+      return next
+    })
+    setHasUnsavedChanges(true)
+  }, [setHasUnsavedChanges])
+
+  const handleSceneDelete = useCallback((index: number) => {
+    setScenes((prev) => prev.filter((_, i) => i !== index))
+    setHasUnsavedChanges(true)
+  }, [setHasUnsavedChanges])
+
+  const handleUpload = useCallback((index: number) => {
+    // 추후 영상 업로드 연동 시 index 사용
+    void index
+  }, [])
+
+  const handleGenerateAllScripts = useCallback(() => {
+    // 추후 촬영 가이드/스크립트 생성 API 호출
+  }, [])
+
+  const handleDragStart = useCallback((index: number) => {
+    setDraggedIndex(index)
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>, index: number) => {
+    if (draggedIndex === null) return
+    if (draggedIndex === index) return
+    e.preventDefault()
+    e.stopPropagation()
+    const rect = e.currentTarget.getBoundingClientRect()
+    const offsetY = e.clientY - rect.top
+    const position: 'before' | 'after' = offsetY < rect.height / 2 ? 'before' : 'after'
+    setDragOver({ index, position })
+  }, [draggedIndex])
+
+  const handleDrop = useCallback((e?: React.DragEvent<HTMLDivElement>) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    if (draggedIndex === null || !dragOver) {
+      setDraggedIndex(null)
+      setDragOver(null)
+      return
+    }
+    if (draggedIndex === dragOver.index) {
+      setDraggedIndex(null)
+      setDragOver(null)
+      return
+    }
+    const newScenes = [...scenes]
+    const [removed] = newScenes.splice(draggedIndex, 1)
+    let targetIndex = dragOver.position === 'after' ? dragOver.index + 1 : dragOver.index
+    if (draggedIndex < targetIndex) targetIndex -= 1
+    newScenes.splice(targetIndex, 0, removed)
+    setScenes(newScenes)
+    setHasUnsavedChanges(true)
+    setDraggedIndex(null)
+    setDragOver(null)
+  }, [draggedIndex, dragOver, scenes, setHasUnsavedChanges])
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedIndex(null)
+    setDragOver(null)
+  }, [])
 
   return (
     <div>
@@ -79,29 +158,68 @@ export default function ProStep2Page() {
               {/* Pro 전용: 대본 및 스크립트 생성 이하 (Figma node 2422-29540 기준) */}
               {scriptStyle && (
                 <section className="space-y-6" data-pro-step2-below>
-                  <h2
-                    className="font-bold text-text-dark tracking-[-0.48px]"
-                    style={{
-                      fontSize: 'var(--font-size-24)',
-                      lineHeight: 'var(--line-height-24-140)',
-                    }}
-                  >
-                    촬영 가이드 생성
-                  </h2>
-                  <p
-                    className="text-text-secondary"
-                    style={{
-                      fontSize: 'var(--font-size-16)',
-                      lineHeight: 'var(--line-height-16-140)',
-                    }}
-                  >
-                    AI 촬영 가이드를 생성하고, 원하는 영상 간격을 설정하세요.
-                  </p>
-                  <div className="rounded-2xl bg-white/40 border border-white/10 p-6 shadow-(--shadow-container) min-h-[200px]">
-                    {/* Pro 전용 UI: Figma 2422-29540 기준으로 추후 구현 */}
-                    <p className="text-text-tertiary text-sm">
-                      Pro 전용 하단 UI (촬영 가이드, 장면별 영상 업로드 등) — Figma 디자인 반영 예정
-                    </p>
+                  <div className="rounded-2xl bg-white/40 border border-white/10 p-6 shadow-(--shadow-container)">
+                    <AiScriptGenerateButton onClick={handleGenerateAllScripts} loading={false} />
+
+                    <div
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+                      onDragOver={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleDrop(e)
+                      }}
+                    >
+                      {scenes.map((scene, index) => (
+                        <ProSceneCard
+                          key={index}
+                          sceneIndex={index + 1}
+                          scriptText={scene.script}
+                          onScriptChange={(value) => handleScriptChange(index, value)}
+                          voiceLabel={scene.voiceLabel}
+                          onUpload={() => handleUpload(index)}
+                          onDelete={() => handleSceneDelete(index)}
+                          onDragStart={(e) => {
+                            handleDragStart(index)
+                            e.dataTransfer.effectAllowed = 'move'
+                          }}
+                          onDragOver={(e) => handleDragOver(e, index)}
+                          onDrop={(e) => handleDrop(e)}
+                          onDragEnd={handleDragEnd}
+                          isGenerating={false}
+                          draggedIndex={draggedIndex}
+                          dragOver={dragOver}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <Link
+                      href="/video/create/step1?track=pro"
+                      className="flex-1 h-14 sm:h-[82px] rounded-2xl border-2 border-[#5e8790] text-[#5e8790] hover:bg-[#5e8790]/10 transition-all flex items-center justify-center gap-2 font-bold tracking-[-0.48px] shadow-(--shadow-card-default)"
+                      style={{
+                        fontSize: 'var(--font-size-24)',
+                        lineHeight: '33.6px',
+                      }}
+                    >
+                      <ArrowLeft className="w-5 h-5" />
+                      이전 단계
+                    </Link>
+                    <Link
+                      href="/video/create/pro/step3"
+                      className="flex-1 h-14 sm:h-[82px] rounded-2xl bg-[#5e8790] text-white hover:bg-[#5e8790]/90 transition-all flex items-center justify-center gap-2 font-bold tracking-[-0.48px] shadow-(--shadow-card-default)"
+                      style={{
+                        fontSize: 'var(--font-size-24)',
+                        lineHeight: '33.6px',
+                      }}
+                    >
+                      다음 단계
+                      <ArrowRight className="w-5 h-5" />
+                    </Link>
                   </div>
                 </section>
               )}
