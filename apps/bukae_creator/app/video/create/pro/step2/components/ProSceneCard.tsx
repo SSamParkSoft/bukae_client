@@ -11,6 +11,7 @@ export interface ProSceneCardProps {
   onScriptChange: (value: string) => void
   voiceLabel?: string
   onUpload?: () => void
+  onVoiceClick?: () => void
   onDelete?: () => void
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void
   onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void
@@ -29,6 +30,7 @@ export const ProSceneCard = memo(function ProSceneCard({
   onScriptChange,
   voiceLabel,
   onUpload,
+  onVoiceClick,
   onDelete,
   onDragStart,
   onDragOver,
@@ -49,7 +51,7 @@ export const ProSceneCard = memo(function ProSceneCard({
       onDragOver={onDragOver}
       onDrop={onDrop}
       onDragEnd={onDragEnd}
-      className={`rounded-2xl border border-white/10 p-6 shadow-[var(--shadow-card-default)] transition-all ${
+      className={`rounded-2xl border border-white/10 p-6 shadow-(--shadow-card-default) transition-all ${
         isDragging ? 'opacity-50' : 'bg-white/80'
       }`}
     >
@@ -85,6 +87,7 @@ export const ProSceneCard = memo(function ProSceneCard({
             </button>
             <button
               type="button"
+              onClick={onVoiceClick}
               className="w-20 h-10 sm:w-[120px] rounded-lg overflow-hidden bg-white border border-[#BBC9C9] hover:bg-[#e4eeed] transition-colors flex items-center justify-center gap-2 text-text-tertiary shrink-0 px-2"
               aria-label="보이스 선택"
             >
@@ -96,7 +99,7 @@ export const ProSceneCard = memo(function ProSceneCard({
                 className="shrink-0"
               />
               <span
-                className="font-semibold whitespace-nowrap"
+                className="font-bold whitespace-nowrap"
                 style={{
                   fontSize: 'var(--font-size-14)',
                   lineHeight: 'var(--line-height-12-140)',
@@ -141,7 +144,7 @@ export const ProSceneCard = memo(function ProSceneCard({
             placeholder="대본을 입력하세요."
             disabled={isGenerating}
             rows={2}
-            className="w-full p-3 rounded-lg border border-gray-300 bg-white text-text-dark placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-brand-teal focus:border-transparent resize-none disabled:opacity-60 shadow-[var(--shadow-card-default)]"
+            className="w-full p-3 rounded-lg border border-gray-300 bg-white text-text-dark placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-brand-teal focus:border-transparent resize-none disabled:opacity-60 shadow-(--shadow-card-default)"
             style={{
               fontSize: 'var(--font-size-14)',
               lineHeight: 'var(--line-height-14-140)',
@@ -155,14 +158,25 @@ export const ProSceneCard = memo(function ProSceneCard({
           )}
 
           <div
-            className="flex justify-end rounded-3xl border-2 border-white bg-white/30 px-3 py-2 shadow-[var(--shadow-card-default)] backdrop-blur-sm text-text-tertiary"
+            className="flex justify-end items-center gap-1 rounded-3xl border-2 border-white bg-white/30 px-3 py-2 shadow-(--shadow-card-default) backdrop-blur-sm text-text-tertiary w-fit ml-auto"
             style={{
               fontSize: 'var(--font-size-14)',
               lineHeight: 'var(--line-height-14-140)',
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            적용된 보이스 | {voiceLabel ? `${voiceLabel}` : ''}
+            <span>적용된 보이스 | &nbsp;</span>
+            {voiceLabel && (
+              <span
+                style={{
+                  fontSize: 'var(--font-size-16)',
+                  lineHeight: 'var(--line-height-16-140)',
+                  fontWeight: 'var(--font-weight-bold)',
+                }}
+              >
+                {voiceLabel}
+              </span>
+            )}
           </div>
         </div>
       </div>

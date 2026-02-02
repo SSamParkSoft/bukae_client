@@ -1,24 +1,91 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { ScriptStyleSection, AiScriptGenerateButton } from '@/app/video/create/_components'
-import { ProSceneCard } from './components'
+import { ProSceneCard, ProVoicePanel } from './components'
 import { conceptOptions } from '@/lib/data/templates'
 import type { ConceptType } from '@/lib/data/templates'
-import { useVideoCreateStore } from '@/store/useVideoCreateStore'
+import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 
 const DEFAULT_SCENE_COUNT = 4
 
+// Pro step2에서 사용하는 확장된 Scene 타입
+type ProScene = {
+  script: string
+  voiceLabel?: string
+  voiceTemplate?: string | null
+}
+
+// 확장된 SceneScript 타입
+type ExtendedSceneScript = SceneScript & { 
+  voiceLabel?: string
+  voiceTemplate?: string | null 
+}
+
+// SceneScript를 ProScene으로 변환
+function sceneScriptToProScene(s: SceneScript): ProScene {
+  const extended = s as ExtendedSceneScript
+  return {
+    script: s.script || '',
+    voiceLabel: extended.voiceLabel,
+    voiceTemplate: extended.voiceTemplate,
+  }
+}
+
+// ProScene을 SceneScript로 변환
+function proSceneToSceneScript(s: ProScene, index: number): ExtendedSceneScript {
+  return {
+    sceneId: index + 1,
+    script: s.script,
+    voiceLabel: s.voiceLabel,
+    voiceTemplate: s.voiceTemplate,
+  }
+}
+
 export default function ProStep2Page() {
-  const { scriptStyle, setScriptStyle, setHasUnsavedChanges } = useVideoCreateStore()
-  const [scenes, setScenes] = useState<Array<{ script: string; voiceLabel?: string }>>(() =>
-    Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ script: '' }))
-  )
+  const { 
+    scriptStyle, 
+    setScriptStyle, 
+    setHasUnsavedChanges,
+    scenes: storeScenes,
+    setScenes: setStoreScenes
+  } = useVideoCreateStore()
+  
+  // store의 scenes를 현재 형식으로 변환하여 사용
+  const scenes: ProScene[] = 
+    storeScenes && storeScenes.length > 0
+      ? storeScenes.map(sceneScriptToProScene)
+      : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ script: '' }))
+  
+  // store의 scenes가 비어있으면 기본값으로 초기화 (한 번만)
+  useEffect(() => {
+    if (!storeScenes || storeScenes.length === 0) {
+      const defaultScenes: ExtendedSceneScript[] = 
+        Array.from({ length: DEFAULT_SCENE_COUNT }, (_, i) => ({ 
+          sceneId: i + 1,
+          script: '' 
+        }))
+      setStoreScenes(defaultScenes)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  
+  // scenes 업데이트 함수 - store에 직접 저장
+  const updateScenes = useCallback((updater: (prev: ProScene[]) => ProScene[]) => {
+    const currentScenes: ProScene[] = storeScenes && storeScenes.length > 0
+      ? storeScenes.map(sceneScriptToProScene)
+      : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ script: '' }))
+    
+    const updated = updater(currentScenes)
+    // store에 저장 (localStorage에 자동 저장됨)
+    setStoreScenes(updated.map((s, index) => proSceneToSceneScript(s, index)))
+  }, [storeScenes, setStoreScenes])
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
+  const [voicePanelOpen, setVoicePanelOpen] = useState(false)
+  const [selectedSceneIndex, setSelectedSceneIndex] = useState<number | null>(null)
 
   const handleScriptStyleSelect = useCallback(
     (concept: ConceptType) => {
@@ -34,18 +101,18 @@ export default function ProStep2Page() {
   )
 
   const handleScriptChange = useCallback((index: number, value: string) => {
-    setScenes((prev) => {
+    updateScenes((prev) => {
       const next = [...prev]
       next[index] = { ...next[index], script: value }
       return next
     })
     setHasUnsavedChanges(true)
-  }, [setHasUnsavedChanges])
+  }, [setHasUnsavedChanges, updateScenes])
 
   const handleSceneDelete = useCallback((index: number) => {
-    setScenes((prev) => prev.filter((_, i) => i !== index))
+    updateScenes((prev) => prev.filter((_, i) => i !== index))
     setHasUnsavedChanges(true)
-  }, [setHasUnsavedChanges])
+  }, [setHasUnsavedChanges, updateScenes])
 
   const handleUpload = useCallback((index: number) => {
     // 추후 영상 업로드 연동 시 index 사용
@@ -86,20 +153,80 @@ export default function ProStep2Page() {
       setDragOver(null)
       return
     }
-    const newScenes = [...scenes]
-    const [removed] = newScenes.splice(draggedIndex, 1)
-    let targetIndex = dragOver.position === 'after' ? dragOver.index + 1 : dragOver.index
-    if (draggedIndex < targetIndex) targetIndex -= 1
-    newScenes.splice(targetIndex, 0, removed)
-    setScenes(newScenes)
+    updateScenes((prev) => {
+      const newScenes = [...prev]
+      const [removed] = newScenes.splice(draggedIndex, 1)
+      let targetIndex = dragOver.position === 'after' ? dragOver.index + 1 : dragOver.index
+      if (draggedIndex < targetIndex) targetIndex -= 1
+      newScenes.splice(targetIndex, 0, removed)
+      return newScenes
+    })
     setHasUnsavedChanges(true)
     setDraggedIndex(null)
     setDragOver(null)
-  }, [draggedIndex, dragOver, scenes, setHasUnsavedChanges])
+  }, [draggedIndex, dragOver, updateScenes, setHasUnsavedChanges])
 
   const handleDragEnd = useCallback(() => {
     setDraggedIndex(null)
     setDragOver(null)
+  }, [])
+
+  const handleVoiceButtonClick = useCallback((index: number) => {
+    if (voicePanelOpen && selectedSceneIndex === index) {
+      setVoicePanelOpen(false)
+      setSelectedSceneIndex(null)
+      return
+    }
+    setSelectedSceneIndex(index)
+    setVoicePanelOpen(true)
+  }, [voicePanelOpen, selectedSceneIndex])
+
+  const handleVoiceSelect = useCallback((voiceTemplate: string | null, voiceLabel: string) => {
+    console.log('handleVoiceSelect called:', { voiceTemplate, voiceLabel, selectedSceneIndex })
+    if (selectedSceneIndex === null) {
+      console.log('handleVoiceSelect early return: selectedSceneIndex is null')
+      return
+    }
+    updateScenes((prev) => {
+      console.log('handleVoiceSelect setScenes prev:', prev)
+      const next = [...prev]
+      next[selectedSceneIndex] = {
+        ...next[selectedSceneIndex],
+        voiceTemplate,
+        voiceLabel,
+      }
+      console.log('handleVoiceSelect setScenes next:', next)
+      return next
+    })
+    setHasUnsavedChanges(true)
+    setVoicePanelOpen(false)
+    setSelectedSceneIndex(null)
+  }, [selectedSceneIndex, setHasUnsavedChanges, updateScenes])
+
+  const handleVoiceSelectForAll = useCallback((voiceTemplate: string | null, voiceLabel: string) => {
+    console.log('handleVoiceSelectForAll called:', { voiceTemplate, voiceLabel })
+    updateScenes((prev) => {
+      console.log('setScenes prev:', prev)
+      const updated = prev.map((scene, index) => {
+        const newScene = {
+          ...scene,
+          voiceTemplate,
+          voiceLabel,
+        }
+        console.log(`Scene ${index} updated:`, newScene)
+        return newScene
+      })
+      console.log('Updated scenes:', updated)
+      return updated
+    })
+    setHasUnsavedChanges(true)
+    setVoicePanelOpen(false)
+    setSelectedSceneIndex(null)
+  }, [setHasUnsavedChanges, updateScenes])
+
+  const handleVoicePanelClose = useCallback(() => {
+    setVoicePanelOpen(false)
+    setSelectedSceneIndex(null)
   }, [])
 
   return (
@@ -181,6 +308,7 @@ export default function ProStep2Page() {
                           onScriptChange={(value) => handleScriptChange(index, value)}
                           voiceLabel={scene.voiceLabel}
                           onUpload={() => handleUpload(index)}
+                          onVoiceClick={() => handleVoiceButtonClick(index)}
                           onDelete={() => handleSceneDelete(index)}
                           onDragStart={(e) => {
                             handleDragStart(index)
@@ -227,6 +355,34 @@ export default function ProStep2Page() {
           </div>
         </div>
       </motion.div>
+
+      {/* 보이스 선택 패널 */}
+      <AnimatePresence>
+        {voicePanelOpen && selectedSceneIndex !== null && (
+          <>
+            {/* 배경 오버레이 */}
+            <motion.div
+              key="voice-panel-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="fixed inset-0 bg-black/40 z-40"
+              onClick={handleVoicePanelClose}
+            />
+            {/* 보이스 선택 패널 */}
+            <ProVoicePanel
+              key="voice-panel"
+              open={voicePanelOpen}
+              onOpenChange={handleVoicePanelClose}
+              sceneIndex={selectedSceneIndex}
+              currentVoiceTemplate={scenes[selectedSceneIndex]?.voiceTemplate}
+              onVoiceSelect={handleVoiceSelect}
+              onVoiceSelectForAll={handleVoiceSelectForAll}
+            />
+          </>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
