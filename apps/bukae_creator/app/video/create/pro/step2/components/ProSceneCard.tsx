@@ -1,7 +1,8 @@
 'use client'
 
 import { memo } from 'react'
-import { GripVertical, Trash2, Loader2, Upload } from 'lucide-react'
+import Image from 'next/image'
+import { GripVertical, X, Loader2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export interface ProSceneCardProps {
@@ -56,25 +57,24 @@ export const ProSceneCard = memo(function ProSceneCard({
         <div className="h-0.5 bg-brand-teal rounded-full -mt-3 mb-3" aria-hidden />
       )}
       <div className="flex gap-6 flex-col sm:flex-row">
-        {/* 좌측: 드래그 핸들 + 영상 업로드 + 보이스 */}
-        <div className="flex gap-4 sm:flex-col sm:min-w-[200px]">
-          <div className="flex items-start gap-2">
-            {onDragStart && (
-              <div
-                className="cursor-move pt-1 text-text-tertiary shrink-0 touch-none"
-                aria-hidden
-              >
-                <GripVertical className="w-5 h-5" />
-              </div>
-            )}
+        {/* 좌측: 드래그 아이콘(왼쪽, 높이 중간) + 영상 업로드·보이스 한 div */}
+        <div className="flex items-center gap-4 shrink-0">
+          {onDragStart && (
+            <div
+              className="cursor-move text-text-tertiary shrink-0 touch-none self-center"
+              aria-hidden
+            >
+              <GripVertical className="w-5 h-5" />
+            </div>
+          )}
+          <div className="flex flex-col gap-4 shrink-0">
             <button
               type="button"
               onClick={onUpload}
-              className="flex-1 min-h-[100px] rounded-xl border-2 border-dashed border-gray-300 bg-gray-50/80 hover:bg-gray-100/80 transition-colors flex flex-col items-center justify-center gap-2 text-text-tertiary"
+              className="w-20 h-20 sm:w-[120px] sm:h-[120px] rounded-lg overflow-hidden bg-[#606060] hover:bg-[#404040] transition-colors flex flex-col items-center justify-center gap-1.5 text-text-tertiary shrink-0"
             >
-              <Upload className="w-6 h-6" />
               <span
-                className="font-medium"
+                className="font-bold text-white rounded-lg px-2 py-1 bg-white/20"
                 style={{
                   fontSize: 'var(--font-size-14)',
                   lineHeight: 'var(--line-height-14-140)',
@@ -83,51 +83,54 @@ export const ProSceneCard = memo(function ProSceneCard({
                 + 영상 업로드
               </span>
             </button>
-          </div>
-          <div className="rounded-xl border border-gray-200 bg-white/60 px-3 py-2">
-            <span
-              className="text-text-secondary font-medium block mb-1"
-              style={{
-                fontSize: 'var(--font-size-12)',
-                lineHeight: 'var(--line-height-12-140)',
-              }}
+            <button
+              type="button"
+              className="w-20 h-10 sm:w-[120px] rounded-lg overflow-hidden bg-white border border-[#BBC9C9] hover:bg-[#e4eeed] transition-colors flex items-center justify-center gap-2 text-text-tertiary shrink-0 px-2"
+              aria-label="보이스 선택"
             >
-              보이스
-            </span>
-            <span
-              className="text-text-tertiary text-sm"
-              style={{
-                fontSize: 'var(--font-size-14)',
-                lineHeight: 'var(--line-height-14-140)',
-              }}
-            >
-              (선택 영역)
-            </span>
+              <Image
+                src="/e_voice.svg"
+                alt="보이스"
+                width={20}
+                height={20}
+                className="shrink-0"
+              />
+              <span
+                className="font-semibold whitespace-nowrap"
+                style={{
+                  fontSize: 'var(--font-size-14)',
+                  lineHeight: 'var(--line-height-12-140)',
+                }}
+              >
+                보이스
+              </span>
+            </button>
           </div>
         </div>
 
-        {/* 우측: SCENE N + 삭제, 대본, 적용된 보이스 */}
+        {/* 우측: Scene N + 삭제, 대본, 적용된 보이스 */}
         <div className="flex-1 min-w-0 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <h3
-              className="font-bold text-text-dark tracking-[-0.36px]"
+            <p
+              className="text-brand-teal tracking-[-0.36px]"
               style={{
                 fontSize: 'var(--font-size-18)',
                 lineHeight: 'var(--line-height-18-140)',
+                fontFamily: '"Zeroes Two", sans-serif',
+                fontWeight: 400,
               }}
             >
-              SCENE {sceneIndex}
-            </h3>
+              Scene {sceneIndex}
+            </p>
             {onDelete && (
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                size="sm"
                 onClick={onDelete}
-                className="shrink-0 text-text-tertiary hover:text-text-secondary hover:bg-gray-100"
                 aria-label="장면 삭제"
               >
-                <Trash2 className="w-4 h-4" />
+                <X className="w-4 h-4" />
               </Button>
             )}
           </div>
@@ -137,7 +140,7 @@ export const ProSceneCard = memo(function ProSceneCard({
             onChange={(e) => onScriptChange(e.target.value)}
             placeholder="대본을 입력하세요."
             disabled={isGenerating}
-            rows={4}
+            rows={2}
             className="w-full p-3 rounded-lg border border-gray-300 bg-white text-text-dark placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-brand-teal focus:border-transparent resize-none disabled:opacity-60 shadow-[var(--shadow-card-default)]"
             style={{
               fontSize: 'var(--font-size-14)',
@@ -152,13 +155,14 @@ export const ProSceneCard = memo(function ProSceneCard({
           )}
 
           <div
-            className="text-text-tertiary"
+            className="flex justify-end rounded-3xl border-2 border-white bg-white/30 px-3 py-2 shadow-[var(--shadow-card-default)] backdrop-blur-sm text-text-tertiary"
             style={{
-              fontSize: 'var(--font-size-12)',
-              lineHeight: 'var(--line-height-12-140)',
+              fontSize: 'var(--font-size-14)',
+              lineHeight: 'var(--line-height-14-140)',
+              fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            적용된 보이스 {voiceLabel ? `| ${voiceLabel}` : ''}
+            적용된 보이스 | {voiceLabel ? `${voiceLabel}` : ''}
           </div>
         </div>
       </div>
