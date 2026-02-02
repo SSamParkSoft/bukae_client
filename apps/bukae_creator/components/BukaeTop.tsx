@@ -19,10 +19,10 @@ interface BukaeTopProps {
 }
 
 const defaultSteps: Step[] = [
-  { number: 1, label: '상품 선택', path: '/video/create/step1' },
-  { number: 2, label: '대본 및 이미지', path: '/video/create/step2' },
-  { number: 3, label: '미리보기 및 편집', path: '/video/create/step3' },
-  { number: 4, label: '영상 생성', path: '/video/create/step4' },
+  { number: 1, label: '상품 선택', path: '/video/create/fast/step1' },
+  { number: 2, label: '대본 및 이미지', path: '/video/create/fast/step2' },
+  { number: 3, label: '미리보기 및 편집', path: '/video/create/fast/step3' },
+  { number: 4, label: '영상 생성', path: '/video/create/fast/step4' },
 ]
 
 export default function BukaeTop({

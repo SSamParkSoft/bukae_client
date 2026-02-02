@@ -18,6 +18,16 @@ const supabaseHostname = getSupabaseHostname();
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
+  // 기존 video/create step URL을 Fast Track 경로로 리다이렉트
+  async redirects() {
+    return [
+      { source: '/video/create/step1', destination: '/video/create/fast/step1', permanent: true },
+      { source: '/video/create/step2', destination: '/video/create/fast/step2', permanent: true },
+      { source: '/video/create/step3', destination: '/video/create/fast/step3', permanent: true },
+      { source: '/video/create/step4', destination: '/video/create/fast/step4', permanent: true },
+      { source: '/video/create/script-method', destination: '/video/create/fast/script-method', permanent: true },
+    ];
+  },
   images: {
     remotePatterns: [
       {

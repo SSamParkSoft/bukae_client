@@ -762,7 +762,7 @@ export function useVideoExport({
       // jobId를 받아서 step4로 이동
       if (result.jobId) {
         setIsExporting(false)
-        router.push(`/video/create/step4?jobId=${result.jobId}`)
+        router.push(`/video/create/fast/step4?jobId=${result.jobId}`)
       } else {
         setIsExporting(false)
         alert('영상 생성이 시작되었어요. 완료되면 알림을 받으실 수 있어요.')

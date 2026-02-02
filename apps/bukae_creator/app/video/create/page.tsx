@@ -6,9 +6,12 @@ import { useRouter } from 'next/navigation'
 export default function VideoCreatePage() {
   const router = useRouter()
 
-  const handleTrackSelect = useCallback(() => {
-    // Fast Track과 Pro Track 모두 step1로 이동 (Pro Track 경로는 추후 정의)
-    router.push('/video/create/step1')
+  const handleFastTrackSelect = useCallback(() => {
+    router.push('/video/create/fast/step1')
+  }, [router])
+
+  const handleProTrackSelect = useCallback(() => {
+    router.push('/video/create/pro/step1')
   }, [router])
 
   return (
@@ -41,7 +44,7 @@ export default function VideoCreatePage() {
           <div className="flex gap-(--spacing-card-gap)">
             {/* Fast Track */}
             <button
-              onClick={handleTrackSelect}
+              onClick={handleFastTrackSelect}
               className="w-(--size-track-card-width) h-(--size-track-card-height) rounded-(--size-track-card-radius) bg-white text-center transition-all cursor-pointer flex flex-col justify-center shadow-(--shadow-card-default) hover:shadow-(--shadow-card-hover) focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2"
               aria-label="Fast Track 선택 - 실속 N잡러를 위한 빠른 AI 영상 제작"
             >
@@ -61,7 +64,7 @@ export default function VideoCreatePage() {
 
             {/* Pro Track */}
             <button
-              onClick={handleTrackSelect}
+              onClick={handleProTrackSelect}
               className="w-(--size-track-card-width) h-(--size-track-card-height) rounded-(--size-track-card-radius) bg-brand-teal text-white text-center transition-all cursor-pointer flex flex-col justify-center shadow-(--shadow-card-teal) hover:shadow-(--shadow-card-teal-hover) focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-brand-teal"
               aria-label="Pro Track 선택 - 예비창업가를 위한 전문적인 AI 영상 제작"
             >

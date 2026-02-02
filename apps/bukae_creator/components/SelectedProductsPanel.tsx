@@ -46,7 +46,7 @@ export default function SelectedProductsPanel({
     }
 
     // 이미지가 있으면 다음 단계로 이동
-    router.push('/video/create/step2')
+    router.push('/video/create/fast/step2')
   }
 
   // 쿠팡 상품의 크롤링된 이미지가 있는지 확인

@@ -421,7 +421,7 @@ export default function Step1Page() {
                     </div>
                     {/* 다음 단계 버튼 - 상품 내용 + X 버튼의 전체 너비 사용 */}
                     <button
-                      onClick={() => router.push('/video/create/step2')}
+                      onClick={() => router.push('/video/create/fast/step2')}
                       className="h-20 rounded-2xl bg-[#5e8790] text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3b6574] transition-colors tracking-[-0.48px] shadow-(--shadow-card-default) w-full"
                       style={{ 
                         fontSize: 'var(--font-size-24)',

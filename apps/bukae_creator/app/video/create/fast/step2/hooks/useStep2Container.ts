@@ -762,7 +762,7 @@ export function useStep2Container() {
     }
     
     setScenes(finalScenes)
-    router.push('/video/create/step3')
+    router.push('/video/create/fast/step3')
   }, [isGeneratingAll, generatingScenes.size, selectedScriptStyle, selectedImages, sceneScripts, setScenes, router])
 
   return {
