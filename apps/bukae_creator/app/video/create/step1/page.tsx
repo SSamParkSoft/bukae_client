@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowRight, Loader2, X } from 'lucide-react'
 import Image from 'next/image'
 import { useStep1Container } from './hooks/useStep1Container'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   SearchUrlToggle,
   LoadingIndicator,
@@ -20,6 +20,8 @@ const ITEMS_PER_PAGE = 6 // 한 번에 추가로 표시할 아이템 수
 export default function Step1Page() {
   const container = useStep1Container()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const track = (searchParams.get('track') === 'pro' ? 'pro' : 'fast') as 'fast' | 'pro'
   const [searchMode, setSearchMode] = useState<'search' | 'url'>('search')
   // SSR/CSR 일치 보장을 위해 클라이언트에서만 true로 설정
   const [hydrated] = useState(() => typeof window !== 'undefined')
@@ -421,7 +423,7 @@ export default function Step1Page() {
                     </div>
                     {/* 다음 단계 버튼 - 상품 내용 + X 버튼의 전체 너비 사용 */}
                     <button
-                      onClick={() => router.push('/video/create/fast/step2')}
+                      onClick={() => router.push(`/video/create/${track}/step2`)}
                       className="h-20 rounded-2xl bg-[#5e8790] text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3b6574] transition-colors tracking-[-0.48px] shadow-(--shadow-card-default) w-full"
                       style={{ 
                         fontSize: 'var(--font-size-24)',

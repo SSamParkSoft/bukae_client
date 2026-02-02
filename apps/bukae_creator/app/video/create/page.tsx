@@ -7,11 +7,11 @@ export default function VideoCreatePage() {
   const router = useRouter()
 
   const handleFastTrackSelect = useCallback(() => {
-    router.push('/video/create/fast/step1')
+    router.push('/video/create/step1?track=fast')
   }, [router])
 
   const handleProTrackSelect = useCallback(() => {
-    router.push('/video/create/pro/step1')
+    router.push('/video/create/step1?track=pro')
   }, [router])
 
   return (

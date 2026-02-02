@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { X, ArrowRight, ShoppingCart } from 'lucide-react'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -25,6 +25,8 @@ export default function SelectedProductsPanel({
   currentProducts = []
 }: SelectedProductsPanelProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const track = (searchParams?.get('track') === 'pro' ? 'pro' : 'fast') as 'fast' | 'pro'
   const { selectedProducts, removeProduct, addProduct } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const [imageError, setImageError] = useState<Record<string, boolean>>({})
@@ -45,8 +47,8 @@ export default function SelectedProductsPanel({
       return
     }
 
-    // 이미지가 있으면 다음 단계로 이동
-    router.push('/video/create/fast/step2')
+    // 이미지가 있으면 다음 단계로 이동 (track에 따라 fast/pro step2)
+    router.push(`/video/create/${track}/step2`)
   }
 
   // 쿠팡 상품의 크롤링된 이미지가 있는지 확인
