@@ -10,7 +10,7 @@ import { conceptOptions } from '@/lib/data/templates'
 import type { ConceptType } from '@/lib/data/templates'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 
-const DEFAULT_SCENE_COUNT = 4
+const DEFAULT_SCENE_COUNT = 6
 
 // Pro step2에서 사용하는 확장된 Scene 타입
 type ProScene = {
@@ -232,7 +232,7 @@ export default function ProStep2Page() {
       >
         <div className="flex w-full max-w-[1194px] mx-auto px-4 sm:px-6 pt-4 pb-8">
           <div className="flex-1 overflow-y-auto min-w-0">
-            <div className="max-w-5xl mx-auto space-y-6">
+            <div className="max-w-5xl mx-auto">
               {/* Pro step2 헤더 */}
               <div className="mb-20 mt-[72px]">
                 <div className="flex items-center justify-center mb-4">
@@ -268,20 +268,22 @@ export default function ProStep2Page() {
               </div>
 
               {/* 공용: 대본 및 스크립트 스타일 선택 */}
-              <ScriptStyleSection
-                conceptOptions={conceptOptions}
-                selectedScriptStyle={scriptStyle}
-                onStyleSelect={handleScriptStyleSelect}
-              />
+              <div className="mb-16">
+                <ScriptStyleSection
+                  conceptOptions={conceptOptions}
+                  selectedScriptStyle={scriptStyle}
+                  onStyleSelect={handleScriptStyleSelect}
+                />
+              </div>
 
               {/* Pro 전용: 대본 및 스크립트 생성 이하 (Figma node 2422-29540 기준) */}
               {scriptStyle && (
-                <section className="space-y-6" data-pro-step2-below>
+                <section className="mb-16 space-y-12" data-pro-step2-below>
                   <div className="rounded-2xl bg-white/40 border border-white/10 p-6 shadow-(--shadow-container)">
                     <AiScriptGenerateButton onClick={handleGenerateAllScripts} loading={false} />
 
                     <div
-                      className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6"
                       onDragOver={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
@@ -317,10 +319,10 @@ export default function ProStep2Page() {
                     </div>
                   </div>
 
-                  <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="flex flex-col sm:flex-row gap-4 mt-12">
                     <Link
                       href="/video/create/step1?track=pro"
-                      className="flex-1 h-14 sm:h-[82px] rounded-2xl border-2 border-[#5e8790] text-[#5e8790] hover:bg-[#5e8790]/10 transition-all flex items-center justify-center gap-2 font-bold tracking-[-0.48px] shadow-(--shadow-card-default)"
+                      className="flex-1 h-14 rounded-2xl border-2 border-[#5e8790] text-[#5e8790] hover:bg-[#5e8790]/10 transition-all flex items-center justify-center gap-2 font-bold tracking-[-0.48px] shadow-(--shadow-card-default)"
                       style={{
                         fontSize: 'var(--font-size-24)',
                         lineHeight: '33.6px',
@@ -331,7 +333,7 @@ export default function ProStep2Page() {
                     </Link>
                     <Link
                       href="/video/create/pro/step3"
-                      className="flex-1 h-14 sm:h-[82px] rounded-2xl bg-[#5e8790] text-white hover:bg-[#5e8790]/90 transition-all flex items-center justify-center gap-2 font-bold tracking-[-0.48px] shadow-(--shadow-card-default)"
+                      className="flex-1 h-14 rounded-2xl bg-[#5e8790] text-white hover:bg-[#5e8790]/90 transition-all flex items-center justify-center gap-2 font-bold tracking-[-0.48px] shadow-(--shadow-card-default)"
                       style={{
                         fontSize: 'var(--font-size-24)',
                         lineHeight: '33.6px',
