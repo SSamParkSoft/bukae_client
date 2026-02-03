@@ -1,0 +1,7 @@
+# CodeRabbit 설정
+# https://docs.coderabbit.ai/reference/configuration
+
+reviews:
+  # 코멘트가 해결되고 pre-merge 체크가 통과하면 자동으로 Approve 남김
+  # → 브랜치 보호 "Required approvals: 1" 충족, 자동 머지 워크플로와 연동
+  request_changes_workflow: true

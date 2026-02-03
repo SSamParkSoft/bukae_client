@@ -1,0 +1,257 @@
+# CI/CD: develop/main PR → CodeRabbit 완료 + Critical/Major 없음 → mergeable 대기 → 자동 머지(rebase)
+name: CI/CD
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+  issue_comment:
+    types: [created]
+  check_run:
+    types: [completed]
+
+jobs:
+  check-and-merge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      checks: read
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request != null) ||
+      (github.event_name == 'issue_comment' && github.event.issue != null && github.event.issue.pull_request != null) ||
+      (github.event_name == 'check_run' && github.event.check_run != null && github.event.check_run.pull_requests != null)
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get PR and validate (develop/main, open)
+        id: validate_pr
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            let prNumber = null, pr = null;
+            if (context.eventName === 'pull_request') {
+              prNumber = context.payload.pull_request?.number;
+              pr = context.payload.pull_request;
+            } else if (context.eventName === 'issue_comment' && context.payload.issue?.pull_request) {
+              prNumber = context.payload.issue?.number;
+              const { data } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber });
+              pr = data;
+            } else if (context.eventName === 'check_run') {
+              const prs = context.payload.check_run?.pull_requests || [];
+              if (prs.length > 0) {
+                prNumber = prs[0].number;
+                const { data } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber });
+                pr = data;
+              }
+            }
+            if (!prNumber || !pr) {
+              core.setOutput('is_valid', 'false');
+              return;
+            }
+            const baseRef = pr.base?.ref;
+            const isValid = (baseRef === 'develop' || baseRef === 'main') && pr.state === 'open' && !pr.merged;
+            console.log(`PR #${prNumber} base=${baseRef} state=${pr.state} isValid=${isValid}`);
+            core.setOutput('is_valid', isValid.toString());
+            core.setOutput('pr_number', prNumber.toString());
+            core.setOutput('pr_sha', pr.head?.sha || context.sha);
+            core.setOutput('pr_head_ref', pr.head?.ref || '');
+
+      - name: Wait for CodeRabbit review completed
+        if: steps.validate_pr.outputs.is_valid == 'true'
+        id: check_coderabbit_status
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = '${{ steps.validate_pr.outputs.pr_number }}';
+            const prSha = '${{ steps.validate_pr.outputs.pr_sha }}';
+            const prHeadRef = '${{ steps.validate_pr.outputs.pr_head_ref }}';
+            const POLL_MS = 15000, POLL_MAX = 15 * 60 * 1000 / POLL_MS;
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+            const isCodeRabbit = (c) => {
+              const n = (c.name || '').toLowerCase(), a = (c.app?.name || '').toLowerCase();
+              return n.includes('coderabbit') || n.includes('code-rabbit') || n.includes('code rabbit') || a.includes('coderabbit');
+            };
+            const fetchRuns = (ref) => github.paginate(github.rest.checks.listForRef,
+              { owner: context.repo.owner, repo: context.repo.repo, ref, per_page: 100, filter: 'all' },
+              (res) => res.data.check_runs || []);
+            async function runCheck(attempt) {
+              const bySha = await fetchRuns(prSha);
+              let byBranch = [];
+              const branchRefs = !prHeadRef ? [] : prHeadRef.startsWith('refs/') ? [prHeadRef]
+                : [prHeadRef, 'heads/' + prHeadRef, 'refs/heads/' + prHeadRef.replace(/^heads\//, '')];
+              for (const ref of branchRefs) {
+                try {
+                  const runs = await fetchRuns(ref);
+                  if (runs.length) { byBranch = runs; break; }
+                } catch (e) { if (attempt === 0) console.log('listForRef(' + ref + '): ' + e.message); }
+              }
+              const seen = new Set();
+              const all = [...bySha, ...byBranch].filter(r => r.id && !seen.has(r.id) && (seen.add(r.id), true));
+              if (attempt === 0) {
+                console.log('Refs: prSha=' + (prSha || '').slice(0,7) + ' prHeadRef=' + prHeadRef);
+                console.log('Check runs:', all.map(c => c.name + '=' + c.status + '/' + (c.conclusion || '-')).join(', ') || '(none)');
+              }
+              const cr = all.find(isCodeRabbit);
+              if (cr) {
+                if (cr.status !== 'completed') return { ok: false, err: false };
+                if (cr.conclusion === 'success') return { ok: true, err: false };
+                return { ok: false, err: true };
+              }
+              const reviews = await github.paginate(github.rest.pulls.listReviews,
+                { owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber });
+              const crReviews = reviews.filter(r => (r.user?.login || '').toLowerCase().includes('coderabbit'));
+              const forHead = (r) => {
+                if (!r.commit_id || !prSha) return true;
+                const c = (r.commit_id + '').toLowerCase();
+                const p = (prSha + '').toLowerCase();
+                return c === p || c.startsWith(p.slice(0,7)) || p.startsWith(c.slice(0,7));
+              };
+              const revForHead = crReviews.find(r => ['APPROVED','COMMENTED','CHANGES_REQUESTED'].includes(r.state) && forHead(r));
+              const revAny = crReviews.find(r => ['APPROVED','COMMENTED','CHANGES_REQUESTED'].includes(r.state));
+              if (attempt === 0 && crReviews.length) {
+                console.log('CodeRabbit reviews: ' + crReviews.length + ', for head ' + (prSha||'').slice(0,7) + ': ' + (revForHead ? 'yes' : 'no') + ', any: ' + (revAny ? 'yes' : 'no'));
+              }
+              return { ok: !!(revForHead || revAny), err: false };
+            }
+            try {
+              for (let i = 0; i <= POLL_MAX; i++) {
+                const { ok, err } = await runCheck(i);
+                if (err) { core.setOutput('is_completed', 'false'); core.setOutput('has_error', 'true'); return; }
+                if (ok) { core.setOutput('is_completed', 'true'); core.setOutput('has_error', 'false'); return; }
+                if (i < POLL_MAX) { console.log(`CodeRabbit pending, wait ${POLL_MS/1000}s (${i+1}/${POLL_MAX})`); await sleep(POLL_MS); }
+                else { core.setOutput('is_completed', 'false'); core.setOutput('has_error', 'false'); core.setFailed('CodeRabbit did not complete in time.'); }
+              }
+            } catch (e) {
+              console.log('CodeRabbit check error:', e.message);
+              core.setOutput('is_completed', 'false'); core.setOutput('has_error', 'true');
+            }
+
+      - name: Check CodeRabbit Critical/Major (comments, reviews, inline, check failure)
+        if: |
+          steps.check_coderabbit_status.outputs.is_completed == 'true' &&
+          steps.check_coderabbit_status.outputs.has_error == 'false'
+        id: check_issues
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = '${{ steps.validate_pr.outputs.pr_number }}';
+            const prSha = '${{ steps.validate_pr.outputs.pr_sha }}';
+            const isBot = (login) => {
+              if (!login || typeof login !== 'string') return false;
+              const L = login.toLowerCase();
+              return L === 'coderabbitai' || L === 'coderabbit[bot]' || (L.startsWith('coderabbit') && L.endsWith('[bot]'));
+            };
+            const CRITICAL = [/Potential issue \| Critical/i, /Potential issue \| Major/i, /🔴.*Critical/i, /Critical.*issue/i, /Major.*issue/i];
+            const hasCritical = (body) => CRITICAL.some(p => p.test(body || ''));
+            let block = false;
+            const opts = { owner: context.repo.owner, repo: context.repo.repo };
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, { ...opts, issue_number: prNumber });
+              if (comments.filter(c => c.user?.login && isBot(c.user.login)).some(c => hasCritical(c.body))) block = true;
+            } catch (e) {}
+            if (!block) try {
+              const reviews = await github.paginate(github.rest.pulls.listReviews, { ...opts, pull_number: prNumber });
+              const forHead = (r) => r.commit_id === prSha || (r.commit_id && prSha && (r.commit_id.startsWith(prSha.slice(0,7)) || prSha.startsWith(r.commit_id.slice(0,7))));
+              if (reviews.filter(r => isBot(r.user?.login) && forHead(r)).some(r => hasCritical(r.body))) block = true;
+            } catch (e) {}
+            if (!block) try {
+              const inlines = await github.paginate(github.rest.pulls.listReviewComments, { ...opts, pull_number: prNumber });
+              if (inlines.some(c => isBot(c.user?.login) && hasCritical(c.body) && !c.resolved_at)) block = true;
+            } catch (e) {}
+            if (!block) try {
+              const { data } = await github.rest.checks.listForRef({ ...opts, ref: prSha });
+              const cr = (data.check_runs || []).find(c => (c.name||'').toLowerCase().includes('coderabbit') || (c.app?.name||'').toLowerCase().includes('coderabbit'));
+              if (cr && cr.conclusion === 'failure') block = true;
+            } catch (e) {}
+            core.setOutput('has_issues', block.toString());
+            console.log(block ? '🚫 Critical/Major found - merge blocked' : '✅ No Critical/Major - merge allowed');
+
+      - name: Auto merge (wait mergeable, then rebase)
+        if: |
+          steps.check_coderabbit_status.outputs.is_completed == 'true' &&
+          steps.check_coderabbit_status.outputs.has_error == 'false' &&
+          steps.check_issues.outputs.has_issues == 'false'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = '${{ steps.validate_pr.outputs.pr_number }}';
+            const validatedSha = '${{ steps.validate_pr.outputs.pr_sha }}';
+            const opts = { owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber };
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+            const POLL_MS = 30000, POLL_MAX = 20; // 10 min
+            let pr = (await github.rest.pulls.get(opts)).data;
+            if (!prNumber || pr.state !== 'open' || pr.merged) return;
+            if (pr.head?.sha && validatedSha && pr.head?.sha !== validatedSha) {
+              console.log('PR head changed during wait, skip merge');
+              return;
+            }
+            for (let i = 0; i <= POLL_MAX; i++) {
+              pr = (await github.rest.pulls.get(opts)).data;
+              if (pr.state !== 'open' || pr.merged) return;
+              if (pr.head?.sha && validatedSha && pr.head.sha !== validatedSha) {
+                console.log('PR head changed during polling (new commit pushed), skip merge');
+                return;
+              }
+              if (pr.mergeable === true && (pr.mergeable_state === 'clean' || pr.mergeable_state === 'unstable')) {
+                console.log('PR mergeable, merging...');
+                break;
+              }
+              if (i === POLL_MAX) {
+                console.log('Still not mergeable after 10 min (required checks may be pending). Will retry on check_run.');
+                return;
+              }
+              console.log(`Wait mergeable (${i+1}/${POLL_MAX}) mergeable=${pr.mergeable} state=${pr.mergeable_state}`);
+              await sleep(POLL_MS);
+            }
+            try {
+              const res = await github.rest.pulls.merge({
+                ...opts,
+                merge_method: 'rebase',
+                commit_title: `Merge PR #${prNumber}: ${pr.title}`,
+                sha: validatedSha
+              });
+              console.log(res.data.merged ? `✅ PR #${prNumber} merged` : `⚠️ Merge returned: ${res.data.message || 'unknown'}`);
+            } catch (e) {
+              console.log('Merge failed:', e.message, e.response?.data ? JSON.stringify(e.response.data) : '');
+              if (e.status === 405) console.log('Hint: Branch protection or required checks.');
+              if (e.status === 409) console.log('Hint: Merge conflict.');
+              core.setFailed(`Auto-merge failed: ${e.message}`);
+            }
+
+      - name: Fail if CodeRabbit not done or error
+        if: |
+          steps.check_coderabbit_status.outputs.is_completed == 'false' ||
+          steps.check_coderabbit_status.outputs.has_error == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const hasError = '${{ steps.check_coderabbit_status.outputs.has_error }}' === 'true';
+            core.setFailed(hasError ? 'Failed to check CodeRabbit status' : 'CodeRabbit review still in progress (will re-run on check_run).');
+
+      - name: Comment when Critical/Major blocks merge
+        if: |
+          steps.check_coderabbit_status.outputs.is_completed == 'true' &&
+          steps.check_coderabbit_status.outputs.has_error == 'false' &&
+          steps.check_issues.outputs.has_issues == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = '${{ steps.validate_pr.outputs.pr_number }}';
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber
+            });
+            const already = comments.some(c => c.user?.login === 'github-actions[bot]' && c.body?.includes('자동 머지가 차단'));
+            if (!already) await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber,
+              body: '⚠️ **자동 머지가 차단되었습니다**\n\nCodeRabbit이 **Critical** 또는 **Major** 이슈를 발견했습니다.\n\n이슈를 해결하거나 "Resolve conversation"으로 해결 표시를 해주세요.\n해결 후 PR을 업데이트하면 자동으로 다시 체크됩니다.'
+            });
