@@ -384,13 +384,14 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const prNumber = '${{ steps.validate_pr.outputs.pr_number }}';
+            const validatedSha = '${{ steps.validate_pr.outputs.pr_sha }}';
             
             if (!prNumber) {
               console.log('No PR number found, skipping merge');
               return;
             }
 
-            // PR 정보 가져오기
+            // PR 정보 가져오기 (머지 직전 최신 상태)
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -400,6 +401,13 @@ jobs:
             // 이미 머지되었거나 닫혔으면 스킵
             if (pr.state !== 'open' || pr.merged) {
               console.log(`PR #${prNumber} is not open or already merged`);
+              return;
+            }
+
+            // 15분 대기 중 새 커밋이 푸시된 경우: 검증한 SHA와 현재 PR head가 다르면 머지하지 않음
+            const currentHeadSha = pr.head?.sha;
+            if (currentHeadSha && validatedSha && currentHeadSha !== validatedSha) {
+              console.log(`PR head changed during wait (validated ${validatedSha}, current ${currentHeadSha}). Skipping merge; the run for the latest commit will handle it.`);
               return;
             }
 
