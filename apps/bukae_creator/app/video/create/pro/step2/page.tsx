@@ -16,6 +16,7 @@ const DEFAULT_SCENE_COUNT = 6
 
 // Pro step2에서 사용하는 확장된 Scene 타입
 type ProScene = {
+  id: string // 고유 ID (드래그 앤 드롭 시 안정적인 key를 위해)
   script: string
   voiceLabel?: string
   voiceTemplate?: string | null
@@ -23,14 +24,21 @@ type ProScene = {
 
 // 확장된 SceneScript 타입
 type ExtendedSceneScript = SceneScript & { 
+  id?: string // 고유 ID (드래그 앤 드롭 시 안정적인 key를 위해)
   voiceLabel?: string
   voiceTemplate?: string | null 
 }
 
+// 고유 ID 생성 헬퍼 함수
+function generateSceneId(): string {
+  return `scene-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+}
+
 // SceneScript를 ProScene으로 변환
-function sceneScriptToProScene(s: SceneScript): ProScene {
+function sceneScriptToProScene(s: SceneScript, _index: number): ProScene {
   const extended = s as ExtendedSceneScript
   return {
+    id: extended.id || generateSceneId(), // 기존 ID가 없으면 새로 생성
     script: s.script || '',
     voiceLabel: extended.voiceLabel,
     voiceTemplate: extended.voiceTemplate,
@@ -41,6 +49,7 @@ function sceneScriptToProScene(s: SceneScript): ProScene {
 function proSceneToSceneScript(s: ProScene, index: number): ExtendedSceneScript {
   return {
     sceneId: index + 1,
+    id: s.id, // 고유 ID 유지
     script: s.script,
     voiceLabel: s.voiceLabel,
     voiceTemplate: s.voiceTemplate,
@@ -59,8 +68,8 @@ export default function ProStep2Page() {
   // store의 scenes를 현재 형식으로 변환하여 사용
   const scenes: ProScene[] = 
     storeScenes && storeScenes.length > 0
-      ? storeScenes.map(sceneScriptToProScene)
-      : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ script: '' }))
+      ? storeScenes.map((s, index) => sceneScriptToProScene(s, index))
+      : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
   
   // store의 scenes가 비어있으면 기본값으로 초기화 (한 번만)
   useEffect(() => {
@@ -68,6 +77,7 @@ export default function ProStep2Page() {
       const defaultScenes: ExtendedSceneScript[] = 
         Array.from({ length: DEFAULT_SCENE_COUNT }, (_, i) => ({ 
           sceneId: i + 1,
+          id: generateSceneId(), // 고유 ID 생성
           script: '' 
         }))
       setStoreScenes(defaultScenes)
@@ -77,8 +87,8 @@ export default function ProStep2Page() {
   // scenes 업데이트 함수 - store에 직접 저장
   const updateScenes = useCallback((updater: (prev: ProScene[]) => ProScene[]) => {
     const currentScenes: ProScene[] = storeScenes && storeScenes.length > 0
-      ? storeScenes.map(sceneScriptToProScene)
-      : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ script: '' }))
+      ? storeScenes.map((s, index) => sceneScriptToProScene(s, index))
+      : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
     
     const updated = updater(currentScenes)
     // store에 저장 (localStorage에 자동 저장됨)
@@ -350,7 +360,7 @@ export default function ProStep2Page() {
                     >
                       {scenes.map((scene, index) => (
                         <ProSceneCard
-                          key={index}
+                          key={scene.id}
                           sceneIndex={index + 1}
                           scriptText={scene.script}
                           onScriptChange={(value) => handleScriptChange(index, value)}
