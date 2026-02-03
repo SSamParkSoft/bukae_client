@@ -1,3 +1,4 @@
+# CI/CD: develop/main PR → CodeRabbit 완료 + Critical/Major 없음 → mergeable 대기 → 자동 머지(rebase)
 name: CI/CD
 
 on:
@@ -11,19 +12,11 @@ on:
 jobs:
   check-and-merge:
     runs-on: ubuntu-latest
-    # GitHub Actions 권한 설정 (PR 코멘트 작성 및 머지에 필요)
     permissions:
-      contents: write  # PR 머지에 필요
-      pull-requests: write  # PR 정보 읽기 및 머지에 필요
-      issues: write  # PR 코멘트 작성에 필요
-      checks: read  # 체크 상태 확인에 필요
-    # 각 이벤트 타입에 따라 PR이 존재하는지 확인
-    # pull_request 이벤트: github.event.pull_request 존재
-    # issue_comment 이벤트: github.event.issue.pull_request 존재 (PR인 경우)
-    # check_run 이벤트: github.event.check_run.pull_requests 배열이 존재하고 비어있지 않음
-    # 참고: 실제 PR 검증(base.ref, state)은 첫 번째 step에서 수행됨
-    # 참고: GitHub Actions 표현식에서는 배열 길이를 직접 확인할 수 없으므로,
-    #       check_run의 경우 pull_requests 배열 존재만 확인하고, 첫 번째 step에서 빈 배열 체크 수행
+      contents: write
+      pull-requests: write
+      issues: write
+      checks: read
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request != null) ||
       (github.event_name == 'issue_comment' && github.event.issue != null && github.event.issue.pull_request != null) ||
@@ -33,75 +26,41 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get PR information and validate
+      - name: Get PR and validate (develop/main, open)
         id: validate_pr
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            let prNumber = null;
-            let pr = null;
-
-            // 이벤트 타입에 따라 PR 번호 가져오기
+            let prNumber = null, pr = null;
             if (context.eventName === 'pull_request') {
               prNumber = context.payload.pull_request?.number;
               pr = context.payload.pull_request;
-            } else if (context.eventName === 'issue_comment') {
+            } else if (context.eventName === 'issue_comment' && context.payload.issue?.pull_request) {
               prNumber = context.payload.issue?.number;
-              // issue가 PR인지 확인하고 PR 정보 가져오기
-              if (context.payload.issue?.pull_request) {
-                const { data: prData } = await github.rest.pulls.get({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: prNumber,
-                });
-                pr = prData;
-              }
+              const { data } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber });
+              pr = data;
             } else if (context.eventName === 'check_run') {
-              // check_run의 경우 첫 번째 PR 사용
-              const pullRequests = context.payload.check_run?.pull_requests || [];
-              if (pullRequests.length > 0) {
-                prNumber = pullRequests[0].number;
-                const { data: prData } = await github.rest.pulls.get({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: prNumber,
-                });
-                pr = prData;
+              const prs = context.payload.check_run?.pull_requests || [];
+              if (prs.length > 0) {
+                prNumber = prs[0].number;
+                const { data } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber });
+                pr = data;
               }
             }
-
             if (!prNumber || !pr) {
-              console.log('No PR found or PR is not accessible');
               core.setOutput('is_valid', 'false');
               return;
             }
-
-            // develop 또는 main 브랜치로의 PR인지 확인
             const baseRef = pr.base?.ref;
-            const isValidBase = baseRef === 'develop' || baseRef === 'main';
-            
-            // PR이 열려있는지 확인
-            const isOpen = pr.state === 'open' && !pr.merged;
-
-            const isValid = isValidBase && isOpen;
-
-            console.log(`PR #${prNumber}: base=${baseRef}, state=${pr.state}, merged=${pr.merged}, isValid=${isValid}`);
-
+            const isValid = (baseRef === 'develop' || baseRef === 'main') && pr.state === 'open' && !pr.merged;
+            console.log(`PR #${prNumber} base=${baseRef} state=${pr.state} isValid=${isValid}`);
             core.setOutput('is_valid', isValid.toString());
             core.setOutput('pr_number', prNumber.toString());
             core.setOutput('pr_sha', pr.head?.sha || context.sha);
             core.setOutput('pr_head_ref', pr.head?.ref || '');
 
-            if (!isValid) {
-              if (!isValidBase) {
-                console.log(`Skipping: PR targets ${baseRef}, not develop or main`);
-              } else if (!isOpen) {
-                console.log(`Skipping: PR is ${pr.state}${pr.merged ? ' and merged' : ''}`);
-              }
-            }
-
-      - name: Check if CodeRabbit review is completed
+      - name: Wait for CodeRabbit review completed
         if: steps.validate_pr.outputs.is_valid == 'true'
         id: check_coderabbit_status
         continue-on-error: true
@@ -112,131 +71,53 @@ jobs:
             const prNumber = '${{ steps.validate_pr.outputs.pr_number }}';
             const prSha = '${{ steps.validate_pr.outputs.pr_sha }}';
             const prHeadRef = '${{ steps.validate_pr.outputs.pr_head_ref }}';
-            const POLL_INTERVAL_MS = 15000;
-            const POLL_MAX_MINUTES = 15;
-            const POLL_ATTEMPTS = (POLL_MAX_MINUTES * 60 * 1000) / POLL_INTERVAL_MS;
-
-            let isCompleted = false;
-
-            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-            async function checkCodeRabbitCompleted(attemptIndex) {
-              // SHA로 조회 후, 브랜치 ref(heads/xxx)로도 조회해 합침 (CodeRabbit 등이 full ref로 올리는 경우 대비)
-              const fetchCheckRuns = async (ref, opts = {}) => github.paginate(
-                github.rest.checks.listForRef,
-                { owner: context.repo.owner, repo: context.repo.repo, ref, per_page: 100, ...opts },
-                (response) => response.data.check_runs || []
-              );
-
-              let bySha = await fetchCheckRuns(prSha, { filter: 'all' });
+            const POLL_MS = 15000, POLL_MAX = 15 * 60 * 1000 / POLL_MS;
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+            const isCodeRabbit = (c) => {
+              const n = (c.name || '').toLowerCase(), a = (c.app?.name || '').toLowerCase();
+              return n.includes('coderabbit') || n.includes('code-rabbit') || n.includes('code rabbit') || a.includes('coderabbit');
+            };
+            const fetchRuns = (ref) => github.paginate(github.rest.checks.listForRef,
+              { owner: context.repo.owner, repo: context.repo.repo, ref, per_page: 100, filter: 'all' },
+              (res) => res.data.check_runs || []);
+            async function runCheck(attempt) {
+              const bySha = await fetchRuns(prSha);
               let byBranch = [];
               if (prHeadRef) {
-                const branchRefs = prHeadRef.startsWith('heads/') ? [prHeadRef] : [prHeadRef, 'heads/' + prHeadRef];
-                for (const ref of branchRefs) {
-                  try {
-                    const runs = await fetchCheckRuns(ref, { filter: 'all' });
-                    if (runs.length) { byBranch = runs; break; }
-                  } catch (e) {
-                    if (attemptIndex === 0 && ref === branchRefs[branchRefs.length - 1]) console.log(`Check runs for branch ${prHeadRef}: (skip ${e.message})`);
-                  }
+                const refs = prHeadRef.startsWith('heads/') ? [prHeadRef] : [prHeadRef, 'heads/' + prHeadRef];
+                for (const ref of refs) {
+                  try { byBranch = await fetchRuns(ref); if (byBranch.length) break; } catch (e) {}
                 }
               }
-
               const seen = new Set();
-              const allCheckRuns = [];
-              for (const run of [...bySha, ...byBranch]) {
-                if (run.id && !seen.has(run.id)) { seen.add(run.id); allCheckRuns.push(run); }
+              const all = [...bySha, ...byBranch].filter(r => r.id && !seen.has(r.id) && (seen.add(r.id), true));
+              if (attempt === 0) console.log('Check runs:', all.map(c => `${c.name}=${c.status}/${c.conclusion || '-'}`).join(', ') || '(none)');
+              const cr = all.find(isCodeRabbit);
+              if (cr) {
+                if (cr.status !== 'completed') return { ok: false, err: false };
+                if (cr.conclusion === 'success') return { ok: true, err: false };
+                return { ok: false, err: true };
               }
-
-              if (attemptIndex === 0) {
-                const summary = allCheckRuns.map(c => `${c.name}=${c.status}/${c.conclusion || 'null'} (app: ${c.app?.name || 'n/a'})`).join(', ');
-                console.log(`Check runs (sha ${prSha.slice(0, 7)}${prHeadRef ? ', branch ' + prHeadRef : ''}): ${summary || '(none)'}`);
-              }
-
-              const codeRabbitCheck = allCheckRuns.find(
-                check => {
-                  const name = (check.name || '').toLowerCase();
-                  const appName = (check.app?.name || '').toLowerCase();
-                  return name.includes('coderabbit') || name.includes('code-rabbit') ||
-                         name.includes('code rabbit') || appName.includes('coderabbit');
-                }
-              );
-
-              if (codeRabbitCheck) {
-                if (codeRabbitCheck.status !== 'completed') {
-                  return { isCompleted: false };
-                }
-                if (codeRabbitCheck.conclusion === 'success') {
-                  return { isCompleted: true, hasError: false };
-                }
-                // conclusion is failure, cancelled, timed_out, neutral, etc.
-                return { isCompleted: false, hasError: true };
-              }
-
-              const reviews = await github.paginate(github.rest.pulls.listReviews, {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prNumber,
-              });
-
-              const codeRabbitReview = reviews.find(
-                review => {
-                  const login = review.user?.login?.toLowerCase() || '';
-                  const isCodeRabbit = login.includes('coderabbit') || login === 'coderabbitai';
-                  const commitMatches = review.commit_id === prSha;
-                  const reviewDone = review.state === 'APPROVED' || review.state === 'COMMENTED' || review.state === 'completed';
-                  return isCodeRabbit && commitMatches && reviewDone;
-                }
-              );
-              return { isCompleted: !!codeRabbitReview, hasError: false };
+              const reviews = await github.paginate(github.rest.pulls.listReviews,
+                { owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber });
+              const rev = reviews.find(r => (r.user?.login || '').toLowerCase().includes('coderabbit') && r.commit_id === prSha
+                && ['APPROVED','COMMENTED','completed'].includes(r.state));
+              return { ok: !!rev, err: false };
             }
-
             try {
-              if (!prNumber) {
-                console.log('No PR number found');
-                core.setOutput('is_completed', 'false');
-                core.setOutput('has_error', 'true');
-                return;
+              for (let i = 0; i <= POLL_MAX; i++) {
+                const { ok, err } = await runCheck(i);
+                if (err) { core.setOutput('is_completed', 'false'); core.setOutput('has_error', 'true'); return; }
+                if (ok) { core.setOutput('is_completed', 'true'); core.setOutput('has_error', 'false'); return; }
+                if (i < POLL_MAX) { console.log(`CodeRabbit pending, wait ${POLL_MS/1000}s (${i+1}/${POLL_MAX})`); await sleep(POLL_MS); }
+                else { core.setOutput('is_completed', 'false'); core.setOutput('has_error', 'false'); core.setFailed('CodeRabbit did not complete in time.'); }
               }
-
-              console.log(`Checking CodeRabbit status for PR #${prNumber} (ref: ${prSha})...`);
-
-              for (let attempt = 0; attempt <= POLL_ATTEMPTS; attempt++) {
-                const result = await checkCodeRabbitCompleted(attempt);
-                isCompleted = result.isCompleted;
-
-                if (result.hasError) {
-                  core.setOutput('is_completed', 'false');
-                  core.setOutput('has_error', 'true');
-                  return;
-                }
-
-                if (isCompleted) {
-                  console.log(`CodeRabbit review completed (after ${attempt > 0 ? attempt + ' poll(s)' : 'initial check'}).`);
-                  break;
-                }
-
-                if (attempt < POLL_ATTEMPTS) {
-                  console.log(`CodeRabbit not completed yet. Waiting ${POLL_INTERVAL_MS / 1000}s... (attempt ${attempt + 1}/${POLL_ATTEMPTS})`);
-                  await sleep(POLL_INTERVAL_MS);
-                } else {
-                  console.log('CodeRabbit did not complete within ' + POLL_MAX_MINUTES + ' minutes.');
-                  core.setOutput('is_completed', 'false');
-                  core.setOutput('has_error', 'false');
-                  core.setFailed('CodeRabbit review did not complete within ' + POLL_MAX_MINUTES + ' minutes. Re-run the workflow or push a new commit.');
-                  return;
-                }
-              }
-
-              core.setOutput('is_completed', isCompleted.toString());
-              core.setOutput('has_error', 'false');
-            } catch (error) {
-              console.log(`Error checking CodeRabbit status: ${error.message}`);
-              core.setOutput('is_completed', 'false');
-              core.setOutput('has_error', 'true');
+            } catch (e) {
+              console.log('CodeRabbit check error:', e.message);
+              core.setOutput('is_completed', 'false'); core.setOutput('has_error', 'true');
             }
 
-      - name: Check for Critical/Major issues from CodeRabbit
+      - name: Check CodeRabbit Critical/Major (comments, reviews, inline, check failure)
         if: |
           steps.check_coderabbit_status.outputs.is_completed == 'true' &&
           steps.check_coderabbit_status.outputs.has_error == 'false'
@@ -247,161 +128,36 @@ jobs:
           script: |
             const prNumber = '${{ steps.validate_pr.outputs.pr_number }}';
             const prSha = '${{ steps.validate_pr.outputs.pr_sha }}';
-            
-            if (!prNumber) {
-              console.log('No PR number found');
-              core.setOutput('has_issues', 'false');
-              return;
-            }
-
-            console.log(`Checking PR #${prNumber} for Critical/Major issues from CodeRabbit...`);
-
-            // CodeRabbit 봇 확인 함수 (한 번만 정의하여 재사용)
-            // 정확한 봇 이름만 매칭하여 다른 봇(codecov, codeclimate 등)과의 충돌 방지
-            const isCodeRabbitBot = (login) => {
-              // 삭제된 사용자(ghost user)의 경우 login이 null일 수 있음
-              if (!login || typeof login !== 'string') {
-                return false;
-              }
-              const normalizedLogin = login.toLowerCase();
-              return normalizedLogin === 'coderabbitai' ||
-                     normalizedLogin === 'coderabbit[bot]' ||
-                     normalizedLogin.startsWith('coderabbit') && normalizedLogin.endsWith('[bot]');
+            const isBot = (login) => {
+              if (!login || typeof login !== 'string') return false;
+              const L = login.toLowerCase();
+              return L === 'coderabbitai' || L === 'coderabbit[bot]' || (L.startsWith('coderabbit') && L.endsWith('[bot]'));
             };
-
-            // Critical 또는 Major 패턴 정의
-            const criticalPatterns = [
-              /Potential issue \| Critical/i,
-              /Potential issue \| Major/i,
-              /🔴.*Critical/i,
-              /Critical.*issue/i,
-              /Major.*issue/i,
-            ];
-
-            let hasCriticalOrMajor = false;
-
-            // 1. PR 레벨 코멘트 체크 (모든 페이지 가져오기)
+            const CRITICAL = [/Potential issue \| Critical/i, /Potential issue \| Major/i, /🔴.*Critical/i, /Critical.*issue/i, /Major.*issue/i];
+            const hasCritical = (body) => CRITICAL.some(p => p.test(body || ''));
+            let block = false;
+            const opts = { owner: context.repo.owner, repo: context.repo.repo };
             try {
-              const comments = await github.paginate(github.rest.issues.listComments, {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-              });
-              
-              const codeRabbitComments = comments.filter(
-                comment => comment.user?.login && isCodeRabbitBot(comment.user.login)
-              );
+              const comments = await github.paginate(github.rest.issues.listComments, { ...opts, issue_number: prNumber });
+              if (comments.filter(c => c.user?.login && isBot(c.user.login)).some(c => hasCritical(c.body))) block = true;
+            } catch (e) {}
+            if (!block) try {
+              const reviews = await github.paginate(github.rest.pulls.listReviews, { ...opts, pull_number: prNumber });
+              if (reviews.filter(r => isBot(r.user?.login)).some(r => hasCritical(r.body))) block = true;
+            } catch (e) {}
+            if (!block) try {
+              const inlines = await github.paginate(github.rest.pulls.listReviewComments, { ...opts, pull_number: prNumber });
+              if (inlines.some(c => isBot(c.user?.login) && hasCritical(c.body) && !c.resolved_at)) block = true;
+            } catch (e) {}
+            if (!block) try {
+              const { data } = await github.rest.checks.listForRef({ ...opts, ref: prSha });
+              const cr = (data.check_runs || []).find(c => (c.name||'').toLowerCase().includes('coderabbit') || (c.app?.name||'').toLowerCase().includes('coderabbit'));
+              if (cr && cr.conclusion === 'failure') block = true;
+            } catch (e) {}
+            core.setOutput('has_issues', block.toString());
+            console.log(block ? '🚫 Critical/Major found - merge blocked' : '✅ No Critical/Major - merge allowed');
 
-              console.log(`Found ${codeRabbitComments.length} CodeRabbit PR-level comments (across all pages)`);
-
-              for (const comment of codeRabbitComments) {
-                const body = comment.body || '';
-                if (criticalPatterns.some(pattern => pattern.test(body))) {
-                  hasCriticalOrMajor = true;
-                  console.log(`❌ Critical or Major issue found in PR comment #${comment.id} by ${comment.user?.login || 'deleted user'}`);
-                  console.log(`Preview: ${body.substring(0, 150)}...`);
-                  break;
-                }
-              }
-            } catch (error) {
-              console.log('Could not fetch PR-level comments:', error.message);
-            }
-
-            // 2. PR 리뷰 바디 체크 (모든 페이지 가져오기)
-            if (!hasCriticalOrMajor) {
-              try {
-                const reviews = await github.paginate(github.rest.pulls.listReviews, {
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: prNumber,
-                });
-
-                console.log(`Found ${reviews.length} reviews (across all pages), checking for CodeRabbit reviews...`);
-
-                for (const review of reviews) {
-                  if (review.user?.login && isCodeRabbitBot(review.user.login)) {
-                    const body = review.body || '';
-                    if (criticalPatterns.some(pattern => pattern.test(body))) {
-                      hasCriticalOrMajor = true;
-                      console.log(`❌ Critical or Major issue found in review #${review.id}`);
-                      break;
-                    }
-                  }
-                }
-              } catch (error) {
-                console.log('Could not fetch reviews:', error.message);
-              }
-            }
-
-            // 3. 인라인 코드 코멘트 체크 (모든 페이지 가져오기)
-            // CodeRabbit이 Critical/Major 이슈를 인라인 코멘트로 보고하는 경우가 많음
-            if (!hasCriticalOrMajor) {
-              try {
-                const reviewComments = await github.paginate(github.rest.pulls.listReviewComments, {
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: prNumber,
-                });
-
-                console.log(`Found ${reviewComments.length} review comments (across all pages), checking for CodeRabbit inline comments...`);
-
-                for (const comment of reviewComments) {
-                  if (comment.user?.login && isCodeRabbitBot(comment.user.login)) {
-                    const body = comment.body || '';
-                    if (criticalPatterns.some(pattern => pattern.test(body))) {
-                      // 해결되지 않은 코멘트만 차단 (resolved_at이 null이면 아직 해결되지 않음)
-                      if (!comment.resolved_at) {
-                        hasCriticalOrMajor = true;
-                        console.log(`❌ Critical or Major issue found in inline comment #${comment.id} (unresolved)`);
-                        console.log(`Preview: ${body.substring(0, 150)}...`);
-                        break;
-                      } else {
-                        console.log(`ℹ️ Critical or Major issue found in inline comment #${comment.id} but already resolved`);
-                      }
-                    }
-                  }
-                }
-              } catch (error) {
-                console.log('Could not fetch review comments:', error.message);
-              }
-            }
-
-            // Status Check 결과도 확인
-            try {
-              const { data: checks } = await github.rest.checks.listForRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: prSha,
-              });
-
-              // CodeRabbit 체크가 실패했는지 확인 (첫 번째 step과 동일한 대소문자 무시 매칭)
-              const codeRabbitCheck = checks.check_runs.find(
-                check => {
-                  const name = check.name?.toLowerCase() || '';
-                  return name.includes('coderabbit') || name.includes('code-rabbit') ||
-                         name.includes('code rabbit') ||
-                         (check.app?.name?.toLowerCase().includes('coderabbit'));
-                }
-              );
-
-              if (codeRabbitCheck && codeRabbitCheck.conclusion === 'failure') {
-                hasCriticalOrMajor = true;
-                console.log('❌ CodeRabbit check failed');
-              }
-            } catch (error) {
-              console.log('Could not fetch checks:', error.message);
-            }
-
-            // 결과 출력
-            core.setOutput('has_issues', hasCriticalOrMajor.toString());
-            
-            if (hasCriticalOrMajor) {
-              console.log('🚫 PR has Critical or Major issues - merge blocked');
-            } else {
-              console.log('✅ No Critical or Major issues found - merge allowed');
-            }
-
-      - name: Auto merge if no Critical/Major issues
+      - name: Auto merge (wait mergeable, then rebase)
         if: |
           steps.check_coderabbit_status.outputs.is_completed == 'true' &&
           steps.check_coderabbit_status.outputs.has_error == 'false' &&
@@ -412,101 +168,40 @@ jobs:
           script: |
             const prNumber = '${{ steps.validate_pr.outputs.pr_number }}';
             const validatedSha = '${{ steps.validate_pr.outputs.pr_sha }}';
-            
-            if (!prNumber) {
-              console.log('No PR number found, skipping merge');
+            const opts = { owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber };
+            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+            const POLL_MS = 30000, POLL_MAX = 20; // 10 min
+            let pr = (await github.rest.pulls.get(opts)).data;
+            if (!prNumber || pr.state !== 'open' || pr.merged) return;
+            if (pr.head?.sha && validatedSha && pr.head?.sha !== validatedSha) {
+              console.log('PR head changed during wait, skip merge');
               return;
             }
-
-            // PR 정보 가져오기 (머지 직전 최신 상태)
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-            });
-
-            // 이미 머지되었거나 닫혔으면 스킵
-            if (pr.state !== 'open' || pr.merged) {
-              console.log(`PR #${prNumber} is not open or already merged`);
-              return;
-            }
-
-            // 15분 대기 중 새 커밋이 푸시된 경우: 검증한 SHA와 현재 PR head가 다르면 머지하지 않음
-            const currentHeadSha = pr.head?.sha;
-            if (currentHeadSha && validatedSha && currentHeadSha !== validatedSha) {
-              console.log(`PR head changed during wait (validated ${validatedSha}, current ${currentHeadSha}). Skipping merge; the run for the latest commit will handle it.`);
-              return;
-            }
-
-            // GitHub가 머지 가능 상태(필수 체크 통과 등)가 될 때까지 대기
-            const POLL_INTERVAL_MS = 30000;
-            const POLL_MAX_MINUTES = 10;
-            const POLL_ATTEMPTS = (POLL_MAX_MINUTES * 60 * 1000) / POLL_INTERVAL_MS;
-            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-            let latestPr = pr;
-            for (let attempt = 0; attempt <= POLL_ATTEMPTS; attempt++) {
-              const { data: p } = await github.rest.pulls.get({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prNumber,
-              });
-              latestPr = p;
-              if (p.state !== 'open' || p.merged) {
-                console.log(`PR #${prNumber} is no longer open or already merged`);
-                return;
-              }
-              // mergeable: true, mergeable_state: 'clean' 이어야 머지 가능 (null은 GitHub가 아직 계산 중)
-              if (p.mergeable === true && (p.mergeable_state === 'clean' || p.mergeable_state === 'unstable')) {
-                console.log(`PR mergeable (mergeable_state=${p.mergeable_state}). Proceeding to merge.`);
+            for (let i = 0; i <= POLL_MAX; i++) {
+              pr = (await github.rest.pulls.get(opts)).data;
+              if (pr.state !== 'open' || pr.merged) return;
+              if (pr.mergeable === true && (pr.mergeable_state === 'clean' || pr.mergeable_state === 'unstable')) {
+                console.log('PR mergeable, merging...');
                 break;
               }
-              if (attempt < POLL_ATTEMPTS) {
-                console.log(`PR not mergeable yet (mergeable=${p.mergeable}, mergeable_state=${p.mergeable_state}). Waiting ${POLL_INTERVAL_MS / 1000}s... (${attempt + 1}/${POLL_ATTEMPTS})`);
-                await sleep(POLL_INTERVAL_MS);
-              } else {
-                console.log(`PR still not mergeable after ${POLL_MAX_MINUTES} min (mergeable=${latestPr.mergeable}, mergeable_state=${latestPr.mergeable_state}). Required status checks may be pending. This workflow will run again when checks complete (check_run).`);
+              if (i === POLL_MAX) {
+                console.log('Still not mergeable after 10 min (required checks may be pending). Will retry on check_run.');
                 return;
               }
+              console.log(`Wait mergeable (${i+1}/${POLL_MAX}) mergeable=${pr.mergeable} state=${pr.mergeable_state}`);
+              await sleep(POLL_MS);
             }
-
-            // 자동 머지 실행 (rebase 방식)
             try {
-              console.log(`Attempting to merge PR #${prNumber} using rebase...`);
-              
-              const mergeResult = await github.rest.pulls.merge({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prNumber,
-                merge_method: 'rebase',
-                commit_title: `Merge PR #${prNumber}: ${latestPr.title}`,
-              });
-              
-              if (mergeResult.data.merged) {
-                console.log(`✅ PR #${prNumber} merged successfully using rebase`);
-              } else {
-                console.log(`⚠️ PR #${prNumber} merge request sent but not merged. Status: ${mergeResult.data.message || 'unknown'}`);
-              }
-            } catch (error) {
-              // 머지 실패 시 상세 에러 정보 출력
-              console.log(`❌ Could not merge PR #${prNumber}`);
-              console.log(`Error message: ${error.message}`);
-              console.log(`Error status: ${error.status || 'unknown'}`);
-              
-              if (error.response) {
-                console.log(`Response data: ${JSON.stringify(error.response.data, null, 2)}`);
-              }
-              
-              if (error.status === 405) {
-                console.log('💡 Hint: Branch protection required checks may not be satisfied. Ensure required status checks are passed or adjust branch protection.');
-              } else if (error.status === 409) {
-                console.log('💡 Hint: Merge conflict detected. Please resolve conflicts manually.');
-              }
-              
-              core.setFailed(`Auto-merge failed: ${error.message}`);
+              const res = await github.rest.pulls.merge({ ...opts, merge_method: 'rebase', commit_title: `Merge PR #${prNumber}: ${pr.title}` });
+              console.log(res.data.merged ? `✅ PR #${prNumber} merged` : `⚠️ Merge returned: ${res.data.message || 'unknown'}`);
+            } catch (e) {
+              console.log('Merge failed:', e.message, e.response?.data ? JSON.stringify(e.response.data) : '');
+              if (e.status === 405) console.log('Hint: Branch protection or required checks.');
+              if (e.status === 409) console.log('Hint: Merge conflict.');
+              core.setFailed(`Auto-merge failed: ${e.message}`);
             }
 
-      - name: Fail if CodeRabbit not completed
+      - name: Fail if CodeRabbit not done or error
         if: |
           steps.check_coderabbit_status.outputs.is_completed == 'false' ||
           steps.check_coderabbit_status.outputs.has_error == 'true'
@@ -515,22 +210,9 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const hasError = '${{ steps.check_coderabbit_status.outputs.has_error }}' === 'true';
-            const prNumber = '${{ steps.validate_pr.outputs.pr_number }}';
-            
-            if (hasError) {
-              console.log('⚠️ Error checking CodeRabbit status. Failing workflow for safety.');
-              core.setFailed('Failed to check CodeRabbit status');
-            } else {
-              console.log('⏳ CodeRabbit review is still in progress.');
-              console.log('This workflow will run again when CodeRabbit completes (via check_run event).');
-              console.log(`Waiting for CodeRabbit to complete for PR #${prNumber}...`);
-              
-              // CodeRabbit이 완료되지 않았으면 워크플로우 실패 처리
-              // 이렇게 하면 PR이 머지되지 않고, CodeRabbit이 완료되면 check_run 이벤트로 다시 실행됨
-              core.setFailed('CodeRabbit review is still in progress. This workflow will run again automatically when CodeRabbit completes.');
-            }
+            core.setFailed(hasError ? 'Failed to check CodeRabbit status' : 'CodeRabbit review still in progress (will re-run on check_run).');
 
-      - name: Comment if Critical/Major issues found
+      - name: Comment when Critical/Major blocks merge
         if: |
           steps.check_coderabbit_status.outputs.is_completed == 'true' &&
           steps.check_coderabbit_status.outputs.has_error == 'false' &&
@@ -540,29 +222,11 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const prNumber = '${{ steps.validate_pr.outputs.pr_number }}';
-            
-            if (!prNumber) {
-              return;
-            }
-
-            // 이미 코멘트가 있는지 확인 (중복 방지)
-            const { data: existingComments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber
             });
-
-            const hasExistingComment = existingComments.some(
-              comment => 
-                comment.user?.login === 'github-actions[bot]' &&
-                comment.body?.includes('자동 머지가 차단되었습니다')
-            );
-
-            if (!hasExistingComment) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: '⚠️ **자동 머지가 차단되었습니다**\n\nCodeRabbit이 **Critical** 또는 **Major** 이슈를 발견했습니다.\n\n이슈를 해결하거나 "Resolve conversation"으로 해결 표시를 해주세요.\n해결 후 PR을 업데이트하면 자동으로 다시 체크됩니다.',
-              });
-            }
+            const already = comments.some(c => c.user?.login === 'github-actions[bot]' && c.body?.includes('자동 머지가 차단'));
+            if (!already) await github.rest.issues.createComment({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: prNumber,
+              body: '⚠️ **자동 머지가 차단되었습니다**\n\nCodeRabbit이 **Critical** 또는 **Major** 이슈를 발견했습니다.\n\n이슈를 해결하거나 "Resolve conversation"으로 해결 표시를 해주세요.\n해결 후 PR을 업데이트하면 자동으로 다시 체크됩니다.'
+            });
