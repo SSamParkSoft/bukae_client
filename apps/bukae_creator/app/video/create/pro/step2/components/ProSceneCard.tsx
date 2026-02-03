@@ -41,6 +41,7 @@ export const ProSceneCard = memo(function ProSceneCard({
   const isDragging = draggedIndex !== null && draggedIndex === sceneIndex - 1
   const isDropTargetBefore = dragOverProp?.index === sceneIndex - 1 && dragOverProp?.position === 'before'
   const isDropTargetAfter = dragOverProp?.index === sceneIndex - 1 && dragOverProp?.position === 'after'
+  const isVoiceButtonDisabled = !onVoiceClick
 
   return (
     <div
@@ -118,8 +119,14 @@ export const ProSceneCard = memo(function ProSceneCard({
           <div className="flex items-center justify-between gap-2">
             <button
               type="button"
-              onClick={onVoiceClick}
-              className="w-full sm:w-[120px] h-10 rounded-lg overflow-hidden bg-white border border-[#BBC9C9] hover:bg-[#e4eeed] transition-colors flex items-center justify-center gap-2 text-text-tertiary shrink-0 px-2"
+              onClick={isVoiceButtonDisabled ? undefined : onVoiceClick}
+              disabled={isVoiceButtonDisabled}
+              aria-disabled={isVoiceButtonDisabled ? 'true' : 'false'}
+              className={`w-full sm:w-[120px] h-10 rounded-lg overflow-hidden bg-white border border-[#BBC9C9] transition-colors flex items-center justify-center gap-2 text-text-tertiary shrink-0 px-2 ${
+                isVoiceButtonDisabled
+                  ? 'opacity-50 cursor-not-allowed pointer-events-none'
+                  : 'hover:bg-[#e4eeed]'
+              }`}
               aria-label="보이스 선택"
             >
               <Image
