@@ -1,0 +1,253 @@
+name: CI/CD
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+  issue_comment:
+    types: [created]
+  check_run:
+    types: [completed]
+
+jobs:
+  check-and-merge:
+    runs-on: ubuntu-latest
+    # develop 또는 main 브랜치로의 PR만 체크
+    if: |
+      (github.event.pull_request.base.ref == 'develop' || 
+       github.event.pull_request.base.ref == 'main') &&
+      github.event.pull_request.state == 'open'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Wait for CodeRabbit check to complete
+        id: wait_checks
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
+            
+            if (!prNumber) {
+              console.log('No PR number found');
+              return false;
+            }
+
+            console.log(`Waiting for CodeRabbit check to complete for PR #${prNumber}...`);
+
+            // 최대 5분 대기 (30초마다 체크)
+            const maxWaitTime = 5 * 60 * 1000; // 5분
+            const checkInterval = 30 * 1000; // 30초
+            const startTime = Date.now();
+
+            while (Date.now() - startTime < maxWaitTime) {
+              const { data: checks } = await github.rest.checks.listForRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: context.payload.pull_request?.head?.sha || context.sha,
+              });
+
+              // CodeRabbit 체크 찾기
+              const codeRabbitCheck = checks.check_runs.find(
+                check => check.name.includes('CodeRabbit') || check.name.includes('code-rabbit')
+              );
+
+              if (!codeRabbitCheck || codeRabbitCheck.status === 'completed') {
+                console.log('CodeRabbit check completed');
+                return true;
+              }
+
+              console.log(`Waiting... CodeRabbit status: ${codeRabbitCheck.status}`);
+              await new Promise(resolve => setTimeout(resolve, checkInterval));
+            }
+
+            console.log('Timeout waiting for CodeRabbit check');
+            return false;
+
+      - name: Check for Critical/Major issues from CodeRabbit
+        id: check_issues
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
+            
+            if (!prNumber) {
+              console.log('No PR number found');
+              core.setOutput('has_issues', 'false');
+              return;
+            }
+
+            console.log(`Checking PR #${prNumber} for Critical/Major issues from CodeRabbit...`);
+
+            // PR의 모든 코멘트 가져오기
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            // CodeRabbit 봇의 코멘트 찾기
+            const codeRabbitComments = comments.filter(
+              comment => 
+                comment.user.login.includes('coderabbit') || 
+                comment.user.login === 'coderabbitai' ||
+                (comment.user.type === 'Bot' && comment.user.login.includes('code'))
+            );
+
+            console.log(`Found ${codeRabbitComments.length} CodeRabbit comments`);
+
+            let hasCriticalOrMajor = false;
+            
+            // Critical 또는 Major 패턴 정의
+            const criticalPatterns = [
+              /Potential issue \| Critical/i,
+              /Potential issue \| Major/i,
+              /🔴.*Critical/i,
+              /Critical.*issue/i,
+              /Major.*issue/i,
+            ];
+
+            // 각 코멘트 체크
+            for (const comment of codeRabbitComments) {
+              const body = comment.body || '';
+              
+              // 심각도 라벨 체크
+              if (criticalPatterns.some(pattern => pattern.test(body))) {
+                hasCriticalOrMajor = true;
+                console.log(`❌ Critical or Major issue found in comment #${comment.id} by ${comment.user.login}`);
+                console.log(`Preview: ${body.substring(0, 150)}...`);
+                break;
+              }
+            }
+
+            // PR 리뷰 코멘트도 체크
+            try {
+              const { data: reviews } = await github.rest.pulls.listReviews({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+              });
+
+              for (const review of reviews) {
+                if (review.user.login.includes('coderabbit') || 
+                    (review.user.type === 'Bot' && review.user.login.includes('code'))) {
+                  const body = review.body || '';
+                  if (criticalPatterns.some(pattern => pattern.test(body))) {
+                    hasCriticalOrMajor = true;
+                    console.log(`❌ Critical or Major issue found in review #${review.id}`);
+                    break;
+                  }
+                }
+              }
+            } catch (error) {
+              console.log('Could not fetch reviews:', error.message);
+            }
+
+            // Status Check 결과도 확인
+            try {
+              const { data: checks } = await github.rest.checks.listForRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: context.payload.pull_request?.head?.sha || context.sha,
+              });
+
+              // CodeRabbit 체크가 실패했는지 확인
+              const codeRabbitCheck = checks.check_runs.find(
+                check => check.name.includes('CodeRabbit') || check.name.includes('code-rabbit')
+              );
+
+              if (codeRabbitCheck && codeRabbitCheck.conclusion === 'failure') {
+                hasCriticalOrMajor = true;
+                console.log('❌ CodeRabbit check failed');
+              }
+            } catch (error) {
+              console.log('Could not fetch checks:', error.message);
+            }
+
+            // 결과 출력
+            core.setOutput('has_issues', hasCriticalOrMajor.toString());
+            
+            if (hasCriticalOrMajor) {
+              console.log('🚫 PR has Critical or Major issues - merge blocked');
+            } else {
+              console.log('✅ No Critical or Major issues found - merge allowed');
+            }
+
+      - name: Auto merge if no Critical/Major issues
+        if: steps.check_issues.outputs.has_issues == 'false'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
+            
+            if (!prNumber) {
+              console.log('No PR number found, skipping merge');
+              return;
+            }
+
+            // PR 정보 가져오기
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            // 이미 머지되었거나 닫혔으면 스킵
+            if (pr.state !== 'open' || pr.merged) {
+              console.log(`PR #${prNumber} is not open or already merged`);
+              return;
+            }
+
+            // 자동 머지 실행 (rebase 방식)
+            try {
+              await github.rest.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                merge_method: 'rebase',
+                commit_title: `Merge PR #${prNumber}: ${pr.title}`,
+              });
+              
+              console.log(`✅ PR #${prNumber} merged automatically using rebase`);
+            } catch (error) {
+              // 머지 실패 시 (예: 충돌, 브랜치 보호 규칙 등)
+              console.log(`⚠️ Could not merge PR #${prNumber}:`, error.message);
+              // 실패해도 워크플로우는 성공으로 처리 (수동 머지 가능)
+            }
+
+      - name: Comment if Critical/Major issues found
+        if: steps.check_issues.outputs.has_issues == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request?.number || context.payload.issue?.number;
+            
+            if (!prNumber) {
+              return;
+            }
+
+            // 이미 코멘트가 있는지 확인 (중복 방지)
+            const { data: existingComments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const hasExistingComment = existingComments.some(
+              comment => 
+                comment.user.login === 'github-actions[bot]' &&
+                comment.body.includes('자동 머지가 차단되었습니다')
+            );
+
+            if (!hasExistingComment) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: '⚠️ **자동 머지가 차단되었습니다**\n\nCodeRabbit이 **Critical** 또는 **Major** 이슈를 발견했습니다.\n\n이슈를 해결하거나 "Resolve conversation"으로 해결 표시를 해주세요.\n해결 후 PR을 업데이트하면 자동으로 다시 체크됩니다.',
+              });
+            }
