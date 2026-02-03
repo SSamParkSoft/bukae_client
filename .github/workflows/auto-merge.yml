@@ -333,9 +333,14 @@ jobs:
                 ref: prSha,
               });
 
-              // CodeRabbit 체크가 실패했는지 확인
+              // CodeRabbit 체크가 실패했는지 확인 (첫 번째 step과 동일한 대소문자 무시 매칭)
               const codeRabbitCheck = checks.check_runs.find(
-                check => check.name.includes('CodeRabbit') || check.name.includes('code-rabbit')
+                check => {
+                  const name = check.name?.toLowerCase() || '';
+                  return name.includes('coderabbit') || name.includes('code-rabbit') ||
+                         name.includes('code rabbit') ||
+                         (check.app?.name?.toLowerCase().includes('coderabbit'));
+                }
               );
 
               if (codeRabbitCheck && codeRabbitCheck.conclusion === 'failure') {
