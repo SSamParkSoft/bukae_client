@@ -118,20 +118,30 @@ jobs:
 
             const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-            async function checkCodeRabbitCompleted() {
-              const { data: checks } = await github.rest.checks.listForRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: prSha,
-                per_page: 100,
-              });
+            async function checkCodeRabbitCompleted(attemptIndex) {
+              // 체크 목록은 페이지네이션 가능하므로 모두 수집 (listForRef는 data.check_runs 반환)
+              const allCheckRuns = await github.paginate(
+                github.rest.checks.listForRef,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: prSha,
+                  per_page: 100,
+                },
+                (response) => response.data.check_runs || []
+              );
 
-              const codeRabbitCheck = checks.check_runs.find(
+              if (attemptIndex === 0) {
+                const summary = allCheckRuns.map(c => `${c.name}=${c.status}/${c.conclusion || 'null'} (app: ${c.app?.name || 'n/a'})`).join(', ');
+                console.log(`Check runs for ref ${prSha}: ${summary || '(none)'}`);
+              }
+
+              const codeRabbitCheck = allCheckRuns.find(
                 check => {
-                  const name = check.name.toLowerCase();
+                  const name = (check.name || '').toLowerCase();
+                  const appName = (check.app?.name || '').toLowerCase();
                   return name.includes('coderabbit') || name.includes('code-rabbit') ||
-                         name.includes('code rabbit') || name === 'code rabbit' ||
-                         check.app?.name?.toLowerCase().includes('coderabbit');
+                         name.includes('code rabbit') || appName.includes('coderabbit');
                 }
               );
 
@@ -175,7 +185,7 @@ jobs:
               console.log(`Checking CodeRabbit status for PR #${prNumber} (ref: ${prSha})...`);
 
               for (let attempt = 0; attempt <= POLL_ATTEMPTS; attempt++) {
-                const result = await checkCodeRabbitCompleted();
+                const result = await checkCodeRabbitCompleted(attempt);
                 isCompleted = result.isCompleted;
 
                 if (result.hasError) {
