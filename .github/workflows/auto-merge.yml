@@ -180,6 +180,10 @@ jobs:
             for (let i = 0; i <= POLL_MAX; i++) {
               pr = (await github.rest.pulls.get(opts)).data;
               if (pr.state !== 'open' || pr.merged) return;
+              if (pr.head?.sha && validatedSha && pr.head.sha !== validatedSha) {
+                console.log('PR head changed during polling (new commit pushed), skip merge');
+                return;
+              }
               if (pr.mergeable === true && (pr.mergeable_state === 'clean' || pr.mergeable_state === 'unstable')) {
                 console.log('PR mergeable, merging...');
                 break;
@@ -192,7 +196,12 @@ jobs:
               await sleep(POLL_MS);
             }
             try {
-              const res = await github.rest.pulls.merge({ ...opts, merge_method: 'rebase', commit_title: `Merge PR #${prNumber}: ${pr.title}` });
+              const res = await github.rest.pulls.merge({
+                ...opts,
+                merge_method: 'rebase',
+                commit_title: `Merge PR #${prNumber}: ${pr.title}`,
+                sha: validatedSha
+              });
               console.log(res.data.merged ? `✅ PR #${prNumber} merged` : `⚠️ Merge returned: ${res.data.message || 'unknown'}`);
             } catch (e) {
               console.log('Merge failed:', e.message, e.response?.data ? JSON.stringify(e.response.data) : '');
