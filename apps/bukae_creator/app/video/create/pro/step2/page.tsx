@@ -9,6 +9,8 @@ import { ProSceneCard, ProVoicePanel } from './components'
 import { conceptOptions } from '@/lib/data/templates'
 import type { ConceptType } from '@/lib/data/templates'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
+import { studioScriptApi } from '@/lib/api/studio-script'
+import { convertProductToProductResponse } from '@/lib/utils/converters/product-to-response'
 
 const DEFAULT_SCENE_COUNT = 6
 
@@ -82,10 +84,12 @@ export default function ProStep2Page() {
     // store에 저장 (localStorage에 자동 저장됨)
     setStoreScenes(updated.map((s, index) => proSceneToSceneScript(s, index)))
   }, [storeScenes, setStoreScenes])
+  const { selectedImages, selectedProducts } = useVideoCreateStore()
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
   const [voicePanelOpen, setVoicePanelOpen] = useState(false)
   const [selectedSceneIndex, setSelectedSceneIndex] = useState<number | null>(null)
+  const [isGeneratingAll, setIsGeneratingAll] = useState(false)
 
   const handleScriptStyleSelect = useCallback(
     (concept: ConceptType) => {
@@ -119,9 +123,58 @@ export default function ProStep2Page() {
     void index
   }, [])
 
-  const handleGenerateAllScripts = useCallback(() => {
-    // 추후 촬영 가이드/스크립트 생성 API 호출
-  }, [])
+  const handleGenerateAllScripts = useCallback(async () => {
+    if (!scriptStyle) {
+      alert('대본 스타일을 먼저 선택해주세요.')
+      return
+    }
+
+    if (!selectedImages || selectedImages.length === 0) {
+      alert('이미지를 먼저 선택해주세요.')
+      return
+    }
+
+    setIsGeneratingAll(true)
+
+    try {
+      const product = selectedProducts[0]
+
+      if (!product) {
+        alert('상품을 먼저 선택해주세요.')
+        return
+      }
+
+      // Product를 ProductResponse 형태로 변환
+      const productResponse = convertProductToProductResponse(product)
+
+      const data = await studioScriptApi.generateScripts({
+        product: productResponse,
+        type: scriptStyle,
+        imageUrls: selectedImages,
+      })
+
+      const items = Array.isArray(data) ? data : [data]
+
+      // 응답 데이터를 scenes에 반영
+      updateScenes((prev) => {
+        const updated = prev.map((scene, index) => {
+          const sceneData = items.find((item) => item.imageUrl === selectedImages[index]) || items[index]
+          return {
+            ...scene,
+            script: sceneData?.script || scene.script || '생성된 대본이 없어요.',
+          }
+        })
+        return updated
+      })
+
+      setHasUnsavedChanges(true)
+    } catch (error) {
+      console.error('대본 일괄 생성 오류:', error)
+      alert('대본 일괄 생성 중 오류가 발생했어요.')
+    } finally {
+      setIsGeneratingAll(false)
+    }
+  }, [scriptStyle, selectedImages, selectedProducts, updateScenes, setHasUnsavedChanges])
 
   const handleDragStart = useCallback((index: number) => {
     setDraggedIndex(index)
@@ -280,7 +333,7 @@ export default function ProStep2Page() {
               {scriptStyle && (
                 <section className="mb-16 space-y-12" data-pro-step2-below>
                   <div className="rounded-2xl bg-white/40 border border-white/10 p-6 shadow-(--shadow-container)">
-                    <AiScriptGenerateButton onClick={handleGenerateAllScripts} loading={false} />
+                    <AiScriptGenerateButton onClick={handleGenerateAllScripts} loading={isGeneratingAll} />
 
                     <div
                       className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6"
