@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowRight, Loader2, X } from 'lucide-react'
 import Image from 'next/image'
@@ -17,7 +17,7 @@ import {
 
 const ITEMS_PER_PAGE = 6 // 한 번에 추가로 표시할 아이템 수
 
-export default function Step1Page() {
+function Step1PageContent() {
   const container = useStep1Container()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -441,5 +441,20 @@ export default function Step1Page() {
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+export default function Step1Page() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-brand-background-start">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-brand-teal" />
+          <p className="text-brand-teal-dark">로딩 중...</p>
+        </div>
+      </div>
+    }>
+      <Step1PageContent />
+    </Suspense>
   )
 }

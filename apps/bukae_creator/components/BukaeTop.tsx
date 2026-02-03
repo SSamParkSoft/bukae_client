@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 import { User } from 'lucide-react'
 import TopNavigation, { TopNavTab } from './TopNavigation'
 import StepNavigation, { Step } from './StepNavigation'
@@ -27,7 +28,7 @@ function getSteps(track: 'fast' | 'pro'): Step[] {
   ]
 }
 
-export default function BukaeTop({
+function BukaeTopContent({
   variant,
   steps,
   currentStep,
@@ -150,5 +151,30 @@ export default function BukaeTop({
         </div>
       )}
     </div>
+  )
+}
+
+export default function BukaeTop(props: BukaeTopProps) {
+  return (
+    <Suspense fallback={
+      <div className={cn('w-full', props.className)}>
+        <div className="max-w-[1760px] mx-auto pt-4 pb-0" style={{ paddingLeft: '80px', paddingRight: '80px' }}>
+          <div className="flex items-center justify-between mb-6">
+            <Link href="/" className="shrink-0">
+              <Image
+                src="/bukae-logo.svg"
+                alt="부캐 로고"
+                width={189}
+                height={34}
+                className="h-[34px] w-auto"
+                priority
+              />
+            </Link>
+          </div>
+        </div>
+      </div>
+    }>
+      <BukaeTopContent {...props} />
+    </Suspense>
   )
 }
