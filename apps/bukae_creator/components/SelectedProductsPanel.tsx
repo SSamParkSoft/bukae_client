@@ -1,9 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { X, ArrowRight, ShoppingCart } from 'lucide-react'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,12 +19,15 @@ interface SelectedProductsPanelProps {
   currentProducts?: Product[]
 }
 
-export default function SelectedProductsPanel({ 
+// useSearchParams를 사용하는 내부 컴포넌트 (Suspense로 감싸야 함)
+function SelectedProductsPanelContent({ 
   className = '',
   productResponses = [],
   currentProducts = []
 }: SelectedProductsPanelProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const track = (searchParams?.get('track') === 'pro' ? 'pro' : 'fast') as 'fast' | 'pro'
   const { selectedProducts, removeProduct, addProduct } = useVideoCreateStore()
   const theme = useThemeStore((state) => state.theme)
   const [imageError, setImageError] = useState<Record<string, boolean>>({})
@@ -45,8 +48,8 @@ export default function SelectedProductsPanel({
       return
     }
 
-    // 이미지가 있으면 다음 단계로 이동
-    router.push('/video/create/step2')
+    // 이미지가 있으면 다음 단계로 이동 (track에 따라 fast/pro step2)
+    router.push(`/video/create/${track}/step2`)
   }
 
   // 쿠팡 상품의 크롤링된 이미지가 있는지 확인
@@ -275,6 +278,24 @@ export default function SelectedProductsPanel({
         </AnimatePresence>
       </div>
     </Card>
+  )
+}
+
+// Suspense로 감싼 메인 컴포넌트
+export default function SelectedProductsPanel(props: SelectedProductsPanelProps) {
+  return (
+    <Suspense fallback={
+      <Card className={`w-full max-h-[calc(100vh-8rem)] flex flex-col border-gray-200 ${props.className || ''}`}>
+        <CardHeader>
+          <CardTitle>선택된 상품</CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center">
+          <p className="text-sm text-gray-400">로딩 중...</p>
+        </CardContent>
+      </Card>
+    }>
+      <SelectedProductsPanelContent {...props} />
+    </Suspense>
   )
 }
 

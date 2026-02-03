@@ -9,6 +9,7 @@ import { conceptOptions, type ConceptType } from '@/lib/data/templates'
 import { useVideoCreateAuth } from '@/hooks/auth/useVideoCreateAuth'
 import { studioScriptApi } from '@/lib/api/studio-script'
 import { authStorage } from '@/lib/api/auth-storage'
+import { convertProductToProductResponse } from '@/lib/utils/converters/product-to-response'
 import { 
   requestCoupangExtensionStorage, 
   extractImagesFromStorage,
@@ -508,10 +509,17 @@ export function useStep2Container() {
     try {
       const product = selectedProducts[0]
 
+      if (!product) {
+        alert('상품을 먼저 선택해주세요.')
+        return
+      }
+
+      // Product를 ProductResponse 형태로 변환
+      const productResponse = convertProductToProductResponse(product)
+
       const data = await studioScriptApi.generateScripts({
-        topic: product?.name || '상품',
-        description: product?.name || '상품',
-        type: scriptStyle, // 새로운 타입 코드 그대로 사용
+        product: productResponse,
+        type: scriptStyle,
         imageUrls: selectedImages,
       })
 
@@ -762,7 +770,7 @@ export function useStep2Container() {
     }
     
     setScenes(finalScenes)
-    router.push('/video/create/step3')
+    router.push('/video/create/fast/step3')
   }, [isGeneratingAll, generatingScenes.size, selectedScriptStyle, selectedImages, sceneScripts, setScenes, router])
 
   return {

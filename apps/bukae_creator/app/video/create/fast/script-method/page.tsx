@@ -29,7 +29,7 @@ export default function ScriptMethodPage() {
 
   const handleNext = () => {
     setScriptMethod(selectedMethod)
-    router.push('/video/create/step2')
+    router.push('/video/create/fast/step2')
   }
 
   return (

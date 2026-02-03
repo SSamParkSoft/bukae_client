@@ -8,14 +8,14 @@
  */
 
 import type { ConceptType } from '@/lib/data/templates'
+import type { ProductResponse } from './products'
 
 // 대본 스타일 타입 (ConceptType과 동일)
 export type ScriptType = ConceptType
 
 // /api/v1/studio/scripts 의 요청 스키마 (ScriptRequest)
 export interface StudioScriptRequest {
-  topic: string // 상품명 또는 영상 주제
-  description: string // 핵심 설명/키워드 요약
+  product: ProductResponse // 상품 정보 (상품검색결과에서 주는 정보 그대로)
   type: ScriptType // 대본 스타일
   imageUrls: string[] // 분석할 이미지 URL 목록
 }

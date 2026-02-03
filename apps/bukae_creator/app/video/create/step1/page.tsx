@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowRight, Loader2, X } from 'lucide-react'
 import Image from 'next/image'
 import { useStep1Container } from './hooks/useStep1Container'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   SearchUrlToggle,
   LoadingIndicator,
@@ -17,9 +17,11 @@ import {
 
 const ITEMS_PER_PAGE = 6 // 한 번에 추가로 표시할 아이템 수
 
-export default function Step1Page() {
+function Step1PageContent() {
   const container = useStep1Container()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const track = (searchParams.get('track') === 'pro' ? 'pro' : 'fast') as 'fast' | 'pro'
   const [searchMode, setSearchMode] = useState<'search' | 'url'>('search')
   // SSR/CSR 일치 보장을 위해 클라이언트에서만 true로 설정
   const [hydrated] = useState(() => typeof window !== 'undefined')
@@ -421,7 +423,7 @@ export default function Step1Page() {
                     </div>
                     {/* 다음 단계 버튼 - 상품 내용 + X 버튼의 전체 너비 사용 */}
                     <button
-                      onClick={() => router.push('/video/create/step2')}
+                      onClick={() => router.push(`/video/create/${track}/step2`)}
                       className="h-20 rounded-2xl bg-[#5e8790] text-white font-bold flex items-center justify-center gap-2 hover:bg-[#3b6574] transition-colors tracking-[-0.48px] shadow-(--shadow-card-default) w-full"
                       style={{ 
                         fontSize: 'var(--font-size-24)',
@@ -439,5 +441,20 @@ export default function Step1Page() {
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+export default function Step1Page() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-brand-background-start">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-brand-teal" />
+          <p className="text-brand-teal-dark">로딩 중...</p>
+        </div>
+      </div>
+    }>
+      <Step1PageContent />
+    </Suspense>
   )
 }

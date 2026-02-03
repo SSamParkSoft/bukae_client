@@ -43,7 +43,7 @@ export const ScriptStyleSection = memo(function ScriptStyleSection({
         </p>
       </div>
 
-      <div className="rounded-2xl bg-white/40 border border-white/10 p-6 shadow-[var(--shadow-container)]">
+      <div className="rounded-2xl bg-white/40 border border-white/10 p-6 shadow-(--shadow-container)">
         <div className="grid grid-cols-3 gap-4">
           {conceptOptions.map((conceptOption) => (
             <ConceptCard

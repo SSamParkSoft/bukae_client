@@ -2,7 +2,8 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 import { User } from 'lucide-react'
 import TopNavigation, { TopNavTab } from './TopNavigation'
 import StepNavigation, { Step } from './StepNavigation'
@@ -18,14 +19,16 @@ interface BukaeTopProps {
   className?: string
 }
 
-const defaultSteps: Step[] = [
-  { number: 1, label: '상품 선택', path: '/video/create/step1' },
-  { number: 2, label: '대본 및 이미지', path: '/video/create/step2' },
-  { number: 3, label: '미리보기 및 편집', path: '/video/create/step3' },
-  { number: 4, label: '영상 생성', path: '/video/create/step4' },
-]
+function getSteps(track: 'fast' | 'pro'): Step[] {
+  return [
+    { number: 1, label: '상품 선택', path: `/video/create/step1?track=${track}` },
+    { number: 2, label: '대본 및 이미지', path: `/video/create/${track}/step2` },
+    { number: 3, label: '미리보기 및 편집', path: `/video/create/${track}/step3` },
+    { number: 4, label: '영상 생성', path: `/video/create/${track}/step4` },
+  ]
+}
 
-export default function BukaeTop({
+function BukaeTopContent({
   variant,
   steps,
   currentStep,
@@ -34,7 +37,16 @@ export default function BukaeTop({
 }: BukaeTopProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user, isAuthenticated } = useUserStore()
+
+  // track: pathname이 fast/pro 포함 시 해당 값, step1일 때만 searchParams 사용 (기본 fast)
+  const detectedTrack: 'fast' | 'pro' =
+    pathname?.includes('/fast') ? 'fast'
+    : pathname?.includes('/pro') ? 'pro'
+    : searchParams?.get('track') === 'pro' ? 'pro'
+    : 'fast'
+  const defaultSteps = getSteps(detectedTrack)
 
   // variant가 제공되지 않으면 pathname 기반으로 자동 감지
   const getVariant = (): 'login' | 'make' | 'mypage' | 'data' => {
@@ -139,5 +151,30 @@ export default function BukaeTop({
         </div>
       )}
     </div>
+  )
+}
+
+export default function BukaeTop(props: BukaeTopProps) {
+  return (
+    <Suspense fallback={
+      <div className={cn('w-full', props.className)}>
+        <div className="max-w-[1760px] mx-auto pt-4 pb-0" style={{ paddingLeft: '80px', paddingRight: '80px' }}>
+          <div className="flex items-center justify-between mb-6">
+            <Link href="/" className="shrink-0">
+              <Image
+                src="/bukae-logo.svg"
+                alt="부캐 로고"
+                width={189}
+                height={34}
+                className="h-[34px] w-auto"
+                priority
+              />
+            </Link>
+          </div>
+        </div>
+      </div>
+    }>
+      <BukaeTopContent {...props} />
+    </Suspense>
   )
 }

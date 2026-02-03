@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { authStorage } from '@/lib/api/auth-storage'
 import { groupScenesForExport, createTransitionMap } from '@/lib/utils/video-export'
 import { getFontFileName, SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
@@ -54,7 +54,16 @@ export function useVideoExport({
   textsRef,
 }: UseVideoExportParams) {
   const router = useRouter()
+  const pathname = usePathname()
   const [isExporting, setIsExporting] = useState(false)
+  
+  // 현재 경로에서 track 정보 파생 (/video/create/fast/step3 또는 /video/create/pro/step3)
+  const getCurrentTrack = useCallback((): 'fast' | 'pro' => {
+    if (pathname?.includes('/pro/')) {
+      return 'pro'
+    }
+    return 'fast'
+  }, [pathname])
 
   /**
    * 모든 씬의 캔버스 상태를 읽어서 transform 정보를 반환합니다.
@@ -759,10 +768,11 @@ export function useVideoExport({
 
       const result = await response.json()
       
-      // jobId를 받아서 step4로 이동
+      // jobId를 받아서 step4로 이동 (현재 track에 따라 경로 결정)
       if (result.jobId) {
         setIsExporting(false)
-        router.push(`/video/create/step4?jobId=${result.jobId}`)
+        const track = getCurrentTrack()
+        router.push(`/video/create/${track}/step4?jobId=${result.jobId}`)
       } else {
         setIsExporting(false)
         alert('영상 생성이 시작되었어요. 완료되면 알림을 받으실 수 있어요.')
@@ -785,6 +795,7 @@ export function useVideoExport({
     ensureSceneTts,
     getAllCanvasTransforms,
     router,
+    getCurrentTrack,
   ])
 
   return {
