@@ -72,6 +72,7 @@ export function ProVoicePanel({
   const [confirmOpen, setConfirmOpen] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const isMountedRef = useRef(true)
 
   // 현재 선택된 목소리에 따라 초기 탭 설정
   const initialTab = useMemo(() => {
@@ -158,6 +159,40 @@ export function ProVoicePanel({
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [open, onOpenChange])
+
+  // 패널이 닫힐 때 오디오 정리
+  useEffect(() => {
+    if (!open) {
+      // 패널이 닫히면 재생 중인 오디오 정지 및 정리
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
+        audioRef.current.onended = null
+        audioRef.current.onerror = null
+        audioRef.current = null
+      }
+      setIsPlaying(false)
+      setPlayingVoiceName(null)
+    }
+  }, [open])
+
+  // 컴포넌트 언마운트 시 오디오 정리
+  useEffect(() => {
+    isMountedRef.current = true
+
+    return () => {
+      isMountedRef.current = false
+      // 재생 중인 오디오 정지 및 정리
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.currentTime = 0
+        // 이벤트 핸들러 제거하여 메모리 누수 방지
+        audioRef.current.onended = null
+        audioRef.current.onerror = null
+        audioRef.current = null
+      }
+    }
+  }, [])
 
   const getShortName = useCallback((voiceName: string, voice?: PublicVoiceInfo) => {
     if (voice?.provider === 'elevenlabs' && voice.displayName) {
@@ -268,12 +303,16 @@ export function ProVoicePanel({
               const audio = new Audio(demoPath)
               audioRef.current = audio
               audio.onended = () => {
-                setIsPlaying(false)
-                setPlayingVoiceName(null)
+                if (isMountedRef.current) {
+                  setIsPlaying(false)
+                  setPlayingVoiceName(null)
+                }
               }
               audio.onerror = () => {
-                setIsPlaying(false)
-                setPlayingVoiceName(null)
+                if (isMountedRef.current) {
+                  setIsPlaying(false)
+                  setPlayingVoiceName(null)
+                }
               }
               setPlayingVoiceName(voiceName)
               setIsPlaying(true)
@@ -308,12 +347,16 @@ export function ProVoicePanel({
               const audio = new Audio(demoPath)
               audioRef.current = audio
               audio.onended = () => {
-                setIsPlaying(false)
-                setPlayingVoiceName(null)
+                if (isMountedRef.current) {
+                  setIsPlaying(false)
+                  setPlayingVoiceName(null)
+                }
               }
               audio.onerror = () => {
-                setIsPlaying(false)
-                setPlayingVoiceName(null)
+                if (isMountedRef.current) {
+                  setIsPlaying(false)
+                  setPlayingVoiceName(null)
+                }
               }
               setPlayingVoiceName(voiceName)
               setIsPlaying(true)
@@ -579,7 +622,7 @@ export function ProVoicePanel({
               >
                 이 씬만
               </Button>
-              {onVoiceSelectForAll ? (
+              {onVoiceSelectForAll && (
                 <Button
                   type="button"
                   size="sm"
@@ -598,10 +641,6 @@ export function ProVoicePanel({
                 >
                   전체
                 </Button>
-              ) : (
-                <div className="flex-1 text-center text-red-500 text-xs">
-                  onVoiceSelectForAll 없음
-                </div>
               )}
             </div>
           </div>
