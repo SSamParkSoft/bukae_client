@@ -416,7 +416,7 @@ jobs:
               // 실패해도 워크플로우는 성공으로 처리 (수동 머지 가능)
             }
 
-      - name: Skip message if CodeRabbit not completed
+      - name: Fail if CodeRabbit not completed
         if: |
           steps.check_coderabbit_status.outputs.is_completed == 'false' ||
           steps.check_coderabbit_status.outputs.has_error == 'true'
@@ -425,11 +425,19 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const hasError = '${{ steps.check_coderabbit_status.outputs.has_error }}' === 'true';
+            const prNumber = '${{ steps.validate_pr.outputs.pr_number }}';
+            
             if (hasError) {
-              console.log('⚠️ Error checking CodeRabbit status. Skipping auto-merge for safety.');
+              console.log('⚠️ Error checking CodeRabbit status. Failing workflow for safety.');
+              core.setFailed('Failed to check CodeRabbit status');
             } else {
-              console.log('⏳ CodeRabbit review is still in progress. Waiting for completion...');
-              console.log('This workflow will run again when PR is updated after CodeRabbit completes.');
+              console.log('⏳ CodeRabbit review is still in progress.');
+              console.log('This workflow will run again when CodeRabbit completes (via check_run event).');
+              console.log(`Waiting for CodeRabbit to complete for PR #${prNumber}...`);
+              
+              // CodeRabbit이 완료되지 않았으면 워크플로우 실패 처리
+              // 이렇게 하면 PR이 머지되지 않고, CodeRabbit이 완료되면 check_run 이벤트로 다시 실행됨
+              core.setFailed('CodeRabbit review is still in progress. This workflow will run again automatically when CodeRabbit completes.');
             }
 
       - name: Comment if Critical/Major issues found
