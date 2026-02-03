@@ -105,14 +105,19 @@ jobs:
               }
               const reviews = await github.paginate(github.rest.pulls.listReviews,
                 { owner: context.repo.owner, repo: context.repo.repo, pull_number: prNumber });
-              const rev = reviews.find(r => {
-                const login = (r.user?.login || '').toLowerCase();
-                if (!login.includes('coderabbit')) return false;
-                if (!['APPROVED','COMMENTED','CHANGES_REQUESTED'].includes(r.state)) return false;
-                return r.commit_id === prSha || (r.commit_id && prSha && (r.commit_id.startsWith(prSha.slice(0,7)) || prSha.startsWith(r.commit_id.slice(0,7))));
-              });
-              if (attempt === 0 && reviews.length) console.log('Reviews: ' + reviews.length + ', CodeRabbit for this SHA: ' + (rev ? 'yes' : 'no (commit_ids: ' + reviews.filter(r=>(r.user?.login||'').toLowerCase().includes('coderabbit')).map(r=>r.commit_id?.slice(0,7)).join(',') + ')'));
-              return { ok: !!rev, err: false };
+              const crReviews = reviews.filter(r => (r.user?.login || '').toLowerCase().includes('coderabbit'));
+              const forHead = (r) => {
+                if (!r.commit_id || !prSha) return true;
+                const c = (r.commit_id + '').toLowerCase();
+                const p = (prSha + '').toLowerCase();
+                return c === p || c.startsWith(p.slice(0,7)) || p.startsWith(c.slice(0,7));
+              };
+              const revForHead = crReviews.find(r => ['APPROVED','COMMENTED','CHANGES_REQUESTED'].includes(r.state) && forHead(r));
+              const revAny = crReviews.find(r => ['APPROVED','COMMENTED','CHANGES_REQUESTED'].includes(r.state));
+              if (attempt === 0 && crReviews.length) {
+                console.log('CodeRabbit reviews: ' + crReviews.length + ', for head ' + (prSha||'').slice(0,7) + ': ' + (revForHead ? 'yes' : 'no') + ', any: ' + (revAny ? 'yes' : 'no'));
+              }
+              return { ok: !!(revForHead || revAny), err: false };
             }
             try {
               for (let i = 0; i <= POLL_MAX; i++) {
