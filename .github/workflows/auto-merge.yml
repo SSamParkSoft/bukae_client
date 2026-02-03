@@ -438,6 +438,38 @@ jobs:
               return;
             }
 
+            // GitHub가 머지 가능 상태(필수 체크 통과 등)가 될 때까지 대기
+            const POLL_INTERVAL_MS = 30000;
+            const POLL_MAX_MINUTES = 10;
+            const POLL_ATTEMPTS = (POLL_MAX_MINUTES * 60 * 1000) / POLL_INTERVAL_MS;
+            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+            let latestPr = pr;
+            for (let attempt = 0; attempt <= POLL_ATTEMPTS; attempt++) {
+              const { data: p } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+              });
+              latestPr = p;
+              if (p.state !== 'open' || p.merged) {
+                console.log(`PR #${prNumber} is no longer open or already merged`);
+                return;
+              }
+              // mergeable: true, mergeable_state: 'clean' 이어야 머지 가능 (null은 GitHub가 아직 계산 중)
+              if (p.mergeable === true && (p.mergeable_state === 'clean' || p.mergeable_state === 'unstable')) {
+                console.log(`PR mergeable (mergeable_state=${p.mergeable_state}). Proceeding to merge.`);
+                break;
+              }
+              if (attempt < POLL_ATTEMPTS) {
+                console.log(`PR not mergeable yet (mergeable=${p.mergeable}, mergeable_state=${p.mergeable_state}). Waiting ${POLL_INTERVAL_MS / 1000}s... (${attempt + 1}/${POLL_ATTEMPTS})`);
+                await sleep(POLL_INTERVAL_MS);
+              } else {
+                console.log(`PR still not mergeable after ${POLL_MAX_MINUTES} min (mergeable=${latestPr.mergeable}, mergeable_state=${latestPr.mergeable_state}). Required status checks may be pending. This workflow will run again when checks complete (check_run).`);
+                return;
+              }
+            }
+
             // 자동 머지 실행 (rebase 방식)
             try {
               console.log(`Attempting to merge PR #${prNumber} using rebase...`);
@@ -447,7 +479,7 @@ jobs:
                 repo: context.repo.repo,
                 pull_number: prNumber,
                 merge_method: 'rebase',
-                commit_title: `Merge PR #${prNumber}: ${pr.title}`,
+                commit_title: `Merge PR #${prNumber}: ${latestPr.title}`,
               });
               
               if (mergeResult.data.merged) {
@@ -465,14 +497,13 @@ jobs:
                 console.log(`Response data: ${JSON.stringify(error.response.data, null, 2)}`);
               }
               
-              // 일반적인 실패 원인 안내
               if (error.status === 405) {
-                console.log('💡 Hint: This might be due to branch protection rules or merge conflicts.');
+                console.log('💡 Hint: Branch protection required checks may not be satisfied. Ensure required status checks are passed or adjust branch protection.');
               } else if (error.status === 409) {
                 console.log('💡 Hint: Merge conflict detected. Please resolve conflicts manually.');
               }
               
-              // 실패해도 워크플로우는 성공으로 처리 (수동 머지 가능)
+              core.setFailed(`Auto-merge failed: ${error.message}`);
             }
 
       - name: Fail if CodeRabbit not completed
