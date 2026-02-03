@@ -354,7 +354,6 @@ export default function ProStep2Page() {
                           scriptText={scene.script}
                           onScriptChange={(value) => handleScriptChange(index, value)}
                           voiceLabel={scene.voiceLabel}
-                          onUpload={() => handleUpload(index)}
                           onVoiceClick={() => handleVoiceButtonClick(index)}
                           onDelete={() => handleSceneDelete(index)}
                           onDragStart={(e) => {

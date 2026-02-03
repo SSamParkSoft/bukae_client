@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import Image from 'next/image'
-import { GripVertical, X, Loader2, Upload } from 'lucide-react'
+import { GripVertical, X, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export interface ProSceneCardProps {
@@ -10,7 +10,6 @@ export interface ProSceneCardProps {
   scriptText: string
   onScriptChange: (value: string) => void
   voiceLabel?: string
-  onUpload?: () => void
   onVoiceClick?: () => void
   onDelete?: () => void
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void
@@ -29,7 +28,6 @@ export const ProSceneCard = memo(function ProSceneCard({
   scriptText,
   onScriptChange,
   voiceLabel,
-  onUpload,
   onVoiceClick,
   onDelete,
   onDragStart,
@@ -59,59 +57,19 @@ export const ProSceneCard = memo(function ProSceneCard({
         <div className="h-0.5 bg-brand-teal rounded-full -mt-3 mb-3" aria-hidden />
       )}
       <div className="flex gap-6 flex-col sm:flex-row">
-        {/* 좌측: 드래그 아이콘(왼쪽, 높이 중간) + 영상 업로드·보이스 한 div */}
-        <div className="flex items-center gap-4 shrink-0">
-          {onDragStart && (
+        {/* 좌측: 드래그 아이콘 */}
+        {onDragStart && (
+          <div className="flex items-start shrink-0">
             <div
               className="cursor-move text-text-tertiary shrink-0 touch-none self-center"
               aria-hidden
             >
               <GripVertical className="w-5 h-5" />
             </div>
-          )}
-          <div className="flex flex-col gap-4 shrink-0">
-            <button
-              type="button"
-              onClick={onUpload}
-              className="w-20 h-20 sm:w-[120px] sm:h-[120px] rounded-lg overflow-hidden bg-[#606060] hover:bg-[#404040] transition-colors flex flex-col items-center justify-center gap-1.5 text-text-tertiary shrink-0"
-            >
-              <span
-                className="font-bold text-white rounded-lg px-2 py-1 bg-white/20"
-                style={{
-                  fontSize: 'var(--font-size-14)',
-                  lineHeight: 'var(--line-height-14-140)',
-                }}
-              >
-                + 영상 업로드
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={onVoiceClick}
-              className="w-20 h-10 sm:w-[120px] rounded-lg overflow-hidden bg-white border border-[#BBC9C9] hover:bg-[#e4eeed] transition-colors flex items-center justify-center gap-2 text-text-tertiary shrink-0 px-2"
-              aria-label="보이스 선택"
-            >
-              <Image
-                src="/e_voice.svg"
-                alt="보이스"
-                width={20}
-                height={20}
-                className="shrink-0"
-              />
-              <span
-                className="font-bold whitespace-nowrap"
-                style={{
-                  fontSize: 'var(--font-size-14)',
-                  lineHeight: 'var(--line-height-12-140)',
-                }}
-              >
-                보이스
-              </span>
-            </button>
           </div>
-        </div>
+        )}
 
-        {/* 우측: Scene N + 삭제, 대본, 적용된 보이스 */}
+        {/* 우측: Scene N + 삭제, 대본, 보이스 버튼, 적용된 보이스 */}
         <div className="flex-1 min-w-0 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <p
@@ -144,7 +102,7 @@ export const ProSceneCard = memo(function ProSceneCard({
             placeholder="대본을 입력하세요."
             disabled={isGenerating}
             rows={2}
-            className="w-full p-3 rounded-lg border border-gray-300 bg-white text-text-dark placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-brand-teal focus:border-transparent resize-none disabled:opacity-60 shadow-(--shadow-card-default)"
+            className="w-full p-3 rounded-lg bg-white text-text-dark placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-brand-teal focus:border-transparent resize-none disabled:opacity-60 shadow-(--shadow-card-default)"
             style={{
               fontSize: 'var(--font-size-14)',
               lineHeight: 'var(--line-height-14-140)',
@@ -157,26 +115,52 @@ export const ProSceneCard = memo(function ProSceneCard({
             </div>
           )}
 
-          <div
-            className="flex justify-end items-center gap-1 rounded-3xl border-2 border-white bg-white/30 px-3 py-2 shadow-(--shadow-card-default) backdrop-blur-sm text-text-tertiary w-fit ml-auto"
-            style={{
-              fontSize: 'var(--font-size-14)',
-              lineHeight: 'var(--line-height-14-140)',
-              fontWeight: 'var(--font-weight-medium)',
-            }}
-          >
-            <span>적용된 보이스 | &nbsp;</span>
-            {voiceLabel && (
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={onVoiceClick}
+              className="w-full sm:w-[120px] h-10 rounded-lg overflow-hidden bg-white border border-[#BBC9C9] hover:bg-[#e4eeed] transition-colors flex items-center justify-center gap-2 text-text-tertiary shrink-0 px-2"
+              aria-label="보이스 선택"
+            >
+              <Image
+                src="/e_voice.svg"
+                alt="보이스"
+                width={20}
+                height={20}
+                className="shrink-0"
+              />
               <span
+                className="font-bold whitespace-nowrap"
                 style={{
-                  fontSize: 'var(--font-size-16)',
-                  lineHeight: 'var(--line-height-16-140)',
-                  fontWeight: 'var(--font-weight-bold)',
+                  fontSize: 'var(--font-size-14)',
+                  lineHeight: 'var(--line-height-12-140)',
                 }}
               >
-                {voiceLabel}
+                보이스
               </span>
-            )}
+            </button>
+
+            <div
+              className="flex items-center gap-1 rounded-3xl border-2 border-white bg-white/30 px-3 py-2 shadow-(--shadow-card-default) backdrop-blur-sm text-text-tertiary"
+              style={{
+                fontSize: 'var(--font-size-14)',
+                lineHeight: 'var(--line-height-14-140)',
+                fontWeight: 'var(--font-weight-medium)',
+              }}
+            >
+              <span>적용된 보이스 | &nbsp;</span>
+              {voiceLabel && (
+                <span
+                  style={{
+                    fontSize: 'var(--font-size-16)',
+                    lineHeight: 'var(--line-height-16-140)',
+                    fontWeight: 'var(--font-weight-bold)',
+                  }}
+                >
+                  {voiceLabel}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
