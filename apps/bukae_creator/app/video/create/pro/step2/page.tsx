@@ -140,6 +140,7 @@ export default function ProStep2Page() {
       const product = selectedProducts[0]
 
       if (!product) {
+        setIsGeneratingAll(false)
         alert('상품을 먼저 선택해주세요.')
         return
       }
