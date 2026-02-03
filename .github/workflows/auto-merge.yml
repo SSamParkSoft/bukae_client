@@ -110,10 +110,53 @@ jobs:
           script: |
             const prNumber = '${{ steps.validate_pr.outputs.pr_number }}';
             const prSha = '${{ steps.validate_pr.outputs.pr_sha }}';
-            
-            // 항상 기본값 설정 (스텝이 실패해도 출력값이 설정되도록)
+            const POLL_INTERVAL_MS = 30000;
+            const POLL_MAX_MINUTES = 15;
+            const POLL_ATTEMPTS = (POLL_MAX_MINUTES * 60 * 1000) / POLL_INTERVAL_MS;
+
             let isCompleted = false;
-            
+
+            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+            async function checkCodeRabbitCompleted() {
+              const { data: checks } = await github.rest.checks.listForRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: prSha,
+                per_page: 100,
+              });
+
+              const codeRabbitCheck = checks.check_runs.find(
+                check => {
+                  const name = check.name.toLowerCase();
+                  return name.includes('coderabbit') || name.includes('code-rabbit') ||
+                         name.includes('code rabbit') || name === 'code rabbit' ||
+                         check.app?.name?.toLowerCase().includes('coderabbit');
+                }
+              );
+
+              if (codeRabbitCheck) {
+                return codeRabbitCheck.status === 'completed';
+              }
+
+              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+              });
+
+              const codeRabbitReview = reviews.find(
+                review => {
+                  const login = review.user?.login?.toLowerCase() || '';
+                  const isCodeRabbit = login.includes('coderabbit') || login === 'coderabbitai';
+                  const commitMatches = review.commit_id === prSha;
+                  const reviewDone = review.state === 'APPROVED' || review.state === 'COMMENTED' || review.state === 'completed';
+                  return isCodeRabbit && commitMatches && reviewDone;
+                }
+              );
+              return !!codeRabbitReview;
+            }
+
             try {
               if (!prNumber) {
                 console.log('No PR number found');
@@ -122,78 +165,28 @@ jobs:
                 return;
               }
 
-              console.log(`Checking CodeRabbit status for PR #${prNumber}...`);
+              console.log(`Checking CodeRabbit status for PR #${prNumber} (ref: ${prSha})...`);
 
-              // CodeRabbit 체크 상태 확인 (per_page 100으로 한 번에 더 많이 가져오기)
-              const { data: checks } = await github.rest.checks.listForRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: prSha,
-                per_page: 100,
-              });
+              for (let attempt = 0; attempt <= POLL_ATTEMPTS; attempt++) {
+                isCompleted = await checkCodeRabbitCompleted();
 
-              // 디버깅: 모든 체크 이름 출력
-              console.log(`Found ${checks.check_runs.length} checks (ref: ${prSha}):`);
-              checks.check_runs.forEach(check => {
-                console.log(`  - ${check.name} (app: ${check.app?.name || 'none'}, status: ${check.status}, conclusion: ${check.conclusion || 'none'})`);
-              });
-
-              // CodeRabbit 체크 찾기 (이름 + app 이름 모두 매칭)
-              const codeRabbitCheck = checks.check_runs.find(
-                check => {
-                  const name = check.name.toLowerCase();
-                  return name.includes('coderabbit') || 
-                         name.includes('code-rabbit') ||
-                         name.includes('code rabbit') ||
-                         name === 'code rabbit' ||
-                         check.app?.name?.toLowerCase().includes('coderabbit');
+                if (isCompleted) {
+                  console.log(`CodeRabbit review completed (after ${attempt > 0 ? attempt + ' poll(s)' : 'initial check'}).`);
+                  break;
                 }
-              );
 
-              if (!codeRabbitCheck) {
-                console.log('CodeRabbit check not found in status checks. Checking reviews...');
-                
-                // Status Check가 없으면 Review 상태 확인
-                try {
-                  const reviews = await github.paginate(github.rest.pulls.listReviews, {
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    pull_number: prNumber,
-                  });
-
-                  const codeRabbitReview = reviews.find(
-                    review => {
-                      const login = review.user?.login?.toLowerCase() || '';
-                      const isCodeRabbit = login.includes('coderabbit') || login === 'coderabbitai';
-                      const commitMatches = review.commit_id === prSha;
-                      // APPROVED: 승인, COMMENTED: 리뷰 완료(코멘트만), completed는 API에 없을 수 있음
-                      const reviewDone = review.state === 'APPROVED' || review.state === 'COMMENTED' || review.state === 'completed';
-                      return isCodeRabbit && commitMatches && reviewDone;
-                    }
-                  );
-
-                  if (codeRabbitReview) {
-                    // 현재 커밋에 대한 승인된 CodeRabbit 리뷰가 있으면 완료된 것으로 간주
-                    isCompleted = true;
-                    console.log(`CodeRabbit review found for commit ${prSha}: ${codeRabbitReview.state}`);
-                  } else {
-                    console.log(`CodeRabbit review not found for current commit ${prSha} - may not have started yet or not approved`);
-                    core.setOutput('is_completed', 'false');
-                    core.setOutput('has_error', 'false');
-                    return;
-                  }
-                } catch (error) {
-                  console.log(`Error checking reviews: ${error.message}`);
+                if (attempt < POLL_ATTEMPTS) {
+                  console.log(`CodeRabbit not completed yet. Waiting ${POLL_INTERVAL_MS / 1000}s... (attempt ${attempt + 1}/${POLL_ATTEMPTS})`);
+                  await sleep(POLL_INTERVAL_MS);
+                } else {
+                  console.log('CodeRabbit did not complete within ' + POLL_MAX_MINUTES + ' minutes.');
                   core.setOutput('is_completed', 'false');
                   core.setOutput('has_error', 'false');
+                  core.setFailed('CodeRabbit review did not complete within ' + POLL_MAX_MINUTES + ' minutes. Re-run the workflow or push a new commit.');
                   return;
                 }
-              } else {
-                isCompleted = codeRabbitCheck.status === 'completed';
-                console.log(`CodeRabbit check found: ${codeRabbitCheck.name}`);
-                console.log(`Status: ${codeRabbitCheck.status}, Conclusion: ${codeRabbitCheck.conclusion || 'none'}, Completed: ${isCompleted}`);
               }
-              
+
               core.setOutput('is_completed', isCompleted.toString());
               core.setOutput('has_error', 'false');
             } catch (error) {
