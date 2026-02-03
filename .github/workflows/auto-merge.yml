@@ -11,6 +11,12 @@ on:
 jobs:
   check-and-merge:
     runs-on: ubuntu-latest
+    # GitHub Actions 권한 설정 (PR 코멘트 작성 및 머지에 필요)
+    permissions:
+      contents: write  # PR 머지에 필요
+      pull-requests: write  # PR 정보 읽기 및 머지에 필요
+      issues: write  # PR 코멘트 작성에 필요
+      checks: read  # 체크 상태 확인에 필요
     # 각 이벤트 타입에 따라 PR이 존재하는지 확인
     # pull_request 이벤트: github.event.pull_request 존재
     # issue_comment 이벤트: github.event.issue.pull_request 존재 (PR인 경우)
