@@ -91,6 +91,7 @@ jobs:
             core.setOutput('is_valid', isValid.toString());
             core.setOutput('pr_number', prNumber.toString());
             core.setOutput('pr_sha', pr.head?.sha || context.sha);
+            core.setOutput('pr_head_ref', pr.head?.ref || '');
 
             if (!isValid) {
               if (!isValidBase) {
@@ -110,7 +111,8 @@ jobs:
           script: |
             const prNumber = '${{ steps.validate_pr.outputs.pr_number }}';
             const prSha = '${{ steps.validate_pr.outputs.pr_sha }}';
-            const POLL_INTERVAL_MS = 30000;
+            const prHeadRef = '${{ steps.validate_pr.outputs.pr_head_ref }}';
+            const POLL_INTERVAL_MS = 15000;
             const POLL_MAX_MINUTES = 15;
             const POLL_ATTEMPTS = (POLL_MAX_MINUTES * 60 * 1000) / POLL_INTERVAL_MS;
 
@@ -119,21 +121,32 @@ jobs:
             const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
             async function checkCodeRabbitCompleted(attemptIndex) {
-              // 체크 목록은 페이지네이션 가능하므로 모두 수집 (listForRef는 data.check_runs 반환)
-              const allCheckRuns = await github.paginate(
+              // SHA로 조회 후, 브랜치 ref로도 조회해 합침 (CodeRabbit 등이 브랜치 ref로만 올리는 경우 대비)
+              const fetchCheckRuns = async (ref) => github.paginate(
                 github.rest.checks.listForRef,
-                {
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  ref: prSha,
-                  per_page: 100,
-                },
+                { owner: context.repo.owner, repo: context.repo.repo, ref, per_page: 100 },
                 (response) => response.data.check_runs || []
               );
 
+              let bySha = await fetchCheckRuns(prSha);
+              let byBranch = [];
+              if (prHeadRef) {
+                try {
+                  byBranch = await fetchCheckRuns(prHeadRef);
+                } catch (e) {
+                  if (attemptIndex === 0) console.log(`Check runs for branch ${prHeadRef}: (skip ${e.message})`);
+                }
+              }
+
+              const seen = new Set();
+              const allCheckRuns = [];
+              for (const run of [...bySha, ...byBranch]) {
+                if (run.id && !seen.has(run.id)) { seen.add(run.id); allCheckRuns.push(run); }
+              }
+
               if (attemptIndex === 0) {
                 const summary = allCheckRuns.map(c => `${c.name}=${c.status}/${c.conclusion || 'null'} (app: ${c.app?.name || 'n/a'})`).join(', ');
-                console.log(`Check runs for ref ${prSha}: ${summary || '(none)'}`);
+                console.log(`Check runs (sha ${prSha.slice(0, 7)}${prHeadRef ? ', branch ' + prHeadRef : ''}): ${summary || '(none)'}`);
               }
 
               const codeRabbitCheck = allCheckRuns.find(
