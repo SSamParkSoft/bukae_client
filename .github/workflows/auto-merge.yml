@@ -121,20 +121,24 @@ jobs:
             const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
             async function checkCodeRabbitCompleted(attemptIndex) {
-              // SHA로 조회 후, 브랜치 ref로도 조회해 합침 (CodeRabbit 등이 브랜치 ref로만 올리는 경우 대비)
-              const fetchCheckRuns = async (ref) => github.paginate(
+              // SHA로 조회 후, 브랜치 ref(heads/xxx)로도 조회해 합침 (CodeRabbit 등이 full ref로 올리는 경우 대비)
+              const fetchCheckRuns = async (ref, opts = {}) => github.paginate(
                 github.rest.checks.listForRef,
-                { owner: context.repo.owner, repo: context.repo.repo, ref, per_page: 100 },
+                { owner: context.repo.owner, repo: context.repo.repo, ref, per_page: 100, ...opts },
                 (response) => response.data.check_runs || []
               );
 
-              let bySha = await fetchCheckRuns(prSha);
+              let bySha = await fetchCheckRuns(prSha, { filter: 'all' });
               let byBranch = [];
               if (prHeadRef) {
-                try {
-                  byBranch = await fetchCheckRuns(prHeadRef);
-                } catch (e) {
-                  if (attemptIndex === 0) console.log(`Check runs for branch ${prHeadRef}: (skip ${e.message})`);
+                const branchRefs = prHeadRef.startsWith('heads/') ? [prHeadRef] : [prHeadRef, 'heads/' + prHeadRef];
+                for (const ref of branchRefs) {
+                  try {
+                    const runs = await fetchCheckRuns(ref, { filter: 'all' });
+                    if (runs.length) { byBranch = runs; break; }
+                  } catch (e) {
+                    if (attemptIndex === 0 && ref === branchRefs[branchRefs.length - 1]) console.log(`Check runs for branch ${prHeadRef}: (skip ${e.message})`);
+                  }
                 }
               }
 
