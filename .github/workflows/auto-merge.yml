@@ -154,7 +154,7 @@ jobs:
                 
                 // Status Check가 없으면 Review 상태 확인
                 try {
-                  const { data: reviews } = await github.rest.pulls.listReviews({
+                  const reviews = await github.paginate(github.rest.pulls.listReviews, {
                     owner: context.repo.owner,
                     repo: context.repo.repo,
                     pull_number: prNumber,
@@ -163,16 +163,19 @@ jobs:
                   const codeRabbitReview = reviews.find(
                     review => {
                       const login = review.user?.login?.toLowerCase() || '';
-                      return login.includes('coderabbit') || login === 'coderabbitai';
+                      const isCodeRabbit = login.includes('coderabbit') || login === 'coderabbitai';
+                      const commitMatches = review.commit_id === prSha;
+                      const isApproved = review.state === 'APPROVED' || review.state === 'completed';
+                      return isCodeRabbit && commitMatches && isApproved;
                     }
                   );
 
                   if (codeRabbitReview) {
-                    // Review가 있으면 완료된 것으로 간주 (Review는 항상 completed 상태)
+                    // 현재 커밋에 대한 승인된 CodeRabbit 리뷰가 있으면 완료된 것으로 간주
                     isCompleted = true;
-                    console.log(`CodeRabbit review found: ${codeRabbitReview.state || 'submitted'}`);
+                    console.log(`CodeRabbit review found for commit ${prSha}: ${codeRabbitReview.state}`);
                   } else {
-                    console.log('CodeRabbit review not found - may not have started yet');
+                    console.log(`CodeRabbit review not found for current commit ${prSha} - may not have started yet or not approved`);
                     core.setOutput('is_completed', 'false');
                     core.setOutput('has_error', 'false');
                     return;
@@ -241,37 +244,43 @@ jobs:
 
             let hasCriticalOrMajor = false;
 
-            // 1. PR 레벨 코멘트 체크
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-            });
-            
-            const codeRabbitComments = comments.filter(
-              comment => comment.user?.login && isCodeRabbitBot(comment.user.login)
-            );
+            // 1. PR 레벨 코멘트 체크 (모든 페이지 가져오기)
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+              });
+              
+              const codeRabbitComments = comments.filter(
+                comment => comment.user?.login && isCodeRabbitBot(comment.user.login)
+              );
 
-            console.log(`Found ${codeRabbitComments.length} CodeRabbit PR-level comments`);
+              console.log(`Found ${codeRabbitComments.length} CodeRabbit PR-level comments (across all pages)`);
 
-            for (const comment of codeRabbitComments) {
-              const body = comment.body || '';
-              if (criticalPatterns.some(pattern => pattern.test(body))) {
-                hasCriticalOrMajor = true;
-                console.log(`❌ Critical or Major issue found in PR comment #${comment.id} by ${comment.user?.login || 'deleted user'}`);
-                console.log(`Preview: ${body.substring(0, 150)}...`);
-                break;
+              for (const comment of codeRabbitComments) {
+                const body = comment.body || '';
+                if (criticalPatterns.some(pattern => pattern.test(body))) {
+                  hasCriticalOrMajor = true;
+                  console.log(`❌ Critical or Major issue found in PR comment #${comment.id} by ${comment.user?.login || 'deleted user'}`);
+                  console.log(`Preview: ${body.substring(0, 150)}...`);
+                  break;
+                }
               }
+            } catch (error) {
+              console.log('Could not fetch PR-level comments:', error.message);
             }
 
-            // 2. PR 리뷰 바디 체크
+            // 2. PR 리뷰 바디 체크 (모든 페이지 가져오기)
             if (!hasCriticalOrMajor) {
               try {
-                const { data: reviews } = await github.rest.pulls.listReviews({
+                const reviews = await github.paginate(github.rest.pulls.listReviews, {
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   pull_number: prNumber,
                 });
+
+                console.log(`Found ${reviews.length} reviews (across all pages), checking for CodeRabbit reviews...`);
 
                 for (const review of reviews) {
                   if (review.user?.login && isCodeRabbitBot(review.user.login)) {
@@ -288,16 +297,17 @@ jobs:
               }
             }
 
-            // 3. 인라인 코드 코멘트 체크 (CodeRabbit이 Critical/Major 이슈를 인라인 코멘트로 보고하는 경우가 많음)
+            // 3. 인라인 코드 코멘트 체크 (모든 페이지 가져오기)
+            // CodeRabbit이 Critical/Major 이슈를 인라인 코멘트로 보고하는 경우가 많음
             if (!hasCriticalOrMajor) {
               try {
-                const { data: reviewComments } = await github.rest.pulls.listReviewComments({
+                const reviewComments = await github.paginate(github.rest.pulls.listReviewComments, {
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   pull_number: prNumber,
                 });
 
-                console.log(`Found ${reviewComments.length} review comments, checking for CodeRabbit inline comments...`);
+                console.log(`Found ${reviewComments.length} review comments (across all pages), checking for CodeRabbit inline comments...`);
 
                 for (const comment of reviewComments) {
                   if (comment.user?.login && isCodeRabbitBot(comment.user.login)) {
