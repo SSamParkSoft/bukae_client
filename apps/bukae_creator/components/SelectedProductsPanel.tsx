@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { X, ArrowRight, ShoppingCart } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -19,7 +19,8 @@ interface SelectedProductsPanelProps {
   currentProducts?: Product[]
 }
 
-export default function SelectedProductsPanel({ 
+// useSearchParams를 사용하는 내부 컴포넌트 (Suspense로 감싸야 함)
+function SelectedProductsPanelContent({ 
   className = '',
   productResponses = [],
   currentProducts = []
@@ -277,6 +278,24 @@ export default function SelectedProductsPanel({
         </AnimatePresence>
       </div>
     </Card>
+  )
+}
+
+// Suspense로 감싼 메인 컴포넌트
+export default function SelectedProductsPanel(props: SelectedProductsPanelProps) {
+  return (
+    <Suspense fallback={
+      <Card className={`w-full max-h-[calc(100vh-8rem)] flex flex-col border-gray-200 ${props.className || ''}`}>
+        <CardHeader>
+          <CardTitle>선택된 상품</CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center">
+          <p className="text-sm text-gray-400">로딩 중...</p>
+        </CardContent>
+      </Card>
+    }>
+      <SelectedProductsPanelContent {...props} />
+    </Suspense>
   )
 }
 
