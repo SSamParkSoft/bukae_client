@@ -124,20 +124,21 @@ jobs:
 
               console.log(`Checking CodeRabbit status for PR #${prNumber}...`);
 
-              // CodeRabbit 체크 상태 확인
+              // CodeRabbit 체크 상태 확인 (per_page 100으로 한 번에 더 많이 가져오기)
               const { data: checks } = await github.rest.checks.listForRef({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 ref: prSha,
+                per_page: 100,
               });
 
               // 디버깅: 모든 체크 이름 출력
-              console.log(`Found ${checks.check_runs.length} checks:`);
+              console.log(`Found ${checks.check_runs.length} checks (ref: ${prSha}):`);
               checks.check_runs.forEach(check => {
-                console.log(`  - ${check.name} (status: ${check.status}, conclusion: ${check.conclusion || 'none'})`);
+                console.log(`  - ${check.name} (app: ${check.app?.name || 'none'}, status: ${check.status}, conclusion: ${check.conclusion || 'none'})`);
               });
 
-              // CodeRabbit 체크 찾기 (더 넓은 패턴)
+              // CodeRabbit 체크 찾기 (이름 + app 이름 모두 매칭)
               const codeRabbitCheck = checks.check_runs.find(
                 check => {
                   const name = check.name.toLowerCase();
@@ -165,8 +166,9 @@ jobs:
                       const login = review.user?.login?.toLowerCase() || '';
                       const isCodeRabbit = login.includes('coderabbit') || login === 'coderabbitai';
                       const commitMatches = review.commit_id === prSha;
-                      const isApproved = review.state === 'APPROVED' || review.state === 'completed';
-                      return isCodeRabbit && commitMatches && isApproved;
+                      // APPROVED: 승인, COMMENTED: 리뷰 완료(코멘트만), completed는 API에 없을 수 있음
+                      const reviewDone = review.state === 'APPROVED' || review.state === 'COMMENTED' || review.state === 'completed';
+                      return isCodeRabbit && commitMatches && reviewDone;
                     }
                   );
 
