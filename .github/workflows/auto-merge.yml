@@ -125,19 +125,63 @@ jobs:
                 ref: prSha,
               });
 
+              // 디버깅: 모든 체크 이름 출력
+              console.log(`Found ${checks.check_runs.length} checks:`);
+              checks.check_runs.forEach(check => {
+                console.log(`  - ${check.name} (status: ${check.status}, conclusion: ${check.conclusion || 'none'})`);
+              });
+
+              // CodeRabbit 체크 찾기 (더 넓은 패턴)
               const codeRabbitCheck = checks.check_runs.find(
-                check => check.name.includes('CodeRabbit') || check.name.includes('code-rabbit')
+                check => {
+                  const name = check.name.toLowerCase();
+                  return name.includes('coderabbit') || 
+                         name.includes('code-rabbit') ||
+                         name.includes('code rabbit') ||
+                         name === 'code rabbit' ||
+                         check.app?.name?.toLowerCase().includes('coderabbit');
+                }
               );
 
               if (!codeRabbitCheck) {
-                console.log('CodeRabbit check not found - may not have started yet');
-                core.setOutput('is_completed', 'false');
-                core.setOutput('has_error', 'false');
-                return;
-              }
+                console.log('CodeRabbit check not found in status checks. Checking reviews...');
+                
+                // Status Check가 없으면 Review 상태 확인
+                try {
+                  const { data: reviews } = await github.rest.pulls.listReviews({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: prNumber,
+                  });
 
-              isCompleted = codeRabbitCheck.status === 'completed';
-              console.log(`CodeRabbit check status: ${codeRabbitCheck.status}, completed: ${isCompleted}`);
+                  const codeRabbitReview = reviews.find(
+                    review => {
+                      const login = review.user?.login?.toLowerCase() || '';
+                      return login.includes('coderabbit') || login === 'coderabbitai';
+                    }
+                  );
+
+                  if (codeRabbitReview) {
+                    // Review가 있으면 완료된 것으로 간주 (Review는 항상 completed 상태)
+                    isCompleted = true;
+                    console.log(`CodeRabbit review found: ${codeRabbitReview.state || 'submitted'}`);
+                  } else {
+                    console.log('CodeRabbit review not found - may not have started yet');
+                    core.setOutput('is_completed', 'false');
+                    core.setOutput('has_error', 'false');
+                    return;
+                  }
+                } catch (error) {
+                  console.log(`Error checking reviews: ${error.message}`);
+                  core.setOutput('is_completed', 'false');
+                  core.setOutput('has_error', 'false');
+                  return;
+                }
+              } else {
+                isCompleted = codeRabbitCheck.status === 'completed';
+                console.log(`CodeRabbit check found: ${codeRabbitCheck.name}`);
+                console.log(`Status: ${codeRabbitCheck.status}, Conclusion: ${codeRabbitCheck.conclusion || 'none'}, Completed: ${isCompleted}`);
+              }
               
               core.setOutput('is_completed', isCompleted.toString());
               core.setOutput('has_error', 'false');
@@ -331,7 +375,9 @@ jobs:
 
             // 자동 머지 실행 (rebase 방식)
             try {
-              await github.rest.pulls.merge({
+              console.log(`Attempting to merge PR #${prNumber} using rebase...`);
+              
+              const mergeResult = await github.rest.pulls.merge({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: prNumber,
@@ -339,10 +385,28 @@ jobs:
                 commit_title: `Merge PR #${prNumber}: ${pr.title}`,
               });
               
-              console.log(`✅ PR #${prNumber} merged automatically using rebase`);
+              if (mergeResult.data.merged) {
+                console.log(`✅ PR #${prNumber} merged successfully using rebase`);
+              } else {
+                console.log(`⚠️ PR #${prNumber} merge request sent but not merged. Status: ${mergeResult.data.message || 'unknown'}`);
+              }
             } catch (error) {
-              // 머지 실패 시 (예: 충돌, 브랜치 보호 규칙 등)
-              console.log(`⚠️ Could not merge PR #${prNumber}:`, error.message);
+              // 머지 실패 시 상세 에러 정보 출력
+              console.log(`❌ Could not merge PR #${prNumber}`);
+              console.log(`Error message: ${error.message}`);
+              console.log(`Error status: ${error.status || 'unknown'}`);
+              
+              if (error.response) {
+                console.log(`Response data: ${JSON.stringify(error.response.data, null, 2)}`);
+              }
+              
+              // 일반적인 실패 원인 안내
+              if (error.status === 405) {
+                console.log('💡 Hint: This might be due to branch protection rules or merge conflicts.');
+              } else if (error.status === 409) {
+                console.log('💡 Hint: Merge conflict detected. Please resolve conflicts manually.');
+              }
+              
               // 실패해도 워크플로우는 성공으로 처리 (수동 머지 가능)
             }
 
