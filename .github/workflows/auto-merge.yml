@@ -136,7 +136,14 @@ jobs:
               );
 
               if (codeRabbitCheck) {
-                return codeRabbitCheck.status === 'completed';
+                if (codeRabbitCheck.status !== 'completed') {
+                  return { isCompleted: false };
+                }
+                if (codeRabbitCheck.conclusion === 'success') {
+                  return { isCompleted: true, hasError: false };
+                }
+                // conclusion is failure, cancelled, timed_out, neutral, etc.
+                return { isCompleted: false, hasError: true };
               }
 
               const reviews = await github.paginate(github.rest.pulls.listReviews, {
@@ -154,7 +161,7 @@ jobs:
                   return isCodeRabbit && commitMatches && reviewDone;
                 }
               );
-              return !!codeRabbitReview;
+              return { isCompleted: !!codeRabbitReview, hasError: false };
             }
 
             try {
@@ -168,7 +175,14 @@ jobs:
               console.log(`Checking CodeRabbit status for PR #${prNumber} (ref: ${prSha})...`);
 
               for (let attempt = 0; attempt <= POLL_ATTEMPTS; attempt++) {
-                isCompleted = await checkCodeRabbitCompleted();
+                const result = await checkCodeRabbitCompleted();
+                isCompleted = result.isCompleted;
+
+                if (result.hasError) {
+                  core.setOutput('is_completed', 'false');
+                  core.setOutput('has_error', 'true');
+                  return;
+                }
 
                 if (isCompleted) {
                   console.log(`CodeRabbit review completed (after ${attempt > 0 ? attempt + ' poll(s)' : 'initial check'}).`);
