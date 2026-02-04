@@ -115,8 +115,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     name: '코멧 김서림 방지 샤워 터치케이스',
     description: '욕실 부착 · 샤워 중 터치 가능 · 김서림 방지',
     order: 7,
-    thumbnailUrl:
-      '/dummy/shower.png',
+    thumbnailUrl: '/dummy/ssambak/shower.png',
     url: PRODUCT_URLS.comet_shower_touchcase,
   },
   {
@@ -125,7 +124,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     name: '다슈 매직 커버 니플밴드 52매, 2개',
     description: '매직 커버 · 52매 · 2개 구성',
     order: 8,
-    thumbnailUrl: '/dummy/dashu_band.png',
+    thumbnailUrl: '/dummy/ssambak/dashu_band.png',
     url: PRODUCT_URLS.dashu_nipple_band,
   },
   {
@@ -134,7 +133,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     name: '비비고 순살 삼치구이, 60g, 6개',
     description: '순살 삼치구이 · 60g · 6개',
     order: 9,
-    thumbnailUrl: '/dummy/bibigo_samchi.png',
+    thumbnailUrl: '/dummy/ssambak/bibigo_samchi.png',
     url: PRODUCT_URLS.bibigo_samchi,
   },
   {
@@ -143,7 +142,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     name: '러쉬 트루 로맨스 마사지 바',
     description: '트루 로맨스 · 마사지 바',
     order: 10,
-    thumbnailUrl: '/dummy/rush_massage_bar.png',
+    thumbnailUrl: '/dummy/ssambak/rush_massage_bar.png',
     url: PRODUCT_URLS.rush_massage_bar,
   },
   {
@@ -152,7 +151,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     name: '바이오레시피 1초 데미지케어 4 In 1 system 헤어팩, 300g, 1개',
     description: '데미지케어 · 4 In 1 system · 300g',
     order: 11,
-    thumbnailUrl: '/dummy/biorecipe_hairpack.png',
+    thumbnailUrl: '/dummy/ssambak/biorecipe_hairpack.png',
     url: PRODUCT_URLS.biorecipe_hairpack,
   },
   {
@@ -161,7 +160,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     name: '100g당 20kcal 바로먹는 발효곤약 냉모밀, 12개, 350g',
     description: '100g당 20kcal · 발효곤약 · 12개',
     order: 12,
-    thumbnailUrl: '/dummy/nangmomil.png',
+    thumbnailUrl: '/dummy/ssambak/nangmomil.png',
     url: PRODUCT_URLS.nangmomil,
   },
   {
@@ -170,7 +169,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     name: '[아키클래식] 여성용 아이슬린 리커버리 패딩 부츠 AKANWWH02',
     description: '여성용 · 아이슬린 리커버리 · 패딩 부츠',
     order: 13,
-    thumbnailUrl: '/dummy/akii_boots.png',
+    thumbnailUrl: '/dummy/ssambak/akii_boots.png',
     url: PRODUCT_URLS.akii_boots,
   },
   {
@@ -179,7 +178,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     name: '월드크린 미니 파워 뚫어뻥',
     description: '미니 파워 · 뚫어뻥',
     order: 14,
-    thumbnailUrl: '/dummy/durubong.png',
+    thumbnailUrl: '/dummy/ssambak/durubong.png',
     url: PRODUCT_URLS.worldclean_mini_power_plunger,
   },
   {
@@ -188,7 +187,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     name: '마를랑 양면 두피 마사지 샴푸 브러쉬',
     description: '양면 두피 마사지 · 샴푸 브러쉬',
     order: 15,
-    thumbnailUrl: '/dummy/talmobit.png',
+    thumbnailUrl: '/dummy/ssambak/talmobit.png',
     url: PRODUCT_URLS.worldclean_mini_power_plunger_15,
   },
   {
@@ -197,7 +196,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     name: '라온 7in1 C타입 멀티 카드리더기',
     description: '7in1 멀티 카드리더기 · C타입',
     order: 16,
-    thumbnailUrl: '/dummy/multihub.png',
+    thumbnailUrl: '/dummy/ssambak/multihub.png',
     url: PRODUCT_URLS.raon_multihub,
   },
   {
@@ -206,7 +205,7 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     name: '솔로지옥2 덱스 다각형 검정 남자 뿔테 안경',
     description: '다각형 검정 뿔테 안경 · 남자용',
     order: 17,
-    thumbnailUrl: '/dummy/dex.png',
+    thumbnailUrl: '/dummy/ssambak/dex.png',
     url: PRODUCT_URLS.solo_hell_dex,
   },
   {
@@ -215,15 +214,43 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
     name: 'PRONUTRITION 정품 듀얼플랜 다이어트 유산균 14p, 35g, 1개',
     description: '듀얼플랜 다이어트 유산균 · 14p',
     order: 18,
-    thumbnailUrl: '/dummy/usangun.png',
+    thumbnailUrl: '/dummy/ssambak/usangun.png',
     url: PRODUCT_URLS.pronutrition_dualplan,
   },
 ]
 
+// ssamarket 채널 전용 상품 목록
+// 새로운 상품을 추가하려면 이 배열에 Product 객체를 추가하세요
+const SSAMARKET_EXTRA_PRODUCTS: Product[] = [
+  // 여기에 ssamarket 전용 상품을 추가하세요
+  // 예시:
+  // {
+  //   id: 'product-id',
+  //   productId: 2001,
+  //   name: '상품명',
+  //   description: '상품 설명',
+  //   order: 1,
+  //   thumbnailUrl: '/dummy/ssamarket/product.png',
+  //   url: PRODUCT_URLS.product_url_key,
+  // },
+]
+
 export function getStaticProducts(channelId?: string): Product[] {
-  // 기본 제품 목록과 추가 제품 목록을 합침
-  // channelId는 향후 채널별 필터링에 사용될 수 있음
-  const products = [...STATIC_PRODUCTS, ...SSAMBAK_EXTRA_PRODUCTS]
+  let products: Product[] = []
+
+  // 채널별 상품 목록 설정
+  if (channelId === 'ssambak') {
+    // ssambak: 기본 상품 + ssambak 전용 상품
+    products = [...STATIC_PRODUCTS, ...SSAMBAK_EXTRA_PRODUCTS]
+  } else if (channelId === 'ssamarket') {
+    // ssamarket: ssamarket 전용 상품만 (별도 운영)
+    products = [...SSAMARKET_EXTRA_PRODUCTS]
+  } else {
+    // 다른 채널: 기본 상품만
+    products = [...STATIC_PRODUCTS]
+  }
+
+  // order 기준으로 정렬
   products.sort((a, b) => a.order - b.order)
   return products
 }
