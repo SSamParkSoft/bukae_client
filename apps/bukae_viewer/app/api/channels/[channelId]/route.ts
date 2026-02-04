@@ -13,9 +13,12 @@ export async function GET(
       id: channelId,
       name: channelId,
       description: `${channelId}의 미니홈페이지`,
-      // ssambak 채널의 경우 프로필 이미지 추가
+      // 채널별 프로필 이미지 설정
       ...(channelId === 'ssambak' && {
         profileImage: '/ssambak_profile.png',
+      }),
+      ...(channelId === 'ssamarket' && {
+        profileImage: '/ssamarket_profile.jpg',
       }),
     }
 
