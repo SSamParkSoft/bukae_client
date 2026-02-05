@@ -48,7 +48,9 @@ const PRODUCT_URLS = {
   solo_hell_dex:
     'https://link.coupang.com/a/dvlgdp',
   pronutrition_dualplan:
-    'https://link.coupang.com/a/dwPPd5'
+    'https://link.coupang.com/a/dwPPd5',
+  handcream:
+    'https://link.coupang.com/a/dGyq5R'
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -222,17 +224,15 @@ const SSAMBAK_EXTRA_PRODUCTS: Product[] = [
 // ssamarket 채널 전용 상품 목록
 // 새로운 상품을 추가하려면 이 배열에 Product 객체를 추가하세요
 const SSAMARKET_EXTRA_PRODUCTS: Product[] = [
-  // 여기에 ssamarket 전용 상품을 추가하세요
-  // 예시:
-  // {
-  //   id: 'product-id',
-  //   productId: 2001,
-  //   name: '상품명',
-  //   description: '상품 설명',
-  //   order: 1,
-  //   thumbnailUrl: '/dummy/ssamarket/product.png',
-  //   url: PRODUCT_URLS.product_url_key,
-  // },
+  {
+    id: 'camille-handcream',
+    productId: 2001,
+    name: '카밀 핸드 앤 네일 크림 클래식 카모마일, 133ml, 3개',
+    description: '클래식 카모마일 · 133ml · 3개',
+    order: 1,
+    thumbnailUrl: '/dummy/ssamarket/handcream.png',
+    url: PRODUCT_URLS.handcream,
+  },
 ]
 
 export function getStaticProducts(channelId?: string): Product[] {
