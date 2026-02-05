@@ -1,9 +1,8 @@
 'use client'
 
-import React, { memo, useEffect, useRef, useState } from 'react'
-import { GripVertical } from 'lucide-react'
+import React, { memo, useEffect, useRef, useState } from 'react'  
 import { ProStep3SceneCard } from './ProStep3SceneCard'
-import type { TimelineData, SceneScript } from '@/store/useVideoCreateStore'
+import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { TimelineScene } from '@/lib/types/domain/timeline'
 
 // Pro step3에서 사용하는 씬 데이터 타입
@@ -34,7 +33,6 @@ interface ProSceneListPanelProps {
 }
 
 export const ProSceneListPanel = memo(function ProSceneListPanel({
-  theme,
   scenes,
   timeline,
   currentSceneIndex,

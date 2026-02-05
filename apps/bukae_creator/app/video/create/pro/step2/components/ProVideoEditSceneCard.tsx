@@ -739,7 +739,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                   {/* 격자 기준 왼쪽 어두운 오버레이 */}
                   {selectionLeftPx > 0 && (
                     <div
-                      className="absolute top-0 left-0 bg-black/50 z-[2]"
+                      className="absolute top-0 left-0 bg-black/50"
                       style={{
                         width: `${selectionLeftPx}px`,
                         height: '100%',
@@ -750,7 +750,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                   {/* 격자 기준 오른쪽 어두운 오버레이 */}
                   {selectionLeftPx + selectionWidthPx < actualVideoEndPx && (
                     <div
-                      className="absolute top-0 right-0 bg-black/50 z-[2]"
+                      className="absolute top-0 right-0 bg-black/50"
                       style={{
                         width: `${actualVideoEndPx - (selectionLeftPx + selectionWidthPx)}px`,
                         height: '100%',

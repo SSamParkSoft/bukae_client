@@ -66,7 +66,6 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   scriptText,
   videoUrl,
   selectionStartSeconds: initialSelectionStartSeconds,
-  selectionEndSeconds: initialSelectionEndSeconds,
   ttsDuration = 0,
   voiceLabel,
   timelineScene,
@@ -407,7 +406,6 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
       for (let i = 0; i <= duration; i++) {
         if (isCancelled) break
         await captureFrame(i)
-        console.log(`[프레임 캡처 완료] ${i}초`)
       }
 
       // 썸네일 배열 설정 (취소되지 않았을 때만)
@@ -416,7 +414,6 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
         for (let i = 0; i <= duration; i++) {
           thumbnailArray[i] = thumbnails[i] || ''
         }
-        console.log(`[썸네일 설정 완료] 총 ${thumbnailArray.length}개, 실제 생성된 썸네일: ${thumbnailArray.filter(t => t).length}개`)
         setFrameThumbnails(thumbnailArray)
       }
     }
@@ -732,7 +729,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                     onPlayScene()
                   }}
                   disabled={isPreparing || isTtsBootstrapping}
-                  className="w-8 h-8 rounded-2xl bg-white flex items-center justify-center hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-(--shadow-card-default)"
+                  className="w-8 h-8 rounded-2xl bg-white border-2 border-black flex items-center justify-center hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-(--shadow-card-default)"
                   title={isPreparing || isTtsBootstrapping ? '준비 중...' : isPlaying ? '씬 정지' : '씬 재생'}
                   aria-label={isPreparing || isTtsBootstrapping ? '준비 중' : isPlaying ? '씬 정지' : '씬 재생'}
                 >
@@ -853,7 +850,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                   {/* 격자 기준 왼쪽 어두운 오버레이 */}
                   {selectionLeftPx > 0 && (
                     <div
-                      className="absolute top-0 left-0 bg-black/50 z-[2]"
+                      className="absolute top-0 left-0 bg-black/50"
                       style={{
                         width: `${selectionLeftPx}px`,
                         height: '100%',
@@ -864,7 +861,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                   {/* 격자 기준 오른쪽 어두운 오버레이 */}
                   {selectionLeftPx + selectionWidthPx < actualVideoEndPx && (
                     <div
-                      className="absolute top-0 right-0 bg-black/50 z-[2]"
+                      className="absolute top-0 right-0 bg-black/50"
                       style={{
                         width: `${actualVideoEndPx - (selectionLeftPx + selectionWidthPx)}px`,
                         height: '100%',

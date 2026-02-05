@@ -1,7 +1,6 @@
 'use client'
 
 import React, { memo, useRef, useState, useEffect, useCallback, useMemo } from 'react'
-import Image from 'next/image'
 import * as PIXI from 'pixi.js'
 import { TimelineBar, SpeedSelector, ExportButton } from '@/app/video/create/_step3-components'
 import type { ProStep3Scene } from './ProSceneListPanel'
@@ -34,12 +33,11 @@ interface ProPreviewPanelProps {
 
 /**
  * Pro step3 전용 PreviewPanel
- * - 비디오 썸네일만 표시 (재생하지 않음)
+ * - 비디오는 PixiJS로만 표시 (재생/정지 시 동일)
  * - 재생 버튼 클릭 시 선택된 구간들을 이어붙여서 재생
  */
 export const ProPreviewPanel = memo(function ProPreviewPanel({
   currentVideoUrl,
-  currentSelectionStartSeconds = 0,
   currentSceneIndex = 0,
   onCurrentSceneIndexChange,
   scenes,
@@ -49,8 +47,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   onExport,
   isExporting = false,
 }: ProPreviewPanelProps) {
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const playbackContainerRef = useRef<HTMLDivElement | null>(null)
   const pixiContainerRef = useRef<HTMLDivElement | null>(null)
   const timelineBarRef = useRef<HTMLDivElement | null>(null)
@@ -70,8 +66,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   const ttsAudioRefsRef = useRef<Map<number, HTMLAudioElement>>(new Map())
   const ttsCacheRef = useRef<Map<string, { blob: Blob; durationSec: number; url?: string | null }>>(new Map())
   
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
-  const [isGeneratingThumbnail, setIsGeneratingThumbnail] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [totalDuration, setTotalDuration] = useState(0)
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0)
@@ -572,103 +566,9 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     onPlayPause()
   }, [trackUserGesture, onPlayPause])
 
-  // 현재 선택된 씬의 비디오 썸네일 생성 (격자 시작 지점).
-  // 썸네일용 videoRef는 muted이며, currentTime만 설정하고 .play()는 호출하지 않음 → 재생 트리거 없음.
-  useEffect(() => {
-    if (!currentVideoUrl || !videoRef.current || !canvasRef.current) {
-      // 비동기로 처리하여 cascading renders 방지
-      const timeoutId = setTimeout(() => {
-        setThumbnailUrl(null)
-      }, 0)
-      return () => clearTimeout(timeoutId)
-    }
-
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    // 비동기로 처리하여 cascading renders 방지
-    const timeoutId = setTimeout(() => {
-      setIsGeneratingThumbnail(true)
-    }, 0)
-
-    const captureThumbnail = () => {
-      try {
-        if (!video.videoWidth || !video.videoHeight) {
-          return
-        }
-
-        canvas.width = 1080
-        canvas.height = 1920
-
-        const ctx = canvas.getContext('2d')
-        if (!ctx) {
-          return
-        }
-
-        // 비디오 비율 유지하며 캔버스에 그리기
-        const videoAspect = video.videoWidth / video.videoHeight
-        const canvasAspect = canvas.width / canvas.height
-
-        let drawWidth = canvas.width
-        let drawHeight = canvas.height
-        let drawX = 0
-        let drawY = 0
-
-        if (videoAspect > canvasAspect) {
-          drawHeight = canvas.height
-          drawWidth = drawHeight * videoAspect
-          drawX = (canvas.width - drawWidth) / 2
-        } else {
-          drawWidth = canvas.width
-          drawHeight = drawWidth / videoAspect
-          drawY = (canvas.height - drawHeight) / 2
-        }
-
-        // 배경을 검은색으로 채우기
-        ctx.fillStyle = '#000000'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-        // 비디오 프레임 그리기
-        ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight)
-
-        const thumbnail = canvas.toDataURL('image/jpeg', 0.8)
-        setThumbnailUrl(thumbnail)
-        setIsGeneratingThumbnail(false)
-      } catch (error) {
-        console.error('썸네일 생성 오류:', error)
-        setIsGeneratingThumbnail(false)
-        setThumbnailUrl(null)
-      }
-    }
-
-    const handleLoadedData = () => {
-      if (video.readyState >= 2) {
-        const thumbnailTime = currentSelectionStartSeconds > 0 ? currentSelectionStartSeconds : 0.1
-        video.currentTime = thumbnailTime
-      }
-    }
-
-    const handleSeeked = () => {
-      captureThumbnail()
-    }
-
-    video.addEventListener('loadeddata', handleLoadedData)
-    video.addEventListener('seeked', handleSeeked)
-
-    if (video.readyState >= 2) {
-      const thumbnailTime = currentSelectionStartSeconds > 0 ? currentSelectionStartSeconds : 0.1
-      video.currentTime = thumbnailTime
-    }
-
-    return () => {
-      clearTimeout(timeoutId)
-      video.removeEventListener('loadeddata', handleLoadedData)
-      video.removeEventListener('seeked', handleSeeked)
-    }
-  }, [currentVideoUrl, currentSelectionStartSeconds])
-
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-      {/* 비디오 썸네일 미리보기 - 9:16 비율 고정 */}
+      {/* 비디오 미리보기 - 9:16 비율 고정 (PixiJS만 사용) */}
       <div className="flex-1 flex items-center justify-center overflow-hidden min-h-0 shrink-0 mb-4">
         <div
           ref={playbackContainerRef}
@@ -680,51 +580,16 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
             maxHeight: '100%',
           }}
         >
-          {/* PixiJS 캔버스 컨테이너 (비디오 + 자막 렌더링용) */}
+          {/* PixiJS 캔버스 (비디오 + 자막) */}
           <div
             ref={pixiContainerRef}
             className="absolute inset-0 z-10"
           />
-          
-          {/* 썸네일 레이어: 재생 중이 아닐 때 격자 시작점 프레임 표시. pixiReady 여부와 관계없이 썸네일이 있으면 위에 표시(z-20). */}
-          {!isPlaying && thumbnailUrl ? (
-            <Image
-              src={thumbnailUrl}
-              alt="비디오 썸네일"
-              fill
-              className="object-contain z-20"
-              unoptimized
-            />
-          ) : !isPlaying && isGeneratingThumbnail ? (
-            <div className="absolute inset-0 flex items-center justify-center z-20">
-              <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            </div>
-          ) : !isPlaying && !thumbnailUrl && currentVideoUrl ? (
-            <div className="absolute inset-0 flex items-center justify-center text-white/50 z-20">
-              썸네일 생성 중…
-            </div>
-          ) : !isPlaying && !currentVideoUrl ? (
-            <div className="absolute inset-0 flex items-center justify-center text-white/50 z-20">
+          {!currentVideoUrl && (
+            <div className="absolute inset-0 flex items-center justify-center text-white/50 z-20 pointer-events-none">
               비디오 없음
             </div>
-          ) : null}
-
-          {/* 숨겨진 비디오와 캔버스 - 썸네일 생성용 */}
-          {currentVideoUrl && (
-            <>
-              <video
-                ref={videoRef}
-                src={currentVideoUrl}
-                className="hidden"
-                muted
-                playsInline
-                preload="auto"
-                crossOrigin="anonymous"
-              />
-              <canvas ref={canvasRef} className="hidden" />
-            </>
           )}
-
         </div>
       </div>
 
