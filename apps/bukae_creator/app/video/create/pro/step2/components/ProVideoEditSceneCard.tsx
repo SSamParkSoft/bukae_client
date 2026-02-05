@@ -141,7 +141,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                 {/* 중앙: 스크립트 영역 */}
                 <div className="flex-1 min-w-0 flex flex-col">
                   {/* 스크립트 텍스트 영역 - 버튼이 textarea 내부에 위치 */}
-                  <div className="relative rounded-lg bg-white shadow-md overflow-hidden border-2 border-transparent" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
+                  <div className="relative rounded-lg bg-white shadow-[var(--shadow-card-default)] overflow-hidden border-2 border-transparent" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
                     {/* AI 스크립트 버튼 - textarea 내부 왼쪽 상단 */}
                     {onAiScriptClick && (
                       <Button
@@ -179,7 +179,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                 {/* 우측: 촬영가이드 영역 */}
                 <div className="flex-1 min-w-0 flex flex-col">
                   {/* 촬영가이드 텍스트 영역 - 버튼이 textarea 내부에 위치 */}
-                  <div className="relative rounded-lg bg-white/10 backdrop-blur-md shadow-md overflow-hidden border-2 border-white" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
+                  <div className="relative rounded-lg bg-white/10 shadow-[var(--shadow-card-default)] overflow-hidden border-2 border-white" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
                     {/* AI 촬영가이드 버튼 - textarea 내부 왼쪽 상단 */}
                     {onAiGuideClick && (
                       <Button

@@ -235,23 +235,50 @@ export default function ProStep2EditPage() {
               </div>
 
               {/* 영상 업로드 & 편집 섹션 */}
-              <section className="mb-16 space-y-12" data-pro-step2-video-edit>
-                <ProVideoEditSection
-                  scenes={videoEditScenes}
-                  onScriptChange={handleScriptChange}
-                  onGuideChange={handleGuideChange}
-                  onVideoUpload={handleVideoUpload}
-                  onAiScriptClick={handleAiScriptClick}
-                  onAiGuideClick={handleAiGuideClick}
-                  onAiGuideGenerateAll={handleAiGuideGenerateAll}
-                  onDragStart={handleDragStart}
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
-                  onDragEnd={handleDragEnd}
-                  draggedIndex={draggedIndex}
-                  dragOver={dragOver}
-                />
+              <section className="mb-10 space-y-8" data-pro-step2-video-edit>
+                {/* 섹션 설명 (카드 바깥) */}
+                <div className="space-y-2">
+                  <h2
+                    className="font-bold text-text-dark tracking-[-0.4px]"
+                    style={{
+                      fontSize: 'var(--font-size-32)',
+                      lineHeight: 'var(--line-height-32-140)',
+                    }}
+                  >
+                    촬영 가이드 생성 & 영상 업로드
+                  </h2>
+                  <p
+                    className="font-semibold text-black tracking-[-0.32px]"
+                    style={{
+                      fontSize: 'var(--font-size-16)',
+                      lineHeight: 'var(--line-height-16-140)',
+                    }}
+                  >
+                    AI 촬영가이드를 생성하고, 영상을 업로드 및 원하는 영상 편집을 입력해주세요.
+                  </p>
+                </div>
 
+                {/* 이전 단계와 동일한 느낌의 투명한 흰색 배경 컨테이너 */}
+                <div className="rounded-2xl bg-white/40 border border-white/10 p-6 shadow-(--shadow-container)">
+                  {/* 상단: AI 촬영가이드 생성 버튼이 가장 위에 오는 영역 + 씬 카드들 */}
+                  <ProVideoEditSection
+                    scenes={videoEditScenes}
+                    onScriptChange={handleScriptChange}
+                    onGuideChange={handleGuideChange}
+                    onVideoUpload={handleVideoUpload}
+                    onAiScriptClick={handleAiScriptClick}
+                    onAiGuideClick={handleAiGuideClick}
+                    onAiGuideGenerateAll={handleAiGuideGenerateAll}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                    onDragEnd={handleDragEnd}
+                    draggedIndex={draggedIndex}
+                    dragOver={dragOver}
+                  />
+                </div>
+
+                {/* 하단: 이전/다음 단계 네비게이션 버튼 */}
                 <div className="flex flex-col sm:flex-row gap-4 mt-12">
                   <Link
                     href="/video/create/pro/step2"

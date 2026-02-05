@@ -1,9 +1,8 @@
 'use client'
 
 import { memo } from 'react'
-import { Cloud } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { ProVideoEditSceneCard } from './ProVideoEditSceneCard'
+import { AiScriptGenerateButton } from '@/app/video/create/_components'
 
 export interface ProVideoEditSectionProps {
   scenes: Array<{
@@ -43,44 +42,15 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
   dragOver: dragOverProp = null,
 }: ProVideoEditSectionProps) {
   return (
-    <section className="mb-16 space-y-6">
-      {/* 섹션 헤더 */}
-      <div className="space-y-4">
-        <h2
-          className="font-bold text-text-dark tracking-[-0.4px]"
-          style={{
-            fontSize: 'var(--font-size-20)',
-            lineHeight: 'var(--line-height-20-140)',
-          }}
-        >
-          촬영 가이드 생성 & 영상 업로드
-        </h2>
-        <p
-          className="font-semibold text-brand-teal-dark tracking-[-0.32px]"
-          style={{
-            fontSize: 'var(--font-size-16)',
-            lineHeight: 'var(--line-height-16-140)',
-          }}
-        >
-          AI 촬영가이드를 생성하고, 영상을 업로드 및 원하는 영상 편집을 입력해주세요.
-        </p>
-
-        {/* AI 촬영가이드 생성 버튼 */}
-        {onAiGuideGenerateAll && (
-          <Button
-            type="button"
-            onClick={onAiGuideGenerateAll}
-            className="w-full sm:w-auto bg-brand-teal hover:bg-brand-teal-dark text-white px-6 py-3 rounded-lg font-bold tracking-[-0.36px] shadow-(--shadow-card-default)"
-            style={{
-              fontSize: 'var(--font-size-18)',
-              lineHeight: 'var(--line-height-18-140)',
-            }}
-          >
-            <Cloud className="w-5 h-5" />
-            AI 촬영가이드 생성
-          </Button>
-        )}
-      </div>
+    <section className="space-y-6">
+      {/* 상단: AI 촬영가이드 생성 버튼 */}
+      {onAiGuideGenerateAll && (
+        <AiScriptGenerateButton
+          onClick={onAiGuideGenerateAll}
+          labelIdle="AI 촬영가이드 생성"
+          labelLoading="AI 촬영가이드 생성 중..."
+        />
+      )}
 
       {/* 씬 카드 목록 */}
       <div
