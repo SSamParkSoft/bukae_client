@@ -2,7 +2,6 @@
 
 import { memo, useState, useEffect, useRef } from 'react'
 import { GripVertical } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import Image from 'next/image'
 import { ProVideoUpload } from './ProVideoUpload'
 import { ProVideoTimelineGrid } from './ProVideoTimelineGrid'
@@ -541,19 +540,17 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                 <div className="flex-1 min-w-0 flex flex-col">
                   {/* 스크립트 텍스트 영역 - 버튼이 textarea 내부에 위치 */}
                   <div className="relative rounded-lg bg-white shadow-(--shadow-card-default) overflow-hidden border-2 border-transparent" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
-                    {/* AI 스크립트 버튼 - textarea 내부 왼쪽 상단 */}
+                    {/* AI 스크립트 표시 - textarea 내부 왼쪽 상단 */}
                     {onAiScriptClick && (
-                      <Button
-                        type="button"
-                        onClick={onAiScriptClick}
-                        className="absolute left-3 top-3 z-10 h-[25px] px-3 bg-brand-teal hover:bg-brand-teal-dark text-white rounded-2xl font-bold flex items-center gap-4"
+                      <div
+                        className="absolute left-3 top-3 z-10 h-[25px] px-3 bg-brand-teal text-white rounded-2xl font-bold flex items-center gap-4 pointer-events-none"
                         style={{
                           fontSize: '12px',
                           lineHeight: '16.8px',
                         }}
                       >
                         AI 스크립트
-                      </Button>
+                      </div>
                     )}
                     {/* 스크립트 텍스트 영역 */}
                     <textarea
@@ -561,7 +558,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                       onChange={(e) => onScriptChange(e.target.value)}
                       placeholder="스크립트를 입력하세요."
                       rows={2}
-                      className="w-full p-3 rounded-lg bg-transparent text-text-tertiary placeholder:text-text-tertiary focus:outline-none focus:ring-0 resize-none border-0"
+                      readOnly
+                      className="w-full p-3 rounded-lg bg-transparent text-text-tertiary placeholder:text-text-tertiary focus:outline-none focus:ring-0 resize-none border-0 cursor-default"
                       style={{
                         fontSize: 'var(--font-size-14)',
                         lineHeight: '25.2px',
@@ -579,19 +577,17 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                 <div className="flex-1 min-w-0 flex flex-col">
                   {/* 촬영가이드 텍스트 영역 - 버튼이 textarea 내부에 위치 */}
                   <div className="relative rounded-lg bg-white/30 shadow-(--shadow-card-default) overflow-hidden border-2 border-white backdrop-blur-sm" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
-                    {/* AI 촬영가이드 버튼 - textarea 내부 왼쪽 상단 */}
+                    {/* AI 촬영가이드 표시 - textarea 내부 왼쪽 상단 */}
                     {onAiGuideClick && (
-                      <Button
-                        type="button"
-                        onClick={onAiGuideClick}
-                        className="absolute left-3 top-3 z-10 h-[25px] px-3 bg-brand-teal hover:bg-brand-teal-dark text-white rounded-2xl font-bold flex items-center gap-4"
+                      <div
+                        className="absolute left-3 top-3 z-10 h-[25px] px-3 bg-brand-teal text-white rounded-2xl font-bold flex items-center gap-4 pointer-events-none"
                         style={{
                           fontSize: '12px',
                           lineHeight: '16.8px',
                         }}
                       >
                         AI 촬영가이드
-                      </Button>
+                      </div>
                     )}
                     {/* 촬영가이드 텍스트 영역 */}
                     <textarea
@@ -599,7 +595,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                       onChange={(e) => onGuideChange?.(e.target.value)}
                       placeholder="촬영가이드를 입력하세요."
                       rows={2}
-                      className="w-full p-3 rounded-lg bg-transparent text-text-dark placeholder:text-text-tertiary focus:outline-none focus:ring-0 resize-none border-0"
+                      readOnly
+                      className="w-full p-3 rounded-lg bg-transparent text-text-dark placeholder:text-text-tertiary focus:outline-none focus:ring-0 resize-none border-0 cursor-default"
                       style={{
                         fontSize: 'var(--font-size-14)',
                         lineHeight: '25.2px',
@@ -618,10 +615,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
             {/* 하단: 타임라인 비주얼 */}
             <div 
               ref={timelineContainerRef}
-              className="relative overflow-x-auto scrollbar-hide w-full"
+              className="relative overflow-x-auto w-full"
               style={{ 
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none',
                 WebkitOverflowScrolling: 'touch',
               }}
               onDragStart={(e) => {
