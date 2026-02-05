@@ -395,7 +395,7 @@ export default function ProStep2Page() {
                       이전 단계
                     </Link>
                     <Link
-                      href="/video/create/pro/step3"
+                      href="/video/create/pro/step2/edit"
                       className="flex-1 h-14 rounded-2xl bg-[#5e8790] text-white hover:bg-[#5e8790]/90 transition-all flex items-center justify-center gap-2 font-bold tracking-[-0.48px] shadow-(--shadow-card-default)"
                       style={{
                         fontSize: 'var(--font-size-24)',
