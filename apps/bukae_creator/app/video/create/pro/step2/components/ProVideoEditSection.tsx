@@ -11,10 +11,11 @@ export interface ProVideoEditSectionProps {
     ttsDuration?: number
     guideText?: string
     voiceLabel?: string
+    videoUrl?: string | null
   }>
   onScriptChange: (index: number, value: string) => void
   onGuideChange?: (index: number, value: string) => void
-  onVideoUpload?: (index: number) => void
+  onVideoUpload?: (index: number, file: File) => Promise<void>
   onAiScriptClick?: (index: number) => void
   onAiGuideClick?: (index: number) => void
   onAiGuideGenerateAll?: () => void
@@ -25,6 +26,7 @@ export interface ProVideoEditSectionProps {
   onDragEnd?: () => void
   draggedIndex?: number | null
   dragOver?: { index: number; position: 'before' | 'after' } | null
+  uploadingSceneIndex?: number | null
 }
 
 export const ProVideoEditSection = memo(function ProVideoEditSection({
@@ -41,6 +43,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
   onDragEnd,
   draggedIndex = null,
   dragOver: dragOverProp = null,
+  uploadingSceneIndex = null,
 }: ProVideoEditSectionProps) {
   return (
     <section className="space-y-6">
@@ -75,10 +78,12 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
             guideText={scene.guideText}
             onGuideChange={onGuideChange ? (value) => onGuideChange(index, value) : undefined}
             voiceLabel={scene.voiceLabel}
-            onVideoUpload={onVideoUpload ? () => onVideoUpload(index) : undefined}
+            onVideoUpload={onVideoUpload ? (file) => onVideoUpload(index, file) : undefined}
             onAiScriptClick={onAiScriptClick ? () => onAiScriptClick(index) : undefined}
             onAiGuideClick={onAiGuideClick ? () => onAiGuideClick(index) : undefined}
             ttsDuration={scene.ttsDuration}
+            videoUrl={scene.videoUrl}
+            isUploading={uploadingSceneIndex === index}
             onDragStart={onDragStart ? (e) => onDragStart(index) : undefined}
             onDragOver={onDragOver ? (e) => onDragOver(e, index) : undefined}
             onDrop={onDrop}

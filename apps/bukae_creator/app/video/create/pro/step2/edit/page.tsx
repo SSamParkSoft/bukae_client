@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { ProVideoEditSection } from '../components'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
+import { authStorage } from '@/lib/api/auth-storage'
 
 const DEFAULT_SCENE_COUNT = 6
 
@@ -16,6 +17,7 @@ type ProScene = {
   voiceLabel?: string
   voiceTemplate?: string | null
   ttsDuration?: number // TTS duration (초)
+  videoUrl?: string | null // 업로드된 영상 URL
 }
 
 // 확장된 SceneScript 타입
@@ -24,6 +26,7 @@ type ExtendedSceneScript = SceneScript & {
   voiceLabel?: string
   voiceTemplate?: string | null
   ttsDuration?: number // TTS duration (초)
+  videoUrl?: string | null // 업로드된 영상 URL
 }
 
 // 고유 ID 생성 헬퍼 함수
@@ -40,6 +43,7 @@ function sceneScriptToProScene(s: SceneScript, _index: number): ProScene {
     voiceLabel: extended.voiceLabel,
     voiceTemplate: extended.voiceTemplate,
     ttsDuration: extended.ttsDuration,
+    videoUrl: extended.videoUrl,
   }
 }
 
@@ -52,6 +56,7 @@ function proSceneToSceneScript(s: ProScene, index: number): ExtendedSceneScript 
     voiceLabel: s.voiceLabel,
     voiceTemplate: s.voiceTemplate,
     ttsDuration: s.ttsDuration,
+    videoUrl: s.videoUrl,
   }
 }
 
@@ -160,10 +165,53 @@ export default function ProStep2EditPage() {
     }
   }, [scenes, setHasUnsavedChanges])
 
-  const handleVideoUpload = useCallback((index: number) => {
-    // TODO: 영상 업로드 로직 구현
-    console.log('영상 업로드', index)
-  }, [])
+  const [uploadingSceneIndex, setUploadingSceneIndex] = useState<number | null>(null)
+
+  const handleVideoUpload = useCallback(async (index: number, file: File) => {
+    const accessToken = authStorage.getAccessToken()
+    if (!accessToken) {
+      alert('로그인이 필요합니다.')
+      return
+    }
+
+    setUploadingSceneIndex(index)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('sceneId', scenes[index]?.id || String(index + 1))
+
+      const response = await fetch('/api/videos/pro/upload', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: '영상 업로드 실패' }))
+        throw new Error(errorData.error || '영상 업로드 실패')
+      }
+
+      const result = await response.json()
+      if (!result.success || !result.url) {
+        throw new Error('업로드된 영상 URL을 가져올 수 없습니다.')
+      }
+
+      // 업로드된 영상 URL을 store에 저장
+      updateScenes((prev) => {
+        const next = [...prev]
+        next[index] = { ...next[index], videoUrl: result.url }
+        return next
+      })
+    } catch (error) {
+      console.error('영상 업로드 오류:', error)
+      alert(error instanceof Error ? error.message : '영상 업로드 중 오류가 발생했습니다.')
+    } finally {
+      setUploadingSceneIndex(null)
+    }
+  }, [scenes, updateScenes])
 
   const handleAiGuideGenerateAll = useCallback(() => {
     // TODO: AI 촬영가이드 생성 로직 구현
@@ -235,6 +283,7 @@ export default function ProStep2EditPage() {
     ttsDuration: scene.ttsDuration || 10, // 실제 TTS duration 값 사용 (없으면 기본값 10초)
     guideText: guideTexts[scene.id] || '', // 촬영가이드 텍스트 가져오기
     voiceLabel: scene.voiceLabel, // 적용된 보이스 라벨
+    videoUrl: scene.videoUrl, // 업로드된 영상 URL
   }))
 
   // 각 씬의 TTS duration 콘솔 출력
@@ -332,6 +381,7 @@ export default function ProStep2EditPage() {
                     onDragEnd={handleDragEnd}
                     draggedIndex={draggedIndex}
                     dragOver={dragOver}
+                    uploadingSceneIndex={uploadingSceneIndex}
                   />
                 </div>
 

@@ -10,7 +10,7 @@ export interface ProVideoEditSceneCardProps {
   sceneIndex: number
   scriptText: string
   onScriptChange: (value: string) => void
-  onVideoUpload?: () => void
+  onVideoUpload?: (file: File) => Promise<void>
   onAiScriptClick?: () => void
   onAiGuideClick?: () => void
   /** TTS duration (초) - 타임라인 표시용 */
@@ -20,6 +20,10 @@ export interface ProVideoEditSceneCardProps {
   onGuideChange?: (value: string) => void
   /** 적용된 보이스 라벨 */
   voiceLabel?: string
+  /** 업로드된 영상 URL */
+  videoUrl?: string | null
+  /** 업로드 중 여부 */
+  isUploading?: boolean
   /** 드래그 핸들 관련 props */
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void
   onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void
@@ -40,6 +44,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   guideText = '',
   onGuideChange,
   voiceLabel,
+  videoUrl,
+  isUploading = false,
   onDragStart,
   onDragOver,
   onDrop,
@@ -124,7 +130,11 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
         <div className="flex-1 min-w-0 flex gap-4 items-start">
           {/* 좌측: 영상 업로드 영역 */}
           <div className="shrink-0">
-            <ProVideoUpload onUpload={onVideoUpload} />
+            <ProVideoUpload 
+              onUpload={onVideoUpload} 
+              isLoading={isUploading}
+              videoUrl={videoUrl}
+            />
           </div>
 
           {/* 우측: 스크립트 + 타임라인 영역 */}

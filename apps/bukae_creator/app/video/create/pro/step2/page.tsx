@@ -180,11 +180,6 @@ export default function ProStep2Page() {
     // updateScenes 내부에서 이미 setHasUnsavedChanges를 호출하므로 중복 호출 제거
   }, [updateScenes])
 
-  const handleUpload = useCallback((index: number) => {
-    // 추후 영상 업로드 연동 시 index 사용
-    void index
-  }, [])
-
   const handleGenerateAllScripts = useCallback(async () => {
     if (!scriptStyle) {
       alert('대본 스타일을 먼저 선택해주세요.')
