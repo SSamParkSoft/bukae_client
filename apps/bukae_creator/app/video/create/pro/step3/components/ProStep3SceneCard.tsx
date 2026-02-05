@@ -4,7 +4,6 @@ import { memo, useState, useEffect, useRef } from 'react'
 import { GripVertical, Pause, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ProVideoTimelineGrid } from '../../step2/components/ProVideoTimelineGrid'
 import { formatTime } from '@/utils/timeline'
 import { transitionLabels } from '@/lib/data/transitions'
 import { findSoundEffectMetadataByPath } from '@/lib/data/sound-effects'
@@ -173,6 +172,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   }, [videoUrl, selectionStartSeconds])
 
   // 선택된 영역의 프레임 썸네일 생성 (타임라인용)
+  // timeMarkers와 동일한 범위로 생성해야 함
   useEffect(() => {
     if (!videoUrl || !selectionDuration || selectionDuration <= 0) {
       setFrameThumbnails([])
@@ -187,12 +187,13 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
     }
 
     let isCancelled = false
-    const thumbnails: string[] = []
+    const thumbnails: Record<number, string> = {}
 
-    // 선택된 영역의 길이만큼만 썸네일 생성
-    const frameCount = Math.ceil(selectionDuration) + 1 // 시작과 끝 포함
+    // timeMarkers와 동일한 범위로 썸네일 생성
+    const startSecond = Math.floor(selectionStartSeconds)
+    const endSecond = Math.ceil(selectionEndSeconds)
 
-    const captureFrame = (second: number): Promise<void> => {
+    const captureFrame = (absoluteSecond: number): Promise<void> => {
       return new Promise((resolve) => {
         if (isCancelled) {
           resolve()
@@ -246,23 +247,23 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
             ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight)
 
             const thumbnail = canvas.toDataURL('image/jpeg', 0.8)
-            thumbnails[second] = thumbnail
+            thumbnails[absoluteSecond] = thumbnail
 
             video.removeEventListener('seeked', handleSeeked)
             resolve()
           } catch (error) {
             video.removeEventListener('seeked', handleSeeked)
             if (error instanceof Error && error.name === 'SecurityError') {
-              console.warn(`CORS 오류로 인해 ${second}초 프레임을 캡처할 수 없습니다.`)
+              console.warn(`CORS 오류로 인해 ${absoluteSecond}초 프레임을 캡처할 수 없습니다.`)
             } else {
-              console.error(`${second}초 프레임 캡처 오류:`, error)
+              console.error(`${absoluteSecond}초 프레임 캡처 오류:`, error)
             }
             resolve()
           }
         }
 
         video.addEventListener('seeked', handleSeeked)
-        video.currentTime = selectionStartSeconds + second
+        video.currentTime = absoluteSecond
       })
     }
 
@@ -280,16 +281,17 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
         return
       }
 
-      // 선택된 영역의 각 초마다 프레임 캡처
-      for (let i = 0; i <= Math.floor(selectionDuration); i++) {
+      // timeMarkers와 동일한 범위로 프레임 캡처 (절대 시간 사용)
+      for (let i = startSecond; i <= endSecond; i++) {
         if (isCancelled) break
         await captureFrame(i)
       }
 
       if (!isCancelled) {
+        // timeMarkers와 동일한 순서로 썸네일 배열 생성
         const thumbnailArray: string[] = []
-        for (let i = 0; i <= Math.floor(selectionDuration); i++) {
-          thumbnailArray[i] = thumbnails[i] || ''
+        for (let i = startSecond; i <= endSecond; i++) {
+          thumbnailArray.push(thumbnails[i] || '')
         }
         setFrameThumbnails(thumbnailArray)
       }
@@ -300,7 +302,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
     return () => {
       isCancelled = true
     }
-  }, [videoUrl, selectionStartSeconds, selectionDuration])
+  }, [videoUrl, selectionStartSeconds, selectionEndSeconds, selectionDuration])
 
   // 타임라인 시간 마커 생성 (선택된 영역만)
   const FRAME_WIDTH = 74
@@ -619,26 +621,6 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                       <canvas ref={thumbnailCanvasRef} className="hidden" />
                     </>
                   )}
-                </div>
-
-                {/* 격자 (전체 선택 영역) */}
-                <div
-                  className="cursor-default pointer-events-none"
-                  style={{
-                    position: 'absolute',
-                    left: '0px',
-                    width: `${timelineWidthPx}px`,
-                    top: '18px',
-                    height: '84px',
-                    zIndex: 10,
-                  }}
-                >
-                  <ProVideoTimelineGrid
-                    frameHeight={84}
-                    selectionLeft={0}
-                    selectionWidth={timelineWidthPx}
-                    extendY={18}
-                  />
                 </div>
               </div>
 

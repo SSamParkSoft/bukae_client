@@ -17,6 +17,8 @@ type ProScene = {
   voiceTemplate?: string | null
   ttsDuration?: number
   videoUrl?: string | null
+  selectionStartSeconds?: number
+  selectionEndSeconds?: number
 }
 
 // SceneScript를 ProScene으로 변환
@@ -39,6 +41,8 @@ function sceneScriptToProScene(s: SceneScript, index: number): ProScene {
     voiceTemplate: extended.voiceTemplate,
     ttsDuration: extended.ttsDuration,
     videoUrl: extended.videoUrl,
+    selectionStartSeconds: extended.selectionStartSeconds,
+    selectionEndSeconds: extended.selectionEndSeconds,
   }
 }
 

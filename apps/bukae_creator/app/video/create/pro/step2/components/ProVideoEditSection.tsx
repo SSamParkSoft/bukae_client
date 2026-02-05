@@ -12,6 +12,8 @@ export interface ProVideoEditSectionProps {
     guideText?: string
     voiceLabel?: string
     videoUrl?: string | null
+    selectionStartSeconds?: number
+    selectionEndSeconds?: number
   }>
   onScriptChange: (index: number, value: string) => void
   onGuideChange?: (index: number, value: string) => void
@@ -19,6 +21,7 @@ export interface ProVideoEditSectionProps {
   onAiScriptClick?: (index: number) => void
   onAiGuideClick?: (index: number) => void
   onAiGuideGenerateAll?: () => void
+  onSelectionChange?: (index: number, startSeconds: number, endSeconds: number) => void
   /** 드래그 앤 드롭 관련 */
   onDragStart?: (index: number) => void
   onDragOver?: (e: React.DragEvent<HTMLDivElement>, index: number) => void
@@ -37,6 +40,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
   onAiScriptClick,
   onAiGuideClick,
   onAiGuideGenerateAll,
+  onSelectionChange,
   onDragStart,
   onDragOver,
   onDrop,
@@ -84,6 +88,8 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
             ttsDuration={scene.ttsDuration}
             videoUrl={scene.videoUrl}
             isUploading={uploadingSceneIndex === index}
+            initialSelectionStartSeconds={scene.selectionStartSeconds}
+            onSelectionChange={onSelectionChange ? (startSeconds, endSeconds) => onSelectionChange(index, startSeconds, endSeconds) : undefined}
             onDragStart={onDragStart ? (e) => onDragStart(index) : undefined}
             onDragOver={onDragOver ? (e) => onDragOver(e, index) : undefined}
             onDrop={onDrop}

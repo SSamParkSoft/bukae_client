@@ -24,6 +24,10 @@ export interface ProVideoEditSceneCardProps {
   videoUrl?: string | null
   /** 업로드 중 여부 */
   isUploading?: boolean
+  /** 격자 선택 영역 시작 시간 (초) - 초기값 */
+  initialSelectionStartSeconds?: number
+  /** 격자 선택 영역 변경 콜백 */
+  onSelectionChange?: (startSeconds: number, endSeconds: number) => void
   /** 드래그 핸들 관련 props */
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void
   onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void
@@ -46,6 +50,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   voiceLabel,
   videoUrl,
   isUploading = false,
+  initialSelectionStartSeconds = 0,
+  onSelectionChange,
   onDragStart,
   onDragOver,
   onDrop,
@@ -64,14 +70,40 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   // 격자(선택 영역) 드래그 관련 상태
-  const [selectionStartSeconds, setSelectionStartSeconds] = useState(0)
+  // initialSelectionStartSeconds를 기본값으로 사용하되, 사용자가 드래그할 때만 내부 상태 업데이트
+  const [selectionStartSeconds, setSelectionStartSeconds] = useState(initialSelectionStartSeconds ?? 0)
   const [isDraggingSelection, setIsDraggingSelection] = useState(false)
   const [dragStartX, setDragStartX] = useState(0)
   const [dragStartSelectionLeft, setDragStartSelectionLeft] = useState(0)
   const timelineContainerRef = useRef<HTMLDivElement | null>(null)
+  const prevInitialSelectionRef = useRef<number | undefined>(initialSelectionStartSeconds)
+
+  // initialSelectionStartSeconds가 외부에서 변경될 때만 동기화 (드래그 중이 아닐 때만)
+  useEffect(() => {
+    if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
+    
+    const hasChanged = prevInitialSelectionRef.current !== initialSelectionStartSeconds &&
+      Math.abs((prevInitialSelectionRef.current ?? 0) - (initialSelectionStartSeconds ?? 0)) > 0.01
+    
+    if (hasChanged) {
+      const currentDiff = Math.abs(selectionStartSeconds - (initialSelectionStartSeconds ?? 0))
+      if (currentDiff > 0.01) {
+        prevInitialSelectionRef.current = initialSelectionStartSeconds
+        // 외부 prop 변경 시 내부 상태 동기화는 필요하므로 비동기로 처리
+        const timeoutId = setTimeout(() => {
+          setSelectionStartSeconds(initialSelectionStartSeconds ?? 0)
+        }, 0)
+        return () => clearTimeout(timeoutId)
+      } else {
+        prevInitialSelectionRef.current = initialSelectionStartSeconds
+      }
+    }
+  }, [initialSelectionStartSeconds, selectionStartSeconds, isDraggingSelection])
 
   // TTS duration이 변경되면 격자 위치 조정
   useEffect(() => {
+    if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
+    
     // 실제 영상 길이 기준으로 제한
     // timelineDuration을 계산하여 정확한 끝지점 구하기
     const timelineDuration = videoDuration !== null && videoDuration > 0 
@@ -91,7 +123,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       }, 0)
       return () => clearTimeout(timeoutId)
     }
-  }, [ttsDuration, videoDuration, selectionStartSeconds])
+  }, [ttsDuration, videoDuration, selectionStartSeconds, isDraggingSelection])
 
   // videoUrl이 없을 때 videoDuration 초기화 (별도 useEffect로 분리)
   useEffect(() => {
@@ -354,6 +386,46 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   
   // 선택 영역의 픽셀 단위 위치
   const selectionLeftPx = clampedSelectionStartSeconds * FRAME_WIDTH
+
+  // 선택 영역이 실제로 변경될 때만 콜백 호출 (무한 루프 방지)
+  // store에서 오는 initialSelectionStartSeconds와 비교하여 실제로 사용자가 변경한 경우에만 호출
+  const prevSelectionRef = useRef<{ start: number; end: number } | null>(null)
+  
+  useEffect(() => {
+    if (!onSelectionChange) return
+    
+    // initialSelectionStartSeconds와 비교하여 실제로 사용자가 변경한 경우에만 호출
+    const initialStart = initialSelectionStartSeconds ?? 0
+    const initialEnd = initialStart + (ttsDuration || 10)
+    
+    // 이전 값과 비교하여 실제로 변경된 경우에만 호출
+    const prev = prevSelectionRef.current
+    const hasChanged = prev === null ||
+      Math.abs(prev.start - clampedSelectionStartSeconds) > 0.01 ||
+      Math.abs(prev.end - clampedSelectionEndSeconds) > 0.01
+    
+    // store의 초기값과 다를 때만 호출 (사용자가 실제로 변경한 경우)
+    // 또는 드래그 중일 때만 호출
+    const differsFromInitial = Math.abs(clampedSelectionStartSeconds - initialStart) > 0.01 ||
+      Math.abs(clampedSelectionEndSeconds - initialEnd) > 0.01
+    
+    if (hasChanged && (differsFromInitial || isDraggingSelection)) {
+      prevSelectionRef.current = {
+        start: clampedSelectionStartSeconds,
+        end: clampedSelectionEndSeconds,
+      }
+      // 드래그 중이거나 초기값과 다를 때만 호출
+      if (differsFromInitial || isDraggingSelection) {
+        onSelectionChange(clampedSelectionStartSeconds, clampedSelectionEndSeconds)
+      }
+    } else if (hasChanged) {
+      // 값이 변경되었지만 초기값과 같고 드래그 중이 아니면 ref만 업데이트
+      prevSelectionRef.current = {
+        start: clampedSelectionStartSeconds,
+        end: clampedSelectionEndSeconds,
+      }
+    }
+  }, [clampedSelectionStartSeconds, clampedSelectionEndSeconds, onSelectionChange, initialSelectionStartSeconds, ttsDuration, isDraggingSelection])
 
   // 격자 드래그 핸들러
   const handleSelectionMouseDown = (e: React.MouseEvent) => {

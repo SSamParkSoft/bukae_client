@@ -18,6 +18,8 @@ type ProScene = {
   voiceTemplate?: string | null
   ttsDuration?: number // TTS duration (초)
   videoUrl?: string | null // 업로드된 영상 URL
+  selectionStartSeconds?: number // 격자 선택 영역 시작 시간 (초)
+  selectionEndSeconds?: number // 격자 선택 영역 끝 시간 (초)
 }
 
 // 확장된 SceneScript 타입
@@ -27,6 +29,8 @@ type ExtendedSceneScript = SceneScript & {
   voiceTemplate?: string | null
   ttsDuration?: number // TTS duration (초)
   videoUrl?: string | null // 업로드된 영상 URL
+  selectionStartSeconds?: number // 격자 선택 영역 시작 시간 (초)
+  selectionEndSeconds?: number // 격자 선택 영역 끝 시간 (초)
 }
 
 // 고유 ID 생성 헬퍼 함수
@@ -44,6 +48,8 @@ function sceneScriptToProScene(s: SceneScript, _index: number): ProScene {
     voiceTemplate: extended.voiceTemplate,
     ttsDuration: extended.ttsDuration,
     videoUrl: extended.videoUrl,
+    selectionStartSeconds: extended.selectionStartSeconds,
+    selectionEndSeconds: extended.selectionEndSeconds,
   }
 }
 
@@ -57,6 +63,8 @@ function proSceneToSceneScript(s: ProScene, index: number): ExtendedSceneScript 
     voiceTemplate: s.voiceTemplate,
     ttsDuration: s.ttsDuration,
     videoUrl: s.videoUrl,
+    selectionStartSeconds: s.selectionStartSeconds,
+    selectionEndSeconds: s.selectionEndSeconds,
   }
 }
 
@@ -164,6 +172,18 @@ export default function ProStep2EditPage() {
       setHasUnsavedChanges(true)
     }
   }, [scenes, setHasUnsavedChanges])
+
+  const handleSelectionChange = useCallback((index: number, startSeconds: number, endSeconds: number) => {
+    updateScenes((prev) => {
+      const next = [...prev]
+      next[index] = { 
+        ...next[index], 
+        selectionStartSeconds: startSeconds,
+        selectionEndSeconds: endSeconds,
+      }
+      return next
+    })
+  }, [updateScenes])
 
   const [uploadingSceneIndex, setUploadingSceneIndex] = useState<number | null>(null)
 
@@ -284,6 +304,8 @@ export default function ProStep2EditPage() {
     guideText: guideTexts[scene.id] || '', // 촬영가이드 텍스트 가져오기
     voiceLabel: scene.voiceLabel, // 적용된 보이스 라벨
     videoUrl: scene.videoUrl, // 업로드된 영상 URL
+    selectionStartSeconds: scene.selectionStartSeconds, // 격자 선택 영역 시작 시간
+    selectionEndSeconds: scene.selectionEndSeconds, // 격자 선택 영역 끝 시간
   }))
 
   // 각 씬의 TTS duration 콘솔 출력
@@ -375,6 +397,7 @@ export default function ProStep2EditPage() {
                     onAiScriptClick={handleAiScriptClick}
                     onAiGuideClick={handleAiGuideClick}
                     onAiGuideGenerateAll={handleAiGuideGenerateAll}
+                    onSelectionChange={handleSelectionChange}
                     onDragStart={handleDragStart}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
