@@ -68,30 +68,14 @@ export function useVideoSegmentPlayer({
   const isInitialMountRef = useRef(true)
   // 이벤트 리스너 관리: 각 비디오 요소에 대한 리스너 핸들러를 저장
   const videoEventListenersRef = useRef<Map<number, { timeupdate: () => void; ended: () => void }>>(new Map())
-
-  /**
-   * 이전 세그먼트들의 누적 재생 시간 계산
-   * 
-   * 각 세그먼트의 재생 시간은 격자 구간의 길이입니다:
-   * 재생 시간 = selectionEndSeconds - selectionStartSeconds
-   * 
-   * 예시:
-   * - 세그먼트 0: 격자 2~7초 → 재생 시간: 5초
-   * - 세그먼트 1: 격자 1~6초 → 재생 시간: 5초
-   * - 세그먼트 2의 previousSegmentsTime = 5 + 5 = 10초
-   * 
-   * @param segmentIndex 현재 세그먼트 인덱스 (0부터 시작)
-   * @returns 이전 세그먼트들의 시간 합 (초)
-   */
-  const calculatePreviousSegmentsTime = useCallback((segmentIndex: number): number => {
-    return scenes.slice(0, segmentIndex).reduce((sum, scene) => {
-      if (scene.videoUrl && scene.selectionStartSeconds !== undefined && scene.selectionEndSeconds !== undefined) {
-        // 각 세그먼트의 재생 시간 = 격자 끝 시간 - 격자 시작 시간
-        return sum + (scene.selectionEndSeconds - scene.selectionStartSeconds)
-      }
-      return sum
-    }, 0)
-  }, [scenes])
+  // scenes를 ref로 보관해, 격자 이동 등으로 참조만 바뀔 때 재생 effect가 다시 돌지 않도록 함
+  const scenesRef = useRef(scenes)
+  scenesRef.current = scenes
+  // totalDuration도 ref로 두어 격자 이동 시 effect가 재실행되지 않도록 함
+  const totalDurationRef = useRef(totalDurationValue)
+  totalDurationRef.current = totalDurationValue
+  // playSegment는 아래 useCallback으로 정의되므로, ref만 먼저 선언하고 정의 후 할당함
+  const playSegmentRef = useRef<((segmentIndex: number, scene: ProStep3Scene, originalSceneIndex: number, previousSegmentsTime: number, onSegmentEnd: () => void) => Promise<boolean>) | null>(null)
 
   /**
    * 현재 재생 시간 업데이트
@@ -115,8 +99,9 @@ export function useVideoSegmentPlayer({
     const currentTotalTime = previousSegmentsTime + segmentProgress
     
     // 시간 범위 제한 (0 ~ 전체 재생 시간)
-    setCurrentTime(Math.max(0, Math.min(currentTotalTime, totalDurationValue)))
-  }, [isPlaying, totalDurationValue, setCurrentTime])
+    const total = totalDurationRef.current
+    setCurrentTime(Math.max(0, Math.min(currentTotalTime, total)))
+  }, [isPlaying, setCurrentTime])
 
   /**
    * 특정 세그먼트의 재생을 정지하고 이벤트 리스너 제거
@@ -321,6 +306,8 @@ export function useVideoSegmentPlayer({
     }
   }, [isPlaying, playbackSpeed, renderSubtitle, playTts, loadVideoAsSprite, updatePlaybackTime, stopSegment, moveToNextSegment, onPlayPause, videoElementsRef, spritesRef, setCurrentSceneIndex])
 
+  playSegmentRef.current = playSegment
+
   /**
    * 재생 로직: 선택된 구간들을 순차적으로 재생
    * 
@@ -353,13 +340,14 @@ export function useVideoSegmentPlayer({
       }
     }
 
-    // 유효한 씬 필터링: 비디오 URL과 격자 구간이 있는 씬만 재생 대상
-    const validScenes = scenes.filter(s => 
-      s.videoUrl && 
-      s.selectionStartSeconds !== undefined && 
+    // 유효한 씬 필터링: 비디오 URL과 격자 구간이 있는 씬만 재생 대상 (항상 최신 scenes 사용)
+    const currentScenes = scenesRef.current
+    const validScenes = currentScenes.filter(s =>
+      s.videoUrl &&
+      s.selectionStartSeconds !== undefined &&
       s.selectionEndSeconds !== undefined
     )
-    
+
     if (validScenes.length === 0) {
       return
     }
@@ -367,10 +355,10 @@ export function useVideoSegmentPlayer({
     // 재생 시작: 세그먼트 인덱스 초기화
     currentSegmentIndexRef.current = 0
     segmentStartTimeRef.current = 0
-    
-    // 비동기로 처리하여 cascading renders 방지
+
+    // 비동기로 처리하여 cascading renders 방지 (최신 값은 ref에서 읽음)
     const timeoutId = setTimeout(() => {
-      setTotalDuration(totalDurationValue)
+      setTotalDuration(totalDurationRef.current)
     }, 0)
 
     // ref 값들을 effect 시작 부분에서 복사하여 cleanup에서 사용
@@ -382,26 +370,25 @@ export function useVideoSegmentPlayer({
 
     /**
      * 다음 세그먼트 재생 (재귀적으로 호출)
-     * 
-     * 재생 흐름:
-     * 1. 현재 세그먼트 인덱스 확인
-     * 2. 모든 세그먼트 재생 완료 시 재생 중지
-     * 3. 현재 세그먼트의 씬 데이터 가져오기
-     * 4. 이전 세그먼트들의 시간 합 계산
-     * 5. playSegment로 현재 세그먼트 재생 시작
-     * 6. 세그먼트 종료 시 이벤트 리스너에서 이 함수를 다시 호출하여 다음 세그먼트 재생
+     * playNextSegment 내부에서는 호출 시점의 scenesRef.current를 사용하므로
+     * 격자 이동으로 인한 참조 변경만으로는 재생이 재시작되지 않음.
      */
     const playNextSegment = async () => {
-      // 모든 세그먼트 재생 완료
-      if (currentSegmentIndexRef.current >= validScenes.length) {
-        setCurrentTime(totalDurationValue)
-        onPlayPause() // 재생 중지
+      const scenesNow = scenesRef.current
+      const validNow = scenesNow.filter(s =>
+        s.videoUrl &&
+        s.selectionStartSeconds !== undefined &&
+        s.selectionEndSeconds !== undefined
+      )
+
+      if (currentSegmentIndexRef.current >= validNow.length) {
+        setCurrentTime(totalDurationRef.current)
+        onPlayPause()
         return
       }
 
-      // 현재 세그먼트의 씬 데이터 가져오기
-      const scene = validScenes[currentSegmentIndexRef.current]
-      const originalSceneIndex = scenes.findIndex(s => s.id === scene.id)
+      const scene = validNow[currentSegmentIndexRef.current]
+      const originalSceneIndex = scenesNow.findIndex(s => s.id === scene.id)
       
       // 씬을 찾을 수 없으면 다음 세그먼트로 이동
       if (originalSceneIndex < 0) {
@@ -410,18 +397,21 @@ export function useVideoSegmentPlayer({
         return
       }
 
-      // 이전 세그먼트들의 시간 합 계산 (전체 재생 시간 계산용)
-      const previousSegmentsTime = calculatePreviousSegmentsTime(currentSegmentIndexRef.current)
+      // 이전 세그먼트들의 시간 합 (유효한 씬 목록 기준)
+      const previousSegmentsTime = validNow
+        .slice(0, currentSegmentIndexRef.current)
+        .reduce((sum, s) => sum + ((s.selectionEndSeconds ?? 0) - (s.selectionStartSeconds ?? 0)), 0)
       segmentStartTimeRef.current = previousSegmentsTime
 
-      // 현재 세그먼트 재생 시작
-      // 세그먼트가 끝나면 이벤트 리스너에서 playNextSegment를 호출하여 다음 세그먼트 재생
-      const success = await playSegment(
+      // 현재 세그먼트 재생 시작 (항상 최신 playSegment 사용)
+      const playSegmentFn = playSegmentRef.current
+      if (!playSegmentFn) return
+      const success = await playSegmentFn(
         currentSegmentIndexRef.current,
         scene,
         originalSceneIndex,
         previousSegmentsTime,
-        playNextSegment // 세그먼트 종료 시 다음 세그먼트 재생
+        playNextSegment
       )
 
       // 재생 실패 시 다음 세그먼트로 이동
@@ -469,14 +459,14 @@ export function useVideoSegmentPlayer({
           sprite.alpha = 0
         }
       })
+      
+      // 재생 중지 시 타임라인을 0으로 리셋 (cascading 방지를 위해 다음 틱에 실행)
+      setTimeout(() => setCurrentTime(0), 0)
     }
+  // scenes, totalDurationValue, playSegment를 의존성에서 제외: 격자 이동 시 재생이 다시 시작되지 않도록 함.
   }, [
     isPlaying,
     pixiReady,
-    scenes,
-    totalDurationValue,
-    calculatePreviousSegmentsTime,
-    playSegment,
     moveToNextSegment,
     setCurrentTime,
     setTotalDuration,

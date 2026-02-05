@@ -54,6 +54,8 @@ export interface ProStep3SceneCardProps {
   dragOver?: { index: number; position: 'before' | 'after' } | null
   /** 재생 핸들러 */
   onPlayScene?: () => void
+  /** 카드 클릭 시 씬 선택 (현재 씬로 설정) */
+  onSelect?: () => void
   /** 효과 패널 열기 핸들러 */
   onOpenEffectPanel?: (tab: 'animation' | 'subtitle' | 'sound') => void
 }
@@ -81,6 +83,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   draggedIndex = null,
   dragOver: dragOverProp = null,
   onPlayScene,
+  onSelect,
   onOpenEffectPanel,
 }: ProStep3SceneCardProps) {
   const isDropTargetBefore = dragOverProp?.index === sceneIndex && dragOverProp?.position === 'before'
@@ -681,6 +684,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
         ) {
           e.preventDefault()
           e.stopPropagation()
+          onSelect?.()
         }
       }}
     >
@@ -780,7 +784,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
               </div>
 
               {/* 스크립트 영역 */}
-              <div className="mb-6">
+              <div className="mb-2">
                 <div className="relative rounded-lg bg-white shadow-(--shadow-card-default) overflow-hidden border-2 border-transparent" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
                   <textarea
                     value={scriptText}
@@ -956,8 +960,8 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                           isInSelection ? 'text-text-dark' : 'text-text-tertiary'
                         }`}
                         style={{
-                          fontSize: '16px',
-                          lineHeight: '22.4px',
+                          fontSize: '14px',
+                          lineHeight: '20px',
                           letterSpacing: '-0.32px',
                         }}
                       >

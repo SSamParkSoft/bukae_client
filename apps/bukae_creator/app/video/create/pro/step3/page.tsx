@@ -102,6 +102,7 @@ export default function ProStep3Page() {
               currentVideoUrl={currentVideoUrl}
               currentSelectionStartSeconds={currentSelectionStartSeconds}
               currentSceneIndex={currentSceneIndex}
+              onCurrentSceneIndexChange={setCurrentSceneIndex}
               scenes={proStep3Scenes}
               isPlaying={isPlaying}
               onPlayPause={handleProPlayPause}

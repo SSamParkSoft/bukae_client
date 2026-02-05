@@ -48,6 +48,7 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
   onSelectionChange,
 }: ProSceneListPanelProps) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const dropOccurredRef = useRef(false)
   const [showScrollGutter, setShowScrollGutter] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
@@ -78,6 +79,7 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
   }, [])
 
   const handleDragStart = (index: number) => (e: React.DragEvent<HTMLDivElement>) => {
+    dropOccurredRef.current = false
     setDraggedIndex(index)
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/html', '')
@@ -123,11 +125,16 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
     const newOrderIndices = newOrder.map((_, idx) => idx)
     onReorder(newOrderIndices)
 
+    dropOccurredRef.current = true
     setDraggedIndex(null)
     setDragOver(null)
   }
 
-  const handleDragEnd = () => {
+  const handleDragEnd = (index: number) => () => {
+    if (!dropOccurredRef.current) {
+      onSelect(index)
+    }
+    dropOccurredRef.current = false
     setDraggedIndex(null)
     setDragOver(null)
   }
@@ -171,9 +178,10 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
                 onDragStart={handleDragStart(index)}
                 onDragOver={handleDragOver(index)}
                 onDrop={handleDrop}
-                onDragEnd={handleDragEnd}
+                onDragEnd={handleDragEnd(index)}
                 draggedIndex={draggedIndex}
                 dragOver={dragOver}
+                onSelect={() => onSelect(index)}
                 onPlayScene={async () => {
                   try {
                     await onPlayScene(index)

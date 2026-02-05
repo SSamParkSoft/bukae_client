@@ -64,12 +64,7 @@ export function useProStep3Scenes() {
       })
       return []
     }
-    const result = safeScenes.map((s, index) => sceneScriptToProScene(s, index))
-    console.log('[useProStep3Scenes] proScenes 변환 완료:', {
-      count: result.length,
-      scenes: result,
-    })
-    return result
+    return safeScenes.map((s, index) => sceneScriptToProScene(s, index))
   }, [storeScenes])
 
   // ProStep3Scene으로 변환 (selectionStartSeconds, selectionEndSeconds는 기본값 사용)

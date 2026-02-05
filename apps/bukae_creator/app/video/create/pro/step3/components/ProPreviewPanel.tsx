@@ -14,8 +14,10 @@ interface ProPreviewPanelProps {
   currentVideoUrl?: string | null
   /** 현재 선택된 씬의 격자 시작 시간 (초) */
   currentSelectionStartSeconds?: number
-  /** 현재 선택된 씬 인덱스 */
+  /** 현재 선택된 씬 인덱스 (단일 소스: 부모 상태) */
   currentSceneIndex?: number
+  /** 재생 중 씬 인덱스 변경 시 부모 상태 동기화 (segment player에서 호출) */
+  onCurrentSceneIndexChange?: (index: number) => void
   /** 모든 씬 데이터 (재생 시 사용) */
   scenes: ProStep3Scene[]
   /** 재생 중 여부 */
@@ -38,7 +40,8 @@ interface ProPreviewPanelProps {
 export const ProPreviewPanel = memo(function ProPreviewPanel({
   currentVideoUrl,
   currentSelectionStartSeconds = 0,
-  currentSceneIndex: propCurrentSceneIndex = 0,
+  currentSceneIndex = 0,
+  onCurrentSceneIndexChange,
   scenes,
   isPlaying,
   onPlayPause,
@@ -52,9 +55,10 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   const pixiContainerRef = useRef<HTMLDivElement | null>(null)
   const timelineBarRef = useRef<HTMLDivElement | null>(null)
   
-  // PixiJS 관련 refs
+  // PixiJS 관련 refs (비디오 레이어 / 자막 레이어 분리해 자막이 항상 위에 오도록 함)
   const appRef = useRef<PIXI.Application | null>(null)
   const containerRef = useRef<PIXI.Container | null>(null)
+  const videoContainerRef = useRef<PIXI.Container | null>(null)
   const subtitleContainerRef = useRef<PIXI.Container | null>(null)
   const textsRef = useRef<Map<number, PIXI.Text>>(new Map())
   const spritesRef = useRef<Map<number, PIXI.Sprite>>(new Map())
@@ -71,19 +75,19 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   const [currentTime, setCurrentTime] = useState(0)
   const [totalDuration, setTotalDuration] = useState(0)
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0)
-  const [currentSceneIndex, setCurrentSceneIndex] = useState(propCurrentSceneIndex)
   const [pixiReady, setPixiReady] = useState(false)
 
-  // propCurrentSceneIndex 변경 시 내부 상태 동기화
+  // 재생 중 씬 인덱스 업데이트는 segment player가 onCurrentSceneIndexChange로 부모에 전달
+  const setCurrentSceneIndex = useCallback(
+    (index: number) => onCurrentSceneIndexChange?.(index),
+    [onCurrentSceneIndexChange]
+  )
+
+  // scenes를 ref로 두어 renderSubtitle이 격자만 바뀔 때 재생성되지 않게 함 (현재 씬 비디오 표시 effect 재실행 방지)
+  const scenesRef = useRef(scenes)
   useEffect(() => {
-    if (!isPlaying) {
-      // 비동기로 처리하여 cascading renders 방지
-      const timeoutId = setTimeout(() => {
-        setCurrentSceneIndex(propCurrentSceneIndex)
-      }, 0)
-      return () => clearTimeout(timeoutId)
-    }
-  }, [propCurrentSceneIndex, isPlaying])
+    scenesRef.current = scenes
+  }, [scenes])
 
   // 스테이지 크기 (9:16 비율)
   const stageDimensions = useMemo(() => ({
@@ -110,6 +114,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       }
       appRef.current = null
       containerRef.current = null
+      videoContainerRef.current = null
       subtitleContainerRef.current = null
       textsRef.current.clear()
       spritesRef.current.clear()
@@ -148,7 +153,12 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       app.stage.addChild(mainContainer)
       containerRef.current = mainContainer
 
-      // 자막 컨테이너 생성
+      // 비디오 전용 컨테이너 (아래 레이어)
+      const videoContainer = new PIXI.Container()
+      mainContainer.addChild(videoContainer)
+      videoContainerRef.current = videoContainer
+
+      // 자막 컨테이너 (가장 위 레이어로 추가)
       const subtitleContainer = new PIXI.Container()
       mainContainer.addChild(subtitleContainer)
       subtitleContainerRef.current = subtitleContainer
@@ -239,6 +249,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         }
         appRef.current = null
         containerRef.current = null
+        videoContainerRef.current = null
         subtitleContainerRef.current = null
         // 복사된 값들로 이미 정리했으므로 ref는 나중에 자동으로 clear됨
       }
@@ -261,12 +272,12 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
   // 비디오를 PixiJS Texture로 변환하여 Sprite로 렌더링
   const loadVideoAsSprite = useCallback(async (sceneIndex: number, videoUrl: string): Promise<void> => {
-    if (!appRef.current || !containerRef.current || !pixiReady) return
+    if (!appRef.current || !videoContainerRef.current || !pixiReady) return
 
     // 기존 스프라이트 정리
     const existingSprite = spritesRef.current.get(sceneIndex)
     if (existingSprite && !existingSprite.destroyed) {
-      containerRef.current.removeChild(existingSprite)
+      videoContainerRef.current.removeChild(existingSprite)
       existingSprite.destroy()
       spritesRef.current.delete(sceneIndex)
     }
@@ -358,18 +369,18 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       sprite.visible = true
       sprite.alpha = 1
 
-      containerRef.current.addChild(sprite)
+      videoContainerRef.current.addChild(sprite)
       spritesRef.current.set(sceneIndex, sprite)
     } catch (error) {
       console.error('비디오 Texture 생성 오류:', error)
     }
   }, [pixiReady])
 
-  // 자막 렌더링 함수
+  // 자막 렌더링 함수 (scenes는 ref로 참조해 격자 변경 시 참조만 바뀌어도 콜백이 재생성되지 않게 함)
   const renderSubtitle = useCallback((sceneIndex: number, script: string) => {
     if (!appRef.current || !subtitleContainerRef.current || !pixiReady) return
 
-    const scene = scenes[sceneIndex]
+    const scene = scenesRef.current[sceneIndex]
     if (!scene) return
 
     // 기존 텍스트 숨김
@@ -424,7 +435,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     // 텍스트 표시
     textObj.visible = true
     textObj.alpha = 1
-  }, [scenes, pixiReady])
+  }, [pixiReady])
 
   // TTS 재생 함수
   const playTts = useCallback(async (sceneIndex: number, voiceTemplate: string | null | undefined, script: string): Promise<void> => {
@@ -515,38 +526,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     }, 0)
   }, [scenes])
 
-  // 재생 중지 시 정리
-  useEffect(() => {
-    if (!isPlaying) {
-      // 모든 비디오 일시정지
-      videoElementsRef.current.forEach((videoElement) => {
-        videoElement.pause()
-      })
-      
-      // TTS 오디오 정리
-      ttsAudioRefsRef.current.forEach((audio) => {
-        audio.pause()
-        audio.src = ''
-      })
-      ttsAudioRefsRef.current.clear()
-      
-      // 자막 숨김
-      textsRef.current.forEach((textObj) => {
-        if (textObj && !textObj.destroyed) {
-          textObj.visible = false
-          textObj.alpha = 0
-        }
-      })
-      
-      // 비디오 스프라이트는 유지 (썸네일 표시용)
-      
-      // 비동기로 처리하여 cascading renders 방지
-      const timeoutId = setTimeout(() => {
-        setCurrentTime(0)
-      }, 0)
-      return () => clearTimeout(timeoutId)
-    }
-  }, [isPlaying])
+  // 재생 중지 시 정리(비디오/TTS/자막/타임라인 0)는 useVideoSegmentPlayer cleanup에서 처리
 
   // 현재 선택된 씬의 비디오와 자막 표시 (재생 중이 아닐 때)
   // scenes 배열 전체가 아닌 현재 씬의 videoUrl과 script만 추적하여 불필요한 재실행 방지
@@ -592,7 +572,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     onPlayPause()
   }, [trackUserGesture, onPlayPause])
 
-  // 현재 선택된 씬의 비디오 썸네일 생성 (격자 시작 지점)
+  // 현재 선택된 씬의 비디오 썸네일 생성 (격자 시작 지점).
+  // 썸네일용 videoRef는 muted이며, currentTime만 설정하고 .play()는 호출하지 않음 → 재생 트리거 없음.
   useEffect(() => {
     if (!currentVideoUrl || !videoRef.current || !canvasRef.current) {
       // 비동기로 처리하여 cascading renders 방지
@@ -705,21 +686,25 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
             className="absolute inset-0 z-10"
           />
           
-          {/* 썸네일 레이어 (재생 중이 아니고 PixiJS가 준비되지 않았을 때만 표시) */}
-          {!isPlaying && !pixiReady && thumbnailUrl ? (
+          {/* 썸네일 레이어: 재생 중이 아닐 때 격자 시작점 프레임 표시. pixiReady 여부와 관계없이 썸네일이 있으면 위에 표시(z-20). */}
+          {!isPlaying && thumbnailUrl ? (
             <Image
               src={thumbnailUrl}
               alt="비디오 썸네일"
               fill
-              className="object-contain z-0"
+              className="object-contain z-20"
               unoptimized
             />
-          ) : !isPlaying && !pixiReady && isGeneratingThumbnail ? (
-            <div className="absolute inset-0 flex items-center justify-center z-0">
+          ) : !isPlaying && isGeneratingThumbnail ? (
+            <div className="absolute inset-0 flex items-center justify-center z-20">
               <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             </div>
-          ) : !isPlaying && !pixiReady ? (
-            <div className="absolute inset-0 flex items-center justify-center text-white/50 z-0">
+          ) : !isPlaying && !thumbnailUrl && currentVideoUrl ? (
+            <div className="absolute inset-0 flex items-center justify-center text-white/50 z-20">
+              썸네일 생성 중…
+            </div>
+          ) : !isPlaying && !currentVideoUrl ? (
+            <div className="absolute inset-0 flex items-center justify-center text-white/50 z-20">
               비디오 없음
             </div>
           ) : null}
@@ -733,7 +718,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
                 className="hidden"
                 muted
                 playsInline
-                preload="metadata"
+                preload="auto"
                 crossOrigin="anonymous"
               />
               <canvas ref={canvasRef} className="hidden" />
