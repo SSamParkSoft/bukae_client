@@ -9,6 +9,7 @@ import { ExportButton } from '../../../fast/step3/components/ExportButton'
 import type { ProStep3Scene } from './ProSceneListPanel'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { authStorage } from '@/lib/api/auth-storage'
+import { useVideoSegmentPlayer } from '../hooks/playback/useVideoSegmentPlayer'
 
 interface ProPreviewPanelProps {
   /** 현재 선택된 씬의 비디오 URL */
@@ -52,10 +53,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   const playbackContainerRef = useRef<HTMLDivElement | null>(null)
   const pixiContainerRef = useRef<HTMLDivElement | null>(null)
   const timelineBarRef = useRef<HTMLDivElement | null>(null)
-  const currentSegmentIndexRef = useRef(0)
-  const segmentStartTimeRef = useRef(0)
-  const userGestureRef = useRef<{ timestamp: number } | null>(null)
-  const isInitialMountRef = useRef(true)
   
   // PixiJS 관련 refs
   const appRef = useRef<PIXI.Application | null>(null)
@@ -570,248 +567,32 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     }
   }, [isPlaying, currentVideoUrl, scenes, currentSceneIndex, renderSubtitle, loadVideoAsSprite])
 
-  // 재생 버튼 클릭 핸들러 (재생 상태만 토글, 실제 재생은 effect에서 처리)
+  // 비디오 세그먼트 재생 로직 커스텀 훅
+  const { trackUserGesture } = useVideoSegmentPlayer({
+    isPlaying,
+    pixiReady,
+    scenes,
+    totalDurationValue,
+    playbackSpeed,
+    loadVideoAsSprite,
+    renderSubtitle,
+    playTts,
+    onPlayPause,
+    setCurrentSceneIndex,
+    setCurrentTime,
+    setTotalDuration,
+    videoElementsRef,
+    spritesRef,
+    ttsAudioRefsRef,
+    textsRef,
+  })
+
+  // 재생 버튼 클릭 핸들러 (재생 상태만 토글, 실제 재생은 커스텀 훅에서 처리)
   const handlePlayPause = useCallback(() => {
     // 사용자 제스처 추적 (재생 시작 시에만)
-    if (!isPlaying) {
-      userGestureRef.current = { timestamp: Date.now() }
-    }
+    trackUserGesture()
     onPlayPause()
-  }, [isPlaying, onPlayPause])
-
-  // 재생 로직: 선택된 구간들을 순차적으로 재생
-  useEffect(() => {
-    if (!isPlaying || !pixiReady) {
-      return
-    }
-
-    // 초기 마운트 시에는 자동재생하지 않음 (사용자가 재생 버튼을 클릭했을 때만 재생)
-    if (isInitialMountRef.current) {
-      isInitialMountRef.current = false
-      // 사용자 제스처가 없으면 재생하지 않음
-      const gesture = userGestureRef.current
-      const hasValidGesture = gesture && (Date.now() - gesture.timestamp) < 1000
-      if (!hasValidGesture) {
-        console.warn('초기 마운트 시 자동재생 방지: 사용자 제스처가 없습니다.')
-        return
-      }
-    }
-
-    const validScenes = scenes.filter(s => s.videoUrl && s.selectionStartSeconds !== undefined && s.selectionEndSeconds !== undefined)
-    if (validScenes.length === 0) {
-      return
-    }
-
-    currentSegmentIndexRef.current = 0
-    segmentStartTimeRef.current = 0
-    // 비동기로 처리하여 cascading renders 방지
-    const timeoutId = setTimeout(() => {
-      setTotalDuration(totalDurationValue)
-    }, 0)
-
-    // ref 값들을 effect 시작 부분에서 복사하여 cleanup에서 사용
-    const videoElementsSnapshot = new Map(videoElementsRef.current)
-    const ttsAudiosSnapshot = new Map(ttsAudioRefsRef.current)
-    const textsSnapshot = new Map(textsRef.current)
-    const spritesSnapshot = new Map(spritesRef.current)
-
-    const playNextSegment = async () => {
-      if (currentSegmentIndexRef.current >= validScenes.length) {
-        // 모든 구간 재생 완료
-        setCurrentTime(totalDurationValue)
-        onPlayPause() // 재생 중지
-        return
-      }
-
-      const scene = validScenes[currentSegmentIndexRef.current]
-      if (!scene.videoUrl) {
-        currentSegmentIndexRef.current++
-        playNextSegment()
-        return
-      }
-
-      // 이전 구간들의 시간 합 계산
-      segmentStartTimeRef.current = scenes.slice(0, currentSegmentIndexRef.current).reduce((sum, s) => {
-        if (s.videoUrl && s.selectionStartSeconds !== undefined && s.selectionEndSeconds !== undefined) {
-          return sum + (s.selectionEndSeconds - s.selectionStartSeconds)
-        }
-        return sum
-      }, 0)
-
-      // 현재 씬 인덱스 찾기
-      const originalSceneIndex = scenes.findIndex(s => s.id === scene.id)
-      if (originalSceneIndex < 0) {
-        currentSegmentIndexRef.current++
-        playNextSegment()
-        return
-      }
-
-      // 이전 씬의 스프라이트 숨김
-      spritesRef.current.forEach((sprite, idx) => {
-        if (idx !== originalSceneIndex && sprite && !sprite.destroyed) {
-          sprite.visible = false
-          sprite.alpha = 0
-        }
-      })
-
-      // 비디오를 PixiJS Sprite로 로드
-      try {
-        // 이미 비디오가 로드되어 있고 재생 중인지 확인 (첫 번째 비디오인 경우)
-        const existingVideoElement = videoElementsRef.current.get(originalSceneIndex)
-        const isAlreadyPlaying = currentSegmentIndexRef.current === 0 && existingVideoElement && !existingVideoElement.paused
-        
-        if (!isAlreadyPlaying) {
-          // 비디오가 아직 로드되지 않았거나 재생 중이 아니면 로드
-          await loadVideoAsSprite(originalSceneIndex, scene.videoUrl)
-        }
-        
-        const videoElement = videoElementsRef.current.get(originalSceneIndex)
-        const sprite = spritesRef.current.get(originalSceneIndex)
-        
-        if (!videoElement || !sprite) {
-          console.error('비디오 로드 실패')
-          currentSegmentIndexRef.current++
-          playNextSegment()
-          return
-        }
-
-        // 현재 씬 인덱스 업데이트
-        setCurrentSceneIndex(originalSceneIndex)
-        
-        // 스프라이트 표시
-        sprite.visible = true
-        sprite.alpha = 1
-        
-        // 자막 렌더링
-        renderSubtitle(originalSceneIndex, scene.script || '')
-        
-        // TTS 재생
-        if (scene.voiceTemplate && scene.script) {
-          playTts(originalSceneIndex, scene.voiceTemplate, scene.script).catch(console.error)
-        }
-
-        // 비디오 재생 설정 (이미 재생 중이 아닌 경우에만)
-        if (!isAlreadyPlaying) {
-          videoElement.currentTime = scene.selectionStartSeconds || 0
-          videoElement.playbackRate = playbackSpeed
-        }
-
-        const handleTimeUpdate = () => {
-          if (!isPlaying) {
-            videoElement.removeEventListener('timeupdate', handleTimeUpdate)
-            videoElement.removeEventListener('ended', handleEnded)
-            return
-          }
-          // 현재 시간 = 이전 구간들의 시간 합 + 현재 구간의 진행 시간
-          const segmentProgress = videoElement.currentTime - (scene.selectionStartSeconds || 0)
-          const currentTotalTime = segmentStartTimeRef.current + segmentProgress
-          setCurrentTime(Math.max(0, Math.min(currentTotalTime, totalDurationValue)))
-
-          if (videoElement.currentTime >= (scene.selectionEndSeconds || 0)) {
-            // 현재 구간 종료, 다음 구간으로
-            videoElement.removeEventListener('timeupdate', handleTimeUpdate)
-            videoElement.removeEventListener('ended', handleEnded)
-            videoElement.pause()
-            currentSegmentIndexRef.current++
-            playNextSegment()
-          }
-        }
-
-        const handleEnded = () => {
-          if (!isPlaying) {
-            videoElement.removeEventListener('timeupdate', handleTimeUpdate)
-            videoElement.removeEventListener('ended', handleEnded)
-            return
-          }
-          videoElement.removeEventListener('timeupdate', handleTimeUpdate)
-          videoElement.removeEventListener('ended', handleEnded)
-          currentSegmentIndexRef.current++
-          playNextSegment()
-        }
-
-        videoElement.addEventListener('timeupdate', handleTimeUpdate)
-        videoElement.addEventListener('ended', handleEnded)
-        
-        // 재생 시작 (이미 재생 중이 아닌 경우에만)
-        if (!isAlreadyPlaying) {
-          // 사용자 제스처 확인 (1초 이내 클릭만 유효)
-          const gesture = userGestureRef.current
-          const hasValidGesture = gesture && (Date.now() - gesture.timestamp) < 1000
-          
-          if (!hasValidGesture && currentSegmentIndexRef.current === 0) {
-            // 첫 번째 비디오인데 사용자 제스처가 없으면 재생하지 않음
-            console.warn('사용자 제스처가 없어 비디오 재생을 건너뜁니다.')
-            onPlayPause()
-            return
-          }
-          
-          try {
-            const playPromise = videoElement.play()
-            if (playPromise !== undefined) {
-              await playPromise
-            }
-            // 재생 성공 시 사용자 제스처 초기화 (다음 재생을 위해)
-            if (currentSegmentIndexRef.current === 0) {
-              userGestureRef.current = null
-            }
-          } catch (error) {
-            // NotAllowedError: 사용자 상호작용이 필요한 경우
-            if (error instanceof DOMException && error.name === 'NotAllowedError') {
-              console.warn('비디오 재생이 차단되었습니다. 사용자 상호작용이 필요합니다.')
-              // 재생 중지하고 사용자에게 알림
-              onPlayPause()
-              alert('비디오 재생을 시작하려면 재생 버튼을 다시 클릭해주세요.')
-              return
-            }
-            console.error('비디오 재생 오류:', error)
-            currentSegmentIndexRef.current++
-            playNextSegment()
-          }
-        }
-      } catch (error) {
-        console.error('비디오 로드 오류:', error)
-        currentSegmentIndexRef.current++
-        playNextSegment()
-      }
-    }
-
-    playNextSegment()
-
-    return () => {
-      clearTimeout(timeoutId)
-      // 복사된 ref 값들로 cleanup 수행
-      const videoElements = videoElementsSnapshot
-      const ttsAudios = ttsAudiosSnapshot
-      const texts = textsSnapshot
-      const sprites = spritesSnapshot
-      
-      // 모든 비디오 일시정지 및 이벤트 제거
-      videoElements.forEach((videoElement) => {
-        videoElement.pause()
-        // 모든 이벤트 리스너 제거 (빈 함수로는 제거되지 않으므로 실제 핸들러 필요)
-      })
-      // TTS 오디오 정리
-      ttsAudios.forEach((audio) => {
-        audio.pause()
-        audio.src = ''
-      })
-      // snapshot으로 이미 정리했으므로 ref는 나중에 자동으로 clear됨
-      // 자막 숨김
-      texts.forEach((textObj) => {
-        if (textObj && !textObj.destroyed) {
-          textObj.visible = false
-          textObj.alpha = 0
-        }
-      })
-      // 비디오 스프라이트 숨김
-      sprites.forEach((sprite) => {
-        if (sprite && !sprite.destroyed) {
-          sprite.visible = false
-          sprite.alpha = 0
-        }
-      })
-    }
-  }, [isPlaying, scenes, onPlayPause, totalDurationValue, playbackSpeed, renderSubtitle, playTts, loadVideoAsSprite, pixiReady])
+  }, [trackUserGesture, onPlayPause])
 
   // 현재 선택된 씬의 비디오 썸네일 생성 (격자 시작 지점)
   useEffect(() => {
