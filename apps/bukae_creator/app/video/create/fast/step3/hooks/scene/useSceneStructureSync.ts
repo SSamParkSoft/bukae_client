@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useSceneStructureStore } from '@/store/useSceneStructureStore'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { SceneScript } from '@/lib/types/domain/script'
+import { isValidSceneArray } from '@/app/video/create/_utils/scene-array'
 
 interface UseSceneStructureSyncParams {
   scenes: SceneScript[]
@@ -32,7 +33,7 @@ export function useSceneStructureSync({
   // 씬 구조 정보 자동 업데이트
   useEffect(() => {
     // scenes가 배열이 아니거나 빈 배열이면 종료
-    if (!Array.isArray(scenes) || !scenes.length || !timeline) return
+    if (!isValidSceneArray(scenes) || !timeline) return
     
     sceneStructureStore.updateStructure({
       scenes,

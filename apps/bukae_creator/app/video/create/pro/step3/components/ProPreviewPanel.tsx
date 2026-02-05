@@ -3,9 +3,7 @@
 import React, { memo, useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import Image from 'next/image'
 import * as PIXI from 'pixi.js'
-import { TimelineBar } from '../../../fast/step3/components/TimelineBar'
-import { SpeedSelector } from '../../../fast/step3/components/SpeedSelector'
-import { ExportButton } from '../../../fast/step3/components/ExportButton'
+import { TimelineBar, SpeedSelector, ExportButton } from '@/app/video/create/_step3-components'
 import type { ProStep3Scene } from './ProSceneListPanel'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { authStorage } from '@/lib/api/auth-storage'
@@ -551,21 +549,21 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   }, [isPlaying])
 
   // 현재 선택된 씬의 비디오와 자막 표시 (재생 중이 아닐 때)
+  // scenes 배열 전체가 아닌 현재 씬의 videoUrl과 script만 추적하여 불필요한 재실행 방지
+  const currentScene = scenes[currentSceneIndex]
+  const currentSceneVideoUrl = currentScene?.videoUrl
+  const currentSceneScript = currentScene?.script
+  
   useEffect(() => {
-    if (!isPlaying && currentVideoUrl && scenes.length > 0) {
-      const currentScene = scenes.find((s, idx) => idx === currentSceneIndex) || scenes[0]
-      if (currentScene) {
-        // 비디오를 Sprite로 로드
-        if (currentScene.videoUrl) {
-          loadVideoAsSprite(currentSceneIndex, currentScene.videoUrl).catch(console.error)
-        }
-        // 자막 표시
-        if (currentScene.script) {
-          renderSubtitle(currentSceneIndex, currentScene.script)
-        }
+    if (!isPlaying && currentVideoUrl && currentSceneVideoUrl && currentSceneIndex >= 0) {
+      // 비디오를 Sprite로 로드
+      loadVideoAsSprite(currentSceneIndex, currentSceneVideoUrl).catch(console.error)
+      // 자막 표시
+      if (currentSceneScript) {
+        renderSubtitle(currentSceneIndex, currentSceneScript)
       }
     }
-  }, [isPlaying, currentVideoUrl, scenes, currentSceneIndex, renderSubtitle, loadVideoAsSprite])
+  }, [isPlaying, currentVideoUrl, currentSceneVideoUrl, currentSceneScript, currentSceneIndex, renderSubtitle, loadVideoAsSprite])
 
   // 비디오 세그먼트 재생 로직 커스텀 훅
   const { trackUserGesture } = useVideoSegmentPlayer({

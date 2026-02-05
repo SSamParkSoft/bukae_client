@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { getScenePlaceholder } from '@/lib/utils/placeholder-image'
+import { ensureSceneArray } from '@/app/video/create/_utils/scene-array'
 
 interface UseSceneThumbnailsParams {
   scenes: Array<{ imageUrl?: string }>
@@ -14,11 +15,8 @@ export function useSceneThumbnails({
 }: UseSceneThumbnailsParams) {
   // sceneThumbnails 최적화: scenes와 selectedImages의 실제 변경사항만 추적
   const scenesImageUrls = useMemo(() => {
-    // scenes가 배열이 아니면 빈 배열 반환
-    if (!Array.isArray(scenes)) {
-      return []
-    }
-    return scenes.map(s => s.imageUrl || '')
+    const safeScenes = ensureSceneArray(scenes)
+    return safeScenes.map(s => s.imageUrl || '')
   }, [scenes])
   
   const scenesImageKey = useMemo(() => {
@@ -27,11 +25,8 @@ export function useSceneThumbnails({
   
   const sceneThumbnails = useMemo(
     () => {
-      // scenes가 배열이 아니면 빈 배열 반환
-      if (!Array.isArray(scenes)) {
-        return []
-      }
-      return scenes.map((scene, index) => {
+      const safeScenes = ensureSceneArray(scenes)
+      return safeScenes.map((scene, index) => {
         const url = scene.imageUrl || selectedImages[index] || ''
         if (!url) return ''
         
