@@ -28,7 +28,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const [isHovered, setIsHovered] = useState(false)
 
-  // 영상에서 썸네일 생성
+  // 영상에서 썸네일 생성 (격자 시작 지점의 프레임)
   useEffect(() => {
     if (!videoUrl || !videoRef.current || !canvasRef.current) {
       setThumbnailUrl(null)
@@ -56,7 +56,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
           return
         }
 
-        // 첫 프레임을 캔버스에 그리기
+        // 격자 시작 지점의 프레임을 캔버스에 그리기
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
         // 캔버스를 이미지 URL로 변환
@@ -75,8 +75,9 @@ export const ProVideoUpload = memo(function ProVideoUpload({
     // 비디오 메타데이터가 로드되면 썸네일 생성
     const handleLoadedData = () => {
       if (video.readyState >= 2) {
-        // currentTime을 0.1초로 설정하여 첫 프레임 캡처
-        video.currentTime = 0.1
+        // 격자 시작 지점의 시간으로 이동 (없으면 0.1초)
+        const thumbnailTime = selectionStartSeconds > 0 ? selectionStartSeconds : 0.1
+        video.currentTime = thumbnailTime
       }
     }
 
@@ -89,14 +90,16 @@ export const ProVideoUpload = memo(function ProVideoUpload({
 
     // 이미 로드된 경우 즉시 처리
     if (video.readyState >= 2) {
-      handleLoadedData()
+      // 격자 시작 지점의 시간으로 이동 (없으면 0.1초)
+      const thumbnailTime = selectionStartSeconds > 0 ? selectionStartSeconds : 0.1
+      video.currentTime = thumbnailTime
     }
 
     return () => {
       video.removeEventListener('loadeddata', handleLoadedData)
       video.removeEventListener('seeked', handleSeeked)
     }
-  }, [videoUrl])
+  }, [videoUrl, selectionStartSeconds])
 
   // 호버 시 선택 영역만 재생
   useEffect(() => {
