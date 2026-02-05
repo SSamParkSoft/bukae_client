@@ -187,6 +187,7 @@ export default function ProStep2EditPage() {
     script: scene.script,
     ttsDuration: 10, // TODO: 실제 TTS duration 값으로 교체
     guideText: guideTexts[scene.id] || '', // 촬영가이드 텍스트 가져오기
+    voiceLabel: scene.voiceLabel, // 적용된 보이스 라벨
   }))
 
   return (

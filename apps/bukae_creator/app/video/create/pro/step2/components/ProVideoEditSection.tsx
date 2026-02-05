@@ -10,6 +10,7 @@ export interface ProVideoEditSectionProps {
     script: string
     ttsDuration?: number
     guideText?: string
+    voiceLabel?: string
   }>
   onScriptChange: (index: number, value: string) => void
   onGuideChange?: (index: number, value: string) => void
@@ -73,6 +74,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
             onScriptChange={(value) => onScriptChange(index, value)}
             guideText={scene.guideText}
             onGuideChange={onGuideChange ? (value) => onGuideChange(index, value) : undefined}
+            voiceLabel={scene.voiceLabel}
             onVideoUpload={onVideoUpload ? () => onVideoUpload(index) : undefined}
             onAiScriptClick={onAiScriptClick ? () => onAiScriptClick(index) : undefined}
             onAiGuideClick={onAiGuideClick ? () => onAiGuideClick(index) : undefined}

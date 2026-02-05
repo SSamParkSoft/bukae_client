@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { GripVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ProVideoUpload } from './ProVideoUpload'
+import { ProVideoTimelineGrid } from './ProVideoTimelineGrid'
 
 export interface ProVideoEditSceneCardProps {
   sceneIndex: number
@@ -17,6 +18,8 @@ export interface ProVideoEditSceneCardProps {
   /** 촬영가이드 텍스트 */
   guideText?: string
   onGuideChange?: (value: string) => void
+  /** 적용된 보이스 라벨 */
+  voiceLabel?: string
   /** 드래그 핸들 관련 props */
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void
   onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void
@@ -36,6 +39,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   ttsDuration = 0,
   guideText = '',
   onGuideChange,
+  voiceLabel,
   onDragStart,
   onDragOver,
   onDrop,
@@ -66,6 +70,9 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   const selectionStartSeconds = 3.5 // 격자 시작 시간 (초)
   const selectionWidthSeconds = 5 // 격자 너비 (초)
   const selectionEndSeconds = selectionStartSeconds + selectionWidthSeconds // 격자 끝 시간 (초)
+  // 선택 영역의 픽셀 단위 위치/크기
+  const selectionLeftPx = selectionStartSeconds * FRAME_WIDTH
+  const selectionWidthPx = selectionWidthSeconds * FRAME_WIDTH
   
   // 격자에 포함되는 시간 마커 인덱스 계산
   const getIsInSelection = (idx: number) => {
@@ -121,8 +128,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
           <div className="flex-1 min-w-0 flex flex-col">
             {/* 상단 영역: SCENE 라벨 + 스크립트/가이드 버튼들 */}
             <div className="flex flex-col">
-              {/* SCENE 라벨 */}
-              <div className="flex items-center mb-4">
+              {/* SCENE 라벨 + 적용된 보이스 */}
+              <div className="flex items-center justify-between mb-4">
                 <p
                   className="text-brand-teal tracking-[-0.36px]"
                   style={{
@@ -134,6 +141,27 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                 >
                   SCENE {sceneIndex}
                 </p>
+                {voiceLabel && (
+                  <div
+                    className="flex items-center gap-1 text-text-tertiary"
+                    style={{
+                      fontSize: 'var(--font-size-14)',
+                      lineHeight: 'var(--line-height-14-140)',
+                      fontWeight: 'var(--font-weight-medium)',
+                    }}
+                  >
+                    <span>적용된 보이스 | &nbsp;</span>
+                    <span
+                      style={{
+                        fontSize: 'var(--font-size-16)',
+                        lineHeight: 'var(--line-height-16-140)',
+                        fontWeight: 'var(--font-weight-bold)',
+                      }}
+                    >
+                      {voiceLabel}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* 스크립트 영역 */}
@@ -179,7 +207,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                 {/* 우측: 촬영가이드 영역 */}
                 <div className="flex-1 min-w-0 flex flex-col">
                   {/* 촬영가이드 텍스트 영역 - 버튼이 textarea 내부에 위치 */}
-                  <div className="relative rounded-lg bg-white/10 shadow-[var(--shadow-card-default)] overflow-hidden border-2 border-white" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
+                  <div className="relative rounded-lg bg-white/30 shadow-(--shadow-card-default) overflow-hidden border-2 border-white backdrop-blur-sm" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
                     {/* AI 촬영가이드 버튼 - textarea 내부 왼쪽 상단 */}
                     {onAiGuideClick && (
                       <Button
@@ -218,52 +246,60 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
 
             {/* 하단: 타임라인 비주얼 */}
             <div 
-              className="relative"
+              className="relative overflow-x-auto scrollbar-hide w-full"
+              style={{ 
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                WebkitOverflowScrolling: 'touch',
+              }}
               onDragStart={(e) => {
                 // 타임라인 영역에서는 씬 카드 드래그 방지
                 e.stopPropagation()
                 e.preventDefault()
               }}
             >
-              {/* 격자 편집 타임라인 */}
-              <div className="relative h-[84px] bg-white rounded-2xl border border-gray-300 overflow-hidden mb-4">
-                {/* 격자 패턴 - 각 74px 너비의 프레임들 */}
-                <div className="absolute inset-0 flex">
-                  {Array.from({ length: Math.ceil(ttsDuration || 10) }).map((_, idx) => (
-                    <div
-                      key={idx}
-                      className="shrink-0 relative border-r border-[#a6a6a6]"
-                      style={{ width: '74px', height: '100%' }}
-                    >
-                      {/* 배경 이미지/비디오 썸네일 영역 (Figma에서는 이미지로 표시) */}
-                      <div className="absolute inset-0 bg-[#111111] opacity-40" />
-                    </div>
-                  ))}
+              {/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
+              <div className="relative shrink-0" style={{ width: `${timeMarkers.length * 74}px`, paddingTop: '18px', paddingBottom: '18px' }}>
+                {/* 실제 영상 프레임 박스 (클리핑 영역) */}
+                <div className="relative h-[84px] bg-white rounded-2xl border border-gray-300 overflow-hidden">
+                  {/* 격자 패턴 - 각 74px 너비의 프레임들 */}
+                  <div className="absolute inset-0 flex">
+                    {Array.from({ length: timeMarkers.length }).map((_, idx) => (
+                      <div
+                        key={idx}
+                        className="shrink-0 relative border-r border-[#a6a6a6]"
+                        style={{ width: '74px', height: '100%' }}
+                      >
+                        {/* 배경 이미지/비디오 썸네일 영역 (Figma에서는 이미지로 표시) */}
+                        <div className="absolute inset-0 bg-[#111111] opacity-40" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                
-                {/* 선택 영역 표시 (격자) - 동적으로 계산된 위치 */}
-                <div 
-                  className="absolute top-0 h-full border-l-2 border-r-2 border-[#2c2c2c] rounded-2xl" 
-                  style={{
-                    left: `${selectionStartSeconds * FRAME_WIDTH}px`,
-                    width: `${selectionWidthSeconds * FRAME_WIDTH}px`,
-                  }}
+
+                {/* 격자(선택 강조선) - 프레임 박스 밖에 배치하여 위아래로 튀어나오게 */}
+                <ProVideoTimelineGrid
+                  frameHeight={84}
+                  selectionLeft={selectionLeftPx}
+                  selectionWidth={selectionWidthPx}
+                  extendY={18}
                 />
               </div>
 
               {/* 시간 마커 */}
               <div 
-                className="relative flex overflow-x-auto scrollbar-hide"
+                className="relative flex shrink-0"
+                style={{ width: `${timeMarkers.length * 74}px` }}
                 onDragStart={(e) => {
                   // 시간 마커 영역에서도 씬 카드 드래그 방지
                   e.stopPropagation()
                   e.preventDefault()
                 }}
               >
-                {/* 가로 라인 - 영상 프레임 길이만큼 */}
+                {/* 가로 라인 - 영상 프레임 전체 길이만큼 */}
                 <div 
                   className="absolute top-0 left-0 h-px bg-[#a6a6a6]"
-                  style={{ width: `${(timeMarkers.length - 1) * 74}px` }}
+                  style={{ width: `${timeMarkers.length * 74}px` }}
                 />
                 
                 {timeMarkers.map((marker, idx) => {
