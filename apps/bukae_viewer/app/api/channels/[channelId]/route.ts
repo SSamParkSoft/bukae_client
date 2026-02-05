@@ -20,6 +20,9 @@ export async function GET(
       ...(channelId === 'ssamarket' && {
         profileImage: '/ssamarket_profile.jpg',
       }),
+      ...(channelId === 'yamujin' && {
+        profileImage: '/yamujin_profile.jpg',
+      }),
     }
 
     return NextResponse.json(channel, {
