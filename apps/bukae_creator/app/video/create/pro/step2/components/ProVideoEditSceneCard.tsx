@@ -65,10 +65,10 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
 
   const timeMarkers = generateTimeMarkers()
 
-  // 격자(선택 영역) 위치 계산 - 현재는 고정값 (나중에 동적으로 변경 가능)
+  // 격자(선택 영역) 위치 계산 - TTS duration에 맞게 조정
   const FRAME_WIDTH = 74 // 각 프레임 너비 (px)
-  const selectionStartSeconds = 3.5 // 격자 시작 시간 (초)
-  const selectionWidthSeconds = 5 // 격자 너비 (초)
+  const selectionStartSeconds = 0 // 격자 시작 시간 (0초부터 시작)
+  const selectionWidthSeconds = ttsDuration || 10 // 격자 너비 = TTS duration
   const selectionEndSeconds = selectionStartSeconds + selectionWidthSeconds // 격자 끝 시간 (초)
   // 선택 영역의 픽셀 단위 위치/크기
   const selectionLeftPx = selectionStartSeconds * FRAME_WIDTH
@@ -77,15 +77,18 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   // 격자에 포함되는 시간 마커 인덱스 계산
   const getIsInSelection = (idx: number) => {
     const markerTime = idx // idx는 초 단위
-    return markerTime >= Math.floor(selectionStartSeconds) && markerTime <= Math.ceil(selectionEndSeconds)
+    // 격자는 0초부터 ttsDuration까지이므로, 마커가 격자 범위 내에 있는지 확인
+    // 마커는 정수 초 단위이므로, 격자 끝 지점보다 작거나 같아야 함
+    return markerTime >= Math.floor(selectionStartSeconds) && markerTime < selectionEndSeconds
   }
   
   // 격자의 시작/끝 지점에 큰 틱 표시 여부
   const getIsMajorTick = (idx: number) => {
     const markerTime = idx
-    // 격자 시작 지점 (3.5초) → 3초에 큰 틱
-    // 격자 끝 지점 (8.5초) → 8초에 큰 틱
-    return markerTime === Math.floor(selectionStartSeconds) || markerTime === Math.ceil(selectionEndSeconds)
+    // 격자 시작 지점 (0초) → 0초에 큰 틱
+    // 격자 끝 지점 (ttsDuration초) → 끝 지점의 정수 초에 큰 틱
+    const endMarkerTime = Math.floor(selectionEndSeconds)
+    return markerTime === Math.floor(selectionStartSeconds) || markerTime === endMarkerTime
   }
 
   return (

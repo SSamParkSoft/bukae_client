@@ -22,13 +22,15 @@ type ProScene = {
   script: string
   voiceLabel?: string
   voiceTemplate?: string | null
+  ttsDuration?: number // TTS duration (초)
 }
 
 // 확장된 SceneScript 타입
 type ExtendedSceneScript = SceneScript & { 
   id?: string // 고유 ID (드래그 앤 드롭 시 안정적인 key를 위해)
   voiceLabel?: string
-  voiceTemplate?: string | null 
+  voiceTemplate?: string | null
+  ttsDuration?: number // TTS duration (초)
 }
 
 // 고유 ID 생성 헬퍼 함수
@@ -44,6 +46,7 @@ function sceneScriptToProScene(s: SceneScript, _index: number): ProScene {
     script: s.script || '',
     voiceLabel: extended.voiceLabel,
     voiceTemplate: extended.voiceTemplate,
+    ttsDuration: extended.ttsDuration,
   }
 }
 
@@ -55,6 +58,7 @@ function proSceneToSceneScript(s: ProScene, index: number): ExtendedSceneScript 
     script: s.script,
     voiceLabel: s.voiceLabel,
     voiceTemplate: s.voiceTemplate,
+    ttsDuration: s.ttsDuration,
   }
 }
 
@@ -327,6 +331,17 @@ export default function ProStep2Page() {
         return
       }
 
+      // TTS 합성 결과의 duration을 store에 저장
+      updateScenes((prev) => {
+        return prev.map((scene, index) => {
+          const ttsResult = result.results[index]
+          return {
+            ...scene,
+            ttsDuration: ttsResult?.duration,
+          }
+        })
+      })
+
       // TTS 합성 완료 후 다음 페이지로 이동
       router.push('/video/create/pro/step2/edit')
     } catch (error) {
@@ -334,7 +349,7 @@ export default function ProStep2Page() {
       alert(error instanceof Error ? error.message : 'TTS 합성 중 오류가 발생했습니다.')
       setIsSynthesizingTts(false)
     }
-  }, [scenes, router])
+  }, [scenes, router, updateScenes])
 
   return (
     <div>

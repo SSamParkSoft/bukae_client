@@ -15,13 +15,15 @@ type ProScene = {
   script: string
   voiceLabel?: string
   voiceTemplate?: string | null
+  ttsDuration?: number // TTS duration (초)
 }
 
 // 확장된 SceneScript 타입
 type ExtendedSceneScript = SceneScript & { 
   id?: string // 고유 ID (드래그 앤 드롭 시 안정적인 key를 위해)
   voiceLabel?: string
-  voiceTemplate?: string | null 
+  voiceTemplate?: string | null
+  ttsDuration?: number // TTS duration (초)
 }
 
 // 고유 ID 생성 헬퍼 함수
@@ -37,6 +39,7 @@ function sceneScriptToProScene(s: SceneScript, _index: number): ProScene {
     script: s.script || '',
     voiceLabel: extended.voiceLabel,
     voiceTemplate: extended.voiceTemplate,
+    ttsDuration: extended.ttsDuration,
   }
 }
 
@@ -48,6 +51,7 @@ function proSceneToSceneScript(s: ProScene, index: number): ExtendedSceneScript 
     script: s.script,
     voiceLabel: s.voiceLabel,
     voiceTemplate: s.voiceTemplate,
+    ttsDuration: s.ttsDuration,
   }
 }
 
@@ -185,10 +189,19 @@ export default function ProStep2EditPage() {
   const videoEditScenes = scenes.map((scene) => ({
     id: scene.id,
     script: scene.script,
-    ttsDuration: 10, // TODO: 실제 TTS duration 값으로 교체
+    ttsDuration: scene.ttsDuration || 10, // 실제 TTS duration 값 사용 (없으면 기본값 10초)
     guideText: guideTexts[scene.id] || '', // 촬영가이드 텍스트 가져오기
     voiceLabel: scene.voiceLabel, // 적용된 보이스 라벨
   }))
+
+  // 각 씬의 TTS duration 콘솔 출력
+  useEffect(() => {
+    console.log('=== 각 씬의 TTS Duration ===')
+    scenes.forEach((scene, index) => {
+      console.log(`씬 ${index + 1}: ${scene.ttsDuration?.toFixed(2) || '없음'}초`)
+    })
+    console.log('===========================')
+  }, [scenes])
 
   return (
     <div>
