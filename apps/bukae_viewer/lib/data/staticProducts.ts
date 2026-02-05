@@ -50,7 +50,9 @@ const PRODUCT_URLS = {
   pronutrition_dualplan:
     'https://link.coupang.com/a/dwPPd5',
   handcream:
-    'https://link.coupang.com/a/dGyq5R'
+    'https://link.coupang.com/a/dGyq5R',
+  musunchungso:
+    'https://link.coupang.com/a/dGPf97'
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -235,6 +237,20 @@ const SSAMARKET_EXTRA_PRODUCTS: Product[] = [
   },
 ]
 
+// yamujin 채널 전용 상품 목록
+// 새로운 상품을 추가하려면 이 배열에 Product 객체를 추가하세요
+const YAMUJIN_EXTRA_PRODUCTS: Product[] = [
+  {
+    id: 'bamifun-musunchungso',
+    productId: 3001,
+    name: 'Bamifun 무선 전동 욕실 청소기 주방 화장실 다용도 청소기 IPX7 방수 8in1세트',
+    description: '무선 전동 · IPX7 방수 · 8in1세트',
+    order: 1,
+    thumbnailUrl: '/dummy/yamujin/musunchungso.png',
+    url: PRODUCT_URLS.musunchungso,
+  },
+]
+
 export function getStaticProducts(channelId?: string): Product[] {
   let products: Product[] = []
 
@@ -245,6 +261,9 @@ export function getStaticProducts(channelId?: string): Product[] {
   } else if (channelId === 'ssamarket') {
     // ssamarket: ssamarket 전용 상품만 (별도 운영)
     products = [...SSAMARKET_EXTRA_PRODUCTS]
+  } else if (channelId === 'yamujin') {
+    // yamujin: yamujin 전용 상품만 (별도 운영)
+    products = [...YAMUJIN_EXTRA_PRODUCTS]
   } else {
     // 다른 채널: 기본 상품만
     products = [...STATIC_PRODUCTS]
