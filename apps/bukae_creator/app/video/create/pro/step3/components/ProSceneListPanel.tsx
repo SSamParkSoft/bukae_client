@@ -30,6 +30,7 @@ interface ProSceneListPanelProps {
   onReorder: (newOrder: number[]) => void
   onPlayScene: (sceneIndex: number) => Promise<void>
   onOpenEffectPanel?: (tab: 'animation' | 'subtitle' | 'sound') => void
+  onSelectionChange?: (sceneIndex: number, startSeconds: number, endSeconds: number) => void
 }
 
 export const ProSceneListPanel = memo(function ProSceneListPanel({
@@ -44,6 +45,7 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
   onReorder,
   onPlayScene,
   onOpenEffectPanel,
+  onSelectionChange,
 }: ProSceneListPanelProps) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const [showScrollGutter, setShowScrollGutter] = useState(false)
@@ -145,7 +147,7 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
           }}
           onDrop={handleDrop}
         >
-          {scenes.map((scene, index) => {
+          {Array.isArray(scenes) && scenes.length > 0 ? scenes.map((scene, index) => {
             const timelineScene = timeline?.scenes[index] as TimelineScene | undefined
             const isPlaying = playingSceneIndex === index
             const isSelected = currentSceneIndex === index
@@ -159,6 +161,7 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
                 videoUrl={scene.videoUrl}
                 selectionStartSeconds={scene.selectionStartSeconds}
                 selectionEndSeconds={scene.selectionEndSeconds}
+                ttsDuration={scene.ttsDuration}
                 voiceLabel={scene.voiceLabel}
                 timelineScene={timelineScene}
                 isPlaying={isPlaying}
@@ -179,9 +182,16 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
                   }
                 }}
                 onOpenEffectPanel={onOpenEffectPanel}
+                onSelectionChange={onSelectionChange ? (startSeconds, endSeconds) => {
+                  onSelectionChange(index, startSeconds, endSeconds)
+                } : undefined}
               />
             )
-          })}
+          }) : (
+            <div className="flex items-center justify-center h-32 text-text-tertiary">
+              씬이 없습니다.
+            </div>
+          )}
         </div>
       </div>
 

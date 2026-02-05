@@ -63,6 +63,7 @@ function proSceneToSceneScript(s: ProScene, index: number): ExtendedSceneScript 
 }
 
 export default function ProStep2Page() {
+  const router = useRouter()
   const { 
     scriptStyle, 
     setScriptStyle, 
@@ -79,6 +80,7 @@ export default function ProStep2Page() {
   
   // store의 scenes가 비어있으면 기본값으로 초기화 (persist 복원 후에만)
   const [hasInitialized, setHasInitialized] = useState(false)
+  
   useEffect(() => {
     // 마운트 후 일정 시간이 지난 후에만 초기화 (persist 복원 대기)
     const timer = setTimeout(() => {
@@ -120,6 +122,7 @@ export default function ProStep2Page() {
     
     return () => clearTimeout(timer)
   }, [storeScenes, hasInitialized, setStoreScenes, setHasUnsavedChanges])
+
   
   // scenes 업데이트 함수 - store에 직접 저장
   const updateScenes = useCallback((updater: (prev: ProScene[]) => ProScene[]) => {
@@ -151,7 +154,6 @@ export default function ProStep2Page() {
   const [isGeneratingAll, setIsGeneratingAll] = useState(false)
   const [isSynthesizingTts, setIsSynthesizingTts] = useState(false)
   const [ttsProgress, setTtsProgress] = useState({ completed: 0, total: 0 })
-  const router = useRouter()
 
   const handleScriptStyleSelect = useCallback(
     (concept: ConceptType) => {

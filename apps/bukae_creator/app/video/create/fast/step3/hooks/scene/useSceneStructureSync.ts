@@ -31,7 +31,8 @@ export function useSceneStructureSync({
 
   // 씬 구조 정보 자동 업데이트
   useEffect(() => {
-    if (!scenes.length || !timeline) return
+    // scenes가 배열이 아니거나 빈 배열이면 종료
+    if (!Array.isArray(scenes) || !scenes.length || !timeline) return
     
     sceneStructureStore.updateStructure({
       scenes,

@@ -7,9 +7,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { formatTime } from '@/utils/timeline'
 import { transitionLabels } from '@/lib/data/transitions'
 import { findSoundEffectMetadataByPath } from '@/lib/data/sound-effects'
-import { voiceTemplateHelpers } from '@/store/useVideoCreateStore'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import type { TimelineScene } from '@/lib/types/domain/timeline'
+import { ProVideoTimelineGrid } from '../../step2/components/ProVideoTimelineGrid'
+import { ProVideoUpload } from '../../step2/components/ProVideoUpload'
 
 const ICONS = {
   play: '/icons/play.svg',
@@ -24,10 +25,12 @@ export interface ProStep3SceneCardProps {
   scriptText: string
   /** 업로드된 영상 URL */
   videoUrl?: string | null
-  /** 격자 선택 영역 시작 시간 (초) */
+  /** 격자 선택 영역 시작 시간 (초) - 초기값 */
   selectionStartSeconds: number
   /** 격자 선택 영역 끝 시간 (초) */
   selectionEndSeconds: number
+  /** TTS duration (초) - 타임라인 표시용 */
+  ttsDuration?: number
   /** 적용된 보이스 라벨 */
   voiceLabel?: string
   /** TimelineScene 데이터 (효과 표시용) */
@@ -40,6 +43,8 @@ export interface ProStep3SceneCardProps {
   isPreparing?: boolean
   /** TTS 부트스트래핑 중 여부 */
   isTtsBootstrapping?: boolean
+  /** 격자 선택 영역 변경 콜백 */
+  onSelectionChange?: (startSeconds: number, endSeconds: number) => void
   /** 드래그 핸들 관련 props */
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void
   onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void
@@ -58,124 +63,209 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   sceneOrderNumber,
   scriptText,
   videoUrl,
-  selectionStartSeconds,
-  selectionEndSeconds,
+  selectionStartSeconds: initialSelectionStartSeconds,
+  selectionEndSeconds: initialSelectionEndSeconds,
+  ttsDuration = 0,
   voiceLabel,
   timelineScene,
   isPlaying = false,
   isSelected = false,
   isPreparing = false,
   isTtsBootstrapping = false,
+  onSelectionChange,
   onDragStart,
   onDragOver,
   onDrop,
   onDragEnd,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   draggedIndex = null,
   dragOver: dragOverProp = null,
   onPlayScene,
   onOpenEffectPanel,
 }: ProStep3SceneCardProps) {
-  const isDragging = draggedIndex !== null && draggedIndex === sceneIndex
   const isDropTargetBefore = dragOverProp?.index === sceneIndex && dragOverProp?.position === 'before'
   const isDropTargetAfter = dragOverProp?.index === sceneIndex && dragOverProp?.position === 'after'
 
   // 프레임 썸네일 관련 상태
   const [frameThumbnails, setFrameThumbnails] = useState<string[]>([])
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
+  const [videoDuration, setVideoDuration] = useState<number | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const thumbnailCanvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  // 격자(선택 영역) 드래그 관련 상태
+  const [selectionStartSeconds, setSelectionStartSeconds] = useState(() => initialSelectionStartSeconds ?? 0)
+  const [isDraggingSelection, setIsDraggingSelection] = useState(false)
+  const [dragStartX, setDragStartX] = useState(0)
+  const [dragStartSelectionLeft, setDragStartSelectionLeft] = useState(0)
+  const timelineContainerRef = useRef<HTMLDivElement | null>(null)
+  const prevInitialSelectionRef = useRef<number | undefined>(initialSelectionStartSeconds)
 
   // 효과 드롭다운 관련 상태
   const [openEffectId, setOpenEffectId] = useState<'animation' | 'subtitle' | 'sound' | null>(null)
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 선택된 영역의 길이 계산
-  const selectionDuration = selectionEndSeconds - selectionStartSeconds
-
-  // 재생 시간 표시 (선택된 영역의 시작~끝 시간)
-  const durationLabel = `${formatTime(selectionStartSeconds, false)} ~ ${formatTime(selectionEndSeconds, false)}`
-
-  // 썸네일 생성 (선택된 영역의 첫 프레임)
+  // initialSelectionStartSeconds가 외부에서 변경될 때만 동기화 (드래그 중이 아닐 때만)
   useEffect(() => {
-    if (!videoUrl || !thumbnailCanvasRef.current || !videoRef.current) {
-      setThumbnailUrl(null)
+    if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
+    
+    const prevValue = prevInitialSelectionRef.current
+    const currentValue = initialSelectionStartSeconds
+    
+    // 값이 없거나 변경되지 않았으면 무시
+    if (currentValue === undefined || currentValue === null) {
+      return
+    }
+    
+    // 이전 값과 현재 값이 같으면 무시 (ref만 업데이트)
+    if (prevValue !== undefined && Math.abs((prevValue ?? 0) - currentValue) < 0.01) {
+      prevInitialSelectionRef.current = currentValue
+      return
+    }
+    
+    // 내부 상태와 외부 prop이 다를 때만 동기화
+    const currentDiff = Math.abs(selectionStartSeconds - currentValue)
+    if (currentDiff > 0.01) {
+      prevInitialSelectionRef.current = currentValue
+      // 외부 prop 변경 시 내부 상태 동기화는 필요하므로 비동기로 처리
+      const timeoutId = setTimeout(() => {
+        setSelectionStartSeconds(currentValue)
+      }, 0)
+      return () => clearTimeout(timeoutId)
+    } else {
+      // 값이 이미 동일하면 ref만 업데이트
+      prevInitialSelectionRef.current = currentValue
+    }
+  }, [initialSelectionStartSeconds, selectionStartSeconds, isDraggingSelection])
+
+  // TTS duration이 변경되면 격자 위치 조정
+  useEffect(() => {
+    if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
+    
+    // 실제 영상 길이 기준으로 제한
+    // timelineDuration을 계산하여 정확한 끝지점 구하기
+    const timelineDuration = videoDuration !== null && videoDuration > 0 
+      ? Math.floor(videoDuration) 
+      : Math.floor(ttsDuration || 10)
+    const timeMarkersCount = timelineDuration + 1
+    const actualVideoEndPx = timeMarkersCount * 74 // FRAME_WIDTH = 74
+    const selectionWidthPx = (ttsDuration || 10) * 74
+    const maxSelectionStartPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
+    const maxStart = maxSelectionStartPx / 74
+    
+    // selectionStartSeconds가 범위를 벗어나면 조정 (비동기로 처리)
+    if (selectionStartSeconds > maxStart) {
+      // setTimeout을 사용하여 비동기적으로 처리
+      const timeoutId = setTimeout(() => {
+        setSelectionStartSeconds(maxStart)
+      }, 0)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [ttsDuration, videoDuration, selectionStartSeconds, isDraggingSelection])
+
+  // videoUrl이 없을 때 videoDuration 초기화 (별도 useEffect로 분리)
+  useEffect(() => {
+    if (!videoUrl) {
+      // cleanup 함수에서만 setState 호출하여 린터 경고 방지
+      return () => {
+        setVideoDuration(null)
+      }
+    }
+  }, [videoUrl])
+
+  // 영상의 실제 duration 가져오기
+  useEffect(() => {
+    if (!videoUrl) {
       return
     }
 
     const video = videoRef.current
-    const canvas = thumbnailCanvasRef.current
+    if (!video) {
+      return
+    }
 
-    const captureThumbnail = () => {
-      try {
-        if (!video.videoWidth || !video.videoHeight) {
-          return
-        }
-
-        canvas.width = 160
-        canvas.height = 284
-
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
-
-        const videoAspect = video.videoWidth / video.videoHeight
-        const canvasAspect = canvas.width / canvas.height
-
-        let drawWidth = canvas.width
-        let drawHeight = canvas.height
-        let drawX = 0
-        let drawY = 0
-
-        if (videoAspect > canvasAspect) {
-          drawHeight = canvas.height
-          drawWidth = drawHeight * videoAspect
-          drawX = (canvas.width - drawWidth) / 2
-        } else {
-          drawWidth = canvas.width
-          drawHeight = drawWidth / videoAspect
-          drawY = (canvas.height - drawHeight) / 2
-        }
-
-        ctx.fillStyle = '#111111'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-        ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight)
-
-        const thumbnail = canvas.toDataURL('image/jpeg', 0.8)
-        setThumbnailUrl(thumbnail)
-      } catch (error) {
-        console.error('썸네일 생성 오류:', error)
-        setThumbnailUrl(null)
+    const handleLoadedMetadata = () => {
+      if (video.duration && isFinite(video.duration)) {
+        console.log(`[비디오 길이] 정확한 duration: ${video.duration}초 (${video.duration.toFixed(3)}초)`)
+        setVideoDuration(video.duration)
       }
     }
 
-    const handleLoadedData = () => {
-      if (video.readyState >= 2) {
-        video.currentTime = selectionStartSeconds > 0 ? selectionStartSeconds : 0.1
-      }
-    }
-
-    const handleSeeked = () => {
-      captureThumbnail()
-    }
-
-    video.addEventListener('loadeddata', handleLoadedData)
-    video.addEventListener('seeked', handleSeeked)
-
-    if (video.readyState >= 2) {
-      video.currentTime = selectionStartSeconds > 0 ? selectionStartSeconds : 0.1
+    // 이미 로드된 경우 즉시 처리
+    if (video.readyState >= 1) {
+      handleLoadedMetadata()
+    } else {
+      video.addEventListener('loadedmetadata', handleLoadedMetadata)
     }
 
     return () => {
-      video.removeEventListener('loadeddata', handleLoadedData)
-      video.removeEventListener('seeked', handleSeeked)
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata)
     }
-  }, [videoUrl, selectionStartSeconds])
+  }, [videoUrl])
 
-  // 선택된 영역의 프레임 썸네일 생성 (타임라인용)
-  // timeMarkers와 동일한 범위로 생성해야 함
+  // 타임라인 시간 마커 생성 (1초 단위)
+  // 실제 영상 길이를 우선 사용하고, 영상이 없으면 TTS duration 사용
+  // 격자가 실제 영상 길이 내에서만 움직이도록 타임라인도 실제 영상 길이만큼만 표시
+  // Math.floor를 사용하여 실제 비디오 길이의 초 단위까지만 표시
+  const FRAME_WIDTH = 74 // 각 프레임 너비 (px)
+  const getTimelineDuration = () => {
+    if (videoDuration !== null && videoDuration > 0) {
+      // 실제 영상 길이 사용 (초 단위로 내림)
+      return Math.floor(videoDuration)
+    }
+    // 영상이 없으면 TTS duration 사용 (초 단위로 내림)
+    return Math.floor(ttsDuration || 10)
+  }
+
+  const timelineDuration = getTimelineDuration()
+
+  const generateTimeMarkers = () => {
+    const markers = []
+    for (let i = 0; i <= timelineDuration; i++) {
+      const minutes = Math.floor(i / 60)
+      const seconds = i % 60
+      markers.push(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`)
+    }
+    return markers
+  }
+
+  const timeMarkers = generateTimeMarkers()
+
+  // 격자(선택 영역) 위치 계산 - TTS duration에 맞게 조정
+  const selectionWidthSeconds = ttsDuration || 10 // 격자 너비 = TTS duration
+  
+  // 선택 영역의 픽셀 단위 크기 (먼저 계산)
+  const selectionWidthPx = selectionWidthSeconds * FRAME_WIDTH
+  
+  // 실제 영상의 마지막 지점 계산
+  // timeMarkers.length = timelineDuration + 1 (0부터 timelineDuration까지)
+  // 마지막 프레임 썸네일의 인덱스는 timelineDuration (예: 6초면 인덱스 6)
+  // 마지막 프레임 썸네일의 끝은 timeMarkers.length * FRAME_WIDTH (예: 7 * 74 = 518px)
+  // 격자의 오른쪽 끝이 마지막 프레임 썸네일의 끝에 닿을 수 있도록 해야 함
+  const actualVideoEndPx = timeMarkers.length * FRAME_WIDTH // 마지막 프레임 썸네일의 끝 (픽셀)
+  const actualVideoEndSeconds = actualVideoEndPx / FRAME_WIDTH // 마지막 프레임 썸네일의 끝 (초 단위)
+  
+  // 격자의 오른쪽 끝이 마지막 프레임 썸네일의 끝에 닿을 수 있도록 허용
+  // 격자의 시작점은 (마지막 프레임 끝 - 격자 너비)까지만 가능
+  const maxSelectionStartPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
+  const maxSelectionStartSeconds = maxSelectionStartPx / FRAME_WIDTH
+  const finalClampedSelectionStartSeconds = Math.max(0, Math.min(selectionStartSeconds, maxSelectionStartSeconds))
+  const finalClampedSelectionEndSeconds = Math.min(finalClampedSelectionStartSeconds + selectionWidthSeconds, actualVideoEndSeconds)
+  
+  // 선택 영역의 픽셀 단위 위치
+  const selectionLeftPx = finalClampedSelectionStartSeconds * FRAME_WIDTH
+
+  // videoUrl이나 ttsDuration이 없을 때 썸네일 초기화 (별도 useEffect로 분리)
   useEffect(() => {
-    if (!videoUrl || !selectionDuration || selectionDuration <= 0) {
-      setFrameThumbnails([])
+    if (!videoUrl || !ttsDuration) {
+      return () => {
+        setFrameThumbnails([])
+      }
+    }
+  }, [videoUrl, ttsDuration])
+
+  // 전체 영상의 프레임 썸네일 생성 (타임라인용)
+  useEffect(() => {
+    if (!videoUrl || !ttsDuration) {
       return
     }
 
@@ -186,14 +276,23 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
       return
     }
 
+    // 비디오가 로드되지 않았으면 대기
+    if (videoDuration === null) {
+      return
+    }
+
     let isCancelled = false
-    const thumbnails: Record<number, string> = {}
 
-    // timeMarkers와 동일한 범위로 썸네일 생성
-    const startSecond = Math.floor(selectionStartSeconds)
-    const endSecond = Math.ceil(selectionEndSeconds)
+    // 실제 영상 길이만 사용 (타임라인과 일치시키기 위해)
+    // 비디오가 정확히 6초면 6초까지만 썸네일 생성 (0~6초 = 7개)
+    // Math.floor를 사용하여 실제 비디오 길이의 초 단위까지만 생성
+    const duration = videoDuration !== null && videoDuration > 0
+      ? Math.floor(videoDuration)
+      : Math.floor(ttsDuration || 10)
+    
+    const thumbnails: string[] = []
 
-    const captureFrame = (absoluteSecond: number): Promise<void> => {
+    const captureFrame = (second: number): Promise<void> => {
       return new Promise((resolve) => {
         if (isCancelled) {
           resolve()
@@ -214,6 +313,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
               return
             }
 
+            // 캔버스 크기를 프레임 박스 크기에 맞춤 (74x84)
             canvas.width = 74
             canvas.height = 84
 
@@ -224,6 +324,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
               return
             }
 
+            // 비디오 프레임을 캔버스에 그리기 (비율 유지하며 중앙 정렬)
             const videoAspect = video.videoWidth / video.videoHeight
             const canvasAspect = canvas.width / canvas.height
 
@@ -233,41 +334,48 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
             let drawY = 0
 
             if (videoAspect > canvasAspect) {
+              // 비디오가 더 넓음 - 높이에 맞춤
               drawHeight = canvas.height
               drawWidth = drawHeight * videoAspect
               drawX = (canvas.width - drawWidth) / 2
             } else {
+              // 비디오가 더 높음 - 너비에 맞춤
               drawWidth = canvas.width
               drawHeight = drawWidth / videoAspect
               drawY = (canvas.height - drawHeight) / 2
             }
 
+            // 배경을 검은색으로 채우기
             ctx.fillStyle = '#111111'
             ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+            // 비디오 프레임 그리기
             ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight)
 
+            // 캔버스를 이미지 URL로 변환
             const thumbnail = canvas.toDataURL('image/jpeg', 0.8)
-            thumbnails[absoluteSecond] = thumbnail
+            thumbnails[second] = thumbnail
 
             video.removeEventListener('seeked', handleSeeked)
             resolve()
           } catch (error) {
             video.removeEventListener('seeked', handleSeeked)
             if (error instanceof Error && error.name === 'SecurityError') {
-              console.warn(`CORS 오류로 인해 ${absoluteSecond}초 프레임을 캡처할 수 없습니다.`)
+              console.warn(`CORS 오류로 인해 ${second}초 프레임을 캡처할 수 없습니다.`)
             } else {
-              console.error(`${absoluteSecond}초 프레임 캡처 오류:`, error)
+              console.error(`${second}초 프레임 캡처 오류:`, error)
             }
-            resolve()
+            resolve() // 에러가 나도 계속 진행
           }
         }
 
         video.addEventListener('seeked', handleSeeked)
-        video.currentTime = absoluteSecond
+        video.currentTime = second
       })
     }
 
     const generateThumbnails = async () => {
+      // 비디오 메타데이터가 완전히 로드될 때까지 대기
       if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
         const handleLoadedData = () => {
           video.removeEventListener('loadeddata', handleLoadedData)
@@ -281,49 +389,174 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
         return
       }
 
-      // timeMarkers와 동일한 범위로 프레임 캡처 (절대 시간 사용)
-      for (let i = startSecond; i <= endSecond; i++) {
+      // 타임라인 마커는 timelineDuration + 1개이므로, 썸네일도 같은 개수 생성
+      // duration은 timelineDuration과 같으므로, duration + 1개를 생성해야 함
+      const frameCount = duration + 1
+
+      console.log(`[썸네일 생성 시작] duration: ${duration}, frameCount: ${frameCount}, videoWidth: ${video.videoWidth}, videoHeight: ${video.videoHeight}`)
+
+      // 각 초마다 프레임 캡처 (0초부터 duration초까지, 총 duration + 1개)
+      for (let i = 0; i <= duration; i++) {
         if (isCancelled) break
         await captureFrame(i)
+        console.log(`[프레임 캡처 완료] ${i}초`)
       }
 
+      // 썸네일 배열 설정 (취소되지 않았을 때만)
       if (!isCancelled) {
-        // timeMarkers와 동일한 순서로 썸네일 배열 생성
         const thumbnailArray: string[] = []
-        for (let i = startSecond; i <= endSecond; i++) {
-          thumbnailArray.push(thumbnails[i] || '')
+        for (let i = 0; i <= duration; i++) {
+          thumbnailArray[i] = thumbnails[i] || ''
         }
+        console.log(`[썸네일 설정 완료] 총 ${thumbnailArray.length}개, 실제 생성된 썸네일: ${thumbnailArray.filter(t => t).length}개`)
         setFrameThumbnails(thumbnailArray)
       }
     }
 
     generateThumbnails()
 
+    // cleanup 함수: 컴포넌트 언마운트 또는 의존성 변경 시 취소
     return () => {
       isCancelled = true
     }
-  }, [videoUrl, selectionStartSeconds, selectionEndSeconds, selectionDuration])
+  }, [videoUrl, ttsDuration, videoDuration])
 
-  // 타임라인 시간 마커 생성 (선택된 영역만)
-  const FRAME_WIDTH = 74
-  const generateTimeMarkers = () => {
-    const markers = []
-    const startSecond = Math.floor(selectionStartSeconds)
-    const endSecond = Math.ceil(selectionEndSeconds)
+  // 선택 영역이 실제로 변경될 때만 콜백 호출 (무한 루프 방지)
+  // store에서 오는 initialSelectionStartSeconds와 비교하여 실제로 사용자가 변경한 경우에만 호출
+  const prevSelectionRef = useRef<{ start: number; end: number } | null>(null)
+  
+  useEffect(() => {
+    if (!onSelectionChange) return
     
-    for (let i = startSecond; i <= endSecond; i++) {
-      const minutes = Math.floor(i / 60)
-      const seconds = i % 60
-      markers.push({
-        time: i,
-        label: `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`,
-      })
+    // initialSelectionStartSeconds와 비교하여 실제로 사용자가 변경한 경우에만 호출
+    const initialStart = initialSelectionStartSeconds ?? 0
+    const initialEnd = initialStart + (ttsDuration || 10)
+    
+    // 이전 값과 비교하여 실제로 변경된 경우에만 호출
+    const prev = prevSelectionRef.current
+    const hasChanged = prev === null ||
+      Math.abs(prev.start - finalClampedSelectionStartSeconds) > 0.01 ||
+      Math.abs(prev.end - finalClampedSelectionEndSeconds) > 0.01
+    
+    // store의 초기값과 다를 때만 호출 (사용자가 실제로 변경한 경우)
+    // 또는 드래그 중일 때만 호출
+    const differsFromInitial = Math.abs(finalClampedSelectionStartSeconds - initialStart) > 0.01 ||
+      Math.abs(finalClampedSelectionEndSeconds - initialEnd) > 0.01
+    
+    if (hasChanged && (differsFromInitial || isDraggingSelection)) {
+      prevSelectionRef.current = {
+        start: finalClampedSelectionStartSeconds,
+        end: finalClampedSelectionEndSeconds,
+      }
+      // 드래그 중이거나 초기값과 다를 때만 호출
+      if (differsFromInitial || isDraggingSelection) {
+        onSelectionChange(finalClampedSelectionStartSeconds, finalClampedSelectionEndSeconds)
+      }
+    } else if (hasChanged) {
+      // 값이 변경되었지만 초기값과 같고 드래그 중이 아니면 ref만 업데이트
+      prevSelectionRef.current = {
+        start: finalClampedSelectionStartSeconds,
+        end: finalClampedSelectionEndSeconds,
+      }
     }
-    return markers
+  }, [finalClampedSelectionStartSeconds, finalClampedSelectionEndSeconds, onSelectionChange, initialSelectionStartSeconds, ttsDuration, isDraggingSelection])
+
+  // 격자 드래그 핸들러
+  const handleSelectionMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingSelection(true)
+    setDragStartX(e.clientX)
+    setDragStartSelectionLeft(selectionLeftPx)
   }
 
-  const timeMarkers = generateTimeMarkers()
-  const timelineWidthPx = timeMarkers.length * FRAME_WIDTH
+  const handleSelectionMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingSelection || !timelineContainerRef.current) return
+    
+    e.preventDefault()
+    const deltaX = e.clientX - dragStartX
+    // 마우스를 정확히 따라가도록 1:1 비율 사용
+    
+    // 마지막 프레임 썸네일의 끝까지 갈 수 있도록 제한
+    const actualVideoEndPx = timeMarkers.length * FRAME_WIDTH
+    const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
+    
+    // 끝에 도달했으면 더 이상 오른쪽으로 이동하지 않도록 고정
+    const newSelectionLeftPx = Math.max(0, Math.min(
+      dragStartSelectionLeft + deltaX,
+      maxSelectionLeftPx
+    ))
+    
+    // 끝에 정확히 도달했는지 확인 (부동소수점 오차 고려)
+    const isAtEnd = Math.abs(newSelectionLeftPx - maxSelectionLeftPx) < 0.1
+    const finalSelectionLeftPx = isAtEnd ? maxSelectionLeftPx : newSelectionLeftPx
+    
+    const newSelectionStartSeconds = finalSelectionLeftPx / FRAME_WIDTH
+    setSelectionStartSeconds(newSelectionStartSeconds)
+  }
+
+  const handleSelectionMouseUp = () => {
+    setIsDraggingSelection(false)
+  }
+
+  // 전역 마우스 이벤트로 드래그 처리
+  useEffect(() => {
+    if (!isDraggingSelection) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!timelineContainerRef.current) return
+      
+      const deltaX = e.clientX - dragStartX
+      // 마우스를 정확히 따라가도록 1:1 비율 사용
+      
+      // 마지막 프레임 썸네일의 끝까지 갈 수 있도록 제한
+      // timelineDuration을 계산하여 timeMarkers.length를 구함
+      const timelineDuration = Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
+      const timeMarkersCount = timelineDuration + 1 // 0부터 timelineDuration까지
+      const actualVideoEndPx = timeMarkersCount * FRAME_WIDTH
+      const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
+      
+      // 끝에 도달했으면 더 이상 오른쪽으로 이동하지 않도록 고정
+      const newSelectionLeftPx = Math.max(0, Math.min(
+        dragStartSelectionLeft + deltaX,
+        maxSelectionLeftPx
+      ))
+      
+      // 끝에 정확히 도달했는지 확인 (부동소수점 오차 고려)
+      const isAtEnd = Math.abs(newSelectionLeftPx - maxSelectionLeftPx) < 0.1
+      const finalSelectionLeftPx = isAtEnd ? maxSelectionLeftPx : newSelectionLeftPx
+      
+      const newSelectionStartSeconds = finalSelectionLeftPx / FRAME_WIDTH
+      setSelectionStartSeconds(newSelectionStartSeconds)
+    }
+
+    const handleMouseUp = () => {
+      setIsDraggingSelection(false)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDraggingSelection, dragStartX, dragStartSelectionLeft, timeMarkers, selectionWidthPx, videoDuration, ttsDuration])
+  
+  // 격자에 포함되는 시간 마커 인덱스 계산
+  const getIsInSelection = (idx: number) => {
+    const markerTime = idx // idx는 초 단위
+    // 격자 범위 내에 있는지 확인
+    return markerTime >= Math.floor(finalClampedSelectionStartSeconds) && markerTime < finalClampedSelectionEndSeconds
+  }
+  
+  // 격자의 시작/끝 지점에 큰 틱 표시 여부
+  const getIsMajorTick = (idx: number) => {
+    const markerTime = idx
+    // 격자 시작/끝 지점에 큰 틱
+    const endMarkerTime = Math.floor(finalClampedSelectionEndSeconds)
+    return markerTime === Math.floor(finalClampedSelectionStartSeconds) || markerTime === endMarkerTime
+  }
 
   // 효과 적용 여부 확인
   const hasTransition = Boolean(
@@ -471,25 +704,15 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
           </div>
         )}
 
-        {/* 메인 컨텐츠 영역: 썸네일 | 스크립트+타임라인 */}
+        {/* 메인 컨텐츠 영역: 영상 업로드 | 스크립트+타임라인 */}
         <div className="flex-1 min-w-0 flex gap-4 items-start">
-          {/* 좌측: 썸네일 영역 */}
+          {/* 좌측: 영상 업로드 영역 */}
           <div className="shrink-0">
-            <div className="w-[160px] h-[284px] rounded-lg overflow-hidden bg-[#111111] relative">
-              {thumbnailUrl ? (
-                <Image
-                  src={thumbnailUrl}
-                  alt={`Scene ${sceneOrderNumber} thumbnail`}
-                  fill
-                  className="object-cover"
-                  unoptimized
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-white/50">
-                  썸네일 없음
-                </div>
-              )}
-            </div>
+            <ProVideoUpload 
+              videoUrl={videoUrl}
+              selectionStartSeconds={finalClampedSelectionStartSeconds}
+              selectionEndSeconds={finalClampedSelectionEndSeconds}
+            />
             {/* 재생 버튼 */}
             {onPlayScene && (
               <div className="flex items-center justify-center mt-2">
@@ -577,23 +800,36 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
               </div>
             </div>
 
-            {/* 하단: 타임라인 비주얼 (선택된 영역만) */}
-            <div className="relative overflow-x-auto w-full">
-              <div className="relative shrink-0" style={{ width: `${timelineWidthPx}px`, paddingTop: '18px', paddingBottom: '18px' }}>
-                {/* 프레임 박스 */}
+            {/* 하단: 타임라인 비주얼 */}
+            <div 
+              ref={timelineContainerRef}
+              className="relative overflow-x-auto w-full"
+              style={{ 
+                WebkitOverflowScrolling: 'touch',
+              }}
+              onDragStart={(e) => {
+                // 타임라인 영역에서는 씬 카드 드래그 방지
+                e.stopPropagation()
+                e.preventDefault()
+              }}
+            >
+              {/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
+              <div className="relative shrink-0" style={{ width: `${timeMarkers.length * 74}px`, paddingTop: '18px', paddingBottom: '18px' }}>
+                {/* 실제 영상 프레임 박스 (클리핑 영역) */}
                 <div className="relative h-[84px] bg-white rounded-2xl border border-gray-300 overflow-hidden">
-                  {/* 프레임 패턴 */}
+                  {/* 격자 패턴 - 각 74px 너비의 프레임들 */}
                   <div className="absolute inset-0 flex">
-                    {timeMarkers.map((marker, idx) => (
+                    {Array.from({ length: timeMarkers.length }).map((_, idx) => (
                       <div
                         key={idx}
                         className="shrink-0 relative border-r border-[#a6a6a6] overflow-hidden"
                         style={{ width: '74px', height: '100%' }}
                       >
+                        {/* 비디오 프레임 썸네일 또는 배경 */}
                         {frameThumbnails[idx] ? (
                           <Image
                             src={frameThumbnails[idx]}
-                            alt={`${marker.time}초 프레임`}
+                            alt={`${idx}초 프레임`}
                             fill
                             className="object-cover"
                             unoptimized
@@ -604,8 +840,30 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                       </div>
                     ))}
                   </div>
-
-                  {/* 숨겨진 비디오와 캔버스 */}
+                  
+                  {/* 격자 기준 왼쪽 어두운 오버레이 */}
+                  {selectionLeftPx > 0 && (
+                    <div
+                      className="absolute top-0 left-0 bg-black/50 z-[2]"
+                      style={{
+                        width: `${selectionLeftPx}px`,
+                        height: '100%',
+                      }}
+                    />
+                  )}
+                  
+                  {/* 격자 기준 오른쪽 어두운 오버레이 */}
+                  {selectionLeftPx + selectionWidthPx < actualVideoEndPx && (
+                    <div
+                      className="absolute top-0 right-0 bg-black/50 z-[2]"
+                      style={{
+                        width: `${actualVideoEndPx - (selectionLeftPx + selectionWidthPx)}px`,
+                        height: '100%',
+                      }}
+                    />
+                  )}
+                  
+                  {/* 숨겨진 비디오와 캔버스 - 프레임 썸네일 생성용 */}
                   {videoUrl && (
                     <>
                       <video
@@ -618,25 +876,54 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                         crossOrigin="anonymous"
                       />
                       <canvas ref={canvasRef} className="hidden" />
-                      <canvas ref={thumbnailCanvasRef} className="hidden" />
                     </>
                   )}
+                </div>
+
+                {/* 격자(선택 강조선) - 프레임 박스 밖에 배치하여 위아래로 튀어나오게 */}
+                <div
+                  onMouseDown={handleSelectionMouseDown}
+                  onMouseMove={handleSelectionMouseMove}
+                  onMouseUp={handleSelectionMouseUp}
+                  className="cursor-move"
+                  style={{
+                    position: 'absolute',
+                    left: `${selectionLeftPx}px`,
+                    width: `${selectionWidthPx}px`,
+                    top: '18px', // 프레임 박스와 같은 위치 (paddingTop 아래)
+                    height: 'calc(100% - 18px)', // paddingTop을 제외한 높이
+                    zIndex: 10,
+                    pointerEvents: 'auto', // 격자 내부 전체가 클릭 가능하도록
+                  }}
+                >
+                  <ProVideoTimelineGrid
+                    frameHeight={84}
+                    selectionLeft={0}
+                    selectionWidth={selectionWidthPx}
+                    extendY={18}
+                  />
                 </div>
               </div>
 
               {/* 시간 마커 */}
               <div 
                 className="relative flex shrink-0"
-                style={{ width: `${timelineWidthPx}px` }}
+                style={{ width: `${timeMarkers.length * 74}px` }}
+                onDragStart={(e) => {
+                  // 시간 마커 영역에서도 씬 카드 드래그 방지
+                  e.stopPropagation()
+                  e.preventDefault()
+                }}
               >
+                {/* 가로 라인 - 영상 프레임 전체 길이만큼 */}
                 <div 
                   className="absolute top-0 left-0 h-px bg-[#a6a6a6]"
-                  style={{ width: `${timelineWidthPx}px` }}
+                  style={{ width: `${timeMarkers.length * 74}px` }}
                 />
                 
                 {timeMarkers.map((marker, idx) => {
-                  const isStart = idx === 0
-                  const isEnd = idx === timeMarkers.length - 1
+                  const isInSelection = getIsInSelection(idx)
+                  const isMajorTick = getIsMajorTick(idx)
                   
                   return (
                     <div
@@ -645,16 +932,19 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                       style={{ width: '74px' }}
                     >
                       {/* 세로 틱 */}
-                      {(isStart || isEnd) ? (
+                      {isMajorTick ? (
                         <>
+                          {/* 큰 틱 - 위로 */}
                           <div 
                             className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[6px] w-px -translate-y-full"
                           />
+                          {/* 큰 틱 - 아래로 */}
                           <div 
                             className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[10px] w-px"
                           />
                         </>
                       ) : (
+                        /* 작은 틱 - 모든 마커에 고정으로 표시 */
                         <div 
                           className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[6px] w-px"
                         />
@@ -662,14 +952,16 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                       
                       {/* 시간 텍스트 */}
                       <span
-                        className="font-medium mt-2 text-text-dark"
+                        className={`font-medium mt-2 ${
+                          isInSelection ? 'text-text-dark' : 'text-text-tertiary'
+                        }`}
                         style={{
                           fontSize: '16px',
                           lineHeight: '22.4px',
                           letterSpacing: '-0.32px',
                         }}
                       >
-                        {marker.label}
+                        {marker}
                       </span>
                     </div>
                   )
@@ -683,7 +975,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                 className="text-[#5D5D5D] font-medium tabular-nums shrink-0"
                 style={{ fontSize: 'var(--font-size-14)', lineHeight: 'var(--line-height-12-140)' }}
               >
-                {durationLabel}
+                {formatTime(finalClampedSelectionStartSeconds, false)} ~ {formatTime(finalClampedSelectionEndSeconds, false)}
               </span>
               <div
                 className="relative shrink-0"

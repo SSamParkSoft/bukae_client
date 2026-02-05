@@ -6,7 +6,7 @@ import { PreviewPanel } from '../../fast/step3/components/PreviewPanel'
 import { ProSceneListPanel, type ProStep3Scene } from './components/ProSceneListPanel'
 import { ProEffectsPanel } from './components/ProEffectsPanel'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
-import { useMemo } from 'react'
+import { useMemo, useCallback, useEffect } from 'react'
 import { voiceTemplateHelpers } from '@/store/useVideoCreateStore'
 
 // Pro step2에서 사용하는 확장된 Scene 타입
@@ -48,17 +48,42 @@ function sceneScriptToProScene(s: SceneScript, index: number): ProScene {
 
 export default function ProStep3Page() {
   const container = useStep3Container()
-  const { scenes: storeScenes } = useVideoCreateStore()
+  const { scenes: storeScenes, setScenes } = useVideoCreateStore()
+
+  // 디버깅: storeScenes 변경 추적
+  useEffect(() => {
+    console.log('[ProStep3Page] storeScenes 변경:', {
+      isArray: Array.isArray(storeScenes),
+      length: Array.isArray(storeScenes) ? storeScenes.length : 'N/A',
+      scenes: storeScenes,
+    })
+  }, [storeScenes])
 
   // store의 scenes를 ProScene으로 변환
   const proScenes: ProScene[] = useMemo(() => {
-    return storeScenes && storeScenes.length > 0
-      ? storeScenes.map((s, index) => sceneScriptToProScene(s, index))
-      : []
+    // storeScenes가 배열이 아니면 빈 배열 반환
+    if (!Array.isArray(storeScenes) || storeScenes.length === 0) {
+      console.warn('[ProStep3Page] proScenes: storeScenes가 배열이 아니거나 빈 배열입니다.', {
+        storeScenes,
+        isArray: Array.isArray(storeScenes),
+        length: Array.isArray(storeScenes) ? storeScenes.length : 'N/A',
+      })
+      return []
+    }
+    const result = storeScenes.map((s, index) => sceneScriptToProScene(s, index))
+    console.log('[ProStep3Page] proScenes 변환 완료:', {
+      count: result.length,
+      scenes: result,
+    })
+    return result
   }, [storeScenes])
 
   // ProStep3Scene으로 변환 (selectionStartSeconds, selectionEndSeconds는 기본값 사용)
   const proStep3Scenes: ProStep3Scene[] = useMemo(() => {
+    // proScenes가 배열이 아니거나 빈 배열이면 빈 배열 반환
+    if (!Array.isArray(proScenes) || proScenes.length === 0) {
+      return []
+    }
     return proScenes.map((scene, index) => {
       const extended = scene as ProScene & {
         selectionStartSeconds?: number
@@ -83,6 +108,29 @@ export default function ProStep3Page() {
       }
     })
   }, [proScenes])
+
+  // 격자 선택 영역 변경 핸들러
+  const handleSelectionChange = useCallback((sceneIndex: number, startSeconds: number, endSeconds: number) => {
+    // storeScenes가 배열인지 확인하고, 배열이 아니면 업데이트하지 않음
+    if (!Array.isArray(storeScenes) || storeScenes.length === 0) {
+      console.warn('[ProStep3Page] handleSelectionChange: storeScenes가 배열이 아니거나 빈 배열입니다.', {
+        storeScenes,
+        sceneIndex,
+      })
+      return
+    }
+    
+    // 배열 복사 후 업데이트
+    const next = [...storeScenes]
+    if (next[sceneIndex]) {
+      next[sceneIndex] = {
+        ...next[sceneIndex],
+        selectionStartSeconds: startSeconds,
+        selectionEndSeconds: endSeconds,
+      } as SceneScript
+      setScenes(next)
+    }
+  }, [setScenes, storeScenes])
 
   if (!container.mounted) {
     return null
@@ -152,6 +200,7 @@ export default function ProStep3Page() {
                 const mappedTab = tab === 'voice' ? 'animation' : tab
                 container.setRightPanelTab(mappedTab)
               }}
+              onSelectionChange={handleSelectionChange}
             />
           </div>
 

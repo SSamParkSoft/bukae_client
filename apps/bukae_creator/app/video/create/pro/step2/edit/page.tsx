@@ -82,48 +82,49 @@ export default function ProStep2EditPage() {
       : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
   
   // store의 scenes가 비어있으면 기본값으로 초기화 (persist 복원 후에만)
+  // edit 페이지에서는 기존 작업 내용을 보존해야 하므로 초기화하지 않음
   const [hasInitialized, setHasInitialized] = useState(false)
+  
+  // storeScenes의 길이를 안정적인 dependency로 사용
+  const storeScenesLength = storeScenes?.length ?? 0
+  
   useEffect(() => {
-    // 마운트 후 일정 시간이 지난 후에만 초기화 (persist 복원 대기)
+    // 이미 초기화되었으면 실행하지 않음
+    if (hasInitialized) return
+    
+    // persist 복원 대기 후 초기화 상태만 설정
     const timer = setTimeout(() => {
-      // persist가 복원된 후에만 실행
-      if (!hasInitialized && (!storeScenes || storeScenes.length === 0)) {
-        // localStorage에서 직접 확인하여 실제로 비어있는지 확인
-        if (typeof window !== 'undefined') {
-          const saved = localStorage.getItem('bookae-video-create-storage')
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved)
-              const savedScenes = parsed?.state?.scenes
-              // localStorage에 저장된 scenes가 있으면 초기화하지 않음
-              if (savedScenes && Array.isArray(savedScenes) && savedScenes.length > 0) {
-                setHasInitialized(true)
-                return
-              }
-            } catch (e) {
-              // 파싱 실패 시 무시
+      // store에 데이터가 있으면 초기화 완료로 표시
+      if (storeScenes && storeScenes.length > 0) {
+        setHasInitialized(true)
+        return
+      }
+      
+      // store가 비어있어도 localStorage 확인
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('bookae-video-create-storage')
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved)
+            const savedScenes = parsed?.state?.scenes
+            // localStorage에 저장된 scenes가 있으면 초기화하지 않고 그대로 사용
+            if (savedScenes && Array.isArray(savedScenes) && savedScenes.length > 0) {
+              setHasInitialized(true)
+              return
             }
+          } catch (e) {
+            // 파싱 실패 시 무시
           }
         }
-        
-        // 실제로 비어있을 때만 초기화
-        const defaultScenes: ExtendedSceneScript[] = 
-          Array.from({ length: DEFAULT_SCENE_COUNT }, (_, i) => ({ 
-            sceneId: i + 1,
-            id: generateSceneId(), // 고유 ID 생성
-            script: '' 
-          }))
-        setStoreScenes(defaultScenes)
-        setHasUnsavedChanges(true)
-        setHasInitialized(true)
-      } else if (storeScenes && storeScenes.length > 0) {
-        // 이미 데이터가 있으면 초기화 완료로 표시
-        setHasInitialized(true)
       }
-    }, 200) // persist 복원 대기 시간
+      
+      // 정말로 비어있을 때만 초기화 완료 표시
+      setHasInitialized(true)
+    }, 300) // persist 복원 대기 시간을 조금 더 길게
     
     return () => clearTimeout(timer)
-  }, [storeScenes, hasInitialized, setStoreScenes, setHasUnsavedChanges])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeScenesLength])
   
   // scenes 업데이트 함수 - store에 직접 저장
   const updateScenes = useCallback((updater: (prev: ProScene[]) => ProScene[]) => {

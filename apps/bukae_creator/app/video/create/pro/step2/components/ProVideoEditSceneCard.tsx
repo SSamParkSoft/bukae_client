@@ -71,7 +71,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
 
   // 격자(선택 영역) 드래그 관련 상태
   // initialSelectionStartSeconds를 기본값으로 사용하되, 사용자가 드래그할 때만 내부 상태 업데이트
-  const [selectionStartSeconds, setSelectionStartSeconds] = useState(initialSelectionStartSeconds ?? 0)
+  const [selectionStartSeconds, setSelectionStartSeconds] = useState(() => initialSelectionStartSeconds ?? 0)
   const [isDraggingSelection, setIsDraggingSelection] = useState(false)
   const [dragStartX, setDragStartX] = useState(0)
   const [dragStartSelectionLeft, setDragStartSelectionLeft] = useState(0)
@@ -82,21 +82,32 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   useEffect(() => {
     if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
     
-    const hasChanged = prevInitialSelectionRef.current !== initialSelectionStartSeconds &&
-      Math.abs((prevInitialSelectionRef.current ?? 0) - (initialSelectionStartSeconds ?? 0)) > 0.01
+    const prevValue = prevInitialSelectionRef.current
+    const currentValue = initialSelectionStartSeconds
     
-    if (hasChanged) {
-      const currentDiff = Math.abs(selectionStartSeconds - (initialSelectionStartSeconds ?? 0))
-      if (currentDiff > 0.01) {
-        prevInitialSelectionRef.current = initialSelectionStartSeconds
-        // 외부 prop 변경 시 내부 상태 동기화는 필요하므로 비동기로 처리
-        const timeoutId = setTimeout(() => {
-          setSelectionStartSeconds(initialSelectionStartSeconds ?? 0)
-        }, 0)
-        return () => clearTimeout(timeoutId)
-      } else {
-        prevInitialSelectionRef.current = initialSelectionStartSeconds
-      }
+    // 값이 없거나 변경되지 않았으면 무시
+    if (currentValue === undefined || currentValue === null) {
+      return
+    }
+    
+    // 이전 값과 현재 값이 같으면 무시 (ref만 업데이트)
+    if (prevValue !== undefined && Math.abs((prevValue ?? 0) - currentValue) < 0.01) {
+      prevInitialSelectionRef.current = currentValue
+      return
+    }
+    
+    // 내부 상태와 외부 prop이 다를 때만 동기화
+    const currentDiff = Math.abs(selectionStartSeconds - currentValue)
+    if (currentDiff > 0.01) {
+      prevInitialSelectionRef.current = currentValue
+      // 외부 prop 변경 시 내부 상태 동기화는 필요하므로 비동기로 처리
+      const timeoutId = setTimeout(() => {
+        setSelectionStartSeconds(currentValue)
+      }, 0)
+      return () => clearTimeout(timeoutId)
+    } else {
+      // 값이 이미 동일하면 ref만 업데이트
+      prevInitialSelectionRef.current = currentValue
     }
   }, [initialSelectionStartSeconds, selectionStartSeconds, isDraggingSelection])
 
