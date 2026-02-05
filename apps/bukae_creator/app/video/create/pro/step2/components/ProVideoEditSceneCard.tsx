@@ -490,6 +490,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
               onUpload={onVideoUpload} 
               isLoading={isUploading}
               videoUrl={videoUrl}
+              selectionStartSeconds={clampedSelectionStartSeconds}
+              selectionEndSeconds={clampedSelectionEndSeconds}
             />
           </div>
 

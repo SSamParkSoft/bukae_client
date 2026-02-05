@@ -8,16 +8,23 @@ export interface ProVideoUploadProps {
   onUpload?: (file: File) => Promise<void>
   isLoading?: boolean
   videoUrl?: string | null
+  /** 격자 선택 영역 시작 시간 (초) */
+  selectionStartSeconds?: number
+  /** 격자 선택 영역 끝 시간 (초) */
+  selectionEndSeconds?: number
 }
 
 export const ProVideoUpload = memo(function ProVideoUpload({
   onUpload,
   isLoading = false,
   videoUrl,
+  selectionStartSeconds = 0,
+  selectionEndSeconds = 0,
 }: ProVideoUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const hoverVideoRef = useRef<HTMLVideoElement>(null)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const [isHovered, setIsHovered] = useState(false)
 
@@ -90,6 +97,45 @@ export const ProVideoUpload = memo(function ProVideoUpload({
       video.removeEventListener('seeked', handleSeeked)
     }
   }, [videoUrl])
+
+  // 호버 시 선택 영역만 재생
+  useEffect(() => {
+    const hoverVideo = hoverVideoRef.current
+    if (!hoverVideo || !videoUrl) return
+
+    const startTime = selectionStartSeconds || 0
+    const endTime = selectionEndSeconds || 0
+
+    // 선택 영역이 유효하지 않으면 종료
+    if (endTime <= startTime) return
+
+    if (isHovered) {
+      // 호버 시 선택 영역의 시작 시간으로 이동 후 재생
+      hoverVideo.currentTime = startTime
+      hoverVideo.play().catch(() => {
+        // 자동 재생 실패 시 무시
+      })
+
+      // 선택 영역 끝에 도달하면 다시 시작 시간으로 돌아가기
+      const handleTimeUpdate = () => {
+        if (hoverVideo.currentTime >= endTime) {
+          hoverVideo.currentTime = startTime
+        }
+      }
+
+      hoverVideo.addEventListener('timeupdate', handleTimeUpdate)
+
+      return () => {
+        hoverVideo.removeEventListener('timeupdate', handleTimeUpdate)
+        hoverVideo.pause()
+        hoverVideo.currentTime = startTime
+      }
+    } else {
+      // 호버 해제 시 영상 일시정지
+      hoverVideo.pause()
+      hoverVideo.currentTime = startTime
+    }
+  }, [isHovered, videoUrl, selectionStartSeconds, selectionEndSeconds])
 
   const handleClick = () => {
     fileInputRef.current?.click()
@@ -181,18 +227,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
               )}
               {/* 호버 시 영상 표시 (썸네일 위에 오버레이) */}
               <video
-                ref={(el) => {
-                  if (el && isHovered) {
-                    // 호버 시 영상 재생
-                    el.play().catch(() => {
-                      // 자동 재생 실패 시 무시
-                    })
-                  } else if (el && !isHovered) {
-                    // 호버 해제 시 영상 일시정지
-                    el.pause()
-                    el.currentTime = 0
-                  }
-                }}
+                ref={hoverVideoRef}
                 src={videoUrl}
                 className={`w-full h-full object-cover transition-opacity ${
                   isHovered ? 'opacity-100' : 'opacity-0'
