@@ -1,8 +1,9 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState, useEffect, useRef } from 'react'
 import { GripVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import Image from 'next/image'
 import { ProVideoUpload } from './ProVideoUpload'
 import { ProVideoTimelineGrid } from './ProVideoTimelineGrid'
 
@@ -57,11 +58,235 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   const isDropTargetBefore = dragOverProp?.index === sceneIndex - 1 && dragOverProp?.position === 'before'
   const isDropTargetAfter = dragOverProp?.index === sceneIndex - 1 && dragOverProp?.position === 'after'
 
+  // 프레임 썸네일 관련 상태
+  const [frameThumbnails, setFrameThumbnails] = useState<string[]>([])
+  const [videoDuration, setVideoDuration] = useState<number | null>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  // videoUrl이 없을 때 videoDuration 초기화 (별도 useEffect로 분리)
+  useEffect(() => {
+    if (!videoUrl) {
+      // cleanup 함수에서만 setState 호출하여 린터 경고 방지
+      return () => {
+        setVideoDuration(null)
+      }
+    }
+  }, [videoUrl])
+
+  // 영상의 실제 duration 가져오기
+  useEffect(() => {
+    if (!videoUrl) {
+      return
+    }
+
+    const video = videoRef.current
+    if (!video) {
+      return
+    }
+
+    const handleLoadedMetadata = () => {
+      if (video.duration && isFinite(video.duration)) {
+        setVideoDuration(video.duration)
+      }
+    }
+
+    // 이미 로드된 경우 즉시 처리
+    if (video.readyState >= 1) {
+      handleLoadedMetadata()
+    } else {
+      video.addEventListener('loadedmetadata', handleLoadedMetadata)
+    }
+
+    return () => {
+      video.removeEventListener('loadedmetadata', handleLoadedMetadata)
+    }
+  }, [videoUrl])
+
+  // videoUrl이나 ttsDuration이 없을 때 썸네일 초기화 (별도 useEffect로 분리)
+  useEffect(() => {
+    if (!videoUrl || !ttsDuration) {
+      // cleanup 함수에서만 setState 호출하여 린터 경고 방지
+      return () => {
+        setFrameThumbnails([])
+      }
+    }
+  }, [videoUrl, ttsDuration])
+
+  // 영상에서 1초마다 프레임 썸네일 생성
+  useEffect(() => {
+    // videoUrl이나 ttsDuration이 없으면 종료
+    if (!videoUrl || !ttsDuration) {
+      return
+    }
+
+    const video = videoRef.current
+    const canvas = canvasRef.current
+
+    if (!video || !canvas) {
+      return
+    }
+
+    // 비디오가 로드되지 않았으면 대기
+    // videoDuration이 null이면 아직 비디오 메타데이터가 로드되지 않은 상태
+    if (videoDuration === null) {
+      return
+    }
+
+    let isCancelled = false
+
+    // 실제 영상 길이 또는 TTS duration 중 더 큰 값 사용
+    const duration = videoDuration !== null && videoDuration > 0
+      ? Math.ceil(Math.max(videoDuration, ttsDuration || 10))
+      : Math.ceil(ttsDuration || 10)
+    
+    const thumbnails: string[] = []
+
+    const captureFrame = (second: number): Promise<void> => {
+      return new Promise((resolve) => {
+        if (isCancelled) {
+          resolve()
+          return
+        }
+
+        const handleSeeked = () => {
+          if (isCancelled) {
+            video.removeEventListener('seeked', handleSeeked)
+            resolve()
+            return
+          }
+
+          try {
+            if (!video.videoWidth || !video.videoHeight) {
+              video.removeEventListener('seeked', handleSeeked)
+              resolve()
+              return
+            }
+
+            // 캔버스 크기를 프레임 박스 크기에 맞춤 (74x84)
+            canvas.width = 74
+            canvas.height = 84
+
+            const ctx = canvas.getContext('2d')
+            if (!ctx) {
+              video.removeEventListener('seeked', handleSeeked)
+              resolve()
+              return
+            }
+
+            // 비디오 프레임을 캔버스에 그리기 (비율 유지하며 중앙 정렬)
+            const videoAspect = video.videoWidth / video.videoHeight
+            const canvasAspect = canvas.width / canvas.height
+
+            let drawWidth = canvas.width
+            let drawHeight = canvas.height
+            let drawX = 0
+            let drawY = 0
+
+            if (videoAspect > canvasAspect) {
+              // 비디오가 더 넓음 - 높이에 맞춤
+              drawHeight = canvas.height
+              drawWidth = drawHeight * videoAspect
+              drawX = (canvas.width - drawWidth) / 2
+            } else {
+              // 비디오가 더 높음 - 너비에 맞춤
+              drawWidth = canvas.width
+              drawHeight = drawWidth / videoAspect
+              drawY = (canvas.height - drawHeight) / 2
+            }
+
+            // 배경을 검은색으로 채우기
+            ctx.fillStyle = '#111111'
+            ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+            // 비디오 프레임 그리기
+            ctx.drawImage(video, drawX, drawY, drawWidth, drawHeight)
+
+            // 캔버스를 이미지 URL로 변환
+            const thumbnail = canvas.toDataURL('image/jpeg', 0.8)
+            thumbnails[second] = thumbnail
+
+            video.removeEventListener('seeked', handleSeeked)
+            resolve()
+          } catch (error) {
+            video.removeEventListener('seeked', handleSeeked)
+            if (error instanceof Error && error.name === 'SecurityError') {
+              console.warn(`CORS 오류로 인해 ${second}초 프레임을 캡처할 수 없습니다.`)
+            } else {
+              console.error(`${second}초 프레임 캡처 오류:`, error)
+            }
+            resolve() // 에러가 나도 계속 진행
+          }
+        }
+
+        video.addEventListener('seeked', handleSeeked)
+        video.currentTime = second
+      })
+    }
+
+    const generateThumbnails = async () => {
+      // 비디오 메타데이터가 완전히 로드될 때까지 대기
+      if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) {
+        const handleLoadedData = () => {
+          video.removeEventListener('loadeddata', handleLoadedData)
+          video.removeEventListener('loadedmetadata', handleLoadedData)
+          if (!isCancelled && video.videoWidth && video.videoHeight) {
+            generateThumbnails()
+          }
+        }
+        video.addEventListener('loadeddata', handleLoadedData)
+        video.addEventListener('loadedmetadata', handleLoadedData)
+        return
+      }
+
+      // 타임라인 마커는 timelineDuration + 1개이므로, 썸네일도 같은 개수 생성
+      // duration은 timelineDuration과 같으므로, duration + 1개를 생성해야 함
+      const frameCount = duration + 1
+
+      console.log(`[썸네일 생성 시작] duration: ${duration}, frameCount: ${frameCount}, videoWidth: ${video.videoWidth}, videoHeight: ${video.videoHeight}`)
+
+      // 각 초마다 프레임 캡처 (0초부터 duration초까지, 총 duration + 1개)
+      for (let i = 0; i <= duration; i++) {
+        if (isCancelled) break
+        await captureFrame(i)
+        console.log(`[프레임 캡처 완료] ${i}초`)
+      }
+
+      // 썸네일 배열 설정 (취소되지 않았을 때만)
+      if (!isCancelled) {
+        const thumbnailArray: string[] = []
+        for (let i = 0; i <= duration; i++) {
+          thumbnailArray[i] = thumbnails[i] || ''
+        }
+        console.log(`[썸네일 설정 완료] 총 ${thumbnailArray.length}개, 실제 생성된 썸네일: ${thumbnailArray.filter(t => t).length}개`)
+        setFrameThumbnails(thumbnailArray)
+      }
+    }
+
+    generateThumbnails()
+
+    // cleanup 함수: 컴포넌트 언마운트 또는 의존성 변경 시 취소
+    return () => {
+      isCancelled = true
+    }
+  }, [videoUrl, ttsDuration, videoDuration])
+
   // 타임라인 시간 마커 생성 (1초 단위)
+  // 실제 영상 길이 또는 TTS duration 중 더 큰 값을 사용
+  const getTimelineDuration = () => {
+    if (videoDuration !== null && videoDuration > 0) {
+      // 실제 영상 길이와 TTS duration 중 더 큰 값 사용
+      return Math.ceil(Math.max(videoDuration, ttsDuration || 10))
+    }
+    // 영상이 없으면 TTS duration 사용
+    return Math.ceil(ttsDuration || 10)
+  }
+
+  const timelineDuration = getTimelineDuration()
+
   const generateTimeMarkers = () => {
-    const duration = Math.ceil(ttsDuration || 10) // 최소 10초, TTS duration이 있으면 그만큼
     const markers = []
-    for (let i = 0; i <= duration; i++) {
+    for (let i = 0; i <= timelineDuration; i++) {
       const minutes = Math.floor(i / 60)
       const seconds = i % 60
       markers.push(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`)
@@ -182,7 +407,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                 {/* 중앙: 스크립트 영역 */}
                 <div className="flex-1 min-w-0 flex flex-col">
                   {/* 스크립트 텍스트 영역 - 버튼이 textarea 내부에 위치 */}
-                  <div className="relative rounded-lg bg-white shadow-[var(--shadow-card-default)] overflow-hidden border-2 border-transparent" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
+                  <div className="relative rounded-lg bg-white shadow-(--shadow-card-default) overflow-hidden border-2 border-transparent" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
                     {/* AI 스크립트 버튼 - textarea 내부 왼쪽 상단 */}
                     {onAiScriptClick && (
                       <Button
@@ -280,14 +505,39 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                     {Array.from({ length: timeMarkers.length }).map((_, idx) => (
                       <div
                         key={idx}
-                        className="shrink-0 relative border-r border-[#a6a6a6]"
+                        className="shrink-0 relative border-r border-[#a6a6a6] overflow-hidden"
                         style={{ width: '74px', height: '100%' }}
                       >
-                        {/* 배경 이미지/비디오 썸네일 영역 (Figma에서는 이미지로 표시) */}
-                        <div className="absolute inset-0 bg-[#111111] opacity-40" />
+                        {/* 비디오 프레임 썸네일 또는 배경 */}
+                        {frameThumbnails[idx] ? (
+                          <Image
+                            src={frameThumbnails[idx]}
+                            alt={`${idx}초 프레임`}
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
+                        ) : (
+                          <div className="absolute inset-0 bg-[#111111] opacity-40" />
+                        )}
                       </div>
                     ))}
                   </div>
+                  {/* 숨겨진 비디오와 캔버스 - 프레임 썸네일 생성용 */}
+                  {videoUrl && (
+                    <>
+                      <video
+                        ref={videoRef}
+                        src={videoUrl}
+                        className="hidden"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        crossOrigin="anonymous"
+                      />
+                      <canvas ref={canvasRef} className="hidden" />
+                    </>
+                  )}
                 </div>
 
                 {/* 격자(선택 강조선) - 프레임 박스 밖에 배치하여 위아래로 튀어나오게 */}
