@@ -2,8 +2,9 @@
 
 import { useCallback, useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
 import { ScriptStyleSection, AiScriptGenerateButton } from '@/app/video/create/_components'
 import { ProSceneCard, ProVoicePanel } from './components'
 import { conceptOptions } from '@/lib/data/templates'
@@ -11,6 +12,7 @@ import type { ConceptType } from '@/lib/data/templates'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { studioScriptApi } from '@/lib/api/studio-script'
 import { convertProductToProductResponse } from '@/lib/utils/converters/product-to-response'
+import { synthesizeAllScenes } from './utils/synthesizeAllScenes'
 
 const DEFAULT_SCENE_COUNT = 6
 
@@ -100,6 +102,9 @@ export default function ProStep2Page() {
   const [voicePanelOpen, setVoicePanelOpen] = useState(false)
   const [selectedSceneIndex, setSelectedSceneIndex] = useState<number | null>(null)
   const [isGeneratingAll, setIsGeneratingAll] = useState(false)
+  const [isSynthesizingTts, setIsSynthesizingTts] = useState(false)
+  const [ttsProgress, setTtsProgress] = useState({ completed: 0, total: 0 })
+  const router = useRouter()
 
   const handleScriptStyleSelect = useCallback(
     (concept: ConceptType) => {
@@ -285,6 +290,52 @@ export default function ProStep2Page() {
     setSelectedSceneIndex(null)
   }, [])
 
+  // 다음 단계 버튼 클릭 핸들러 - 모든 씬에 TTS 합성 수행
+  const handleNextStep = useCallback(async () => {
+    // 모든 씬에 스크립트와 보이스가 있는지 확인
+    const invalidScenes = scenes.filter(
+      (scene, index) => !scene.script.trim() || !scene.voiceTemplate
+    )
+
+    if (invalidScenes.length > 0) {
+      const invalidIndices = invalidScenes.map((_, idx) => {
+        const sceneIndex = scenes.indexOf(invalidScenes[idx]) + 1
+        return sceneIndex
+      })
+      alert(
+        `다음 씬들에 스크립트 또는 보이스가 없습니다:\n씬 ${invalidIndices.join(', ')}\n모든 씬에 스크립트와 보이스를 입력해주세요.`
+      )
+      return
+    }
+
+    setIsSynthesizingTts(true)
+    setTtsProgress({ completed: 0, total: scenes.length })
+
+    try {
+      const sceneData = scenes.map((scene): { script: string; voiceTemplate: string | null } => ({
+        script: scene.script,
+        voiceTemplate: scene.voiceTemplate ?? null,
+      }))
+
+      const result = await synthesizeAllScenes(sceneData, (completed, total) => {
+        setTtsProgress({ completed, total })
+      })
+
+      if (!result.success) {
+        alert(result.error || 'TTS 합성 중 오류가 발생했습니다.')
+        setIsSynthesizingTts(false)
+        return
+      }
+
+      // TTS 합성 완료 후 다음 페이지로 이동
+      router.push('/video/create/pro/step2/edit')
+    } catch (error) {
+      console.error('TTS 합성 오류:', error)
+      alert(error instanceof Error ? error.message : 'TTS 합성 중 오류가 발생했습니다.')
+      setIsSynthesizingTts(false)
+    }
+  }, [scenes, router])
+
   return (
     <div>
       <motion.div
@@ -365,6 +416,7 @@ export default function ProStep2Page() {
                           scriptText={scene.script}
                           onScriptChange={(value) => handleScriptChange(index, value)}
                           voiceLabel={scene.voiceLabel}
+                          voiceTemplate={scene.voiceTemplate}
                           onVoiceClick={() => handleVoiceButtonClick(index)}
                           onDelete={() => handleSceneDelete(index)}
                           onDragStart={(e) => {
@@ -394,17 +446,27 @@ export default function ProStep2Page() {
                       <ArrowLeft className="w-5 h-5" />
                       이전 단계
                     </Link>
-                    <Link
-                      href="/video/create/pro/step2/edit"
-                      className="flex-1 h-14 rounded-2xl bg-[#5e8790] text-white hover:bg-[#5e8790]/90 transition-all flex items-center justify-center gap-2 font-bold tracking-[-0.48px] shadow-(--shadow-card-default)"
+                    <button
+                      onClick={handleNextStep}
+                      disabled={isSynthesizingTts}
+                      className="flex-1 h-14 rounded-2xl bg-[#5e8790] text-white hover:bg-[#5e8790]/90 transition-all flex items-center justify-center gap-2 font-bold tracking-[-0.48px] shadow-(--shadow-card-default) disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{
                         fontSize: 'var(--font-size-24)',
                         lineHeight: '33.6px',
                       }}
                     >
-                      다음 단계
-                      <ArrowRight className="w-5 h-5" />
-                    </Link>
+                      {isSynthesizingTts ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          TTS 합성 중... ({ttsProgress.completed}/{ttsProgress.total})
+                        </>
+                      ) : (
+                        <>
+                          다음 단계
+                          <ArrowRight className="w-5 h-5" />
+                        </>
+                      )}
+                    </button>
                   </div>
                 </section>
               )}
