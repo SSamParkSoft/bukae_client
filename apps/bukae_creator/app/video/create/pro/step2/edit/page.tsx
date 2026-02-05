@@ -90,6 +90,8 @@ export default function ProStep2EditPage() {
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
+  // 촬영가이드 텍스트 상태 관리
+  const [guideTexts, setGuideTexts] = useState<Record<string, string>>({})
 
   const handleScriptChange = useCallback((index: number, value: string) => {
     updateScenes((prev) => {
@@ -99,6 +101,17 @@ export default function ProStep2EditPage() {
     })
     setHasUnsavedChanges(true)
   }, [setHasUnsavedChanges, updateScenes])
+
+  const handleGuideChange = useCallback((index: number, value: string) => {
+    const sceneId = scenes[index]?.id
+    if (sceneId) {
+      setGuideTexts((prev) => ({
+        ...prev,
+        [sceneId]: value,
+      }))
+      setHasUnsavedChanges(true)
+    }
+  }, [scenes, setHasUnsavedChanges])
 
   const handleVideoUpload = useCallback((index: number) => {
     // TODO: 영상 업로드 로직 구현
@@ -173,6 +186,7 @@ export default function ProStep2EditPage() {
     id: scene.id,
     script: scene.script,
     ttsDuration: 10, // TODO: 실제 TTS duration 값으로 교체
+    guideText: guideTexts[scene.id] || '', // 촬영가이드 텍스트 가져오기
   }))
 
   return (
@@ -225,6 +239,7 @@ export default function ProStep2EditPage() {
                 <ProVideoEditSection
                   scenes={videoEditScenes}
                   onScriptChange={handleScriptChange}
+                  onGuideChange={handleGuideChange}
                   onVideoUpload={handleVideoUpload}
                   onAiScriptClick={handleAiScriptClick}
                   onAiGuideClick={handleAiGuideClick}

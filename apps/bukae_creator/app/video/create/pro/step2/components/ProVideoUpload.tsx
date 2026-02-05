@@ -13,17 +13,31 @@ export const ProVideoUpload = memo(function ProVideoUpload({
     <button
       type="button"
       onClick={onUpload}
-      className="w-20 h-20 sm:w-[120px] sm:h-[120px] rounded-lg overflow-hidden bg-[#606060] hover:bg-[#404040] transition-colors flex flex-col items-center justify-center gap-1.5 text-text-tertiary shrink-0"
+      className="w-[160px] h-[284px] rounded-lg bg-[#606060] hover:bg-[#505050] transition-colors flex flex-col items-center justify-center gap-2 text-white shrink-0 relative"
     >
-      <span
-        className="font-bold text-white rounded-lg px-2 py-1 bg-white/20"
-        style={{
-          fontSize: 'var(--font-size-14)',
-          lineHeight: 'var(--line-height-14-140)',
-        }}
-      >
-        + 영상 업로드
-      </span>
+      {/* 내부 프레임 (Figma의 Frame 2087331272) */}
+      <div className="w-[99px] h-[32px] rounded-lg bg-white/20 flex items-center justify-center gap-2">
+        {/* Plus 아이콘 */}
+        <span
+          className="text-xl font-bold"
+          style={{
+            fontSize: '24px',
+            lineHeight: '24px',
+          }}
+        >
+          +
+        </span>
+        {/* 텍스트 */}
+        <span
+          className="font-bold text-center text-white"
+          style={{
+            fontSize: '12px',
+            lineHeight: '16.8px',
+          }}
+        >
+          영상 업로드
+        </span>
+      </div>
     </button>
   )
 })
