@@ -64,6 +64,36 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
+  // 격자(선택 영역) 드래그 관련 상태
+  const [selectionStartSeconds, setSelectionStartSeconds] = useState(0)
+  const [isDraggingSelection, setIsDraggingSelection] = useState(false)
+  const [dragStartX, setDragStartX] = useState(0)
+  const [dragStartSelectionLeft, setDragStartSelectionLeft] = useState(0)
+  const timelineContainerRef = useRef<HTMLDivElement | null>(null)
+
+  // TTS duration이 변경되면 격자 위치 조정
+  useEffect(() => {
+    // 실제 영상 길이 기준으로 제한
+    // timelineDuration을 계산하여 정확한 끝지점 구하기
+    const timelineDuration = videoDuration !== null && videoDuration > 0 
+      ? Math.floor(videoDuration) 
+      : Math.floor(ttsDuration || 10)
+    const timeMarkersCount = timelineDuration + 1
+    const actualVideoEndPx = timeMarkersCount * 74 // FRAME_WIDTH = 74
+    const selectionWidthPx = (ttsDuration || 10) * 74
+    const maxSelectionStartPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
+    const maxStart = maxSelectionStartPx / 74
+    
+    // selectionStartSeconds가 범위를 벗어나면 조정 (비동기로 처리)
+    if (selectionStartSeconds > maxStart) {
+      // setTimeout을 사용하여 비동기적으로 처리
+      const timeoutId = setTimeout(() => {
+        setSelectionStartSeconds(maxStart)
+      }, 0)
+      return () => clearTimeout(timeoutId)
+    }
+  }, [ttsDuration, videoDuration, selectionStartSeconds])
+
   // videoUrl이 없을 때 videoDuration 초기화 (별도 useEffect로 분리)
   useEffect(() => {
     if (!videoUrl) {
@@ -87,6 +117,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
 
     const handleLoadedMetadata = () => {
       if (video.duration && isFinite(video.duration)) {
+        console.log(`[비디오 길이] 정확한 duration: ${video.duration}초 (${video.duration.toFixed(3)}초)`)
         setVideoDuration(video.duration)
       }
     }
@@ -135,10 +166,12 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
 
     let isCancelled = false
 
-    // 실제 영상 길이 또는 TTS duration 중 더 큰 값 사용
+    // 실제 영상 길이만 사용 (타임라인과 일치시키기 위해)
+    // 비디오가 정확히 6초면 6초까지만 썸네일 생성 (0~6초 = 7개)
+    // Math.floor를 사용하여 실제 비디오 길이의 초 단위까지만 생성
     const duration = videoDuration !== null && videoDuration > 0
-      ? Math.ceil(Math.max(videoDuration, ttsDuration || 10))
-      : Math.ceil(ttsDuration || 10)
+      ? Math.floor(videoDuration)
+      : Math.floor(ttsDuration || 10)
     
     const thumbnails: string[] = []
 
@@ -272,14 +305,16 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   }, [videoUrl, ttsDuration, videoDuration])
 
   // 타임라인 시간 마커 생성 (1초 단위)
-  // 실제 영상 길이 또는 TTS duration 중 더 큰 값을 사용
+  // 실제 영상 길이를 우선 사용하고, 영상이 없으면 TTS duration 사용
+  // 격자가 실제 영상 길이 내에서만 움직이도록 타임라인도 실제 영상 길이만큼만 표시
+  // Math.floor를 사용하여 실제 비디오 길이의 초 단위까지만 표시
   const getTimelineDuration = () => {
     if (videoDuration !== null && videoDuration > 0) {
-      // 실제 영상 길이와 TTS duration 중 더 큰 값 사용
-      return Math.ceil(Math.max(videoDuration, ttsDuration || 10))
+      // 실제 영상 길이 사용 (초 단위로 내림)
+      return Math.floor(videoDuration)
     }
-    // 영상이 없으면 TTS duration 사용
-    return Math.ceil(ttsDuration || 10)
+    // 영상이 없으면 TTS duration 사용 (초 단위로 내림)
+    return Math.floor(ttsDuration || 10)
   }
 
   const timelineDuration = getTimelineDuration()
@@ -298,28 +333,124 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
 
   // 격자(선택 영역) 위치 계산 - TTS duration에 맞게 조정
   const FRAME_WIDTH = 74 // 각 프레임 너비 (px)
-  const selectionStartSeconds = 0 // 격자 시작 시간 (0초부터 시작)
   const selectionWidthSeconds = ttsDuration || 10 // 격자 너비 = TTS duration
-  const selectionEndSeconds = selectionStartSeconds + selectionWidthSeconds // 격자 끝 시간 (초)
-  // 선택 영역의 픽셀 단위 위치/크기
-  const selectionLeftPx = selectionStartSeconds * FRAME_WIDTH
+  
+  // 선택 영역의 픽셀 단위 크기 (먼저 계산)
   const selectionWidthPx = selectionWidthSeconds * FRAME_WIDTH
+  
+  // 실제 영상의 마지막 지점 계산
+  // timeMarkers.length = timelineDuration + 1 (0부터 timelineDuration까지)
+  // 마지막 프레임 썸네일의 인덱스는 timelineDuration (예: 6초면 인덱스 6)
+  // 마지막 프레임 썸네일의 끝은 timeMarkers.length * FRAME_WIDTH (예: 7 * 74 = 518px)
+  // 격자의 오른쪽 끝이 마지막 프레임 썸네일의 끝에 닿을 수 있도록 해야 함
+  const actualVideoEndPx = timeMarkers.length * FRAME_WIDTH // 마지막 프레임 썸네일의 끝 (픽셀)
+  const actualVideoEndSeconds = actualVideoEndPx / FRAME_WIDTH // 마지막 프레임 썸네일의 끝 (초 단위)
+  
+  // 격자의 오른쪽 끝이 마지막 프레임 썸네일의 끝에 닿을 수 있도록 허용
+  // 격자의 시작점은 (마지막 프레임 끝 - 격자 너비)까지만 가능
+  const maxSelectionStartPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
+  const maxSelectionStartSeconds = maxSelectionStartPx / FRAME_WIDTH
+  const clampedSelectionStartSeconds = Math.max(0, Math.min(selectionStartSeconds, maxSelectionStartSeconds))
+  const clampedSelectionEndSeconds = Math.min(clampedSelectionStartSeconds + selectionWidthSeconds, actualVideoEndSeconds)
+  
+  // 선택 영역의 픽셀 단위 위치
+  const selectionLeftPx = clampedSelectionStartSeconds * FRAME_WIDTH
+
+  // 격자 드래그 핸들러
+  const handleSelectionMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDraggingSelection(true)
+    setDragStartX(e.clientX)
+    setDragStartSelectionLeft(selectionLeftPx)
+  }
+
+  const handleSelectionMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingSelection || !timelineContainerRef.current) return
+    
+    e.preventDefault()
+    const deltaX = e.clientX - dragStartX
+    // 마우스를 정확히 따라가도록 1:1 비율 사용
+    
+    // 마지막 프레임 썸네일의 끝까지 갈 수 있도록 제한
+    const actualVideoEndPx = timeMarkers.length * FRAME_WIDTH
+    const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
+    
+    // 끝에 도달했으면 더 이상 오른쪽으로 이동하지 않도록 고정
+    const newSelectionLeftPx = Math.max(0, Math.min(
+      dragStartSelectionLeft + deltaX,
+      maxSelectionLeftPx
+    ))
+    
+    // 끝에 정확히 도달했는지 확인 (부동소수점 오차 고려)
+    const isAtEnd = Math.abs(newSelectionLeftPx - maxSelectionLeftPx) < 0.1
+    const finalSelectionLeftPx = isAtEnd ? maxSelectionLeftPx : newSelectionLeftPx
+    
+    const newSelectionStartSeconds = finalSelectionLeftPx / FRAME_WIDTH
+    setSelectionStartSeconds(newSelectionStartSeconds)
+  }
+
+  const handleSelectionMouseUp = () => {
+    setIsDraggingSelection(false)
+  }
+
+  // 전역 마우스 이벤트로 드래그 처리
+  useEffect(() => {
+    if (!isDraggingSelection) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!timelineContainerRef.current) return
+      
+      const deltaX = e.clientX - dragStartX
+      // 마우스를 정확히 따라가도록 1:1 비율 사용
+      
+      // 마지막 프레임 썸네일의 끝까지 갈 수 있도록 제한
+      // timelineDuration을 계산하여 timeMarkers.length를 구함
+      const timelineDuration = Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
+      const timeMarkersCount = timelineDuration + 1 // 0부터 timelineDuration까지
+      const actualVideoEndPx = timeMarkersCount * FRAME_WIDTH
+      const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
+      
+      // 끝에 도달했으면 더 이상 오른쪽으로 이동하지 않도록 고정
+      const newSelectionLeftPx = Math.max(0, Math.min(
+        dragStartSelectionLeft + deltaX,
+        maxSelectionLeftPx
+      ))
+      
+      // 끝에 정확히 도달했는지 확인 (부동소수점 오차 고려)
+      const isAtEnd = Math.abs(newSelectionLeftPx - maxSelectionLeftPx) < 0.1
+      const finalSelectionLeftPx = isAtEnd ? maxSelectionLeftPx : newSelectionLeftPx
+      
+      const newSelectionStartSeconds = finalSelectionLeftPx / FRAME_WIDTH
+      setSelectionStartSeconds(newSelectionStartSeconds)
+    }
+
+    const handleMouseUp = () => {
+      setIsDraggingSelection(false)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isDraggingSelection, dragStartX, dragStartSelectionLeft, timeMarkers, selectionWidthPx, videoDuration, ttsDuration])
   
   // 격자에 포함되는 시간 마커 인덱스 계산
   const getIsInSelection = (idx: number) => {
     const markerTime = idx // idx는 초 단위
-    // 격자는 0초부터 ttsDuration까지이므로, 마커가 격자 범위 내에 있는지 확인
-    // 마커는 정수 초 단위이므로, 격자 끝 지점보다 작거나 같아야 함
-    return markerTime >= Math.floor(selectionStartSeconds) && markerTime < selectionEndSeconds
+    // 격자 범위 내에 있는지 확인
+    return markerTime >= Math.floor(clampedSelectionStartSeconds) && markerTime < clampedSelectionEndSeconds
   }
   
   // 격자의 시작/끝 지점에 큰 틱 표시 여부
   const getIsMajorTick = (idx: number) => {
     const markerTime = idx
-    // 격자 시작 지점 (0초) → 0초에 큰 틱
-    // 격자 끝 지점 (ttsDuration초) → 끝 지점의 정수 초에 큰 틱
-    const endMarkerTime = Math.floor(selectionEndSeconds)
-    return markerTime === Math.floor(selectionStartSeconds) || markerTime === endMarkerTime
+    // 격자 시작/끝 지점에 큰 틱
+    const endMarkerTime = Math.floor(clampedSelectionEndSeconds)
+    return markerTime === Math.floor(clampedSelectionStartSeconds) || markerTime === endMarkerTime
   }
 
   return (
@@ -484,6 +615,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
 
             {/* 하단: 타임라인 비주얼 */}
             <div 
+              ref={timelineContainerRef}
               className="relative overflow-x-auto scrollbar-hide w-full"
               style={{ 
                 scrollbarWidth: 'none',
@@ -541,12 +673,29 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                 </div>
 
                 {/* 격자(선택 강조선) - 프레임 박스 밖에 배치하여 위아래로 튀어나오게 */}
-                <ProVideoTimelineGrid
-                  frameHeight={84}
-                  selectionLeft={selectionLeftPx}
-                  selectionWidth={selectionWidthPx}
-                  extendY={18}
-                />
+                {/* 격자 내부 전체를 드래그 가능하게 하기 위해 컨테이너 div를 확장 */}
+                <div
+                  onMouseDown={handleSelectionMouseDown}
+                  onMouseMove={handleSelectionMouseMove}
+                  onMouseUp={handleSelectionMouseUp}
+                  className="cursor-move"
+                  style={{
+                    position: 'absolute',
+                    left: `${selectionLeftPx}px`,
+                    width: `${selectionWidthPx}px`,
+                    top: '18px', // 프레임 박스와 같은 위치 (paddingTop 아래)
+                    height: 'calc(100% - 18px)', // paddingTop을 제외한 높이
+                    zIndex: 10,
+                    pointerEvents: 'auto', // 격자 내부 전체가 클릭 가능하도록
+                  }}
+                >
+                  <ProVideoTimelineGrid
+                    frameHeight={84}
+                    selectionLeft={0}
+                    selectionWidth={selectionWidthPx}
+                    extendY={18}
+                  />
+                </div>
               </div>
 
               {/* 시간 마커 */}

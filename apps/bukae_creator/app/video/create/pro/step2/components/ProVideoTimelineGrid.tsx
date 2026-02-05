@@ -25,8 +25,8 @@ export const ProVideoTimelineGrid = memo(function ProVideoTimelineGrid({
   extendY = 18,
 }: ProVideoTimelineGridProps) {
   const selectionRight = selectionLeft + selectionWidth
-  // 프레임 박스가 paddingTop 아래에 있으므로, 격자는 프레임 박스의 실제 위치를 기준으로 계산
-  const frameTop = extendY // paddingTop과 동일한 값
+  // 격자 컨테이너가 프레임 박스와 같은 위치에 있으므로, frameTop은 0으로 설정
+  const frameTop = 0
 
   return (
     <>
@@ -53,7 +53,7 @@ export const ProVideoTimelineGrid = memo(function ProVideoTimelineGrid({
         className="pointer-events-none absolute border-l-2 border-[#111111]"
         style={{
           left: `${selectionLeft}px`,
-          top: `${frameTop - extendY}px`,
+          top: `${-extendY}px`, // extendY만큼 위로 확장
           height: `${frameHeight + extendY * 2}px`,
         }}
       />
@@ -62,7 +62,7 @@ export const ProVideoTimelineGrid = memo(function ProVideoTimelineGrid({
         className="pointer-events-none absolute border-l-2 border-[#111111]"
         style={{
           left: `${selectionRight}px`,
-          top: `${frameTop - extendY}px`,
+          top: `${-extendY}px`, // extendY만큼 위로 확장
           height: `${frameHeight + extendY * 2}px`,
         }}
       />
