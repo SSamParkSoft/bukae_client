@@ -1,13 +1,13 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useStep3Container } from '../../fast/step3/hooks/useStep3Container'
-import { PreviewPanel } from '../../fast/step3/components/PreviewPanel'
+import { ProPreviewPanel } from './components/ProPreviewPanel'
 import { ProSceneListPanel, type ProStep3Scene } from './components/ProSceneListPanel'
 import { ProEffectsPanel } from './components/ProEffectsPanel'
-import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
-import { useMemo, useCallback, useEffect } from 'react'
+import { useVideoCreateStore, type SceneScript, type TimelineData } from '@/store/useVideoCreateStore'
+import { useMemo, useCallback, useEffect, useRef, useState } from 'react'
 import { voiceTemplateHelpers } from '@/store/useVideoCreateStore'
+import { allTransitions, transitions, movements } from '@/lib/data/transitions'
 
 // Pro step2에서 사용하는 확장된 Scene 타입
 type ProScene = {
@@ -47,8 +47,19 @@ function sceneScriptToProScene(s: SceneScript, index: number): ProScene {
 }
 
 export default function ProStep3Page() {
-  const container = useStep3Container()
-  const { scenes: storeScenes, setScenes } = useVideoCreateStore()
+  const { scenes: storeScenes, setScenes, bgmTemplate, setBgmTemplate } = useVideoCreateStore()
+  
+  // 현재 선택된 씬 인덱스
+  const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
+  
+  // 재생 상태 관리 (Pro 전용: 비디오 구간 이어붙여서 재생)
+  const [isPlaying, setIsPlaying] = useState(false)
+  
+  // 효과 패널 관련 상태
+  const [rightPanelTab, setRightPanelTab] = useState<string>('animation')
+  const [confirmedBgmTemplate, setConfirmedBgmTemplate] = useState<string | null>(null)
+  const [soundEffect, setSoundEffect] = useState<string | null>(null)
+  const [confirmedSoundEffect, setConfirmedSoundEffect] = useState<string | null>(null)
 
   // 디버깅: storeScenes 변경 추적
   useEffect(() => {
@@ -132,9 +143,70 @@ export default function ProStep3Page() {
     }
   }, [setScenes, storeScenes])
 
-  if (!container.mounted) {
-    return null
-  }
+  // 현재 선택된 씬의 비디오 URL과 선택 영역
+  const currentScene = proStep3Scenes[currentSceneIndex]
+  const currentVideoUrl = currentScene?.videoUrl || null
+  const currentSelectionStartSeconds = currentScene?.selectionStartSeconds || 0
+
+  // Pro 전용 재생 핸들러: 선택된 구간들을 이어붙여서 재생
+  const handleProPlayPause = useCallback(() => {
+    if (isPlaying) {
+      // 일시정지
+      setIsPlaying(false)
+      return
+    }
+
+    // 재생 시작: 선택된 구간들을 순차적으로 재생
+    const validScenes = proStep3Scenes.filter(s => s.videoUrl && s.selectionStartSeconds !== undefined && s.selectionEndSeconds !== undefined)
+    if (validScenes.length === 0) {
+      alert('재생할 영상이 없습니다.')
+      return
+    }
+
+    setIsPlaying(true)
+  }, [isPlaying, proStep3Scenes])
+
+  // 씬 선택 핸들러
+  const handleSceneSelect = useCallback((index: number) => {
+    setCurrentSceneIndex(index)
+  }, [])
+
+  // 씬 재정렬 핸들러
+  const handleSceneReorder = useCallback((newOrder: number[]) => {
+    if (!Array.isArray(storeScenes) || storeScenes.length === 0) {
+      return
+    }
+    const reordered = newOrder.map(index => storeScenes[index])
+    setScenes(reordered)
+  }, [setScenes, storeScenes])
+
+  // 전환 효과 변경 핸들러 (Pro에서는 timeline이 없으므로 빈 함수)
+  const handleTransitionChange = useCallback((sceneIndex: number, value: string) => {
+    // Pro에서는 전환 효과를 나중에 구현
+    console.log('전환 효과 변경:', sceneIndex, value)
+  }, [])
+
+  // 모션 변경 핸들러 (Pro에서는 timeline이 없으므로 빈 함수)
+  const handleMotionChange = useCallback((sceneIndex: number, motion: any) => {
+    // Pro에서는 모션 효과를 나중에 구현
+    console.log('모션 변경:', sceneIndex, motion)
+  }, [])
+
+  // BGM 확인 핸들러
+  const handleBgmConfirm = useCallback((templateId: string | null) => {
+    setConfirmedBgmTemplate(templateId)
+  }, [])
+
+  // 사운드 효과 확인 핸들러
+  const handleSoundEffectConfirm = useCallback((effectId: string | null) => {
+    setConfirmedSoundEffect(effectId)
+  }, [])
+
+  // Timeline 설정 핸들러 (Pro에서는 timeline이 없으므로 빈 함수)
+  const handleSetTimeline = useCallback((timeline: TimelineData) => {
+    // Pro에서는 timeline을 사용하지 않음
+    console.log('Timeline 설정:', timeline)
+  }, [])
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -148,57 +220,42 @@ export default function ProStep3Page() {
           animate={{ opacity: 1 }}
           className="flex flex-col lg:flex-row h-full overflow-hidden w-full gap-4 lg:gap-3 xl:gap-4 2xl:gap-5"
         >
-          {/* 왼쪽 패널: 미리보기 + 타임라인 */}
+          {/* 왼쪽 패널: 미리보기 (Pro 전용 - 썸네일만 표시) */}
           <div className="w-full lg:w-[25%] min-w-[250px] flex flex-col overflow-hidden lg:h-full">
-            <PreviewPanel
-              theme={container.theme}
-              pixiContainerRef={container.pixiContainerRef}
-              canvasDisplaySize={container.canvasDisplaySize}
-              gridOverlaySize={container.gridOverlaySize}
-              timelineBarRef={container.timelineBarRef}
-              timeline={container.timeline}
-              playbackSpeed={container.playbackSpeed}
-              currentTime={container.currentTime}
-              totalDuration={container.totalDuration}
-              progressRatio={container.progressRatio}
-              isPlaying={container.isPlaying}
-              showReadyMessage={container.showReadyMessage}
-              isTtsBootstrapping={container.isTtsBootstrapping}
-              isBgmBootstrapping={container.isBgmBootstrapping}
-              isPreparing={container.isPreparing}
-              isExporting={container.isExporting}
-              showGrid={container.showGrid}
-              onTimelineMouseDown={container.handleTimelineMouseDown}
-              onPlayPause={container.handlePlayPause}
-              onExport={container.handleExport}
-              onPlaybackSpeedChange={container.handlePlaybackSpeedChange}
-              onToggleGrid={() => container.setShowGrid(!container.showGrid)}
-              onResizeTemplate={container.handleResizeTemplate}
-              onImageFitChange={container.handleSceneImageFitChange}
-              currentSceneIndex={container.currentSceneIndex}
-              textsRef={container.textsRef}
-              appRef={container.appRef}
-              bgmTemplate={container.bgmTemplate}
+            <ProPreviewPanel
+              currentVideoUrl={currentVideoUrl}
+              currentSelectionStartSeconds={currentSelectionStartSeconds}
+              currentSceneIndex={currentSceneIndex}
+              scenes={proStep3Scenes}
+              isPlaying={isPlaying}
+              onPlayPause={handleProPlayPause}
+              bgmTemplate={bgmTemplate}
+              onExport={() => {
+                // 내보내기 기능은 나중에 구현
+                alert('내보내기 기능은 준비 중입니다.')
+              }}
+              isExporting={false}
             />
           </div>
 
           {/* 중앙 패널: 씬 리스트 */}
           <div className="w-full lg:w-[45%] min-w-[480px] flex flex-col overflow-hidden lg:h-full shrink-0 lg:mr-2">
             <ProSceneListPanel
-              theme={container.theme}
+              theme="light"
               scenes={proStep3Scenes}
-              timeline={container.timeline}
-              currentSceneIndex={container.currentSceneIndex}
-              playingSceneIndex={container.playingSceneIndex}
-              isPreparing={container.isPreparing}
-              isTtsBootstrapping={container.isTtsBootstrapping}
-              onSelect={container.handleSceneSelect}
-              onReorder={container.handleSceneReorder}
-              onPlayScene={container.handleScenePlay}
-              onOpenEffectPanel={(tab) => {
-                // 'voice' 탭은 Pro에서는 사용하지 않으므로 'animation'으로 변경
-                const mappedTab = tab === 'voice' ? 'animation' : tab
-                container.setRightPanelTab(mappedTab)
+              timeline={null}
+              currentSceneIndex={currentSceneIndex}
+              playingSceneIndex={null}
+              isPreparing={false}
+              isTtsBootstrapping={false}
+              onSelect={handleSceneSelect}
+              onReorder={handleSceneReorder}
+              onPlayScene={async () => {
+                // 개별 씬 재생은 ProPreviewPanel의 전체 재생으로 대체
+                handleProPlayPause()
+              }}
+              onOpenEffectPanel={() => {
+                // 효과 패널은 나중에 구현
               }}
               onSelectionChange={handleSelectionChange}
             />
@@ -207,25 +264,25 @@ export default function ProStep3Page() {
           {/* 오른쪽 패널: 효과 설정 */}
           <div className="w-full lg:w-[30%] min-w-[350px] flex flex-col overflow-hidden lg:h-full shrink-0">
             <ProEffectsPanel
-              theme={container.theme}
-              rightPanelTab={container.rightPanelTab}
-              setRightPanelTab={container.setRightPanelTab}
-              timeline={container.timeline}
-              currentSceneIndex={container.currentSceneIndex}
-              allTransitions={container.allTransitions}
-              transitions={container.transitions}
-              movements={container.movements}
-              onTransitionChange={container.handleSceneTransitionChange}
-              bgmTemplate={container.bgmTemplate}
-              setBgmTemplate={container.setBgmTemplate}
-              confirmedBgmTemplate={container.confirmedBgmTemplate}
-              onBgmConfirm={container.handleBgmConfirm}
-              soundEffect={container.soundEffect}
-              setSoundEffect={container.setSoundEffect}
-              confirmedSoundEffect={container.confirmedSoundEffect}
-              onSoundEffectConfirm={container.handleSoundEffectConfirm}
-              setTimeline={container.setTimeline}
-              onMotionChange={container.handleSceneMotionChange}
+              theme="light"
+              rightPanelTab={rightPanelTab}
+              setRightPanelTab={setRightPanelTab}
+              timeline={null}
+              currentSceneIndex={currentSceneIndex}
+              allTransitions={allTransitions}
+              transitions={transitions}
+              movements={movements}
+              onTransitionChange={handleTransitionChange}
+              bgmTemplate={bgmTemplate}
+              setBgmTemplate={setBgmTemplate}
+              confirmedBgmTemplate={confirmedBgmTemplate}
+              onBgmConfirm={handleBgmConfirm}
+              soundEffect={soundEffect}
+              setSoundEffect={setSoundEffect}
+              confirmedSoundEffect={confirmedSoundEffect}
+              onSoundEffectConfirm={handleSoundEffectConfirm}
+              setTimeline={handleSetTimeline}
+              onMotionChange={handleMotionChange}
             />
           </div>
         </motion.div>
