@@ -242,8 +242,8 @@ export default function ProStep2EditPage() {
                   <h2
                     className="font-bold text-text-dark tracking-[-0.4px]"
                     style={{
-                      fontSize: 'var(--font-size-32)',
-                      lineHeight: 'var(--line-height-32-140)',
+                      fontSize: 'var(--font-size-24)',
+                      lineHeight: 'var(--line-height-24-140)',
                     }}
                   >
                     촬영 가이드 생성 & 영상 업로드
