@@ -107,6 +107,12 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   const [openEffectId, setOpenEffectId] = useState<'animation' | 'subtitle' | 'sound' | null>(null)
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // 타임라인/프레임바 스케일 (1보다 작으면 전체적으로 축소)
+  const TIMELINE_SCALE = 0.85
+  const FRAME_WIDTH = Math.round(74 * TIMELINE_SCALE)
+  const FRAME_HEIGHT = Math.round(84 * TIMELINE_SCALE)
+  const TIMELINE_PADDING = Math.round(18 * TIMELINE_SCALE)
+
   // initialSelectionStartSeconds가 외부에서 변경될 때만 동기화 (드래그 중이 아닐 때만)
   useEffect(() => {
     if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
@@ -150,10 +156,10 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
       ? Math.floor(videoDuration) 
       : Math.floor(ttsDuration || 10)
     const timeMarkersCount = timelineDuration + 1
-    const actualVideoEndPx = timeMarkersCount * 74 // FRAME_WIDTH = 74
-    const selectionWidthPx = (ttsDuration || 10) * 74
+    const actualVideoEndPx = timeMarkersCount * FRAME_WIDTH
+    const selectionWidthPx = (ttsDuration || 10) * FRAME_WIDTH
     const maxSelectionStartPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
-    const maxStart = maxSelectionStartPx / 74
+    const maxStart = maxSelectionStartPx / FRAME_WIDTH
     
     // selectionStartSeconds가 범위를 벗어나면 조정 (비동기로 처리)
     if (selectionStartSeconds > maxStart) {
@@ -163,7 +169,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
       }, 0)
       return () => clearTimeout(timeoutId)
     }
-  }, [ttsDuration, videoDuration, selectionStartSeconds, isDraggingSelection])
+  }, [ttsDuration, videoDuration, selectionStartSeconds, isDraggingSelection, FRAME_WIDTH])
 
   // videoUrl이 없을 때 videoDuration 초기화 (별도 useEffect로 분리)
   useEffect(() => {
@@ -209,7 +215,6 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   // 실제 영상 길이를 우선 사용하고, 영상이 없으면 TTS duration 사용
   // 격자가 실제 영상 길이 내에서만 움직이도록 타임라인도 실제 영상 길이만큼만 표시
   // Math.floor를 사용하여 실제 비디오 길이의 초 단위까지만 표시
-  const FRAME_WIDTH = 74 // 각 프레임 너비 (px)
   const getTimelineDuration = () => {
     if (videoDuration !== null && videoDuration > 0) {
       // 실제 영상 길이 사용 (초 단위로 내림)
@@ -242,7 +247,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   // 실제 영상의 마지막 지점 계산
   // timeMarkers.length = timelineDuration + 1 (0부터 timelineDuration까지)
   // 마지막 프레임 썸네일의 인덱스는 timelineDuration (예: 6초면 인덱스 6)
-  // 마지막 프레임 썸네일의 끝은 timeMarkers.length * FRAME_WIDTH (예: 7 * 74 = 518px)
+  // 마지막 프레임 썸네일의 끝은 timeMarkers.length * FRAME_WIDTH
   // 격자의 오른쪽 끝이 마지막 프레임 썸네일의 끝에 닿을 수 있도록 해야 함
   const actualVideoEndPx = timeMarkers.length * FRAME_WIDTH // 마지막 프레임 썸네일의 끝 (픽셀)
   const actualVideoEndSeconds = actualVideoEndPx / FRAME_WIDTH // 마지막 프레임 썸네일의 끝 (초 단위)
@@ -316,9 +321,9 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
               return
             }
 
-            // 캔버스 크기를 프레임 박스 크기에 맞춤 (74x84)
-            canvas.width = 74
-            canvas.height = 84
+            // 캔버스 크기를 프레임 박스 크기에 맞춤
+            canvas.width = FRAME_WIDTH
+            canvas.height = FRAME_HEIGHT
 
             const ctx = canvas.getContext('2d')
             if (!ctx) {
@@ -422,7 +427,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
     return () => {
       isCancelled = true
     }
-  }, [videoUrl, ttsDuration, videoDuration])
+  }, [videoUrl, ttsDuration, videoDuration, FRAME_WIDTH, FRAME_HEIGHT])
 
   // 선택 영역이 실제로 변경될 때만 콜백 호출 (무한 루프 방지)
   // store에서 오는 initialSelectionStartSeconds와 비교하여 실제로 사용자가 변경한 경우에만 호출
@@ -544,7 +549,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isDraggingSelection, dragStartX, dragStartSelectionLeft, timeMarkers, selectionWidthPx, videoDuration, ttsDuration])
+  }, [isDraggingSelection, dragStartX, dragStartSelectionLeft, timeMarkers, selectionWidthPx, videoDuration, ttsDuration, FRAME_WIDTH])
   
   // 격자에 포함되는 시간 마커 인덱스 계산
   const getIsInSelection = (idx: number) => {
@@ -719,7 +724,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
             />
             {/* 재생 버튼 */}
             {onPlayScene && (
-              <div className="flex items-center justify-center mt-2">
+              <div className="flex items-center justify-start mt-2">
                 <button
                   type="button"
                   onClick={(e) => {
@@ -785,7 +790,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
 
               {/* 스크립트 영역 */}
               <div className="mb-2">
-                <div className="relative rounded-lg bg-white shadow-(--shadow-card-default) overflow-hidden border-2 border-transparent" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
+                <div className="relative rounded-lg bg-white shadow-(--shadow-card-default) overflow-hidden border-2 border-transparent" style={{ minHeight: `${FRAME_HEIGHT}px`, boxSizing: 'border-box' }}>
                   <textarea
                     value={scriptText}
                     readOnly
@@ -797,7 +802,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                       lineHeight: '25.2px',
                       fontWeight: 500,
                       letterSpacing: '-0.14px',
-                      minHeight: '74px',
+                      minHeight: `${FRAME_HEIGHT}px`,
                     }}
                   />
                 </div>
@@ -818,16 +823,16 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
               }}
             >
               {/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
-              <div className="relative shrink-0" style={{ width: `${timeMarkers.length * 74}px`, paddingTop: '18px', paddingBottom: '18px' }}>
+              <div className="relative shrink-0" style={{ width: `${timeMarkers.length * FRAME_WIDTH}px`, paddingTop: `${TIMELINE_PADDING}px`, paddingBottom: `${TIMELINE_PADDING}px` }}>
                 {/* 실제 영상 프레임 박스 (클리핑 영역) */}
-                <div className="relative h-[84px] bg-white rounded-2xl border border-gray-300 overflow-hidden">
-                  {/* 격자 패턴 - 각 74px 너비의 프레임들 */}
+                <div className="relative bg-white rounded-2xl border border-gray-300 overflow-hidden" style={{ height: `${FRAME_HEIGHT}px` }}>
+                  {/* 격자 패턴 - 각 FRAME_WIDTH 너비의 프레임들 */}
                   <div className="absolute inset-0 flex">
                     {Array.from({ length: timeMarkers.length }).map((_, idx) => (
                       <div
                         key={idx}
                         className="shrink-0 relative border-r border-[#a6a6a6] overflow-hidden"
-                        style={{ width: '74px', height: '100%' }}
+                        style={{ width: `${FRAME_WIDTH}px`, height: '100%' }}
                       >
                         {/* 비디오 프레임 썸네일 또는 배경 */}
                         {frameThumbnails[idx] ? (
@@ -894,17 +899,17 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                     position: 'absolute',
                     left: `${selectionLeftPx}px`,
                     width: `${selectionWidthPx}px`,
-                    top: '18px', // 프레임 박스와 같은 위치 (paddingTop 아래)
-                    height: 'calc(100% - 18px)', // paddingTop을 제외한 높이
+                    top: `${TIMELINE_PADDING}px`,
+                    height: `calc(100% - ${TIMELINE_PADDING}px)`,
                     zIndex: 10,
                     pointerEvents: 'auto', // 격자 내부 전체가 클릭 가능하도록
                   }}
                 >
                   <ProVideoTimelineGrid
-                    frameHeight={84}
+                    frameHeight={FRAME_HEIGHT}
                     selectionLeft={0}
                     selectionWidth={selectionWidthPx}
-                    extendY={18}
+                    extendY={TIMELINE_PADDING}
                   />
                 </div>
               </div>
@@ -912,7 +917,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
               {/* 시간 마커 */}
               <div 
                 className="relative flex shrink-0"
-                style={{ width: `${timeMarkers.length * 74}px` }}
+                style={{ width: `${timeMarkers.length * FRAME_WIDTH}px` }}
                 onDragStart={(e) => {
                   // 시간 마커 영역에서도 씬 카드 드래그 방지
                   e.stopPropagation()
@@ -922,7 +927,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                 {/* 가로 라인 - 영상 프레임 전체 길이만큼 */}
                 <div 
                   className="absolute top-0 left-0 h-px bg-[#a6a6a6]"
-                  style={{ width: `${timeMarkers.length * 74}px` }}
+                  style={{ width: `${timeMarkers.length * FRAME_WIDTH}px` }}
                 />
                 
                 {timeMarkers.map((marker, idx) => {
@@ -933,7 +938,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                     <div
                       key={idx}
                       className="shrink-0 flex flex-col items-center relative"
-                      style={{ width: '74px' }}
+                      style={{ width: `${FRAME_WIDTH}px` }}
                     >
                       {/* 세로 틱 */}
                       {isMajorTick ? (
@@ -956,13 +961,13 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                       
                       {/* 시간 텍스트 */}
                       <span
-                        className={`font-medium mt-2 ${
+                        className={`font-medium mt-1.5 ${
                           isInSelection ? 'text-text-dark' : 'text-text-tertiary'
                         }`}
                         style={{
                           fontSize: '14px',
-                          lineHeight: '20px',
-                          letterSpacing: '-0.32px',
+                          lineHeight: '19.6px',
+                          letterSpacing: '-0.28px',
                         }}
                       >
                         {marker}
@@ -974,7 +979,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
             </div>
 
             {/* 재생시간과 효과 아이콘 */}
-            <div className="flex items-center justify-between gap-2 pt-6" data-effect-dropdown>
+            <div className="flex items-center justify-between gap-2 pt-4" data-effect-dropdown>
               <span
                 className="text-[#5D5D5D] font-medium tabular-nums shrink-0"
                 style={{ fontSize: 'var(--font-size-14)', lineHeight: 'var(--line-height-12-140)' }}
