@@ -655,6 +655,29 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                       </div>
                     ))}
                   </div>
+                  
+                  {/* 격자 기준 왼쪽 어두운 오버레이 */}
+                  {selectionLeftPx > 0 && (
+                    <div
+                      className="absolute top-0 left-0 bg-black/50 z-[2]"
+                      style={{
+                        width: `${selectionLeftPx}px`,
+                        height: '100%',
+                      }}
+                    />
+                  )}
+                  
+                  {/* 격자 기준 오른쪽 어두운 오버레이 */}
+                  {selectionLeftPx + selectionWidthPx < actualVideoEndPx && (
+                    <div
+                      className="absolute top-0 right-0 bg-black/50 z-[2]"
+                      style={{
+                        width: `${actualVideoEndPx - (selectionLeftPx + selectionWidthPx)}px`,
+                        height: '100%',
+                      }}
+                    />
+                  )}
+                  
                   {/* 숨겨진 비디오와 캔버스 - 프레임 썸네일 생성용 */}
                   {videoUrl && (
                     <>
