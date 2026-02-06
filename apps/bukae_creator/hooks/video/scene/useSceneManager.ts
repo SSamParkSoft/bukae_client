@@ -234,7 +234,10 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
           wordWrap: true,
           wordWrapWidth: textWidth,
           breakWords: true,
-          stroke: { color: '#000000', width: 10 },
+          stroke: {
+            color: scene.text.stroke?.color || '#000000',
+            width: scene.text.stroke?.width ?? 10,
+          },
         }
 
         const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)

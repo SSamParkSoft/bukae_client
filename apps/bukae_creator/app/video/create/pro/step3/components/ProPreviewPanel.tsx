@@ -464,7 +464,10 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       wordWrap: true,
       wordWrapWidth: stageWidth * 0.75, // 스테이지 너비의 75%
       breakWords: true,
-      stroke: { color: '#000000', width: 10 },
+      stroke: {
+        color: textSettings?.stroke?.color || '#000000',
+        width: textSettings?.stroke?.width ?? 10,
+      },
       underline: isUnderline,
     }
     
@@ -495,7 +498,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         currentStyle.fill !== fillColor ||
         currentStyle.fontWeight !== String(fontWeight) ||
         currentStyle.fontStyle !== fontStyle ||
-        currentStyle.underline !== isUnderline ||
+        // currentStyle.underline !== isUnderline ||
         textObj.x !== textX ||
         textObj.y !== textY ||
         textObj.text !== script

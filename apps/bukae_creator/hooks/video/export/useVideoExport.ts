@@ -624,8 +624,8 @@ export function useVideoExport({
                 color: scene.text.color || '#FFFFFF',
                 stroke: {
                   enabled: true,
-                  color: '#000000',
-                  width: 10,
+                  color: scene.text.stroke?.color || '#000000',
+                  width: scene.text.stroke?.width ?? 10,
                 },
                 shadow: {
                   enabled: false,

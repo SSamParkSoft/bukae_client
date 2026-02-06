@@ -67,6 +67,7 @@ export function useTimelineInitializer({
             fontSize: existingScene?.text?.fontSize || 80,
             transform: existingScene?.text?.transform,
             style: existingScene?.text?.style,
+            stroke: existingScene?.text?.stroke ?? { color: '#000000', width: 10 },
           },
         }
       }),

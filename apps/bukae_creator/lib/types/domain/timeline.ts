@@ -92,6 +92,10 @@ export interface TextSettings {
   fontSize?: number
   transform?: TextTransform
   style?: TextStyle
+  stroke?: {
+    color?: string
+    width?: number
+  }
 }
 
 /**
