@@ -281,10 +281,25 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                     <div className="flex items-center gap-1">
                       <input
                         type="number"
-                        key={`stroke-width-${currentSceneIndex}`}
-                        defaultValue={currentScene.text?.stroke?.width || 10}
+                        value={currentScene.text?.stroke?.width || 10}
                         min={0}
                         max={50}
+                        onChange={(e) => {
+                          const width = parseInt(e.target.value, 10)
+                          if (!isNaN(width)) {
+                            const clampedWidth = Math.min(50, Math.max(0, width))
+                            updateScene((scene) => ({
+                              ...scene,
+                              text: {
+                                ...scene.text,
+                                stroke: {
+                                  ...scene.text.stroke,
+                                  width: clampedWidth,
+                                },
+                              },
+                            }))
+                          }
+                        }}
                         onBlur={(e) => {
                           const width = parseInt(e.target.value, 10)
                           const clampedWidth = Math.min(50, Math.max(0, isNaN(width) ? 10 : width))
