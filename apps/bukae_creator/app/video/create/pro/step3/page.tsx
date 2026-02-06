@@ -5,7 +5,7 @@ import { ProPreviewPanel } from './components/ProPreviewPanel'
 import { ProSceneListPanel } from './components/ProSceneListPanel'
 import { ProEffectsPanel } from './components/ProEffectsPanel'
 import { useVideoCreateStore, type TimelineData } from '@/store/useVideoCreateStore'
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { allTransitions, transitions, movements } from '@/lib/data/transitions'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
 import {
@@ -15,15 +15,37 @@ import {
   useProStep3State,
 } from './hooks'
 import type { SceneScript } from '@/lib/types/domain/script'
+import { useTimelineInitializer } from '@/hooks/video/timeline/useTimelineInitializer'
 
 export default function ProStep3Page() {
-  const { scenes: storeScenes, setScenes, bgmTemplate, setBgmTemplate } = useVideoCreateStore()
+  const { 
+    scenes: storeScenes, 
+    setScenes, 
+    bgmTemplate, 
+    setBgmTemplate,
+    timeline,
+    setTimeline,
+    subtitleFont,
+    subtitleColor,
+    subtitlePosition,
+  } = useVideoCreateStore()
   
   // 현재 선택된 씬 인덱스
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
 
   // Pro step3 씬 데이터 변환 훅
   const { proStep3Scenes } = useProStep3Scenes()
+
+  // Timeline 초기화 (씬에서 timeline 생성)
+  useTimelineInitializer({
+    scenes: storeScenes,
+    selectedImages: [],
+    subtitleFont: subtitleFont || null,
+    subtitleColor: subtitleColor || null,
+    subtitlePosition: subtitlePosition || null,
+    timeline,
+    setTimeline,
+  })
 
   // 격자 선택 영역 변경 훅
   const { handleSelectionChange } = useProStep3SelectionChange()
@@ -78,11 +100,15 @@ export default function ProStep3Page() {
     console.log('모션 변경:', sceneIndex, motion)
   }, [])
 
-  // Timeline 설정 핸들러 (Pro에서는 timeline이 없으므로 빈 함수)
-  const handleSetTimeline = useCallback((timeline: TimelineData) => {
-    // Pro에서는 timeline을 사용하지 않음
-    console.log('Timeline 설정:', timeline)
-  }, [])
+  // Timeline 설정 핸들러 (store의 setTimeline 사용)
+  const handleSetTimeline = useCallback((newTimeline: TimelineData) => {
+    console.log('[ProStep3Page] handleSetTimeline 호출:', {
+      scenesLength: newTimeline.scenes.length,
+      currentSceneIndex,
+      textSettings: newTimeline.scenes[currentSceneIndex]?.text,
+    })
+    setTimeline(newTimeline)
+  }, [setTimeline, currentSceneIndex])
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -120,7 +146,7 @@ export default function ProStep3Page() {
             <ProSceneListPanel
               theme="light"
               scenes={proStep3Scenes}
-              timeline={null}
+              timeline={timeline}
               currentSceneIndex={currentSceneIndex}
               playingSceneIndex={null}
               isPreparing={false}
@@ -144,7 +170,7 @@ export default function ProStep3Page() {
               theme="light"
               rightPanelTab={rightPanelTab}
               setRightPanelTab={setRightPanelTab}
-              timeline={null}
+              timeline={timeline}
               currentSceneIndex={currentSceneIndex}
               allTransitions={allTransitions}
               transitions={transitions}

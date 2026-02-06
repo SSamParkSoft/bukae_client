@@ -7,6 +7,7 @@ import type { ProStep3Scene } from './ProSceneListPanel'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { authStorage } from '@/lib/api/auth-storage'
 import { useVideoSegmentPlayer } from '../hooks/playback/useVideoSegmentPlayer'
+import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 
 interface ProPreviewPanelProps {
   /** 현재 선택된 씬의 비디오 URL */
@@ -47,6 +48,13 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   onExport,
   isExporting = false,
 }: ProPreviewPanelProps) {
+  // Timeline을 store에서 가져오기 (자막 설정을 읽기 위해)
+  // Timeline 전체를 가져오는 대신, 현재 씬의 text 설정만 추적하여 변경 감지 최적화
+  const timeline = useVideoCreateStore((state) => state.timeline)
+  const currentSceneTextSettings = useVideoCreateStore((state) => 
+    state.timeline?.scenes?.[currentSceneIndex]?.text
+  )
+  
   const playbackContainerRef = useRef<HTMLDivElement | null>(null)
   const pixiContainerRef = useRef<HTMLDivElement | null>(null)
   const timelineBarRef = useRef<HTMLDivElement | null>(null)
@@ -370,7 +378,13 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     }
   }, [pixiReady])
 
-  // 자막 렌더링 함수 (scenes는 ref로 참조해 격자 변경 시 참조만 바뀌어도 콜백이 재생성되지 않게 함)
+  // Timeline ref를 사용하여 renderSubtitle에서 최신 timeline 읽기
+  const timelineRef = useRef(timeline)
+  useEffect(() => {
+    timelineRef.current = timeline
+  }, [timeline])
+
+  // 자막 렌더링 함수 (timeline의 text 설정을 읽어서 적용)
   const renderSubtitle = useCallback((sceneIndex: number, script: string) => {
     if (!appRef.current || !subtitleContainerRef.current || !pixiReady) return
 
@@ -388,41 +402,129 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     // 텍스트가 없으면 종료
     if (!script || !script.trim()) return
 
+    // Timeline에서 자막 설정 가져오기 (ref를 통해 최신 값 읽기)
+    const currentTimeline = timelineRef.current
+    const timelineScene = currentTimeline?.scenes[sceneIndex]
+    const textSettings = timelineScene?.text
+    
+    // 디버깅: timeline 변경 감지
+    if (textSettings) {
+      console.log('[ProPreviewPanel] 자막 렌더링:', {
+        sceneIndex,
+        font: textSettings.font,
+        fontSize: textSettings.fontSize,
+        color: textSettings.color,
+        fontWeight: textSettings.fontWeight,
+        position: textSettings.position,
+      })
+    }
+    
     // 실제 렌더링 크기 가져오기 (stage 크기 사용)
     const stageWidth = appRef.current.screen.width
     const stageHeight = appRef.current.screen.height
+
+    // 자막 스타일 설정 (timeline에서 가져오거나 기본값 사용)
+    const fontFamily = textSettings?.font 
+      ? resolveSubtitleFontFamily(textSettings.font)
+      : resolveSubtitleFontFamily('pretendard')
+    const fontSize = textSettings?.fontSize || 80
+    const fillColor = textSettings?.color || '#ffffff'
+    const fontWeight = textSettings?.fontWeight ?? (textSettings?.style?.bold ? 700 : 400)
+    const fontStyle = textSettings?.style?.italic ? 'italic' : 'normal'
+    const isUnderline = textSettings?.style?.underline || false
+    
+    // 위치 설정 (timeline에서 가져오거나 기본값 사용)
+    const position = textSettings?.position || 'bottom'
+    let textX = stageWidth / 2
+    let textY = stageHeight * 0.885 // 기본값: 하단 중앙
+    
+    if (textSettings?.transform) {
+      // transform이 있으면 그 좌표 사용
+      textX = textSettings.transform.x || stageWidth / 2
+      textY = textSettings.transform.y || stageHeight * 0.885
+    } else {
+      // position에 따라 Y 좌표 설정
+      if (position === 'top') {
+        textY = 200
+      } else if (position === 'center') {
+        textY = stageHeight / 2
+      } else if (position === 'bottom') {
+        textY = stageHeight - 200
+      }
+    }
+
+    // 스타일 설정 객체 생성
+    const styleConfig: Record<string, unknown> = {
+      fontFamily,
+      fontSize,
+      fill: fillColor,
+      align: 'center',
+      fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
+      fontStyle,
+      wordWrap: true,
+      wordWrapWidth: stageWidth * 0.75, // 스테이지 너비의 75%
+      breakWords: true,
+      stroke: { color: '#000000', width: 10 },
+      underline: isUnderline,
+    }
+    
+    const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
 
     // 텍스트 객체 가져오기 또는 생성
     let textObj = textsRef.current.get(sceneIndex)
     if (!textObj || textObj.destroyed) {
       textObj = new PIXI.Text({
         text: script,
-        style: new PIXI.TextStyle({
-          fontFamily: resolveSubtitleFontFamily('pretendard'),
-          fontSize: 80,
-          fill: '#ffffff',
-          align: 'center',
-          fontWeight: '400',
-          wordWrap: true,
-          wordWrapWidth: stageWidth * 0.75, // 스테이지 너비의 75%
-          breakWords: true,
-          stroke: { color: '#000000', width: 10 },
-        }),
+        style: textStyle,
       })
       textObj.anchor.set(0.5, 0.5)
-      // 스테이지 중앙 하단에 배치
-      textObj.x = stageWidth / 2
-      textObj.y = stageHeight * 0.885 // 하단 중앙 (88.5% 위치)
+      textObj.x = textX
+      textObj.y = textY
       subtitleContainerRef.current.addChild(textObj)
       textsRef.current.set(sceneIndex, textObj)
     } else {
-      textObj.text = script
-      // 위치도 다시 설정 (스테이지 크기가 변경되었을 수 있음)
-      textObj.x = stageWidth / 2
-      textObj.y = stageHeight * 0.885
-      // wordWrapWidth도 업데이트
-      if (textObj.style) {
-        textObj.style.wordWrapWidth = stageWidth * 0.75
+      // 기존 텍스트 객체 업데이트
+      // 중요: PIXI.js에서 style을 변경할 때는 전체 TextStyle 객체를 교체해야 함
+      // 스타일을 먼저 설정한 후 텍스트를 업데이트해야 변경사항이 반영됨
+      
+      // 기존 스타일과 비교하여 변경이 필요한지 확인
+      const currentStyle = textObj.style
+      const needsUpdate = 
+        currentStyle.fontFamily !== fontFamily ||
+        currentStyle.fontSize !== fontSize ||
+        currentStyle.fill !== fillColor ||
+        currentStyle.fontWeight !== String(fontWeight) ||
+        currentStyle.fontStyle !== fontStyle ||
+        currentStyle.underline !== isUnderline ||
+        textObj.x !== textX ||
+        textObj.y !== textY ||
+        textObj.text !== script
+      
+      if (needsUpdate) {
+        // 스타일 교체
+        textObj.style = textStyle
+        // 스타일 변경 후 텍스트를 다시 설정해야 스타일이 적용됨
+        textObj.text = script
+        
+        // 위치 업데이트
+        textObj.x = textX
+        textObj.y = textY
+        
+        // 강제로 업데이트 (PIXI.js가 변경사항을 인식하도록)
+        textObj.visible = true
+        textObj.alpha = 1
+        
+        console.log('[ProPreviewPanel] renderSubtitle: 텍스트 객체 업데이트 완료:', {
+          sceneIndex,
+          fontFamily,
+          fontSize,
+          fillColor,
+          fontWeight,
+          position,
+          textX,
+          textY,
+          needsUpdate,
+        })
       }
     }
 
@@ -528,16 +630,87 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   const currentSceneVideoUrl = currentScene?.videoUrl
   const currentSceneScript = currentScene?.script
   
+  // Timeline의 text 설정 변경 감지를 위한 키 생성
+  // timeline 객체 전체를 JSON.stringify하여 깊은 변경도 감지
+  const timelineTextKey = useMemo(() => {
+    if (!timeline || !timeline.scenes || !timeline.scenes[currentSceneIndex]) {
+      return ''
+    }
+    
+    const textSettings = timeline.scenes[currentSceneIndex].text
+    // text 설정만 추출하여 키 생성 (더 정확한 변경 감지)
+    const key = JSON.stringify({
+      font: textSettings?.font,
+      fontSize: textSettings?.fontSize,
+      color: textSettings?.color,
+      fontWeight: textSettings?.fontWeight,
+      position: textSettings?.position,
+      style: textSettings?.style,
+      transform: textSettings?.transform,
+    })
+    
+    return key
+  }, [timeline, currentSceneIndex])
+  
+  // Timeline 변경을 직접 감지하기 위한 effect
+  useEffect(() => {
+    console.log('[ProPreviewPanel] Timeline 변경 감지:', {
+      hasTimeline: !!timeline,
+      timelineScenesLength: timeline?.scenes?.length,
+      currentSceneIndex,
+      hasScene: !!timeline?.scenes?.[currentSceneIndex],
+      textSettings: timeline?.scenes?.[currentSceneIndex]?.text,
+      timelineTextKey,
+    })
+  }, [timeline, currentSceneIndex, timelineTextKey])
+  
   useEffect(() => {
     if (!isPlaying && currentVideoUrl && currentSceneVideoUrl && currentSceneIndex >= 0) {
       // 비디오를 Sprite로 로드
       loadVideoAsSprite(currentSceneIndex, currentSceneVideoUrl).catch(console.error)
-      // 자막 표시
+      // 자막 표시 (timeline 변경 시에도 다시 렌더링)
       if (currentSceneScript) {
         renderSubtitle(currentSceneIndex, currentSceneScript)
       }
     }
   }, [isPlaying, currentVideoUrl, currentSceneVideoUrl, currentSceneScript, currentSceneIndex, renderSubtitle, loadVideoAsSprite])
+
+  // 현재 씬의 text 설정이 변경될 때마다 자막을 다시 렌더링 (가장 직접적인 변경 감지)
+  useEffect(() => {
+    if (!currentSceneScript || currentSceneIndex < 0 || !pixiReady) {
+      return
+    }
+    
+    // currentSceneTextSettings가 변경되면 자막을 다시 렌더링
+    if (currentSceneTextSettings) {
+      console.log('[ProPreviewPanel] 현재 씬의 자막 설정 변경 감지, 자막 다시 렌더링:', {
+        currentSceneIndex,
+        textSettings: currentSceneTextSettings,
+        isPlaying,
+        script: currentSceneScript.substring(0, 50),
+      })
+      renderSubtitle(currentSceneIndex, currentSceneScript)
+    }
+  }, [currentSceneTextSettings, currentSceneScript, currentSceneIndex, renderSubtitle, pixiReady, isPlaying])
+  
+  // Timeline의 자막 설정이 변경될 때마다 현재 씬의 자막을 다시 렌더링 (fallback)
+  // timelineTextKey가 변경되면 자막을 다시 렌더링하여 실시간 업데이트
+  useEffect(() => {
+    if (!currentSceneScript || currentSceneIndex < 0 || !pixiReady) {
+      return
+    }
+    
+    // timelineTextKey가 변경되었을 때만 실행 (빈 문자열이 아닐 때)
+    if (timelineTextKey) {
+      console.log('[ProPreviewPanel] Timeline 자막 설정 변경 감지 (timelineTextKey), 자막 다시 렌더링:', {
+        currentSceneIndex,
+        timelineTextKey,
+        isPlaying,
+        script: currentSceneScript.substring(0, 50),
+      })
+      renderSubtitle(currentSceneIndex, currentSceneScript)
+    }
+  }, [timelineTextKey, currentSceneScript, currentSceneIndex, renderSubtitle, pixiReady, isPlaying])
 
   // 비디오 세그먼트 재생 로직 커스텀 훅
   const { trackUserGesture } = useVideoSegmentPlayer({
