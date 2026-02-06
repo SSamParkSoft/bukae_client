@@ -117,10 +117,10 @@ export function EffectsPanel({
   const displayTransitions = transitions || allTransitions
   const transitionsWithoutNone = displayTransitions.filter((t) => t.value !== 'none')
   
-  // 현재 씬의 voiceTemplate 계산 (씬별 voiceTemplate이 있으면 사용, 없으면 전역 voiceTemplate 사용)
+  // 현재 씬의 voiceTemplate 계산 (씬별 voiceTemplate만 사용)
   const sceneVoiceTemplate = timeline && currentSceneIndex >= 0
-    ? (timeline.scenes[currentSceneIndex]?.voiceTemplate || globalVoiceTemplate)
-    : globalVoiceTemplate
+    ? timeline.scenes[currentSceneIndex]?.voiceTemplate
+    : null
   
   return (
     <div className="w-full flex flex-col h-full overflow-hidden">

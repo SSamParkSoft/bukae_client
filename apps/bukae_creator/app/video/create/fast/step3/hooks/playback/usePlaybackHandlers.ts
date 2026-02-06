@@ -64,13 +64,8 @@ export function usePlaybackHandlers({
       for (let i = 0; i < currentTimeline.scenes.length; i++) {
         const scene = currentTimeline.scenes[i]
         
-        // 씬별 voiceTemplate이 있으면 사용, 없으면 전역 voiceTemplate 사용
-        const hasSceneVoiceTemplate = scene?.voiceTemplate != null && 
-                                      typeof scene.voiceTemplate === 'string' && 
-                                      scene.voiceTemplate.trim() !== ''
-        const sceneVoiceTemplate = hasSceneVoiceTemplate 
-          ? scene.voiceTemplate 
-          : currentVoiceTemplate
+        // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+        const sceneVoiceTemplate = scene?.voiceTemplate
         
         const isEmpty = sceneVoiceTemplate == null || 
                        sceneVoiceTemplate === '' ||
@@ -114,11 +109,10 @@ export function usePlaybackHandlers({
       return
     }
     
-    // 대상 그룹에 대한 음성 템플릿 존재 여부 확인 (씬별 voiceTemplate 우선, 없으면 전역 voiceTemplate)
+    // 대상 그룹에 대한 음성 템플릿 존재 여부 확인 (씬별 voiceTemplate만 사용)
     const hasVoiceForGroup = groupIndices.every((idx) => {
       const sceneVoice = currentTimeline.scenes[idx]?.voiceTemplate
-      const resolvedVoice = sceneVoice || currentVoiceTemplate
-      return !!resolvedVoice && resolvedVoice.trim() !== ''
+      return !!sceneVoice && sceneVoice.trim() !== ''
     })
 
     if (!hasVoiceForGroup) {
@@ -180,8 +174,8 @@ export function usePlaybackHandlers({
         return
       }
       
-      // 음성 선택 여부 확인 (null, undefined, 빈 문자열 모두 체크)
-      const sceneVoice = currentTimeline.scenes[sceneIndex]?.voiceTemplate || currentVoiceTemplate
+      // 음성 선택 여부 확인 (씬별 voiceTemplate만 사용)
+      const sceneVoice = currentTimeline.scenes[sceneIndex]?.voiceTemplate
       if (!sceneVoice || sceneVoice.trim() === '') {
         setShowVoiceRequiredMessage(true)
         // 음성 탭으로 자동 이동

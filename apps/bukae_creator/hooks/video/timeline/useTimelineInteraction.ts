@@ -83,7 +83,8 @@ export function useTimelineInteraction({
         return true
       }
       
-      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+      // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+      const sceneVoiceTemplate = scene.voiceTemplate
       if (!sceneVoiceTemplate || sceneVoiceTemplate.trim() === '') {
         // voiceTemplate이 없으면 TTS가 필요 없으므로 캐시가 있다고 간주
         return true
@@ -195,7 +196,12 @@ export function useTimelineInteraction({
       const originalText = scene.text?.content || ''
       const scriptParts = splitSubtitleByDelimiter(originalText)
       const markups = buildSceneMarkup(timeline, targetSceneIndex)
-      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+      // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+      const sceneVoiceTemplate = scene.voiceTemplate
+      if (!sceneVoiceTemplate) {
+        // voiceTemplate이 없으면 기본 duration 사용
+        return { partIndex: 0, partStartTime: 0, partEndTime: scene.duration }
+      }
       
       let accumulatedPartTime = 0
       for (let partIdx = 0; partIdx < scriptParts.length && partIdx < markups.length; partIdx++) {

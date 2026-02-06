@@ -16,7 +16,7 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 interface UseTtsTrackParams {
   /** 타임라인 데이터 */
   timeline: TimelineData | null
-  /** 음성 템플릿 */
+  /** @deprecated 전역 voiceTemplate은 더 이상 사용하지 않습니다. 각 씬의 scene.voiceTemplate만 사용합니다. */
   voiceTemplate: string | null
   /** TTS 캐시 ref */
   ttsCacheRef: React.MutableRefObject<Map<string, { blob: Blob; durationSec: number; markup?: string; url?: string | null }>>
@@ -39,19 +39,29 @@ interface UseTtsTrackParams {
  */
 function buildSegmentsFromTimeline(
   timeline: TimelineData,
-  voiceTemplate: string,
+  /** @deprecated 전역 voiceTemplate은 더 이상 사용하지 않습니다. 각 씬의 scene.voiceTemplate만 사용합니다. */
+  voiceTemplate: string | null,
   ttsCacheRef: React.MutableRefObject<Map<string, { blob: Blob; durationSec: number; markup?: string; url?: string | null }>>,
   buildSceneMarkup: (timeline: TimelineData, sceneIndex: number) => string[],
   makeTtsKey: (voiceName: string, markup: string) => string
 ): TtsSegment[] {
   const segments: TtsSegment[] = []
   let accumulatedTime = 0
+  
+  // 디버깅: 함수 호출 확인
+  console.log('[buildSegmentsFromTimeline] 시작:', {
+    scenesCount: timeline.scenes.length,
+    voiceTemplate,
+    cacheSize: ttsCacheRef.current.size,
+    cacheKeys: Array.from(ttsCacheRef.current.keys()).slice(0, 3),
+  })
 
-  for (let sceneIndex = 0; sceneIndex < timeline.scenes.length; sceneIndex++) {
+for (let sceneIndex = 0; sceneIndex < timeline.scenes.length; sceneIndex++) {
     const scene = timeline.scenes[sceneIndex]
-    const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+    // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+    const sceneVoiceTemplate = scene.voiceTemplate
 
-    if (!sceneVoiceTemplate) {
+    if (!sceneVoiceTemplate || sceneVoiceTemplate.trim() === '') {
       continue
     }
 
@@ -117,7 +127,25 @@ function buildSegmentsFromTimeline(
       let segmentUrl = cached.url || ''
       if (cached.blob) {
         // blob이 있으면 blob URL 생성 (네트워크 요청 없음)
-        segmentUrl = URL.createObjectURL(cached.blob)
+        try {
+          segmentUrl = URL.createObjectURL(cached.blob)
+          // 디버깅: blob URL 생성 확인
+          if (segmentUrl && segmentUrl.startsWith('blob:')) {
+            console.log('[buildSegmentsFromTimeline] blob URL 생성 성공:', {
+              segmentId,
+              blobSize: cached.blob.size,
+              blobType: cached.blob.type,
+            })
+          }
+        } catch (error) {
+          console.error('[buildSegmentsFromTimeline] blob URL 생성 실패:', error, {
+            segmentId,
+            hasBlob: !!cached.blob,
+            blobSize: cached.blob?.size,
+          })
+          // blob URL 생성 실패 시 Supabase URL 사용
+          segmentUrl = cached.url || ''
+        }
       }
       
       const segment: TtsSegment = {
@@ -135,6 +163,19 @@ function buildSegmentsFromTimeline(
       accumulatedTime += cached.durationSec
     }
   }
+  
+  // 디버깅: 세그먼트 생성 결과 확인
+  console.log('[buildSegmentsFromTimeline] 완료:', {
+    segmentsCount: segments.length,
+    segmentsWithUrl: segments.filter(s => s.url && s.url.trim() !== '').length,
+    totalDuration: accumulatedTime,
+    sampleSegments: segments.slice(0, 3).map(s => ({
+      id: s.id,
+      hasUrl: !!s.url && s.url.trim() !== '',
+      urlType: s.url?.startsWith('blob:') ? 'blob' : s.url?.startsWith('http') ? 'http' : 'empty',
+      durationSec: s.durationSec,
+    })),
+  })
 
   return segments
 }
@@ -210,15 +251,17 @@ export function useTtsTrack({
   // 외부 시스템과 동기화하는 경우이므로 useEffect에서 setState 사용이 적절함
   useEffect(() => {
     // useEffect 내부에서 ref 접근 (허용됨)
-    const newSegments = (!timeline || !voiceTemplate || !isClient)
+    // voiceTemplate은 더 이상 사용하지 않지만 하위 호환성을 위해 전달
+    const newSegments = (!timeline || !isClient)
       ? []
-      : buildSegmentsFromTimeline(timeline, voiceTemplate, ttsCacheRef, buildSceneMarkup, makeTtsKey)
+      : buildSegmentsFromTimeline(timeline, voiceTemplate || '', ttsCacheRef, buildSceneMarkup, makeTtsKey)
     
     setSegments(newSegments)
   // ttsCacheRef는 ref이므로 dependency에 포함하지 않음 (변경되어도 re-render 트리거 안 함)
   // cacheUpdateTrigger가 변경될 때마다 재계산되므로 캐시 변경은 트리거를 통해 반영됨
+  // voiceTemplate은 더 이상 사용하지 않지만 하위 호환성을 위해 dependency에 유지
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeline, voiceTemplate, buildSceneMarkup, makeTtsKey, isClient, cacheUpdateTrigger])
+  }, [timeline, buildSceneMarkup, makeTtsKey, isClient, cacheUpdateTrigger])
 
   // 세그먼트 테이블이 변경되면 TtsTrack에 반영 (항상 호출되어야 함)
   // segments 배열의 참조가 변경되지 않았으면 스킵 (무한 루프 방지)

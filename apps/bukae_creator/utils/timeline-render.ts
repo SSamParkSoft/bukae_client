@@ -116,7 +116,8 @@ export function calculateSceneFromTime(
       
       // 구간 계산 (TTS 캐시 사용)
       if (options?.ttsCacheRef && options?.buildSceneMarkup && options?.makeTtsKey) {
-        const sceneVoiceTemplate = scene.voiceTemplate || options.voiceTemplate
+        // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+        const sceneVoiceTemplate = scene.voiceTemplate
         if (sceneVoiceTemplate) {
           const markups = options.buildSceneMarkup(timeline, boundary.index)
           let partAccumulatedTime = boundary.start

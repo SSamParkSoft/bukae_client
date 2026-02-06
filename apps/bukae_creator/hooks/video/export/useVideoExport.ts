@@ -153,7 +153,22 @@ export function useVideoExport({
       const canvasTransforms = getAllCanvasTransforms()
       console.log('[useVideoExport] 캔버스 상태 읽기 완료:', canvasTransforms.size, '개 씬')
 
-      // 1. 모든 씬의 TTS Blob을 가져와서 서버에 업로드
+      // 1. 모든 씬에 voiceTemplate이 있는지 먼저 검증
+      // 하나라도 없으면 전체 내보내기 차단
+      const scenesWithoutVoice: number[] = []
+      for (let i = 0; i < timeline.scenes.length; i++) {
+        const scene = timeline.scenes[i]
+        const sceneVoiceTemplate = scene?.voiceTemplate
+        if (!sceneVoiceTemplate || sceneVoiceTemplate.trim() === '') {
+          scenesWithoutVoice.push(i + 1) // 사용자에게 보여줄 때는 1부터 시작
+        }
+      }
+      
+      if (scenesWithoutVoice.length > 0) {
+        throw new Error(`씬 ${scenesWithoutVoice.join(', ')}에 보이스를 설정해주세요.`)
+      }
+      
+      // 2. 모든 씬의 TTS Blob을 가져와서 서버에 업로드
       // 캐시된 것과 합성이 필요한 것을 분리하여 레이트 리밋 방지
       // 병렬 처리로 속도 향상
       const ttsResults: Array<{ sceneIndex: number; blob: Blob; durationSec: number } | null> = []
@@ -165,12 +180,11 @@ export function useVideoExport({
           return { sceneIndex: index, result: null }
         }
 
-        // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
-        const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate
-        
+        // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+        // 위에서 이미 검증했으므로 여기서는 항상 존재함
+        const sceneVoiceTemplate = scene?.voiceTemplate
         if (!sceneVoiceTemplate) {
-          console.warn(`[useVideoExport] 씬 ${index}에 voiceTemplate이 없습니다.`)
-          return { sceneIndex: index, result: null }
+          throw new Error(`씬 ${index + 1}에 보이스가 없습니다.`)
         }
 
         // 모든 구간이 캐시되어 있는지 확인
@@ -539,8 +553,11 @@ export function useVideoExport({
           
           // 각 구간을 별도 씬으로 생성
           textParts.forEach((partText, partIndex) => {
-            // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
-            const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+            // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+            const sceneVoiceTemplate = scene.voiceTemplate
+            if (!sceneVoiceTemplate) {
+              throw new Error(`씬 ${sceneIndex + 1}에 보이스가 없습니다.`)
+            }
             
             // 캔버스에서 읽은 transform 사용 (없으면 timeline의 transform 사용)
             const sceneCanvasTransform = canvasTransforms.get(sceneIndex)

@@ -197,8 +197,10 @@ export default function VoiceSelector({
     
     // 씬별 voiceTemplate 변경 핸들러가 있으면 사용, 없으면 전역 voiceTemplate 업데이트
     if (onSceneVoiceTemplateChange) {
+      // "이 씬만": 특정 씬의 voiceTemplate만 설정 (전역 voiceTemplate은 변경하지 않음)
       onSceneVoiceTemplateChange(serialized)
     } else {
+      // 씬별 핸들러가 없으면 전역 voiceTemplate 업데이트
       setVoiceTemplate(serialized)
     }
     

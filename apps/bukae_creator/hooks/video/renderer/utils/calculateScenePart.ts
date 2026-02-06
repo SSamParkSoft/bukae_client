@@ -75,7 +75,8 @@ export function calculateScenePartFromTime({
       partIndex = 0
       
       if (ttsCacheRef && buildSceneMarkup && makeTtsKey) {
-        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+        // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+        const sceneVoiceTemplate = scene.voiceTemplate
         if (sceneVoiceTemplate) {
           const markups = buildSceneMarkup(timeline, sceneIndex)
           if (markups.length > 0) {

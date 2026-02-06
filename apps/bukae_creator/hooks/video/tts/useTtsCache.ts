@@ -31,8 +31,8 @@ export function useTtsCache() {
       const scene = timeline?.scenes[sceneIndex]
       if (!scene) continue
       
-      // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
-      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+      // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+      const sceneVoiceTemplate = scene.voiceTemplate
       if (!sceneVoiceTemplate) continue
       
       const markups = buildSceneMarkup(timeline, sceneIndex)
@@ -62,7 +62,8 @@ export function useTtsCache() {
     const scene = timeline?.scenes[sceneIndex]
     if (!scene) return false
     
-    const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+    // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+    const sceneVoiceTemplate = scene.voiceTemplate
     if (!sceneVoiceTemplate) return false
     
     const markups = buildSceneMarkup(timeline, sceneIndex)
@@ -88,7 +89,8 @@ export function useTtsCache() {
     const scene = timeline?.scenes[sceneIndex]
     if (!scene) return fallbackDuration || 0
     
-    const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+    // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+    const sceneVoiceTemplate = scene.voiceTemplate
     if (!sceneVoiceTemplate) return fallbackDuration || 0
     
     const markups = buildSceneMarkup(timeline, sceneIndex)
@@ -148,7 +150,8 @@ export function useTtsCache() {
     const scene = timeline.scenes[sceneIndex]
     if (!scene) return fallbackDuration || 1
 
-    const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+    // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+    const sceneVoiceTemplate = scene.voiceTemplate
     const markups = buildSceneMarkup(timeline, sceneIndex)
     const markup = markups?.[partIndex]
     if (sceneVoiceTemplate && markup) {
