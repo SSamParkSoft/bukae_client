@@ -52,7 +52,9 @@ const PRODUCT_URLS = {
   handcream:
     'https://link.coupang.com/a/dGyq5R',
   musunchungso:
-    'https://link.coupang.com/a/dGPf97'
+    'https://link.coupang.com/a/dGPf97',
+  mouse:
+    'https://link.coupang.com/a/dHnd5O'
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -234,6 +236,15 @@ const SSAMARKET_EXTRA_PRODUCTS: Product[] = [
     order: 1,
     thumbnailUrl: '/dummy/ssamarket/handcream.png',
     url: PRODUCT_URLS.handcream,
+  },
+  {
+    id: 'razer-deathadder-essential',
+    productId: 2002,
+    name: '레이저 DeathAdder Essential 유선마우스',
+    description: '유선 마우스 · 게이밍 마우스',
+    order: 2,
+    thumbnailUrl: '/dummy/ssamarket/mouse.png',
+    url: PRODUCT_URLS.mouse,
   },
 ]
 
