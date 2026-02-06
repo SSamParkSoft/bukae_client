@@ -74,7 +74,8 @@ export const useSceneStructureStore = create<SceneStructureState>((set, get) => 
     buildSceneMarkup,
     makeTtsKey,
   }: UpdateStructureParams) => {
-    if (!timeline || scenes.length === 0) {
+    // scenes가 배열이 아니거나 빈 배열이면 초기화
+    if (!Array.isArray(scenes) || !timeline || scenes.length === 0) {
       set({
         sceneStructures: [],
         groups: new Map(),

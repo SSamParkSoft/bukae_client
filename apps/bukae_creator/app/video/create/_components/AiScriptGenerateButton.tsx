@@ -5,9 +5,18 @@ import Image from 'next/image'
 interface AiScriptGenerateButtonProps {
   onClick: () => void
   loading?: boolean
+  /** 기본: 'AI 스크립트 생성' */
+  labelIdle?: string
+  /** 기본: 'AI 스크립트 생성 중...' */
+  labelLoading?: string
 }
 
-export function AiScriptGenerateButton({ onClick, loading = false }: AiScriptGenerateButtonProps) {
+export function AiScriptGenerateButton({
+  onClick,
+  loading = false,
+  labelIdle = 'AI 스크립트 생성',
+  labelLoading = 'AI 스크립트 생성 중...',
+}: AiScriptGenerateButtonProps) {
   return (
     <div className="m-6">
       <button
@@ -19,8 +28,8 @@ export function AiScriptGenerateButton({ onClick, loading = false }: AiScriptGen
         <Image
           src="/Subtract.svg"
           alt="AI"
-          width={68}
-          height={34}
+          width={40}
+          height={20}
           className="shrink-0"
         />
         <span
@@ -30,7 +39,7 @@ export function AiScriptGenerateButton({ onClick, loading = false }: AiScriptGen
             lineHeight: '33.6px',
           }}
         >
-          {loading ? 'AI 스크립트 생성 중...' : 'AI 스크립트 생성'}
+          {loading ? labelLoading : labelIdle}
         </span>
       </button>
     </div>

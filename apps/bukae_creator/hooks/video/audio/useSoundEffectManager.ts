@@ -268,7 +268,8 @@ export function useSoundEffectManager({
       }
 
       // 씬의 세그먼트(part) 정보 계산
-      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+      // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+      const sceneVoiceTemplate = scene.voiceTemplate
       if (!sceneVoiceTemplate) {
         return
       }

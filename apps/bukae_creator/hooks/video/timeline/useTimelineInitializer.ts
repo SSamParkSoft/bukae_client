@@ -28,7 +28,14 @@ export function useTimelineInitializer({
 }: UseTimelineInitializerParams) {
   // 타임라인 초기화
   useEffect(() => {
-    if (scenes.length === 0) return
+    // scenes가 배열이 아니거나 빈 배열이면 종료
+    if (!Array.isArray(scenes) || scenes.length === 0) return
+
+    // Pro track 감지: scenes에 videoUrl이 있는지 확인
+    const isProTrack = scenes.some(scene => {
+      const extended = scene as SceneScript & { videoUrl?: string | null }
+      return extended.videoUrl != null
+    })
 
     const nextTimeline: TimelineData = {
       fps: 30,
@@ -36,12 +43,19 @@ export function useTimelineInitializer({
       playbackSpeed: timeline?.playbackSpeed ?? 1.0,
       scenes: scenes.map((scene, index) => {
         const existingScene = timeline?.scenes[index]
+        const extended = scene as SceneScript & { videoUrl?: string | null }
+        
+        // Pro track인 경우 videoUrl을 image로 사용 (타임라인 호환성을 위해)
+        const imageUrl = isProTrack 
+          ? (extended.videoUrl || scene.imageUrl || selectedImages[index] || '')
+          : (scene.imageUrl || selectedImages[index] || '')
+        
         return {
           sceneId: scene.sceneId,
           duration: existingScene?.duration || getSceneDuration(scene.script),
           transition: existingScene?.transition || 'none',
           transitionDuration: existingScene?.transitionDuration || 0.5,
-          image: scene.imageUrl || selectedImages[index] || '',
+          image: imageUrl,
           imageFit: existingScene?.imageFit || 'contain', // 기본값을 contain으로 변경하여 이미지 비율을 유지하면서 영역에 맞춤
           motion: existingScene?.motion, // Motion 설정 보존
           text: {
@@ -53,6 +67,7 @@ export function useTimelineInitializer({
             fontSize: existingScene?.text?.fontSize || 80,
             transform: existingScene?.text?.transform,
             style: existingScene?.text?.style,
+            stroke: existingScene?.text?.stroke ?? { color: '#000000', width: 10 },
           },
         }
       }),

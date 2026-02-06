@@ -24,6 +24,7 @@ interface SubtitleSettingsProps {
 export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeline }: SubtitleSettingsProps) {
   const currentScene = useMemo(() => timeline?.scenes[currentSceneIndex], [timeline, currentSceneIndex])
   const [isColorOpen, setIsColorOpen] = useState(false)
+  const [isStrokeColorOpen, setIsStrokeColorOpen] = useState(false)
   const [showToast, setShowToast] = useState(false)
   const currentFontIdOrFamily = useMemo(() => {
     const raw = (currentScene?.text?.font || SUBTITLE_DEFAULT_FONT_ID).trim()
@@ -55,11 +56,19 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
 
   const updateScene = useCallback(
     (updater: (scene: TimelineData['scenes'][number]) => TimelineData['scenes'][number]) => {
-      if (!timeline) return
+      if (!timeline) {
+        console.warn('[SubtitleSettings] updateScene: timeline이 null입니다.')
+        return
+      }
       const nextTimeline: TimelineData = {
         ...timeline,
         scenes: timeline.scenes.map((scene, idx) => (idx === currentSceneIndex ? updater(scene) : scene)),
       }
+      console.log('[SubtitleSettings] updateScene: timeline 업데이트:', {
+        currentSceneIndex,
+        oldText: timeline.scenes[currentSceneIndex]?.text,
+        newText: nextTimeline.scenes[currentSceneIndex]?.text,
+      })
       setTimeline(nextTimeline)
     },
     [timeline, currentSceneIndex, setTimeline],
@@ -82,6 +91,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
           position: baseText.position,
           style: { ...baseText.style },
           transform: baseText.transform ? { ...baseText.transform } : scene.text.transform,
+          stroke: baseText.stroke ? { ...baseText.stroke } : scene.text.stroke,
         },
       })),
     }
@@ -137,35 +147,6 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
 
   return (
     <div className="space-y-4" style={{ width: '100%', maxWidth: '100%', minWidth: 0 }}>
-      {/* SCENE 자막 설정 헤더 및 미리보기 */}
-      <div>
-        <h3 
-          className="font-bold text-text-dark mb-2 tracking-[-0.4px]"
-          style={{ 
-            fontSize: 'var(--font-size-18)',
-            lineHeight: '25.2px'
-          }}
-        >
-          SCENE {currentSceneIndex + 1} 자막 설정
-        </h3>
-        <div 
-          className="rounded-lg p-3 wrap-break-word"
-          style={{
-            backgroundColor: '#15252c',
-            fontFamily: currentFontFamily,
-            fontSize: 'var(--font-size-18)',
-            lineHeight: '25.2px',
-            fontWeight: 'var(--font-weight-bold)',
-            color: '#ffffff',
-            letterSpacing: '-0.4px',
-            wordBreak: 'break-word',
-            overflowWrap: 'break-word',
-          }}
-        >
-          {currentScene.text?.content || '(자막 없음)'}
-        </div>
-      </div>
-
       {/* 기본 서식 섹션 */}
       <div>
         <h3 
@@ -178,9 +159,9 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
           기본 서식
         </h3>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* 컬러 섹션 */}
-          <div>
+          <div className="relative">
             <label 
               className="font-medium text-text-dark mb-2 block"
               style={{ 
@@ -214,23 +195,221 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                 </span>
               </div>
             </button>
-            {isColorOpen && (
-              <div className="mt-2">
-                <SubtitleColorPalette
-                  theme={theme}
-                  value={currentScene.text?.color || '#000000'}
-                  onChange={(next) => {
-                    updateScene((scene) => ({
-                      ...scene,
-                      text: {
-                        ...scene.text,
-                        color: next,
-                      },
-                    }))
-                  }}
-                />
+            <AnimatePresence>
+              {isColorOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute top-full left-0 mt-2 z-50 min-w-[320px]"
+                >
+                  <SubtitleColorPalette
+                    theme={theme}
+                    value={currentScene.text?.color || '#000000'}
+                    onChange={(next) => {
+                      updateScene((scene) => ({
+                        ...scene,
+                        text: {
+                          ...scene.text,
+                          color: next,
+                        },
+                      }))
+                    }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* 테두리 섹션 */}
+          <div>
+            <label 
+              className="font-medium text-text-dark mb-2 block"
+              style={{ 
+                fontSize: '12px',
+                lineHeight: '16.8px'
+              }}
+            >
+              테두리
+            </label>
+            <div className="flex gap-3">
+              {/* Stroke 색상 */}
+              <div className="flex-1 relative">
+                <button
+                  type="button"
+                  onClick={() => setIsStrokeColorOpen((v) => !v)}
+                  className="w-full bg-white border border-[#d6d6d6] rounded-lg p-3 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <span
+                      className="h-5 w-5 rounded border border-gray-200 shrink-0"
+                      style={{
+                        backgroundColor: currentScene.text?.stroke?.color || '#000000',
+                      }}
+                    />
+                    <span 
+                      className="font-medium text-black"
+                      style={{ 
+                        fontSize: 'var(--font-size-14)',
+                        lineHeight: '19.6px',
+                        letterSpacing: '-0.28px'
+                      }}
+                    >
+                      {(currentScene.text?.stroke?.color || '#000000').toUpperCase()}
+                    </span>
+                  </div>
+                </button>
+                <AnimatePresence>
+                  {isStrokeColorOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute top-full left-0 mt-2 z-50 min-w-[320px]"
+                    >
+                      <SubtitleColorPalette
+                        theme={theme}
+                        value={currentScene.text?.stroke?.color || '#000000'}
+                        onChange={(next) => {
+                          updateScene((scene) => ({
+                            ...scene,
+                            text: {
+                              ...scene.text,
+                              stroke: {
+                                ...scene.text.stroke,
+                                color: next,
+                              },
+                            },
+                          }))
+                        }}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            )}
+
+              {/* Stroke 두께 */}
+              <div className="flex-1">
+                <div className="bg-white border border-[#d6d6d6] rounded-lg p-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        value={currentScene.text?.stroke?.width || 10}
+                        min={0}
+                        max={50}
+                        onChange={(e) => {
+                          const width = parseInt(e.target.value, 10)
+                          if (!isNaN(width)) {
+                            const clampedWidth = Math.min(50, Math.max(0, width))
+                            updateScene((scene) => ({
+                              ...scene,
+                              text: {
+                                ...scene.text,
+                                stroke: {
+                                  ...scene.text.stroke,
+                                  width: clampedWidth,
+                                },
+                              },
+                            }))
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const width = parseInt(e.target.value, 10)
+                          const clampedWidth = Math.min(50, Math.max(0, isNaN(width) ? 10 : width))
+                          updateScene((scene) => ({
+                            ...scene,
+                            text: {
+                              ...scene.text,
+                              stroke: {
+                                ...scene.text.stroke,
+                                width: clampedWidth,
+                              },
+                            },
+                          }))
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const width = parseInt((e.target as HTMLInputElement).value, 10)
+                            const clampedWidth = Math.min(50, Math.max(0, isNaN(width) ? 10 : width))
+                            updateScene((scene) => ({
+                              ...scene,
+                              text: {
+                                ...scene.text,
+                                stroke: {
+                                  ...scene.text.stroke,
+                                  width: clampedWidth,
+                                },
+                              },
+                            }))
+                          }
+                        }}
+                        className="h-7 text-text-dark text-center border-0 bg-transparent outline-none focus:outline-none appearance-none [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none px-0 w-auto min-w-[3ch]"
+                        style={{ 
+                          fontSize: 'var(--font-size-16)',
+                          lineHeight: '22.4px',
+                          letterSpacing: '-0.32px'
+                        }}
+                      />
+                      <span 
+                        className="font-medium text-black"
+                        style={{ 
+                          fontSize: 'var(--font-size-16)',
+                          lineHeight: '22.4px',
+                          letterSpacing: '-0.32px'
+                        }}
+                      >
+                        px
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentWidth = currentScene.text?.stroke?.width || 10
+                          const newWidth = Math.max(0, currentWidth - 1)
+                          updateScene((scene) => ({
+                            ...scene,
+                            text: {
+                              ...scene.text,
+                              stroke: {
+                                ...scene.text.stroke,
+                                width: newWidth,
+                              },
+                            },
+                          }))
+                        }}
+                        className="w-6 h-6 flex items-center justify-center"
+                      >
+                        <span className="text-black font-medium" style={{ fontSize: '16px' }}>&lt;</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentWidth = currentScene.text?.stroke?.width || 10
+                          const newWidth = Math.min(50, currentWidth + 1)
+                          updateScene((scene) => ({
+                            ...scene,
+                            text: {
+                              ...scene.text,
+                              stroke: {
+                                ...scene.text.stroke,
+                                width: newWidth,
+                              },
+                            },
+                          }))
+                        }}
+                        className="w-6 h-6 flex items-center justify-center"
+                      >
+                        <span className="text-black font-medium" style={{ fontSize: '16px' }}>&gt;</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* 타이포그래피 설정 섹션 */}
@@ -598,48 +777,6 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
             </div>
           </div>
         </div>
-        <div className="relative mt-4">
-          <input
-            type="range"
-            min={8}
-            max={200}
-            value={currentScene.text?.fontSize || 80}
-            onChange={(e) => {
-              const fontSize = parseInt(e.target.value, 10)
-              updateScene((scene) => ({
-                ...scene,
-                text: { ...scene.text, fontSize },
-              }))
-            }}
-            className="w-full range-slider"
-            style={{ 
-              height: '8px',
-              borderRadius: '60px',
-              background: `linear-gradient(to right, #88a9ac 0%, #88a9ac ${((currentScene.text?.fontSize || 80) - 8) / (200 - 8) * 100}%, #d6d6d6 ${((currentScene.text?.fontSize || 80) - 8) / (200 - 8) * 100}%, #d6d6d6 100%)`,
-              WebkitAppearance: 'none',
-              appearance: 'none',
-            }}
-          />
-        </div>
-        <style dangerouslySetInnerHTML={{__html: `
-          .range-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #88a9ac;
-            cursor: pointer;
-          }
-          .range-slider::-moz-range-thumb {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #88a9ac;
-            cursor: pointer;
-            border: none;
-          }
-        `}} />
       </div>
 
       {/* 모든 Scene에 설정 적용하기 버튼 */}

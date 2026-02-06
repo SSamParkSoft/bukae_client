@@ -19,7 +19,8 @@ export interface EnsureSceneTtsResult {
 export interface EnsureSceneTtsParams {
   timeline: TimelineData
   sceneIndex: number
-  voiceTemplate: string
+  /** @deprecated 전역 voiceTemplate은 더 이상 사용하지 않습니다. 각 씬의 scene.voiceTemplate만 사용합니다. */
+  voiceTemplate?: string
   ttsCacheRef: React.MutableRefObject<Map<string, { blob: Blob; durationSec: number; markup: string; url?: string | null; sceneId?: number; sceneIndex?: number }>>
   ttsInFlightRef: React.MutableRefObject<Map<string, Promise<{ blob: Blob; durationSec: number; markup: string; url?: string | null; sceneId?: number; sceneIndex?: number }>>>
   changedScenesRef: React.MutableRefObject<Set<number>>
@@ -44,15 +45,14 @@ export async function ensureSceneTts({
   forceRegenerate = false,
 }: EnsureSceneTtsParams): Promise<EnsureSceneTtsResult> {
   if (!timeline) throw new Error('timeline이 없습니다.')
-  if (!voiceTemplate) throw new Error('목소리를 먼저 선택해주세요.')
 
   const scene = timeline.scenes[sceneIndex]
   if (!scene) throw new Error(`씬 ${sceneIndex}을 찾을 수 없습니다.`)
 
-  // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
-  const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
-  if (!sceneVoiceTemplate) {
-    throw new Error('목소리를 먼저 선택해주세요.')
+  // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+  const sceneVoiceTemplate = scene.voiceTemplate
+  if (!sceneVoiceTemplate || sceneVoiceTemplate.trim() === '') {
+    throw new Error(`씬 ${sceneIndex + 1}에 보이스를 먼저 선택해주세요.`)
   }
 
   const markups = buildSceneMarkup(timeline, sceneIndex)
@@ -257,6 +257,17 @@ export async function ensureSceneTts({
           sceneIndex 
         }
         ttsCacheRef.current.set(key, entry)
+        
+        // 디버깅: 캐시 저장 확인
+        console.log('[ensureSceneTts] 캐시 저장 완료:', {
+          key: key.substring(0, 50),
+          hasBlob: !!blob,
+          blobSize: blob?.size,
+          blobType: blob?.type,
+          url: url?.substring(0, 50),
+          durationSec,
+        })
+        
         return entry
       })().finally(() => {
         ttsInFlightRef.current.delete(key)

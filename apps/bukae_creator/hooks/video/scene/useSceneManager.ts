@@ -234,7 +234,10 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
           wordWrap: true,
           wordWrapWidth: textWidth,
           breakWords: true,
-          stroke: { color: '#000000', width: 10 },
+          stroke: {
+            color: scene.text.stroke?.color || '#000000',
+            width: scene.text.stroke?.width ?? 10,
+          },
         }
 
         const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
@@ -398,6 +401,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         transitionDuration?: number
       }
     ) => {
+      
       if (!timeline || !appRef.current) {
         return
       }
@@ -630,14 +634,18 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
           targetTextObj.scale.set(scaleX, scaleY)
           targetTextObj.rotation = scene.text.transform.rotation ?? 0
         } else if (scene.text && targetTextObj && !targetTextObj.destroyed) {
-          // Transform이 없으면 기본 위치 설정
-          // targetTextObj가 null이 아니고 destroyed되지 않았는지 확인
-          // transform이 없을 때 공통 함수 사용
+          // Transform이 없을 때: anchor (0.5, 0.5)로 고정하고 텍스트 중앙이 subtitlePosition.x에 오도록 설정
           const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
+          
+          // anchor를 (0.5, 0.5)로 고정: 텍스트의 중앙이 기준점이 됨
+          targetTextObj.anchor.set(0.5, 0.5)
+          
+          // 텍스트의 중앙이 subtitlePosition.x, y에 오도록 설정
+          // anchor가 (0.5, 0.5)이므로 targetTextObj.x는 텍스트의 중앙 위치
           targetTextObj.x = subtitlePosition.x
           targetTextObj.y = subtitlePosition.y
-          targetTextObj.scale.set(subtitlePosition.scaleX, subtitlePosition.scaleY)
-          targetTextObj.rotation = subtitlePosition.rotation
+          targetTextObj.scale.set(subtitlePosition.scaleX ?? 1, subtitlePosition.scaleY ?? 1)
+          targetTextObj.rotation = subtitlePosition.rotation ?? 0
         }
         
         // 밑줄 렌더링 (targetTextObj가 여전히 유효한지 확인)

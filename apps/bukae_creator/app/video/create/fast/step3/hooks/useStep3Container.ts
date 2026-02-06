@@ -788,6 +788,27 @@ export function useStep3Container() {
     renderSceneImage,
   })
   
+  // Timeline의 자막 설정 변경 감지 및 자동 렌더링
+  // 현재 씬의 text 설정만 추적하여 변경 시 자막을 다시 렌더링
+  const currentSceneTextSettings = useMemo(() => {
+    if (!timeline || currentSceneIndex < 0) return null
+    return timeline.scenes[currentSceneIndex]?.text
+  }, [timeline, currentSceneIndex])
+  
+  useEffect(() => {
+    // 재생 중이 아니고, timeline과 현재 씬이 유효할 때만 자막 업데이트
+    if (!isPlaying && timeline && currentSceneIndex >= 0 && currentSceneTextSettings && renderSubtitlePart && pixiReady) {
+      console.log('[FastStep3] Timeline 자막 설정 변경 감지, 자막 다시 렌더링:', {
+        currentSceneIndex,
+        textSettings: currentSceneTextSettings,
+      })
+      // 현재 씬의 자막을 다시 렌더링 (partIndex는 null로 설정하여 전체 텍스트 렌더링)
+      renderSubtitlePart(currentSceneIndex, null, {
+        skipAnimation: true,
+      })
+    }
+  }, [currentSceneTextSettings, currentSceneIndex, isPlaying, timeline, renderSubtitlePart, pixiReady])
+  
   // UX 개선: 효과 변경 중 자동 렌더링 스킵을 위한 ref
   const isPreviewingTransitionRef = useRef<boolean>(false)
   const [isPreviewingTransition, setIsPreviewingTransitionState] = useState<boolean>(false)

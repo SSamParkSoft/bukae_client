@@ -46,19 +46,27 @@ export function step8CheckDuplicateRender(
   } | null = null
 
   // 세그먼트 정보는 참고용으로만 가져옴 (씬/파트 인덱스 보정용)
-  if (getActiveSegment) {
+  // 단, forceSceneIndex가 지정된 경우에는 세그먼트로 덮어쓰지 않음 (수동 선택된 씬 우선)
+  if (getActiveSegment && !options?.forceSceneIndex) {
     const activeSegment = getActiveSegment(tSec)
     if (activeSegment) {
       activeSegmentFromTts = activeSegment
 
       // 세그먼트의 sceneIndex/partIndex가 있으면 보정 (TTS 파일 전환 시 정확성 보장)
       // 하지만 렌더링 시점 결정은 t 기반으로 함
+      // forceSceneIndex가 있으면 세그먼트로 덮어쓰지 않음
       if (activeSegment.segment.sceneIndex !== undefined) {
         sceneIndex = activeSegment.segment.sceneIndex
       }
       if (activeSegment.segment.partIndex !== undefined) {
         partIndex = activeSegment.segment.partIndex
       }
+    }
+  } else if (getActiveSegment) {
+    // forceSceneIndex가 있는 경우에도 세그먼트 정보는 참고용으로 가져옴 (로깅 등)
+    const activeSegment = getActiveSegment(tSec)
+    if (activeSegment) {
+      activeSegmentFromTts = activeSegment
     }
   }
 

@@ -93,11 +93,9 @@ export function useFabricSync({
           })
           ;(img as fabric.Image & { dataType?: 'image' | 'text' }).dataType = 'image'
           fabricCanvas.add(img)
-        } else {
-          console.warn('[useFabricSync] 이미지 로드 실패 또는 유효하지 않은 이미지:', scene.image)
         }
       } catch (error) {
-        console.error('[useFabricSync] 이미지 로드 중 에러:', error)
+        // 이미지 로드 실패 시 무시
       }
     }
 
@@ -154,7 +152,7 @@ export function useFabricSync({
       })
       fabricCanvas.renderAll()
     } catch (error) {
-      console.error('[useFabricSync] renderAll 에러:', error)
+      // renderAll 에러 시 무시
     }
   }, [useFabricEditing, fabricCanvasRef, fabricScaleRatioRef, currentSceneIndexRef, timeline, stageDimensions])
 
