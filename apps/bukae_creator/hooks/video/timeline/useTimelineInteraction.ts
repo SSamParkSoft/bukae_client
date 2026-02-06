@@ -199,8 +199,8 @@ export function useTimelineInteraction({
       // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
       const sceneVoiceTemplate = scene.voiceTemplate
       if (!sceneVoiceTemplate) {
-        // voiceTemplate이 없으면 기본 duration 사용
-        return { partIndex: 0, partStartTime: 0, partEndTime: scene.duration }
+        // voiceTemplate이 없으면 씬의 시작 시간 반환
+        return sceneStartTime
       }
       
       let accumulatedPartTime = 0

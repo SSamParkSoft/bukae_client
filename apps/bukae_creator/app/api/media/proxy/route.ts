@@ -61,7 +61,8 @@ export async function GET(request: Request) {
       )
     }
 
-    let imageBuffer = await imageResponse.arrayBuffer()
+    const arrayBuffer = await imageResponse.arrayBuffer()
+    let imageBuffer: Buffer = Buffer.from(arrayBuffer)
     let contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
     const originalSize = imageBuffer.byteLength
 
@@ -71,7 +72,7 @@ export async function GET(request: Request) {
         const widthNum = width ? parseInt(width, 10) : undefined
         const qualityNum = quality ? parseInt(quality, 10) : 75
         
-        let sharpInstance = sharp(Buffer.from(imageBuffer))
+        let sharpInstance = sharp(imageBuffer)
         
         // width가 있으면 리사이징
         if (widthNum && widthNum > 0) {
@@ -105,8 +106,8 @@ export async function GET(request: Request) {
       )
     }
 
-    // 이미지 반환
-    return new NextResponse(imageBuffer, {
+    // 이미지 반환 (Buffer를 Uint8Array로 변환하여 NextResponse에 전달)
+    return new NextResponse(new Uint8Array(imageBuffer), {
       headers: {
         'Content-Type': contentType,
         'Cache-Control': 'public, max-age=3600',

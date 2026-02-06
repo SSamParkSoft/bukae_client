@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import type { ProStep3Scene } from '../../components/ProSceneListPanel'
+import type { ProStep3Scene } from '@/app/video/create/pro/step3/components/ProSceneListPanel'
 
 /**
  * Pro step3 재생 상태 관리 훅

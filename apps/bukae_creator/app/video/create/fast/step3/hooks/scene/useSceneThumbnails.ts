@@ -15,7 +15,7 @@ export function useSceneThumbnails({
 }: UseSceneThumbnailsParams) {
   // sceneThumbnails 최적화: scenes와 selectedImages의 실제 변경사항만 추적
   const scenesImageUrls = useMemo(() => {
-    const safeScenes = ensureSceneArray(scenes)
+    const safeScenes = ensureSceneArray<{ imageUrl?: string }>(scenes)
     return safeScenes.map(s => s.imageUrl || '')
   }, [scenes])
   
@@ -25,7 +25,7 @@ export function useSceneThumbnails({
   
   const sceneThumbnails = useMemo(
     () => {
-      const safeScenes = ensureSceneArray(scenes)
+      const safeScenes = ensureSceneArray<{ imageUrl?: string }>(scenes)
       return safeScenes.map((scene, index) => {
         const url = scene.imageUrl || selectedImages[index] || ''
         if (!url) return ''

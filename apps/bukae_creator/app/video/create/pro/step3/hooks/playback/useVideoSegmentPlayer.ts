@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react'
 import * as PIXI from 'pixi.js'
-import type { ProStep3Scene } from '../../components/ProSceneListPanel'
+import type { ProStep3Scene } from '@/app/video/create/pro/step3/components/ProSceneListPanel'
 
 interface UseVideoSegmentPlayerParams {
   /** 재생 중 여부 */
