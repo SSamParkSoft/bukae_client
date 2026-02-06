@@ -7,6 +7,7 @@ import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
 import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
 import { getSoundEffectStorageUrl } from '@/lib/utils/supabase-storage'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
+import { getSubtitlePosition } from '../renderer/utils/getSubtitlePosition'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { SceneScript } from '@/lib/types/domain/script'
 import * as PIXI from 'pixi.js'
@@ -100,6 +101,29 @@ export function useVideoExport({
       // 텍스트 transform 읽기
       if (text && text.parent) {
         const bounds = text.getBounds()
+        // 중요: PIXI.Text의 anchor가 (0,0)으로 설정되어 있으므로
+        // text.x, text.y는 Top-Left 좌표입니다!
+        const textAnchorX = text.anchor?.x ?? 0
+        const textAnchorY = text.anchor?.y ?? 0
+        
+        // 디버깅: 캔버스에서 텍스트 transform 읽기
+        console.log('[useVideoExport] 캔버스에서 텍스트 Transform 읽기:', {
+          sceneIndex,
+          pixi: {
+            x: text.x,
+            y: text.y,
+            anchorX: textAnchorX,
+            anchorY: textAnchorY,
+            width: bounds.width,
+            height: bounds.height,
+            scaleX: text.scale.x,
+            scaleY: text.scale.y,
+          },
+          주의: textAnchorX !== 0 || textAnchorY !== 0 
+            ? `PIXI anchor가 (${textAnchorX}, ${textAnchorY})입니다! Top-Left 좌표가 아닐 수 있음` 
+            : 'PIXI anchor가 (0,0)이므로 text.x, text.y는 Top-Left 좌표입니다',
+        })
+        
         sceneTransforms.textTransform = {
           x: text.x,
           y: text.y,
@@ -542,6 +566,15 @@ export function useVideoExport({
           const sceneIndex = groupItem.index
           const scene = groupItem.scene
           
+          // 디버깅: 씬 그룹 처리 시작
+          console.log('[useVideoExport] 씬 그룹 처리 시작:', {
+            sceneId,
+            sceneIndex,
+            groupSize: group.length,
+            groupItemIndex: groupItem.index,
+            sceneTextContent: scene.text?.content?.substring(0, 50) || '',
+          })
+          
           // 텍스트를 ||| 구분자로 분할
           const textContent = scene.text?.content || ''
           const textParts = splitSubtitleByDelimiter(textContent)
@@ -654,6 +687,9 @@ export function useVideoExport({
                   const textTransform = sceneCanvasTransform?.textTransform || scene.text.transform
                   
                   if (textTransform) {
+                    // 인코딩 시: anchor를 항상 (0.5, 0.5)로 고정하고 x, y값을 그대로 전송
+                    // 프론트엔드 렌더링에서 이미 anchor (0.5, 0.5) 기준으로 x, y를 설정했으므로
+                    // 그 값을 그대로 사용하면 됨
                     return {
                       ...textTransform,
                       anchor: {
@@ -663,24 +699,18 @@ export function useVideoExport({
                     }
                   }
                   
-                  // transform이 없으면 position 기반으로 Y 좌표 계산
-                  const position = scene.text.position || 'center'
-                  let textY = height / 2 // center 기본값
-                  if (position === 'top') {
-                    textY = 200
-                  } else if (position === 'bottom') {
-                    textY = height - 200 // 1920 - 200 = 1720
-                  }
+                  // transform이 없을 때: getSubtitlePosition 사용하고 anchor (0.5, 0.5)로 고정
+                  const subtitlePosition = getSubtitlePosition(scene, { width, height })
                   
                   return {
-                    x: width / 2,
-                    y: textY,
-                    width: width * 0.75,
-                    height: height * 0.07,
-                    scaleX: 1,
-                    scaleY: 1,
-                    rotation: 0,
-                    anchor: { x: 0.5, y: 0.5 },
+                    x: subtitlePosition.x,
+                    y: subtitlePosition.y,
+                    width: width * 0.75, // 기본 너비 (실제 텍스트 크기는 백엔드에서 계산)
+                    height: height * 0.07, // 기본 높이 (실제 텍스트 크기는 백엔드에서 계산)
+                    scaleX: subtitlePosition.scaleX ?? 1,
+                    scaleY: subtitlePosition.scaleY ?? 1,
+                    rotation: subtitlePosition.rotation ?? 0,
+                    anchor: { x: 0.5, y: 0.5 }, // 항상 (0.5, 0.5)로 고정
                   }
                 })(),
               },

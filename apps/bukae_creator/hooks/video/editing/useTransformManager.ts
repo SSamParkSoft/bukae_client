@@ -170,22 +170,43 @@ export function useTransformManager({
         return
       }
 
+      // 리사이즈 후 텍스트가 리렌더링되도록 강제
+      // wordWrapWidth 변경 후 텍스트를 다시 설정하여 리렌더링 트리거
+      const currentWordWrapWidth = text.style?.wordWrapWidth
+      if (currentWordWrapWidth && currentWordWrapWidth > 0) {
+        // 스타일이 변경되었을 수 있으므로 텍스트를 다시 설정하여 리렌더링
+        const originalText = text.text
+        text.text = originalText || ''
+      }
+
+      // PIXI.js가 텍스트를 리렌더링할 시간을 주기 위해 requestAnimationFrame 사용
+      // 하지만 동기적으로 처리해야 하므로, getBounds()를 여러 번 호출하여 안정화
       let bounds: PIXI.Bounds
       try {
+        // 첫 번째 호출로 리렌더링 트리거
+        bounds = text.getBounds()
+        // 두 번째 호출로 안정화된 크기 가져오기
         bounds = text.getBounds()
       } catch {
         // getBounds 실패 시 종료
         return
       }
 
-      const currentWordWrapWidth = text.style?.wordWrapWidth || bounds.width
+      const finalWordWrapWidth = text.style?.wordWrapWidth || bounds.width
       width = bounds.width
       height = bounds.height
-      scaleX = 1
-      scaleY = 1
-      baseWidth = currentWordWrapWidth
+      scaleX = text.scale.x
+      scaleY = text.scale.y
+      baseWidth = finalWordWrapWidth
       baseHeight = bounds.height
 
+      // PIXI.Text의 anchor 확인 (중요: anchor 정보 파악)
+      // 현재는 항상 (0.5, 0.5)로 고정되어 있으므로 항상 저장
+      const anchorX = text.anchor?.x ?? 0.5
+      const anchorY = text.anchor?.y ?? 0.5
+      
+      // anchor 정보를 함께 저장하여 렌더링 시 올바른 위치 계산 가능하도록 함
+      // 인코딩 시에도 anchor (0.5, 0.5)로 고정하므로 항상 저장
       const transform = {
         x: text.x,
         y: text.y,
@@ -196,7 +217,29 @@ export function useTransformManager({
         rotation: text.rotation,
         baseWidth,
         baseHeight,
+        // anchor 정보 저장 (항상 (0.5, 0.5)로 고정)
+        anchor: { x: 0.5, y: 0.5 },
       }
+
+      // 디버깅: PIXI.js에서 텍스트 transform 저장 시 로그
+      console.log('[useTransformManager] 텍스트 Transform 저장:', {
+        sceneIndex,
+        pixi: {
+          x: text.x,
+          y: text.y,
+          anchorX,
+          anchorY,
+          width,
+          height,
+          bounds: {
+            width: bounds.width,
+            height: bounds.height,
+            x: bounds.x,
+            y: bounds.y,
+          },
+        },
+        transform,
+      })
 
       isSavingTransformRef.current = true
 

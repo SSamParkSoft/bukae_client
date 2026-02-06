@@ -167,6 +167,10 @@ export function useFabricHandlers({
         scaledHeight = target.height || 0
       }
 
+      // Fabric.js의 originX/originY 확인 (중요: anchor 정보 파악)
+      const originX = (target as fabric.Object).originX || 'left'
+      const originY = (target as fabric.Object).originY || 'top'
+      
       const nextTransform = {
         x: (target.left ?? 0) * invScale,
         y: (target.top ?? 0) * invScale,
@@ -176,6 +180,23 @@ export function useFabricHandlers({
         scaleY: 1,
         rotation: ((target.angle || 0) * Math.PI) / 180,
       }
+
+      // 디버깅: Fabric.js에서 텍스트 transform 저장 시 로그
+      console.log('[useFabricHandlers] 텍스트 Transform 저장:', {
+        sceneIndex,
+        fabric: {
+          left: target.left,
+          top: target.top,
+          originX,
+          originY,
+          width: target.width,
+          scaledWidth,
+          textAlign: target.textAlign,
+        },
+        transform: nextTransform,
+        scale,
+        invScale,
+      })
 
       const textContent = target.text ?? ''
       const baseFontSize = target.fontSize ?? DEFAULT_FONT_SIZE

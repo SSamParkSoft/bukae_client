@@ -48,13 +48,6 @@ function buildSegmentsFromTimeline(
   const segments: TtsSegment[] = []
   let accumulatedTime = 0
   
-  // 디버깅: 함수 호출 확인
-  console.log('[buildSegmentsFromTimeline] 시작:', {
-    scenesCount: timeline.scenes.length,
-    voiceTemplate,
-    cacheSize: ttsCacheRef.current.size,
-    cacheKeys: Array.from(ttsCacheRef.current.keys()).slice(0, 3),
-  })
 
 for (let sceneIndex = 0; sceneIndex < timeline.scenes.length; sceneIndex++) {
     const scene = timeline.scenes[sceneIndex]
@@ -129,14 +122,6 @@ for (let sceneIndex = 0; sceneIndex < timeline.scenes.length; sceneIndex++) {
         // blob이 있으면 blob URL 생성 (네트워크 요청 없음)
         try {
           segmentUrl = URL.createObjectURL(cached.blob)
-          // 디버깅: blob URL 생성 확인
-          if (segmentUrl && segmentUrl.startsWith('blob:')) {
-            console.log('[buildSegmentsFromTimeline] blob URL 생성 성공:', {
-              segmentId,
-              blobSize: cached.blob.size,
-              blobType: cached.blob.type,
-            })
-          }
         } catch (error) {
           console.error('[buildSegmentsFromTimeline] blob URL 생성 실패:', error, {
             segmentId,
@@ -163,19 +148,6 @@ for (let sceneIndex = 0; sceneIndex < timeline.scenes.length; sceneIndex++) {
       accumulatedTime += cached.durationSec
     }
   }
-  
-  // 디버깅: 세그먼트 생성 결과 확인
-  console.log('[buildSegmentsFromTimeline] 완료:', {
-    segmentsCount: segments.length,
-    segmentsWithUrl: segments.filter(s => s.url && s.url.trim() !== '').length,
-    totalDuration: accumulatedTime,
-    sampleSegments: segments.slice(0, 3).map(s => ({
-      id: s.id,
-      hasUrl: !!s.url && s.url.trim() !== '',
-      urlType: s.url?.startsWith('blob:') ? 'blob' : s.url?.startsWith('http') ? 'http' : 'empty',
-      durationSec: s.durationSec,
-    })),
-  })
 
   return segments
 }

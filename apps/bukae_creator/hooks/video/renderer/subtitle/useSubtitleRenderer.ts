@@ -29,8 +29,9 @@ export function normalizeAnchorToTopLeft(
   const scaledH = height * scaleY
   
   // Anchor (0~1)를 픽셀 오프셋으로 변환
-  const offsetX = scaledW * (anchorX - 0.5)
-  const offsetY = scaledH * (anchorY - 0.5)
+  // 서버 공식: Box_x = Input_x - (Width × Scale_x × Anchor_x)
+  const offsetX = scaledW * anchorX
+  const offsetY = scaledH * anchorY
   
   // Top-left 좌표 계산
   const boxX = x - offsetX
@@ -114,6 +115,7 @@ export function useSubtitleRenderer({
 
       const scene = timeline.scenes[sceneIndex]
       if (!scene) {
+        console.warn('[useSubtitleRenderer] 씬이 없음:', { sceneIndex, totalScenes: timeline.scenes.length })
         if (options?.onComplete) {
           options.onComplete()
         }
@@ -270,10 +272,7 @@ export function useSubtitleRenderer({
         }
       }
 
-      // 텍스트 업데이트
-      targetTextObj.text = partText
-
-      // 자막 스타일 업데이트
+      // 자막 스타일 업데이트 (스타일을 먼저 설정한 후 텍스트를 설정해야 스타일이 적용됨)
       if (scene.text) {
         const textObj = targetTextObj
         const fontFamily = resolveSubtitleFontFamily(scene.text.font)
@@ -300,97 +299,156 @@ export function useSubtitleRenderer({
 
         const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
         textObj.style = textStyle
+        
+        // 중요: PIXI.js에서 style을 변경한 후에는 text를 다시 설정해야 스타일이 적용됨
+        // 텍스트 업데이트 (스타일 적용을 위해 스타일 설정 후에 실행)
+        textObj.text = partText
 
-        // 텍스트 Transform 적용 (ANIMATION.md 박스+정렬 규칙)
-        // 텍스트 스타일이 설정된 후에 bounds를 계산할 수 있도록 여기서 처리
+        // 텍스트 Transform 적용
+        // 인코딩 시 anchor (0.5, 0.5)로 고정하고 x, y값을 그대로 사용
         if (scene.text.transform) {
           const transform = scene.text.transform
           const scaleX = transform.scaleX ?? 1
           const scaleY = transform.scaleY ?? 1
           
-          // Anchor 및 정렬 기본값 설정 (하위 호환성)
-          const anchorX = transform.anchor?.x ?? 0.5
-          const anchorY = transform.anchor?.y ?? 0.5
-          const hAlign = transform.hAlign ?? 'center'
-          // vAlign은 middle 고정 (ANIMATION.md 6.3)
+          // anchor를 항상 (0.5, 0.5)로 고정 (저장 시점에도 (0.5, 0.5)로 저장됨)
+          textObj.anchor.set(0.5, 0.5)
           
-          // Anchor→TopLeft 정규화 (ANIMATION.md 6.2)
-          const { boxX, boxY, boxW, boxH } = normalizeAnchorToTopLeft(
-            transform.x,
-            transform.y,
-            transform.width,
-            transform.height,
-            scaleX,
-            scaleY,
-            anchorX,
-            anchorY
-          )
+          // 저장된 x, y값을 그대로 사용 (이미 anchor (0.5, 0.5) 기준의 중앙 좌표)
+          const textX = transform.x
+          const textY = transform.y
           
-          // 텍스트 실제 크기 계산 (PIXI.Text의 getLocalBounds 사용)
-          // 스타일이 설정된 후이므로 bounds를 계산할 수 있음
+          // 텍스트 실제 크기 계산 (스타일이 설정된 후이므로 bounds를 계산할 수 있음)
           const textBounds = textObj.getLocalBounds()
           const measuredTextWidth = textBounds.width || 0
           const measuredTextHeight = textBounds.height || 0
           
-          // 박스 내부 정렬 계산 (ANIMATION.md 6.3)
-          // vAlign은 middle 고정이므로 파라미터로 전달하지 않음
-          const { textX, textY } = calculateTextPositionInBox(
-            boxX,
-            boxY,
-            boxW,
-            boxH,
-            measuredTextWidth,
-            measuredTextHeight,
-            hAlign
-          )
-          
-          // 디버깅 로그 (개발 모드)
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[useTransportRenderer] Subtitle Box+Align Calculation:', {
-              sceneIndex,
-              partIndex,
-              transform: {
-                x: transform.x,
-                y: transform.y,
-                width: transform.width,
-                height: transform.height,
-                scaleX,
-                scaleY,
-                anchorX,
-                anchorY,
-                hAlign,
-              },
-              box: {
-                boxX: boxX.toFixed(2),
-                boxY: boxY.toFixed(2),
-                boxW: boxW.toFixed(2),
-                boxH: boxH.toFixed(2),
-              },
-              text: {
-                measuredWidth: measuredTextWidth.toFixed(2),
-                measuredHeight: measuredTextHeight.toFixed(2),
-                textX: textX.toFixed(2),
-                textY: textY.toFixed(2),
-              },
-            })
-          }
-          
-          // PIXI.Text의 anchor를 (0, 0)으로 설정하고 계산된 위치 사용
-          textObj.anchor.set(0, 0)
+          // anchor를 (0.5, 0.5)로 고정하고 저장된 x, y값을 그대로 사용
           textObj.x = textX
           textObj.y = textY
           textObj.scale.set(scaleX, scaleY)
           textObj.rotation = transform.rotation ?? 0
+          
+          // 자막 위치 디버깅용 로그 (transform 존재, 위치 설정 후 출력)
+          console.log('[SubtitleRenderer] position (with transform)', {
+            sceneIndex,
+            partIndex,
+            textContent: partText.substring(0, 50),
+            style: {
+              fill: styleConfig.fill,
+              fontSize: styleConfig.fontSize,
+              fontFamily,
+              fontWeight,
+              stroke: styleConfig.stroke,
+            },
+            transform: {
+              x: transform.x,
+              y: transform.y,
+              width: transform.width,
+              height: transform.height,
+              scaleX,
+              scaleY,
+              rotation: transform.rotation ?? 0,
+            },
+            textSize: {
+              width: measuredTextWidth,
+              height: measuredTextHeight,
+            },
+            pixiTextProps: {
+              x: textObj.x,
+              y: textObj.y,
+              anchorX: textObj.anchor.x,
+              anchorY: textObj.anchor.y,
+              scaleX: textObj.scale.x,
+              scaleY: textObj.scale.y,
+              rotation: textObj.rotation,
+              visible: textObj.visible,
+              alpha: textObj.alpha,
+            },
+          })
         } else {
-          // transform이 없을 때 공통 함수 사용
+          // transform이 없을 때: anchor (0.5, 0.5)로 고정하고 텍스트 중앙이 subtitlePosition.x에 오도록 설정
           const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
           
+          // 텍스트 실제 크기 계산 (anchor 변경 전에 측정)
+          // anchor를 변경하면 getLocalBounds()의 결과가 달라질 수 있으므로,
+          // 현재 anchor 상태에서 먼저 측정한 후 anchor 변경
+          const textBounds = textObj.getLocalBounds()
+          const measuredTextWidth = textBounds.width || 0
+          const measuredTextHeight = textBounds.height || 0
+          
+          // transform이 없을 때 wordWrapWidth 문제 해결:
+          // wordWrapWidth가 stageWidth (1080)로 설정되어 있으면 텍스트가 그 너비 내에서 정렬되어
+          // 실제 텍스트 너비와 다를 수 있습니다. 따라서 wordWrapWidth를 실제 텍스트 너비로 업데이트하고
+          // align을 'center'로 강제하여 텍스트가 정확히 중앙에 오도록 합니다.
+          let finalTextWidth = measuredTextWidth
+          let finalTextHeight = measuredTextHeight
+          
+          if (measuredTextWidth > 0) {
+            // 텍스트 스타일 업데이트: wordWrapWidth를 실제 텍스트 너비로 설정하고 align을 center로 강제
+            const currentStyle = textObj.style as PIXI.TextStyle
+            const updatedStyle = new PIXI.TextStyle({
+              ...currentStyle,
+              wordWrapWidth: measuredTextWidth,
+              align: 'center', // transform이 없을 때는 항상 중앙 정렬
+            })
+            textObj.style = updatedStyle
+            // 스타일 변경 후 텍스트를 다시 설정하여 스타일이 적용되도록 함
+            textObj.text = partText
+            // 스타일 업데이트 후 다시 bounds 측정 (wordWrapWidth 변경으로 인해 크기가 달라질 수 있음)
+            const updatedBounds = textObj.getLocalBounds()
+            finalTextWidth = updatedBounds.width || measuredTextWidth
+            finalTextHeight = updatedBounds.height || measuredTextHeight
+          }
+          
+          // anchor를 (0.5, 0.5)로 고정: 텍스트의 중앙이 기준점이 됨
+          textObj.anchor.set(0.5, 0.5)
+          
+          // 텍스트의 중앙이 subtitlePosition.x, y에 오도록 설정
+          // anchor가 (0.5, 0.5)이므로 textObj.x는 텍스트의 중앙 위치
           textObj.x = subtitlePosition.x
           textObj.y = subtitlePosition.y
-          textObj.scale.set(subtitlePosition.scaleX, subtitlePosition.scaleY)
-          textObj.rotation = subtitlePosition.rotation
-          // 기존 방식: anchor를 중앙으로 설정
-          textObj.anchor.set(0.5, 0.5)
+          textObj.scale.set(subtitlePosition.scaleX ?? 1, subtitlePosition.scaleY ?? 1)
+          textObj.rotation = subtitlePosition.rotation ?? 0
+          
+          // 자막 위치 디버깅용 로그 (transform 없음, 위치 설정 후 출력)
+          console.log('[SubtitleRenderer] position (no transform)', {
+            sceneIndex,
+            partIndex,
+            textContent: partText.substring(0, 50),
+            style: {
+              fill: styleConfig.fill,
+              fontSize: styleConfig.fontSize,
+              fontFamily,
+              fontWeight,
+              stroke: styleConfig.stroke,
+              align: textObj.style.align,
+              wordWrapWidth: textObj.style.wordWrapWidth,
+            },
+            subtitlePosition: {
+              x: subtitlePosition.x,
+              y: subtitlePosition.y,
+              scaleX: subtitlePosition.scaleX ?? 1,
+              scaleY: subtitlePosition.scaleY ?? 1,
+            },
+            textSize: {
+              width: finalTextWidth,
+              height: finalTextHeight,
+              initialWidth: measuredTextWidth,
+              initialHeight: measuredTextHeight,
+            },
+            pixiTextProps: {
+              x: textObj.x,
+              y: textObj.y,
+              anchorX: textObj.anchor.x,
+              anchorY: textObj.anchor.y,
+              scaleX: textObj.scale.x,
+              scaleY: textObj.scale.y,
+              rotation: textObj.rotation,
+              visible: textObj.visible,
+              alpha: textObj.alpha,
+            },
+          })
         }
 
         // 밑줄 렌더링 (Transform 적용 후에 처리)
