@@ -115,7 +115,6 @@ export function useSubtitleRenderer({
 
       const scene = timeline.scenes[sceneIndex]
       if (!scene) {
-        console.warn('[useSubtitleRenderer] 씬이 없음:', { sceneIndex, totalScenes: timeline.scenes.length })
         if (options?.onComplete) {
           options.onComplete()
         }
@@ -328,44 +327,6 @@ export function useSubtitleRenderer({
           textObj.y = textY
           textObj.scale.set(scaleX, scaleY)
           textObj.rotation = transform.rotation ?? 0
-          
-          // 자막 위치 디버깅용 로그 (transform 존재, 위치 설정 후 출력)
-          console.log('[SubtitleRenderer] position (with transform)', {
-            sceneIndex,
-            partIndex,
-            textContent: partText.substring(0, 50),
-            style: {
-              fill: styleConfig.fill,
-              fontSize: styleConfig.fontSize,
-              fontFamily,
-              fontWeight,
-              stroke: styleConfig.stroke,
-            },
-            transform: {
-              x: transform.x,
-              y: transform.y,
-              width: transform.width,
-              height: transform.height,
-              scaleX,
-              scaleY,
-              rotation: transform.rotation ?? 0,
-            },
-            textSize: {
-              width: measuredTextWidth,
-              height: measuredTextHeight,
-            },
-            pixiTextProps: {
-              x: textObj.x,
-              y: textObj.y,
-              anchorX: textObj.anchor.x,
-              anchorY: textObj.anchor.y,
-              scaleX: textObj.scale.x,
-              scaleY: textObj.scale.y,
-              rotation: textObj.rotation,
-              visible: textObj.visible,
-              alpha: textObj.alpha,
-            },
-          })
         } else {
           // transform이 없을 때: anchor (0.5, 0.5)로 고정하고 텍스트 중앙이 subtitlePosition.x에 오도록 설정
           const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
@@ -410,45 +371,6 @@ export function useSubtitleRenderer({
           textObj.y = subtitlePosition.y
           textObj.scale.set(subtitlePosition.scaleX ?? 1, subtitlePosition.scaleY ?? 1)
           textObj.rotation = subtitlePosition.rotation ?? 0
-          
-          // 자막 위치 디버깅용 로그 (transform 없음, 위치 설정 후 출력)
-          console.log('[SubtitleRenderer] position (no transform)', {
-            sceneIndex,
-            partIndex,
-            textContent: partText.substring(0, 50),
-            style: {
-              fill: styleConfig.fill,
-              fontSize: styleConfig.fontSize,
-              fontFamily,
-              fontWeight,
-              stroke: styleConfig.stroke,
-              align: textObj.style.align,
-              wordWrapWidth: textObj.style.wordWrapWidth,
-            },
-            subtitlePosition: {
-              x: subtitlePosition.x,
-              y: subtitlePosition.y,
-              scaleX: subtitlePosition.scaleX ?? 1,
-              scaleY: subtitlePosition.scaleY ?? 1,
-            },
-            textSize: {
-              width: finalTextWidth,
-              height: finalTextHeight,
-              initialWidth: measuredTextWidth,
-              initialHeight: measuredTextHeight,
-            },
-            pixiTextProps: {
-              x: textObj.x,
-              y: textObj.y,
-              anchorX: textObj.anchor.x,
-              anchorY: textObj.anchor.y,
-              scaleX: textObj.scale.x,
-              scaleY: textObj.scale.y,
-              rotation: textObj.rotation,
-              visible: textObj.visible,
-              alpha: textObj.alpha,
-            },
-          })
         }
 
         // 밑줄 렌더링 (Transform 적용 후에 처리)

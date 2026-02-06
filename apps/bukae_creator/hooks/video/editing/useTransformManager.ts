@@ -221,26 +221,6 @@ export function useTransformManager({
         anchor: { x: 0.5, y: 0.5 },
       }
 
-      // 디버깅: PIXI.js에서 텍스트 transform 저장 시 로그
-      console.log('[useTransformManager] 텍스트 Transform 저장:', {
-        sceneIndex,
-        pixi: {
-          x: text.x,
-          y: text.y,
-          anchorX,
-          anchorY,
-          width,
-          height,
-          bounds: {
-            width: bounds.width,
-            height: bounds.height,
-            x: bounds.x,
-            y: bounds.y,
-          },
-        },
-        transform,
-      })
-
       isSavingTransformRef.current = true
 
       const nextTimeline: TimelineData = {

@@ -69,7 +69,7 @@ export function useSceneLoader({
         }
         child.destroy({ children: true })
       } catch (error) {
-        console.warn('[useSceneLoader] Error destroying child:', error)
+        // 에러 무시
       }
     })
     container.removeChildren()
@@ -89,7 +89,7 @@ export function useSceneLoader({
           sprite.destroy({ children: true })
         }
       } catch (error) {
-        console.warn('[useSceneLoader] Error destroying sprite:', error)
+        // 에러 무시
       }
     })
     spritesRef.current.clear()
@@ -121,7 +121,7 @@ export function useSceneLoader({
           text.destroy({ children: true })
         }
       } catch (error) {
-        console.warn('[useSceneLoader] Error destroying text:', error)
+        // 에러 무시
       }
     })
     textsRef.current.clear()
@@ -170,7 +170,6 @@ export function useSceneLoader({
 
         // 이미지 URL 유효성 검사
         if (!imageToUse || imageToUse.trim() === '') {
-          console.warn(`[useSceneLoader] 씬 ${sceneIndex}의 이미지 URL이 없습니다.`)
           return
         }
 
@@ -179,12 +178,11 @@ export function useSceneLoader({
         try {
           texture = await loadPixiTextureWithCache(imageToUse)
         } catch (error) {
-          console.error(`[useSceneLoader] 씬 ${sceneIndex}의 텍스처 로드 중 에러 발생:`, error)
+          // 텍스처 로드 실패 시 무시
         }
         
         // texture 유효성 검사 및 fallback 처리
         if (!texture) {
-          console.warn(`[useSceneLoader] 씬 ${sceneIndex}의 텍스처 로드 실패, placeholder 사용: ${imageToUse.substring(0, 50)}...`)
           // placeholder texture 생성 (1x1 검은색)
           try {
             const canvas = document.createElement('canvas')
@@ -206,7 +204,6 @@ export function useSceneLoader({
         // texture의 width와 height가 유효한지 확인
         if (!texture || typeof texture.width !== 'number' || typeof texture.height !== 'number' || 
             texture.width <= 0 || texture.height <= 0) {
-          console.error(`[useSceneLoader] 씬 ${sceneIndex}의 텍스처 크기가 유효하지 않습니다: ${texture?.width}x${texture?.height}`)
           // 빈 텍스처로 대체
           texture = PIXI.Texture.EMPTY
         }
@@ -331,7 +328,6 @@ export function useSceneLoader({
               requestAnimationFrame(() => {
                 // text가 null이거나 destroyed 상태인지 확인
                 if (!text || text.destroyed) {
-                  console.warn('[useSceneLoader] text 객체가 유효하지 않습니다 (transform 있음)')
                   return
                 }
                 
@@ -347,7 +343,7 @@ export function useSceneLoader({
                   try {
                     appRef.current.renderer.render(containerRef.current)
                   } catch (renderError) {
-                    console.warn('[useSceneLoader] 렌더러 호출 실패 (transform 있음):', renderError)
+                    // 렌더러 호출 실패 시 무시
                   }
                 }
                 
@@ -364,7 +360,7 @@ export function useSceneLoader({
                     try {
                       appRef.current.renderer.render(containerRef.current)
                     } catch (renderError) {
-                      console.warn('[useSceneLoader] 렌더러 재호출 실패 (transform 있음):', renderError)
+                      // 렌더러 재호출 실패 시 무시
                     }
                   }
                   const retryBounds = text.getLocalBounds()
@@ -466,7 +462,7 @@ export function useSceneLoader({
           }
         }
       } catch (error) {
-        console.error(`Failed to load scene ${sceneIndex}:`, error)
+        // 씬 로드 실패 시 무시
       }
     }
 

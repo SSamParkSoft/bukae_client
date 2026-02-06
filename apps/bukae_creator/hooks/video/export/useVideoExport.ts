@@ -102,28 +102,6 @@ export function useVideoExport({
       if (text && text.parent) {
         const bounds = text.getBounds()
         // 중요: PIXI.Text의 anchor가 (0,0)으로 설정되어 있으므로
-        // text.x, text.y는 Top-Left 좌표입니다!
-        const textAnchorX = text.anchor?.x ?? 0
-        const textAnchorY = text.anchor?.y ?? 0
-        
-        // 디버깅: 캔버스에서 텍스트 transform 읽기
-        console.log('[useVideoExport] 캔버스에서 텍스트 Transform 읽기:', {
-          sceneIndex,
-          pixi: {
-            x: text.x,
-            y: text.y,
-            anchorX: textAnchorX,
-            anchorY: textAnchorY,
-            width: bounds.width,
-            height: bounds.height,
-            scaleX: text.scale.x,
-            scaleY: text.scale.y,
-          },
-          주의: textAnchorX !== 0 || textAnchorY !== 0 
-            ? `PIXI anchor가 (${textAnchorX}, ${textAnchorY})입니다! Top-Left 좌표가 아닐 수 있음` 
-            : 'PIXI anchor가 (0,0)이므로 text.x, text.y는 Top-Left 좌표입니다',
-        })
-        
         sceneTransforms.textTransform = {
           x: text.x,
           y: text.y,
@@ -149,17 +127,12 @@ export function useVideoExport({
       return
     }
 
-    // 디버깅: voiceTemplate 값 확인
-    console.log('[useVideoExport] voiceTemplate 값:', voiceTemplate, '타입:', typeof voiceTemplate)
-
     if (!timeline) {
       alert('타임라인 데이터가 없어요.')
       return
     }
 
     if (!voiceTemplate || voiceTemplate.trim() === '') {
-      console.warn('[useVideoExport] voiceTemplate이 없거나 빈 문자열입니다:', voiceTemplate)
-      console.error('[useVideoExport] 목소리를 먼저 선택해주세요.')
       alert('목소리를 먼저 선택해주세요.')
       return
     }
@@ -175,7 +148,6 @@ export function useVideoExport({
 
       // 0. 모든 씬의 캔버스 상태 읽기 (최신 transform 정보)
       const canvasTransforms = getAllCanvasTransforms()
-      console.log('[useVideoExport] 캔버스 상태 읽기 완료:', canvasTransforms.size, '개 씬')
 
       // 1. 모든 씬에 voiceTemplate이 있는지 먼저 검증
       // 하나라도 없으면 전체 내보내기 차단
@@ -304,7 +276,6 @@ export function useVideoExport({
 
                     if (!uploadRes.ok) {
                       const errorData = await uploadRes.json().catch(() => ({}))
-                      console.error(`[useVideoExport] 씬 ${sceneIndex + 1} 구간 ${part.partIndex + 1} 업로드 실패:`, errorData.error || '알 수 없는 오류')
                       partUrls.set(part.partIndex, null)
                       return
                     }
@@ -312,7 +283,6 @@ export function useVideoExport({
                     const uploadData = await uploadRes.json()
                     partUrls.set(part.partIndex, uploadData.url || null)
                   } catch (error) {
-                    console.error(`[useVideoExport] 씬 ${sceneIndex} 구간 ${part.partIndex + 1} 업로드 실패:`, error)
                     partUrls.set(part.partIndex, null)
                   }
                 })()
@@ -383,7 +353,6 @@ export function useVideoExport({
 
                         if (!uploadRes.ok) {
                           const errorData = await uploadRes.json().catch(() => ({}))
-                          console.error(`[useVideoExport] 씬 ${sceneIndex + 1} 구간 ${part.partIndex + 1} 업로드 실패:`, errorData.error || '알 수 없는 오류')
                           partUrls.set(part.partIndex, null)
                           return
                         }
@@ -391,7 +360,6 @@ export function useVideoExport({
                         const uploadData = await uploadRes.json()
                         partUrls.set(part.partIndex, uploadData.url || null)
                       } catch (error) {
-                        console.error(`[useVideoExport] 씬 ${sceneIndex} 구간 ${part.partIndex + 1} 업로드 실패:`, error)
                         partUrls.set(part.partIndex, null)
                       }
                     })()
@@ -471,7 +439,6 @@ export function useVideoExport({
 
                     if (!uploadRes.ok) {
                       const errorData = await uploadRes.json().catch(() => ({}))
-                      console.error(`[useVideoExport] 씬 ${index + 1} 구간 ${part.partIndex + 1} 업로드 실패:`, errorData.error || '알 수 없는 오류')
                       partUrls.set(part.partIndex, null)
                       return
                     }
@@ -479,7 +446,6 @@ export function useVideoExport({
                     const uploadData = await uploadRes.json()
                     partUrls.set(part.partIndex, uploadData.url || null)
                   } catch (error) {
-                    console.error(`[useVideoExport] 씬 ${index} 구간 ${part.partIndex + 1} 업로드 실패:`, error)
                     partUrls.set(part.partIndex, null)
                   }
                 })()
@@ -499,7 +465,7 @@ export function useVideoExport({
             }))
             ttsPartsByScene.set(index, partsInfo)
           } catch (error) {
-            console.error(`[useVideoExport] 씬 ${index} TTS 정보 가져오기 실패:`, error)
+            // TTS 정보 가져오기 실패 시 무시
           }
         }
       }
@@ -565,15 +531,6 @@ export function useVideoExport({
         group.forEach((groupItem) => {
           const sceneIndex = groupItem.index
           const scene = groupItem.scene
-          
-          // 디버깅: 씬 그룹 처리 시작
-          console.log('[useVideoExport] 씬 그룹 처리 시작:', {
-            sceneId,
-            sceneIndex,
-            groupSize: group.length,
-            groupItemIndex: groupItem.index,
-            sceneTextContent: scene.text?.content?.substring(0, 50) || '',
-          })
           
           // 텍스트를 ||| 구분자로 분할
           const textContent = scene.text?.content || ''
@@ -788,13 +745,6 @@ export function useVideoExport({
         encodingRequest,
       }
 
-      // 서버로 전송하는 JSON 바디 로그 출력
-      console.log('=== 인코딩 요청 JSON 바디 ===')
-      console.log('voiceTemplate 원본 값:', voiceTemplate)
-      console.log('audio.voice 값:', encodingRequest.audio.voice)
-      console.log(JSON.stringify(exportData, null, 2))
-      console.log('===========================')
-
       // 7. 최종 인코딩 요청 전송
       const response = await fetch('/api/videos/generate', {
         method: 'POST',
@@ -805,11 +755,6 @@ export function useVideoExport({
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         const errorMessage = errorData.error || errorData.message || `영상 생성 실패 (${response.status})`
-        console.error('=== 내보내기 에러 ===')
-        console.error('Status:', response.status)
-        console.error('Error Data:', errorData)
-        console.error('Request Body:', JSON.stringify(exportData, null, 2))
-        console.error('==================')
         throw new Error(errorMessage)
       }
 

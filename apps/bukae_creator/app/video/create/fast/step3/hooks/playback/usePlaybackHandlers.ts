@@ -227,8 +227,7 @@ export function usePlaybackHandlers({
         return
       }
       
-      // 기타 오류는 콘솔에만 출력
-      console.error('[씬 재생] 오류:', error)
+      // 기타 오류는 무시
     }
   }, [setIsPlaying, setCurrentTime, router, setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, voiceTemplateRef, onScenePlayStart, isPlaying, playingSceneIndex])
 

@@ -398,15 +398,6 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         transitionDuration?: number
       }
     ) => {
-      // 디버깅: useSceneManager의 renderSceneContent 호출 확인
-      console.log('[useSceneManager] renderSceneContent 호출:', {
-        sceneIndex,
-        partIndex,
-        timelineExists: !!timeline,
-        appExists: !!appRef.current,
-        totalScenes: timeline?.scenes?.length || 0,
-        호출스택: new Error().stack?.split('\n').slice(1, 4).join(' -> '),
-      })
       
       if (!timeline || !appRef.current) {
         return

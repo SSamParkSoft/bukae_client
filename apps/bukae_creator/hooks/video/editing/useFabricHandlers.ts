@@ -181,23 +181,6 @@ export function useFabricHandlers({
         rotation: ((target.angle || 0) * Math.PI) / 180,
       }
 
-      // 디버깅: Fabric.js에서 텍스트 transform 저장 시 로그
-      console.log('[useFabricHandlers] 텍스트 Transform 저장:', {
-        sceneIndex,
-        fabric: {
-          left: target.left,
-          top: target.top,
-          originX,
-          originY,
-          width: target.width,
-          scaledWidth,
-          textAlign: target.textAlign,
-        },
-        transform: nextTransform,
-        scale,
-        invScale,
-      })
-
       const textContent = target.text ?? ''
       const baseFontSize = target.fontSize ?? DEFAULT_FONT_SIZE
       const textScaleY = target.scaleY ?? 1

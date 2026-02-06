@@ -122,7 +122,6 @@ export function usePlaybackState({
         
         // 음성이 없는 씬이 하나라도 있으면 전체 재생 차단
         if (scenesWithoutVoice.length > 0) {
-          console.warn('[usePlaybackState] 음성이 없는 씬이 있습니다:', scenesWithoutVoice)
           alert(`씬 ${scenesWithoutVoice.map(i => i + 1).join(', ')}에 보이스를 설정해주세요.`)
           setIsPreparing(false)
           return // 재생 시작하지 않음
@@ -223,7 +222,6 @@ export function usePlaybackState({
                     }
                   }
                 } catch (error) {
-                  console.error('[setIsPlaying] 씬 TTS 생성 실패:', error)
                   alert('TTS 생성에 실패했습니다. 개발자에게 문의해주세요.')
                 }
               })
@@ -246,13 +244,6 @@ export function usePlaybackState({
                   blob: value.blob, // blob도 함께 복사
                 }
                 ttsCacheRefShared.current.set(key, entryToSync)
-              })
-              
-              // 디버깅: 동기화된 캐시 확인
-              console.log('[usePlaybackState] 캐시 동기화 완료:', {
-                ttsCacheRefSize: ttsCacheRef.current.size,
-                ttsCacheRefSharedSize: ttsCacheRefShared.current.size,
-                sampleKeys: Array.from(ttsCacheRefShared.current.keys()).slice(0, 3),
               })
             }
           
@@ -277,19 +268,6 @@ export function usePlaybackState({
               await new Promise(resolve => setTimeout(resolve, 10))
               retries++
             }
-            
-            // 디버깅: 세그먼트 확인
-            const finalSegments = ttsTrack.segments || []
-            const finalSegmentsWithUrl = finalSegments.filter(seg => seg.url && seg.url.trim() !== '')
-            console.log('[usePlaybackState] 세그먼트 확인:', {
-              totalSegments: finalSegments.length,
-              segmentsWithUrl: finalSegmentsWithUrl.length,
-              sampleSegments: finalSegments.slice(0, 3).map(s => ({
-                id: s.id,
-                hasUrl: !!s.url && s.url.trim() !== '',
-                urlType: s.url?.startsWith('blob:') ? 'blob' : s.url?.startsWith('http') ? 'http' : 'empty',
-              })),
-            })
           }
           
           // TTS 생성 완료 후 로딩 스피너 숨김
@@ -412,8 +390,6 @@ export function usePlaybackState({
           if (segmentsWithUrl.length > 0) {
             const audioCtxTime = audioContext.currentTime
             ttsTrack.playFrom(currentT, audioCtxTime)
-          } else {
-            console.warn('[usePlaybackState] 전체 재생: 재생할 TTS 세그먼트가 없습니다.')
           }
         }
       }

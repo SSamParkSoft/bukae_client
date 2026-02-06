@@ -405,7 +405,6 @@ export function useTransportRenderer({
             requestAnimationFrame(() => {
               // text가 null이거나 destroyed 상태인지 확인
               if (!text || text.destroyed) {
-                console.warn('[useTransportRenderer] text 객체가 유효하지 않습니다 (transform 있음)')
                 return
               }
               
@@ -421,7 +420,7 @@ export function useTransportRenderer({
                 try {
                   appRef.current.renderer.render(containerRef.current)
                 } catch (renderError) {
-                  console.warn('[useTransportRenderer] 렌더러 호출 실패 (transform 있음):', renderError)
+                  // 렌더러 호출 실패 시 무시
                 }
               }
               
@@ -438,7 +437,7 @@ export function useTransportRenderer({
                   try {
                     appRef.current.renderer.render(containerRef.current)
                   } catch (renderError) {
-                    console.warn('[useTransportRenderer] 렌더러 재호출 실패 (transform 있음):', renderError)
+                    // 렌더러 재호출 실패 시 무시
                   }
                 }
                 const retryBounds = text.getLocalBounds()
@@ -1005,18 +1004,6 @@ export function useTransportRenderer({
       // ANIMATION.md 표준 파이프라인 8단계
       // ============================================================
       
-      // 디버깅: renderAt 호출 추적
-      if (playingSceneIndex === null && playingGroupSceneId === null) {
-        console.log('[useTransportRenderer] renderAt 호출 (재생 중 아님):', {
-          tSec,
-          transportTime: transport?.getTime(),
-          optionsForceSceneIndex: options?.forceSceneIndex,
-          currentSceneIndexRef: currentSceneIndexRef.current,
-          playingSceneIndex,
-          playingGroupSceneId,
-          callStack: new Error().stack?.split('\n').slice(1, 5).join('\n'),
-        })
-      }
       
       // 초기 검증
       if (!timeline || !appRef.current) {
@@ -1082,17 +1069,6 @@ export function useTransportRenderer({
             pipelineContext.options = {}
           }
           pipelineContext.options.forceSceneIndex = manualSceneIndex
-          
-          // 디버깅: forceSceneIndex 설정 확인
-          console.log('[useTransportRenderer] 재생 중이 아닐 때 forceSceneIndex 설정:', {
-            manualSceneIndex,
-            tSec,
-            transportTime: transport?.getTime(),
-            playingSceneIndex,
-            playingGroupSceneId,
-            optionsForceSceneIndex: options?.forceSceneIndex,
-            pipelineContextForceSceneIndex: pipelineContext.options.forceSceneIndex,
-          })
         }
       }
       

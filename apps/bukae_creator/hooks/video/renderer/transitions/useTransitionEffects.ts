@@ -85,13 +85,6 @@ export function useTransitionEffects({
   ): void => {
     const manager = transitionShaderManagerRef.current
     if (!manager || !appRef.current || !containerRef.current) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[useTransitionEffects] Shader Transition: Manager or refs not ready', {
-          hasManager: !!manager,
-          hasApp: !!appRef.current,
-          hasContainer: !!containerRef.current,
-        })
-      }
       return
     }
 
@@ -133,24 +126,10 @@ export function useTransitionEffects({
     if (!manager.isActive()) {
       // sceneAContainer와 sceneBContainer 유효성 검사
       if (!sceneAContainer || sceneAContainer.destroyed) {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('[useTransitionEffects] Shader Transition: Scene A container is invalid, skipping', {
-            previousSceneIndex,
-            hasContainer: !!sceneAContainer,
-            isDestroyed: sceneAContainer?.destroyed,
-          })
-        }
         return
       }
 
       if (!sceneBContainer || sceneBContainer.destroyed) {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('[useTransitionEffects] Shader Transition: Scene B container is invalid, skipping', {
-            sceneIndex,
-            hasContainer: !!sceneBContainer,
-            isDestroyed: sceneBContainer?.destroyed,
-          })
-        }
         return
       }
 
@@ -166,24 +145,12 @@ export function useTransitionEffects({
         // TODO: scene.transitionParams에서 추가 파라미터 추출 가능
         const shader = createTransitionShader(transitionType)
         if (!shader) {
-          if (process.env.NODE_ENV === 'development') {
-            console.warn(`[useTransitionEffects] Shader Transition: Unknown type "${transitionType}", falling back to GSAP`)
-          }
           manager.endTransition()
           return
         }
 
         manager.createTransitionQuad(shader, containerRef.current)
-
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[useTransitionEffects] Shader Transition started:', {
-            type: transitionType,
-            sceneA: previousSceneIndex,
-            sceneB: sceneIndex,
-          })
-        }
       } catch (error) {
-        console.error('[useTransitionEffects] Shader Transition error:', error)
         manager.endTransition()
         return
       }
@@ -206,9 +173,6 @@ export function useTransitionEffects({
     // Transition 완료 시 정리
     if (progress >= 1) {
       manager.endTransition()
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[useTransitionEffects] Shader Transition completed')
-      }
     }
   }, [appRef, containerRef, timeline, sceneContainersRef, transitionShaderManagerRef])
 
