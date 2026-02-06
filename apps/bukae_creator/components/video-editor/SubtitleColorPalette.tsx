@@ -31,7 +31,7 @@ export function SubtitleColorPalette({ value, onChange, theme }: SubtitleColorPa
   const current = useMemo(() => normalizeHex(value), [value])
 
   return (
-    <div className="mt-2 rounded-lg border border-gray-200 p-3 w-full bg-white">
+    <div className="rounded-lg border border-gray-200 p-3 w-full bg-white shadow-lg">
       <div className="grid grid-cols-10 gap-1.5">
         {PRESET_COLORS.map((c) => {
           const isActive = current.toLowerCase() === c.toLowerCase()

@@ -159,9 +159,9 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
           기본 서식
         </h3>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* 컬러 섹션 */}
-          <div>
+          <div className="relative">
             <label 
               className="font-medium text-text-dark mb-2 block"
               style={{ 
@@ -195,23 +195,31 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                 </span>
               </div>
             </button>
-            {isColorOpen && (
-              <div className="mt-2">
-                <SubtitleColorPalette
-                  theme={theme}
-                  value={currentScene.text?.color || '#000000'}
-                  onChange={(next) => {
-                    updateScene((scene) => ({
-                      ...scene,
-                      text: {
-                        ...scene.text,
-                        color: next,
-                      },
-                    }))
-                  }}
-                />
-              </div>
-            )}
+            <AnimatePresence>
+              {isColorOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute top-full left-0 mt-2 z-50 min-w-[320px]"
+                >
+                  <SubtitleColorPalette
+                    theme={theme}
+                    value={currentScene.text?.color || '#000000'}
+                    onChange={(next) => {
+                      updateScene((scene) => ({
+                        ...scene,
+                        text: {
+                          ...scene.text,
+                          color: next,
+                        },
+                      }))
+                    }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* 테두리 섹션 */}
@@ -227,7 +235,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
             </label>
             <div className="flex gap-3">
               {/* Stroke 색상 */}
-              <div className="flex-1">
+              <div className="flex-1 relative">
                 <button
                   type="button"
                   onClick={() => setIsStrokeColorOpen((v) => !v)}
@@ -252,26 +260,34 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                     </span>
                   </div>
                 </button>
-                {isStrokeColorOpen && (
-                  <div className="mt-2">
-                    <SubtitleColorPalette
-                      theme={theme}
-                      value={currentScene.text?.stroke?.color || '#000000'}
-                      onChange={(next) => {
-                        updateScene((scene) => ({
-                          ...scene,
-                          text: {
-                            ...scene.text,
-                            stroke: {
-                              ...scene.text.stroke,
-                              color: next,
+                <AnimatePresence>
+                  {isStrokeColorOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute top-full left-0 mt-2 z-50 min-w-[320px]"
+                    >
+                      <SubtitleColorPalette
+                        theme={theme}
+                        value={currentScene.text?.stroke?.color || '#000000'}
+                        onChange={(next) => {
+                          updateScene((scene) => ({
+                            ...scene,
+                            text: {
+                              ...scene.text,
+                              stroke: {
+                                ...scene.text.stroke,
+                                color: next,
+                              },
                             },
-                          },
-                        }))
-                      }}
-                    />
-                  </div>
-                )}
+                          }))
+                        }}
+                      />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Stroke 두께 */}
