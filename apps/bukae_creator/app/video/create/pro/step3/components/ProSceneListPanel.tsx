@@ -114,13 +114,15 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
     }
 
     const newOrder = [...scenes]
+    const newOrderIndices = [...scenes].map((_, idx) => idx)
     const [removed] = newOrder.splice(draggedIndex, 1)
+    const [removedIdx] = newOrderIndices.splice(draggedIndex, 1)
     let targetIndex = dragOver.position === 'after' ? dragOver.index + 1 : dragOver.index
     if (draggedIndex < targetIndex) targetIndex -= 1
     newOrder.splice(targetIndex, 0, removed)
+    newOrderIndices.splice(targetIndex, 0, removedIdx)
 
-    // 씬 순서 변경
-    const newOrderIndices = newOrder.map((_, idx) => idx)
+    // 씬 순서 변경 (재정렬된 원본 인덱스 배열 전달)
     onReorder(newOrderIndices)
 
     dropOccurredRef.current = true
