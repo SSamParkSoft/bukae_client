@@ -307,16 +307,15 @@ export function useSubtitleRenderer({
         textObj.text = partText
 
         // 텍스트 Transform 적용
-        // 인코딩 시 anchor (0.5, 0.5)로 고정하고 x, y값을 그대로 사용
         if (scene.text.transform) {
           const transform = scene.text.transform
           const scaleX = transform.scaleX ?? 1
           const scaleY = transform.scaleY ?? 1
           
-          // anchor를 항상 (0.5, 0.5)로 고정 (저장 시점에도 (0.5, 0.5)로 저장됨)
-          textObj.anchor.set(0.5, 0.5)
+          // Top-Left(0, 0) 앵커로 고정: 변환 시에도 좌표계 일관성을 유지하여
+          // 저장된 좌표가 useTransportRenderer.ts, useSceneLoader.ts와 동일한 Top-Left 기준으로 일치하도록 함
+          textObj.anchor.set(0, 0)
           
-          // 저장된 x, y값을 그대로 사용 (이미 anchor (0.5, 0.5) 기준의 중앙 좌표)
           const textX = transform.x
           const textY = transform.y
           
@@ -325,7 +324,7 @@ export function useSubtitleRenderer({
           const measuredTextWidth = textBounds.width || 0
           const measuredTextHeight = textBounds.height || 0
           
-          // anchor를 (0.5, 0.5)로 고정하고 저장된 x, y값을 그대로 사용
+          // 저장된 Top-Left 기준 x, y 그대로 사용
           textObj.x = textX
           textObj.y = textY
           textObj.scale.set(scaleX, scaleY)

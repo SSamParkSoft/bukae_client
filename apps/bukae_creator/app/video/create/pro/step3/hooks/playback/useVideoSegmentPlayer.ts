@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react'
+import { useRef, useCallback, useEffect, useLayoutEffect } from 'react'
 import * as PIXI from 'pixi.js'
 import type { ProStep3Scene } from '@/app/video/create/pro/step3/components/ProSceneListPanel'
 
@@ -70,11 +70,9 @@ export function useVideoSegmentPlayer({
   const videoEventListenersRef = useRef<Map<number, { timeupdate: () => void; ended: () => void }>>(new Map())
   // scenes를 ref로 보관해, 격자 이동 등으로 참조만 바뀔 때 재생 effect가 다시 돌지 않도록 함
   const scenesRef = useRef(scenes)
-  scenesRef.current = scenes
   // totalDuration도 ref로 두어 격자 이동 시 effect가 재실행되지 않도록 함
   const totalDurationRef = useRef(totalDurationValue)
-  totalDurationRef.current = totalDurationValue
-  // playSegment는 아래 useCallback으로 정의되므로, ref만 먼저 선언하고 정의 후 할당함
+  // playSegment는 아래 useCallback으로 정의; useLayoutEffect에서 동기화함
   const playSegmentRef = useRef<((segmentIndex: number, scene: ProStep3Scene, originalSceneIndex: number, previousSegmentsTime: number, onSegmentEnd: () => void) => Promise<boolean>) | null>(null)
 
   /**
@@ -306,7 +304,12 @@ export function useVideoSegmentPlayer({
     }
   }, [isPlaying, playbackSpeed, renderSubtitle, playTts, loadVideoAsSprite, updatePlaybackTime, stopSegment, moveToNextSegment, onPlayPause, videoElementsRef, spritesRef, setCurrentSceneIndex])
 
-  playSegmentRef.current = playSegment
+  // ref 동기화를 렌더 후에 수행 (concurrent mode 준수)
+  useLayoutEffect(() => {
+    scenesRef.current = scenes
+    totalDurationRef.current = totalDurationValue
+    playSegmentRef.current = playSegment
+  }, [scenes, totalDurationValue, playSegment])
 
   /**
    * 재생 로직: 선택된 구간들을 순차적으로 재생

@@ -155,7 +155,7 @@ export function useFabricSync({
       })
       fabricCanvas.renderAll()
     } catch (error) {
-      // renderAll 에러 시 무시
+      console.error('[useFabricSync] renderAll 실패:', error)
     }
   }, [useFabricEditing, fabricCanvasRef, fabricScaleRatioRef, currentSceneIndexRef, timeline, stageDimensions])
 
