@@ -93,11 +93,12 @@ export function useFabricSync({
           })
           ;(img as fabric.Image & { dataType?: 'image' | 'text' }).dataType = 'image'
           fabricCanvas.add(img)
-        } else {
-          console.warn('[useFabricSync] 이미지 로드 실패 또는 유효하지 않은 이미지:', scene.image)
         }
       } catch (error) {
-        console.error('[useFabricSync] 이미지 로드 중 에러:', error)
+        console.warn(
+          '[useFabricSync] 이미지 로드 실패 (network/CORS/유효하지 않은 URL 등):',
+          { sceneIndex, imageUrl: scene.image?.substring?.(0, 120), error }
+        )
       }
     }
 
@@ -154,7 +155,7 @@ export function useFabricSync({
       })
       fabricCanvas.renderAll()
     } catch (error) {
-      console.error('[useFabricSync] renderAll 에러:', error)
+      console.error('[useFabricSync] renderAll 실패:', error)
     }
   }, [useFabricEditing, fabricCanvasRef, fabricScaleRatioRef, currentSceneIndexRef, timeline, stageDimensions])
 

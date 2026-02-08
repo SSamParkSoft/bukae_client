@@ -63,7 +63,9 @@ export function getSubtitlePosition(
   if (position === 'top') {
     y = height * 0.15
   } else if (position === 'bottom') {
-    y = height * 0.85
+    // 하단 자막은 비디오 콘텐츠 위에 오버레이되도록 위치 조정
+    // 0.75 = 화면 하단에서 약 25% 위쪽 (비디오 콘텐츠 영역 내)
+    y = height * 0.75
   } else {
     y = height * 0.5
   }

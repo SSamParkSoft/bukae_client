@@ -10,6 +10,7 @@ import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import { getSubtitlePosition } from '../../renderer/utils/getSubtitlePosition'
+import { normalizeAnchorToTopLeft, calculateTextPositionInBox } from '../../renderer/subtitle/useSubtitleRenderer'
 import type { StageDimensions } from '../../types/common'
 
 interface UseSceneLoaderParams {
@@ -68,7 +69,7 @@ export function useSceneLoader({
         }
         child.destroy({ children: true })
       } catch (error) {
-        console.warn('[useSceneLoader] Error destroying child:', error)
+        // 에러 무시
       }
     })
     container.removeChildren()
@@ -88,7 +89,7 @@ export function useSceneLoader({
           sprite.destroy({ children: true })
         }
       } catch (error) {
-        console.warn('[useSceneLoader] Error destroying sprite:', error)
+        // 에러 무시
       }
     })
     spritesRef.current.clear()
@@ -120,7 +121,7 @@ export function useSceneLoader({
           text.destroy({ children: true })
         }
       } catch (error) {
-        console.warn('[useSceneLoader] Error destroying text:', error)
+        // 에러 무시
       }
     })
     textsRef.current.clear()
@@ -169,7 +170,6 @@ export function useSceneLoader({
 
         // 이미지 URL 유효성 검사
         if (!imageToUse || imageToUse.trim() === '') {
-          console.warn(`[useSceneLoader] 씬 ${sceneIndex}의 이미지 URL이 없습니다.`)
           return
         }
 
@@ -178,12 +178,11 @@ export function useSceneLoader({
         try {
           texture = await loadPixiTextureWithCache(imageToUse)
         } catch (error) {
-          console.error(`[useSceneLoader] 씬 ${sceneIndex}의 텍스처 로드 중 에러 발생:`, error)
+          // 텍스처 로드 실패 시 무시
         }
         
         // texture 유효성 검사 및 fallback 처리
         if (!texture) {
-          console.warn(`[useSceneLoader] 씬 ${sceneIndex}의 텍스처 로드 실패, placeholder 사용: ${imageToUse.substring(0, 50)}...`)
           // placeholder texture 생성 (1x1 검은색)
           try {
             const canvas = document.createElement('canvas')
@@ -205,7 +204,6 @@ export function useSceneLoader({
         // texture의 width와 height가 유효한지 확인
         if (!texture || typeof texture.width !== 'number' || typeof texture.height !== 'number' || 
             texture.width <= 0 || texture.height <= 0) {
-          console.error(`[useSceneLoader] 씬 ${sceneIndex}의 텍스처 크기가 유효하지 않습니다: ${texture?.width}x${texture?.height}`)
           // 빈 텍스처로 대체
           texture = PIXI.Texture.EMPTY
         }
@@ -278,7 +276,10 @@ export function useSceneLoader({
             wordWrap: true,
             wordWrapWidth: textWidth,
             breakWords: true,
-            stroke: { color: '#000000', width: 10 },
+            stroke: {
+              color: scene.text.stroke?.color || '#000000',
+              width: scene.text.stroke?.width ?? 10,
+            },
           }
           const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
 
@@ -287,16 +288,110 @@ export function useSceneLoader({
             style: textStyle,
           })
 
-          text.anchor.set(0.5, 0.5)
+          // 중요: anchor를 (0, 0)으로 설정하여 Top-Left 기준으로 일관성 유지
+          // 렌더링 시에도 항상 anchor를 (0, 0)으로 설정하므로, 저장된 좌표가 Top-Left 기준이어야 함
+          text.anchor.set(0, 0)
           text.visible = false
           text.alpha = 0
+
+          // 텍스트를 컨테이너에 먼저 추가하여 렌더러가 텍스트를 렌더링할 수 있도록 함
+          // 이렇게 하면 requestAnimationFrame 내부에서 getLocalBounds()가 정확한 값을 반환할 수 있음
+          container.addChild(text)
 
           // 텍스트 Transform 적용
           if (scene.text.transform) {
             const scaleX = scene.text.transform.scaleX ?? 1
             const scaleY = scene.text.transform.scaleY ?? 1
-            text.x = scene.text.transform.x
-            text.y = scene.text.transform.y
+            
+            // Transform이 있을 때는 normalizeAnchorToTopLeft로 계산된 Top-Left 좌표를 사용
+            const transform = scene.text.transform
+            const anchorX = transform.anchor?.x ?? 0
+            const anchorY = transform.anchor?.y ?? 0
+            
+            // Anchor→TopLeft 정규화 (ANIMATION.md 6.2)
+            const { boxX, boxY, boxW, boxH } = normalizeAnchorToTopLeft(
+              transform.x,
+              transform.y,
+              transform.width,
+              transform.height,
+              scaleX,
+              scaleY,
+              anchorX,
+              anchorY
+            )
+            
+            // 텍스트 실제 크기 계산 (PIXI.Text의 getLocalBounds 사용)
+            // 스타일이 설정된 후이므로 bounds를 계산할 수 있음
+            // 하지만 텍스트가 아직 렌더링되지 않았을 수 있으므로 requestAnimationFrame에서 위치 설정
+            const hAlign = transform.hAlign ?? 'center'
+            
+            // 텍스트 위치는 렌더링 후 정확한 크기를 얻을 수 있도록 requestAnimationFrame에서 설정
+            // 두 번의 requestAnimationFrame을 사용하여 렌더러가 텍스트를 렌더링할 시간을 줌
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                // text가 null이거나 destroyed 상태인지 확인
+                if (!text || text.destroyed) {
+                  return
+                }
+                
+                // 렌더러가 텍스트를 렌더링하도록 강제
+                // 텍스트를 임시로 보이게 하여 렌더러가 텍스트를 렌더링하도록 함
+                const wasVisible = text.visible
+                const wasAlpha = text.alpha
+                text.visible = true
+                text.alpha = 0.01 // 거의 보이지 않지만 렌더링은 수행됨
+                
+                // 앱 렌더러를 직접 호출하여 텍스트를 렌더링
+                if (appRef.current?.renderer && containerRef.current) {
+                  try {
+                    appRef.current.renderer.render(containerRef.current)
+                  } catch (renderError) {
+                    // 렌더러 호출 실패 시 무시
+                  }
+                }
+                
+                // 텍스트 크기 측정
+                const textBounds = text.getLocalBounds()
+                let measuredTextWidth = textBounds.width || 0
+                let measuredTextHeight = textBounds.height || 0
+                
+                // 크기가 여전히 0이면 텍스트를 다시 설정하고 재측정
+                if (measuredTextWidth === 0 || measuredTextHeight === 0) {
+                  const currentText = text.text
+                  text.text = currentText
+                  if (appRef.current?.renderer && containerRef.current) {
+                    try {
+                      appRef.current.renderer.render(containerRef.current)
+                    } catch (renderError) {
+                      // 렌더러 재호출 실패 시 무시
+                    }
+                  }
+                  const retryBounds = text.getLocalBounds()
+                  measuredTextWidth = retryBounds.width || 0
+                  measuredTextHeight = retryBounds.height || 0
+                }
+                
+                // 원래 상태로 복원
+                text.visible = wasVisible
+                text.alpha = wasAlpha
+                
+                // 박스 내부 정렬 계산 (ANIMATION.md 6.3)
+                // vAlign은 middle 고정이므로 파라미터로 전달하지 않음
+                const { textX, textY } = calculateTextPositionInBox(
+                  boxX,
+                  boxY,
+                  boxW,
+                  boxH,
+                  measuredTextWidth,
+                  measuredTextHeight,
+                  hAlign
+                )
+                
+                text.x = textX
+                text.y = textY
+              })
+            })
+            
             text.scale.set(scaleX, scaleY)
             text.rotation = scene.text.transform.rotation
 
@@ -308,15 +403,19 @@ export function useSceneLoader({
               text.text = text.text || ''
             }
           } else {
-            // Transform이 없을 때 공통 함수 사용
+            // Transform이 없을 때: anchor (0.5, 0.5)로 고정하고 텍스트 중앙이 subtitlePosition.x에 오도록 설정
             const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
+            
+            // anchor를 (0.5, 0.5)로 고정: 텍스트의 중앙이 기준점이 됨
+            text.anchor.set(0.5, 0.5)
+            
+            // 텍스트의 중앙이 subtitlePosition.x, y에 오도록 설정
+            // anchor가 (0.5, 0.5)이므로 text.x는 텍스트의 중앙 위치
             text.x = subtitlePosition.x
             text.y = subtitlePosition.y
-            text.scale.set(subtitlePosition.scaleX, subtitlePosition.scaleY)
-            text.rotation = subtitlePosition.rotation
+            text.scale.set(subtitlePosition.scaleX ?? 1, subtitlePosition.scaleY ?? 1)
+            text.rotation = subtitlePosition.rotation ?? 0
           }
-
-          container.addChild(text)
           
           // 기존 텍스트 객체의 __debugId와 텍스트 내용을 복원
           const savedData = savedTextData.get(sceneIndex)
@@ -366,7 +465,7 @@ export function useSceneLoader({
           }
         }
       } catch (error) {
-        console.error(`Failed to load scene ${sceneIndex}:`, error)
+        // 씬 로드 실패 시 무시
       }
     }
 

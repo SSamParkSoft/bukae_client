@@ -5,6 +5,7 @@
 
 import { TransitionFactory } from '../../effects/transitions/TransitionFactory'
 import { isShaderTransition } from '../../effects/transitions/shader/shaders'
+import { MOVEMENT_EFFECTS } from '../../types/effects'
 import { calculateTransitionStartTime } from '../utils/calculateTransitionTiming'
 import { applyMotionToSprite } from './step5-applyMotion'
 import type { PipelineContext, Step8Result } from './types'
@@ -120,10 +121,10 @@ export function step6ApplyTransition(
     const nextScene = timeline.scenes[sceneIndex + 1]
     const isSameSceneId = nextScene && currentScene?.sceneId === nextScene.sceneId
     
-    // Transition duration을 1초로 고정 (움직임효과만 TTS 캐시 duration 사용)
+    // Transition duration을 씬 설정값으로 사용 (타임라인·씬 경계와 일치)
     let transitionDuration = 0
     if (!isSameSceneId) {
-      transitionDuration = 1.0 // 1초로 고정
+      transitionDuration = currentScene?.transitionDuration ?? 0.5
     }
 
     // Transition이 있을 때만 업데이트
@@ -145,8 +146,11 @@ export function step6ApplyTransition(
       })
       const relativeTime = tSec - transitionStartTime
 
-      // Transition 진행 중이거나 방금 끝난 경우 업데이트
-      const isTransitionActive = relativeTime >= 0 && relativeTime <= transitionDuration
+      // 타이밍: 씬 전환 첫 프레임에서 전환 블록을 놓치지 않도록 시작 쪽에 작은 백버퍼 적용
+      // (tSec/경계 계산의 부동소수·한 프레임 지연으로 relativeTime이 잠깐 음수가 될 수 있음)
+      const TRANSITION_START_BUFFER = 0.02 // 약 1~2프레임
+      const isTransitionActive =
+        relativeTime >= -TRANSITION_START_BUFFER && relativeTime <= transitionDuration
       const isJustCompleted = relativeTime > transitionDuration && relativeTime <= transitionDuration + 0.1
 
       // Transition 진행 중에는 매 프레임마다 렌더링되어야 함
@@ -218,9 +222,10 @@ export function step6ApplyTransition(
           // Transition 진행 중일 때만 이전 스프라이트를 보이게 함
           // step3에서 숨긴 것을 여기서 다시 보이게 함 (Transition에 필요)
           if (previousSprite && !previousSprite.destroyed && containerRef.current && previousSceneIndex !== null && previousSceneIndex >= 0) {
-            // 이전 씬의 Motion을 중지하기 위해 원래 위치로 리셋 (한 번만)
-            // 매 프레임마다 리셋하면 성능 저하이므로, 첫 프레임에만 리셋
-            if (progress < 0.01) {
+            // 움직임 효과(slide/zoom)일 때는 이전 씬을 리셋하지 않음: 움직임 끝난 위치에서 슬라이드 아웃되도록
+            // 비-움직임 효과(fade 등)일 때만 이전 씬을 원래 위치로 리셋 (한 번만)
+            const isMovementEffect = MOVEMENT_EFFECTS.includes(currentTransition as (typeof MOVEMENT_EFFECTS)[number])
+            if (progress < 0.01 && !isMovementEffect) {
               const previousScene = timeline.scenes[previousSceneIndex]
               if (previousScene) {
                 const { resetBaseStateCallback } = context

@@ -1,15 +1,17 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState, useRef, useCallback, useEffect } from 'react'
 import Image from 'next/image'
 import { GripVertical, X, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { authStorage } from '@/lib/api/auth-storage'
 
 export interface ProSceneCardProps {
   sceneIndex: number
   scriptText: string
   onScriptChange: (value: string) => void
   voiceLabel?: string
+  voiceTemplate?: string | null
   onVoiceClick?: () => void
   onDelete?: () => void
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void
@@ -28,6 +30,7 @@ export const ProSceneCard = memo(function ProSceneCard({
   scriptText,
   onScriptChange,
   voiceLabel,
+  voiceTemplate,
   onVoiceClick,
   onDelete,
   onDragStart,
@@ -42,6 +45,157 @@ export const ProSceneCard = memo(function ProSceneCard({
   const isDropTargetBefore = dragOverProp?.index === sceneIndex - 1 && dragOverProp?.position === 'before'
   const isDropTargetAfter = dragOverProp?.index === sceneIndex - 1 && dragOverProp?.position === 'after'
   const isVoiceButtonDisabled = !onVoiceClick
+
+  // TTS 재생 관련 상태
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isSynthesizing, setIsSynthesizing] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioUrlRef = useRef<string | null>(null)
+  const synthAbortRef = useRef<AbortController | null>(null)
+
+  // TTS 합성 및 재생
+  const handlePlayPause = useCallback(async () => {
+    // 재생 중이면 일시정지
+    if (isPlaying && audioRef.current) {
+      audioRef.current.pause()
+      setIsPlaying(false)
+      return
+    }
+
+    // 스크립트가 없으면 재생 불가
+    if (!scriptText.trim()) {
+      alert('스크립트를 입력해주세요.')
+      return
+    }
+
+    // 보이스가 선택되지 않았으면 재생 불가
+    if (!voiceTemplate) {
+      alert('보이스를 먼저 선택해주세요.')
+      return
+    }
+
+    // 이미 합성된 오디오가 있으면 재생
+    if (audioUrlRef.current && audioRef.current) {
+      audioRef.current.play()
+      setIsPlaying(true)
+      return
+    }
+
+    // 이전 합성 요청 취소
+    synthAbortRef.current?.abort()
+    synthAbortRef.current = null
+    const controller = new AbortController()
+    synthAbortRef.current = controller
+
+    // TTS 합성 시작
+    setIsSynthesizing(true)
+    try {
+      const accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        alert('로그인이 필요합니다.')
+        return
+      }
+
+      // TTS 합성 API 호출
+      const response = await fetch('/api/tts/synthesize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          voiceTemplate,
+          mode: 'text',
+          text: scriptText,
+        }),
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'TTS 합성 실패' }))
+        throw new Error(errorData.error || 'TTS 합성 실패')
+      }
+
+      // 오디오 blob 받기
+      const blob = await response.blob()
+      if (controller.signal.aborted) return
+
+      const url = URL.createObjectURL(blob)
+      if (controller.signal.aborted) {
+        URL.revokeObjectURL(url)
+        return
+      }
+
+      // 기존 오디오 정리
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current)
+      }
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current = null
+      }
+
+      // 새 오디오 생성 및 재생
+      audioUrlRef.current = url
+      const audio = new Audio(url)
+      audioRef.current = audio
+
+      // 재생 종료 시 상태 초기화
+      audio.addEventListener('ended', () => {
+        setIsPlaying(false)
+      })
+
+      audio.addEventListener('error', () => {
+        setIsPlaying(false)
+        alert('오디오 재생 중 오류가 발생했습니다.')
+      })
+
+      await audio.play()
+      if (controller.signal.aborted) return
+      setIsPlaying(true)
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return
+      }
+      console.error('TTS 합성/재생 오류:', error)
+      alert(error instanceof Error ? error.message : 'TTS 합성 중 오류가 발생했습니다.')
+    } finally {
+      setIsSynthesizing(false)
+    }
+  }, [isPlaying, scriptText, voiceTemplate])
+
+  // 컴포넌트 언마운트 시 정리
+  const cleanup = useCallback(() => {
+    synthAbortRef.current?.abort()
+    synthAbortRef.current = null
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current)
+      audioUrlRef.current = null
+    }
+  }, [])
+
+  // 스크립트나 보이스가 변경되면 오디오 무효화
+  const prevScriptTextRef = useRef(scriptText)
+  const prevVoiceTemplateRef = useRef(voiceTemplate)
+  useEffect(() => {
+    if (prevScriptTextRef.current !== scriptText || prevVoiceTemplateRef.current !== voiceTemplate) {
+      cleanup()
+      setIsPlaying(false)
+      prevScriptTextRef.current = scriptText
+      prevVoiceTemplateRef.current = voiceTemplate
+    }
+  }, [scriptText, voiceTemplate, cleanup])
+
+  // 컴포넌트 언마운트 시 정리
+  useEffect(() => {
+    return () => {
+      cleanup()
+    }
+  }, [cleanup])
 
   return (
     <div
@@ -97,18 +251,56 @@ export const ProSceneCard = memo(function ProSceneCard({
             )}
           </div>
 
-          <textarea
-            value={scriptText}
-            onChange={(e) => onScriptChange(e.target.value)}
-            placeholder="대본을 입력하세요."
-            disabled={isGenerating}
-            rows={2}
-            className="w-full p-3 rounded-lg bg-white text-text-dark placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-brand-teal focus:border-transparent resize-none disabled:opacity-60 shadow-(--shadow-card-default)"
-            style={{
-              fontSize: 'var(--font-size-14)',
-              lineHeight: 'var(--line-height-14-140)',
-            }}
-          />
+          <div className="relative">
+            <textarea
+              value={scriptText}
+              onChange={(e) => onScriptChange(e.target.value)}
+              placeholder="대본을 입력하세요."
+              disabled={isGenerating}
+              rows={2}
+              className="w-full p-3 pr-12 rounded-lg bg-white text-text-dark placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-brand-teal focus:border-transparent resize-none disabled:opacity-60 shadow-(--shadow-card-default)"
+              style={{
+                fontSize: 'var(--font-size-14)',
+                lineHeight: 'var(--line-height-14-140)',
+              }}
+            />
+            {/* TTS 재생 버튼 - textarea 내부 오른쪽 중간 */}
+            <button
+              type="button"
+              onClick={handlePlayPause}
+              disabled={isGenerating || isSynthesizing || !scriptText.trim() || !voiceTemplate}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed z-10"
+              aria-label={isPlaying ? '일시정지' : '재생'}
+            >
+              {isSynthesizing ? (
+                <Loader2 className="w-4 h-4 animate-spin text-text-tertiary" />
+              ) : isPlaying ? (
+                // 일시정지 상태: play.svg + 두 개의 세로 막대
+                <div className="relative w-4 h-4 flex items-center justify-center">
+                  <Image 
+                    src="/icons/play.svg" 
+                    alt="일시정지" 
+                    width={16} 
+                    height={16}
+                    className="w-4 h-4 opacity-0 absolute"
+                  />
+                  <div className="flex items-center justify-center gap-0.5">
+                    <div className="w-1 h-3 bg-text-tertiary rounded-sm" />
+                    <div className="w-1 h-3 bg-text-tertiary rounded-sm" />
+                  </div>
+                </div>
+              ) : (
+                // 재생 상태: play.svg
+                <Image 
+                  src="/icons/play.svg" 
+                  alt="재생" 
+                  width={16} 
+                  height={16}
+                  className="w-4 h-4"
+                />
+              )}
+            </button>
+          </div>
           {isGenerating && (
             <div className="flex items-center gap-2 text-brand-teal text-sm">
               <Loader2 className="w-4 h-4 animate-spin" />

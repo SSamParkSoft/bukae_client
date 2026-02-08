@@ -3,7 +3,7 @@
  * 시간 `t`에서 씬 인덱스와 파트 인덱스 계산
  */
 
-import { calculateSceneFromTime } from '@/utils/timeline-render'
+import { calculateSceneFromTime, getSceneStartTimeFromTts } from '@/utils/timeline-render'
 import { getSceneStartTime } from '@/utils/timeline'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 
@@ -15,6 +15,8 @@ export interface ScenePartResult {
   sceneIndex: number
   /** 파트 인덱스 */
   partIndex: number
+  /** 해당 씬의 시작 시간 (TTS 기준 when options provided) */
+  sceneStartTime: number
 }
 
 /**
@@ -54,13 +56,23 @@ export function calculateScenePartFromTime({
 }: CalculateScenePartParams): ScenePartResult {
   let sceneIndex: number
   let partIndex: number = 0 // 초기값 설정
+  let sceneStartTime: number = 0
 
   if (forceSceneIndex !== undefined) {
     // 강제 씬 인덱스가 지정되면 직접 사용 (씬/그룹 재생 시 해당 씬에 고정)
     sceneIndex = forceSceneIndex
-    
-    // partIndex와 offsetInPart는 해당 씬 범위 내에서만 직접 계산 (calculateSceneFromTime 사용 안 함)
-    const sceneStartTime = getSceneStartTime(timeline, sceneIndex)
+
+    // TTS options가 있으면 TTS 기준 시작 시간, 없으면 getSceneStartTime
+    const hasTtsOptions = ttsCacheRef && buildSceneMarkup && makeTtsKey
+    sceneStartTime = hasTtsOptions
+      ? getSceneStartTimeFromTts(timeline, sceneIndex, {
+          ttsCacheRef,
+          voiceTemplate,
+          buildSceneMarkup,
+          makeTtsKey,
+        })
+      : getSceneStartTime(timeline, sceneIndex)
+
     const scene = timeline.scenes[sceneIndex]
     
     if (!scene) {
@@ -123,10 +135,12 @@ export function calculateScenePartFromTime({
     )
     sceneIndex = calculated.sceneIndex
     partIndex = calculated.partIndex
+    sceneStartTime = calculated.sceneStartTime
   }
 
   return {
     sceneIndex,
     partIndex,
+    sceneStartTime,
   }
 }

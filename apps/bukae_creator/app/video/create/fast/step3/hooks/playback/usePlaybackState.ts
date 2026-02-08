@@ -9,6 +9,7 @@ import type { TtsTrack } from '@/hooks/video/audio/TtsTrack'
 interface UsePlaybackStateParams {
   // Timeline and TTS
   timeline: TimelineData | null
+  /** @deprecated 전역 voiceTemplate은 더 이상 사용하지 않습니다. 각 씬의 scene.voiceTemplate만 사용합니다. */
   voiceTemplate: string | null
   buildSceneMarkupWithTimeline: (timeline: TimelineData | null, sceneIndex: number) => string[]
   makeTtsKey: MakeTtsKeyFunction
@@ -50,7 +51,8 @@ interface UsePlaybackStateParams {
 
 export function usePlaybackState({
   timeline,
-  voiceTemplate,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  voiceTemplate: _voiceTemplate, // deprecated: 더 이상 사용하지 않지만 하위 호환성을 위해 유지
   buildSceneMarkupWithTimeline,
   makeTtsKey,
   ensureSceneTts,
@@ -82,9 +84,7 @@ export function usePlaybackState({
   ) => { 
     if (playing) {
       // 재생 시작 전에 필요한 씬의 TTS 파일이 있는지 확인하고 없으면 생성
-      if (timeline && voiceTemplate) {
-        const scenesToLoad: number[] = []
-        
+      if (timeline) {
         // 씬/그룹 재생 중일 때는 해당 씬/그룹만 확인
         let targetSceneIndices: number[] = []
         if (options?.sceneIndex !== null && options?.sceneIndex !== undefined) {
@@ -100,11 +100,42 @@ export function usePlaybackState({
           targetSceneIndices = timeline.scenes.map((_, idx) => idx)
         }
         
+        // 모든 씬에 scene.voiceTemplate이 있어야만 재생 가능
+        // 하나라도 없으면 전체 재생 차단
+        const scenesWithoutVoice: number[] = []
         for (const sceneIndex of targetSceneIndices) {
           const scene = timeline.scenes[sceneIndex]
           if (!scene) continue
           
-          const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+          // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+          const sceneVoiceTemplate = scene.voiceTemplate
+          
+          // scene.voiceTemplate이 없으면 음성 없음
+          const isEmpty = sceneVoiceTemplate == null || 
+                         sceneVoiceTemplate === '' ||
+                         (typeof sceneVoiceTemplate === 'string' && sceneVoiceTemplate.trim() === '')
+          
+          if (isEmpty) {
+            scenesWithoutVoice.push(sceneIndex)
+          }
+        }
+        
+        // 음성이 없는 씬이 하나라도 있으면 전체 재생 차단
+        if (scenesWithoutVoice.length > 0) {
+          alert(`씬 ${scenesWithoutVoice.map(i => i + 1).join(', ')}에 보이스를 설정해주세요.`)
+          setIsPreparing(false)
+          return // 재생 시작하지 않음
+        }
+        
+        const scenesToLoad: number[] = []
+        
+        for (const sceneIndex of targetSceneIndices) {
+          const scene = timeline.scenes[sceneIndex]
+          if (!scene) continue
+          
+          // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+          const sceneVoiceTemplate = scene.voiceTemplate
+          // 검증은 위에서 완료했으므로 여기서는 항상 존재함
           if (!sceneVoiceTemplate) continue
           
           const markups = buildSceneMarkupWithTimeline(timeline, sceneIndex)
@@ -113,7 +144,9 @@ export function usePlaybackState({
           for (const markup of markups) {
             if (!markup) continue
             const key = makeTtsKey(sceneVoiceTemplate, markup)
-            if (!ttsCacheRefShared.current.has(key)) {
+            const cached = ttsCacheRefShared.current.get(key)
+            // 캐시에 없거나, 캐시에 있어도 URL이 없으면 TTS 생성 필요
+            if (!cached || !cached.url || cached.url.trim() === '') {
               needsTts = true
               break
             }
@@ -141,7 +174,10 @@ export function usePlaybackState({
                   if (ttsCacheRef && ttsCacheRefShared) {
                     const scene = timeline.scenes[firstSceneIndex]
                     if (scene) {
-                      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+                      // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+                      const sceneVoiceTemplate = scene.voiceTemplate
+                      // 검증은 위에서 완료했으므로 여기서는 항상 존재함
+                      if (!sceneVoiceTemplate) return
                       const markups = buildSceneMarkupWithTimeline(timeline, firstSceneIndex)
                       markups.forEach((markup) => {
                         if (!markup) return
@@ -169,11 +205,15 @@ export function usePlaybackState({
                     // 해당 씬의 모든 키를 찾아서 동기화
                     const scene = timeline.scenes[sceneIndex]
                     if (scene) {
-                      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+                      // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+                      const sceneVoiceTemplate = scene.voiceTemplate
+                      // 검증은 위에서 완료했으므로 여기서는 항상 존재함
+                      if (!sceneVoiceTemplate) return
                       const markups = buildSceneMarkupWithTimeline(timeline, sceneIndex)
                       markups.forEach((markup) => {
                         if (!markup) return
-                        const key = makeTtsKey(sceneVoiceTemplate, markup)
+                        // sceneVoiceTemplate이 null이 아님을 보장 (위에서 체크함)
+                        const key = makeTtsKey(sceneVoiceTemplate as string, markup)
                         const cached = ttsCacheRef.current.get(key)
                         if (cached) {
                           ttsCacheRefShared.current.set(key, cached)
@@ -182,7 +222,6 @@ export function usePlaybackState({
                     }
                   }
                 } catch (error) {
-                  console.error('[setIsPlaying] 씬 TTS 생성 실패:', error)
                   alert('TTS 생성에 실패했습니다. 개발자에게 문의해주세요.')
                 }
               })
@@ -199,7 +238,12 @@ export function usePlaybackState({
             if (ttsCacheRef && ttsCacheRefShared) {
               ttsCacheRefShared.current.clear()
               ttsCacheRef.current.forEach((value, key) => {
-                ttsCacheRefShared.current.set(key, value)
+                // blob이 있는지 확인하고 동기화
+                const entryToSync = {
+                  ...value,
+                  blob: value.blob, // blob도 함께 복사
+                }
+                ttsCacheRefShared.current.set(key, entryToSync)
               })
             }
           
@@ -208,9 +252,26 @@ export function usePlaybackState({
           // refreshSegments가 Promise를 반환하므로 segments 업데이트 및 preload 완료를 기다림
           if (typeof window !== 'undefined' && ttsTrack.refreshSegments) {
             await ttsTrack.refreshSegments()
+            
+            // refreshSegments 완료 후 segments state가 업데이트될 때까지 약간의 지연
+            // React의 state 업데이트는 비동기이므로, 여러 이벤트 루프를 거쳐야 할 수 있음
+            // segments가 준비될 때까지 최대 100ms 대기 (보통은 즉시 완료됨)
+            let retries = 0
+            const maxRetries = 10 // 10 * 10ms = 100ms
+            while (retries < maxRetries) {
+              const updatedSegments = ttsTrack.segments || []
+              const segmentsWithUrl = updatedSegments.filter(seg => seg.url && seg.url.trim() !== '')
+              if (segmentsWithUrl.length > 0) {
+                // 세그먼트가 준비되었으면 중단
+                break
+              }
+              await new Promise(resolve => setTimeout(resolve, 10))
+              retries++
+            }
           }
           
           // TTS 생성 완료 후 로딩 스피너 숨김
+          // segments 확인은 재생 시점에 다시 수행 (아래 398-409줄)
           setIsPreparing(false)
         }
       }
@@ -322,8 +383,14 @@ export function usePlaybackState({
         // 전체 재생: TtsTrack 재생 시작 (클라이언트에서만)
         // preload가 완료된 후에 호출되므로 버퍼가 로드되어 있음
         if (typeof window !== 'undefined' && transport.transport && audioContext) {
-          const audioCtxTime = audioContext.currentTime
-          ttsTrack.playFrom(currentT, audioCtxTime)
+          // 재생할 세그먼트가 있는지 확인
+          const segments = ttsTrack.segments || []
+          const segmentsWithUrl = segments.filter(seg => seg.url && seg.url.trim() !== '')
+          
+          if (segmentsWithUrl.length > 0) {
+            const audioCtxTime = audioContext.currentTime
+            ttsTrack.playFrom(currentT, audioCtxTime)
+          }
         }
       }
       
@@ -442,7 +509,7 @@ export function usePlaybackState({
           }
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeline, voiceTemplate, buildSceneMarkupWithTimeline, ensureSceneTts, transport, ttsTrack, audioContext, playingSceneIndex, playingGroupSceneId, setPlaybackEndTime, setPlayingSceneIndex, setPlayingGroupSceneId])
+  }, [timeline, buildSceneMarkupWithTimeline, ensureSceneTts, transport, ttsTrack, audioContext, playingSceneIndex, playingGroupSceneId, setPlaybackEndTime, setPlayingSceneIndex, setPlayingGroupSceneId])
     // ttsCacheRef, ttsCacheRefShared, renderAtRef는 ref이므로 의존성 배열에서 제외
 
   return {

@@ -167,6 +167,10 @@ export function useFabricHandlers({
         scaledHeight = target.height || 0
       }
 
+      // Fabric.js의 originX/originY 확인 (중요: anchor 정보 파악)
+      const originX = (target as fabric.Object).originX || 'left'
+      const originY = (target as fabric.Object).originY || 'top'
+      
       const nextTransform = {
         x: (target.left ?? 0) * invScale,
         y: (target.top ?? 0) * invScale,

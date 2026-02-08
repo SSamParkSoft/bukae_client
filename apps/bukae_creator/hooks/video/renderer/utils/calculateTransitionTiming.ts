@@ -56,14 +56,12 @@ export function calculateTransitionStartTime({
   // Transition 시작 시간 = 씬 시작 시간 (씬 시작 시점에 Transition 시작)
   // Transition은 씬 시작 시점에 시작되므로, 이전 씬들의 TTS 캐시 duration만 합산
   // Transition duration은 포함하지 않음 (Transition은 씬 시작과 동시에 시작되므로)
-  const SCENE_GAP = 0.001 // 1ms 간격 (부동소수점 오차 방지)
-  
+  // 렌더 경계와 동일하게 TTS 합만 사용 (gap 없음). 씬 전환 첫 프레임부터 전환 블록 실행되도록
   let sceneStartTime = 0
   for (let i = 0; i < sceneIndex; i++) {
     const prevScene = timeline.scenes[i]
     if (!prevScene) continue
-    
-    // 이전 씬의 TTS 캐시 duration 계산
+
     let sceneDuration = 0
     if (ttsCacheRef && buildSceneMarkup && makeTtsKey) {
       const sceneVoiceTemplate = prevScene.voiceTemplate || voiceTemplate
@@ -78,22 +76,12 @@ export function calculateTransitionStartTime({
         }
       }
     }
-    
     if (sceneDuration === 0) {
       sceneDuration = prevScene.duration || 0
     }
-    
-    // 씬 사이 간격 확인 (같은 sceneId를 가진 씬들 사이에는 간격 없음)
-    const prevNextScene = timeline.scenes[i + 1]
-    const prevIsSameSceneId = prevNextScene && prevScene.sceneId === prevNextScene.sceneId
-    const sceneGap = prevIsSameSceneId ? 0 : SCENE_GAP
-    
-    // 씬 시작 시간 = 이전 씬들의 TTS 캐시 duration만 합산
-    // Transition duration은 포함하지 않음 (Transition은 씬 시작 시점에 시작되므로)
-    sceneStartTime += sceneDuration + sceneGap
+    sceneStartTime += sceneDuration
   }
 
-  // Transition 시작 시간 = 씬 시작 시간 (씬 시작 시점에 Transition 시작)
   return sceneStartTime
 }
 
@@ -161,10 +149,10 @@ export function calculateTransitionProgress({
   const nextScene = timeline.scenes[sceneIndex + 1]
   const isSameSceneId = nextScene && currentScene.sceneId === nextScene.sceneId
   
-  // Transition duration을 1초로 고정 (움직임효과만 TTS 캐시 duration 사용)
+  // Transition duration을 씬 설정값으로 사용 (타임라인·씬 경계와 일치)
   let transitionDuration = 0
   if (!isSameSceneId) {
-    transitionDuration = 1.0 // 1초로 고정
+    transitionDuration = currentScene.transitionDuration ?? 0.5
   }
 
   if (transitionDuration <= 0) {
@@ -207,10 +195,10 @@ export function isTransitionInProgress({
   const nextScene = timeline.scenes[sceneIndex + 1]
   const isSameSceneId = nextScene && currentScene.sceneId === nextScene.sceneId
   
-  // Transition duration을 1초로 고정 (움직임효과만 TTS 캐시 duration 사용)
+  // Transition duration을 씬 설정값으로 사용 (타임라인·씬 경계와 일치)
   let transitionDuration = 0
   if (!isSameSceneId) {
-    transitionDuration = 1.0 // 1초로 고정
+    transitionDuration = currentScene.transitionDuration ?? 0.5
   }
 
   if (transitionDuration <= 0) {
@@ -227,8 +215,11 @@ export function isTransitionInProgress({
   })
 
   const relativeTime = tSec - transitionStartTime
-  
-  // Transition이 진행 중이거나 방금 끝난 경우도 포함 (최종 상태 렌더링을 위해)
-  return (relativeTime >= 0 && relativeTime <= transitionDuration) || 
+
+  // 타이밍: 씬 전환 첫 프레임을 놓치지 않도록 시작 쪽 백버퍼 (step6과 동일)
+  const TRANSITION_START_BUFFER = 0.02
+  return (
+    (relativeTime >= -TRANSITION_START_BUFFER && relativeTime <= transitionDuration) ||
     (relativeTime > transitionDuration && relativeTime <= transitionDuration + 0.1)
+  )
 }

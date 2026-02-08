@@ -16,11 +16,10 @@ import * as PIXI from 'pixi.js'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
-import { getSceneStartTime } from '@/utils/timeline'
 import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import { TransitionShaderManager } from '../effects/transitions/shader/TransitionShaderManager'
 import { useContainerManager } from './containers/useContainerManager'
-import { useSubtitleRenderer } from './subtitle/useSubtitleRenderer'
+import { useSubtitleRenderer, normalizeAnchorToTopLeft, calculateTextPositionInBox } from './subtitle/useSubtitleRenderer'
 import { useTransitionEffects } from './transitions/useTransitionEffects'
 import { useTransportState } from './transport/useTransportState'
 import { useRenderLoop } from './playback/useRenderLoop'
@@ -348,7 +347,10 @@ export function useTransportRenderer({
           wordWrap: true,
           wordWrapWidth: textWidth,
           breakWords: true,
-          stroke: { color: '#000000', width: 10 },
+          stroke: {
+            color: scene.text.stroke?.color || '#000000',
+            width: scene.text.stroke?.width ?? 10,
+          },
         }
         const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
 
@@ -357,16 +359,115 @@ export function useTransportRenderer({
           style: textStyle,
         })
 
-        text.anchor.set(0.5, 0.5)
+        // 중요: anchor를 (0, 0)으로 설정하여 Top-Left 기준으로 일관성 유지
+        // 렌더링 시에도 항상 anchor를 (0, 0)으로 설정하므로, 저장된 좌표가 Top-Left 기준이어야 함
+        text.anchor.set(0, 0)
         text.visible = false
         text.alpha = 0
+
+        // 씬별 Container에 text 추가 (기존 containerRef 대신)
+        const sceneContainer = getOrCreateSceneContainer(sceneIndex)
+        sceneContainer.addChild(text)
+        
+        // 기존 containerRef에도 추가 (하위 호환성 유지, 나중에 제거 예정)
+        // 텍스트를 컨테이너에 먼저 추가하여 렌더러가 텍스트를 렌더링할 수 있도록 함
+        // 이렇게 하면 requestAnimationFrame 내부에서 getLocalBounds()가 정확한 값을 반환할 수 있음
+        container.addChild(text)
 
         // 텍스트 Transform 적용
         if (scene.text.transform) {
           const scaleX = scene.text.transform.scaleX ?? 1
           const scaleY = scene.text.transform.scaleY ?? 1
-          text.x = scene.text.transform.x
-          text.y = scene.text.transform.y
+          
+          // Transform이 있을 때는 normalizeAnchorToTopLeft로 계산된 Top-Left 좌표를 사용
+          const transform = scene.text.transform
+          const anchorX = transform.anchor?.x ?? 0
+          const anchorY = transform.anchor?.y ?? 0
+          
+          // Anchor→TopLeft 정규화 (ANIMATION.md 6.2)
+          const { boxX, boxY, boxW, boxH } = normalizeAnchorToTopLeft(
+            transform.x,
+            transform.y,
+            transform.width,
+            transform.height,
+            scaleX,
+            scaleY,
+            anchorX,
+            anchorY
+          )
+          
+          // 텍스트 실제 크기 계산 (PIXI.Text의 getLocalBounds 사용)
+          // 스타일이 설정된 후이므로 bounds를 계산할 수 있음
+          // 하지만 텍스트가 아직 렌더링되지 않았을 수 있으므로 requestAnimationFrame에서 위치 설정
+          const hAlign = transform.hAlign ?? 'center'
+          
+          // 텍스트 위치는 렌더링 후 정확한 크기를 얻을 수 있도록 requestAnimationFrame에서 설정
+          // 두 번의 requestAnimationFrame을 사용하여 렌더러가 텍스트를 렌더링할 시간을 줌
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              // text가 null이거나 destroyed 상태인지 확인
+              if (!text || text.destroyed) {
+                return
+              }
+              
+              // 렌더러가 텍스트를 렌더링하도록 강제
+              // 텍스트를 임시로 보이게 하여 렌더러가 텍스트를 렌더링하도록 함
+              const wasVisible = text.visible
+              const wasAlpha = text.alpha
+              text.visible = true
+              text.alpha = 0.01 // 거의 보이지 않지만 렌더링은 수행됨
+              
+              // 앱 렌더러를 직접 호출하여 텍스트를 렌더링
+              if (appRef.current?.renderer && containerRef.current) {
+                try {
+                  appRef.current.renderer.render(containerRef.current)
+                } catch (renderError) {
+                  // 렌더러 호출 실패 시 무시
+                }
+              }
+              
+              // 텍스트 크기 측정
+              const textBounds = text.getLocalBounds()
+              let measuredTextWidth = textBounds.width || 0
+              let measuredTextHeight = textBounds.height || 0
+              
+              // 크기가 여전히 0이면 텍스트를 다시 설정하고 재측정
+              if (measuredTextWidth === 0 || measuredTextHeight === 0) {
+                const currentText = text.text
+                text.text = currentText
+                if (appRef.current?.renderer && containerRef.current) {
+                  try {
+                    appRef.current.renderer.render(containerRef.current)
+                  } catch (renderError) {
+                    // 렌더러 재호출 실패 시 무시
+                  }
+                }
+                const retryBounds = text.getLocalBounds()
+                measuredTextWidth = retryBounds.width || 0
+                measuredTextHeight = retryBounds.height || 0
+              }
+              
+              // 원래 상태로 복원
+              text.visible = wasVisible
+              text.alpha = wasAlpha
+              
+              // 박스 내부 정렬 계산 (ANIMATION.md 6.3)
+              // vAlign은 middle 고정이므로 파라미터로 전달하지 않음
+              const { textX, textY } = calculateTextPositionInBox(
+                boxX,
+                boxY,
+                boxW,
+                boxH,
+                measuredTextWidth,
+                measuredTextHeight,
+                hAlign
+              )
+              
+              text.x = textX
+              text.y = textY
+            })
+          })
+          
           text.scale.set(scaleX, scaleY)
           text.rotation = scene.text.transform.rotation ?? 0
 
@@ -376,20 +477,19 @@ export function useTransportRenderer({
             text.text = text.text
           }
         } else {
-          // transform이 없을 때 공통 함수 사용
+          // Transform이 없을 때: anchor (0.5, 0.5)로 고정하고 텍스트 중앙이 subtitlePosition.x에 오도록 설정
           const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
+          
+          // anchor를 (0.5, 0.5)로 고정: 텍스트의 중앙이 기준점이 됨
+          text.anchor.set(0.5, 0.5)
+          
+          // 텍스트의 중앙이 subtitlePosition.x, y에 오도록 설정
+          // anchor가 (0.5, 0.5)이므로 text.x는 텍스트의 중앙 위치
           text.x = subtitlePosition.x
           text.y = subtitlePosition.y
-          text.scale.set(subtitlePosition.scaleX, subtitlePosition.scaleY)
-          text.rotation = subtitlePosition.rotation
+          text.scale.set(subtitlePosition.scaleX ?? 1, subtitlePosition.scaleY ?? 1)
+          text.rotation = subtitlePosition.rotation ?? 0
         }
-
-        // 씬별 Container에 text 추가 (기존 containerRef 대신)
-        const sceneContainer = getOrCreateSceneContainer(sceneIndex)
-        sceneContainer.addChild(text)
-        
-        // 기존 containerRef에도 추가 (하위 호환성 유지, 나중에 제거 예정)
-        container.addChild(text)
         textsRef.current.set(sceneIndex, text)
 
         // 밑줄 렌더링
@@ -743,7 +843,10 @@ export function useTransportRenderer({
           wordWrap: true,
           wordWrapWidth: textWidth,
           breakWords: true,
-          stroke: { color: '#000000', width: 10 },
+          stroke: {
+            color: scene.text.stroke?.color || '#000000',
+            width: scene.text.stroke?.width ?? 10,
+          },
         }
 
         const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
@@ -756,9 +859,11 @@ export function useTransportRenderer({
           const scaleX = transform.scaleX ?? 1
           const scaleY = transform.scaleY ?? 1
           
-          // Anchor 및 정렬 기본값 설정 (하위 호환성)
-          const anchorX = transform.anchor?.x ?? 0.5
-          const anchorY = transform.anchor?.y ?? 0.5
+          // Anchor 및 정렬 기본값 설정
+          // 중요: 저장 시점에 anchor 정보가 없으면 (0, 0)으로 가정 (PIXI.Text의 기본 anchor)
+          // 렌더링 시점에는 항상 anchor를 (0, 0)으로 설정하므로, 저장된 좌표가 이미 Top-Left 기준이면 anchor는 (0, 0)이어야 함
+          const anchorX = transform.anchor?.x ?? 0
+          const anchorY = transform.anchor?.y ?? 0
           const hAlign = transform.hAlign ?? 'center'
           // vAlign은 middle 고정 (ANIMATION.md 6.3)
           
@@ -792,36 +897,8 @@ export function useTransportRenderer({
             hAlign
           )
           
-          // 디버깅 로그 (개발 모드)
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[useTransportRenderer] Subtitle Box+Align Calculation:', {
-              sceneIndex,
-              partIndex,
-              transform: {
-                x: transform.x,
-                y: transform.y,
-                width: transform.width,
-                height: transform.height,
-                scaleX,
-                scaleY,
-                anchorX,
-                anchorY,
-                hAlign,
-              },
-              box: {
-                boxX: boxX.toFixed(2),
-                boxY: boxY.toFixed(2),
-                boxW: boxW.toFixed(2),
-                boxH: boxH.toFixed(2),
-              },
-              text: {
-                measuredWidth: measuredTextWidth.toFixed(2),
-                measuredHeight: measuredTextHeight.toFixed(2),
-                textX: textX.toFixed(2),
-                textY: textY.toFixed(2),
-              },
-            })
-          }
+          // 디버깅 로그 제거: 렌더링 시점의 로그는 실제 서버 전송 값과 다를 수 있음
+          // 실제 서버 전송 값은 useVideoExport.ts의 로그를 확인하세요
           
           // PIXI.Text의 anchor를 (0, 0)으로 설정하고 계산된 위치 사용
           textObj.anchor.set(0, 0)
@@ -832,12 +909,24 @@ export function useTransportRenderer({
         } else {
           // transform이 없을 때 공통 함수 사용
           const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
-          textObj.x = subtitlePosition.x
-          textObj.y = subtitlePosition.y
+          
+          // transform이 없을 때도 anchor를 (0, 0)으로 설정하여 일관성 유지
+          // getSubtitlePosition이 반환하는 좌표는 중앙 기준이므로, 텍스트 크기를 고려하여 Top-Left 좌표로 변환
+          textObj.anchor.set(0, 0)
+          
+          // 텍스트 실제 크기 계산
+          const textBounds = textObj.getLocalBounds()
+          const measuredTextWidth = textBounds.width || 0
+          const measuredTextHeight = textBounds.height || 0
+          
+          // 중앙 기준 좌표를 Top-Left 좌표로 변환
+          const textX = subtitlePosition.x - measuredTextWidth / 2
+          const textY = subtitlePosition.y - measuredTextHeight / 2
+          
+          textObj.x = textX
+          textObj.y = textY
           textObj.scale.set(subtitlePosition.scaleX, subtitlePosition.scaleY)
           textObj.rotation = subtitlePosition.rotation
-          // 기존 방식: anchor를 중앙으로 설정
-          textObj.anchor.set(0.5, 0.5)
         }
 
         // 밑줄 렌더링 (Transform 적용 후에 처리)
@@ -920,6 +1009,7 @@ export function useTransportRenderer({
       // ANIMATION.md 표준 파이프라인 8단계
       // ============================================================
       
+      
       // 초기 검증
       if (!timeline || !appRef.current) {
         return
@@ -971,6 +1061,22 @@ export function useTransportRenderer({
       // ============================================================
       // 1단계: 씬/파트 계산
       // ============================================================
+      // 재생 중이 아닐 때 (playingSceneIndex === null) 수동 선택된 씬 우선 사용
+      // 씬 클릭 시 currentSceneIndexRef가 업데이트되지만 transport.currentTime이 아직 업데이트되지 않아서
+      // 시간 기반 계산이 이전 씬을 반환하는 문제 방지
+      // 중요: options에 이미 forceSceneIndex가 있으면 덮어쓰지 않음 (명시적 지정 우선)
+      if (!options?.forceSceneIndex && playingSceneIndex === null && playingGroupSceneId === null) {
+        const manualSceneIndex = currentSceneIndexRef.current
+        if (manualSceneIndex >= 0 && manualSceneIndex < timeline.scenes.length) {
+          // 수동 선택된 씬이 있으면 forceSceneIndex로 사용
+          // pipelineContext.options를 직접 수정하여 step1CalculateScenePart에서 사용되도록 함
+          if (!pipelineContext.options) {
+            pipelineContext.options = {}
+          }
+          pipelineContext.options.forceSceneIndex = manualSceneIndex
+        }
+      }
+      
       const step1Result = step1CalculateScenePart(pipelineContext)
       if (!step1Result) {
         return
@@ -1035,8 +1141,8 @@ export function useTransportRenderer({
       // ============================================================
       let step5Result
       if (shouldSkipMainRendering) {
-        // 중복 렌더링이면 기본값 사용 (자막 렌더링을 위해 최소한의 값만 필요)
-        const sceneStartTime = getSceneStartTime(timeline, sceneIndex)
+        // 중복 렌더링이면 기본값 사용 (자막 렌더링을 위해 최소한의 값만 필요, TTS 기준 sceneStartTime 사용)
+        const sceneStartTime = step8Result.sceneStartTime
         const sceneLocalT = Math.max(0, tSec - sceneStartTime)
         step5Result = { motionProgress: 0, spriteAfterMotion: null, sceneLocalT, sceneStartTime }
       } else {

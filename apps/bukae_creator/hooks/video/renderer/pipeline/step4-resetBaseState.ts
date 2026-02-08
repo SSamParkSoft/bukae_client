@@ -4,22 +4,21 @@
  * 매 프레임 항상 실행
  */
 
+import { getSceneStartTimeFromTts } from '@/utils/timeline-render'
+import { MOVEMENT_EFFECTS } from '../../types/effects'
 import type { PipelineContext } from './types'
 import type { TimelineScene } from '@/lib/types/domain/timeline'
 import * as PIXI from 'pixi.js'
 
+/** 전환 직전으로 간주하는 구간 (초). 이 구간에서는 스프라이트 리셋 스킵 → 한 프레임 돌아가는 현상 방지 */
+const TRANSITION_LEAD_BUFFER = 0.5
+
 /**
  * 4단계: Base State 리셋
- * 
- * 누적 업데이트/상태 누수 방지를 위해 매 프레임 항상 기본값으로 리셋
- * 중요: 컨테이너에 추가한 후에 리셋해야 removeChildren()으로 인한 제거 방지
- * Base State 리셋은 항상 실행하고, 그 다음 Motion/Transition이 적용됨
- * 
- * @param context 파이프라인 컨텍스트
- * @param sprite 스프라이트
- * @param sceneText 텍스트 객체
- * @param sceneIndex 씬 인덱스
- * @param scene 씬 데이터
+ *
+ * 누적 업데이트/상태 누수 방지를 위해 매 프레임 기본값으로 리셋.
+ * 단, 전환 직전이고 다음 전환이 움직임 효과일 때는 리셋하지 않음
+ * (움직임 끝난 위치에서 슬라이드 아웃되도록, TIMING_POLICY.md).
  */
 export function step4ResetBaseState(
   context: PipelineContext,
@@ -28,9 +27,45 @@ export function step4ResetBaseState(
   sceneIndex: number,
   scene: TimelineScene
 ): void {
-  const { resetBaseStateCallback } = context
+  const {
+    timeline,
+    tSec,
+    ttsCacheRef,
+    voiceTemplate,
+    buildSceneMarkup,
+    makeTtsKey,
+    resetBaseStateCallback,
+  } = context
 
-  // Base State 리셋: 매 프레임마다 항상 실행 (ANIMATION.md 표준)
-  // Motion과 Transition은 Base State를 기준으로 적용되므로 항상 리셋 필요
+  const nextScene = timeline.scenes[sceneIndex + 1]
+  const nextTransition = (nextScene?.transition || 'none').toLowerCase()
+  const isNextMovementEffect = MOVEMENT_EFFECTS.includes(
+    nextTransition as (typeof MOVEMENT_EFFECTS)[number]
+  )
+
+  let nearNextSceneStart = false
+  if (
+    nextScene &&
+    ttsCacheRef &&
+    buildSceneMarkup &&
+    makeTtsKey
+  ) {
+    const nextStart = getSceneStartTimeFromTts(timeline, sceneIndex + 1, {
+      ttsCacheRef,
+      voiceTemplate,
+      buildSceneMarkup,
+      makeTtsKey,
+    })
+    nearNextSceneStart = tSec >= nextStart - TRANSITION_LEAD_BUFFER
+  }
+
+  if (nearNextSceneStart && isNextMovementEffect && sprite && !sprite.destroyed) {
+    // 전환 직전 + 다음 전환이 움직임 효과 → 스프라이트 리셋 스킵 (움직임 끝 위치 유지)
+    if (sceneText && !sceneText.destroyed) {
+      resetBaseStateCallback(null, sceneText, sceneIndex, scene)
+    }
+    return
+  }
+
   resetBaseStateCallback(sprite, sceneText, sceneIndex, scene)
 }

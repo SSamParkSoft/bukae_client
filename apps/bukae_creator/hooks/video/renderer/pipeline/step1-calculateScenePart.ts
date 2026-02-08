@@ -16,7 +16,7 @@ export function step1CalculateScenePart(context: PipelineContext): Step1Result |
   const { timeline, tSec, options, ttsCacheRef, voiceTemplate, buildSceneMarkup, makeTtsKey } = context
 
   // t에서 씬과 구간 계산
-  const { sceneIndex, partIndex } = calculateScenePartFromTime({
+  const { sceneIndex, partIndex, sceneStartTime } = calculateScenePartFromTime({
     timeline,
     tSec,
     forceSceneIndex: options?.forceSceneIndex,
@@ -34,5 +34,6 @@ export function step1CalculateScenePart(context: PipelineContext): Step1Result |
   return {
     sceneIndex,
     partIndex: partIndex ?? null,
+    sceneStartTime,
   }
 }

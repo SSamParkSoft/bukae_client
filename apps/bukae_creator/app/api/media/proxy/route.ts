@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import sharp from 'sharp'
 
 /**
  * 이미지 프록시 API
@@ -8,31 +9,47 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const imageUrl = searchParams.get('url')
+    const width = searchParams.get('w') // Next.js 이미지 최적화에서 전달되는 width
+    const quality = searchParams.get('q') // Next.js 이미지 최적화에서 전달되는 quality
 
-    console.log('[Image Proxy] 요청 받음:', imageUrl?.substring(0, 100))
+    console.log('[Image Proxy] 요청 받음:', imageUrl?.substring(0, 100), `width: ${width}, quality: ${quality}`)
 
     if (!imageUrl) {
       console.error('[Image Proxy] url 파라미터 없음')
       return NextResponse.json({ error: 'url 파라미터가 필요합니다.' }, { status: 400 })
     }
 
-    // URL 유효성 검사
+    // URL 파싱 (유효성 검사 및 hostname 추출)
+    let parsedUrl: URL
     try {
-      new URL(imageUrl)
+      parsedUrl = new URL(imageUrl)
     } catch {
       console.error('[Image Proxy] 유효하지 않은 URL:', imageUrl)
       return NextResponse.json({ error: '유효하지 않은 URL입니다.' }, { status: 400 })
     }
 
-    // 쿠팡 이미지만 허용 (보안) - coupangcdn.com, ads-partners.coupang.com 등 쿠팡 도메인 허용
-    const isCoupangImage = 
-      imageUrl.includes('coupangcdn.com') || 
-      imageUrl.includes('ads-partners.coupang.com') ||
-      (imageUrl.includes('coupang.com') && imageUrl.includes('/image'))
-    
-    if (!isCoupangImage) {
-      console.error('[Image Proxy] 쿠팡 이미지가 아님:', imageUrl)
-      return NextResponse.json({ error: '쿠팡 이미지만 프록시할 수 있습니다.' }, { status: 403 })
+    const hostname = parsedUrl.hostname.toLowerCase()
+
+    // 허용된 이미지 도메인 확인 (보안): hostname 기준으로만 검증하여 우회 방지
+    // 쿠팡: coupangcdn.com, ads-partners.coupang.com, coupang.com(경로에 /image 포함 시)
+    // 알리익스프레스: aliexpress-media.com, alicdn.com
+    const isHostnameAllowed = (host: string, allowed: string) =>
+      host === allowed || host.endsWith('.' + allowed)
+
+    const coupangCdnOrPartner =
+      isHostnameAllowed(hostname, 'coupangcdn.com') ||
+      isHostnameAllowed(hostname, 'ads-partners.coupang.com')
+    const coupangWithImagePath =
+      isHostnameAllowed(hostname, 'coupang.com') && parsedUrl.pathname.includes('/image')
+    const isCoupangImage = coupangCdnOrPartner || coupangWithImagePath
+
+    const isAliExpressImage =
+      isHostnameAllowed(hostname, 'aliexpress-media.com') ||
+      isHostnameAllowed(hostname, 'alicdn.com')
+
+    if (!isCoupangImage && !isAliExpressImage) {
+      console.error('[Image Proxy] 허용되지 않은 이미지 도메인:', hostname, imageUrl?.substring(0, 100))
+      return NextResponse.json({ error: '쿠팡 또는 알리익스프레스 이미지만 프록시할 수 있습니다.' }, { status: 403 })
     }
 
     console.log('[Image Proxy] 이미지 가져오기 시작:', imageUrl.substring(0, 100))
@@ -52,17 +69,53 @@ export async function GET(request: Request) {
       )
     }
 
-    const imageBuffer = await imageResponse.arrayBuffer()
-    const contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
+    const arrayBuffer = await imageResponse.arrayBuffer()
+    let imageBuffer: Buffer = Buffer.from(arrayBuffer)
+    let contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
+    const originalSize = imageBuffer.byteLength
 
-    console.log(
-      '[Image Proxy] 이미지 프록시 성공:',
-      imageUrl.substring(0, 100),
-      `크기: ${imageBuffer.byteLength} bytes`
-    )
+    // 이미지 최적화 (width나 quality 파라미터가 있으면)
+    if (width || quality) {
+      try {
+        const widthNum = width ? parseInt(width, 10) : undefined
+        const qualityNum = quality ? parseInt(quality, 10) : 75
+        
+        let sharpInstance = sharp(imageBuffer)
+        
+        // width가 있으면 리사이징
+        if (widthNum && widthNum > 0) {
+          sharpInstance = sharpInstance.resize(widthNum, undefined, {
+            withoutEnlargement: true, // 원본보다 크게 만들지 않음
+            fit: 'inside', // 비율 유지하며 리사이징
+          })
+        }
+        
+        // WebP로 변환하여 용량 최적화 (quality 적용)
+        imageBuffer = await sharpInstance
+          .webp({ quality: qualityNum })
+          .toBuffer()
+        
+        contentType = 'image/webp'
+        
+        console.log(
+          '[Image Proxy] 이미지 최적화 완료:',
+          imageUrl.substring(0, 100),
+          `원본: ${originalSize} bytes → 최적화: ${imageBuffer.byteLength} bytes (${widthNum ? `width: ${widthNum}, ` : ''}quality: ${qualityNum})`
+        )
+      } catch (optimizeError) {
+        console.warn('[Image Proxy] 이미지 최적화 실패, 원본 반환:', optimizeError)
+        // 최적화 실패 시 원본 반환
+      }
+    } else {
+      console.log(
+        '[Image Proxy] 이미지 프록시 성공 (최적화 없음):',
+        imageUrl.substring(0, 100),
+        `크기: ${imageBuffer.byteLength} bytes`
+      )
+    }
 
-    // 이미지 반환
-    return new NextResponse(imageBuffer, {
+    // 이미지 반환 (Buffer를 Uint8Array로 변환하여 NextResponse에 전달)
+    return new NextResponse(new Uint8Array(imageBuffer), {
       headers: {
         'Content-Type': contentType,
         'Cache-Control': 'public, max-age=3600',

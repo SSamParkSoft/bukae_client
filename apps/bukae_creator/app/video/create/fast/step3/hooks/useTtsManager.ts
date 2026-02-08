@@ -9,6 +9,7 @@ import { calculateTotalDuration } from '@/utils/timeline'
 
 interface UseTtsManagerProps {
   timeline: TimelineData | null
+  /** @deprecated 전역 voiceTemplate은 더 이상 사용하지 않습니다. 각 씬의 scene.voiceTemplate만 사용합니다. */
   voiceTemplate: string | null
   setTimeline: (timeline: TimelineData | null) => void
   isPlaying: boolean
@@ -90,17 +91,20 @@ export function useTtsManager({
     ttsCacheRef.current.clear()
   }, [stopTtsAudio, stopScenePreviewAudio])
 
-  // voiceTemplate 변경 시 캐시 초기화
+  // voiceTemplate 변경 시 캐시 초기화 (deprecated: 더 이상 사용하지 않지만 하위 호환성을 위해 유지)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (voiceTemplate) {
-      resetTtsSession()
-    }
-  }, [voiceTemplate, resetTtsSession])
+    // 전역 voiceTemplate은 더 이상 사용하지 않으므로 이 로직도 제거 가능
+    // 하지만 하위 호환성을 위해 주석 처리만 함
+    // if (voiceTemplate) {
+    //   resetTtsSession()
+    // }
+  }, [])
 
   // 씬 duration을 오디오에서 설정
   const setSceneDurationFromAudio = useCallback(
     (sceneIndex: number, durationSec: number) => {
-      if (!timeline || !voiceTemplate) {
+      if (!timeline) {
         return
       }
       if (!Number.isFinite(durationSec) || durationSec <= 0) {
@@ -163,7 +167,7 @@ export function useTtsManager({
       // timeline 업데이트 (렌더링 트리거 후)
       setTimeline(newTimeline)
     },
-    [setTimeline, timeline, isPlaying, setCurrentTime, voiceTemplate, onDurationChange]
+    [setTimeline, timeline, isPlaying, setCurrentTime, onDurationChange]
   )
 
   // ensureSceneTts 래퍼
@@ -185,14 +189,16 @@ export function useTtsManager({
       if (!timeline) {
         throw new Error('timeline이 없습니다.')
       }
-      const sceneVoiceTemplate = timeline.scenes[sceneIndex]?.voiceTemplate || voiceTemplate
-      if (!sceneVoiceTemplate) {
-        throw new Error('목소리를 먼저 선택해주세요.')
+      // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+      const sceneVoiceTemplate = timeline.scenes[sceneIndex]?.voiceTemplate
+      if (!sceneVoiceTemplate || sceneVoiceTemplate.trim() === '') {
+        throw new Error(`씬 ${sceneIndex + 1}에 보이스를 먼저 선택해주세요.`)
       }
 
       return ensureSceneTtsUtil({
         timeline,
         sceneIndex,
+        // voiceTemplate 파라미터는 더 이상 사용하지 않지만 하위 호환성을 위해 전달
         voiceTemplate: sceneVoiceTemplate,
         ttsCacheRef,
         ttsInFlightRef,
@@ -202,12 +208,12 @@ export function useTtsManager({
         forceRegenerate,
       })
     },
-    [timeline, voiceTemplate, setSceneDurationFromAudio, changedScenesRef]
+    [timeline, setSceneDurationFromAudio, changedScenesRef]
   )
 
   // 씬 TTS 캐시 무효화 (저장소 URL도 제거하여 재업로드 유도)
   const invalidateSceneTtsCache = useCallback((sceneIndex: number) => {
-    if (!timeline || !voiceTemplate) return
+    if (!timeline) return
     
     const scene = timeline.scenes[sceneIndex]
     if (!scene) return
@@ -235,10 +241,10 @@ export function useTtsManager({
     // sceneId나 sceneIndex로 찾지 못한 경우, 
     // 해당 씬의 현재 스크립트로 생성된 모든 키를 찾아서 무효화
     // (스크립트가 변경되었을 때 이전 캐시를 찾기 위함)
-    // 씬별 voiceTemplate도 고려 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
+    // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
     if (keysToInvalidate.length === 0) {
       const markups = buildSceneMarkup(timeline, sceneIndex)
-      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate || ''
+      const sceneVoiceTemplate = scene.voiceTemplate || ''
       markups.forEach((markup) => {
         const key = makeTtsKey(sceneVoiceTemplate, markup)
         if (ttsCacheRef.current.has(key)) {
@@ -254,11 +260,11 @@ export function useTtsManager({
         ttsCacheRef.current.delete(key)
       }
     })
-  }, [timeline, voiceTemplate])
+  }, [timeline])
 
   // 씬별 마크업 메모이제이션 (캐시 확인 최적화)
   const sceneMarkupsMap = useMemo(() => {
-    if (!timeline || !voiceTemplate) return new Map<number, string[]>()
+    if (!timeline) return new Map<number, string[]>()
     
     const map = new Map<number, string[]>()
     timeline.scenes.forEach((scene, index) => {
@@ -266,12 +272,12 @@ export function useTtsManager({
       map.set(index, markups)
     })
     return map
-  }, [timeline, voiceTemplate])
+  }, [timeline])
   
   // 씬별 캐시 상태 메모이제이션 (캐시 확인 최적화)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const sceneCacheStatusMap = useMemo(() => {
-    if (!timeline || !voiceTemplate || !sceneMarkupsMap) return new Map<number, { allCached: boolean; totalDuration: number }>()
+    if (!timeline || !sceneMarkupsMap) return new Map<number, { allCached: boolean; totalDuration: number }>()
     
     const map = new Map<number, { allCached: boolean; totalDuration: number }>()
     timeline.scenes.forEach((scene, index) => {
@@ -281,7 +287,13 @@ export function useTtsManager({
         return
       }
       
-      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+      // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+      const sceneVoiceTemplate = scene.voiceTemplate
+      if (!sceneVoiceTemplate) {
+        map.set(index, { allCached: false, totalDuration: 0 })
+        return
+      }
+      
       let totalTtsDuration = 0
       let allPartsCached = true
       
@@ -300,13 +312,13 @@ export function useTtsManager({
     })
     return map
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeline, voiceTemplate, sceneMarkupsMap, ttsCacheRef.current])
+  }, [timeline, sceneMarkupsMap, ttsCacheRef.current])
   
   // Timeline의 duration을 계산 (TTS 캐시 기반)
   // setSceneDurationFromAudio가 이미 scene.duration을 업데이트하므로,
   // 이 useEffect는 캐시 변경을 감지하여 추가로 업데이트하는 역할을 합니다.
   useEffect(() => {
-    if (!timeline || !voiceTemplate) return
+    if (!timeline) return
     
     // scenes의 text content와 voiceTemplate이 변경되었는지 확인
     const currentScenesKey = timeline.scenes.map(s => 
@@ -326,7 +338,12 @@ export function useTtsManager({
         const markups = sceneMarkupsMap.get(index) || []
         if (markups.length === 0) return true
         
-        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+        // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+        const sceneVoiceTemplate = scene.voiceTemplate
+        if (!sceneVoiceTemplate) {
+          return false // voiceTemplate이 없으면 duration 계산 불가
+        }
+        
         let totalTtsDuration = 0
         let allPartsCached = true
         
@@ -370,7 +387,12 @@ export function useTtsManager({
       const markups = sceneMarkupsMap.get(index) || []
       if (markups.length === 0) return scene
       
-      const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+      // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+      const sceneVoiceTemplate = scene.voiceTemplate
+      if (!sceneVoiceTemplate) {
+        return scene // voiceTemplate이 없으면 duration 업데이트하지 않음
+      }
+      
       let totalTtsDuration = 0
       let allPartsCached = true
       
@@ -424,7 +446,7 @@ export function useTtsManager({
         }
       })
     }
-  }, [voiceTemplate, setTimeline, timeline, sceneMarkupsMap, onDurationChange])
+  }, [setTimeline, timeline, sceneMarkupsMap, onDurationChange])
 
   return {
     ttsCacheRef,

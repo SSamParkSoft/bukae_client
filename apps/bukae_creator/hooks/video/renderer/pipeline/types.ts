@@ -98,6 +98,7 @@ export interface PipelineContext {
 export interface Step1Result {
   sceneIndex: number
   partIndex: number | null
+  sceneStartTime: number
 }
 
 /**
@@ -128,6 +129,7 @@ export interface Step8Result {
   } | null
   sceneIndex: number
   partIndex: number | null
+  sceneStartTime: number
 }
 
 /**

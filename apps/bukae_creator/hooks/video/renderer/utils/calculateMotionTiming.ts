@@ -91,7 +91,8 @@ export function calculateMotionDuration({
   
   // 세그먼트 duration이 없으면 씬의 TTS 캐시 duration 사용
   if (segmentDuration === 0 && ttsCacheRef && buildSceneMarkup && makeTtsKey) {
-    const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+    // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+    const sceneVoiceTemplate = scene.voiceTemplate
     if (sceneVoiceTemplate) {
       const markups = buildSceneMarkup(timeline, sceneIndex)
       for (const markup of markups) {

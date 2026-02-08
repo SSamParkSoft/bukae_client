@@ -7,6 +7,7 @@ import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
 import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
 import { getSoundEffectStorageUrl } from '@/lib/utils/supabase-storage'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
+import { getSubtitlePosition } from '../renderer/utils/getSubtitlePosition'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { SceneScript } from '@/lib/types/domain/script'
 import * as PIXI from 'pixi.js'
@@ -100,6 +101,7 @@ export function useVideoExport({
       // 텍스트 transform 읽기
       if (text && text.parent) {
         const bounds = text.getBounds()
+        // 중요: PIXI.Text의 anchor가 (0,0)으로 설정되어 있으므로
         sceneTransforms.textTransform = {
           x: text.x,
           y: text.y,
@@ -125,17 +127,12 @@ export function useVideoExport({
       return
     }
 
-    // 디버깅: voiceTemplate 값 확인
-    console.log('[useVideoExport] voiceTemplate 값:', voiceTemplate, '타입:', typeof voiceTemplate)
-
     if (!timeline) {
       alert('타임라인 데이터가 없어요.')
       return
     }
 
     if (!voiceTemplate || voiceTemplate.trim() === '') {
-      console.warn('[useVideoExport] voiceTemplate이 없거나 빈 문자열입니다:', voiceTemplate)
-      console.error('[useVideoExport] 목소리를 먼저 선택해주세요.')
       alert('목소리를 먼저 선택해주세요.')
       return
     }
@@ -151,9 +148,23 @@ export function useVideoExport({
 
       // 0. 모든 씬의 캔버스 상태 읽기 (최신 transform 정보)
       const canvasTransforms = getAllCanvasTransforms()
-      console.log('[useVideoExport] 캔버스 상태 읽기 완료:', canvasTransforms.size, '개 씬')
 
-      // 1. 모든 씬의 TTS Blob을 가져와서 서버에 업로드
+      // 1. 모든 씬에 voiceTemplate이 있는지 먼저 검증
+      // 하나라도 없으면 전체 내보내기 차단
+      const scenesWithoutVoice: number[] = []
+      for (let i = 0; i < timeline.scenes.length; i++) {
+        const scene = timeline.scenes[i]
+        const sceneVoiceTemplate = scene?.voiceTemplate
+        if (!sceneVoiceTemplate || sceneVoiceTemplate.trim() === '') {
+          scenesWithoutVoice.push(i + 1) // 사용자에게 보여줄 때는 1부터 시작
+        }
+      }
+      
+      if (scenesWithoutVoice.length > 0) {
+        throw new Error(`씬 ${scenesWithoutVoice.join(', ')}에 보이스를 설정해주세요.`)
+      }
+      
+      // 2. 모든 씬의 TTS Blob을 가져와서 서버에 업로드
       // 캐시된 것과 합성이 필요한 것을 분리하여 레이트 리밋 방지
       // 병렬 처리로 속도 향상
       const ttsResults: Array<{ sceneIndex: number; blob: Blob; durationSec: number } | null> = []
@@ -165,12 +176,11 @@ export function useVideoExport({
           return { sceneIndex: index, result: null }
         }
 
-        // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
-        const sceneVoiceTemplate = scene?.voiceTemplate || voiceTemplate
-        
+        // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+        // 위에서 이미 검증했으므로 여기서는 항상 존재함
+        const sceneVoiceTemplate = scene?.voiceTemplate
         if (!sceneVoiceTemplate) {
-          console.warn(`[useVideoExport] 씬 ${index}에 voiceTemplate이 없습니다.`)
-          return { sceneIndex: index, result: null }
+          throw new Error(`씬 ${index + 1}에 보이스가 없습니다.`)
         }
 
         // 모든 구간이 캐시되어 있는지 확인
@@ -266,7 +276,6 @@ export function useVideoExport({
 
                     if (!uploadRes.ok) {
                       const errorData = await uploadRes.json().catch(() => ({}))
-                      console.error(`[useVideoExport] 씬 ${sceneIndex + 1} 구간 ${part.partIndex + 1} 업로드 실패:`, errorData.error || '알 수 없는 오류')
                       partUrls.set(part.partIndex, null)
                       return
                     }
@@ -274,7 +283,6 @@ export function useVideoExport({
                     const uploadData = await uploadRes.json()
                     partUrls.set(part.partIndex, uploadData.url || null)
                   } catch (error) {
-                    console.error(`[useVideoExport] 씬 ${sceneIndex} 구간 ${part.partIndex + 1} 업로드 실패:`, error)
                     partUrls.set(part.partIndex, null)
                   }
                 })()
@@ -345,7 +353,6 @@ export function useVideoExport({
 
                         if (!uploadRes.ok) {
                           const errorData = await uploadRes.json().catch(() => ({}))
-                          console.error(`[useVideoExport] 씬 ${sceneIndex + 1} 구간 ${part.partIndex + 1} 업로드 실패:`, errorData.error || '알 수 없는 오류')
                           partUrls.set(part.partIndex, null)
                           return
                         }
@@ -353,7 +360,6 @@ export function useVideoExport({
                         const uploadData = await uploadRes.json()
                         partUrls.set(part.partIndex, uploadData.url || null)
                       } catch (error) {
-                        console.error(`[useVideoExport] 씬 ${sceneIndex} 구간 ${part.partIndex + 1} 업로드 실패:`, error)
                         partUrls.set(part.partIndex, null)
                       }
                     })()
@@ -433,7 +439,6 @@ export function useVideoExport({
 
                     if (!uploadRes.ok) {
                       const errorData = await uploadRes.json().catch(() => ({}))
-                      console.error(`[useVideoExport] 씬 ${index + 1} 구간 ${part.partIndex + 1} 업로드 실패:`, errorData.error || '알 수 없는 오류')
                       partUrls.set(part.partIndex, null)
                       return
                     }
@@ -441,7 +446,6 @@ export function useVideoExport({
                     const uploadData = await uploadRes.json()
                     partUrls.set(part.partIndex, uploadData.url || null)
                   } catch (error) {
-                    console.error(`[useVideoExport] 씬 ${index} 구간 ${part.partIndex + 1} 업로드 실패:`, error)
                     partUrls.set(part.partIndex, null)
                   }
                 })()
@@ -461,7 +465,7 @@ export function useVideoExport({
             }))
             ttsPartsByScene.set(index, partsInfo)
           } catch (error) {
-            console.error(`[useVideoExport] 씬 ${index} TTS 정보 가져오기 실패:`, error)
+            // TTS 정보 가져오기 실패 시 무시
           }
         }
       }
@@ -539,8 +543,11 @@ export function useVideoExport({
           
           // 각 구간을 별도 씬으로 생성
           textParts.forEach((partText, partIndex) => {
-            // 씬별 voiceTemplate 사용 (있으면 씬의 것을 사용, 없으면 전역 voiceTemplate 사용)
-            const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+            // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
+            const sceneVoiceTemplate = scene.voiceTemplate
+            if (!sceneVoiceTemplate) {
+              throw new Error(`씬 ${sceneIndex + 1}에 보이스가 없습니다.`)
+            }
             
             // 캔버스에서 읽은 transform 사용 (없으면 timeline의 transform 사용)
             const sceneCanvasTransform = canvasTransforms.get(sceneIndex)
@@ -617,8 +624,8 @@ export function useVideoExport({
                 color: scene.text.color || '#FFFFFF',
                 stroke: {
                   enabled: true,
-                  color: '#000000',
-                  width: 10,
+                  color: scene.text.stroke?.color || '#000000',
+                  width: scene.text.stroke?.width ?? 10,
                 },
                 shadow: {
                   enabled: false,
@@ -637,6 +644,9 @@ export function useVideoExport({
                   const textTransform = sceneCanvasTransform?.textTransform || scene.text.transform
                   
                   if (textTransform) {
+                    // 인코딩 시: anchor를 항상 (0.5, 0.5)로 고정하고 x, y값을 그대로 전송
+                    // 프론트엔드 렌더링에서 이미 anchor (0.5, 0.5) 기준으로 x, y를 설정했으므로
+                    // 그 값을 그대로 사용하면 됨
                     return {
                       ...textTransform,
                       anchor: {
@@ -646,24 +656,18 @@ export function useVideoExport({
                     }
                   }
                   
-                  // transform이 없으면 position 기반으로 Y 좌표 계산
-                  const position = scene.text.position || 'center'
-                  let textY = height / 2 // center 기본값
-                  if (position === 'top') {
-                    textY = 200
-                  } else if (position === 'bottom') {
-                    textY = height - 200 // 1920 - 200 = 1720
-                  }
+                  // transform이 없을 때: getSubtitlePosition 사용하고 anchor (0.5, 0.5)로 고정
+                  const subtitlePosition = getSubtitlePosition(scene, { width, height })
                   
                   return {
-                    x: width / 2,
-                    y: textY,
-                    width: width * 0.75,
-                    height: height * 0.07,
-                    scaleX: 1,
-                    scaleY: 1,
-                    rotation: 0,
-                    anchor: { x: 0.5, y: 0.5 },
+                    x: subtitlePosition.x,
+                    y: subtitlePosition.y,
+                    width: width * 0.75, // 기본 너비 (실제 텍스트 크기는 백엔드에서 계산)
+                    height: height * 0.07, // 기본 높이 (실제 텍스트 크기는 백엔드에서 계산)
+                    scaleX: subtitlePosition.scaleX ?? 1,
+                    scaleY: subtitlePosition.scaleY ?? 1,
+                    rotation: subtitlePosition.rotation ?? 0,
+                    anchor: { x: 0.5, y: 0.5 }, // 항상 (0.5, 0.5)로 고정
                   }
                 })(),
               },
@@ -741,13 +745,6 @@ export function useVideoExport({
         encodingRequest,
       }
 
-      // 서버로 전송하는 JSON 바디 로그 출력
-      console.log('=== 인코딩 요청 JSON 바디 ===')
-      console.log('voiceTemplate 원본 값:', voiceTemplate)
-      console.log('audio.voice 값:', encodingRequest.audio.voice)
-      console.log(JSON.stringify(exportData, null, 2))
-      console.log('===========================')
-
       // 7. 최종 인코딩 요청 전송
       const response = await fetch('/api/videos/generate', {
         method: 'POST',
@@ -758,11 +755,6 @@ export function useVideoExport({
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         const errorMessage = errorData.error || errorData.message || `영상 생성 실패 (${response.status})`
-        console.error('=== 내보내기 에러 ===')
-        console.error('Status:', response.status)
-        console.error('Error Data:', errorData)
-        console.error('Request Body:', JSON.stringify(exportData, null, 2))
-        console.error('==================')
         throw new Error(errorMessage)
       }
 
