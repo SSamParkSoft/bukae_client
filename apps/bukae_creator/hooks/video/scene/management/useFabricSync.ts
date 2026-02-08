@@ -95,7 +95,10 @@ export function useFabricSync({
           fabricCanvas.add(img)
         }
       } catch (error) {
-        // 이미지 로드 실패 시 무시
+        console.warn(
+          '[useFabricSync] 이미지 로드 실패 (network/CORS/유효하지 않은 URL 등):',
+          { sceneIndex, imageUrl: scene.image?.substring?.(0, 120), error }
+        )
       }
     }
 
