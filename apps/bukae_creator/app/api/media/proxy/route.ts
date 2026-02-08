@@ -19,28 +19,36 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'url 파라미터가 필요합니다.' }, { status: 400 })
     }
 
-    // URL 유효성 검사
+    // URL 파싱 (유효성 검사 및 hostname 추출)
+    let parsedUrl: URL
     try {
-      new URL(imageUrl)
+      parsedUrl = new URL(imageUrl)
     } catch {
       console.error('[Image Proxy] 유효하지 않은 URL:', imageUrl)
       return NextResponse.json({ error: '유효하지 않은 URL입니다.' }, { status: 400 })
     }
 
-    // 허용된 이미지 도메인 확인 (보안)
-    // 쿠팡: coupangcdn.com, ads-partners.coupang.com 등 쿠팡 도메인
-    // 알리익스프레스: aliexpress-media.com, alicdn.com 등 알리익스프레스 도메인
-    const isCoupangImage = 
-      imageUrl.includes('coupangcdn.com') || 
-      imageUrl.includes('ads-partners.coupang.com') ||
-      (imageUrl.includes('coupang.com') && imageUrl.includes('/image'))
-    
-    const isAliExpressImage = 
-      imageUrl.includes('aliexpress-media.com') || 
-      imageUrl.includes('alicdn.com')
-    
+    const hostname = parsedUrl.hostname.toLowerCase()
+
+    // 허용된 이미지 도메인 확인 (보안): hostname 기준으로만 검증하여 우회 방지
+    // 쿠팡: coupangcdn.com, ads-partners.coupang.com, coupang.com(경로에 /image 포함 시)
+    // 알리익스프레스: aliexpress-media.com, alicdn.com
+    const isHostnameAllowed = (host: string, allowed: string) =>
+      host === allowed || host.endsWith('.' + allowed)
+
+    const coupangCdnOrPartner =
+      isHostnameAllowed(hostname, 'coupangcdn.com') ||
+      isHostnameAllowed(hostname, 'ads-partners.coupang.com')
+    const coupangWithImagePath =
+      isHostnameAllowed(hostname, 'coupang.com') && parsedUrl.pathname.includes('/image')
+    const isCoupangImage = coupangCdnOrPartner || coupangWithImagePath
+
+    const isAliExpressImage =
+      isHostnameAllowed(hostname, 'aliexpress-media.com') ||
+      isHostnameAllowed(hostname, 'alicdn.com')
+
     if (!isCoupangImage && !isAliExpressImage) {
-      console.error('[Image Proxy] 허용되지 않은 이미지 도메인:', imageUrl)
+      console.error('[Image Proxy] 허용되지 않은 이미지 도메인:', hostname, imageUrl?.substring(0, 100))
       return NextResponse.json({ error: '쿠팡 또는 알리익스프레스 이미지만 프록시할 수 있습니다.' }, { status: 403 })
     }
 
