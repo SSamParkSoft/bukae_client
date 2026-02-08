@@ -221,5 +221,6 @@ export function step8CheckDuplicateRender(
     activeSegmentFromTts,
     sceneIndex,
     partIndex: partIndex ?? null,
+    sceneStartTime: step1Result.sceneStartTime,
   }
 }

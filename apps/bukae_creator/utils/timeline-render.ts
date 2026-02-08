@@ -7,6 +7,57 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 import { getSceneStartTime } from './timeline'
 // buildSceneMarkup은 options로 전달받아 사용됨
 
+/** timeline.ts와 동일 (경계 불일치 방지) */
+const SCENE_GAP = 0.001
+
+export type CalculateSceneFromTimeOptions = {
+  ttsCacheRef?: React.MutableRefObject<Map<string, { durationSec: number }>>
+  voiceTemplate?: string | null
+  buildSceneMarkup?: (timeline: TimelineData | null, sceneIndex: number) => string[]
+  makeTtsKey?: (voiceName: string, markup: string) => string
+}
+
+/**
+ * TTS 캐시 기준으로 씬 sceneIndex의 시작 시간 계산.
+ * 세그먼트(오디오) 타임라인과 일치시키기 위해 **TTS duration만** 합산 (transition/gap 미포함).
+ * 이렇게 해야 tSec(transport)과 경계가 맞아서 뒤쪽 씬이 자기 구간만큼 움직임을 쓸 수 있음.
+ */
+export function getSceneStartTimeFromTts(
+  timeline: TimelineData,
+  sceneIndex: number,
+  options: CalculateSceneFromTimeOptions
+): number {
+  if (!timeline?.scenes?.length || sceneIndex <= 0) return 0
+  if (sceneIndex >= timeline.scenes.length) return 0
+
+  const { ttsCacheRef, buildSceneMarkup, makeTtsKey } = options
+  if (!ttsCacheRef || !buildSceneMarkup || !makeTtsKey) return getSceneStartTime(timeline, sceneIndex)
+
+  let time = 0
+  for (let i = 0; i < sceneIndex; i++) {
+    const currentScene = timeline.scenes[i]
+    if (!currentScene) continue
+
+    let sceneDuration = 0
+    const sceneVoiceTemplate = currentScene.voiceTemplate ?? options.voiceTemplate
+    if (sceneVoiceTemplate) {
+      const markups = buildSceneMarkup(timeline, i)
+      for (const markup of markups) {
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
+        const cached = ttsCacheRef.current.get(key)
+        if (cached?.durationSec && cached.durationSec > 0) {
+          sceneDuration += cached.durationSec
+        }
+      }
+    }
+    if (sceneDuration === 0) {
+      sceneDuration = currentScene.duration ?? 0
+    }
+    time += sceneDuration
+  }
+  return time
+}
+
 /**
  * 타임라인 시간 t에서 씬과 구간 정보 계산
  * @param timeline 타임라인 데이터
@@ -15,50 +66,53 @@ import { getSceneStartTime } from './timeline'
  * @param voiceTemplate 음성 템플릿
  * @param buildSceneMarkup 마크업 생성 함수
  * @param makeTtsKey TTS 키 생성 함수
- * @returns 씬 인덱스, 구간 인덱스, 구간 내 오프셋
+ * @returns 씬 인덱스, 구간 인덱스, 구간 내 오프셋, 해당 씬의 시작 시간(sceneStartTime)
  */
 export function calculateSceneFromTime(
   timeline: TimelineData,
   tSec: number,
-  options?: {
-    ttsCacheRef?: React.MutableRefObject<Map<string, { durationSec: number }>>,
-    voiceTemplate?: string | null,
-    buildSceneMarkup?: (timeline: TimelineData | null, sceneIndex: number) => string[],
-    makeTtsKey?: (voiceName: string, markup: string) => string,
-  }
+  options?: CalculateSceneFromTimeOptions
 ): {
   sceneIndex: number
   partIndex: number
   offsetInPart: number
+  sceneStartTime: number
 } {
   // timeline이나 scenes가 없으면 기본값 반환
   if (!timeline || !timeline.scenes || timeline.scenes.length === 0) {
-    return { sceneIndex: 0, partIndex: 0, offsetInPart: 0 }
+    return { sceneIndex: 0, partIndex: 0, offsetInPart: 0, sceneStartTime: 0 }
   }
 
   let sceneIndex = -1 // 초기값을 -1로 설정하여 씬을 찾지 못했음을 명시
   let partIndex = 0
   let offsetInPart = 0
+  let resolvedSceneStartTime = 0
+
+  const useTtsBoundaries = Boolean(
+    options?.ttsCacheRef && options?.buildSceneMarkup && options?.makeTtsKey
+  )
 
   // 모든 씬의 시작 시간과 종료 시간을 미리 계산
-  // 중요: 씬의 종료 시간은 sceneStartTime + sceneDuration + transitionDuration입니다
-  // transitionDuration은 다음 씬과의 전환 시간이므로 현재 씬의 범위에 포함됩니다
+  // options가 있으면 boundary.start를 TTS 합산으로 계산 (motion/전환과 동일 소스)
   const sceneBoundaries: Array<{ start: number; end: number; index: number }> = []
-  
+  let accumulatedStart = 0
+
   for (let i = 0; i < timeline.scenes.length; i++) {
     const scene = timeline.scenes[i]
     if (!scene) continue
-    
-    const sceneStartTime = getSceneStartTime(timeline, i)
-    
+
+    const sceneStartTime = useTtsBoundaries
+      ? accumulatedStart
+      : getSceneStartTime(timeline, i)
+
     // 씬의 duration 계산: TTS 캐시에서만 계산 (TTS duration이 없으면 렌더링 불가)
     let sceneDuration = 0
-    
+
     if (options?.ttsCacheRef && options?.buildSceneMarkup && options?.makeTtsKey) {
       const sceneVoiceTemplate = scene.voiceTemplate || options.voiceTemplate
       if (sceneVoiceTemplate) {
         const markups = options.buildSceneMarkup(timeline, i)
-        
+
         for (const markup of markups) {
           const key = options.makeTtsKey(sceneVoiceTemplate, markup)
           const cached = options.ttsCacheRef.current.get(key)
@@ -68,31 +122,28 @@ export function calculateSceneFromTime(
         }
       }
     }
-    
+
     // TTS duration이 없으면 0으로 설정 (렌더링 불가)
     if (sceneDuration === 0) {
       sceneDuration = scene.duration // fallback (하지만 정확하지 않음)
     }
-    
-    // transitionDuration 계산: 다음 씬과의 전환 시간
-    // 같은 sceneId를 가진 씬들 사이에서는 transitionDuration을 0으로 계산
+
+    // TTS 경계: 세그먼트와 동일하게 [start, start+duration]만 사용 (transition/gap 없음)
+    // duration 경계: 기존대로 transition 포함
     const nextScene = timeline.scenes[i + 1]
     const isSameSceneId = nextScene && scene.sceneId === nextScene.sceneId
     const transitionDuration = isSameSceneId ? 0 : (scene.transitionDuration || 0.5)
-    
-    // 씬 사이 간격: 부동소수점 오차 방지 및 경계 명확화를 위한 작은 간격
-    // 같은 sceneId를 가진 씬들 사이에는 간격 추가하지 않음 (같은 그룹이므로)
-    // 마지막 씬의 경우 간격을 빼지 않음 (다음 씬이 없으므로)
-    const SCENE_GAP = 0.01 // 0.5초 간격
     const isLastScene = i === timeline.scenes.length - 1
     const sceneGap = (isSameSceneId || isLastScene) ? 0 : SCENE_GAP
-    
-    // 씬의 종료 시간 = 시작 시간 + duration + transitionDuration - sceneGap
-    // sceneGap을 빼서 다음 씬 시작 시간과 겹치지 않도록 함
-    // transitionDuration은 현재 씬의 범위에 포함됩니다 (다음 씬으로 전환하는 시간)
-    // 마지막 씬의 경우 sceneGap이 0이므로 실제 종료 시간과 동일
-    const sceneEndTime = sceneStartTime + sceneDuration + transitionDuration - sceneGap
+
+    const sceneEndTime = useTtsBoundaries
+      ? sceneStartTime + sceneDuration
+      : sceneStartTime + sceneDuration + transitionDuration - sceneGap
     sceneBoundaries.push({ start: sceneStartTime, end: sceneEndTime, index: i })
+
+    if (useTtsBoundaries) {
+      accumulatedStart += sceneDuration
+    }
   }
 
   // 정확한 씬 찾기: tSec가 포함되는 씬을 찾음
@@ -108,6 +159,7 @@ export function calculateSceneFromTime(
     
     if (isInScene) {
       sceneIndex = boundary.index
+      resolvedSceneStartTime = boundary.start
       const scene = timeline.scenes[boundary.index]
       if (!scene) break
       
@@ -194,5 +246,5 @@ export function calculateSceneFromTime(
     }
   }
   
-  return { sceneIndex, partIndex, offsetInPart }
+  return { sceneIndex, partIndex, offsetInPart, sceneStartTime: resolvedSceneStartTime }
 }

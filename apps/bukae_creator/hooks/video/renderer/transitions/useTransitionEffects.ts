@@ -160,8 +160,11 @@ export function useTransitionEffects({
     if (!timeline) {
       return
     }
-    // Transition duration을 1초로 고정 (움직임효과만 TTS 캐시 duration 사용)
-    const transitionDuration = 1.0
+    // Transition duration을 씬 설정값으로 사용 (타임라인·씬 경계와 일치)
+    const currentScene = timeline.scenes[sceneIndex]
+    const nextScene = timeline.scenes[sceneIndex + 1]
+    const isSameSceneId = nextScene && currentScene?.sceneId === nextScene.sceneId
+    const transitionDuration = isSameSceneId ? 0 : (currentScene?.transitionDuration ?? 0.5)
     const sceneStartTime = getSceneStartTime(timeline, sceneIndex)
     // Transition은 씬 시작 시점에 시작되도록 함
     const transitionStartTime = sceneStartTime
@@ -241,7 +244,7 @@ export function useTransitionEffects({
         toSprite.visible = true
         // 이전 씬 페이드 아웃
         if (fromSprite && !fromSprite.destroyed) {
-          fromSprite.alpha = 1 - eased
+          fromSprite.alpha = 0
           fromSprite.visible = clampedProgress < 1
         }
         break

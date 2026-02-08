@@ -16,7 +16,6 @@ import * as PIXI from 'pixi.js'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
-import { getSceneStartTime } from '@/utils/timeline'
 import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import { TransitionShaderManager } from '../effects/transitions/shader/TransitionShaderManager'
 import { useContainerManager } from './containers/useContainerManager'
@@ -1142,8 +1141,8 @@ export function useTransportRenderer({
       // ============================================================
       let step5Result
       if (shouldSkipMainRendering) {
-        // 중복 렌더링이면 기본값 사용 (자막 렌더링을 위해 최소한의 값만 필요)
-        const sceneStartTime = getSceneStartTime(timeline, sceneIndex)
+        // 중복 렌더링이면 기본값 사용 (자막 렌더링을 위해 최소한의 값만 필요, TTS 기준 sceneStartTime 사용)
+        const sceneStartTime = step8Result.sceneStartTime
         const sceneLocalT = Math.max(0, tSec - sceneStartTime)
         step5Result = { motionProgress: 0, spriteAfterMotion: null, sceneLocalT, sceneStartTime }
       } else {

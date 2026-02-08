@@ -3,7 +3,6 @@
  * ANIMATION.md 표준 파이프라인 5단계
  */
 
-import { getSceneStartTime } from '@/utils/timeline'
 import { MotionEvaluator } from '../../effects/motion/MotionEvaluator'
 import { calculateMotionProgress, calculateMotionDuration, calculateMotionLocalTime } from '../utils/calculateMotionTiming'
 import { getFabricImagePosition } from '../utils/getFabricPosition'
@@ -40,8 +39,8 @@ export function applyMotionToSprite(
     fabricScaleRatioRef,
   } = context
 
-  // 씬 로컬 시간 계산
-  const sceneStartTime = getSceneStartTime(timeline, sceneIndex)
+  // 씬 로컬 시간 계산 (TTS 기준 sceneStartTime 사용)
+  const sceneStartTime = step8Result.sceneStartTime
   const sceneLocalT = Math.max(0, tSec - sceneStartTime)
 
   // Motion duration 및 로컬 시간 계산
@@ -176,8 +175,8 @@ export function step5ApplyMotion(
     fabricScaleRatioRef,
   } = context
 
-  // 씬 로컬 시간 계산 (Motion 평가에 필요)
-  const sceneStartTime = getSceneStartTime(timeline, sceneIndex)
+  // 씬 로컬 시간 계산 (Motion 평가에 필요, TTS 기준 sceneStartTime 사용)
+  const sceneStartTime = step8Result.sceneStartTime
   const sceneLocalT = Math.max(0, tSec - sceneStartTime)
 
   // Motion 진행률 계산 (중복 렌더 스킵 강화용)
