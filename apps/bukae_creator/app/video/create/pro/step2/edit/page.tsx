@@ -7,66 +7,14 @@ import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { ProVideoEditSection } from '../components'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { authStorage } from '@/lib/api/auth-storage'
+import {
+  generateSceneId,
+  proSceneToSceneScript,
+  sceneScriptToProScene,
+  type ProScene,
+} from '../utils/types'
 
 const DEFAULT_SCENE_COUNT = 6
-
-// Pro step2에서 사용하는 확장된 Scene 타입
-type ProScene = {
-  id: string // 고유 ID (드래그 앤 드롭 시 안정적인 key를 위해)
-  script: string
-  voiceLabel?: string
-  voiceTemplate?: string | null
-  ttsDuration?: number // TTS duration (초)
-  videoUrl?: string | null // 업로드된 영상 URL
-  selectionStartSeconds?: number // 격자 선택 영역 시작 시간 (초)
-  selectionEndSeconds?: number // 격자 선택 영역 끝 시간 (초)
-}
-
-// 확장된 SceneScript 타입
-type ExtendedSceneScript = SceneScript & { 
-  id?: string // 고유 ID (드래그 앤 드롭 시 안정적인 key를 위해)
-  voiceLabel?: string
-  voiceTemplate?: string | null
-  ttsDuration?: number // TTS duration (초)
-  videoUrl?: string | null // 업로드된 영상 URL
-  selectionStartSeconds?: number // 격자 선택 영역 시작 시간 (초)
-  selectionEndSeconds?: number // 격자 선택 영역 끝 시간 (초)
-}
-
-// 고유 ID 생성 헬퍼 함수
-function generateSceneId(): string {
-  return `scene-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-}
-
-// SceneScript를 ProScene으로 변환
-function sceneScriptToProScene(s: SceneScript, _index: number): ProScene {
-  const extended = s as ExtendedSceneScript
-  return {
-    id: extended.id || generateSceneId(), // 기존 ID가 없으면 새로 생성
-    script: s.script || '',
-    voiceLabel: extended.voiceLabel,
-    voiceTemplate: extended.voiceTemplate,
-    ttsDuration: extended.ttsDuration,
-    videoUrl: extended.videoUrl,
-    selectionStartSeconds: extended.selectionStartSeconds,
-    selectionEndSeconds: extended.selectionEndSeconds,
-  }
-}
-
-// ProScene을 SceneScript로 변환
-function proSceneToSceneScript(s: ProScene, index: number): ExtendedSceneScript {
-  return {
-    sceneId: index + 1,
-    id: s.id, // 고유 ID 유지
-    script: s.script,
-    voiceLabel: s.voiceLabel,
-    voiceTemplate: s.voiceTemplate,
-    ttsDuration: s.ttsDuration,
-    videoUrl: s.videoUrl,
-    selectionStartSeconds: s.selectionStartSeconds,
-    selectionEndSeconds: s.selectionEndSeconds,
-  }
-}
 
 export default function ProStep2EditPage() {
   const { 
