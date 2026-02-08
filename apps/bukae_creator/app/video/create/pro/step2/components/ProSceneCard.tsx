@@ -51,6 +51,7 @@ export const ProSceneCard = memo(function ProSceneCard({
   const [isSynthesizing, setIsSynthesizing] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioUrlRef = useRef<string | null>(null)
+  const synthAbortRef = useRef<AbortController | null>(null)
 
   // TTS 합성 및 재생
   const handlePlayPause = useCallback(async () => {
@@ -80,6 +81,12 @@ export const ProSceneCard = memo(function ProSceneCard({
       return
     }
 
+    // 이전 합성 요청 취소
+    synthAbortRef.current?.abort()
+    synthAbortRef.current = null
+    const controller = new AbortController()
+    synthAbortRef.current = controller
+
     // TTS 합성 시작
     setIsSynthesizing(true)
     try {
@@ -101,6 +108,7 @@ export const ProSceneCard = memo(function ProSceneCard({
           mode: 'text',
           text: scriptText,
         }),
+        signal: controller.signal,
       })
 
       if (!response.ok) {
@@ -110,7 +118,13 @@ export const ProSceneCard = memo(function ProSceneCard({
 
       // 오디오 blob 받기
       const blob = await response.blob()
+      if (controller.signal.aborted) return
+
       const url = URL.createObjectURL(blob)
+      if (controller.signal.aborted) {
+        URL.revokeObjectURL(url)
+        return
+      }
 
       // 기존 오디오 정리
       if (audioUrlRef.current) {
@@ -137,8 +151,12 @@ export const ProSceneCard = memo(function ProSceneCard({
       })
 
       await audio.play()
+      if (controller.signal.aborted) return
       setIsPlaying(true)
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        return
+      }
       console.error('TTS 합성/재생 오류:', error)
       alert(error instanceof Error ? error.message : 'TTS 합성 중 오류가 발생했습니다.')
     } finally {
@@ -148,6 +166,8 @@ export const ProSceneCard = memo(function ProSceneCard({
 
   // 컴포넌트 언마운트 시 정리
   const cleanup = useCallback(() => {
+    synthAbortRef.current?.abort()
+    synthAbortRef.current = null
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current = null
