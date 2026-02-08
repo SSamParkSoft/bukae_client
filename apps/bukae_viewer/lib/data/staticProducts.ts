@@ -54,7 +54,9 @@ const PRODUCT_URLS = {
   musunchungso:
     'https://link.coupang.com/a/dGPf97',
   mouse:
-    'https://link.coupang.com/a/dHnd5O'
+    'https://link.coupang.com/a/dHnd5O',
+  jongari:
+    'https://link.coupang.com/a/dIHqxL'
 } as const
 
 export const STATIC_PRODUCTS: Product[] = [
@@ -259,6 +261,15 @@ const YAMUJIN_EXTRA_PRODUCTS: Product[] = [
     order: 1,
     thumbnailUrl: '/dummy/yamujin/musunchungso.png',
     url: PRODUCT_URLS.musunchungso,
+  },
+  {
+    id: 'doctorwell-hand-massager',
+    productId: 3002,
+    name: '닥터웰 유선 핸드 안마기 마사지기',
+    description: '유선 핸드 안마기 · 마사지기',
+    order: 2,
+    thumbnailUrl: '/dummy/yamujin/jongari.png',
+    url: PRODUCT_URLS.jongari,
   },
 ]
 
