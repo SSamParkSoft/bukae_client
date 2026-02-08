@@ -101,6 +101,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   useEffect(() => {
     if (!pixiContainerRef.current) return
 
+    let cancelled = false
     const container = pixiContainerRef.current
     const { width, height } = stageDimensions
 
@@ -140,6 +141,17 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
     const app = new PIXI.Application()
 
+    const destroyApp = () => {
+      try {
+        if (app.stage) {
+          app.stage.destroy({ children: true })
+        }
+        app.destroy(true, { children: false, texture: false })
+      } catch {
+        // already destroyed or error
+      }
+    }
+
     app.init({
       width,
       height,
@@ -149,24 +161,44 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       autoDensity: true,
       autoStart: true,
     }).then(() => {
+      if (cancelled) {
+        destroyApp()
+        return
+      }
       appRef.current = app
 
       const mainContainer = new PIXI.Container()
       app.stage.addChild(mainContainer)
+      if (cancelled) {
+        destroyApp()
+        return
+      }
       containerRef.current = mainContainer
 
       // 비디오 전용 컨테이너 (아래 레이어)
       const videoContainer = new PIXI.Container()
       mainContainer.addChild(videoContainer)
+      if (cancelled) {
+        destroyApp()
+        return
+      }
       videoContainerRef.current = videoContainer
 
       // 자막 컨테이너 (가장 위 레이어로 추가)
       const subtitleContainer = new PIXI.Container()
       mainContainer.addChild(subtitleContainer)
+      if (cancelled) {
+        destroyApp()
+        return
+      }
       subtitleContainerRef.current = subtitleContainer
 
       // Canvas 스타일 설정
       requestAnimationFrame(() => {
+        if (cancelled) {
+          destroyApp()
+          return
+        }
         if (!appRef.current || !appRef.current.canvas) return
 
         const containerRect = container.getBoundingClientRect()
@@ -201,11 +233,24 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         appRef.current.canvas.style.height = '100%'
         appRef.current.canvas.style.zIndex = '30'
         appRef.current.canvas.style.pointerEvents = 'none'
+        if (cancelled) {
+          destroyApp()
+          appRef.current = null
+          containerRef.current = null
+          videoContainerRef.current = null
+          subtitleContainerRef.current = null
+          return
+        }
         container.appendChild(appRef.current.canvas)
 
+        if (cancelled) return
         setPixiReady(true)
       })
     }).catch((error) => {
+      if (cancelled) {
+        destroyApp()
+        return
+      }
       console.error('PixiJS 초기화 오류:', error)
     })
 
@@ -216,6 +261,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     const videoElementsSnapshot = new Map(videoElementsRef.current)
 
     return () => {
+      cancelled = true
       if (appRef.current) {
         try {
           // 복사된 ref 값들로 cleanup 수행
@@ -254,6 +300,9 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         videoContainerRef.current = null
         subtitleContainerRef.current = null
         // 복사된 값들로 이미 정리했으므로 ref는 나중에 자동으로 clear됨
+      } else {
+        // .then()이 아직 실행되지 않았을 수 있음: 이번에 생성한 app 정리
+        destroyApp()
       }
       setPixiReady(false)
     }
