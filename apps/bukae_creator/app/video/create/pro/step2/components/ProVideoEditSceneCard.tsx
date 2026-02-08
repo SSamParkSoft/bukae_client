@@ -136,13 +136,12 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     }
   }, [ttsDuration, videoDuration, selectionStartSeconds, isDraggingSelection])
 
-  // videoUrl이 없을 때 videoDuration 초기화 (별도 useEffect로 분리)
+  // videoUrl이 없을 때 videoDuration 즉시 초기화 (stale UI 방지)
   useEffect(() => {
     if (!videoUrl) {
-      // cleanup 함수에서만 setState 호출하여 린터 경고 방지
-      return () => {
-        setVideoDuration(null)
-      }
+      // prop이 없을 때 파생 state를 즉시 초기화 (stale UI 방지)
+      // eslint-disable-next-line -- intentional: sync derived state from prop
+      setVideoDuration(null)
     }
   }, [videoUrl])
 
@@ -176,13 +175,12 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     }
   }, [videoUrl])
 
-  // videoUrl이나 ttsDuration이 없을 때 썸네일 초기화 (별도 useEffect로 분리)
+  // videoUrl이나 ttsDuration이 없을 때 썸네일 즉시 초기화 (stale UI 방지)
   useEffect(() => {
     if (!videoUrl || !ttsDuration) {
-      // cleanup 함수에서만 setState 호출하여 린터 경고 방지
-      return () => {
-        setFrameThumbnails([])
-      }
+      // prop이 없을 때 파생 state를 즉시 초기화 (stale UI 방지)
+      // eslint-disable-next-line -- intentional: sync derived state from prop
+      setFrameThumbnails([])
     }
   }, [videoUrl, ttsDuration])
 
