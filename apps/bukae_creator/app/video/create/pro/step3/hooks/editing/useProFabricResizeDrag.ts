@@ -240,6 +240,14 @@ export function useProFabricResizeDrag({
       return null
     }
 
+    // 비디오가 프레임 데이터를 가지고 있는지 확인 (readyState >= 2)
+    // readyState가 2 미만이면 프레임을 캡처할 수 없음
+    if (video.readyState < 2) {
+      // 비디오가 아직 준비되지 않았으면 null 반환
+      // 호출하는 쪽에서 비디오가 준비될 때까지 기다린 후 다시 시도해야 함
+      return null
+    }
+
     // 비디오 프레임을 캔버스에 그려서 이미지로 변환
     const canvas = document.createElement('canvas')
     canvas.width = video.videoWidth
@@ -250,7 +258,15 @@ export function useProFabricResizeDrag({
     }
 
     // 비디오 프레임을 캔버스에 그리기
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    // seek 완료 후 프레임이 업데이트되었는지 확인하기 위해
+    // 비디오가 정지 상태이고 현재 시간이 설정되어 있는지 확인
+    try {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    } catch (error) {
+      // 프레임 캡처 실패 시 null 반환
+      console.warn('[resolveSceneImageObject] 비디오 프레임 캡처 실패:', error)
+      return null
+    }
     const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9)
 
     // fabric.Image 생성
@@ -448,6 +464,8 @@ export function useProFabricResizeDrag({
 
   return {
     syncFromScene: scheduleSync,
+    syncFromSceneDirect: syncFromScene, // debounce 없이 직접 동기화하는 함수
     fabricCanvasRef,
+    fabricReady,
   }
 }

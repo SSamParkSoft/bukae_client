@@ -8,9 +8,10 @@ import { TimelineBar, SpeedSelector, ExportButton } from '@/app/video/create/_st
 import type { ProStep3Scene } from './ProSceneListPanel'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { useVideoSegmentPlayer } from '../hooks/playback/useVideoSegmentPlayer'
+import { useProTransportRenderer } from '../hooks/playback/useProTransportRenderer'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { calculateAspectFittedSize } from '../utils/proPreviewLayout'
-import { getSceneSegmentDuration } from '../utils/proPlaybackUtils'
+import { getSceneSegmentDuration, getPlayableScenes, getPreviousPlayableDuration } from '../utils/proPlaybackUtils'
 import { useProFabricResizeDrag } from '../hooks/editing/useProFabricResizeDrag'
 
 interface ProPreviewPanelProps {
@@ -720,19 +721,37 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         return
       }
 
-      const videoAspect = sourceWidth / sourceHeight
-      const stageAspect = stageWidth / stageHeight
+      // timeline에서 imageTransform 확인 (사용자가 편집한 위치/사이즈)
+      // 최신 timeline 값을 직접 읽기 (ref는 동기화 지연 가능)
+      const currentTimeline = useVideoCreateStore.getState().timeline
+      const timelineScene = currentTimeline?.scenes?.[sceneIndex]
+      const imageTransform = timelineScene?.imageTransform
 
-      if (videoAspect > stageAspect) {
-        sprite.width = stageWidth
-        sprite.height = stageWidth / videoAspect
+      if (imageTransform) {
+        // 사용자가 편집한 위치/사이즈 적용
+        sprite.x = imageTransform.x
+        sprite.y = imageTransform.y
+        sprite.width = imageTransform.width
+        sprite.height = imageTransform.height
+        sprite.rotation = imageTransform.rotation ?? 0
       } else {
-        sprite.height = stageHeight
-        sprite.width = stageHeight * videoAspect
+        // imageTransform이 없으면 기본 크기와 위치 적용
+        const videoAspect = sourceWidth / sourceHeight
+        const stageAspect = stageWidth / stageHeight
+
+        if (videoAspect > stageAspect) {
+          sprite.width = stageWidth
+          sprite.height = stageWidth / videoAspect
+        } else {
+          sprite.height = stageHeight
+          sprite.width = stageHeight * videoAspect
+        }
+
+        sprite.x = stageWidth / 2
+        sprite.y = stageHeight / 2
+        sprite.rotation = 0
       }
 
-      sprite.x = stageWidth / 2
-      sprite.y = stageHeight / 2
       sprite.visible = true
       sprite.alpha = 1
 
@@ -904,6 +923,32 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     return scenes.reduce((sum, scene) => sum + getSceneSegmentDuration(scene), 0)
   }, [scenes])
 
+  // totalDurationValue가 변경될 때마다 totalDuration state 업데이트
+  useEffect(() => {
+    if (totalDurationValue > 0) {
+      setTotalDuration(totalDurationValue)
+    }
+  }, [totalDurationValue])
+
+  // 씬 선택 시 타임라인 위치 업데이트 (재생 중이 아닐 때만)
+  useEffect(() => {
+    if (!isPlaying && currentSceneIndex >= 0 && pixiReady) {
+      const playableScenes = getPlayableScenes(scenes)
+      // 현재 씬이 playable한지 확인
+      const playableIndex = playableScenes.findIndex((ps) => ps.originalIndex === currentSceneIndex)
+      if (playableIndex >= 0) {
+        // 이전 씬들의 duration 합계를 계산하여 현재 시간 설정
+        const previousDuration = getPreviousPlayableDuration(playableScenes, playableIndex)
+        setCurrentTime(previousDuration)
+      } else {
+        // playable하지 않은 씬인 경우, 이전 씬들의 duration 합계 계산
+        const playableBeforeCurrent = playableScenes.filter((ps) => ps.originalIndex < currentSceneIndex)
+        const previousDuration = playableBeforeCurrent.reduce((sum, ps) => sum + ps.duration, 0)
+        setCurrentTime(previousDuration)
+      }
+    }
+  }, [currentSceneIndex, scenes, isPlaying, pixiReady])
+
   const currentScene = scenes[currentSceneIndex]
   const currentSceneVideoUrl = currentScene?.videoUrl
   const currentSceneScript = currentScene?.script ?? ''
@@ -914,7 +959,15 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     return JSON.stringify(timeline?.scenes?.[currentSceneIndex]?.text ?? null)
   }, [timeline, currentSceneIndex])
 
-  const { syncFromScene: syncFabricScene, fabricCanvasRef: proFabricCanvasRef } = useProFabricResizeDrag({
+  // Fast 트랙과 동일하게 timeline scenes의 키를 생성하여 변경 감지
+  const timelineScenesKey = useMemo(() => {
+    if (!timeline?.scenes || timeline.scenes.length === 0) return ''
+    return timeline.scenes.map((scene, idx) => 
+      `${idx}-${scene.imageTransform ? JSON.stringify(scene.imageTransform) : 'none'}-${scene.text?.content || ''}`
+    ).join('|')
+  }, [timeline])
+
+  const { syncFromScene: syncFabricScene, syncFromSceneDirect, fabricCanvasRef: proFabricCanvasRef, fabricReady } = useProFabricResizeDrag({
     videoElementsRef,
     enabled: pixiReady && !isPlaying,
     playbackContainerRef,
@@ -1155,19 +1208,118 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       const fabricEditingEnabled = proFabricCanvasRef?.current !== null
       const currentSprite = spritesRef.current.get(currentSceneIndex)
       
+      // 스프라이트가 생성되었는지 확인하고 표시
       if (currentSprite && !currentSprite.destroyed) {
-        if (fabricEditingEnabled) {
-          // Fabric.js 편집 모드일 때는 현재 씬 스프라이트도 숨김
-          hideSprite(currentSprite)
-        } else {
-          // Fabric.js 편집 모드가 아닐 때는 스프라이트 표시
-          currentSprite.visible = true
-          currentSprite.alpha = 1
+        // 타임라인의 imageTransform이 있으면 적용 (loadVideoAsSprite에서 이미 적용했지만 재확인)
+        const currentTimeline = useVideoCreateStore.getState().timeline
+        const timelineScene = currentTimeline?.scenes?.[currentSceneIndex]
+        const imageTransform = timelineScene?.imageTransform
+        
+        if (imageTransform) {
+          currentSprite.x = imageTransform.x
+          currentSprite.y = imageTransform.y
+          currentSprite.width = imageTransform.width
+          currentSprite.height = imageTransform.height
+          currentSprite.rotation = imageTransform.rotation ?? 0
+        }
+        
+        // 일단 스프라이트를 표시 (Fabric.js 객체가 생성되기 전까지는 스프라이트를 보여줌)
+        currentSprite.visible = true
+        currentSprite.alpha = 1
+        
+        // PixiJS 앱이 렌더링되도록 강제
+        const app = appRef.current
+        if (app) {
+          app.renderer.render(app.stage)
         }
       }
 
       renderSubtitle(currentSceneIndex, currentSceneScript)
-      syncFabricScene()
+      
+      // 비디오 로드 완료 후 Fabric.js 동기화 (비디오가 있어야 Fabric.js 이미지 생성 가능)
+      if (fabricEditingEnabled && !isPlaying && pixiReady && currentSceneVideoUrl) {
+        // 비디오가 완전히 준비될 때까지 기다린 후 동기화
+        const video = videoElementsRef.current.get(currentSceneIndex)
+        // readyState >= 2: 프레임 데이터를 사용할 수 있음
+        // videoWidth와 videoHeight가 있어야 프레임 캡처 가능
+        
+        const performSync = async () => {
+          if (cancelled || !syncFromSceneDirect) {
+            return
+          }
+          
+          // Fabric.js 동기화 실행 (debounce 없이 직접 호출)
+          await syncFromSceneDirect()
+          
+          // 동기화 완료 후 Fabric.js 객체가 생성되었는지 확인
+          const fabricCanvas = proFabricCanvasRef?.current
+          if (fabricCanvas) {
+            const objects = fabricCanvas.getObjects() as Array<fabric.Object & { dataType?: 'image' | 'text' }>
+            const hasImageObject = objects.some((obj) => obj.dataType === 'image')
+            
+            // 이미지 객체가 생성되었으면 스프라이트 숨김
+            if (hasImageObject && currentSprite && !currentSprite.destroyed) {
+              hideSprite(currentSprite)
+            }
+          }
+        }
+        
+        if (video && video.readyState >= 2 && video.videoWidth && video.videoHeight) {
+          // 비디오가 이미 준비되어 있으면 즉시 동기화
+          // seek 완료 후 프레임이 업데이트될 때까지 약간의 지연 추가
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              void performSync()
+            })
+          })
+        } else {
+          // 비디오가 아직 준비되지 않았으면 준비될 때까지 대기
+          const checkVideoReady = () => {
+            if (cancelled) {
+              return
+            }
+            const currentVideo = videoElementsRef.current.get(currentSceneIndex)
+            if (currentVideo && currentVideo.readyState >= 2 && currentVideo.videoWidth && currentVideo.videoHeight) {
+              // 비디오가 준비되면 동기화
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  if (!cancelled) {
+                    void performSync()
+                  }
+                })
+              })
+            } else {
+              // 아직 준비되지 않았으면 다음 프레임에 다시 확인 (최대 60프레임, 약 1초)
+              const maxRetries = 60
+              let retryCount = 0
+              const retryCheck = () => {
+                if (cancelled) {
+                  return
+                }
+                const checkVideo = videoElementsRef.current.get(currentSceneIndex)
+                if (checkVideo && checkVideo.readyState >= 2 && checkVideo.videoWidth && checkVideo.videoHeight) {
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      if (!cancelled) {
+                        void performSync()
+                      }
+                    })
+                  })
+                } else if (retryCount < maxRetries) {
+                  retryCount++
+                  requestAnimationFrame(retryCheck)
+                }
+              }
+              requestAnimationFrame(retryCheck)
+            }
+          }
+          requestAnimationFrame(checkVideoReady)
+        }
+      } else if (!fabricEditingEnabled && currentSprite && !currentSprite.destroyed) {
+        // Fabric.js 편집 모드가 아닐 때는 스프라이트 표시 (이미 위에서 설정했지만 명시적으로)
+        currentSprite.visible = true
+        currentSprite.alpha = 1
+      }
       
       // 스프라이트 생성 완료 - 클릭 이벤트는 별도 useEffect에서 설정됨
     }
@@ -1189,7 +1341,10 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     pixiReady,
     renderSubtitle,
     syncFabricScene,
+    syncFromSceneDirect,
     proFabricCanvasRef,
+    timelineScenesKey, // 타임라인 변경 감지
+    fabricReady,
   ])
 
   useEffect(() => {
@@ -1198,7 +1353,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     }
 
     renderSubtitle(currentSceneIndex, currentSceneScript)
-    syncFabricScene()
   }, [
     subtitleSettingsKey,
     currentSceneIndex,
@@ -1206,33 +1360,163 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     isPlaying,
     pixiReady,
     renderSubtitle,
-    syncFabricScene,
   ])
 
-  const { trackUserGesture } = useVideoSegmentPlayer({
-    isPlaying,
-    pixiReady,
+  // 타임라인 변경 시 스프라이트 업데이트 (imageTransform 변경 반영)
+  useEffect(() => {
+    if (!pixiReady || isPlaying || currentSceneIndex < 0 || !timeline) {
+      return
+    }
+
+    const timelineScene = timeline.scenes?.[currentSceneIndex]
+    if (!timelineScene) {
+      return
+    }
+
+    const sprite = spritesRef.current.get(currentSceneIndex)
+    if (sprite && !sprite.destroyed && timelineScene.imageTransform) {
+      // 타임라인의 imageTransform 적용
+      sprite.x = timelineScene.imageTransform.x
+      sprite.y = timelineScene.imageTransform.y
+      sprite.width = timelineScene.imageTransform.width
+      sprite.height = timelineScene.imageTransform.height
+      sprite.rotation = timelineScene.imageTransform.rotation ?? 0
+      
+      // 스프라이트가 표시되도록 보장
+      sprite.visible = true
+      sprite.alpha = 1
+      
+      // PixiJS 앱이 렌더링되도록 강제
+      const app = appRef.current
+      if (app) {
+        app.renderer.render(app.stage)
+      }
+    }
+  }, [timelineScenesKey, currentSceneIndex, isPlaying, pixiReady, timeline])
+
+  // Fabric.js 씬 동기화 (Fast 트랙과 동일한 방식)
+  // timeline이 변경될 때 동기화 (renderCurrentScene에서도 호출하지만, timeline 변경 시에도 동기화 필요)
+  useEffect(() => {
+    const currentTimeline = timeline
+    if (!fabricReady || !currentTimeline || currentTimeline.scenes.length === 0) {
+      return
+    }
+    if (!pixiReady || isPlaying || currentSceneIndex < 0) {
+      return
+    }
+    
+    syncFabricScene()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fabricReady, timelineScenesKey, currentSceneIndex, isPlaying, pixiReady, syncFabricScene])
+
+  // Transport 기반 렌더러 (Fast 트랙과 동일한 방식)
+  const { transport, transportHook, transportState, renderAt, renderAtRef } = useProTransportRenderer({
+    timeline,
     scenes,
-    totalDurationValue,
-    playbackSpeed,
+    pixiReady,
+    appRef,
+    spritesRef,
+    textsRef,
+    videoElementsRef,
+    videoTexturesRef,
+    currentSceneIndexRef,
     loadVideoAsSprite,
     renderSubtitle,
-    playTts,
-    onPlayPause,
-    setCurrentSceneIndex,
-    setCurrentTime,
-    setTotalDuration,
-    videoElementsRef,
-    spritesRef,
-    videoTexturesRef,
-    ttsAudioRefsRef,
-    textsRef,
   })
 
+  // Transport에 totalDuration 설정
+  useEffect(() => {
+    if (totalDurationValue > 0 && transportHook) {
+      transportHook.setTotalDuration(totalDurationValue)
+    }
+  }, [transportHook, totalDurationValue])
+
+  // Transport playbackRate 설정
+  useEffect(() => {
+    if (transportHook) {
+      transportHook.setRate(playbackSpeed)
+    }
+  }, [transportHook, playbackSpeed])
+
+  // Transport 재생 상태와 isPlaying 동기화
+  useEffect(() => {
+    if (!transportHook) return
+
+    if (isPlaying && !transportState.isPlaying) {
+      transportHook.play()
+    } else if (!isPlaying && transportState.isPlaying) {
+      transportHook.pause()
+    }
+  }, [transportHook, isPlaying, transportState.isPlaying])
+
+  // Transport currentTime과 currentTime state 동기화 (재생 중일 때만)
+  useEffect(() => {
+    if (!transportHook || !transportState.isPlaying) return
+
+    const updateCurrentTime = () => {
+      setCurrentTime(transportHook.currentTime)
+    }
+
+    // requestAnimationFrame으로 매 프레임 업데이트
+    let rafId: number | null = null
+    const loop = () => {
+      if (transportState.isPlaying && transportHook) {
+        updateCurrentTime()
+        rafId = requestAnimationFrame(loop)
+      }
+    }
+    rafId = requestAnimationFrame(loop)
+
+    return () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+      }
+    }
+  }, [transportHook, transportState.isPlaying, setCurrentTime])
+
+  // Transport totalDuration과 totalDuration state 동기화
+  useEffect(() => {
+    if (transportHook) {
+      setTotalDuration(transportState.totalDuration)
+    }
+  }, [transportHook, transportState.totalDuration, setTotalDuration])
+
+  // 씬 클릭 시 Transport seek (재생 중이 아닐 때만)
+  useEffect(() => {
+    if (!transportHook || isPlaying || currentSceneIndex < 0 || !pixiReady) {
+      return
+    }
+
+    const playableScenes = getPlayableScenes(scenes)
+    const playableIndex = playableScenes.findIndex((ps) => ps.originalIndex === currentSceneIndex)
+    if (playableIndex >= 0) {
+      const previousDuration = getPreviousPlayableDuration(playableScenes, playableIndex)
+      transportHook.seek(previousDuration)
+      // renderAt 호출하여 즉시 렌더링
+      if (renderAtRef.current) {
+        renderAtRef.current(previousDuration, { forceSceneIndex: currentSceneIndex })
+      }
+    }
+  }, [transportHook, currentSceneIndex, scenes, isPlaying, pixiReady, renderAtRef])
+
   const handlePlayPause = useCallback(() => {
-    trackUserGesture()
+    if (!transportHook) {
+      onPlayPause()
+      return
+    }
+
+    if (transportState.isPlaying) {
+      transportHook.pause()
+    } else {
+      // 재생 시작 전에 현재 시간에서 렌더링
+      if (renderAtRef.current) {
+        renderAtRef.current(transportHook.currentTime, { skipAnimation: false })
+      }
+      transportHook.play()
+    }
+    // 부모 컴포넌트에 상태 변경 알림
     onPlayPause()
-  }, [trackUserGesture, onPlayPause])
+  }, [transportHook, transportState.isPlaying, renderAtRef, onPlayPause])
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">

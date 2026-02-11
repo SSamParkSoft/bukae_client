@@ -93,12 +93,17 @@ export function useTransportState({
   const transportState = useSyncExternalStore(
     (onStoreChange) => {
       const currentTransport = transportRef.current
-      if (!currentTransport) {
+      if (!currentTransport || typeof currentTransport.subscribe !== 'function') {
         return () => {}
       }
-      return currentTransport.subscribe(() => {
-        onStoreChange()
-      }, true)
+      try {
+        return currentTransport.subscribe(() => {
+          onStoreChange()
+        }, true)
+      } catch (error) {
+        console.warn('[useTransportState] Transport subscribe 실패:', error)
+        return () => {}
+      }
     },
     getTransportStateSnapshot,
     () => defaultStateRef.current
