@@ -78,6 +78,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   const [totalDuration, setTotalDuration] = useState(0)
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0)
   const [pixiReady, setPixiReady] = useState(false)
+  /** 패스트트랙과 동일하게 캔버스 실제 픽셀 크기로 미리보기 컨테이너 고정 */
+  const [canvasDisplaySize, setCanvasDisplaySize] = useState<{ width: number; height: number } | null>(null)
 
   // 재생 중 씬 인덱스 업데이트는 segment player가 onCurrentSceneIndexChange로 부모에 전달
   const setCurrentSceneIndex = useCallback(
@@ -96,6 +98,39 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     width: 1080,
     height: 1920,
   }), [])
+
+  // 캔버스 실제 표시 크기 계산 (패스트트랙 useGridManager와 동일 방식)
+  useEffect(() => {
+    if (!pixiReady || !appRef.current || !pixiContainerRef.current) {
+      return
+    }
+
+    const updateCanvasSize = () => {
+      if (!appRef.current || !pixiContainerRef.current) return
+      const canvas = appRef.current.canvas
+      const canvasRect = canvas.getBoundingClientRect()
+      const fallbackW = stageDimensions.width
+      const fallbackH = stageDimensions.height
+      const actualWidth =
+        canvasRect.width > 0
+          ? canvasRect.width
+          : (parseFloat((canvas as HTMLCanvasElement).style.width) || fallbackW)
+      const actualHeight =
+        canvasRect.height > 0
+          ? canvasRect.height
+          : (parseFloat((canvas as HTMLCanvasElement).style.height) || fallbackH)
+
+      if (actualWidth <= 0 || actualHeight <= 0) return
+      setCanvasDisplaySize({ width: actualWidth, height: actualHeight })
+    }
+
+    requestAnimationFrame(updateCanvasSize)
+    const resizeObserver = new ResizeObserver(() => {
+      requestAnimationFrame(updateCanvasSize)
+    })
+    resizeObserver.observe(pixiContainerRef.current)
+    return () => resizeObserver.disconnect()
+  }, [pixiReady, stageDimensions.width, stageDimensions.height])
 
   // PixiJS 초기화
   useEffect(() => {
@@ -388,6 +423,33 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       videoTexturesRef.current.set(sceneIndex, videoTexture)
       videoElementsRef.current.set(sceneIndex, video)
 
+      // 씬 변경 시 자동 재생 방지: 비디오를 일시정지 상태로 유지
+      // VideoTexture 생성 후에도 비디오가 자동 재생되지 않도록 명시적으로 pause()
+      video.pause()
+      
+      // 현재 씬의 격자 시작 지점으로 이동하여 첫 프레임 표시
+      const currentScene = scenesRef.current?.[sceneIndex]
+      const targetTime = currentScene?.selectionStartSeconds ?? 0
+      
+      // currentTime 설정 후 seeked 이벤트를 기다려서 정확한 프레임 표시
+      await new Promise<void>((resolve) => {
+        const handleSeeked = () => {
+          video.removeEventListener('seeked', handleSeeked)
+          // seeked 후에도 재생되지 않도록 다시 pause()
+          video.pause()
+          resolve()
+        }
+        video.addEventListener('seeked', handleSeeked)
+        video.currentTime = targetTime
+        
+        // 이미 해당 시간에 있으면 seeked 이벤트가 발생하지 않을 수 있음
+        if (Math.abs(video.currentTime - targetTime) < 0.1) {
+          video.removeEventListener('seeked', handleSeeked)
+          video.pause()
+          resolve()
+        }
+      })
+
       // Sprite 생성
       const sprite = new PIXI.Sprite(videoTexture)
       sprite.anchor.set(0.5, 0.5)
@@ -657,7 +719,13 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         ttsAudioRefsRef.current.delete(sceneIndex)
       })
 
-      await audio.play().catch((error) => {
+      await audio.play().catch((error: unknown) => {
+        // 브라우저 자동재생 정책: 사용자 상호작용 전 play() 차단
+        if (error instanceof DOMException && error.name === 'NotAllowedError') {
+          console.warn('TTS 재생이 차단되었습니다. 재생 버튼을 클릭한 뒤 다시 시도해주세요.')
+          ttsAudioRefsRef.current.delete(sceneIndex)
+          return
+        }
         console.error('TTS 재생 오류:', error)
         ttsAudioRefsRef.current.delete(sceneIndex)
       })
@@ -799,7 +867,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           ref={playbackContainerRef}
           className="relative bg-black rounded-2xl overflow-hidden mx-auto"
           style={{
-            width: '100%',
+            width: canvasDisplaySize ? `${canvasDisplaySize.width}px` : '100%',
+            height: canvasDisplaySize ? `${canvasDisplaySize.height}px` : 'auto',
             aspectRatio: '9 / 16',
             maxWidth: '100%',
             maxHeight: '100%',

@@ -267,14 +267,15 @@ export function useVideoSegmentPlayer({
       // 이후 세그먼트는 첫 번째 세그먼트의 재생 컨텍스트를 이어받아 자동으로 재생 가능
       if (segmentIndex === 0) {
         const gesture = userGestureRef.current
-        const hasValidGesture = gesture && (Date.now() - gesture.timestamp) < 1000
-        
+        // 비동기 로드 후 play()까지 시간이 걸리므로 3초 이내 제스처 허용
+        const hasValidGesture = gesture && (Date.now() - gesture.timestamp) < 3000
+
         if (!hasValidGesture) {
           console.warn('사용자 제스처가 없어 비디오 재생을 건너뜁니다.')
           onPlayPause()
           return false
         }
-        
+
         // 재생 성공 시 사용자 제스처 초기화 (다음 재생을 위해)
         userGestureRef.current = null
       }
@@ -334,9 +335,9 @@ export function useVideoSegmentPlayer({
     // 초기 마운트 시에는 자동재생하지 않음 (사용자가 재생 버튼을 클릭했을 때만 재생)
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false
-      // 사용자 제스처가 없으면 재생하지 않음
+      // 사용자 제스처가 없으면 재생하지 않음 (비동기 재생 대비 3초 이내)
       const gesture = userGestureRef.current
-      const hasValidGesture = gesture && (Date.now() - gesture.timestamp) < 1000
+      const hasValidGesture = gesture && (Date.now() - gesture.timestamp) < 3000
       if (!hasValidGesture) {
         console.warn('초기 마운트 시 자동재생 방지: 사용자 제스처가 없습니다.')
         return
