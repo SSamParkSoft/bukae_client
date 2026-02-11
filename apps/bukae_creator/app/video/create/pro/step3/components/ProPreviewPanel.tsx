@@ -8,35 +8,62 @@ import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { authStorage } from '@/lib/api/auth-storage'
 import { useVideoSegmentPlayer } from '../hooks/playback/useVideoSegmentPlayer'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
+import { calculateAspectFittedSize } from '../utils/proPreviewLayout'
+import { getSceneSegmentDuration } from '../utils/proPlaybackUtils'
 
 interface ProPreviewPanelProps {
-  /** 현재 선택된 씬의 비디오 URL */
   currentVideoUrl?: string | null
-  /** 현재 선택된 씬의 격자 시작 시간 (초) */
   currentSelectionStartSeconds?: number
-  /** 현재 선택된 씬 인덱스 (단일 소스: 부모 상태) */
   currentSceneIndex?: number
-  /** 재생 중 씬 인덱스 변경 시 부모 상태 동기화 (segment player에서 호출) */
   onCurrentSceneIndexChange?: (index: number) => void
-  /** 모든 씬 데이터 (재생 시 사용) */
   scenes: ProStep3Scene[]
-  /** 재생 중 여부 */
   isPlaying: boolean
-  /** 재생 버튼 클릭 핸들러 */
   onPlayPause: () => void
-  /** BGM 템플릿 */
   bgmTemplate?: string | null
-  /** 내보내기 핸들러 */
   onExport?: () => void
-  /** 내보내기 중 여부 */
   isExporting?: boolean
 }
 
-/**
- * Pro step3 전용 PreviewPanel
- * - 비디오는 PixiJS로만 표시 (재생/정지 시 동일)
- * - 재생 버튼 클릭 시 선택된 구간들을 이어붙여서 재생
- */
+const STAGE_WIDTH = 1080
+const STAGE_HEIGHT = 1920
+const STAGE_ASPECT_RATIO = STAGE_WIDTH / STAGE_HEIGHT
+const VIDEO_METADATA_TIMEOUT_MS = 5000
+const VIDEO_SEEK_TIMEOUT_MS = 1200
+
+function hideSprite(sprite: PIXI.Sprite) {
+  if (!sprite.destroyed) {
+    sprite.visible = false
+    sprite.alpha = 0
+  }
+}
+
+function hideText(textObj: PIXI.Text) {
+  if (!textObj.destroyed) {
+    textObj.visible = false
+    textObj.alpha = 0
+  }
+}
+
+function getAppCanvas(app: PIXI.Application | null | undefined): HTMLCanvasElement | null {
+  if (!app) {
+    return null
+  }
+
+  const rendererCanvas = (
+    app as PIXI.Application & { renderer?: { canvas?: HTMLCanvasElement | null } }
+  ).renderer?.canvas
+
+  if (rendererCanvas) {
+    return rendererCanvas
+  }
+
+  try {
+    return (app.canvas as HTMLCanvasElement | undefined) ?? null
+  } catch {
+    return null
+  }
+}
+
 export const ProPreviewPanel = memo(function ProPreviewPanel({
   currentVideoUrl,
   currentSceneIndex = 0,
@@ -48,560 +75,571 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   onExport,
   isExporting = false,
 }: ProPreviewPanelProps) {
-  // Timeline을 store에서 가져오기 (자막 설정을 읽기 위해)
-  // Timeline 전체를 가져오는 대신, 현재 씬의 text 설정만 추적하여 변경 감지 최적화
   const timeline = useVideoCreateStore((state) => state.timeline)
-  const currentSceneTextSettings = useVideoCreateStore((state) => 
-    state.timeline?.scenes?.[currentSceneIndex]?.text
-  )
-  
+
   const playbackContainerRef = useRef<HTMLDivElement | null>(null)
   const pixiContainerRef = useRef<HTMLDivElement | null>(null)
   const timelineBarRef = useRef<HTMLDivElement | null>(null)
-  
-  // PixiJS 관련 refs (비디오 레이어 / 자막 레이어 분리해 자막이 항상 위에 오도록 함)
+
   const appRef = useRef<PIXI.Application | null>(null)
-  const containerRef = useRef<PIXI.Container | null>(null)
+  const rootContainerRef = useRef<PIXI.Container | null>(null)
   const videoContainerRef = useRef<PIXI.Container | null>(null)
   const subtitleContainerRef = useRef<PIXI.Container | null>(null)
+
+  const scenesRef = useRef(scenes)
+  const currentSceneIndexRef = useRef(currentSceneIndex)
+  const timelineRef = useRef(timeline)
+
   const textsRef = useRef<Map<number, PIXI.Text>>(new Map())
   const spritesRef = useRef<Map<number, PIXI.Sprite>>(new Map())
   const videoTexturesRef = useRef<Map<number, PIXI.Texture>>(new Map())
   const videoElementsRef = useRef<Map<number, HTMLVideoElement>>(new Map())
-  
-  // TTS 관련 refs
-  const audioContextRef = useRef<AudioContext | null>(null)
+
   const ttsAudioRefsRef = useRef<Map<number, HTMLAudioElement>>(new Map())
   const ttsCacheRef = useRef<Map<string, { blob: Blob; durationSec: number; url?: string | null }>>(new Map())
-  
+
   const [currentTime, setCurrentTime] = useState(0)
   const [totalDuration, setTotalDuration] = useState(0)
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0)
   const [pixiReady, setPixiReady] = useState(false)
-  /** 패스트트랙과 동일하게 캔버스 실제 픽셀 크기로 미리보기 컨테이너 고정 */
   const [canvasDisplaySize, setCanvasDisplaySize] = useState<{ width: number; height: number } | null>(null)
 
-  // 재생 중 씬 인덱스 업데이트는 segment player가 onCurrentSceneIndexChange로 부모에 전달
-  const setCurrentSceneIndex = useCallback(
-    (index: number) => onCurrentSceneIndexChange?.(index),
-    [onCurrentSceneIndexChange]
-  )
-
-  // scenes를 ref로 두어 renderSubtitle이 격자만 바뀔 때 재생성되지 않게 함 (현재 씬 비디오 표시 effect 재실행 방지)
-  const scenesRef = useRef(scenes)
   useEffect(() => {
     scenesRef.current = scenes
   }, [scenes])
 
-  // 스테이지 크기 (9:16 비율)
-  const stageDimensions = useMemo(() => ({
-    width: 1080,
-    height: 1920,
-  }), [])
-
-  // 캔버스 실제 표시 크기 계산 (패스트트랙 useGridManager와 동일 방식)
   useEffect(() => {
-    if (!pixiReady || !appRef.current || !pixiContainerRef.current) {
-      return
-    }
+    currentSceneIndexRef.current = currentSceneIndex
+  }, [currentSceneIndex])
 
-    const updateCanvasSize = () => {
-      if (!appRef.current || !pixiContainerRef.current) return
-      const canvas = appRef.current.canvas
-      const canvasRect = canvas.getBoundingClientRect()
-      const fallbackW = stageDimensions.width
-      const fallbackH = stageDimensions.height
-      const actualWidth =
-        canvasRect.width > 0
-          ? canvasRect.width
-          : (parseFloat((canvas as HTMLCanvasElement).style.width) || fallbackW)
-      const actualHeight =
-        canvasRect.height > 0
-          ? canvasRect.height
-          : (parseFloat((canvas as HTMLCanvasElement).style.height) || fallbackH)
-
-      if (actualWidth <= 0 || actualHeight <= 0) return
-      setCanvasDisplaySize({ width: actualWidth, height: actualHeight })
-    }
-
-    requestAnimationFrame(updateCanvasSize)
-    const resizeObserver = new ResizeObserver(() => {
-      requestAnimationFrame(updateCanvasSize)
-    })
-    resizeObserver.observe(pixiContainerRef.current)
-    return () => resizeObserver.disconnect()
-  }, [pixiReady, stageDimensions.width, stageDimensions.height])
-
-  // PixiJS 초기화
-  useEffect(() => {
-    if (!pixiContainerRef.current) return
-
-    let cancelled = false
-    const container = pixiContainerRef.current
-    const { width, height } = stageDimensions
-
-    // 기존 앱 정리
-    if (appRef.current) {
-      try {
-        if (appRef.current.stage) {
-          appRef.current.stage.destroy({ children: true })
-        }
-        appRef.current.destroy(true, { children: false, texture: false })
-      } catch (error) {
-        console.error('PixiJS 앱 정리 오류:', error)
-      }
-      appRef.current = null
-      containerRef.current = null
-      videoContainerRef.current = null
-      subtitleContainerRef.current = null
-      textsRef.current.clear()
-      spritesRef.current.clear()
-      // VideoTexture 정리
-      videoTexturesRef.current.forEach((texture) => {
-        if (texture && !texture.destroyed) {
-          texture.destroy(true)
-        }
-      })
-      videoTexturesRef.current.clear()
-      // Video 요소 정리
-      videoElementsRef.current.forEach((video) => {
-        if (video && video.parentNode) {
-          video.pause()
-          video.src = ''
-          video.load()
-        }
-      })
-      videoElementsRef.current.clear()
-    }
-
-    const app = new PIXI.Application()
-
-    const destroyApp = () => {
-      try {
-        if (app.stage) {
-          app.stage.destroy({ children: true })
-        }
-        app.destroy(true, { children: false, texture: false })
-      } catch {
-        // already destroyed or error
-      }
-    }
-
-    app.init({
-      width,
-      height,
-      backgroundColor: 0x00000000, // 투명 배경
-      antialias: true,
-      resolution: window.devicePixelRatio || 1,
-      autoDensity: true,
-      autoStart: true,
-    }).then(() => {
-      if (cancelled) {
-        destroyApp()
-        return
-      }
-      appRef.current = app
-
-      const mainContainer = new PIXI.Container()
-      app.stage.addChild(mainContainer)
-      if (cancelled) {
-        destroyApp()
-        return
-      }
-      containerRef.current = mainContainer
-
-      // 비디오 전용 컨테이너 (아래 레이어)
-      const videoContainer = new PIXI.Container()
-      mainContainer.addChild(videoContainer)
-      if (cancelled) {
-        destroyApp()
-        return
-      }
-      videoContainerRef.current = videoContainer
-
-      // 자막 컨테이너 (가장 위 레이어로 추가)
-      const subtitleContainer = new PIXI.Container()
-      mainContainer.addChild(subtitleContainer)
-      if (cancelled) {
-        destroyApp()
-        return
-      }
-      subtitleContainerRef.current = subtitleContainer
-
-      // Canvas 스타일 설정
-      requestAnimationFrame(() => {
-        if (cancelled) {
-          destroyApp()
-          return
-        }
-        if (!appRef.current || !appRef.current.canvas) return
-
-        const containerRect = container.getBoundingClientRect()
-        const containerWidth = containerRect.width || container.clientWidth
-        const containerHeight = containerRect.height || container.clientHeight
-        const targetRatio = 9 / 16
-
-        let displayWidth: number
-        let displayHeight: number
-        if (containerWidth > 0 && containerHeight > 0) {
-          if (containerWidth / containerHeight > targetRatio) {
-            displayHeight = containerHeight
-            displayWidth = containerHeight * targetRatio
-          } else {
-            displayWidth = containerWidth
-            displayHeight = containerWidth / targetRatio
-          }
-        } else {
-          displayWidth = width
-          displayHeight = height
-        }
-
-        appRef.current.canvas.style.width = `${displayWidth}px`
-        appRef.current.canvas.style.height = `${displayHeight}px`
-        appRef.current.canvas.style.maxWidth = '100%'
-        appRef.current.canvas.style.maxHeight = '100%'
-        appRef.current.canvas.style.display = 'block'
-        appRef.current.canvas.style.position = 'absolute'
-        appRef.current.canvas.style.top = '0'
-        appRef.current.canvas.style.left = '0'
-        appRef.current.canvas.style.width = '100%'
-        appRef.current.canvas.style.height = '100%'
-        appRef.current.canvas.style.zIndex = '30'
-        appRef.current.canvas.style.pointerEvents = 'none'
-        if (cancelled) {
-          destroyApp()
-          appRef.current = null
-          containerRef.current = null
-          videoContainerRef.current = null
-          subtitleContainerRef.current = null
-          return
-        }
-        container.appendChild(appRef.current.canvas)
-
-        if (cancelled) return
-        setPixiReady(true)
-      })
-    }).catch((error) => {
-      if (cancelled) {
-        destroyApp()
-        return
-      }
-      console.error('PixiJS 초기화 오류:', error)
-    })
-
-    // ref 값들을 effect 시작 부분에서 복사하여 cleanup에서 사용
-    const textsSnapshot = new Map(textsRef.current)
-    const spritesSnapshot = new Map(spritesRef.current)
-    const videoTexturesSnapshot = new Map(videoTexturesRef.current)
-    const videoElementsSnapshot = new Map(videoElementsRef.current)
-
-    return () => {
-      cancelled = true
-      if (appRef.current) {
-        try {
-          // 복사된 ref 값들로 cleanup 수행
-          const texts = textsSnapshot
-          const sprites = spritesSnapshot
-          const videoTextures = videoTexturesSnapshot
-          const videoElements = videoElementsSnapshot
-          
-          if (appRef.current.stage) {
-            appRef.current.stage.destroy({ children: true })
-          }
-          appRef.current.destroy(true, { children: false, texture: false })
-          
-          // 복사된 값들로 정리
-          texts.clear()
-          sprites.clear()
-          videoTextures.forEach((texture) => {
-            if (texture && !texture.destroyed) {
-              texture.destroy(true)
-            }
-          })
-          videoTextures.clear()
-          videoElements.forEach((video) => {
-            if (video && video.parentNode) {
-              video.pause()
-              video.src = ''
-              video.load()
-            }
-          })
-          videoElements.clear()
-        } catch (error) {
-          console.error('PixiJS 정리 오류:', error)
-        }
-        appRef.current = null
-        containerRef.current = null
-        videoContainerRef.current = null
-        subtitleContainerRef.current = null
-        // 복사된 값들로 이미 정리했으므로 ref는 나중에 자동으로 clear됨
-      } else {
-        // .then()이 아직 실행되지 않았을 수 있음: 이번에 생성한 app 정리
-        destroyApp()
-      }
-      setPixiReady(false)
-    }
-  }, [stageDimensions])
-
-  // AudioContext 초기화
-  useEffect(() => {
-    if (!audioContextRef.current && typeof window !== 'undefined') {
-      audioContextRef.current = new AudioContext()
-    }
-    return () => {
-      if (audioContextRef.current) {
-        audioContextRef.current.close().catch(console.error)
-        audioContextRef.current = null
-      }
-    }
-  }, [])
-
-  // 비디오를 PixiJS Texture로 변환하여 Sprite로 렌더링
-  const loadVideoAsSprite = useCallback(async (sceneIndex: number, videoUrl: string): Promise<void> => {
-    if (!appRef.current || !videoContainerRef.current || !pixiReady) return
-
-    // 기존 스프라이트 정리
-    const existingSprite = spritesRef.current.get(sceneIndex)
-    if (existingSprite && !existingSprite.destroyed) {
-      videoContainerRef.current.removeChild(existingSprite)
-      existingSprite.destroy()
-      spritesRef.current.delete(sceneIndex)
-    }
-
-    // 기존 VideoTexture 정리
-    const existingTexture = videoTexturesRef.current.get(sceneIndex)
-    if (existingTexture && !existingTexture.destroyed) {
-      existingTexture.destroy(true)
-      videoTexturesRef.current.delete(sceneIndex)
-    }
-
-    // 기존 Video 요소 정리
-    const existingVideo = videoElementsRef.current.get(sceneIndex)
-    if (existingVideo) {
-      existingVideo.pause()
-      existingVideo.src = ''
-      existingVideo.load()
-      videoElementsRef.current.delete(sceneIndex)
-    }
-
-    // Video 요소 생성
-    const video = document.createElement('video')
-    video.src = videoUrl
-    video.muted = false
-    video.playsInline = true
-    video.loop = false
-    video.crossOrigin = 'anonymous'
-    video.style.display = 'none' // 숨김 (PixiJS에서만 사용)
-    video.preload = 'metadata' // 메타데이터만 미리 로드
-
-    // VideoTexture 생성 (PixiJS v8에서는 PIXI.Texture.from 사용)
-    try {
-      // 비디오가 로드될 때까지 대기
-      await new Promise<void>((resolve, reject) => {
-        const handleLoadedMetadata = () => {
-          video.removeEventListener('loadedmetadata', handleLoadedMetadata)
-          video.removeEventListener('error', handleError)
-          resolve()
-        }
-        const handleError = () => {
-          video.removeEventListener('loadedmetadata', handleLoadedMetadata)
-          video.removeEventListener('error', handleError)
-          reject(new Error('비디오 로드 실패'))
-        }
-        video.addEventListener('loadedmetadata', handleLoadedMetadata)
-        video.addEventListener('error', handleError)
-        
-        // 이미 로드된 경우
-        if (video.readyState >= 1) {
-          handleLoadedMetadata()
-        } else {
-          video.load()
-        }
-      })
-
-      const videoTexture = PIXI.Texture.from(video)
-      videoTexturesRef.current.set(sceneIndex, videoTexture)
-      videoElementsRef.current.set(sceneIndex, video)
-
-      // 현재 씬의 격자 시작 지점으로 이동하여 첫 프레임 표시
-      const currentScene = scenesRef.current?.[sceneIndex]
-      const targetTime = currentScene?.selectionStartSeconds ?? 0
-      
-      // currentTime 설정 후 seeked 이벤트를 기다려서 정확한 프레임 표시
-      await new Promise<void>((resolve) => {
-        const handleSeeked = () => {
-          video.removeEventListener('seeked', handleSeeked)
-          resolve()
-        }
-        video.addEventListener('seeked', handleSeeked)
-        video.currentTime = targetTime
-        
-        // 이미 해당 시간에 있으면 seeked 이벤트가 발생하지 않을 수 있음
-        if (Math.abs(video.currentTime - targetTime) < 0.1) {
-          video.removeEventListener('seeked', handleSeeked)
-          resolve()
-        }
-      })
-
-      // VideoTexture가 프레임을 업데이트하도록 한 프레임만 재생했다가 즉시 pause()
-      // VideoTexture는 비디오가 재생 중일 때만 업데이트되므로, 한 프레임 재생이 필요함
-      // muted 상태로 재생하여 자동재생 정책 문제를 피함
-      const wasMuted = video.muted
-      video.muted = true // 썸네일 캡처를 위해 잠시 muted
-      
-      await new Promise<void>((resolve) => {
-        let resolved = false
-        const handleTimeUpdate = () => {
-          if (resolved) return
-          resolved = true
-          // 한 프레임 업데이트 후 즉시 pause()
-          video.pause()
-          video.muted = wasMuted // 원래 muted 상태로 복원
-          video.removeEventListener('timeupdate', handleTimeUpdate)
-          resolve()
-        }
-        video.addEventListener('timeupdate', handleTimeUpdate)
-        
-        // 재생 시작 (muted 상태이므로 자동재생 정책 문제 없음)
-        video.play().catch(() => {
-          // 재생 실패 시 (NotAllowedError 등) 그냥 pause 상태로 유지
-          if (!resolved) {
-            resolved = true
-            video.removeEventListener('timeupdate', handleTimeUpdate)
-            video.pause()
-            video.muted = wasMuted
-            resolve()
-          }
-        })
-        
-        // 타임아웃: 100ms 내에 timeupdate가 발생하지 않으면 강제로 pause
-        setTimeout(() => {
-          if (!resolved) {
-            resolved = true
-            video.removeEventListener('timeupdate', handleTimeUpdate)
-            video.pause()
-            video.muted = wasMuted
-            resolve()
-          }
-        }, 100)
-      })
-
-      // Sprite 생성
-      const sprite = new PIXI.Sprite(videoTexture)
-      sprite.anchor.set(0.5, 0.5)
-      
-      // 스테이지 중앙에 배치
-      const stageWidth = appRef.current.screen.width
-      const stageHeight = appRef.current.screen.height
-      sprite.x = stageWidth / 2
-      sprite.y = stageHeight / 2
-
-      // 비디오 비율에 맞게 크기 조정
-      const videoAspect = videoTexture.width / videoTexture.height
-      const stageAspect = stageWidth / stageHeight
-
-      let spriteWidth: number
-      let spriteHeight: number
-      if (videoAspect > stageAspect) {
-        // 비디오가 더 넓음 - 너비에 맞춤
-        spriteWidth = stageWidth
-        spriteHeight = stageWidth / videoAspect
-      } else {
-        // 비디오가 더 높음 - 높이에 맞춤
-        spriteHeight = stageHeight
-        spriteWidth = stageHeight * videoAspect
-      }
-
-      sprite.width = spriteWidth
-      sprite.height = spriteHeight
-
-      sprite.visible = true
-      sprite.alpha = 1
-
-      videoContainerRef.current.addChild(sprite)
-      spritesRef.current.set(sceneIndex, sprite)
-    } catch (error) {
-      console.error('비디오 Texture 생성 오류:', error)
-    }
-  }, [pixiReady])
-
-  // Timeline ref를 사용하여 renderSubtitle에서 최신 timeline 읽기
-  const timelineRef = useRef(timeline)
   useEffect(() => {
     timelineRef.current = timeline
   }, [timeline])
 
-  // 자막 렌더링 함수 (timeline의 text 설정을 읽어서 적용)
-  const renderSubtitle = useCallback((sceneIndex: number, script: string) => {
-    if (!appRef.current || !subtitleContainerRef.current || !pixiReady) return
+  const applyCanvasStyle = useCallback((width: number, height: number) => {
+    const app = appRef.current
+    const pixiContainer = pixiContainerRef.current
 
-    const scene = scenesRef.current[sceneIndex]
-    if (!scene) return
+    const canvas = getAppCanvas(app)
+    if (!app || !canvas || width <= 0 || height <= 0) {
+      return
+    }
 
-    // 기존 텍스트 숨김
-    textsRef.current.forEach((textObj) => {
-      if (textObj && !textObj.destroyed) {
-        textObj.visible = false
-        textObj.alpha = 0
+    canvas.style.width = `${width}px`
+    canvas.style.height = `${height}px`
+    canvas.style.maxWidth = '100%'
+    canvas.style.maxHeight = '100%'
+    canvas.style.display = 'block'
+    canvas.style.position = 'absolute'
+    canvas.style.top = '50%'
+    canvas.style.left = '50%'
+    canvas.style.transform = 'translate(-50%, -50%)'
+    canvas.style.zIndex = '30'
+    canvas.style.pointerEvents = 'none'
+
+    if (pixiContainer) {
+      pixiContainer.style.width = `${width}px`
+      pixiContainer.style.height = `${height}px`
+    }
+  }, [])
+
+  useEffect(() => {
+    const container = playbackContainerRef.current
+    if (!container) {
+      return
+    }
+
+    const updateCanvasSize = () => {
+      const rect = container.getBoundingClientRect()
+      const fitted = calculateAspectFittedSize(
+        rect.width || container.clientWidth,
+        rect.height || container.clientHeight,
+        STAGE_ASPECT_RATIO
+      )
+
+      if (!fitted) {
+        return
       }
+
+      setCanvasDisplaySize((prev) => {
+        if (prev && Math.abs(prev.width - fitted.width) < 0.5 && Math.abs(prev.height - fitted.height) < 0.5) {
+          return prev
+        }
+        return fitted
+      })
+
+      applyCanvasStyle(fitted.width, fitted.height)
+    }
+
+    const rafId = requestAnimationFrame(updateCanvasSize)
+    const observer = new ResizeObserver(() => {
+      requestAnimationFrame(updateCanvasSize)
+    })
+    observer.observe(container)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      observer.disconnect()
+    }
+  }, [applyCanvasStyle])
+
+  useEffect(() => {
+    if (!pixiReady || !canvasDisplaySize) {
+      return
+    }
+
+    applyCanvasStyle(canvasDisplaySize.width, canvasDisplaySize.height)
+  }, [pixiReady, canvasDisplaySize, applyCanvasStyle])
+
+  const cleanupSceneResources = useCallback((sceneIndex: number) => {
+    const videoContainer = videoContainerRef.current
+
+    const sprite = spritesRef.current.get(sceneIndex)
+    if (sprite) {
+      if (videoContainer && !sprite.destroyed && sprite.parent === videoContainer) {
+        videoContainer.removeChild(sprite)
+      }
+      if (!sprite.destroyed) {
+        sprite.destroy()
+      }
+      spritesRef.current.delete(sceneIndex)
+    }
+
+    const texture = videoTexturesRef.current.get(sceneIndex)
+    if (texture && !texture.destroyed) {
+      texture.destroy(true)
+    }
+    videoTexturesRef.current.delete(sceneIndex)
+
+    const video = videoElementsRef.current.get(sceneIndex)
+    if (video) {
+      video.pause()
+      video.src = ''
+      video.load()
+    }
+    videoElementsRef.current.delete(sceneIndex)
+
+    const textObj = textsRef.current.get(sceneIndex)
+    if (textObj) {
+      if (subtitleContainerRef.current && !textObj.destroyed && textObj.parent === subtitleContainerRef.current) {
+        subtitleContainerRef.current.removeChild(textObj)
+      }
+      if (!textObj.destroyed) {
+        textObj.destroy()
+      }
+      textsRef.current.delete(sceneIndex)
+    }
+  }, [])
+
+  const cleanupAllMediaResources = useCallback(() => {
+    const sceneIndices = new Set<number>([
+      ...spritesRef.current.keys(),
+      ...videoTexturesRef.current.keys(),
+      ...videoElementsRef.current.keys(),
+      ...textsRef.current.keys(),
+    ])
+
+    sceneIndices.forEach((sceneIndex) => {
+      cleanupSceneResources(sceneIndex)
     })
 
-    // 텍스트가 없으면 종료
-    if (!script || !script.trim()) return
+    ttsAudioRefsRef.current.forEach((audio) => {
+      audio.pause()
+      audio.src = ''
+    })
+    ttsAudioRefsRef.current.clear()
 
-    // Timeline에서 자막 설정 가져오기 (ref를 통해 최신 값 읽기)
-    const currentTimeline = timelineRef.current
-    const timelineScene = currentTimeline?.scenes[sceneIndex]
-    const textSettings = timelineScene?.text
-    
-    // 디버깅: timeline 변경 감지
-    if (textSettings) {
-      console.log('[ProPreviewPanel] 자막 렌더링:', {
-        sceneIndex,
-        font: textSettings.font,
-        fontSize: textSettings.fontSize,
-        color: textSettings.color,
-        fontWeight: textSettings.fontWeight,
-        position: textSettings.position,
-      })
+    ttsCacheRef.current.forEach((cached) => {
+      if (cached.url) {
+        URL.revokeObjectURL(cached.url)
+      }
+    })
+    ttsCacheRef.current.clear()
+  }, [cleanupSceneResources])
+
+  useEffect(() => {
+    const host = pixiContainerRef.current
+    if (!host) {
+      return
     }
-    
-    // 실제 렌더링 크기 가져오기 (stage 크기 사용)
-    const stageWidth = appRef.current.screen.width
-    const stageHeight = appRef.current.screen.height
 
-    // 자막 스타일 설정 (timeline에서 가져오거나 기본값 사용)
-    const fontFamily = textSettings?.font 
+    let cancelled = false
+    const app = new PIXI.Application()
+
+    const initialize = async () => {
+      try {
+        await app.init({
+          width: STAGE_WIDTH,
+          height: STAGE_HEIGHT,
+          backgroundColor: 0x000000,
+          antialias: true,
+          resolution: window.devicePixelRatio || 1,
+          autoDensity: true,
+          autoStart: true,
+        })
+
+        if (cancelled) {
+          app.destroy(true, { children: true })
+          return
+        }
+
+        appRef.current = app
+
+        const root = new PIXI.Container()
+        root.sortableChildren = true
+        app.stage.addChild(root)
+        rootContainerRef.current = root
+
+        const videoLayer = new PIXI.Container()
+        videoLayer.zIndex = 0
+        root.addChild(videoLayer)
+        videoContainerRef.current = videoLayer
+
+        const subtitleLayer = new PIXI.Container()
+        subtitleLayer.zIndex = 1
+        root.addChild(subtitleLayer)
+        subtitleContainerRef.current = subtitleLayer
+
+        root.sortChildren()
+
+        const appCanvas = getAppCanvas(app)
+        if (!appCanvas) {
+          return
+        }
+        host.appendChild(appCanvas)
+
+        const fitted = canvasDisplaySize ?? calculateAspectFittedSize(
+          host.clientWidth,
+          host.clientHeight,
+          STAGE_ASPECT_RATIO
+        )
+
+        if (fitted) {
+          applyCanvasStyle(fitted.width, fitted.height)
+        }
+
+        setPixiReady(true)
+      } catch (error) {
+        console.error('[ProPreviewPanel] Pixi 초기화 실패:', error)
+      }
+    }
+
+    void initialize()
+
+    return () => {
+      cancelled = true
+      setPixiReady(false)
+      cleanupAllMediaResources()
+
+      // appRef.current를 먼저 확인하고 canvas 제거
+      const currentApp = appRef.current
+      const currentCanvas = getAppCanvas(currentApp)
+      
+      if (currentCanvas && host.contains(currentCanvas)) {
+        try {
+          host.removeChild(currentCanvas)
+        } catch (error) {
+          console.warn('[ProPreviewPanel] Canvas 제거 실패:', error)
+        }
+      }
+
+      // 로컬 app 변수의 canvas도 확인 (초기화 중일 수 있음)
+      // currentApp과 다른 경우에만 제거 (중복 제거 방지)
+      if (app && app !== currentApp) {
+        const localCanvas = getAppCanvas(app)
+        if (localCanvas && host.contains(localCanvas)) {
+          try {
+            host.removeChild(localCanvas)
+          } catch (error) {
+            console.warn('[ProPreviewPanel] 로컬 app canvas 제거 실패:', error)
+          }
+        }
+      }
+
+      if (currentApp) {
+        try {
+          if (currentApp.stage) {
+            currentApp.stage.destroy({ children: true })
+          }
+          currentApp.destroy(true, { children: false, texture: false })
+        } catch (error) {
+          console.error('[ProPreviewPanel] Pixi 정리 실패:', error)
+        }
+      }
+
+      appRef.current = null
+      rootContainerRef.current = null
+      videoContainerRef.current = null
+      subtitleContainerRef.current = null
+    }
+  }, [applyCanvasStyle, canvasDisplaySize, cleanupAllMediaResources])
+
+  useEffect(() => {
+    return () => {
+      cleanupAllMediaResources()
+    }
+  }, [cleanupAllMediaResources])
+
+  const waitForMetadata = useCallback((video: HTMLVideoElement) => {
+    return new Promise<void>((resolve, reject) => {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+      const cleanup = () => {
+        video.removeEventListener('loadedmetadata', onLoadedMetadata)
+        video.removeEventListener('error', onError)
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
+      }
+
+      const onLoadedMetadata = () => {
+        cleanup()
+        resolve()
+      }
+
+      const onError = () => {
+        cleanup()
+        reject(new Error('비디오 메타데이터 로드 실패'))
+      }
+
+      video.addEventListener('loadedmetadata', onLoadedMetadata)
+      video.addEventListener('error', onError)
+
+      timeoutId = setTimeout(() => {
+        cleanup()
+        reject(new Error('비디오 메타데이터 로드 타임아웃'))
+      }, VIDEO_METADATA_TIMEOUT_MS)
+
+      if (video.readyState >= 1) {
+        onLoadedMetadata()
+      } else {
+        video.load()
+      }
+    })
+  }, [])
+
+  const seekVideoFrame = useCallback((video: HTMLVideoElement, targetTime: number) => {
+    return new Promise<void>((resolve) => {
+      let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+      const cleanup = () => {
+        video.removeEventListener('seeked', onSeeked)
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
+      }
+
+      const onSeeked = () => {
+        cleanup()
+        // seeked 후 비디오가 정지 상태이므로 VideoTexture 업데이트를 위해 약간의 지연 추가
+        requestAnimationFrame(() => {
+          resolve()
+        })
+      }
+
+      video.addEventListener('seeked', onSeeked)
+      timeoutId = setTimeout(() => {
+        cleanup()
+        resolve()
+      }, VIDEO_SEEK_TIMEOUT_MS)
+
+      video.pause()
+      const clampedTime = Math.max(0, Math.min(targetTime, video.duration || targetTime))
+      video.currentTime = clampedTime
+
+      if (Math.abs(video.currentTime - clampedTime) < 0.05) {
+        cleanup()
+        requestAnimationFrame(() => {
+          resolve()
+        })
+      }
+    })
+  }, [])
+
+  const loadVideoAsSprite = useCallback(async (sceneIndex: number, videoUrl: string): Promise<void> => {
+    // 초기 검증
+    if (!pixiReady) {
+      return
+    }
+
+    cleanupSceneResources(sceneIndex)
+
+    const video = document.createElement('video')
+    video.src = videoUrl
+    video.muted = true
+    video.playsInline = true
+    video.loop = false
+    video.crossOrigin = 'anonymous'
+    video.preload = 'metadata'
+    video.style.display = 'none'
+
+    try {
+      await waitForMetadata(video)
+
+      // 비동기 작업 후 ref 재확인
+      const app = appRef.current
+      const videoContainer = videoContainerRef.current
+      if (!app || !videoContainer || !app.screen) {
+        cleanupSceneResources(sceneIndex)
+        return
+      }
+
+      // 비디오 크기가 유효한지 확인
+      if (!video.videoWidth || !video.videoHeight || video.videoWidth <= 0 || video.videoHeight <= 0) {
+        console.warn('[loadVideoAsSprite] 비디오 크기가 유효하지 않습니다.', {
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight,
+          readyState: video.readyState,
+        })
+        cleanupSceneResources(sceneIndex)
+        return
+      }
+
+      const texture = PIXI.Texture.from(video)
+      if (!texture || texture.destroyed) {
+        cleanupSceneResources(sceneIndex)
+        return
+      }
+
+      videoTexturesRef.current.set(sceneIndex, texture)
+      videoElementsRef.current.set(sceneIndex, video)
+
+      const sceneStart = scenesRef.current[sceneIndex]?.selectionStartSeconds ?? 0
+      await seekVideoFrame(video, sceneStart)
+      
+      // seeked 후 다시 ref 재확인
+      const appAfterSeek = appRef.current
+      const videoContainerAfterSeek = videoContainerRef.current
+      if (!appAfterSeek || !videoContainerAfterSeek || !appAfterSeek.screen || texture.destroyed) {
+        cleanupSceneResources(sceneIndex)
+        return
+      }
+
+      // seeked 후 VideoTexture가 프레임을 업데이트하도록 명시적으로 업데이트
+      // PixiJS v8에서는 VideoTexture가 별도로 export되지 않을 수 있으므로 update 메서드 존재 여부로 확인
+      if (texture && !texture.destroyed && typeof (texture as { update?: () => void }).update === 'function') {
+        try {
+          ;(texture as { update: () => void }).update()
+        } catch (error) {
+          console.warn('[loadVideoAsSprite] VideoTexture 업데이트 실패:', error)
+        }
+      }
+      
+      video.pause()
+
+      // 비디오 요소가 여전히 유효한지 확인
+      const currentVideo = videoElementsRef.current.get(sceneIndex)
+      if (!currentVideo || currentVideo !== video) {
+        cleanupSceneResources(sceneIndex)
+        return
+      }
+
+      const sprite = new PIXI.Sprite(texture)
+      sprite.anchor.set(0.5, 0.5)
+
+      const stageWidth = appAfterSeek.screen.width
+      const stageHeight = appAfterSeek.screen.height
+      
+      // 비디오 크기를 다시 확인 (seek 후 변경될 수 있음)
+      const sourceWidth = currentVideo.videoWidth || texture.width || 0
+      const sourceHeight = currentVideo.videoHeight || texture.height || 0
+
+      if (!sourceWidth || !sourceHeight || sourceWidth <= 0 || sourceHeight <= 0) {
+        sprite.destroy()
+        cleanupSceneResources(sceneIndex)
+        console.warn('[loadVideoAsSprite] 비디오 크기를 가져올 수 없습니다.', {
+          videoWidth: currentVideo.videoWidth,
+          videoHeight: currentVideo.videoHeight,
+          textureWidth: texture.width,
+          textureHeight: texture.height,
+        })
+        return
+      }
+
+      const videoAspect = sourceWidth / sourceHeight
+      const stageAspect = stageWidth / stageHeight
+
+      if (videoAspect > stageAspect) {
+        sprite.width = stageWidth
+        sprite.height = stageWidth / videoAspect
+      } else {
+        sprite.height = stageHeight
+        sprite.width = stageHeight * videoAspect
+      }
+
+      sprite.x = stageWidth / 2
+      sprite.y = stageHeight / 2
+      sprite.visible = true
+      sprite.alpha = 1
+
+      // 최종 확인 후 sprite 추가
+      const finalApp = appRef.current
+      const finalVideoContainer = videoContainerRef.current
+      if (!finalApp || !finalVideoContainer || !finalApp.screen) {
+        sprite.destroy()
+        cleanupSceneResources(sceneIndex)
+        return
+      }
+
+      finalVideoContainer.addChild(sprite)
+      spritesRef.current.set(sceneIndex, sprite)
+    } catch (error) {
+      cleanupSceneResources(sceneIndex)
+      console.error('[ProPreviewPanel] 비디오 로드 오류:', error)
+    }
+  }, [cleanupSceneResources, pixiReady, seekVideoFrame, waitForMetadata])
+
+  const renderSubtitle = useCallback((sceneIndex: number, script: string) => {
+    const app = appRef.current
+    const subtitleContainer = subtitleContainerRef.current
+    if (!app || !subtitleContainer || !pixiReady) {
+      return
+    }
+
+    textsRef.current.forEach((textObj) => {
+      hideText(textObj)
+    })
+
+    if (!script || !script.trim()) {
+      return
+    }
+
+    const timelineScene = timelineRef.current?.scenes?.[sceneIndex]
+    const textSettings = timelineScene?.text
+
+    const stageWidth = app.screen.width
+    const stageHeight = app.screen.height
+
+    const fontFamily = textSettings?.font
       ? resolveSubtitleFontFamily(textSettings.font)
       : resolveSubtitleFontFamily('pretendard')
+
     const fontSize = textSettings?.fontSize || 80
     const fillColor = textSettings?.color || '#ffffff'
     const fontWeight = textSettings?.fontWeight ?? (textSettings?.style?.bold ? 700 : 400)
     const fontStyle = textSettings?.style?.italic ? 'italic' : 'normal'
     const isUnderline = textSettings?.style?.underline || false
-    
-    // 위치 설정 (timeline에서 가져오거나 기본값 사용)
-    const position = textSettings?.position || 'bottom'
+
     let textX = stageWidth / 2
-    let textY = stageHeight * 0.885 // 기본값: 하단 중앙
-    
+    let textY = stageHeight * 0.885
+
     if (textSettings?.transform) {
-      // transform이 있으면 그 좌표 사용
-      textX = textSettings.transform.x || stageWidth / 2
-      textY = textSettings.transform.y || stageHeight * 0.885
+      textX = textSettings.transform.x || textX
+      textY = textSettings.transform.y || textY
     } else {
-      // position에 따라 Y 좌표 설정
+      const position = textSettings?.position || 'bottom'
       if (position === 'top') {
         textY = 200
       } else if (position === 'center') {
         textY = stageHeight / 2
-      } else if (position === 'bottom') {
+      } else {
         textY = stageHeight - 200
       }
     }
 
-    // 스타일 설정 객체 생성
-    const styleConfig: Record<string, unknown> = {
+    const textStyle = new PIXI.TextStyle({
       fontFamily,
       fontSize,
       fill: fillColor,
@@ -609,18 +647,18 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
       fontStyle,
       wordWrap: true,
-      wordWrapWidth: stageWidth * 0.75, // 스테이지 너비의 75%
+      wordWrapWidth: stageWidth * 0.75,
       breakWords: true,
       stroke: {
         color: textSettings?.stroke?.color || '#000000',
         width: textSettings?.stroke?.width ?? 10,
       },
-      underline: isUnderline,
-    }
-    
-    const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
+    })
 
-    // 텍스트 객체 가져오기 또는 생성
+    if (isUnderline) {
+      ;(textStyle as PIXI.TextStyle & { underline?: boolean }).underline = true
+    }
+
     let textObj = textsRef.current.get(sceneIndex)
     if (!textObj || textObj.destroyed) {
       textObj = new PIXI.Text({
@@ -628,66 +666,24 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         style: textStyle,
       })
       textObj.anchor.set(0.5, 0.5)
-      textObj.x = textX
-      textObj.y = textY
-      subtitleContainerRef.current.addChild(textObj)
+      subtitleContainer.addChild(textObj)
       textsRef.current.set(sceneIndex, textObj)
     } else {
-      // 기존 텍스트 객체 업데이트
-      // 중요: PIXI.js에서 style을 변경할 때는 전체 TextStyle 객체를 교체해야 함
-      // 스타일을 먼저 설정한 후 텍스트를 업데이트해야 변경사항이 반영됨
-      
-      // 기존 스타일과 비교하여 변경이 필요한지 확인
-      const currentStyle = textObj.style
-      const needsUpdate = 
-        currentStyle.fontFamily !== fontFamily ||
-        currentStyle.fontSize !== fontSize ||
-        currentStyle.fill !== fillColor ||
-        currentStyle.fontWeight !== String(fontWeight) ||
-        currentStyle.fontStyle !== fontStyle ||
-        // currentStyle.underline !== isUnderline ||
-        textObj.x !== textX ||
-        textObj.y !== textY ||
-        textObj.text !== script
-      
-      if (needsUpdate) {
-        // 스타일 교체
-        textObj.style = textStyle
-        // 스타일 변경 후 텍스트를 다시 설정해야 스타일이 적용됨
-        textObj.text = script
-        
-        // 위치 업데이트
-        textObj.x = textX
-        textObj.y = textY
-        
-        // 강제로 업데이트 (PIXI.js가 변경사항을 인식하도록)
-        textObj.visible = true
-        textObj.alpha = 1
-        
-        console.log('[ProPreviewPanel] renderSubtitle: 텍스트 객체 업데이트 완료:', {
-          sceneIndex,
-          fontFamily,
-          fontSize,
-          fillColor,
-          fontWeight,
-          position,
-          textX,
-          textY,
-          needsUpdate,
-        })
-      }
+      textObj.style = textStyle
+      textObj.text = script
     }
 
-    // 텍스트 표시
+    textObj.x = textX
+    textObj.y = textY
     textObj.visible = true
     textObj.alpha = 1
   }, [pixiReady])
 
-  // TTS 재생 함수
-  const playTts = useCallback(async (sceneIndex: number, voiceTemplate: string | null | undefined, script: string): Promise<void> => {
-    if (!voiceTemplate || !script || !script.trim()) return
+  const playTts = useCallback(async (sceneIndex: number, voiceTemplate: string | null | undefined, script: string) => {
+    if (!voiceTemplate || !script || !script.trim()) {
+      return
+    }
 
-    // 기존 TTS 오디오 정리
     const existingAudio = ttsAudioRefsRef.current.get(sceneIndex)
     if (existingAudio) {
       existingAudio.pause()
@@ -695,20 +691,16 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       ttsAudioRefsRef.current.delete(sceneIndex)
     }
 
-    // TTS 캐시 키 생성
     const ttsKey = `${voiceTemplate}::${script}`
-
-    // 캐시 확인
     let cached = ttsCacheRef.current.get(ttsKey)
-    if (!cached) {
-      // TTS 합성
-      try {
-        const accessToken = authStorage.getAccessToken()
-        if (!accessToken) {
-          console.warn('TTS 재생: 로그인이 필요합니다.')
-          return
-        }
 
+    if (!cached) {
+      const accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        return
+      }
+
+      try {
         const response = await fetch('/api/tts/synthesize', {
           method: 'POST',
           headers: {
@@ -723,152 +715,125 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         })
 
         if (!response.ok) {
-          console.error('TTS 합성 실패')
           return
         }
 
         const blob = await response.blob()
         const url = URL.createObjectURL(blob)
-        
-        // duration 계산 (간단히 blob 크기로 추정, 정확한 duration은 나중에 개선 가능)
-        const durationSec = 5 // 기본값, 실제로는 오디오 메타데이터에서 가져와야 함
-
-        cached = { blob, durationSec, url }
+        cached = {
+          blob,
+          durationSec: 5,
+          url,
+        }
         ttsCacheRef.current.set(ttsKey, cached)
       } catch (error) {
-        console.error('TTS 합성 오류:', error)
+        console.error('[ProPreviewPanel] TTS 합성 오류:', error)
         return
       }
     }
 
-    // 오디오 재생
-    if (cached.url) {
-      const audio = new Audio(cached.url)
-      audio.playbackRate = playbackSpeed
-      ttsAudioRefsRef.current.set(sceneIndex, audio)
+    if (!cached?.url) {
+      return
+    }
 
-      audio.addEventListener('ended', () => {
-        ttsAudioRefsRef.current.delete(sceneIndex)
-      })
+    const audio = new Audio(cached.url)
+    audio.playbackRate = playbackSpeed
+    ttsAudioRefsRef.current.set(sceneIndex, audio)
 
-      audio.addEventListener('error', () => {
-        ttsAudioRefsRef.current.delete(sceneIndex)
-      })
+    audio.addEventListener('ended', () => {
+      ttsAudioRefsRef.current.delete(sceneIndex)
+    })
+    audio.addEventListener('error', () => {
+      ttsAudioRefsRef.current.delete(sceneIndex)
+    })
 
-      await audio.play().catch((error: unknown) => {
-        // 브라우저 자동재생 정책: 사용자 상호작용 전 play() 차단
-        if (error instanceof DOMException && error.name === 'NotAllowedError') {
-          console.warn('TTS 재생이 차단되었습니다. 재생 버튼을 클릭한 뒤 다시 시도해주세요.')
-          ttsAudioRefsRef.current.delete(sceneIndex)
-          return
-        }
-        console.error('TTS 재생 오류:', error)
-        ttsAudioRefsRef.current.delete(sceneIndex)
-      })
+    try {
+      await audio.play()
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
+        return
+      }
+      console.error('[ProPreviewPanel] TTS 재생 오류:', error)
     }
   }, [playbackSpeed])
 
-  // 전체 재생 시간 계산 (모든 씬의 선택된 구간 합산)
+  const setCurrentSceneIndex = useCallback((index: number) => {
+    onCurrentSceneIndexChange?.(index)
+  }, [onCurrentSceneIndexChange])
+
   const totalDurationValue = useMemo(() => {
-    return scenes.reduce((total, scene) => {
-      if (scene.videoUrl && scene.selectionStartSeconds !== undefined && scene.selectionEndSeconds !== undefined) {
-        return total + (scene.selectionEndSeconds - scene.selectionStartSeconds)
-      }
-      return total
-    }, 0)
+    return scenes.reduce((sum, scene) => sum + getSceneSegmentDuration(scene), 0)
   }, [scenes])
 
-  // 재생 중지 시 정리(비디오/TTS/자막/타임라인 0)는 useVideoSegmentPlayer cleanup에서 처리
-
-  // 현재 선택된 씬의 비디오와 자막 표시 (재생 중이 아닐 때)
-  // scenes 배열 전체가 아닌 현재 씬의 videoUrl과 script만 추적하여 불필요한 재실행 방지
   const currentScene = scenes[currentSceneIndex]
   const currentSceneVideoUrl = currentScene?.videoUrl
-  const currentSceneScript = currentScene?.script
-  
-  // Timeline의 text 설정 변경 감지를 위한 키 생성
-  // timeline 객체 전체를 JSON.stringify하여 깊은 변경도 감지
-  const timelineTextKey = useMemo(() => {
-    if (!timeline || !timeline.scenes || !timeline.scenes[currentSceneIndex]) {
-      return ''
-    }
-    
-    const textSettings = timeline.scenes[currentSceneIndex].text
-    // text 설정만 추출하여 키 생성 (더 정확한 변경 감지)
-    const key = JSON.stringify({
-      font: textSettings?.font,
-      fontSize: textSettings?.fontSize,
-      color: textSettings?.color,
-      fontWeight: textSettings?.fontWeight,
-      position: textSettings?.position,
-      style: textSettings?.style,
-      transform: textSettings?.transform,
-    })
-    
-    return key
+  const currentSceneScript = currentScene?.script ?? ''
+
+  const subtitleSettingsKey = useMemo(() => {
+    return JSON.stringify(timeline?.scenes?.[currentSceneIndex]?.text ?? null)
   }, [timeline, currentSceneIndex])
-  
-  // Timeline 변경을 직접 감지하기 위한 effect
+
   useEffect(() => {
-    console.log('[ProPreviewPanel] Timeline 변경 감지:', {
-      hasTimeline: !!timeline,
-      timelineScenesLength: timeline?.scenes?.length,
-      currentSceneIndex,
-      hasScene: !!timeline?.scenes?.[currentSceneIndex],
-      textSettings: timeline?.scenes?.[currentSceneIndex]?.text,
-      timelineTextKey,
-    })
-  }, [timeline, currentSceneIndex, timelineTextKey])
-  
-  useEffect(() => {
-    if (!isPlaying && currentVideoUrl && currentSceneVideoUrl && currentSceneIndex >= 0) {
-      // 비디오를 Sprite로 로드
-      loadVideoAsSprite(currentSceneIndex, currentSceneVideoUrl).catch(console.error)
-      // 자막 표시 (timeline 변경 시에도 다시 렌더링)
-      if (currentSceneScript) {
-        renderSubtitle(currentSceneIndex, currentSceneScript)
+    if (!pixiReady || isPlaying || currentSceneIndex < 0) {
+      return
+    }
+
+    let cancelled = false
+
+    const renderCurrentScene = async () => {
+      if (currentSceneVideoUrl) {
+        await loadVideoAsSprite(currentSceneIndex, currentSceneVideoUrl)
+      } else {
+        spritesRef.current.forEach((sprite) => {
+          hideSprite(sprite)
+        })
       }
-    }
-  }, [isPlaying, currentVideoUrl, currentSceneVideoUrl, currentSceneScript, currentSceneIndex, renderSubtitle, loadVideoAsSprite])
 
-  // 현재 씬의 text 설정이 변경될 때마다 자막을 다시 렌더링 (가장 직접적인 변경 감지)
-  useEffect(() => {
-    if (!currentSceneScript || currentSceneIndex < 0 || !pixiReady) {
-      return
-    }
-    
-    // currentSceneTextSettings가 변경되면 자막을 다시 렌더링
-    if (currentSceneTextSettings) {
-      console.log('[ProPreviewPanel] 현재 씬의 자막 설정 변경 감지, 자막 다시 렌더링:', {
-        currentSceneIndex,
-        textSettings: currentSceneTextSettings,
-        isPlaying,
-        script: currentSceneScript.substring(0, 50),
+      if (cancelled) {
+        return
+      }
+
+      spritesRef.current.forEach((sprite, index) => {
+        if (index !== currentSceneIndex) {
+          hideSprite(sprite)
+        }
       })
+
       renderSubtitle(currentSceneIndex, currentSceneScript)
     }
-  }, [currentSceneTextSettings, currentSceneScript, currentSceneIndex, renderSubtitle, pixiReady, isPlaying])
-  
-  // Timeline의 자막 설정이 변경될 때마다 현재 씬의 자막을 다시 렌더링 (fallback)
-  // timelineTextKey가 변경되면 자막을 다시 렌더링하여 실시간 업데이트
+
+    void renderCurrentScene().catch((error) => {
+      console.error('[ProPreviewPanel] 현재 씬 렌더링 오류:', error)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    currentSceneIndex,
+    currentSceneScript,
+    currentSceneVideoUrl,
+    isPlaying,
+    loadVideoAsSprite,
+    pixiReady,
+    renderSubtitle,
+  ])
+
   useEffect(() => {
-    if (!currentSceneScript || currentSceneIndex < 0 || !pixiReady) {
+    if (!pixiReady || isPlaying || currentSceneIndex < 0) {
       return
     }
-    
-    // timelineTextKey가 변경되었을 때만 실행 (빈 문자열이 아닐 때)
-    if (timelineTextKey) {
-      console.log('[ProPreviewPanel] Timeline 자막 설정 변경 감지 (timelineTextKey), 자막 다시 렌더링:', {
-        currentSceneIndex,
-        timelineTextKey,
-        isPlaying,
-        script: currentSceneScript.substring(0, 50),
-      })
-      renderSubtitle(currentSceneIndex, currentSceneScript)
-    }
-  }, [timelineTextKey, currentSceneScript, currentSceneIndex, renderSubtitle, pixiReady, isPlaying])
 
-  // 비디오 세그먼트 재생 로직 커스텀 훅
+    renderSubtitle(currentSceneIndex, currentSceneScript)
+  }, [
+    subtitleSettingsKey,
+    currentSceneIndex,
+    currentSceneScript,
+    isPlaying,
+    pixiReady,
+    renderSubtitle,
+  ])
+
   const { trackUserGesture } = useVideoSegmentPlayer({
     isPlaying,
     pixiReady,
@@ -888,16 +853,13 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     textsRef,
   })
 
-  // 재생 버튼 클릭 핸들러 (재생 상태만 토글, 실제 재생은 커스텀 훅에서 처리)
   const handlePlayPause = useCallback(() => {
-    // 사용자 제스처 추적 (재생 시작 시에만)
     trackUserGesture()
     onPlayPause()
   }, [trackUserGesture, onPlayPause])
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-      {/* 비디오 미리보기 - 9:16 비율 고정 (PixiJS만 사용) */}
       <div className="flex-1 flex items-center justify-center overflow-hidden min-h-0 shrink-0 mb-4">
         <div
           ref={playbackContainerRef}
@@ -910,11 +872,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
             maxHeight: '100%',
           }}
         >
-          {/* PixiJS 캔버스 (비디오 + 자막) */}
-          <div
-            ref={pixiContainerRef}
-            className="absolute inset-0 z-10"
-          />
+          <div ref={pixiContainerRef} className="absolute inset-0 z-10" />
           {!currentVideoUrl && (
             <div className="absolute inset-0 flex items-center justify-center text-white/50 z-20 pointer-events-none">
               비디오 없음
@@ -923,9 +881,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         </div>
       </div>
 
-      {/* 재생 컨트롤 */}
       <div className="w-full shrink-0 space-y-3">
-        {/* 타임라인 바 */}
         <TimelineBar
           timelineBarRef={timelineBarRef}
           currentTime={currentTime}
@@ -934,7 +890,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           playbackSpeed={playbackSpeed}
           isPlaying={isPlaying}
           onTimelineMouseDown={() => {
-            // 타임라인 클릭은 나중에 구현
+            // Pro step3에서는 수동 seek 미지원
           }}
           timeline={null}
           bgmTemplate={bgmTemplate}
@@ -945,28 +901,23 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           isPreparing={false}
         />
 
-        {/* 속도 선택 버튼 */}
         <SpeedSelector
           playbackSpeed={playbackSpeed}
           totalDuration={totalDuration}
           onPlaybackSpeedChange={setPlaybackSpeed}
           onResizeTemplate={() => {
-            // 템플릿 크기 조정은 Pro에서 사용하지 않음
+            // Pro step3에서는 미지원
           }}
           onImageFitChange={() => {
-            // 이미지 fit 변경은 Pro에서 사용하지 않음
+            // Pro step3에서는 미지원
           }}
           currentSceneIndex={0}
           timeline={null}
         />
 
-        {/* 내보내기 버튼 */}
         {onExport && (
           <div className="mb-2">
-            <ExportButton
-              isExporting={isExporting}
-              onExport={onExport}
-            />
+            <ExportButton isExporting={isExporting} onExport={onExport} />
           </div>
         )}
       </div>
