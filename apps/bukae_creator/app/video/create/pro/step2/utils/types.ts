@@ -23,6 +23,7 @@ export type ExtendedSceneScript = SceneScript & {
   voiceLabel?: string
   voiceTemplate?: string | null
   ttsDuration?: number // TTS duration (초)
+  ttsAudioBase64?: string // TTS 오디오 데이터 (base64 인코딩된 문자열) - Step2에서 합성된 오디오를 Step3에서 사용하기 위해 저장
   videoUrl?: string | null // 업로드된 영상 URL
   selectionStartSeconds?: number // 격자 선택 영역 시작 시간 (초)
   selectionEndSeconds?: number // 격자 선택 영역 끝 시간 (초)

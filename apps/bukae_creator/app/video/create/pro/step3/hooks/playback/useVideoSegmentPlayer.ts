@@ -24,6 +24,7 @@ interface UseVideoSegmentPlayerParams {
   setTotalDuration: (duration: number) => void
   videoElementsRef: React.MutableRefObject<Map<number, HTMLVideoElement>>
   spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>
+  videoTexturesRef: React.MutableRefObject<Map<number, PIXI.Texture>>
   ttsAudioRefsRef: React.MutableRefObject<Map<number, HTMLAudioElement>>
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
 }
@@ -50,6 +51,7 @@ export function useVideoSegmentPlayer({
   setTotalDuration,
   videoElementsRef,
   spritesRef,
+  videoTexturesRef,
   ttsAudioRefsRef,
   textsRef,
 }: UseVideoSegmentPlayerParams) {
@@ -58,6 +60,7 @@ export function useVideoSegmentPlayer({
   const isInitialMountRef = useRef(true)
 
   const videoEventListenersRef = useRef<Map<number, VideoEventListeners>>(new Map())
+  const segmentTimersRef = useRef<Map<number, ReturnType<typeof setInterval>>>(new Map())
   const scenesRef = useRef(scenes)
   const totalDurationRef = useRef(totalDurationValue)
   const playSegmentRef = useRef<((
@@ -77,6 +80,13 @@ export function useVideoSegmentPlayer({
     }
 
     videoEventListenersRef.current.delete(sceneIndex)
+    
+    // 세그먼트 타이머 정리
+    const timerId = segmentTimersRef.current.get(sceneIndex)
+    if (timerId) {
+      clearInterval(timerId)
+      segmentTimersRef.current.delete(sceneIndex)
+    }
   }, [videoElementsRef])
 
   const stopSegment = useCallback((sceneIndex: number) => {
@@ -91,6 +101,12 @@ export function useVideoSegmentPlayer({
     videoElementsRef.current.forEach((_, sceneIndex) => {
       stopSegment(sceneIndex)
     })
+    
+    // 모든 세그먼트 타이머 정리
+    segmentTimersRef.current.forEach((timerId) => {
+      clearInterval(timerId)
+    })
+    segmentTimersRef.current.clear()
   }, [stopSegment, videoElementsRef])
 
   const stopAllTts = useCallback(() => {
@@ -116,20 +132,6 @@ export function useVideoSegmentPlayer({
       }
     })
   }, [spritesRef, textsRef])
-
-  const updatePlaybackTime = useCallback(
-    (video: HTMLVideoElement, sceneStartTime: number, previousDuration: number) => {
-      if (!isPlaying) {
-        return
-      }
-
-      const segmentProgress = video.currentTime - sceneStartTime
-      const currentTotalTime = previousDuration + segmentProgress
-      const clamped = clampPlaybackTime(currentTotalTime, totalDurationRef.current)
-      setCurrentTime(clamped)
-    },
-    [isPlaying, setCurrentTime]
-  )
 
   const playSegment = useCallback(async (
     segmentIndex: number,
@@ -179,7 +181,18 @@ export function useVideoSegmentPlayer({
       }
 
       const sceneStartTime = scene.selectionStartSeconds ?? 0
-      const sceneEndTime = Math.max(sceneStartTime, scene.selectionEndSeconds ?? sceneStartTime)
+      const videoSegmentEndTime = Math.max(sceneStartTime, scene.selectionEndSeconds ?? sceneStartTime)
+      
+      // TTS duration을 기준으로 씬 duration 결정 (Fast track과 동일한 로직)
+      // TTS duration이 있으면 우선 사용하고, 없으면 비디오 세그먼트 duration 사용
+      const sceneDuration = scene.ttsDuration && scene.ttsDuration > 0
+        ? scene.ttsDuration
+        : videoSegmentEndTime - sceneStartTime
+      
+      // 씬 시작 시간 (TTS duration 기준)
+      const sceneStartTimeForPlayback = previousDuration
+      // 씬 종료 시간 (TTS duration 기준)
+      const sceneEndTimeForPlayback = previousDuration + sceneDuration
 
       // 원본 영상 소리 끄기
       video.muted = true
@@ -211,10 +224,18 @@ export function useVideoSegmentPlayer({
 
       clearVideoListeners(originalIndex)
 
+      // 재생 시작 시간 기록 (TTS duration 기준)
+      const playbackStartTime = Date.now()
+      const playbackStartDuration = previousDuration
+
       const handleSegmentEnd = () => {
         stopSegment(originalIndex)
         onSegmentEnd()
       }
+
+      // 마지막 씬인지 확인
+      const playableScenes = getPlayableScenes(scenesRef.current)
+      const isLastScene = segmentIndex === playableScenes.length - 1
 
       const handleTimeUpdate = () => {
         if (!isPlaying) {
@@ -222,10 +243,35 @@ export function useVideoSegmentPlayer({
           return
         }
 
-        updatePlaybackTime(video, sceneStartTime, previousDuration)
-
-        if (video.currentTime >= sceneEndTime) {
+        // TTS duration 기준으로 재생 시간 업데이트
+        const elapsedTime = (Date.now() - playbackStartTime) / 1000
+        const currentTotalTime = playbackStartDuration + elapsedTime
+        
+        // TTS duration 기준 종료 시간에 도달하면 종료
+        if (currentTotalTime >= sceneEndTimeForPlayback) {
           handleSegmentEnd()
+          return
+        }
+        
+        setCurrentTime(clampPlaybackTime(currentTotalTime, totalDurationRef.current))
+        
+        // 비디오 세그먼트가 끝나면 비디오를 정지하되, TTS가 계속 재생되도록 함
+        // TTS duration이 비디오 세그먼트보다 길면 비디오는 멈추고 TTS만 계속 재생
+        // 마지막 씬이 아닌 경우에만 비디오를 정지 (마지막 씬은 마지막 프레임 유지)
+        if (video.currentTime >= videoSegmentEndTime && !isLastScene) {
+          video.pause()
+        } else if (video.currentTime >= videoSegmentEndTime && isLastScene) {
+          // 마지막 씬에서는 비디오를 정지하되 마지막 프레임을 유지하기 위해 VideoTexture 업데이트
+          video.pause()
+          // 마지막 프레임을 보여주기 위해 VideoTexture 업데이트
+          const texture = videoTexturesRef.current.get(originalIndex)
+          if (texture && !texture.destroyed && typeof (texture as { update?: () => void }).update === 'function') {
+            try {
+              ;(texture as { update: () => void }).update()
+            } catch (error) {
+              console.warn('[useVideoSegmentPlayer] VideoTexture 업데이트 실패:', error)
+            }
+          }
         }
       }
 
@@ -235,8 +281,61 @@ export function useVideoSegmentPlayer({
           return
         }
 
-        handleSegmentEnd()
+        // 비디오가 끝났지만 TTS가 아직 재생 중일 수 있음
+        // TTS duration 기준으로 종료 시간을 확인
+        const elapsedTime = (Date.now() - playbackStartTime) / 1000
+        const currentTotalTime = playbackStartDuration + elapsedTime
+        
+        // 마지막 씬인 경우 비디오가 끝나도 마지막 프레임을 유지
+        if (isLastScene) {
+          // 마지막 프레임을 보여주기 위해 VideoTexture 업데이트
+          const texture = videoTexturesRef.current.get(originalIndex)
+          if (texture && !texture.destroyed && typeof (texture as { update?: () => void }).update === 'function') {
+            try {
+              ;(texture as { update: () => void }).update()
+            } catch (error) {
+              console.warn('[useVideoSegmentPlayer] VideoTexture 업데이트 실패:', error)
+            }
+          }
+        }
+        
+        // TTS duration 기준 종료 시간에 도달했으면 종료
+        if (currentTotalTime >= sceneEndTimeForPlayback) {
+          handleSegmentEnd()
+        }
+        // 비디오만 끝났고 TTS가 아직 재생 중이면 비디오만 멈추고 TTS는 계속 재생
+        // (handleTimeUpdate에서 TTS duration 기준으로 종료 처리)
       }
+
+      // TTS duration 기준 타이머 설정 (비디오 timeupdate보다 정확)
+      // 기존 타이머가 있으면 정리
+      const existingTimer = segmentTimersRef.current.get(originalIndex)
+      if (existingTimer) {
+        clearInterval(existingTimer)
+      }
+      
+      const segmentTimerId = setInterval(() => {
+        if (!isPlaying) {
+          clearInterval(segmentTimerId)
+          segmentTimersRef.current.delete(originalIndex)
+          return
+        }
+        
+        const elapsedTime = (Date.now() - playbackStartTime) / 1000
+        const currentTotalTime = playbackStartDuration + elapsedTime
+        
+        // TTS duration 기준 종료 시간에 도달하면 종료
+        if (currentTotalTime >= sceneEndTimeForPlayback) {
+          clearInterval(segmentTimerId)
+          segmentTimersRef.current.delete(originalIndex)
+          handleSegmentEnd()
+          return
+        }
+        
+        setCurrentTime(clampPlaybackTime(currentTotalTime, totalDurationRef.current))
+      }, 16) // ~60fps 업데이트
+      
+      segmentTimersRef.current.set(originalIndex, segmentTimerId)
 
       video.addEventListener('timeupdate', handleTimeUpdate)
       video.addEventListener('ended', handleEnded)
@@ -278,9 +377,9 @@ export function useVideoSegmentPlayer({
     playTts,
     renderSubtitle,
     setCurrentSceneIndex,
+    setCurrentTime,
     spritesRef,
     stopSegment,
-    updatePlaybackTime,
     videoElementsRef,
   ])
 

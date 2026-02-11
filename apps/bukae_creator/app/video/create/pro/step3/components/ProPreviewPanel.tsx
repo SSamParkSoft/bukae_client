@@ -5,9 +5,8 @@ import * as PIXI from 'pixi.js'
 import { TimelineBar, SpeedSelector, ExportButton } from '@/app/video/create/_step3-components'
 import type { ProStep3Scene } from './ProSceneListPanel'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
-import { authStorage } from '@/lib/api/auth-storage'
 import { useVideoSegmentPlayer } from '../hooks/playback/useVideoSegmentPlayer'
-import { useVideoCreateStore } from '@/store/useVideoCreateStore'
+import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { calculateAspectFittedSize } from '../utils/proPreviewLayout'
 import { getSceneSegmentDuration } from '../utils/proPlaybackUtils'
 
@@ -116,6 +115,159 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   useEffect(() => {
     timelineRef.current = timeline
   }, [timeline])
+
+  // Step2에서 저장된 TTS 캐시를 store에서 로드
+  useEffect(() => {
+    const storeScenes = useVideoCreateStore.getState().scenes
+    console.log('[ProPreviewPanel] TTS 캐시 로드 시작:', {
+      storeScenesLength: storeScenes?.length,
+      storeScenes: storeScenes?.map((s, i) => ({
+        index: i,
+        script: s.script?.substring(0, 30),
+        hasTtsAudioBase64: !!(s as SceneScript & { ttsAudioBase64?: string }).ttsAudioBase64,
+        voiceTemplate: (s as SceneScript & { voiceTemplate?: string | null }).voiceTemplate,
+      })),
+      scenesProp: scenes.map((s, i) => ({
+        index: i,
+        script: s.script?.substring(0, 30),
+        voiceTemplate: s.voiceTemplate,
+      })),
+    })
+
+    if (!storeScenes || storeScenes.length === 0) {
+      console.warn('[ProPreviewPanel] storeScenes가 비어있습니다.')
+      return
+    }
+
+    let cancelled = false
+
+    // store의 각 씬에서 base64 데이터를 읽어서 캐시에 저장 (Promise로 변환)
+    // 이미 캐시에 있는 항목은 건너뛰고 새로 추가된 항목만 로드
+    const loadPromises = storeScenes.map((storeScene, index) => {
+      return new Promise<void>((resolve) => {
+        if (cancelled) {
+          resolve()
+          return
+        }
+
+        const extended = storeScene as SceneScript & {
+          ttsAudioBase64?: string
+          voiceTemplate?: string | null
+        }
+
+        if (!extended.ttsAudioBase64 || !extended.script || !extended.voiceTemplate) {
+          console.warn(`[ProPreviewPanel] 씬 ${index} 스킵: 필수 데이터 없음`, {
+            hasTtsAudioBase64: !!extended.ttsAudioBase64,
+            hasScript: !!extended.script,
+            hasVoiceTemplate: !!extended.voiceTemplate,
+          })
+          resolve()
+          return
+        }
+
+        // 이미 캐시에 있는지 확인
+        const ttsKey = `${extended.voiceTemplate}::${extended.script}`
+        const existingCache = ttsCacheRef.current.get(ttsKey)
+        if (existingCache && existingCache.url) {
+          console.log(`[ProPreviewPanel] 씬 ${index} 캐시 이미 존재, 스킵:`, {
+            ttsKey: ttsKey.substring(0, 80),
+            duration: existingCache.durationSec,
+          })
+          resolve()
+          return
+        }
+
+        console.log(`[ProPreviewPanel] 씬 ${index} 캐시 로드 시작:`, {
+          hasTtsAudioBase64: !!extended.ttsAudioBase64,
+          hasScript: !!extended.script,
+          hasVoiceTemplate: !!extended.voiceTemplate,
+          script: extended.script?.substring(0, 30),
+          voiceTemplate: extended.voiceTemplate,
+          ttsKey: ttsKey.substring(0, 80),
+        })
+
+        try {
+          // base64 문자열을 blob으로 변환
+          const base64Data = extended.ttsAudioBase64
+          const byteCharacters = atob(base64Data)
+          const byteNumbers = new Array(byteCharacters.length)
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i)
+          }
+          const byteArray = new Uint8Array(byteNumbers)
+          const blob = new Blob([byteArray], { type: 'audio/mpeg' })
+
+          // blob에서 duration 계산
+          const audio = new Audio(URL.createObjectURL(blob))
+          
+          const cleanup = () => {
+            audio.removeEventListener('loadedmetadata', onLoadedMetadata)
+            audio.removeEventListener('error', onError)
+            URL.revokeObjectURL(audio.src)
+          }
+
+          const onLoadedMetadata = () => {
+            if (cancelled) {
+              cleanup()
+              resolve()
+              return
+            }
+
+            const duration = audio.duration
+            const url = URL.createObjectURL(blob)
+
+            // 다시 한 번 확인 (중복 로드 방지)
+            if (!ttsCacheRef.current.has(ttsKey)) {
+              ttsCacheRef.current.set(ttsKey, {
+                blob,
+                durationSec: duration,
+                url,
+              })
+
+              console.log(`[ProPreviewPanel] 씬 ${index} TTS 캐시 저장 완료:`, {
+                ttsKey: ttsKey.substring(0, 80),
+                duration,
+                cacheSize: ttsCacheRef.current.size,
+              })
+            } else {
+              // 이미 캐시에 있으면 URL만 정리
+              URL.revokeObjectURL(url)
+            }
+
+            cleanup()
+            resolve()
+          }
+
+          const onError = () => {
+            console.warn('[ProPreviewPanel] TTS 캐시 로드 실패:', index)
+            cleanup()
+            resolve() // 에러가 나도 다른 씬 로딩을 계속하기 위해 resolve
+          }
+
+          audio.addEventListener('loadedmetadata', onLoadedMetadata)
+          audio.addEventListener('error', onError)
+          audio.load()
+        } catch (error) {
+          console.error('[ProPreviewPanel] TTS base64 변환 오류:', error, { index })
+          resolve() // 에러가 나도 다른 씬 로딩을 계속하기 위해 resolve
+        }
+      })
+    })
+
+    // 모든 캐시 로딩이 완료될 때까지 대기
+    Promise.all(loadPromises).then(() => {
+      if (!cancelled) {
+        console.log('[ProPreviewPanel] TTS 캐시 로드 완료:', {
+          cacheSize: ttsCacheRef.current.size,
+          cacheKeys: Array.from(ttsCacheRef.current.keys()).map((k) => k.substring(0, 80)),
+        })
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [scenes]) // scenes prop이 변경될 때마다 다시 로드
 
   const applyCanvasStyle = useCallback((width: number, height: number) => {
     const app = appRef.current
@@ -716,47 +868,23 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     }
 
     const ttsKey = `${voiceTemplate}::${script}`
-    let cached = ttsCacheRef.current.get(ttsKey)
+    const cached = ttsCacheRef.current.get(ttsKey)
 
-    if (!cached) {
-      const accessToken = authStorage.getAccessToken()
-      if (!accessToken) {
-        return
-      }
-
-      try {
-        const response = await fetch('/api/tts/synthesize', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            voiceTemplate,
-            mode: 'text',
-            text: script,
-          }),
-        })
-
-        if (!response.ok) {
-          return
-        }
-
-        const blob = await response.blob()
-        const url = URL.createObjectURL(blob)
-        cached = {
-          blob,
-          durationSec: 5,
-          url,
-        }
-        ttsCacheRef.current.set(ttsKey, cached)
-      } catch (error) {
-        console.error('[ProPreviewPanel] TTS 합성 오류:', error)
-        return
-      }
-    }
-
-    if (!cached?.url) {
+    // Step3에서는 TTS 합성을 하지 않음 (Step2에서 이미 합성된 캐시만 사용)
+    // 캐시에 없으면 재생하지 않고 alert 표시
+    if (!cached || !cached.url) {
+      // 캐시에 있는 모든 키를 로그로 출력하여 디버깅
+      const allCacheKeys = Array.from(ttsCacheRef.current.keys())
+      console.warn('[ProPreviewPanel] TTS 캐시 없음:', {
+        sceneIndex,
+        voiceTemplate,
+        script: script.substring(0, 50),
+        ttsKey,
+        allCacheKeys: allCacheKeys.map((k) => k.substring(0, 80)),
+        cacheSize: ttsCacheRef.current.size,
+      })
+      
+      alert(`TTS 캐시를 찾을 수 없습니다. Step2에서 TTS 합성을 완료한 후 Step3로 이동해주세요.\n\n씬 인덱스: ${sceneIndex}\n스크립트: ${script.substring(0, 50)}...\n찾는 키: ${ttsKey.substring(0, 80)}...`)
       return
     }
 
@@ -877,6 +1005,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     setTotalDuration,
     videoElementsRef,
     spritesRef,
+    videoTexturesRef,
     ttsAudioRefsRef,
     textsRef,
   })

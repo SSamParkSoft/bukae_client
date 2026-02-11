@@ -331,6 +331,19 @@ export default function ProStep2Page() {
         setTtsProgress({ completed, total })
       })
 
+      console.log('[Step2] TTS 합성 완료:', {
+        success: result.success,
+        resultsCount: result.results.length,
+        results: result.results.map((r, i) => ({
+          index: i,
+          success: r.success,
+          hasAudioBase64: !!r.audioBase64,
+          audioBase64Length: r.audioBase64?.length,
+          duration: r.duration,
+          error: r.error,
+        })),
+      })
+
       if (!result.success) {
         alert(result.error || 'TTS 합성 중 오류가 발생했습니다.')
         setIsSynthesizingTts(false)
@@ -344,6 +357,7 @@ export default function ProStep2Page() {
         ? currentStoreScenes.map((s: SceneScript, index: number) => sceneScriptToProScene(s, index))
         : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
       
+      // TTS 합성 결과를 ProScene에 저장 (duration 포함)
       const updatedScenes = currentScenes.map((scene, index) => {
         const ttsResult = result.results[index]
         return {
@@ -352,13 +366,58 @@ export default function ProStep2Page() {
         }
       })
       
+      // ProScene을 SceneScript로 변환하면서 base64도 함께 저장
+      const updatedStoreScenes = updatedScenes.map((scene: ProScene, index: number) => {
+        const ttsResult = result.results[index]
+        const sceneScript = proSceneToSceneScript(scene, index)
+        
+        // 디버깅: TTS 결과 확인
+        console.log(`[Step2] 씬 ${index} TTS 결과:`, {
+          success: ttsResult?.success,
+          hasAudioBase64: !!ttsResult?.audioBase64,
+          audioBase64Length: ttsResult?.audioBase64?.length,
+          duration: ttsResult?.duration,
+          error: ttsResult?.error,
+        })
+        
+        // base64 데이터를 SceneScript에 추가
+        // success가 true이고 audioBase64가 존재할 때만 저장
+        if (ttsResult && ttsResult.success && ttsResult.audioBase64) {
+          const updated = {
+            ...sceneScript,
+            ttsAudioBase64: ttsResult.audioBase64,
+          }
+          console.log(`[Step2] 씬 ${index} ttsAudioBase64 저장됨:`, {
+            hasTtsAudioBase64: !!updated.ttsAudioBase64,
+            ttsAudioBase64Length: updated.ttsAudioBase64?.length,
+            script: sceneScript.script?.substring(0, 30),
+          })
+          return updated
+        }
+        
+        // 실패한 경우에도 기존 sceneScript는 유지하되 경고 로그 출력
+        if (ttsResult && !ttsResult.success) {
+          console.warn(`[Step2] 씬 ${index} TTS 합성 실패, ttsAudioBase64 저장 안됨:`, {
+            error: ttsResult.error,
+            script: sceneScript.script?.substring(0, 30),
+          })
+        } else if (!ttsResult?.audioBase64) {
+          console.warn(`[Step2] 씬 ${index} audioBase64 없음:`, {
+            success: ttsResult?.success,
+            hasAudioBase64: !!ttsResult?.audioBase64,
+            script: sceneScript.script?.substring(0, 30),
+          })
+        }
+        return sceneScript
+      })
+      
       // 상태 변경 전에 autoSaveEnabled 확인 및 설정
       const store = useVideoCreateStore.getState()
       if (!store.autoSaveEnabled) {
         useVideoCreateStore.setState({ autoSaveEnabled: true })
       }
       
-      setStoreScenes(updatedScenes.map((s: ProScene, index: number) => proSceneToSceneScript(s, index)))
+      setStoreScenes(updatedStoreScenes)
       setHasUnsavedChanges(true)
 
       // TTS 합성 완료 후 다음 페이지로 이동
