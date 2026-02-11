@@ -1,6 +1,7 @@
 'use client'
 
-import React, { memo, useRef, useState, useEffect, useCallback, useMemo } from 'react'
+import { memo, useRef, useState, useEffect, useCallback, useMemo } from 'react'
+import type { MutableRefObject } from 'react'
 import * as PIXI from 'pixi.js'
 import * as fabric from 'fabric'
 import { TimelineBar, SpeedSelector, ExportButton } from '@/app/video/create/_step3-components'
@@ -153,17 +154,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
         // 이미 캐시에 있는지 확인
         const ttsKey = `${extended.voiceTemplate}::${extended.script}`
-        console.log('[Step3] TTS 캐시 로드 시도:', {
-          sceneIndex: storeScenes.indexOf(storeScene),
-          ttsKey,
-          hasTtsAudioBase64: !!extended.ttsAudioBase64,
-          ttsAudioBase64Length: extended.ttsAudioBase64?.length,
-          voiceTemplate: extended.voiceTemplate,
-          script: extended.script?.substring(0, 30),
-        })
         const existingCache = ttsCacheRef.current.get(ttsKey)
         if (existingCache && existingCache.url) {
-          console.log('[Step3] TTS 캐시 이미 존재:', { ttsKey })
           resolve()
           return
         }
@@ -205,12 +197,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
                 durationSec: duration,
                 url,
               })
-              console.log('[Step3] TTS 캐시 저장 완료:', {
-                ttsKey,
-                duration,
-                url: url.substring(0, 50),
-                cacheSize: ttsCacheRef.current.size,
-              })
             } else {
               // 이미 캐시에 있으면 URL만 정리
               URL.revokeObjectURL(url)
@@ -236,10 +222,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
     // 모든 캐시 로딩이 완료될 때까지 대기
     Promise.all(loadPromises).then(() => {
-      console.log('[Step3] 모든 TTS 캐시 로드 완료:', {
-        cacheSize: ttsCacheRef.current.size,
-        allCacheKeys: Array.from(ttsCacheRef.current.keys()).map((k) => k.substring(0, 80)),
-      })
+      // 캐시 로드 완료
     })
 
     return () => {
@@ -450,7 +433,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         }
 
         setPixiReady(true)
-      } catch (error) {
+      } catch {
         // Pixi 초기화 실패
       }
     }
@@ -469,7 +452,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       if (currentCanvas && host.contains(currentCanvas)) {
         try {
           host.removeChild(currentCanvas)
-        } catch (error) {
+        } catch {
           // Canvas 제거 실패
         }
       }
@@ -481,7 +464,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         if (localCanvas && host.contains(localCanvas)) {
           try {
             host.removeChild(localCanvas)
-          } catch (error) {
+          } catch {
             // 로컬 app canvas 제거 실패
           }
         }
@@ -493,7 +476,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
             currentApp.stage.destroy({ children: true })
           }
           currentApp.destroy(true, { children: false, texture: false })
-        } catch (error) {
+        } catch {
           // Pixi 정리 실패
         }
       }
@@ -507,16 +490,17 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
   // 컴포넌트 언마운트 시에만 모든 리소스 정리 (TTS 캐시 포함)
   useEffect(() => {
+    const currentCache = ttsCacheRef.current
     return () => {
       cleanupAllMediaResources()
       
       // 컴포넌트 언마운트 시 TTS 캐시도 정리
-      ttsCacheRef.current.forEach((cached) => {
+      currentCache.forEach((cached) => {
         if (cached.url) {
           URL.revokeObjectURL(cached.url)
         }
       })
-      ttsCacheRef.current.clear()
+      currentCache.clear()
     }
   }, [cleanupAllMediaResources])
 
@@ -692,7 +676,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       if (texture && !texture.destroyed && typeof (texture as { update?: () => void }).update === 'function') {
         try {
           ;(texture as { update: () => void }).update()
-        } catch (error) {
+        } catch {
           // VideoTexture 업데이트 실패
         }
       }
@@ -772,7 +756,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           setupFn(sceneIndex, sprite)
         }
       })
-    } catch (error) {
+    } catch {
       cleanupSceneResources(sceneIndex)
     }
   }, [cleanupSceneResources, pixiReady, seekVideoFrame, waitForMetadata])
@@ -885,26 +869,9 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     const ttsKey = `${voiceTemplate}::${script}`
     const cached = ttsCacheRef.current.get(ttsKey)
 
-    console.log('[Step3] TTS 재생 시도:', {
-      sceneIndex,
-      ttsKey,
-      hasCached: !!cached,
-      cachedUrl: cached?.url?.substring(0, 50),
-      cacheSize: ttsCacheRef.current.size,
-      allCacheKeys: Array.from(ttsCacheRef.current.keys()).map((k) => k.substring(0, 80)),
-      voiceTemplate,
-      script: script.substring(0, 30),
-    })
-
     // Step3에서는 TTS 합성을 하지 않음 (Step2에서 이미 합성된 캐시만 사용)
     // 캐시에 없으면 재생하지 않고 alert 표시
     if (!cached || !cached.url) {
-      console.error('[Step3] TTS 캐시를 찾을 수 없음:', {
-        sceneIndex,
-        ttsKey,
-        cacheSize: ttsCacheRef.current.size,
-        allCacheKeys: Array.from(ttsCacheRef.current.keys()),
-      })
       alert(`TTS 캐시를 찾을 수 없습니다. Step2에서 TTS 합성을 완료한 후 Step3로 이동해주세요.\n\n씬 인덱스: ${sceneIndex}\n스크립트: ${script.substring(0, 50)}...\n찾는 키: ${ttsKey.substring(0, 80)}...`)
       return
     }
@@ -1035,9 +1002,9 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   // proFabricCanvasRef와 setupSpriteClickEvent를 전역에서 접근 가능하도록 설정 (loadVideoAsSprite에서 사용하기 위해)
   useEffect(() => {
     if (proFabricCanvasRef) {
-      ;(window as { __proFabricCanvasRef__?: React.MutableRefObject<fabric.Canvas | null> }).__proFabricCanvasRef__ = proFabricCanvasRef
+      ;(window as { __proFabricCanvasRef__?: MutableRefObject<fabric.Canvas | null> }).__proFabricCanvasRef__ = proFabricCanvasRef
     } else {
-      delete (window as { __proFabricCanvasRef__?: React.MutableRefObject<fabric.Canvas | null> }).__proFabricCanvasRef__
+      delete (window as { __proFabricCanvasRef__?: MutableRefObject<fabric.Canvas | null> }).__proFabricCanvasRef__
     }
     if (setupSpriteClickEvent) {
       ;(window as { __setupSpriteClickEvent__?: (sceneIndex: number, sprite: PIXI.Sprite) => boolean }).__setupSpriteClickEvent__ = setupSpriteClickEvent
@@ -1045,7 +1012,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       delete (window as { __setupSpriteClickEvent__?: (sceneIndex: number, sprite: PIXI.Sprite) => boolean }).__setupSpriteClickEvent__
     }
     return () => {
-      delete (window as { __proFabricCanvasRef__?: React.MutableRefObject<fabric.Canvas | null> }).__proFabricCanvasRef__
+      delete (window as { __proFabricCanvasRef__?: MutableRefObject<fabric.Canvas | null> }).__proFabricCanvasRef__
       delete (window as { __setupSpriteClickEvent__?: (sceneIndex: number, sprite: PIXI.Sprite) => boolean }).__setupSpriteClickEvent__
     }
   }, [proFabricCanvasRef, setupSpriteClickEvent])
@@ -1199,7 +1166,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       // 스프라이트 생성 완료 - 클릭 이벤트는 별도 useEffect에서 설정됨
     }
 
-    void renderCurrentScene().catch((error) => {
+    void renderCurrentScene().catch(() => {
       // 현재 씬 렌더링 오류
     })
 

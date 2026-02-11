@@ -81,11 +81,6 @@ async function synthesizeScene(
               reject(new Error('base64 문자열 추출 실패'))
               return
             }
-            console.log('[synthesizeScene] base64 변환 성공:', {
-              blobSize: blob.size,
-              base64Length: base64String.length,
-              preview: base64String.substring(0, 50),
-            })
             resolve(base64String)
           } else {
             reject(new Error('FileReader 결과가 문자열이 아닙니다.'))

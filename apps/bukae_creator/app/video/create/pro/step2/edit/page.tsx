@@ -114,15 +114,6 @@ export default function ProStep2EditPage() {
     
     setStoreScenes(scenesToSave)
     
-    // 디버깅: store에 저장한 selection 값 확인
-    setTimeout(() => {
-      const savedScenes = useVideoCreateStore.getState().scenes
-      console.log('[Step2 Edit] 저장 완료:', savedScenes?.map((s, i) => {
-        const ext = s as ExtendedSceneScript
-        return `씬${i}: ${ext.selectionStartSeconds ?? '없음'}~${ext.selectionEndSeconds ?? '없음'}`
-      }).join(', '))
-    }, 100)
-    
     // 강제로 저장되도록 상태 업데이트
     setHasUnsavedChanges(true)
   }, [setStoreScenes, setHasUnsavedChanges])
@@ -162,9 +153,6 @@ export default function ProStep2EditPage() {
         selectionStartSeconds: startSeconds,
         selectionEndSeconds: endSeconds,
       }
-      
-      // 디버깅: selection 변경 확인
-      console.log(`[Step2 Edit] 씬${index} selection 변경: ${currentScene.selectionStartSeconds ?? '없음'}~${currentScene.selectionEndSeconds ?? '없음'} → ${startSeconds}~${endSeconds}`)
       
       return next
     })
@@ -220,17 +208,14 @@ export default function ProStep2EditPage() {
 
   const handleAiGuideGenerateAll = useCallback(() => {
     // TODO: AI 촬영가이드 생성 로직 구현
-    console.log('AI 촬영가이드 생성')
   }, [])
 
   const handleAiScriptClick = useCallback((index: number) => {
     // TODO: 개별 씬 AI 스크립트 생성 로직 구현
-    console.log('AI 스크립트 생성', index)
   }, [])
 
   const handleAiGuideClick = useCallback((index: number) => {
     // TODO: 개별 씬 AI 촬영가이드 생성 로직 구현
-    console.log('AI 촬영가이드 생성', index)
   }, [])
 
   const handleDragStart = useCallback((index: number) => {
@@ -293,14 +278,6 @@ export default function ProStep2EditPage() {
     selectionEndSeconds: scene.selectionEndSeconds, // 격자 선택 영역 끝 시간
   }))
 
-  // 각 씬의 TTS duration 콘솔 출력
-  useEffect(() => {
-    console.log('=== 각 씬의 TTS Duration ===')
-    scenes.forEach((scene, index) => {
-      console.log(`씬 ${index + 1}: ${scene.ttsDuration?.toFixed(2) || '없음'}초`)
-    })
-    console.log('===========================')
-  }, [scenes])
 
   return (
     <div>

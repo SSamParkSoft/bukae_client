@@ -331,19 +331,6 @@ export default function ProStep2Page() {
         setTtsProgress({ completed, total })
       })
 
-      console.log('[Step2] TTS 합성 완료:', {
-        success: result.success,
-        resultsCount: result.results.length,
-        results: result.results.map((r, i) => ({
-          index: i,
-          success: r.success,
-          hasAudioBase64: !!r.audioBase64,
-          audioBase64Length: r.audioBase64?.length,
-          duration: r.duration,
-          error: r.error,
-        })),
-      })
-
       if (!result.success) {
         alert(result.error || 'TTS 합성 중 오류가 발생했습니다.')
         setIsSynthesizingTts(false)
@@ -369,43 +356,7 @@ export default function ProStep2Page() {
       
       // ProScene을 SceneScript로 변환 (proSceneToSceneScript가 자동으로 ttsAudioBase64 포함)
       const updatedStoreScenes = updatedScenes.map((scene: ProScene, index: number) => {
-        const ttsResult = result.results[index]
-        const sceneScript = proSceneToSceneScript(scene, index)
-        
-        // 디버깅: TTS 결과 확인
-        console.log(`[Step2] 씬 ${index} TTS 결과:`, {
-          success: ttsResult?.success,
-          hasAudioBase64: !!ttsResult?.audioBase64,
-          audioBase64Length: ttsResult?.audioBase64?.length,
-          duration: ttsResult?.duration,
-          error: ttsResult?.error,
-          sceneHasTtsAudioBase64: !!scene.ttsAudioBase64,
-          sceneScriptHasTtsAudioBase64: !!(sceneScript as ExtendedSceneScript).ttsAudioBase64,
-        })
-        
-        // base64 데이터가 있는지 확인하고 로그 출력
-        if (ttsResult && ttsResult.success && ttsResult.audioBase64) {
-          console.log(`[Step2] 씬 ${index} ttsAudioBase64 저장됨:`, {
-            hasTtsAudioBase64: !!(sceneScript as ExtendedSceneScript).ttsAudioBase64,
-            ttsAudioBase64Length: (sceneScript as ExtendedSceneScript).ttsAudioBase64?.length,
-            script: sceneScript.script?.substring(0, 30),
-          })
-        } else {
-          // 실패한 경우에도 기존 sceneScript는 유지하되 경고 로그 출력
-          if (ttsResult && !ttsResult.success) {
-            console.warn(`[Step2] 씬 ${index} TTS 합성 실패, ttsAudioBase64 저장 안됨:`, {
-              error: ttsResult.error,
-              script: sceneScript.script?.substring(0, 30),
-            })
-          } else if (!ttsResult?.audioBase64) {
-            console.warn(`[Step2] 씬 ${index} audioBase64 없음:`, {
-              success: ttsResult?.success,
-              hasAudioBase64: !!ttsResult?.audioBase64,
-              script: sceneScript.script?.substring(0, 30),
-            })
-          }
-        }
-        return sceneScript
+        return proSceneToSceneScript(scene, index)
       })
       
       // 상태 변경 전에 autoSaveEnabled 확인 및 설정
