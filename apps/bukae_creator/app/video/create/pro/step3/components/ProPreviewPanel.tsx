@@ -1059,12 +1059,18 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         return
       }
       
+      // 배경을 클릭한 경우 선택 해제
+      if (!target || target === fabricCanvas) {
+        fabricCanvas.discardActiveObject()
+        fabricCanvas.requestRenderAll()
+        return
+      }
+      
       // 클릭한 위치가 이미지 객체 위에 있는지 확인
       const isClickOnImage = imageObject.containsPoint(new fabric.Point(pointer.x, pointer.y))
       
-      // 객체가 없거나 배경을 클릭했거나, 이미지 객체 위를 클릭한 경우 이미지 객체 선택
-      if (!target || target === fabricCanvas || isClickOnImage) {
-        // 이미지 객체를 활성화하고 편집 모드로 진입
+      // 이미지 객체 위를 클릭한 경우에만 이미지 객체 선택
+      if (isClickOnImage) {
         fabricCanvas.setActiveObject(imageObject)
         fabricCanvas.requestRenderAll()
       }
