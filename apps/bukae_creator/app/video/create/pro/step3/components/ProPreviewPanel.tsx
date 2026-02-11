@@ -153,8 +153,17 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
         // 이미 캐시에 있는지 확인
         const ttsKey = `${extended.voiceTemplate}::${extended.script}`
+        console.log('[Step3] TTS 캐시 로드 시도:', {
+          sceneIndex: storeScenes.indexOf(storeScene),
+          ttsKey,
+          hasTtsAudioBase64: !!extended.ttsAudioBase64,
+          ttsAudioBase64Length: extended.ttsAudioBase64?.length,
+          voiceTemplate: extended.voiceTemplate,
+          script: extended.script?.substring(0, 30),
+        })
         const existingCache = ttsCacheRef.current.get(ttsKey)
         if (existingCache && existingCache.url) {
+          console.log('[Step3] TTS 캐시 이미 존재:', { ttsKey })
           resolve()
           return
         }
@@ -196,6 +205,12 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
                 durationSec: duration,
                 url,
               })
+              console.log('[Step3] TTS 캐시 저장 완료:', {
+                ttsKey,
+                duration,
+                url: url.substring(0, 50),
+                cacheSize: ttsCacheRef.current.size,
+              })
             } else {
               // 이미 캐시에 있으면 URL만 정리
               URL.revokeObjectURL(url)
@@ -221,7 +236,10 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
     // 모든 캐시 로딩이 완료될 때까지 대기
     Promise.all(loadPromises).then(() => {
-      // 캐시 로드 완료
+      console.log('[Step3] 모든 TTS 캐시 로드 완료:', {
+        cacheSize: ttsCacheRef.current.size,
+        allCacheKeys: Array.from(ttsCacheRef.current.keys()).map((k) => k.substring(0, 80)),
+      })
     })
 
     return () => {
@@ -362,12 +380,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     })
     ttsAudioRefsRef.current.clear()
 
-    ttsCacheRef.current.forEach((cached) => {
-      if (cached.url) {
-        URL.revokeObjectURL(cached.url)
-      }
-    })
-    ttsCacheRef.current.clear()
+    // TTS 캐시는 재생에 필요하므로 일반 cleanup에서는 클리어하지 않음
+    // 컴포넌트 언마운트 시에만 클리어됨
   }, [cleanupSceneResources])
 
   useEffect(() => {
@@ -437,7 +451,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
         setPixiReady(true)
       } catch (error) {
-        console.error('[ProPreviewPanel] Pixi 초기화 실패:', error)
+        // Pixi 초기화 실패
       }
     }
 
@@ -456,7 +470,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         try {
           host.removeChild(currentCanvas)
         } catch (error) {
-          console.warn('[ProPreviewPanel] Canvas 제거 실패:', error)
+          // Canvas 제거 실패
         }
       }
 
@@ -468,7 +482,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           try {
             host.removeChild(localCanvas)
           } catch (error) {
-            console.warn('[ProPreviewPanel] 로컬 app canvas 제거 실패:', error)
+            // 로컬 app canvas 제거 실패
           }
         }
       }
@@ -480,7 +494,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           }
           currentApp.destroy(true, { children: false, texture: false })
         } catch (error) {
-          console.error('[ProPreviewPanel] Pixi 정리 실패:', error)
+          // Pixi 정리 실패
         }
       }
 
@@ -491,9 +505,18 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     }
   }, [applyCanvasStyle, canvasDisplaySize, cleanupAllMediaResources])
 
+  // 컴포넌트 언마운트 시에만 모든 리소스 정리 (TTS 캐시 포함)
   useEffect(() => {
     return () => {
       cleanupAllMediaResources()
+      
+      // 컴포넌트 언마운트 시 TTS 캐시도 정리
+      ttsCacheRef.current.forEach((cached) => {
+        if (cached.url) {
+          URL.revokeObjectURL(cached.url)
+        }
+      })
+      ttsCacheRef.current.clear()
     }
   }, [cleanupAllMediaResources])
 
@@ -633,11 +656,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
       // 비디오 크기가 유효한지 확인 (video가 null이 아닌지 다시 확인)
       if (!video || !video.videoWidth || !video.videoHeight || video.videoWidth <= 0 || video.videoHeight <= 0) {
-        console.warn('[loadVideoAsSprite] 비디오 크기가 유효하지 않습니다.', {
-          videoWidth: video.videoWidth,
-          videoHeight: video.videoHeight,
-          readyState: video.readyState,
-        })
         cleanupSceneResources(sceneIndex)
         return
       }
@@ -675,7 +693,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         try {
           ;(texture as { update: () => void }).update()
         } catch (error) {
-          console.warn('[loadVideoAsSprite] VideoTexture 업데이트 실패:', error)
+          // VideoTexture 업데이트 실패
         }
       }
       
@@ -698,9 +716,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       if (!currentVideo.videoWidth && !currentVideo.videoHeight) {
         // 비디오 메타데이터가 아직 로드되지 않았을 수 있음
         cleanupSceneResources(sceneIndex)
-        console.warn('[loadVideoAsSprite] 비디오 메타데이터가 아직 로드되지 않았습니다.', {
-          readyState: currentVideo.readyState,
-        })
         return
       }
 
@@ -718,12 +733,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       if (!sourceWidth || !sourceHeight || sourceWidth <= 0 || sourceHeight <= 0) {
         sprite.destroy()
         cleanupSceneResources(sceneIndex)
-        console.warn('[loadVideoAsSprite] 비디오 크기를 가져올 수 없습니다.', {
-          videoWidth: currentVideo?.videoWidth,
-          videoHeight: currentVideo?.videoHeight,
-          textureWidth: texture.width,
-          textureHeight: texture.height,
-        })
         return
       }
 
@@ -755,38 +764,16 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       finalVideoContainer.addChild(sprite)
       spritesRef.current.set(sceneIndex, sprite)
       
-      console.log('[ProPreviewPanel] 스프라이트 생성 완료:', {
-        sceneIndex,
-        spriteVisible: sprite.visible,
-        spriteAlpha: sprite.alpha,
-        spriteWidth: sprite.width,
-        spriteHeight: sprite.height,
-      })
-      
       // 스프라이트 생성 직후 클릭 이벤트 설정 (다음 프레임에서 실행하여 렌더링 완료 보장)
       // setupSpriteClickEvent 함수를 사용하여 설정 (전역 변수를 통해 접근)
       requestAnimationFrame(() => {
         const setupFn = (window as { __setupSpriteClickEvent__?: (sceneIndex: number, sprite: PIXI.Sprite) => boolean }).__setupSpriteClickEvent__
         if (setupFn) {
-          const success = setupFn(sceneIndex, sprite)
-          console.log('[ProPreviewPanel] 🔧 스프라이트 생성 직후 클릭 이벤트 설정 시도:', {
-            sceneIndex,
-            success,
-            spriteInteractive: sprite.interactive,
-            spriteCursor: sprite.cursor,
-            spriteVisible: sprite.visible,
-          })
-        } else {
-          console.warn('[ProPreviewPanel] ⚠️ setupSpriteClickEvent 함수를 찾을 수 없음:', {
-            sceneIndex,
-            spriteExists: !!sprite,
-            spriteVisible: sprite?.visible,
-          })
+          setupFn(sceneIndex, sprite)
         }
       })
     } catch (error) {
       cleanupSceneResources(sceneIndex)
-      console.error('[ProPreviewPanel] 비디오 로드 오류:', error)
     }
   }, [cleanupSceneResources, pixiReady, seekVideoFrame, waitForMetadata])
 
@@ -898,20 +885,26 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     const ttsKey = `${voiceTemplate}::${script}`
     const cached = ttsCacheRef.current.get(ttsKey)
 
+    console.log('[Step3] TTS 재생 시도:', {
+      sceneIndex,
+      ttsKey,
+      hasCached: !!cached,
+      cachedUrl: cached?.url?.substring(0, 50),
+      cacheSize: ttsCacheRef.current.size,
+      allCacheKeys: Array.from(ttsCacheRef.current.keys()).map((k) => k.substring(0, 80)),
+      voiceTemplate,
+      script: script.substring(0, 30),
+    })
+
     // Step3에서는 TTS 합성을 하지 않음 (Step2에서 이미 합성된 캐시만 사용)
     // 캐시에 없으면 재생하지 않고 alert 표시
     if (!cached || !cached.url) {
-      // 캐시에 있는 모든 키를 로그로 출력하여 디버깅
-      const allCacheKeys = Array.from(ttsCacheRef.current.keys())
-      console.warn('[ProPreviewPanel] TTS 캐시 없음:', {
+      console.error('[Step3] TTS 캐시를 찾을 수 없음:', {
         sceneIndex,
-        voiceTemplate,
-        script: script.substring(0, 50),
         ttsKey,
-        allCacheKeys: allCacheKeys.map((k) => k.substring(0, 80)),
         cacheSize: ttsCacheRef.current.size,
+        allCacheKeys: Array.from(ttsCacheRef.current.keys()),
       })
-      
       alert(`TTS 캐시를 찾을 수 없습니다. Step2에서 TTS 합성을 완료한 후 Step3로 이동해주세요.\n\n씬 인덱스: ${sceneIndex}\n스크립트: ${script.substring(0, 50)}...\n찾는 키: ${ttsKey.substring(0, 80)}...`)
       return
     }
@@ -933,7 +926,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       if (error instanceof DOMException && error.name === 'NotAllowedError') {
         return
       }
-      console.error('[ProPreviewPanel] TTS 재생 오류:', error)
     }
   }, [playbackSpeed])
 
@@ -997,118 +989,44 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   // 스프라이트 클릭 이벤트 설정 헬퍼 함수 (useProFabricResizeDrag 호출 후 정의)
   const setupSpriteClickEvent = useCallback((sceneIndex: number, sprite: PIXI.Sprite) => {
     if (isPlaying || !pixiReady || !proFabricCanvasRef?.current) {
-      console.log('[ProPreviewPanel] ⚠️ setupSpriteClickEvent 조건 불만족:', {
-        isPlaying,
-        pixiReady,
-        hasFabricCanvas: !!proFabricCanvasRef?.current,
-      })
       return false
     }
 
     const fabricCanvas = proFabricCanvasRef.current
 
     if (!sprite || sprite.destroyed || !sprite.visible) {
-      console.log('[ProPreviewPanel] ⚠️ 스프라이트 상태 불량:', {
-        sceneIndex,
-        spriteExists: !!sprite,
-        spriteDestroyed: sprite?.destroyed,
-        spriteVisible: sprite?.visible,
-      })
       return false
     }
 
     // 이미 설정되어 있으면 이벤트 핸들러만 다시 등록 (중복 방지)
     if (sprite.interactive && sprite.cursor === 'pointer') {
-      console.log('[ProPreviewPanel] ℹ️ 스프라이트 이미 interactive, 이벤트 핸들러만 재등록:', {
-        sceneIndex,
-        spriteInteractive: sprite.interactive,
-        spriteCursor: sprite.cursor,
-      })
       // 이벤트 핸들러는 항상 재등록 (최신 클로저 사용)
       sprite.off('pointerdown')
       sprite.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
         e.stopPropagation()
-        console.log('[ProPreviewPanel] ✅ 스프라이트(비디오) 클릭 이벤트 발생:', {
-          sceneIndex,
-          spriteVisible: sprite.visible,
-          spriteAlpha: sprite.alpha,
-          fabricCanvasExists: !!fabricCanvas,
-        })
         
         const objects = fabricCanvas.getObjects() as Array<fabric.Object & { dataType?: 'image' | 'text' }>
         const imageObject = objects.find((obj) => obj.dataType === 'image')
         if (imageObject) {
-          console.log('[ProPreviewPanel] ✅ Fabric.js 이미지 객체 선택됨:', {
-            dataType: imageObject.dataType,
-            left: imageObject.left,
-            top: imageObject.top,
-            width: imageObject.width,
-            height: imageObject.height,
-          })
           fabricCanvas.setActiveObject(imageObject)
           fabricCanvas.requestRenderAll()
-          
-          const activeObject = fabricCanvas.getActiveObject()
-          console.log('[ProPreviewPanel] ✅ 선택 완료:', {
-            hasActiveObject: !!activeObject,
-            activeObjectType: activeObject?.type,
-            activeObjectDataType: (activeObject as fabric.Object & { dataType?: 'image' | 'text' })?.dataType,
-          })
-        } else {
-          console.warn('[ProPreviewPanel] ⚠️ 이미지 객체를 찾을 수 없음')
         }
       })
       return true
     }
-
-    console.log('[ProPreviewPanel] 🔧 스프라이트 클릭 이벤트 설정 중:', {
-      sceneIndex,
-      spriteInteractive: sprite.interactive,
-      spriteCursor: sprite.cursor,
-      spriteVisible: sprite.visible,
-      spriteAlpha: sprite.alpha,
-    })
 
     sprite.interactive = true
     sprite.cursor = 'pointer'
     sprite.off('pointerdown')
     sprite.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
       e.stopPropagation()
-      console.log('[ProPreviewPanel] ✅ 스프라이트(비디오) 클릭 이벤트 발생:', {
-        sceneIndex,
-        spriteVisible: sprite.visible,
-        spriteAlpha: sprite.alpha,
-        fabricCanvasExists: !!fabricCanvas,
-      })
       
       const objects = fabricCanvas.getObjects() as Array<fabric.Object & { dataType?: 'image' | 'text' }>
       const imageObject = objects.find((obj) => obj.dataType === 'image')
       if (imageObject) {
-        console.log('[ProPreviewPanel] ✅ Fabric.js 이미지 객체 선택됨:', {
-          dataType: imageObject.dataType,
-          left: imageObject.left,
-          top: imageObject.top,
-          width: imageObject.width,
-          height: imageObject.height,
-        })
         fabricCanvas.setActiveObject(imageObject)
         fabricCanvas.requestRenderAll()
-        
-        const activeObject = fabricCanvas.getActiveObject()
-        console.log('[ProPreviewPanel] ✅ 선택 완료:', {
-          hasActiveObject: !!activeObject,
-          activeObjectType: activeObject?.type,
-          activeObjectDataType: (activeObject as fabric.Object & { dataType?: 'image' | 'text' })?.dataType,
-        })
-      } else {
-        console.warn('[ProPreviewPanel] ⚠️ 이미지 객체를 찾을 수 없음')
       }
-    })
-
-    console.log('[ProPreviewPanel] ✅ 스프라이트 클릭 이벤트 설정 완료:', {
-      sceneIndex,
-      spriteInteractive: sprite.interactive,
-      spriteCursor: sprite.cursor,
     })
 
     return true
@@ -1169,24 +1087,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       const objects = fabricCanvas.getObjects() as Array<fabric.Object & { dataType?: 'image' | 'text' }>
       const imageObject = objects.find((obj) => obj.dataType === 'image')
       
-      // 클릭한 위치 정보 로그
-      console.log('[ProPreviewPanel] 🔍 Fabric.js 캔버스 클릭:', {
-        sceneIndex: currentSceneIndex,
-        clickedObject: target?.type || 'background',
-        pointerX: pointer?.x,
-        pointerY: pointer?.y,
-        targetExists: !!target,
-        targetIsCanvas: target === fabricCanvas,
-        imageObjectExists: !!imageObject,
-        imageObjectLeft: imageObject?.left,
-        imageObjectTop: imageObject?.top,
-        imageObjectWidth: imageObject?.width,
-        imageObjectHeight: imageObject?.height,
-      })
-      
       // 이미지 객체가 없으면 종료
       if (!imageObject) {
-        console.log('[ProPreviewPanel] ⚠️ 이미지 객체가 없습니다.')
         return
       }
       
@@ -1195,37 +1097,9 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       
       // 객체가 없거나 배경을 클릭했거나, 이미지 객체 위를 클릭한 경우 이미지 객체 선택
       if (!target || target === fabricCanvas || isClickOnImage) {
-        console.log('[ProPreviewPanel] ✅ Fabric.js 캔버스에서 스프라이트(비디오) 클릭 감지:', {
-          sceneIndex: currentSceneIndex,
-          clickedObject: target?.type || 'background',
-          isClickOnImage,
-          pointerX: pointer?.x,
-          pointerY: pointer?.y,
-          imageObjectLeft: imageObject.left,
-          imageObjectTop: imageObject.top,
-          imageObjectWidth: imageObject.width,
-          imageObjectHeight: imageObject.height,
-        })
-        
         // 이미지 객체를 활성화하고 편집 모드로 진입
         fabricCanvas.setActiveObject(imageObject)
         fabricCanvas.requestRenderAll()
-        
-        const activeObject = fabricCanvas.getActiveObject()
-        console.log('[ProPreviewPanel] ✅ Fabric.js 이미지 객체 선택 완료:', {
-          hasActiveObject: !!activeObject,
-          activeObjectType: activeObject?.type,
-          activeObjectDataType: (activeObject as fabric.Object & { dataType?: 'image' | 'text' })?.dataType,
-          activeObjectLeft: activeObject?.left,
-          activeObjectTop: activeObject?.top,
-        })
-      } else {
-        // 다른 객체를 클릭한 경우 (텍스트 등)
-        console.log('[ProPreviewPanel] ℹ️ Fabric.js 객체 클릭:', {
-          sceneIndex: currentSceneIndex,
-          clickedObjectType: target?.type,
-          clickedObjectDataType: (target as fabric.Object & { dataType?: 'image' | 'text' })?.dataType,
-        })
       }
     }
 
@@ -1280,12 +1154,22 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     let cancelled = false
 
     const renderCurrentScene = async () => {
+      // 먼저 다른 씬의 스프라이트는 숨김 (현재 씬 스프라이트는 나중에 처리)
+      spritesRef.current.forEach((sprite, index) => {
+        if (index !== currentSceneIndex && !sprite.destroyed) {
+          hideSprite(sprite)
+        }
+      })
+
       if (currentSceneVideoUrl) {
         // 최신 selectionStartSeconds 값을 사용 (prop 또는 scenes에서)
         await loadVideoAsSprite(currentSceneIndex, currentSceneVideoUrl, currentSceneSelectionStart)
       } else {
+        // 비디오 URL이 없으면 모든 스프라이트 숨김
         spritesRef.current.forEach((sprite) => {
-          hideSprite(sprite)
+          if (!sprite.destroyed) {
+            hideSprite(sprite)
+          }
         })
       }
 
@@ -1293,21 +1177,21 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         return
       }
 
+      // loadVideoAsSprite 완료 후 현재 씬 스프라이트의 가시성 처리
       // Fabric.js 편집 모드일 때는 PixiJS 스프라이트를 숨김 (Fabric.js 이미지 객체만 표시)
       const fabricEditingEnabled = proFabricCanvasRef?.current !== null
+      const currentSprite = spritesRef.current.get(currentSceneIndex)
       
-      spritesRef.current.forEach((sprite, index) => {
-        if (index !== currentSceneIndex) {
-          hideSprite(sprite)
-        } else if (fabricEditingEnabled) {
+      if (currentSprite && !currentSprite.destroyed) {
+        if (fabricEditingEnabled) {
           // Fabric.js 편집 모드일 때는 현재 씬 스프라이트도 숨김
-          hideSprite(sprite)
+          hideSprite(currentSprite)
         } else {
           // Fabric.js 편집 모드가 아닐 때는 스프라이트 표시
-          sprite.visible = true
-          sprite.alpha = 1
+          currentSprite.visible = true
+          currentSprite.alpha = 1
         }
-      })
+      }
 
       renderSubtitle(currentSceneIndex, currentSceneScript)
       syncFabricScene()
@@ -1316,7 +1200,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     }
 
     void renderCurrentScene().catch((error) => {
-      console.error('[ProPreviewPanel] 현재 씬 렌더링 오류:', error)
+      // 현재 씬 렌더링 오류
     })
 
     return () => {
