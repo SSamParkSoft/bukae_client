@@ -1,9 +1,10 @@
 'use client'
 
-import React, { memo, useEffect, useRef, useState } from 'react'  
+import React, { memo, useRef, useState } from 'react'
 import { ProStep3SceneCard } from './ProStep3SceneCard'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { TimelineScene } from '@/lib/types/domain/timeline'
+import { useScrollableGutter } from '@/app/video/create/_hooks/step3'
 
 // Pro step3에서 사용하는 씬 데이터 타입
 export interface ProStep3Scene {
@@ -46,36 +47,10 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
   onOpenEffectPanel,
   onSelectionChange,
 }: ProSceneListPanelProps) {
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const { scrollContainerRef, showScrollGutter } = useScrollableGutter()
   const dropOccurredRef = useRef(false)
-  const [showScrollGutter, setShowScrollGutter] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
-
-  useEffect(() => {
-    const el = scrollContainerRef.current
-    if (!el) return
-
-    const updateGutterVisibility = () => {
-      const hasScrollableContent = el.scrollHeight > el.clientHeight + 1
-      const isActuallyScrolled = el.scrollTop > 0
-      setShowScrollGutter(hasScrollableContent && isActuallyScrolled)
-    }
-
-    updateGutterVisibility()
-
-    el.addEventListener('scroll', updateGutterVisibility)
-
-    const resizeObserver = new ResizeObserver(() => {
-      updateGutterVisibility()
-    })
-    resizeObserver.observe(el)
-
-    return () => {
-      el.removeEventListener('scroll', updateGutterVisibility)
-      resizeObserver.disconnect()
-    }
-  }, [])
 
   const handleDragStart = (index: number) => (e: React.DragEvent<HTMLDivElement>) => {
     dropOccurredRef.current = false
@@ -186,7 +161,7 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
                 onPlayScene={async () => {
                   try {
                     await onPlayScene(index)
-                  } catch (_) {
+                  } catch {
                     // 에러 무시
                   }
                 }}

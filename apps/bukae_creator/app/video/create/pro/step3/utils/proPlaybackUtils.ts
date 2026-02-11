@@ -1,4 +1,11 @@
 import type { ProStep3Scene } from '@/app/video/create/pro/step3/components/ProSceneListPanel'
+import {
+  clampPlaybackTime as clampPlaybackTimeShared,
+  getPlayableSegments,
+  getPreviousPlayableDuration as getPreviousPlayableDurationShared,
+  getSegmentDuration,
+  isPlayableSegment,
+} from '@/app/video/create/_utils/step3'
 
 export interface PlayableScene {
   scene: ProStep3Scene
@@ -6,63 +13,43 @@ export interface PlayableScene {
   duration: number
 }
 
-const EPSILON_SECONDS = 0.001
-
 /**
  * 씬의 재생 duration을 계산합니다.
  * TTS duration이 있으면 우선 사용하고, 없으면 비디오 세그먼트 duration을 사용합니다.
  * Fast track과 동일한 로직: TTS duration을 기준으로 재생 시간을 계산하여 일관된 타이밍을 보장합니다.
  */
 export function getSceneSegmentDuration(scene: ProStep3Scene): number {
-  // TTS duration이 있으면 우선 사용 (Fast track과 동일)
-  if (scene.ttsDuration && scene.ttsDuration > 0) {
-    return scene.ttsDuration
-  }
-  
-  // TTS duration이 없으면 비디오 세그먼트 duration 사용
-  const start = scene.selectionStartSeconds ?? 0
-  const end = scene.selectionEndSeconds ?? start
-  return Math.max(0, end - start)
+  return getSegmentDuration(scene)
 }
 
 export function isPlayableScene(scene: ProStep3Scene): boolean {
-  if (!scene.videoUrl) {
-    return false
-  }
-
-  return getSceneSegmentDuration(scene) > EPSILON_SECONDS
+  return isPlayableSegment({
+    ...scene,
+    mediaUrl: scene.videoUrl,
+  })
 }
 
 export function getPlayableScenes(scenes: ProStep3Scene[]): PlayableScene[] {
-  return scenes
-    .map((scene, originalIndex) => ({
-      scene,
-      originalIndex,
-      duration: getSceneSegmentDuration(scene),
+  const playable = getPlayableSegments(
+    scenes.map((scene) => ({
+      ...scene,
+      mediaUrl: scene.videoUrl,
     }))
-    .filter((item) => isPlayableScene(item.scene))
+  )
+
+  return playable.map(({ originalIndex, duration }) => ({
+    scene: scenes[originalIndex] as ProStep3Scene,
+    originalIndex,
+    duration,
+  }))
 }
 
 export function getPreviousPlayableDuration(playableScenes: PlayableScene[], segmentIndex: number): number {
-  if (segmentIndex <= 0) {
-    return 0
-  }
-
-  return playableScenes
-    .slice(0, segmentIndex)
-    .reduce((sum, item) => sum + item.duration, 0)
+  return getPreviousPlayableDurationShared(playableScenes, segmentIndex)
 }
 
 export function clampPlaybackTime(time: number, totalDuration: number): number {
-  if (!Number.isFinite(totalDuration) || totalDuration <= 0) {
-    return 0
-  }
-
-  if (!Number.isFinite(time)) {
-    return 0
-  }
-
-  return Math.max(0, Math.min(time, totalDuration))
+  return clampPlaybackTimeShared(time, totalDuration)
 }
 
 export function hasRecentGesture(

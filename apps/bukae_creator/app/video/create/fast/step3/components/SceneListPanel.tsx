@@ -1,8 +1,9 @@
 'use client'
 
-import React, { memo, useEffect, useRef, useState } from 'react'
+import { memo } from 'react'
 import { SceneList } from '@/components/video-editor/SceneList'
 import type { TimelineData, SceneScript } from '@/store/useVideoCreateStore'
+import { useScrollableGutter } from '@/app/video/create/_hooks/step3'
 
 interface SceneListPanelProps {
   theme: string | undefined
@@ -63,33 +64,7 @@ export const SceneListPanel = memo(function SceneListPanel({
   onVoiceTemplateChange,
   onOpenEffectPanel,
 }: SceneListPanelProps) {
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-  const [showScrollGutter, setShowScrollGutter] = useState(false)
-
-  useEffect(() => {
-    const el = scrollContainerRef.current
-    if (!el) return
-
-    const updateGutterVisibility = () => {
-      const hasScrollableContent = el.scrollHeight > el.clientHeight + 1
-      const isActuallyScrolled = el.scrollTop > 0
-      setShowScrollGutter(hasScrollableContent && isActuallyScrolled)
-    }
-
-    updateGutterVisibility()
-
-    el.addEventListener('scroll', updateGutterVisibility)
-
-    const resizeObserver = new ResizeObserver(() => {
-      updateGutterVisibility()
-    })
-    resizeObserver.observe(el)
-
-    return () => {
-      el.removeEventListener('scroll', updateGutterVisibility)
-      resizeObserver.disconnect()
-    }
-  }, [])
+  const { scrollContainerRef, showScrollGutter } = useScrollableGutter()
 
   return (
     <div className="relative flex flex-col h-full overflow-hidden">
@@ -138,4 +113,3 @@ export const SceneListPanel = memo(function SceneListPanel({
     </div>
   )
 })
-

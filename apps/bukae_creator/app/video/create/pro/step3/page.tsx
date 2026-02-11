@@ -5,13 +5,14 @@ import { ProPreviewPanel } from './components/ProPreviewPanel'
 import { ProSceneListPanel } from './components/ProSceneListPanel'
 import { ProEffectsPanel } from './components/ProEffectsPanel'
 import { useVideoCreateStore, type TimelineData } from '@/store/useVideoCreateStore'
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState } from 'react'
 import { allTransitions, transitions, movements } from '@/lib/data/transitions'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
+import { getPlayableSegments, reorderByIndexOrder } from '@/app/video/create/_utils/step3'
+import type { MotionConfig } from '@/hooks/video/effects/motion/types'
 import {
   useProStep3Scenes,
   useProStep3SelectionChange,
-  useProStep3Playback,
   useProStep3State,
 } from './hooks'
 import type { SceneScript } from '@/lib/types/domain/script'
@@ -32,6 +33,7 @@ export default function ProStep3Page() {
   
   // 현재 선택된 씬 인덱스
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
+  const [isPlaying, setIsPlaying] = useState(false)
 
   // Pro step3 씬 데이터 변환 훅
   const { proStep3Scenes } = useProStep3Scenes()
@@ -50,8 +52,26 @@ export default function ProStep3Page() {
   // 격자 선택 영역 변경 훅
   const { handleSelectionChange } = useProStep3SelectionChange()
 
-  // 재생 상태 관리 훅
-  const { isPlaying, handleProPlayPause } = useProStep3Playback(proStep3Scenes)
+  const handleProPlayPause = useCallback(() => {
+    if (isPlaying) {
+      setIsPlaying(false)
+      return
+    }
+
+    const playableScenes = getPlayableSegments(
+      proStep3Scenes.map((scene) => ({
+        ...scene,
+        mediaUrl: scene.videoUrl,
+      }))
+    )
+
+    if (playableScenes.length === 0) {
+      alert('재생할 영상이 없습니다.')
+      return
+    }
+
+    setIsPlaying(true)
+  }, [isPlaying, proStep3Scenes])
 
   // 효과 패널 및 사운드 상태 관리 훅
   const {
@@ -82,7 +102,7 @@ export default function ProStep3Page() {
       if (!isValidSceneArray(safeScenes)) {
         return
       }
-      const reordered = newOrder.map((index) => safeScenes[index])
+      const reordered = reorderByIndexOrder(safeScenes, newOrder)
       setScenes(reordered)
     },
     [setScenes, storeScenes]
@@ -95,7 +115,7 @@ export default function ProStep3Page() {
   }, [])
 
   // 모션 변경 핸들러 (Pro에서는 timeline이 없으므로 빈 함수)
-  const handleMotionChange = useCallback((sceneIndex: number, motion: any) => {
+  const handleMotionChange = useCallback((sceneIndex: number, motion: MotionConfig | null) => {
     // Pro에서는 모션 효과를 나중에 구현
     console.log('모션 변경:', sceneIndex, motion)
   }, [])

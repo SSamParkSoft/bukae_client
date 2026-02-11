@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useStep3EffectState } from '@/app/video/create/_hooks/step3'
 
 /**
  * Pro step3 효과 패널 및 사운드 상태 관리 훅
@@ -20,31 +20,5 @@ import { useState, useCallback } from 'react'
  * @returns handleSoundEffectConfirm - 사운드 효과 확인 핸들러
  */
 export function useProStep3State() {
-  const [rightPanelTab, setRightPanelTab] = useState<string>('animation')
-  const [confirmedBgmTemplate, setConfirmedBgmTemplate] = useState<string | null>(null)
-  const [soundEffect, setSoundEffect] = useState<string | null>(null)
-  const [confirmedSoundEffect, setConfirmedSoundEffect] = useState<string | null>(null)
-
-  // BGM 확인 핸들러
-  const handleBgmConfirm = useCallback((templateId: string | null) => {
-    setConfirmedBgmTemplate(templateId)
-  }, [])
-
-  // 사운드 효과 확인 핸들러
-  const handleSoundEffectConfirm = useCallback((effectId: string | null) => {
-    setConfirmedSoundEffect(effectId)
-  }, [])
-
-  return {
-    rightPanelTab,
-    setRightPanelTab,
-    confirmedBgmTemplate,
-    setConfirmedBgmTemplate,
-    soundEffect,
-    setSoundEffect,
-    confirmedSoundEffect,
-    setConfirmedSoundEffect,
-    handleBgmConfirm,
-    handleSoundEffectConfirm,
-  }
+  return useStep3EffectState()
 }
