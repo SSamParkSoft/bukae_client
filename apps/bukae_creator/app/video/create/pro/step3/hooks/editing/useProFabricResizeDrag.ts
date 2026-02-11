@@ -103,15 +103,8 @@ export function useProFabricResizeDrag({
 
     canvas.setDimensions({ width: size.width, height: size.height })
 
-    canvasEl.style.width = `${size.width}px`
-    canvasEl.style.height = `${size.height}px`
-    canvasEl.style.position = 'absolute'
-    canvasEl.style.left = '50%'
-    canvasEl.style.top = '50%'
-    canvasEl.style.transform = 'translate(-50%, -50%)'
-    canvasEl.style.zIndex = '40'
-    canvasEl.style.pointerEvents = enabled ? 'auto' : 'none'
-
+    // Fabric.js가 wrapper를 생성하므로 wrapper의 위치만 설정
+    // canvasEl은 wrapper 내부에 있으므로 위치 설정 불필요
     if (canvas.wrapperEl) {
       const wrapper = canvas.wrapperEl
       wrapper.style.position = 'absolute'
@@ -125,18 +118,33 @@ export function useProFabricResizeDrag({
     }
 
     if (canvas.upperCanvasEl) {
+      // upper-canvas는 wrapper 내부에 있으므로 wrapper의 위치를 따라감
+      // wrapper 내부에서 left: 0, top: 0으로 설정하여 wrapper와 정렬
+      canvas.upperCanvasEl.style.position = 'absolute'
+      canvas.upperCanvasEl.style.left = '0'
+      canvas.upperCanvasEl.style.top = '0'
       canvas.upperCanvasEl.style.pointerEvents = enabled ? 'auto' : 'none'
       canvas.upperCanvasEl.style.zIndex = '41'
       canvas.upperCanvasEl.style.touchAction = 'none'
     }
 
     if (canvas.lowerCanvasEl) {
+      // lower-canvas도 wrapper 내부에 있으므로 명시적으로 위치 설정
+      canvas.lowerCanvasEl.style.position = 'absolute'
+      canvas.lowerCanvasEl.style.left = '0'
+      canvas.lowerCanvasEl.style.top = '0'
       canvas.lowerCanvasEl.style.zIndex = '40'
       canvas.lowerCanvasEl.style.backgroundColor = 'transparent'
     }
 
-    canvas.calcOffset()
-    canvas.requestRenderAll()
+    // Fabric.js의 내부 오프셋 계산 (마우스 이벤트 좌표 변환에 필요)
+    // wrapper 위치 변경 후 오프셋을 다시 계산해야 함
+    requestAnimationFrame(() => {
+      if (canvas && !canvas.disposed) {
+        canvas.calcOffset()
+        canvas.requestRenderAll()
+      }
+    })
   }, [enabled, getDisplaySize, playbackContainerRef, stageWidth])
 
   const setTimelineNonNull = useCallback((nextTimeline: TimelineData) => {
@@ -328,12 +336,9 @@ export function useProFabricResizeDrag({
     const canvasEl = document.createElement('canvas')
     canvasEl.width = stageWidth
     canvasEl.height = stageHeight
-    canvasEl.style.position = 'absolute'
-    canvasEl.style.left = '50%'
-    canvasEl.style.top = '50%'
-    canvasEl.style.transform = 'translate(-50%, -50%)'
     canvasEl.style.backgroundColor = 'transparent'
-    canvasEl.style.zIndex = '40'
+    // Fabric.js가 wrapper를 생성하므로 canvasEl의 위치는 설정하지 않음
+    // wrapper 위치는 updateFabricSize()에서 설정됨
 
     container.appendChild(canvasEl)
     fabricCanvasElRef.current = canvasEl
@@ -352,6 +357,7 @@ export function useProFabricResizeDrag({
     fabricCanvasRef.current = canvas
     setFabricReady(true)
 
+    // Fabric.js가 wrapper를 생성한 후 위치 설정
     updateFabricSize()
 
     const resizeObserver = new ResizeObserver(() => {
@@ -400,5 +406,6 @@ export function useProFabricResizeDrag({
 
   return {
     syncFromScene: scheduleSync,
+    fabricCanvasRef,
   }
 }

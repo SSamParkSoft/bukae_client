@@ -2,6 +2,7 @@
 
 import React, { memo, useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import * as PIXI from 'pixi.js'
+import * as fabric from 'fabric'
 import { TimelineBar, SpeedSelector, ExportButton } from '@/app/video/create/_step3-components'
 import type { ProStep3Scene } from './ProSceneListPanel'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
@@ -246,14 +247,14 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     canvas.style.top = '50%'
     canvas.style.left = '50%'
     canvas.style.transform = 'translate(-50%, -50%)'
-    canvas.style.zIndex = '30'
-    canvas.style.pointerEvents = 'none'
+    // 재생 중이 아닐 때는 클릭 이벤트를 받을 수 있도록 설정
+    canvas.style.pointerEvents = isPlaying ? 'none' : 'auto'
 
     if (pixiContainer) {
       pixiContainer.style.width = `${width}px`
       pixiContainer.style.height = `${height}px`
     }
-  }, [])
+  }, [isPlaying])
 
   useEffect(() => {
     const container = playbackContainerRef.current
@@ -418,6 +419,10 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         if (!appCanvas) {
           return
         }
+        
+        // z-index는 고정값이므로 한 번만 설정
+        appCanvas.style.zIndex = '30'
+        
         host.appendChild(appCanvas)
 
         const fitted = canvasDisplaySize ?? calculateAspectFittedSize(
@@ -492,13 +497,20 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     }
   }, [cleanupAllMediaResources])
 
-  const waitForMetadata = useCallback((video: HTMLVideoElement) => {
+  const waitForMetadata = useCallback((video: HTMLVideoElement | null) => {
     return new Promise<void>((resolve, reject) => {
+      if (!video) {
+        reject(new Error('비디오 요소가 null입니다'))
+        return
+      }
+
       let timeoutId: ReturnType<typeof setTimeout> | null = null
 
       const cleanup = () => {
-        video.removeEventListener('loadedmetadata', onLoadedMetadata)
-        video.removeEventListener('error', onError)
+        if (video) {
+          video.removeEventListener('loadedmetadata', onLoadedMetadata)
+          video.removeEventListener('error', onError)
+        }
         if (timeoutId) {
           clearTimeout(timeoutId)
           timeoutId = null
@@ -506,6 +518,10 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       }
 
       const onLoadedMetadata = () => {
+        if (!video) {
+          reject(new Error('비디오 요소가 null입니다'))
+          return
+        }
         cleanup()
         resolve()
       }
@@ -531,12 +547,19 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     })
   }, [])
 
-  const seekVideoFrame = useCallback((video: HTMLVideoElement, targetTime: number) => {
+  const seekVideoFrame = useCallback((video: HTMLVideoElement | null, targetTime: number) => {
     return new Promise<void>((resolve) => {
+      if (!video) {
+        resolve()
+        return
+      }
+
       let timeoutId: ReturnType<typeof setTimeout> | null = null
 
       const cleanup = () => {
-        video.removeEventListener('seeked', onSeeked)
+        if (video) {
+          video.removeEventListener('seeked', onSeeked)
+        }
         if (timeoutId) {
           clearTimeout(timeoutId)
           timeoutId = null
@@ -544,6 +567,10 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       }
 
       const onSeeked = () => {
+        if (!video) {
+          resolve()
+          return
+        }
         cleanup()
         // seeked 후 비디오가 정지 상태이므로 VideoTexture 업데이트를 위해 약간의 지연 추가
         requestAnimationFrame(() => {
@@ -604,8 +631,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         return
       }
 
-      // 비디오 크기가 유효한지 확인
-      if (!video.videoWidth || !video.videoHeight || video.videoWidth <= 0 || video.videoHeight <= 0) {
+      // 비디오 크기가 유효한지 확인 (video가 null이 아닌지 다시 확인)
+      if (!video || !video.videoWidth || !video.videoHeight || video.videoWidth <= 0 || video.videoHeight <= 0) {
         console.warn('[loadVideoAsSprite] 비디오 크기가 유효하지 않습니다.', {
           videoWidth: video.videoWidth,
           videoHeight: video.videoHeight,
@@ -661,6 +688,12 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         return
       }
 
+      // currentVideo가 null이 아닌지 확인
+      if (!currentVideo) {
+        cleanupSceneResources(sceneIndex)
+        return
+      }
+
       // currentVideo가 유효한지 다시 확인 (videoWidth 접근 전)
       if (!currentVideo.videoWidth && !currentVideo.videoHeight) {
         // 비디오 메타데이터가 아직 로드되지 않았을 수 있음
@@ -678,15 +711,16 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       const stageHeight = appAfterSeek.screen.height
       
       // 비디오 크기를 다시 확인 (seek 후 변경될 수 있음)
-      const sourceWidth = currentVideo.videoWidth || texture.width || 0
-      const sourceHeight = currentVideo.videoHeight || texture.height || 0
+      // currentVideo가 null이 아닌지 다시 확인
+      const sourceWidth = (currentVideo && currentVideo.videoWidth) || texture.width || 0
+      const sourceHeight = (currentVideo && currentVideo.videoHeight) || texture.height || 0
 
       if (!sourceWidth || !sourceHeight || sourceWidth <= 0 || sourceHeight <= 0) {
         sprite.destroy()
         cleanupSceneResources(sceneIndex)
         console.warn('[loadVideoAsSprite] 비디오 크기를 가져올 수 없습니다.', {
-          videoWidth: currentVideo.videoWidth,
-          videoHeight: currentVideo.videoHeight,
+          videoWidth: currentVideo?.videoWidth,
+          videoHeight: currentVideo?.videoHeight,
           textureWidth: texture.width,
           textureHeight: texture.height,
         })
@@ -720,6 +754,36 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
       finalVideoContainer.addChild(sprite)
       spritesRef.current.set(sceneIndex, sprite)
+      
+      console.log('[ProPreviewPanel] 스프라이트 생성 완료:', {
+        sceneIndex,
+        spriteVisible: sprite.visible,
+        spriteAlpha: sprite.alpha,
+        spriteWidth: sprite.width,
+        spriteHeight: sprite.height,
+      })
+      
+      // 스프라이트 생성 직후 클릭 이벤트 설정 (다음 프레임에서 실행하여 렌더링 완료 보장)
+      // setupSpriteClickEvent 함수를 사용하여 설정 (전역 변수를 통해 접근)
+      requestAnimationFrame(() => {
+        const setupFn = (window as { __setupSpriteClickEvent__?: (sceneIndex: number, sprite: PIXI.Sprite) => boolean }).__setupSpriteClickEvent__
+        if (setupFn) {
+          const success = setupFn(sceneIndex, sprite)
+          console.log('[ProPreviewPanel] 🔧 스프라이트 생성 직후 클릭 이벤트 설정 시도:', {
+            sceneIndex,
+            success,
+            spriteInteractive: sprite.interactive,
+            spriteCursor: sprite.cursor,
+            spriteVisible: sprite.visible,
+          })
+        } else {
+          console.warn('[ProPreviewPanel] ⚠️ setupSpriteClickEvent 함수를 찾을 수 없음:', {
+            sceneIndex,
+            spriteExists: !!sprite,
+            spriteVisible: sprite?.visible,
+          })
+        }
+      })
     } catch (error) {
       cleanupSceneResources(sceneIndex)
       console.error('[ProPreviewPanel] 비디오 로드 오류:', error)
@@ -891,7 +955,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     return JSON.stringify(timeline?.scenes?.[currentSceneIndex]?.text ?? null)
   }, [timeline, currentSceneIndex])
 
-  const { syncFromScene: syncFabricScene } = useProFabricResizeDrag({
+  const { syncFromScene: syncFabricScene, fabricCanvasRef: proFabricCanvasRef } = useProFabricResizeDrag({
     enabled: pixiReady && !isPlaying,
     playbackContainerRef,
     canvasDisplaySize,
@@ -904,6 +968,284 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     spritesRef,
     textsRef,
   })
+
+  // 스프라이트 클릭 이벤트 설정 헬퍼 함수 (useProFabricResizeDrag 호출 후 정의)
+  const setupSpriteClickEvent = useCallback((sceneIndex: number, sprite: PIXI.Sprite) => {
+    if (isPlaying || !pixiReady || !proFabricCanvasRef?.current) {
+      console.log('[ProPreviewPanel] ⚠️ setupSpriteClickEvent 조건 불만족:', {
+        isPlaying,
+        pixiReady,
+        hasFabricCanvas: !!proFabricCanvasRef?.current,
+      })
+      return false
+    }
+
+    const fabricCanvas = proFabricCanvasRef.current
+
+    if (!sprite || sprite.destroyed || !sprite.visible) {
+      console.log('[ProPreviewPanel] ⚠️ 스프라이트 상태 불량:', {
+        sceneIndex,
+        spriteExists: !!sprite,
+        spriteDestroyed: sprite?.destroyed,
+        spriteVisible: sprite?.visible,
+      })
+      return false
+    }
+
+    // 이미 설정되어 있으면 이벤트 핸들러만 다시 등록 (중복 방지)
+    if (sprite.interactive && sprite.cursor === 'pointer') {
+      console.log('[ProPreviewPanel] ℹ️ 스프라이트 이미 interactive, 이벤트 핸들러만 재등록:', {
+        sceneIndex,
+        spriteInteractive: sprite.interactive,
+        spriteCursor: sprite.cursor,
+      })
+      // 이벤트 핸들러는 항상 재등록 (최신 클로저 사용)
+      sprite.off('pointerdown')
+      sprite.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
+        e.stopPropagation()
+        console.log('[ProPreviewPanel] ✅ 스프라이트(비디오) 클릭 이벤트 발생:', {
+          sceneIndex,
+          spriteVisible: sprite.visible,
+          spriteAlpha: sprite.alpha,
+          fabricCanvasExists: !!fabricCanvas,
+        })
+        
+        const objects = fabricCanvas.getObjects() as Array<fabric.Object & { dataType?: 'image' | 'text' }>
+        const imageObject = objects.find((obj) => obj.dataType === 'image')
+        if (imageObject) {
+          console.log('[ProPreviewPanel] ✅ Fabric.js 이미지 객체 선택됨:', {
+            dataType: imageObject.dataType,
+            left: imageObject.left,
+            top: imageObject.top,
+            width: imageObject.width,
+            height: imageObject.height,
+          })
+          fabricCanvas.setActiveObject(imageObject)
+          fabricCanvas.requestRenderAll()
+          
+          const activeObject = fabricCanvas.getActiveObject()
+          console.log('[ProPreviewPanel] ✅ 선택 완료:', {
+            hasActiveObject: !!activeObject,
+            activeObjectType: activeObject?.type,
+            activeObjectDataType: (activeObject as fabric.Object & { dataType?: 'image' | 'text' })?.dataType,
+          })
+        } else {
+          console.warn('[ProPreviewPanel] ⚠️ 이미지 객체를 찾을 수 없음')
+        }
+      })
+      return true
+    }
+
+    console.log('[ProPreviewPanel] 🔧 스프라이트 클릭 이벤트 설정 중:', {
+      sceneIndex,
+      spriteInteractive: sprite.interactive,
+      spriteCursor: sprite.cursor,
+      spriteVisible: sprite.visible,
+      spriteAlpha: sprite.alpha,
+    })
+
+    sprite.interactive = true
+    sprite.cursor = 'pointer'
+    sprite.off('pointerdown')
+    sprite.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
+      e.stopPropagation()
+      console.log('[ProPreviewPanel] ✅ 스프라이트(비디오) 클릭 이벤트 발생:', {
+        sceneIndex,
+        spriteVisible: sprite.visible,
+        spriteAlpha: sprite.alpha,
+        fabricCanvasExists: !!fabricCanvas,
+      })
+      
+      const objects = fabricCanvas.getObjects() as Array<fabric.Object & { dataType?: 'image' | 'text' }>
+      const imageObject = objects.find((obj) => obj.dataType === 'image')
+      if (imageObject) {
+        console.log('[ProPreviewPanel] ✅ Fabric.js 이미지 객체 선택됨:', {
+          dataType: imageObject.dataType,
+          left: imageObject.left,
+          top: imageObject.top,
+          width: imageObject.width,
+          height: imageObject.height,
+        })
+        fabricCanvas.setActiveObject(imageObject)
+        fabricCanvas.requestRenderAll()
+        
+        const activeObject = fabricCanvas.getActiveObject()
+        console.log('[ProPreviewPanel] ✅ 선택 완료:', {
+          hasActiveObject: !!activeObject,
+          activeObjectType: activeObject?.type,
+          activeObjectDataType: (activeObject as fabric.Object & { dataType?: 'image' | 'text' })?.dataType,
+        })
+      } else {
+        console.warn('[ProPreviewPanel] ⚠️ 이미지 객체를 찾을 수 없음')
+      }
+    })
+
+    console.log('[ProPreviewPanel] ✅ 스프라이트 클릭 이벤트 설정 완료:', {
+      sceneIndex,
+      spriteInteractive: sprite.interactive,
+      spriteCursor: sprite.cursor,
+    })
+
+    return true
+  }, [isPlaying, pixiReady, proFabricCanvasRef])
+
+  // proFabricCanvasRef와 setupSpriteClickEvent를 전역에서 접근 가능하도록 설정 (loadVideoAsSprite에서 사용하기 위해)
+  useEffect(() => {
+    if (proFabricCanvasRef) {
+      ;(window as { __proFabricCanvasRef__?: React.MutableRefObject<fabric.Canvas | null> }).__proFabricCanvasRef__ = proFabricCanvasRef
+    } else {
+      delete (window as { __proFabricCanvasRef__?: React.MutableRefObject<fabric.Canvas | null> }).__proFabricCanvasRef__
+    }
+    if (setupSpriteClickEvent) {
+      ;(window as { __setupSpriteClickEvent__?: (sceneIndex: number, sprite: PIXI.Sprite) => boolean }).__setupSpriteClickEvent__ = setupSpriteClickEvent
+    } else {
+      delete (window as { __setupSpriteClickEvent__?: (sceneIndex: number, sprite: PIXI.Sprite) => boolean }).__setupSpriteClickEvent__
+    }
+    return () => {
+      delete (window as { __proFabricCanvasRef__?: React.MutableRefObject<fabric.Canvas | null> }).__proFabricCanvasRef__
+      delete (window as { __setupSpriteClickEvent__?: (sceneIndex: number, sprite: PIXI.Sprite) => boolean }).__setupSpriteClickEvent__
+    }
+  }, [proFabricCanvasRef, setupSpriteClickEvent])
+
+  // 스프라이트와 텍스트에 클릭 이벤트 제거 (재생 중일 때만)
+  useEffect(() => {
+    if (isPlaying) {
+      // 재생 중이면 클릭 이벤트 제거
+      spritesRef.current.forEach((sprite) => {
+        if (sprite && !sprite.destroyed) {
+          sprite.interactive = false
+          sprite.cursor = 'default'
+          sprite.off('pointerdown')
+        }
+      })
+      textsRef.current.forEach((textObj) => {
+        if (textObj && !textObj.destroyed) {
+          textObj.interactive = false
+          textObj.cursor = 'default'
+          textObj.off('pointerdown')
+        }
+      })
+    }
+  }, [isPlaying])
+
+  // Fabric.js 캔버스에서 클릭 이벤트 처리 (스프라이트 클릭 감지)
+  useEffect(() => {
+    const fabricCanvas = proFabricCanvasRef?.current
+    if (!fabricCanvas || isPlaying || !pixiReady) {
+      return
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleMouseDown = (e: any) => {
+      // 클릭한 위치에 Fabric.js 객체가 있는지 확인
+      const target = e.target
+      const pointer = e.pointer
+      
+      const objects = fabricCanvas.getObjects() as Array<fabric.Object & { dataType?: 'image' | 'text' }>
+      const imageObject = objects.find((obj) => obj.dataType === 'image')
+      
+      // 클릭한 위치 정보 로그
+      console.log('[ProPreviewPanel] 🔍 Fabric.js 캔버스 클릭:', {
+        sceneIndex: currentSceneIndex,
+        clickedObject: target?.type || 'background',
+        pointerX: pointer?.x,
+        pointerY: pointer?.y,
+        targetExists: !!target,
+        targetIsCanvas: target === fabricCanvas,
+        imageObjectExists: !!imageObject,
+        imageObjectLeft: imageObject?.left,
+        imageObjectTop: imageObject?.top,
+        imageObjectWidth: imageObject?.width,
+        imageObjectHeight: imageObject?.height,
+      })
+      
+      // 이미지 객체가 없으면 종료
+      if (!imageObject) {
+        console.log('[ProPreviewPanel] ⚠️ 이미지 객체가 없습니다.')
+        return
+      }
+      
+      // 클릭한 위치가 이미지 객체 위에 있는지 확인
+      const isClickOnImage = imageObject.containsPoint(new fabric.Point(pointer.x, pointer.y))
+      
+      // 객체가 없거나 배경을 클릭했거나, 이미지 객체 위를 클릭한 경우 이미지 객체 선택
+      if (!target || target === fabricCanvas || isClickOnImage) {
+        console.log('[ProPreviewPanel] ✅ Fabric.js 캔버스에서 스프라이트(비디오) 클릭 감지:', {
+          sceneIndex: currentSceneIndex,
+          clickedObject: target?.type || 'background',
+          isClickOnImage,
+          pointerX: pointer?.x,
+          pointerY: pointer?.y,
+          imageObjectLeft: imageObject.left,
+          imageObjectTop: imageObject.top,
+          imageObjectWidth: imageObject.width,
+          imageObjectHeight: imageObject.height,
+        })
+        
+        // 이미지 객체를 활성화하고 편집 모드로 진입
+        fabricCanvas.setActiveObject(imageObject)
+        fabricCanvas.requestRenderAll()
+        
+        const activeObject = fabricCanvas.getActiveObject()
+        console.log('[ProPreviewPanel] ✅ Fabric.js 이미지 객체 선택 완료:', {
+          hasActiveObject: !!activeObject,
+          activeObjectType: activeObject?.type,
+          activeObjectDataType: (activeObject as fabric.Object & { dataType?: 'image' | 'text' })?.dataType,
+          activeObjectLeft: activeObject?.left,
+          activeObjectTop: activeObject?.top,
+        })
+      } else {
+        // 다른 객체를 클릭한 경우 (텍스트 등)
+        console.log('[ProPreviewPanel] ℹ️ Fabric.js 객체 클릭:', {
+          sceneIndex: currentSceneIndex,
+          clickedObjectType: target?.type,
+          clickedObjectDataType: (target as fabric.Object & { dataType?: 'image' | 'text' })?.dataType,
+        })
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('mouse:down', handleMouseDown as any)
+
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('mouse:down', handleMouseDown as any)
+    }
+  }, [proFabricCanvasRef, isPlaying, pixiReady, currentSceneIndex])
+
+  // 스프라이트가 생성된 후 클릭 이벤트 설정
+  // loadVideoAsSprite가 완료된 후에 실행되도록 함
+  useEffect(() => {
+    if (isPlaying || !pixiReady || !proFabricCanvasRef?.current) {
+      return
+    }
+
+    // 스프라이트가 생성될 때까지 대기 (최대 20프레임, 약 333ms)
+    let retryCount = 0
+    const MAX_RETRIES = 20
+    let frameId: number | null = null
+    
+    const checkAndSetup = () => {
+      const sprite = spritesRef.current.get(currentSceneIndex)
+      if (sprite && !sprite.destroyed && sprite.visible) {
+        if (!sprite.interactive || sprite.cursor !== 'pointer') {
+          // 클릭 이벤트가 설정되지 않은 경우에만 설정
+          setupSpriteClickEvent(currentSceneIndex, sprite)
+        }
+      } else if (retryCount < MAX_RETRIES) {
+        retryCount++
+        frameId = requestAnimationFrame(checkAndSetup)
+      }
+    }
+    
+    frameId = requestAnimationFrame(checkAndSetup)
+    
+    return () => {
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId)
+      }
+    }
+  }, [isPlaying, pixiReady, currentSceneIndex, proFabricCanvasRef, setupSpriteClickEvent])
 
   useEffect(() => {
     if (!pixiReady || isPlaying || currentSceneIndex < 0) {
@@ -934,6 +1276,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
       renderSubtitle(currentSceneIndex, currentSceneScript)
       syncFabricScene()
+      
+      // 스프라이트 생성 완료 - 클릭 이벤트는 별도 useEffect에서 설정됨
     }
 
     void renderCurrentScene().catch((error) => {
@@ -953,6 +1297,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     pixiReady,
     renderSubtitle,
     syncFabricScene,
+    proFabricCanvasRef,
   ])
 
   useEffect(() => {
