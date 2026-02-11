@@ -27,6 +27,16 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    files: ["apps/bukae_creator/**/*.{ts,tsx,mts,cts}"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-require-imports": "warn",
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/refs": "warn",
+      "react-hooks/preserve-manual-memoization": "warn",
+    },
+  },
+  {
     files: ["**/*.{ts,tsx}"],
     ignores: step3LegacyBridgeFiles,
     rules: {
