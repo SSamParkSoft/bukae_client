@@ -357,16 +357,17 @@ export default function ProStep2Page() {
         ? currentStoreScenes.map((s: SceneScript, index: number) => sceneScriptToProScene(s, index))
         : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
       
-      // TTS 합성 결과를 ProScene에 저장 (duration 포함)
+      // TTS 합성 결과를 ProScene에 저장 (duration과 base64 포함)
       const updatedScenes = currentScenes.map((scene, index) => {
         const ttsResult = result.results[index]
         return {
           ...scene,
           ttsDuration: ttsResult?.duration,
+          ttsAudioBase64: ttsResult?.audioBase64, // base64도 ProScene에 포함
         }
       })
       
-      // ProScene을 SceneScript로 변환하면서 base64도 함께 저장
+      // ProScene을 SceneScript로 변환 (proSceneToSceneScript가 자동으로 ttsAudioBase64 포함)
       const updatedStoreScenes = updatedScenes.map((scene: ProScene, index: number) => {
         const ttsResult = result.results[index]
         const sceneScript = proSceneToSceneScript(scene, index)
@@ -378,35 +379,31 @@ export default function ProStep2Page() {
           audioBase64Length: ttsResult?.audioBase64?.length,
           duration: ttsResult?.duration,
           error: ttsResult?.error,
+          sceneHasTtsAudioBase64: !!scene.ttsAudioBase64,
+          sceneScriptHasTtsAudioBase64: !!(sceneScript as ExtendedSceneScript).ttsAudioBase64,
         })
         
-        // base64 데이터를 SceneScript에 추가
-        // success가 true이고 audioBase64가 존재할 때만 저장
+        // base64 데이터가 있는지 확인하고 로그 출력
         if (ttsResult && ttsResult.success && ttsResult.audioBase64) {
-          const updated = {
-            ...sceneScript,
-            ttsAudioBase64: ttsResult.audioBase64,
-          }
           console.log(`[Step2] 씬 ${index} ttsAudioBase64 저장됨:`, {
-            hasTtsAudioBase64: !!updated.ttsAudioBase64,
-            ttsAudioBase64Length: updated.ttsAudioBase64?.length,
+            hasTtsAudioBase64: !!(sceneScript as ExtendedSceneScript).ttsAudioBase64,
+            ttsAudioBase64Length: (sceneScript as ExtendedSceneScript).ttsAudioBase64?.length,
             script: sceneScript.script?.substring(0, 30),
           })
-          return updated
-        }
-        
-        // 실패한 경우에도 기존 sceneScript는 유지하되 경고 로그 출력
-        if (ttsResult && !ttsResult.success) {
-          console.warn(`[Step2] 씬 ${index} TTS 합성 실패, ttsAudioBase64 저장 안됨:`, {
-            error: ttsResult.error,
-            script: sceneScript.script?.substring(0, 30),
-          })
-        } else if (!ttsResult?.audioBase64) {
-          console.warn(`[Step2] 씬 ${index} audioBase64 없음:`, {
-            success: ttsResult?.success,
-            hasAudioBase64: !!ttsResult?.audioBase64,
-            script: sceneScript.script?.substring(0, 30),
-          })
+        } else {
+          // 실패한 경우에도 기존 sceneScript는 유지하되 경고 로그 출력
+          if (ttsResult && !ttsResult.success) {
+            console.warn(`[Step2] 씬 ${index} TTS 합성 실패, ttsAudioBase64 저장 안됨:`, {
+              error: ttsResult.error,
+              script: sceneScript.script?.substring(0, 30),
+            })
+          } else if (!ttsResult?.audioBase64) {
+            console.warn(`[Step2] 씬 ${index} audioBase64 없음:`, {
+              success: ttsResult?.success,
+              hasAudioBase64: !!ttsResult?.audioBase64,
+              script: sceneScript.script?.substring(0, 30),
+            })
+          }
         }
         return sceneScript
       })

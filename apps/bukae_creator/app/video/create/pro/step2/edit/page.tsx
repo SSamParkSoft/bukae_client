@@ -12,6 +12,7 @@ import {
   proSceneToSceneScript,
   sceneScriptToProScene,
   type ProScene,
+  type ExtendedSceneScript,
 } from '../utils/types'
 
 const DEFAULT_SCENE_COUNT = 6
@@ -82,9 +83,40 @@ export default function ProStep2EditPage() {
       ? currentStoreScenes.map((s: SceneScript, index: number) => sceneScriptToProScene(s, index))
       : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
     
+    // 디버깅: 현재 씬들의 ttsAudioBase64 확인
+    console.log('[Step2 Edit] updateScenes 호출 전:', {
+      currentScenes: currentScenes.map((s, i) => ({
+        index: i,
+        hasTtsAudioBase64: !!s.ttsAudioBase64,
+        ttsAudioBase64Length: s.ttsAudioBase64?.length,
+        script: s.script?.substring(0, 30),
+      })),
+    })
+    
     const updated = updater(currentScenes)
+    
+    // 디버깅: 업데이트 후 씬들의 ttsAudioBase64 확인
+    console.log('[Step2 Edit] updateScenes 호출 후:', {
+      updatedScenes: updated.map((s, i) => ({
+        index: i,
+        hasTtsAudioBase64: !!s.ttsAudioBase64,
+        ttsAudioBase64Length: s.ttsAudioBase64?.length,
+        script: s.script?.substring(0, 30),
+      })),
+    })
+    
     // store에 저장 (localStorage에 자동 저장됨)
     const scenesToSave = updated.map((s: ProScene, index: number) => proSceneToSceneScript(s, index))
+    
+    // 디버깅: 저장 전 SceneScript들의 ttsAudioBase64 확인
+    console.log('[Step2 Edit] 저장 전 SceneScript:', {
+      scenesToSave: scenesToSave.map((s, i) => ({
+        index: i,
+        hasTtsAudioBase64: !!(s as ExtendedSceneScript).ttsAudioBase64,
+        ttsAudioBase64Length: (s as ExtendedSceneScript).ttsAudioBase64?.length,
+        script: s.script?.substring(0, 30),
+      })),
+    })
     
     // 상태 변경 전에 autoSaveEnabled 확인 및 설정
     const store = useVideoCreateStore.getState()
@@ -125,11 +157,28 @@ export default function ProStep2EditPage() {
   const handleSelectionChange = useCallback((index: number, startSeconds: number, endSeconds: number) => {
     updateScenes((prev) => {
       const next = [...prev]
+      const currentScene = next[index]
+      // 기존 씬의 모든 필드를 유지하면서 selection만 업데이트
       next[index] = { 
-        ...next[index], 
+        ...currentScene, 
         selectionStartSeconds: startSeconds,
         selectionEndSeconds: endSeconds,
       }
+      
+      // 디버깅: 업데이트 전후 비교
+      console.log(`[Step2 Edit] handleSelectionChange 씬 ${index}:`, {
+        before: {
+          hasTtsAudioBase64: !!currentScene.ttsAudioBase64,
+          ttsAudioBase64Length: currentScene.ttsAudioBase64?.length,
+        },
+        after: {
+          hasTtsAudioBase64: !!next[index].ttsAudioBase64,
+          ttsAudioBase64Length: next[index].ttsAudioBase64?.length,
+        },
+        selectionStartSeconds: startSeconds,
+        selectionEndSeconds: endSeconds,
+      })
+      
       return next
     })
   }, [updateScenes])

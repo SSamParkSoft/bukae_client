@@ -72,11 +72,17 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   // 격자(선택 영역) 드래그 관련 상태
   // initialSelectionStartSeconds를 기본값으로 사용하되, 사용자가 드래그할 때만 내부 상태 업데이트
   const [selectionStartSeconds, setSelectionStartSeconds] = useState(() => initialSelectionStartSeconds ?? 0)
+  const selectionStartSecondsRef = useRef(selectionStartSeconds)
   const [isDraggingSelection, setIsDraggingSelection] = useState(false)
   const [dragStartX, setDragStartX] = useState(0)
   const [dragStartSelectionLeft, setDragStartSelectionLeft] = useState(0)
   const timelineContainerRef = useRef<HTMLDivElement | null>(null)
   const prevInitialSelectionRef = useRef<number | undefined>(initialSelectionStartSeconds)
+  
+  // selectionStartSeconds를 ref에도 동기화
+  useEffect(() => {
+    selectionStartSecondsRef.current = selectionStartSeconds
+  }, [selectionStartSeconds])
 
   // initialSelectionStartSeconds가 외부에서 변경될 때만 동기화 (드래그 중이 아닐 때만)
   useEffect(() => {
@@ -403,6 +409,11 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   useEffect(() => {
     if (!onSelectionChange) return
     
+    // 드래그 중이 아닐 때만 자동 저장 (드래그 중에는 handleMouseUp에서 저장)
+    if (isDraggingSelection) {
+      return
+    }
+    
     // initialSelectionStartSeconds와 비교하여 실제로 사용자가 변경한 경우에만 호출
     const initialStart = initialSelectionStartSeconds ?? 0
     const initialEnd = initialStart + (ttsDuration || 10)
@@ -414,21 +425,18 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       Math.abs(prev.end - clampedSelectionEndSeconds) > 0.01
     
     // store의 초기값과 다를 때만 호출 (사용자가 실제로 변경한 경우)
-    // 또는 드래그 중일 때만 호출
     const differsFromInitial = Math.abs(clampedSelectionStartSeconds - initialStart) > 0.01 ||
       Math.abs(clampedSelectionEndSeconds - initialEnd) > 0.01
     
-    if (hasChanged && (differsFromInitial || isDraggingSelection)) {
+    if (hasChanged && differsFromInitial) {
       prevSelectionRef.current = {
         start: clampedSelectionStartSeconds,
         end: clampedSelectionEndSeconds,
       }
-      // 드래그 중이거나 초기값과 다를 때만 호출
-      if (differsFromInitial || isDraggingSelection) {
-        onSelectionChange(clampedSelectionStartSeconds, clampedSelectionEndSeconds)
-      }
+      // 초기값과 다를 때만 호출
+      onSelectionChange(clampedSelectionStartSeconds, clampedSelectionEndSeconds)
     } else if (hasChanged) {
-      // 값이 변경되었지만 초기값과 같고 드래그 중이 아니면 ref만 업데이트
+      // 값이 변경되었지만 초기값과 같으면 ref만 업데이트
       prevSelectionRef.current = {
         start: clampedSelectionStartSeconds,
         end: clampedSelectionEndSeconds,
@@ -471,6 +479,18 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   }
 
   const handleSelectionMouseUp = () => {
+    // 드래그가 끝날 때 최종 값을 저장 (ref에서 최신 값 가져오기)
+    if (onSelectionChange && isDraggingSelection) {
+      const timelineDuration = Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
+      const timeMarkersCount = timelineDuration + 1
+      const actualVideoEndPx = timeMarkersCount * FRAME_WIDTH
+      const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
+      const currentStart = selectionStartSecondsRef.current
+      const clampedStart = Math.max(0, Math.min(currentStart, maxSelectionLeftPx / FRAME_WIDTH))
+      const clampedEnd = Math.min(clampedStart + selectionWidthSeconds, actualVideoEndPx / FRAME_WIDTH)
+      
+      onSelectionChange(clampedStart, clampedEnd)
+    }
     setIsDraggingSelection(false)
   }
 
@@ -506,6 +526,18 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     }
 
     const handleMouseUp = () => {
+      // 드래그가 끝날 때 최종 값을 저장 (ref에서 최신 값 가져오기)
+      if (onSelectionChange) {
+        const timelineDuration = Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
+        const timeMarkersCount = timelineDuration + 1
+        const actualVideoEndPx = timeMarkersCount * FRAME_WIDTH
+        const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
+        const currentStart = selectionStartSecondsRef.current
+        const clampedStart = Math.max(0, Math.min(currentStart, maxSelectionLeftPx / FRAME_WIDTH))
+        const clampedEnd = Math.min(clampedStart + selectionWidthSeconds, actualVideoEndPx / FRAME_WIDTH)
+        
+        onSelectionChange(clampedStart, clampedEnd)
+      }
       setIsDraggingSelection(false)
     }
 
@@ -516,7 +548,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isDraggingSelection, dragStartX, dragStartSelectionLeft, timeMarkers, selectionWidthPx, videoDuration, ttsDuration])
+  }, [isDraggingSelection, dragStartX, dragStartSelectionLeft, timeMarkers, selectionWidthPx, selectionWidthSeconds, videoDuration, ttsDuration, onSelectionChange, selectionStartSeconds])
   
   // 격자에 포함되는 시간 마커 인덱스 계산
   const getIsInSelection = (idx: number) => {
@@ -707,11 +739,11 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
               }}
             >
               {/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
-              <div className="relative shrink-0" style={{ width: `${timeMarkers.length * 74}px`, paddingTop: '18px', paddingBottom: '18px' }}>
+              <div className="relative shrink-0" style={{ width: `${timeMarkers.length * 74 + 37}px`, paddingTop: '18px', paddingBottom: '18px', paddingLeft: '37px' }}>
                 {/* 실제 영상 프레임 박스 (클리핑 영역) */}
                 <div className="relative h-[84px] bg-white rounded-2xl border border-gray-300 overflow-hidden">
                   {/* 격자 패턴 - 각 74px 너비의 프레임들 */}
-                  <div className="absolute inset-0 flex">
+                  <div className="absolute inset-0 flex" style={{ left: '0px' }}>
                     {Array.from({ length: timeMarkers.length }).map((_, idx) => (
                       <div
                         key={idx}
@@ -782,7 +814,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                   className="cursor-move"
                   style={{
                     position: 'absolute',
-                    left: `${selectionLeftPx}px`,
+                    left: `${37 + selectionLeftPx}px`,
                     width: `${selectionWidthPx}px`,
                     top: '18px', // 프레임 박스와 같은 위치 (paddingTop 아래)
                     height: 'calc(100% - 18px)', // paddingTop을 제외한 높이

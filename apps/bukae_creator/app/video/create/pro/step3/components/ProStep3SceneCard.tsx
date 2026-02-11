@@ -66,6 +66,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   scriptText,
   videoUrl,
   selectionStartSeconds: initialSelectionStartSeconds,
+  selectionEndSeconds: initialSelectionEndSeconds,
   ttsDuration = 0,
   voiceLabel,
   timelineScene,
@@ -96,11 +97,13 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
 
   // 격자(선택 영역) 드래그 관련 상태
   const [selectionStartSeconds, setSelectionStartSeconds] = useState(() => initialSelectionStartSeconds ?? 0)
+  const [selectionEndSeconds, setSelectionEndSeconds] = useState(() => initialSelectionEndSeconds ?? (initialSelectionStartSeconds ?? 0) + (ttsDuration || 10))
   const [isDraggingSelection, setIsDraggingSelection] = useState(false)
   const [dragStartX, setDragStartX] = useState(0)
   const [dragStartSelectionLeft, setDragStartSelectionLeft] = useState(0)
   const timelineContainerRef = useRef<HTMLDivElement | null>(null)
-  const prevInitialSelectionRef = useRef<number | undefined>(initialSelectionStartSeconds)
+  const prevInitialSelectionStartRef = useRef<number | undefined>(initialSelectionStartSeconds)
+  const prevInitialSelectionEndRef = useRef<number | undefined>(initialSelectionEndSeconds)
 
   // 효과 드롭다운 관련 상태
   const [openEffectId, setOpenEffectId] = useState<'animation' | 'subtitle' | 'sound' | null>(null)
@@ -116,7 +119,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   useEffect(() => {
     if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
     
-    const prevValue = prevInitialSelectionRef.current
+    const prevValue = prevInitialSelectionStartRef.current
     const currentValue = initialSelectionStartSeconds
     
     // 값이 없거나 변경되지 않았으면 무시
@@ -126,14 +129,14 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
     
     // 이전 값과 현재 값이 같으면 무시 (ref만 업데이트)
     if (prevValue !== undefined && Math.abs((prevValue ?? 0) - currentValue) < 0.01) {
-      prevInitialSelectionRef.current = currentValue
+      prevInitialSelectionStartRef.current = currentValue
       return
     }
     
     // 내부 상태와 외부 prop이 다를 때만 동기화
     const currentDiff = Math.abs(selectionStartSeconds - currentValue)
     if (currentDiff > 0.01) {
-      prevInitialSelectionRef.current = currentValue
+      prevInitialSelectionStartRef.current = currentValue
       // 외부 prop 변경 시 내부 상태 동기화는 필요하므로 비동기로 처리
       const timeoutId = setTimeout(() => {
         setSelectionStartSeconds(currentValue)
@@ -141,9 +144,42 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
       return () => clearTimeout(timeoutId)
     } else {
       // 값이 이미 동일하면 ref만 업데이트
-      prevInitialSelectionRef.current = currentValue
+      prevInitialSelectionStartRef.current = currentValue
     }
   }, [initialSelectionStartSeconds, selectionStartSeconds, isDraggingSelection])
+
+  // initialSelectionEndSeconds가 외부에서 변경될 때만 동기화 (드래그 중이 아닐 때만)
+  useEffect(() => {
+    if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
+    
+    const prevValue = prevInitialSelectionEndRef.current
+    const currentValue = initialSelectionEndSeconds
+    
+    // 값이 없거나 변경되지 않았으면 무시
+    if (currentValue === undefined || currentValue === null) {
+      return
+    }
+    
+    // 이전 값과 현재 값이 같으면 무시 (ref만 업데이트)
+    if (prevValue !== undefined && Math.abs((prevValue ?? 0) - currentValue) < 0.01) {
+      prevInitialSelectionEndRef.current = currentValue
+      return
+    }
+    
+    // 내부 상태와 외부 prop이 다를 때만 동기화
+    const currentDiff = Math.abs(selectionEndSeconds - currentValue)
+    if (currentDiff > 0.01) {
+      prevInitialSelectionEndRef.current = currentValue
+      // 외부 prop 변경 시 내부 상태 동기화는 필요하므로 비동기로 처리
+      const timeoutId = setTimeout(() => {
+        setSelectionEndSeconds(currentValue)
+      }, 0)
+      return () => clearTimeout(timeoutId)
+    } else {
+      // 값이 이미 동일하면 ref만 업데이트
+      prevInitialSelectionEndRef.current = currentValue
+    }
+  }, [initialSelectionEndSeconds, selectionEndSeconds, isDraggingSelection])
 
   // TTS duration이 변경되면 격자 위치 조정
   useEffect(() => {
@@ -237,26 +273,26 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
 
   const timeMarkers = generateTimeMarkers()
 
-  // 격자(선택 영역) 위치 계산 - TTS duration에 맞게 조정
-  const selectionWidthSeconds = ttsDuration || 10 // 격자 너비 = TTS duration
-  
-  // 선택 영역의 픽셀 단위 크기 (먼저 계산)
-  const selectionWidthPx = selectionWidthSeconds * FRAME_WIDTH
-  
+  // 격자(선택 영역) 위치 계산 - Step2에서 설정한 selectionStartSeconds와 selectionEndSeconds 사용
   // 실제 영상의 마지막 지점 계산
   // timeMarkers.length = timelineDuration + 1 (0부터 timelineDuration까지)
   // 마지막 프레임 썸네일의 인덱스는 timelineDuration (예: 6초면 인덱스 6)
   // 마지막 프레임 썸네일의 끝은 timeMarkers.length * FRAME_WIDTH
-  // 격자의 오른쪽 끝이 마지막 프레임 썸네일의 끝에 닿을 수 있도록 해야 함
   const actualVideoEndPx = timeMarkers.length * FRAME_WIDTH // 마지막 프레임 썸네일의 끝 (픽셀)
   const actualVideoEndSeconds = actualVideoEndPx / FRAME_WIDTH // 마지막 프레임 썸네일의 끝 (초 단위)
   
-  // 격자의 오른쪽 끝이 마지막 프레임 썸네일의 끝에 닿을 수 있도록 허용
-  // 격자의 시작점은 (마지막 프레임 끝 - 격자 너비)까지만 가능
-  const maxSelectionStartPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
-  const maxSelectionStartSeconds = maxSelectionStartPx / FRAME_WIDTH
+  // Step2에서 설정한 selectionEndSeconds를 사용하여 격자 너비 계산
+  const selectionWidthSeconds = selectionEndSeconds - selectionStartSeconds // 실제 선택 영역 너비
+  
+  // 선택 영역의 픽셀 단위 크기 (먼저 계산)
+  const selectionWidthPx = selectionWidthSeconds * FRAME_WIDTH
+  
+  // 격자의 시작점과 끝점을 실제 영상 범위 내로 클램핑
+  // Step2에서 설정한 selectionStartSeconds와 selectionEndSeconds를 사용하되, 영상 범위를 벗어나지 않도록 클램핑
+  const maxSelectionStartSeconds = Math.max(0, actualVideoEndSeconds - selectionWidthSeconds)
   const finalClampedSelectionStartSeconds = Math.max(0, Math.min(selectionStartSeconds, maxSelectionStartSeconds))
-  const finalClampedSelectionEndSeconds = Math.min(finalClampedSelectionStartSeconds + selectionWidthSeconds, actualVideoEndSeconds)
+  // selectionEndSeconds를 직접 사용하되, 영상 범위를 벗어나지 않도록 클램핑
+  const finalClampedSelectionEndSeconds = Math.min(Math.max(selectionEndSeconds, finalClampedSelectionStartSeconds), actualVideoEndSeconds)
   
   // 선택 영역의 픽셀 단위 위치
   const selectionLeftPx = finalClampedSelectionStartSeconds * FRAME_WIDTH
@@ -433,9 +469,9 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   useEffect(() => {
     if (!onSelectionChange) return
     
-    // initialSelectionStartSeconds와 비교하여 실제로 사용자가 변경한 경우에만 호출
+    // initialSelectionStartSeconds와 initialSelectionEndSeconds와 비교하여 실제로 사용자가 변경한 경우에만 호출
     const initialStart = initialSelectionStartSeconds ?? 0
-    const initialEnd = initialStart + (ttsDuration || 10)
+    const initialEnd = initialSelectionEndSeconds ?? (initialStart + (ttsDuration || 10))
     
     // 이전 값과 비교하여 실제로 변경된 경우에만 호출
     const prev = prevSelectionRef.current
@@ -464,7 +500,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
         end: finalClampedSelectionEndSeconds,
       }
     }
-  }, [finalClampedSelectionStartSeconds, finalClampedSelectionEndSeconds, onSelectionChange, initialSelectionStartSeconds, ttsDuration, isDraggingSelection])
+  }, [finalClampedSelectionStartSeconds, finalClampedSelectionEndSeconds, onSelectionChange, initialSelectionStartSeconds, initialSelectionEndSeconds, ttsDuration, isDraggingSelection])
 
   // 격자 드래그 핸들러
   const handleSelectionMouseDown = (e: React.MouseEvent) => {
@@ -497,7 +533,11 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
     const finalSelectionLeftPx = isAtEnd ? maxSelectionLeftPx : newSelectionLeftPx
     
     const newSelectionStartSeconds = finalSelectionLeftPx / FRAME_WIDTH
+    // 드래그할 때는 격자 너비를 유지하면서 이동하므로 selectionEndSeconds도 함께 업데이트
+    const currentSelectionWidth = selectionEndSeconds - selectionStartSeconds
+    const newSelectionEndSeconds = newSelectionStartSeconds + currentSelectionWidth
     setSelectionStartSeconds(newSelectionStartSeconds)
+    setSelectionEndSeconds(newSelectionEndSeconds)
   }
 
   const handleSelectionMouseUp = () => {
@@ -532,7 +572,11 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
       const finalSelectionLeftPx = isAtEnd ? maxSelectionLeftPx : newSelectionLeftPx
       
       const newSelectionStartSeconds = finalSelectionLeftPx / FRAME_WIDTH
+      // 드래그할 때는 격자 너비를 유지하면서 이동하므로 selectionEndSeconds도 함께 업데이트
+      const currentSelectionWidth = selectionEndSeconds - selectionStartSeconds
+      const newSelectionEndSeconds = newSelectionStartSeconds + currentSelectionWidth
       setSelectionStartSeconds(newSelectionStartSeconds)
+      setSelectionEndSeconds(newSelectionEndSeconds)
     }
 
     const handleMouseUp = () => {
@@ -546,7 +590,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isDraggingSelection, dragStartX, dragStartSelectionLeft, timeMarkers, selectionWidthPx, videoDuration, ttsDuration, FRAME_WIDTH])
+  }, [isDraggingSelection, dragStartX, dragStartSelectionLeft, timeMarkers, selectionWidthPx, videoDuration, ttsDuration, FRAME_WIDTH, selectionStartSeconds, selectionEndSeconds])
   
   // 격자에 포함되는 시간 마커 인덱스 계산
   const getIsInSelection = (idx: number) => {
@@ -820,11 +864,11 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
               }}
             >
               {/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
-              <div className="relative shrink-0" style={{ width: `${timeMarkers.length * FRAME_WIDTH}px`, paddingTop: `${TIMELINE_PADDING}px`, paddingBottom: `${TIMELINE_PADDING}px` }}>
+              <div className="relative shrink-0" style={{ width: `${timeMarkers.length * FRAME_WIDTH + FRAME_WIDTH / 2}px`, paddingTop: `${TIMELINE_PADDING}px`, paddingBottom: `${TIMELINE_PADDING}px`, paddingLeft: `${FRAME_WIDTH / 2}px` }}>
                 {/* 실제 영상 프레임 박스 (클리핑 영역) */}
                 <div className="relative bg-white rounded-2xl border border-gray-300 overflow-hidden" style={{ height: `${FRAME_HEIGHT}px` }}>
                   {/* 격자 패턴 - 각 FRAME_WIDTH 너비의 프레임들 */}
-                  <div className="absolute inset-0 flex">
+                  <div className="absolute inset-0 flex" style={{ left: '0px' }}>
                     {Array.from({ length: timeMarkers.length }).map((_, idx) => (
                       <div
                         key={idx}
@@ -894,7 +938,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                   className="cursor-move"
                   style={{
                     position: 'absolute',
-                    left: `${selectionLeftPx}px`,
+                    left: `${FRAME_WIDTH / 2 + selectionLeftPx}px`,
                     width: `${selectionWidthPx}px`,
                     top: `${TIMELINE_PADDING}px`,
                     height: `calc(100% - ${TIMELINE_PADDING}px)`,

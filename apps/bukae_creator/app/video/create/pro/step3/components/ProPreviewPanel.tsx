@@ -116,21 +116,19 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     timelineRef.current = timeline
   }, [timeline])
 
+  // store의 scenes를 직접 구독하여 변경 감지
+  const storeScenes = useVideoCreateStore((state) => state.scenes)
+
   // Step2에서 저장된 TTS 캐시를 store에서 로드
   useEffect(() => {
-    const storeScenes = useVideoCreateStore.getState().scenes
-    console.log('[ProPreviewPanel] TTS 캐시 로드 시작:', {
+    console.log('[ProPreviewPanel] TTS 캐시 로드 시작 (storeScenes 변경 감지):', {
       storeScenesLength: storeScenes?.length,
       storeScenes: storeScenes?.map((s, i) => ({
         index: i,
         script: s.script?.substring(0, 30),
         hasTtsAudioBase64: !!(s as SceneScript & { ttsAudioBase64?: string }).ttsAudioBase64,
+        ttsAudioBase64Length: (s as SceneScript & { ttsAudioBase64?: string }).ttsAudioBase64?.length,
         voiceTemplate: (s as SceneScript & { voiceTemplate?: string | null }).voiceTemplate,
-      })),
-      scenesProp: scenes.map((s, i) => ({
-        index: i,
-        script: s.script?.substring(0, 30),
-        voiceTemplate: s.voiceTemplate,
       })),
     })
 
@@ -267,7 +265,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     return () => {
       cancelled = true
     }
-  }, [scenes]) // scenes prop이 변경될 때마다 다시 로드
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeScenes]) // storeScenes가 변경될 때마다 다시 로드 (Step2에서 Step3로 이동할 때 감지)
 
   const applyCanvasStyle = useCallback((width: number, height: number) => {
     const app = appRef.current

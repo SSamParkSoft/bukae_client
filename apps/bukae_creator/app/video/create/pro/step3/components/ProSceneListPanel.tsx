@@ -15,6 +15,7 @@ export interface ProStep3Scene {
   voiceLabel?: string
   voiceTemplate?: string | null
   ttsDuration?: number
+  ttsAudioBase64?: string // TTS 오디오 데이터 (base64 인코딩된 문자열)
 }
 
 interface ProSceneListPanelProps {

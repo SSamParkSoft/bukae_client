@@ -12,6 +12,7 @@ export type ProScene = {
   voiceLabel?: string
   voiceTemplate?: string | null
   ttsDuration?: number
+  ttsAudioBase64?: string // TTS 오디오 데이터 (base64 인코딩된 문자열)
   videoUrl?: string | null
   selectionStartSeconds?: number
   selectionEndSeconds?: number
@@ -25,9 +26,22 @@ function sceneScriptToProScene(s: SceneScript, index: number): ProScene {
     voiceLabel?: string
     voiceTemplate?: string | null
     ttsDuration?: number
+    ttsAudioBase64?: string // TTS 오디오 데이터 (base64 인코딩된 문자열)
     videoUrl?: string | null
     selectionStartSeconds?: number
     selectionEndSeconds?: number
+  }
+
+  // 디버깅: Step2에서 설정한 selection 값 확인
+  if (index === 0) {
+    console.log('[useProStep3Scenes] sceneScriptToProScene 변환:', {
+      index,
+      hasSelectionStartSeconds: extended.selectionStartSeconds !== undefined,
+      selectionStartSeconds: extended.selectionStartSeconds,
+      hasSelectionEndSeconds: extended.selectionEndSeconds !== undefined,
+      selectionEndSeconds: extended.selectionEndSeconds,
+      script: s.script?.substring(0, 30),
+    })
   }
 
   return {
@@ -36,9 +50,10 @@ function sceneScriptToProScene(s: SceneScript, index: number): ProScene {
     voiceLabel: extended.voiceLabel,
     voiceTemplate: extended.voiceTemplate,
     ttsDuration: extended.ttsDuration,
+    ttsAudioBase64: extended.ttsAudioBase64, // ttsAudioBase64 포함
     videoUrl: extended.videoUrl,
-    selectionStartSeconds: extended.selectionStartSeconds,
-    selectionEndSeconds: extended.selectionEndSeconds,
+    selectionStartSeconds: extended.selectionStartSeconds, // Step2에서 설정한 값 포함
+    selectionEndSeconds: extended.selectionEndSeconds, // Step2에서 설정한 값 포함
   }
 }
 
@@ -82,18 +97,32 @@ export function useProStep3Scenes() {
       // selectionStartSeconds와 selectionEndSeconds가 없으면 기본값 사용
       // ttsDuration을 기준으로 선택 영역 설정 (0부터 ttsDuration까지)
       const ttsDuration = scene.ttsDuration || 10
-      const selectionStartSeconds = extended.selectionStartSeconds ?? 0
-      const selectionEndSeconds = extended.selectionEndSeconds ?? ttsDuration
+      // ProScene에서 이미 selectionStartSeconds와 selectionEndSeconds를 포함하고 있으므로 그대로 사용
+      const selectionStartSeconds = scene.selectionStartSeconds ?? 0
+      const selectionEndSeconds = scene.selectionEndSeconds ?? ttsDuration
+
+      // 디버깅: ProStep3Scene 변환 시 selection 값 확인
+      if (index === 0) {
+        console.log('[useProStep3Scenes] ProStep3Scene 변환:', {
+          index,
+          sceneSelectionStartSeconds: scene.selectionStartSeconds,
+          sceneSelectionEndSeconds: scene.selectionEndSeconds,
+          finalSelectionStartSeconds: selectionStartSeconds,
+          finalSelectionEndSeconds: selectionEndSeconds,
+          script: scene.script?.substring(0, 30),
+        })
+      }
 
       return {
         id: scene.id,
         script: scene.script,
         videoUrl: scene.videoUrl,
-        selectionStartSeconds,
-        selectionEndSeconds,
+        selectionStartSeconds, // Step2에서 설정한 값 사용
+        selectionEndSeconds, // Step2에서 설정한 값 사용
         voiceLabel: scene.voiceLabel,
         voiceTemplate: scene.voiceTemplate,
         ttsDuration: scene.ttsDuration,
+        ttsAudioBase64: scene.ttsAudioBase64, // ttsAudioBase64 포함
       }
     })
   }, [proScenes])

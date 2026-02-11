@@ -102,13 +102,8 @@ export default function ProStep3Page() {
 
   // Timeline 설정 핸들러 (store의 setTimeline 사용)
   const handleSetTimeline = useCallback((newTimeline: TimelineData) => {
-    console.log('[ProStep3Page] handleSetTimeline 호출:', {
-      scenesLength: newTimeline.scenes.length,
-      currentSceneIndex,
-      textSettings: newTimeline.scenes[currentSceneIndex]?.text,
-    })
     setTimeline(newTimeline)
-  }, [setTimeline, currentSceneIndex])
+  }, [setTimeline])
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
