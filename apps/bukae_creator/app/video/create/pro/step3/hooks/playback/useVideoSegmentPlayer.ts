@@ -15,7 +15,7 @@ interface UseVideoSegmentPlayerParams {
   scenes: ProStep3Scene[]
   totalDurationValue: number
   playbackSpeed: number
-  loadVideoAsSprite: (sceneIndex: number, videoUrl: string) => Promise<void>
+  loadVideoAsSprite: (sceneIndex: number, videoUrl: string, selectionStartSeconds?: number) => Promise<void>
   renderSubtitle: (sceneIndex: number, script: string) => void
   playTts: (sceneIndex: number, voiceTemplate: string | null | undefined, script: string) => Promise<void>
   onPlayPause: () => void
@@ -144,7 +144,9 @@ export function useVideoSegmentPlayer({
     }
 
     try {
-      await loadVideoAsSprite(originalIndex, scene.videoUrl)
+      // 최신 scene 객체에서 selectionStartSeconds를 직접 전달하여 즉시 반영
+      const selectionStart = scene.selectionStartSeconds ?? 0
+      await loadVideoAsSprite(originalIndex, scene.videoUrl, selectionStart)
 
       const video = videoElementsRef.current.get(originalIndex)
       const sprite = spritesRef.current.get(originalIndex)

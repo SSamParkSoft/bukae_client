@@ -66,6 +66,7 @@ function getAppCanvas(app: PIXI.Application | null | undefined): HTMLCanvasEleme
 
 export const ProPreviewPanel = memo(function ProPreviewPanel({
   currentVideoUrl,
+  currentSelectionStartSeconds,
   currentSceneIndex = 0,
   onCurrentSceneIndexChange,
   scenes,
@@ -458,7 +459,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     })
   }, [])
 
-  const loadVideoAsSprite = useCallback(async (sceneIndex: number, videoUrl: string): Promise<void> => {
+  const loadVideoAsSprite = useCallback(async (sceneIndex: number, videoUrl: string, selectionStartSeconds?: number): Promise<void> => {
     // 초기 검증
     if (!pixiReady) {
       return
@@ -477,6 +478,12 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
     try {
       await waitForMetadata(video)
+
+      // 비동기 작업 후 video 요소가 여전히 유효한지 확인
+      if (!video || video.readyState === 0) {
+        cleanupSceneResources(sceneIndex)
+        return
+      }
 
       // 비동기 작업 후 ref 재확인
       const app = appRef.current
@@ -506,8 +513,15 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       videoTexturesRef.current.set(sceneIndex, texture)
       videoElementsRef.current.set(sceneIndex, video)
 
-      const sceneStart = scenesRef.current[sceneIndex]?.selectionStartSeconds ?? 0
+      // selectionStartSeconds가 파라미터로 전달되면 사용하고, 없으면 scenesRef에서 읽기 (fallback)
+      const sceneStart = selectionStartSeconds ?? scenesRef.current[sceneIndex]?.selectionStartSeconds ?? 0
       await seekVideoFrame(video, sceneStart)
+      
+      // seeked 후 video 요소가 여전히 유효한지 확인
+      if (!video || video.readyState === 0) {
+        cleanupSceneResources(sceneIndex)
+        return
+      }
       
       // seeked 후 다시 ref 재확인
       const appAfterSeek = appRef.current
@@ -533,6 +547,16 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       const currentVideo = videoElementsRef.current.get(sceneIndex)
       if (!currentVideo || currentVideo !== video) {
         cleanupSceneResources(sceneIndex)
+        return
+      }
+
+      // currentVideo가 유효한지 다시 확인 (videoWidth 접근 전)
+      if (!currentVideo.videoWidth && !currentVideo.videoHeight) {
+        // 비디오 메타데이터가 아직 로드되지 않았을 수 있음
+        cleanupSceneResources(sceneIndex)
+        console.warn('[loadVideoAsSprite] 비디오 메타데이터가 아직 로드되지 않았습니다.', {
+          readyState: currentVideo.readyState,
+        })
         return
       }
 
@@ -768,6 +792,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   const currentScene = scenes[currentSceneIndex]
   const currentSceneVideoUrl = currentScene?.videoUrl
   const currentSceneScript = currentScene?.script ?? ''
+  // currentSelectionStartSeconds prop이 있으면 사용하고, 없으면 scenes에서 읽기
+  const currentSceneSelectionStart = currentSelectionStartSeconds ?? currentScene?.selectionStartSeconds ?? 0
 
   const subtitleSettingsKey = useMemo(() => {
     return JSON.stringify(timeline?.scenes?.[currentSceneIndex]?.text ?? null)
@@ -782,7 +808,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
     const renderCurrentScene = async () => {
       if (currentSceneVideoUrl) {
-        await loadVideoAsSprite(currentSceneIndex, currentSceneVideoUrl)
+        // 최신 selectionStartSeconds 값을 사용 (prop 또는 scenes에서)
+        await loadVideoAsSprite(currentSceneIndex, currentSceneVideoUrl, currentSceneSelectionStart)
       } else {
         spritesRef.current.forEach((sprite) => {
           hideSprite(sprite)
@@ -813,6 +840,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     currentSceneIndex,
     currentSceneScript,
     currentSceneVideoUrl,
+    currentSceneSelectionStart,
     isPlaying,
     loadVideoAsSprite,
     pixiReady,
