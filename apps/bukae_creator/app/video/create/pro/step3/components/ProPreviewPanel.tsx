@@ -423,10 +423,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       videoTexturesRef.current.set(sceneIndex, videoTexture)
       videoElementsRef.current.set(sceneIndex, video)
 
-      // 씬 변경 시 자동 재생 방지: 비디오를 일시정지 상태로 유지
-      // VideoTexture 생성 후에도 비디오가 자동 재생되지 않도록 명시적으로 pause()
-      video.pause()
-      
       // 현재 씬의 격자 시작 지점으로 이동하여 첫 프레임 표시
       const currentScene = scenesRef.current?.[sceneIndex]
       const targetTime = currentScene?.selectionStartSeconds ?? 0
@@ -435,8 +431,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       await new Promise<void>((resolve) => {
         const handleSeeked = () => {
           video.removeEventListener('seeked', handleSeeked)
-          // seeked 후에도 재생되지 않도록 다시 pause()
-          video.pause()
           resolve()
         }
         video.addEventListener('seeked', handleSeeked)
@@ -445,9 +439,51 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         // 이미 해당 시간에 있으면 seeked 이벤트가 발생하지 않을 수 있음
         if (Math.abs(video.currentTime - targetTime) < 0.1) {
           video.removeEventListener('seeked', handleSeeked)
-          video.pause()
           resolve()
         }
+      })
+
+      // VideoTexture가 프레임을 업데이트하도록 한 프레임만 재생했다가 즉시 pause()
+      // VideoTexture는 비디오가 재생 중일 때만 업데이트되므로, 한 프레임 재생이 필요함
+      // muted 상태로 재생하여 자동재생 정책 문제를 피함
+      const wasMuted = video.muted
+      video.muted = true // 썸네일 캡처를 위해 잠시 muted
+      
+      await new Promise<void>((resolve) => {
+        let resolved = false
+        const handleTimeUpdate = () => {
+          if (resolved) return
+          resolved = true
+          // 한 프레임 업데이트 후 즉시 pause()
+          video.pause()
+          video.muted = wasMuted // 원래 muted 상태로 복원
+          video.removeEventListener('timeupdate', handleTimeUpdate)
+          resolve()
+        }
+        video.addEventListener('timeupdate', handleTimeUpdate)
+        
+        // 재생 시작 (muted 상태이므로 자동재생 정책 문제 없음)
+        video.play().catch(() => {
+          // 재생 실패 시 (NotAllowedError 등) 그냥 pause 상태로 유지
+          if (!resolved) {
+            resolved = true
+            video.removeEventListener('timeupdate', handleTimeUpdate)
+            video.pause()
+            video.muted = wasMuted
+            resolve()
+          }
+        })
+        
+        // 타임아웃: 100ms 내에 timeupdate가 발생하지 않으면 강제로 pause
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true
+            video.removeEventListener('timeupdate', handleTimeUpdate)
+            video.pause()
+            video.muted = wasMuted
+            resolve()
+          }
+        }, 100)
       })
 
       // Sprite 생성
