@@ -48,10 +48,8 @@ export function useFabricHandlers({
   useEffect(() => {
     if (!fabricCanvasElementRef?.current || editMode === undefined) return
     const lower = fabricCanvasElementRef.current
-    const upper = fabricCanvasRef.current?.upperCanvasEl
     const pointer = useFabricEditing ? 'auto' : 'none'
     if (lower) lower.style.pointerEvents = pointer
-    if (upper) upper.style.pointerEvents = pointer
   }, [editMode, useFabricEditing, fabricCanvasRef, fabricCanvasElementRef])
 
   // Fabric 오브젝트 선택 가능 여부 (편집 모드에 맞춰 갱신)
@@ -167,10 +165,6 @@ export function useFabricHandlers({
         scaledHeight = target.height || 0
       }
 
-      // Fabric.js의 originX/originY 확인 (중요: anchor 정보 파악)
-      const originX = (target as fabric.Object).originX || 'left'
-      const originY = (target as fabric.Object).originY || 'top'
-      
       const nextTransform = {
         x: (target.left ?? 0) * invScale,
         y: (target.top ?? 0) * invScale,
@@ -405,4 +399,3 @@ export function useFabricHandlers({
     handleTextEditingExited,
   ])
 }
-

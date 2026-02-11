@@ -9,6 +9,7 @@ import { useVideoSegmentPlayer } from '../hooks/playback/useVideoSegmentPlayer'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { calculateAspectFittedSize } from '../utils/proPreviewLayout'
 import { getSceneSegmentDuration } from '../utils/proPlaybackUtils'
+import { useProFabricResizeDrag } from '../hooks/editing/useProFabricResizeDrag'
 
 interface ProPreviewPanelProps {
   currentVideoUrl?: string | null
@@ -76,6 +77,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   isExporting = false,
 }: ProPreviewPanelProps) {
   const timeline = useVideoCreateStore((state) => state.timeline)
+  const setTimeline = useVideoCreateStore((state) => state.setTimeline)
 
   const playbackContainerRef = useRef<HTMLDivElement | null>(null)
   const pixiContainerRef = useRef<HTMLDivElement | null>(null)
@@ -129,7 +131,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
     // store의 각 씬에서 base64 데이터를 읽어서 캐시에 저장 (Promise로 변환)
     // 이미 캐시에 있는 항목은 건너뛰고 새로 추가된 항목만 로드
-    const loadPromises = storeScenes.map((storeScene, index) => {
+    const loadPromises = storeScenes.map((storeScene) => {
       return new Promise<void>((resolve) => {
         if (cancelled) {
           resolve()
@@ -210,7 +212,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           audio.addEventListener('loadedmetadata', onLoadedMetadata)
           audio.addEventListener('error', onError)
           audio.load()
-        } catch (error) {
+        } catch {
           resolve() // 에러가 나도 다른 씬 로딩을 계속하기 위해 resolve
         }
       })
@@ -224,7 +226,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeScenes]) // storeScenes가 변경될 때마다 다시 로드 (Step2에서 Step3로 이동할 때 감지)
 
   const applyCanvasStyle = useCallback((width: number, height: number) => {
@@ -740,6 +741,11 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       return
     }
 
+    // 일시정지 편집 모드에서는 Fabric 텍스트를 사용하므로 Pixi 텍스트를 숨긴다.
+    if (!isPlaying) {
+      return
+    }
+
     const timelineScene = timelineRef.current?.scenes?.[sceneIndex]
     const textSettings = timelineScene?.text
 
@@ -811,7 +817,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     textObj.y = textY
     textObj.visible = true
     textObj.alpha = 1
-  }, [pixiReady])
+  }, [isPlaying, pixiReady])
 
   const playTts = useCallback(async (sceneIndex: number, voiceTemplate: string | null | undefined, script: string) => {
     if (!voiceTemplate || !script || !script.trim()) {
@@ -885,6 +891,20 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     return JSON.stringify(timeline?.scenes?.[currentSceneIndex]?.text ?? null)
   }, [timeline, currentSceneIndex])
 
+  const { syncFromScene: syncFabricScene } = useProFabricResizeDrag({
+    enabled: pixiReady && !isPlaying,
+    playbackContainerRef,
+    canvasDisplaySize,
+    stageWidth: STAGE_WIDTH,
+    stageHeight: STAGE_HEIGHT,
+    currentSceneIndex,
+    timeline,
+    setTimeline,
+    fallbackScript: currentSceneScript,
+    spritesRef,
+    textsRef,
+  })
+
   useEffect(() => {
     if (!pixiReady || isPlaying || currentSceneIndex < 0) {
       return
@@ -913,6 +933,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       })
 
       renderSubtitle(currentSceneIndex, currentSceneScript)
+      syncFabricScene()
     }
 
     void renderCurrentScene().catch((error) => {
@@ -931,6 +952,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     loadVideoAsSprite,
     pixiReady,
     renderSubtitle,
+    syncFabricScene,
   ])
 
   useEffect(() => {
@@ -939,6 +961,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     }
 
     renderSubtitle(currentSceneIndex, currentSceneScript)
+    syncFabricScene()
   }, [
     subtitleSettingsKey,
     currentSceneIndex,
@@ -946,6 +969,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     isPlaying,
     pixiReady,
     renderSubtitle,
+    syncFabricScene,
   ])
 
   const { trackUserGesture } = useVideoSegmentPlayer({
