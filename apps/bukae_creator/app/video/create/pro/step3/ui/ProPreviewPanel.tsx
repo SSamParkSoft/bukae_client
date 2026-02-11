@@ -1,24 +1,27 @@
 'use client'
 
 import { memo, useRef, useState, useEffect, useCallback, useMemo } from 'react'
-import type { MutableRefObject } from 'react'
 import * as PIXI from 'pixi.js'
 import * as fabric from 'fabric'
-import { TimelineBar, SpeedSelector, ExportButton } from '@/app/video/create/_step3-components'
-import type { ProStep3Scene } from './ProSceneListPanel'
+import { TimelineBar, SpeedSelector, ExportButton } from '@/app/video/create/step3/shared/ui'
+import type { ProStep3Scene } from '../model/types'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
-import { useVideoSegmentPlayer } from '../hooks/playback/useVideoSegmentPlayer'
 import { useProTransportRenderer } from '../hooks/playback/useProTransportRenderer'
+import { useProTransportPlayback } from '../hooks/playback/useProTransportPlayback'
+import { useProTransportTtsSync } from '../hooks/playback/useProTransportTtsSync'
+import { videoSpriteAdapter } from '../hooks/playback/media/videoSpriteAdapter'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { calculateAspectFittedSize } from '../utils/proPreviewLayout'
-import { getSceneSegmentDuration, getPlayableScenes, getPreviousPlayableDuration } from '../utils/proPlaybackUtils'
+import {
+  getDurationBeforeSceneIndex,
+  getSceneSegmentDuration,
+} from '../utils/proPlaybackUtils'
 import { useProFabricResizeDrag } from '../hooks/editing/useProFabricResizeDrag'
 
 interface ProPreviewPanelProps {
   currentVideoUrl?: string | null
   currentSelectionStartSeconds?: number
   currentSceneIndex?: number
-  onCurrentSceneIndexChange?: (index: number) => void
   scenes: ProStep3Scene[]
   isPlaying: boolean
   onPlayPause: () => void
@@ -71,7 +74,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   currentVideoUrl,
   currentSelectionStartSeconds,
   currentSceneIndex = 0,
-  onCurrentSceneIndexChange,
   scenes,
   isPlaying,
   onPlayPause,
@@ -99,6 +101,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   const spritesRef = useRef<Map<number, PIXI.Sprite>>(new Map())
   const videoTexturesRef = useRef<Map<number, PIXI.Texture>>(new Map())
   const videoElementsRef = useRef<Map<number, HTMLVideoElement>>(new Map())
+  const setupSpriteClickEventRef = useRef<(sceneIndex: number, sprite: PIXI.Sprite) => boolean>(() => false)
 
   const ttsAudioRefsRef = useRef<Map<number, HTMLAudioElement>>(new Map())
   const ttsCacheRef = useRef<Map<string, { blob: Blob; durationSec: number; url?: string | null }>>(new Map())
@@ -505,106 +508,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     }
   }, [cleanupAllMediaResources])
 
-  const waitForMetadata = useCallback((video: HTMLVideoElement | null) => {
-    return new Promise<void>((resolve, reject) => {
-      if (!video) {
-        reject(new Error('비디오 요소가 null입니다'))
-        return
-      }
-
-      let timeoutId: ReturnType<typeof setTimeout> | null = null
-
-      const cleanup = () => {
-        if (video) {
-          video.removeEventListener('loadedmetadata', onLoadedMetadata)
-          video.removeEventListener('error', onError)
-        }
-        if (timeoutId) {
-          clearTimeout(timeoutId)
-          timeoutId = null
-        }
-      }
-
-      const onLoadedMetadata = () => {
-        if (!video) {
-          reject(new Error('비디오 요소가 null입니다'))
-          return
-        }
-        cleanup()
-        resolve()
-      }
-
-      const onError = () => {
-        cleanup()
-        reject(new Error('비디오 메타데이터 로드 실패'))
-      }
-
-      video.addEventListener('loadedmetadata', onLoadedMetadata)
-      video.addEventListener('error', onError)
-
-      timeoutId = setTimeout(() => {
-        cleanup()
-        reject(new Error('비디오 메타데이터 로드 타임아웃'))
-      }, VIDEO_METADATA_TIMEOUT_MS)
-
-      if (video.readyState >= 1) {
-        onLoadedMetadata()
-      } else {
-        video.load()
-      }
-    })
-  }, [])
-
-  const seekVideoFrame = useCallback((video: HTMLVideoElement | null, targetTime: number) => {
-    return new Promise<void>((resolve) => {
-      if (!video) {
-        resolve()
-        return
-      }
-
-      let timeoutId: ReturnType<typeof setTimeout> | null = null
-
-      const cleanup = () => {
-        if (video) {
-          video.removeEventListener('seeked', onSeeked)
-        }
-        if (timeoutId) {
-          clearTimeout(timeoutId)
-          timeoutId = null
-        }
-      }
-
-      const onSeeked = () => {
-        if (!video) {
-          resolve()
-          return
-        }
-        cleanup()
-        // seeked 후 비디오가 정지 상태이므로 VideoTexture 업데이트를 위해 약간의 지연 추가
-        requestAnimationFrame(() => {
-          resolve()
-        })
-      }
-
-      video.addEventListener('seeked', onSeeked)
-      timeoutId = setTimeout(() => {
-        cleanup()
-        resolve()
-      }, VIDEO_SEEK_TIMEOUT_MS)
-
-      video.pause()
-      const clampedTime = Math.max(0, Math.min(targetTime, video.duration || targetTime))
-      video.currentTime = clampedTime
-
-      if (Math.abs(video.currentTime - clampedTime) < 0.05) {
-        cleanup()
-        requestAnimationFrame(() => {
-          resolve()
-        })
-      }
-    })
-  }, [])
-
   const loadVideoAsSprite = useCallback(async (sceneIndex: number, videoUrl: string, selectionStartSeconds?: number): Promise<void> => {
     // 초기 검증
     if (!pixiReady) {
@@ -613,17 +516,10 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
     cleanupSceneResources(sceneIndex)
 
-    const video = document.createElement('video')
-    video.src = videoUrl
-    video.muted = true
-    video.playsInline = true
-    video.loop = false
-    video.crossOrigin = 'anonymous'
-    video.preload = 'metadata'
-    video.style.display = 'none'
+    const video = videoSpriteAdapter.createElement(videoUrl)
 
     try {
-      await waitForMetadata(video)
+      await videoSpriteAdapter.waitForMetadata(video, VIDEO_METADATA_TIMEOUT_MS)
 
       // 비동기 작업 후 video 요소가 여전히 유효한지 확인
       if (!video || video.readyState === 0) {
@@ -656,7 +552,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
       // selectionStartSeconds가 파라미터로 전달되면 사용하고, 없으면 scenesRef에서 읽기 (fallback)
       const sceneStart = selectionStartSeconds ?? scenesRef.current[sceneIndex]?.selectionStartSeconds ?? 0
-      await seekVideoFrame(video, sceneStart)
+      await videoSpriteAdapter.seekFrame(video, sceneStart, VIDEO_SEEK_TIMEOUT_MS)
       
       // seeked 후 video 요소가 여전히 유효한지 확인
       if (!video || video.readyState === 0) {
@@ -768,17 +664,13 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       spritesRef.current.set(sceneIndex, sprite)
       
       // 스프라이트 생성 직후 클릭 이벤트 설정 (다음 프레임에서 실행하여 렌더링 완료 보장)
-      // setupSpriteClickEvent 함수를 사용하여 설정 (전역 변수를 통해 접근)
       requestAnimationFrame(() => {
-        const setupFn = (window as { __setupSpriteClickEvent__?: (sceneIndex: number, sprite: PIXI.Sprite) => boolean }).__setupSpriteClickEvent__
-        if (setupFn) {
-          setupFn(sceneIndex, sprite)
-        }
+        setupSpriteClickEventRef.current(sceneIndex, sprite)
       })
     } catch {
       cleanupSceneResources(sceneIndex)
     }
-  }, [cleanupSceneResources, pixiReady, seekVideoFrame, waitForMetadata])
+  }, [cleanupSceneResources, pixiReady])
 
   const renderSubtitle = useCallback((sceneIndex: number, script: string) => {
     const app = appRef.current
@@ -873,52 +765,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     textObj.alpha = 1
   }, [isPlaying, pixiReady])
 
-  const playTts = useCallback(async (sceneIndex: number, voiceTemplate: string | null | undefined, script: string) => {
-    if (!voiceTemplate || !script || !script.trim()) {
-      return
-    }
-
-    const existingAudio = ttsAudioRefsRef.current.get(sceneIndex)
-    if (existingAudio) {
-      existingAudio.pause()
-      existingAudio.src = ''
-      ttsAudioRefsRef.current.delete(sceneIndex)
-    }
-
-    const ttsKey = `${voiceTemplate}::${script}`
-    const cached = ttsCacheRef.current.get(ttsKey)
-
-    // Step3에서는 TTS 합성을 하지 않음 (Step2에서 이미 합성된 캐시만 사용)
-    // 캐시에 없으면 재생하지 않고 alert 표시
-    if (!cached || !cached.url) {
-      alert(`TTS 캐시를 찾을 수 없습니다. Step2에서 TTS 합성을 완료한 후 Step3로 이동해주세요.\n\n씬 인덱스: ${sceneIndex}\n스크립트: ${script.substring(0, 50)}...\n찾는 키: ${ttsKey.substring(0, 80)}...`)
-      return
-    }
-
-    const audio = new Audio(cached.url)
-    audio.playbackRate = playbackSpeed
-    ttsAudioRefsRef.current.set(sceneIndex, audio)
-
-    audio.addEventListener('ended', () => {
-      ttsAudioRefsRef.current.delete(sceneIndex)
-    })
-    audio.addEventListener('error', () => {
-      ttsAudioRefsRef.current.delete(sceneIndex)
-    })
-
-    try {
-      await audio.play()
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'NotAllowedError') {
-        return
-      }
-    }
-  }, [playbackSpeed])
-
-  const setCurrentSceneIndex = useCallback((index: number) => {
-    onCurrentSceneIndexChange?.(index)
-  }, [onCurrentSceneIndexChange])
-
   const totalDurationValue = useMemo(() => {
     return scenes.reduce((sum, scene) => sum + getSceneSegmentDuration(scene), 0)
   }, [scenes])
@@ -933,19 +779,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   // 씬 선택 시 타임라인 위치 업데이트 (재생 중이 아닐 때만)
   useEffect(() => {
     if (!isPlaying && currentSceneIndex >= 0 && pixiReady) {
-      const playableScenes = getPlayableScenes(scenes)
-      // 현재 씬이 playable한지 확인
-      const playableIndex = playableScenes.findIndex((ps) => ps.originalIndex === currentSceneIndex)
-      if (playableIndex >= 0) {
-        // 이전 씬들의 duration 합계를 계산하여 현재 시간 설정
-        const previousDuration = getPreviousPlayableDuration(playableScenes, playableIndex)
-        setCurrentTime(previousDuration)
-      } else {
-        // playable하지 않은 씬인 경우, 이전 씬들의 duration 합계 계산
-        const playableBeforeCurrent = playableScenes.filter((ps) => ps.originalIndex < currentSceneIndex)
-        const previousDuration = playableBeforeCurrent.reduce((sum, ps) => sum + ps.duration, 0)
-        setCurrentTime(previousDuration)
-      }
+      const previousDuration = getDurationBeforeSceneIndex(scenes, currentSceneIndex)
+      setCurrentTime(previousDuration)
     }
   }, [currentSceneIndex, scenes, isPlaying, pixiReady])
 
@@ -1052,23 +887,13 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     return true
   }, [isPlaying, pixiReady, proFabricCanvasRef])
 
-  // proFabricCanvasRef와 setupSpriteClickEvent를 전역에서 접근 가능하도록 설정 (loadVideoAsSprite에서 사용하기 위해)
+  // loadVideoAsSprite에서 최신 클릭 핸들러를 참조할 수 있도록 ref 동기화
   useEffect(() => {
-    if (proFabricCanvasRef) {
-      ;(window as { __proFabricCanvasRef__?: MutableRefObject<fabric.Canvas | null> }).__proFabricCanvasRef__ = proFabricCanvasRef
-    } else {
-      delete (window as { __proFabricCanvasRef__?: MutableRefObject<fabric.Canvas | null> }).__proFabricCanvasRef__
-    }
-    if (setupSpriteClickEvent) {
-      ;(window as { __setupSpriteClickEvent__?: (sceneIndex: number, sprite: PIXI.Sprite) => boolean }).__setupSpriteClickEvent__ = setupSpriteClickEvent
-    } else {
-      delete (window as { __setupSpriteClickEvent__?: (sceneIndex: number, sprite: PIXI.Sprite) => boolean }).__setupSpriteClickEvent__
-    }
+    setupSpriteClickEventRef.current = setupSpriteClickEvent
     return () => {
-      delete (window as { __proFabricCanvasRef__?: MutableRefObject<fabric.Canvas | null> }).__proFabricCanvasRef__
-      delete (window as { __setupSpriteClickEvent__?: (sceneIndex: number, sprite: PIXI.Sprite) => boolean }).__setupSpriteClickEvent__
+      setupSpriteClickEventRef.current = () => false
     }
-  }, [proFabricCanvasRef, setupSpriteClickEvent])
+  }, [setupSpriteClickEvent])
 
   // 스프라이트와 텍스트에 클릭 이벤트 제거 (재생 중일 때만)
   useEffect(() => {
@@ -1410,113 +1235,43 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   }, [fabricReady, timelineScenesKey, currentSceneIndex, isPlaying, pixiReady, syncFabricScene])
 
   // Transport 기반 렌더러 (Fast 트랙과 동일한 방식)
-  const { transport, transportHook, transportState, renderAt, renderAtRef } = useProTransportRenderer({
+  const { transportHook, transportState, renderAtRef } = useProTransportRenderer({
     timeline,
     scenes,
     pixiReady,
     appRef,
     spritesRef,
-    textsRef,
     videoElementsRef,
-    videoTexturesRef,
     currentSceneIndexRef,
     loadVideoAsSprite,
     renderSubtitle,
   })
 
-  // Transport에 totalDuration 설정
-  useEffect(() => {
-    if (totalDurationValue > 0 && transportHook) {
-      transportHook.setTotalDuration(totalDurationValue)
-    }
-  }, [transportHook, totalDurationValue])
+  useProTransportTtsSync({
+    transportHook,
+    isPlaying: transportState.isPlaying,
+    pixiReady,
+    playbackSpeed,
+    currentTime,
+    scenes,
+    ttsCacheRef,
+    ttsAudioRefsRef,
+  })
 
-  // Transport playbackRate 설정
-  useEffect(() => {
-    if (transportHook) {
-      transportHook.setRate(playbackSpeed)
-    }
-  }, [transportHook, playbackSpeed])
-
-  // Transport 재생 상태와 isPlaying 동기화
-  useEffect(() => {
-    if (!transportHook) return
-
-    if (isPlaying && !transportState.isPlaying) {
-      transportHook.play()
-    } else if (!isPlaying && transportState.isPlaying) {
-      transportHook.pause()
-    }
-  }, [transportHook, isPlaying, transportState.isPlaying])
-
-  // Transport currentTime과 currentTime state 동기화 (재생 중일 때만)
-  useEffect(() => {
-    if (!transportHook || !transportState.isPlaying) return
-
-    const updateCurrentTime = () => {
-      setCurrentTime(transportHook.currentTime)
-    }
-
-    // requestAnimationFrame으로 매 프레임 업데이트
-    let rafId: number | null = null
-    const loop = () => {
-      if (transportState.isPlaying && transportHook) {
-        updateCurrentTime()
-        rafId = requestAnimationFrame(loop)
-      }
-    }
-    rafId = requestAnimationFrame(loop)
-
-    return () => {
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId)
-      }
-    }
-  }, [transportHook, transportState.isPlaying, setCurrentTime])
-
-  // Transport totalDuration과 totalDuration state 동기화
-  useEffect(() => {
-    if (transportHook) {
-      setTotalDuration(transportState.totalDuration)
-    }
-  }, [transportHook, transportState.totalDuration, setTotalDuration])
-
-  // 씬 클릭 시 Transport seek (재생 중이 아닐 때만)
-  useEffect(() => {
-    if (!transportHook || isPlaying || currentSceneIndex < 0 || !pixiReady) {
-      return
-    }
-
-    const playableScenes = getPlayableScenes(scenes)
-    const playableIndex = playableScenes.findIndex((ps) => ps.originalIndex === currentSceneIndex)
-    if (playableIndex >= 0) {
-      const previousDuration = getPreviousPlayableDuration(playableScenes, playableIndex)
-      transportHook.seek(previousDuration)
-      // renderAt 호출하여 즉시 렌더링
-      if (renderAtRef.current) {
-        renderAtRef.current(previousDuration, { forceSceneIndex: currentSceneIndex })
-      }
-    }
-  }, [transportHook, currentSceneIndex, scenes, isPlaying, pixiReady, renderAtRef])
-
-  const handlePlayPause = useCallback(() => {
-    if (!transportHook) {
-      onPlayPause()
-      return
-    }
-
-    if (transportState.isPlaying) {
-      transportHook.pause()
-    } else {
-      // 재생 시작 전에 현재 시간에서 렌더링
-      if (renderAtRef.current) {
-        renderAtRef.current(transportHook.currentTime, { skipAnimation: false })
-      }
-      transportHook.play()
-    }
-    // 부모 컴포넌트에 상태 변경 알림
-    onPlayPause()
-  }, [transportHook, transportState.isPlaying, renderAtRef, onPlayPause])
+  const { handlePlayPause } = useProTransportPlayback({
+    transportHook,
+    transportState,
+    isPlaying,
+    playbackSpeed,
+    totalDurationValue,
+    currentSceneIndex,
+    scenes,
+    pixiReady,
+    renderAtRef,
+    onPlayPause,
+    setCurrentTime,
+    setTotalDuration,
+  })
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">

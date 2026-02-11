@@ -4,20 +4,8 @@ import React, { memo, useRef, useState } from 'react'
 import { ProStep3SceneCard } from './ProStep3SceneCard'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { TimelineScene } from '@/lib/types/domain/timeline'
-import { useScrollableGutter } from '@/app/video/create/_hooks/step3'
-
-// Pro step3에서 사용하는 씬 데이터 타입
-export interface ProStep3Scene {
-  id: string
-  script: string
-  videoUrl?: string | null
-  selectionStartSeconds: number
-  selectionEndSeconds: number
-  voiceLabel?: string
-  voiceTemplate?: string | null
-  ttsDuration?: number
-  ttsAudioBase64?: string // TTS 오디오 데이터 (base64 인코딩된 문자열)
-}
+import { useScrollableGutter } from '@/app/video/create/step3/shared/hooks'
+import type { ProStep3Scene } from '../model/types'
 
 interface ProSceneListPanelProps {
   theme: string | undefined

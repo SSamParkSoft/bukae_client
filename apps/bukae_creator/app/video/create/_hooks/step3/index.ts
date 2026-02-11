@@ -1,4 +1,4 @@
-export * from './types'
-export * from './useScrollableGutter'
-export * from './useSceneSelectionUpdater'
-export * from './useStep3EffectState'
+/**
+ * @deprecated Use "@/app/video/create/step3/shared/hooks" instead.
+ */
+export * from '@/app/video/create/step3/shared/hooks'

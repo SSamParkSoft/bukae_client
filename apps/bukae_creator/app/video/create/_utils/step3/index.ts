@@ -1,2 +1,4 @@
-export * from './reorderScenes'
-export * from './segmentDuration'
+/**
+ * @deprecated Use "@/app/video/create/step3/shared/model" instead.
+ */
+export * from '@/app/video/create/step3/shared/model'

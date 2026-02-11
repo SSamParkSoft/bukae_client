@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback } from 'react'
-import { useSceneSelectionUpdater } from '@/app/video/create/_hooks/step3'
+import { useSceneSelectionUpdater } from '@/app/video/create/step3/shared/hooks'
 
 /**
  * Pro step3 격자 선택 영역 변경 핸들러 훅

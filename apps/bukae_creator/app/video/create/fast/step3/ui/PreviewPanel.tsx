@@ -2,7 +2,7 @@
 
 import React, { memo } from 'react'
 import type { TimelineData } from '@/store/useVideoCreateStore'
-import { TimelineBar, SpeedSelector, ExportButton } from '@/app/video/create/_step3-components'
+import { TimelineBar, SpeedSelector, ExportButton } from '@/app/video/create/step3/shared/ui'
 import * as PIXI from 'pixi.js'
 
 interface PreviewPanelProps {

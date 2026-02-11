@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { SceneList } from '@/components/video-editor/SceneList'
 import type { TimelineData, SceneScript } from '@/store/useVideoCreateStore'
-import { useScrollableGutter } from '@/app/video/create/_hooks/step3'
+import { useScrollableGutter } from '@/app/video/create/step3/shared/hooks'
 
 interface SceneListPanelProps {
   theme: string | undefined

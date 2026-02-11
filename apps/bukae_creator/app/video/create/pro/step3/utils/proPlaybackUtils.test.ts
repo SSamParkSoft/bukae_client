@@ -2,13 +2,16 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   clampPlaybackTime,
+  getDurationBeforeSceneIndex,
+  getPlayableSceneStartTime,
   getPlayableScenes,
   getPreviousPlayableDuration,
   getSceneSegmentDuration,
   hasRecentGesture,
   isPlayableScene,
+  resolveProSceneAtTime,
 } from './proPlaybackUtils'
-import type { ProStep3Scene } from '../components/ProSceneListPanel'
+import type { ProStep3Scene } from '../model/types'
 
 function makeScene(overrides: Partial<ProStep3Scene> = {}): ProStep3Scene {
   return {
@@ -66,6 +69,52 @@ test('getPreviousPlayableDuration sums durations up to current segment', () => {
   assert.equal(getPreviousPlayableDuration(playable, 0), 0)
   assert.equal(getPreviousPlayableDuration(playable, 1), 2)
   assert.equal(getPreviousPlayableDuration(playable, 2), 4)
+})
+
+test('getDurationBeforeSceneIndex returns previous playable sum for any scene index', () => {
+  const scenes: ProStep3Scene[] = [
+    makeScene({ id: 's1', selectionStartSeconds: 0, selectionEndSeconds: 2 }),
+    makeScene({ id: 's2', videoUrl: null }),
+    makeScene({ id: 's3', selectionStartSeconds: 4, selectionEndSeconds: 8 }),
+  ]
+
+  assert.equal(getDurationBeforeSceneIndex(scenes, 0), 0)
+  assert.equal(getDurationBeforeSceneIndex(scenes, 1), 2)
+  assert.equal(getDurationBeforeSceneIndex(scenes, 2), 2)
+  assert.equal(getDurationBeforeSceneIndex(scenes, 3), 6)
+})
+
+test('getPlayableSceneStartTime returns start only when target is playable', () => {
+  const scenes: ProStep3Scene[] = [
+    makeScene({ id: 's1', selectionStartSeconds: 0, selectionEndSeconds: 2 }),
+    makeScene({ id: 's2', videoUrl: null }),
+    makeScene({ id: 's3', selectionStartSeconds: 4, selectionEndSeconds: 8 }),
+  ]
+
+  assert.equal(getPlayableSceneStartTime(scenes, 0), 0)
+  assert.equal(getPlayableSceneStartTime(scenes, 1), null)
+  assert.equal(getPlayableSceneStartTime(scenes, 2), 2)
+})
+
+test('resolveProSceneAtTime resolves current playable scene by timeline time', () => {
+  const scenes: ProStep3Scene[] = [
+    makeScene({ id: 's1', selectionStartSeconds: 0, selectionEndSeconds: 2 }),
+    makeScene({ id: 's2', videoUrl: null }),
+    makeScene({ id: 's3', selectionStartSeconds: 4, selectionEndSeconds: 8 }),
+  ]
+
+  const first = resolveProSceneAtTime(scenes, 1.2)
+  assert.equal(first?.sceneIndex, 0)
+  assert.equal(first?.sceneTimeInSegment, 1.2)
+
+  const second = resolveProSceneAtTime(scenes, 3.5)
+  assert.equal(second?.sceneIndex, 2)
+  assert.equal(second?.sceneTimeInSegment, 1.5)
+
+  const forced = resolveProSceneAtTime(scenes, 0, { forceSceneIndex: 2 })
+  assert.equal(forced?.sceneIndex, 2)
+  assert.equal(forced?.sceneStartTime, 2)
+  assert.equal(forced?.sceneTimeInSegment, 0)
 })
 
 test('clampPlaybackTime keeps value within 0..totalDuration', () => {

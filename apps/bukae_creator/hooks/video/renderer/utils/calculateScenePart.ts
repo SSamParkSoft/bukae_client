@@ -3,9 +3,10 @@
  * 시간 `t`에서 씬 인덱스와 파트 인덱스 계산
  */
 
-import { calculateSceneFromTime, getSceneStartTimeFromTts } from '@/utils/timeline-render'
-import { getSceneStartTime } from '@/utils/timeline'
+import { resolvePlayableSegmentAtTime } from '@/app/video/create/step3/shared/model'
 import type { TimelineData } from '@/store/useVideoCreateStore'
+import { getSceneStartTime } from '@/utils/timeline'
+import { calculateSceneFromTime, getSceneStartTimeFromTts } from '@/utils/timeline-render'
 
 /**
  * 씬/파트 계산 결과
@@ -39,9 +40,119 @@ export interface CalculateScenePartParams {
   makeTtsKey?: (voiceName: string, markup: string) => string
 }
 
+function resolvePartIndexForScene({
+  timeline,
+  sceneIndex,
+  relativeTime,
+  ttsCacheRef,
+  voiceTemplate,
+  buildSceneMarkup,
+  makeTtsKey,
+}: {
+  timeline: TimelineData
+  sceneIndex: number
+  relativeTime: number
+  ttsCacheRef?: React.MutableRefObject<Map<string, { durationSec: number; markup?: string; url?: string | null }>>
+  voiceTemplate?: string | null
+  buildSceneMarkup?: (timeline: TimelineData | null, sceneIndex: number) => string[]
+  makeTtsKey?: (voiceName: string, markup: string) => string
+}): number {
+  const scene = timeline.scenes[sceneIndex]
+  if (!scene) {
+    return 0
+  }
+
+  if (!ttsCacheRef || !buildSceneMarkup || !makeTtsKey) {
+    return 0
+  }
+
+  const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+  if (!sceneVoiceTemplate) {
+    return 0
+  }
+
+  const markups = buildSceneMarkup(timeline, sceneIndex)
+  if (markups.length === 0) {
+    return 0
+  }
+
+  let partIndex = 0
+  let partAccumulatedTime = 0
+
+  for (let p = 0; p < markups.length; p++) {
+    const markup = markups[p]
+    if (!markup) {
+      continue
+    }
+
+    const key = makeTtsKey(sceneVoiceTemplate, markup)
+    const cached = ttsCacheRef.current.get(key)
+    const partDuration = cached?.durationSec || 0
+    const partEndTime = partAccumulatedTime + partDuration
+
+    if (relativeTime >= partAccumulatedTime && relativeTime < partEndTime) {
+      partIndex = p
+      break
+    }
+
+    if (p === markups.length - 1 && relativeTime >= partEndTime) {
+      partIndex = p
+      break
+    }
+
+    partAccumulatedTime = partEndTime
+  }
+
+  return partIndex
+}
+
+function buildTimelineSegmentsForTtsBoundary({
+  timeline,
+  ttsCacheRef,
+  voiceTemplate,
+  buildSceneMarkup,
+  makeTtsKey,
+}: {
+  timeline: TimelineData
+  ttsCacheRef: React.MutableRefObject<Map<string, { durationSec: number; markup?: string; url?: string | null }>>
+  voiceTemplate?: string | null
+  buildSceneMarkup: (timeline: TimelineData | null, sceneIndex: number) => string[]
+  makeTtsKey: (voiceName: string, markup: string) => string
+}) {
+  return timeline.scenes.map((scene, index) => {
+    let sceneDuration = 0
+    const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
+
+    if (sceneVoiceTemplate) {
+      const markups = buildSceneMarkup(timeline, index)
+      for (const markup of markups) {
+        if (!markup) {
+          continue
+        }
+
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
+        const cached = ttsCacheRef.current.get(key)
+        if (cached?.durationSec && cached.durationSec > 0) {
+          sceneDuration += cached.durationSec
+        }
+      }
+    }
+
+    if (sceneDuration <= 0) {
+      sceneDuration = scene.duration ?? 0
+    }
+
+    return {
+      ttsDuration: sceneDuration,
+      // resolver는 playable media 조건이 필요하므로 timing-only 경로에서는 dummy media 허용
+      mediaUrl: scene.image || `__timeline_scene_${index}`,
+    }
+  })
+}
+
 /**
  * 시간 `t`에서 씬 인덱스와 파트 인덱스 계산
- * 
+ *
  * @param params 계산 파라미터
  * @returns 씬 인덱스와 파트 인덱스
  */
@@ -55,74 +166,81 @@ export function calculateScenePartFromTime({
   makeTtsKey,
 }: CalculateScenePartParams): ScenePartResult {
   let sceneIndex: number
-  let partIndex: number = 0 // 초기값 설정
-  let sceneStartTime: number = 0
+  let partIndex = 0
+  let sceneStartTime = 0
+  const hasTtsOptions = Boolean(ttsCacheRef && buildSceneMarkup && makeTtsKey)
 
   if (forceSceneIndex !== undefined) {
-    // 강제 씬 인덱스가 지정되면 직접 사용 (씬/그룹 재생 시 해당 씬에 고정)
     sceneIndex = forceSceneIndex
 
-    // TTS options가 있으면 TTS 기준 시작 시간, 없으면 getSceneStartTime
-    const hasTtsOptions = ttsCacheRef && buildSceneMarkup && makeTtsKey
-    sceneStartTime = hasTtsOptions
-      ? getSceneStartTimeFromTts(timeline, sceneIndex, {
+    if (hasTtsOptions && ttsCacheRef && buildSceneMarkup && makeTtsKey) {
+      const segments = buildTimelineSegmentsForTtsBoundary({
+        timeline,
+        ttsCacheRef,
+        voiceTemplate,
+        buildSceneMarkup,
+        makeTtsKey,
+      })
+      const resolved = resolvePlayableSegmentAtTime(segments, tSec, { forceSceneIndex: sceneIndex })
+      sceneStartTime = resolved?.sceneStartTime ?? getSceneStartTimeFromTts(timeline, sceneIndex, {
+        ttsCacheRef,
+        voiceTemplate,
+        buildSceneMarkup,
+        makeTtsKey,
+      })
+    } else {
+      sceneStartTime = getSceneStartTime(timeline, sceneIndex)
+    }
+
+    const relativeTime = Math.max(0, tSec - sceneStartTime)
+    partIndex = resolvePartIndexForScene({
+      timeline,
+      sceneIndex,
+      relativeTime,
+      ttsCacheRef,
+      voiceTemplate,
+      buildSceneMarkup,
+      makeTtsKey,
+    })
+  } else if (hasTtsOptions && ttsCacheRef && buildSceneMarkup && makeTtsKey) {
+    const segments = buildTimelineSegmentsForTtsBoundary({
+      timeline,
+      ttsCacheRef,
+      voiceTemplate,
+      buildSceneMarkup,
+      makeTtsKey,
+    })
+    const resolved = resolvePlayableSegmentAtTime(segments, tSec)
+
+    if (resolved) {
+      sceneIndex = resolved.originalIndex
+      sceneStartTime = resolved.sceneStartTime
+      const relativeTime = Math.max(0, tSec - sceneStartTime)
+      partIndex = resolvePartIndexForScene({
+        timeline,
+        sceneIndex,
+        relativeTime,
+        ttsCacheRef,
+        voiceTemplate,
+        buildSceneMarkup,
+        makeTtsKey,
+      })
+    } else {
+      const calculated = calculateSceneFromTime(
+        timeline,
+        tSec,
+        {
           ttsCacheRef,
           voiceTemplate,
           buildSceneMarkup,
           makeTtsKey,
-        })
-      : getSceneStartTime(timeline, sceneIndex)
-
-    const scene = timeline.scenes[sceneIndex]
-    
-    if (!scene) {
-      // 씬이 없으면 기본값 반환
-      partIndex = 0
-    } else {
-      // 시간을 해당 씬의 시작 시간 기준으로 상대 시간 계산
-      const relativeTime = Math.max(0, tSec - sceneStartTime)
-      
-      // 해당 씬의 partIndex 직접 계산
-      // 초기값 설정 (항상 할당되도록 보장)
-      partIndex = 0
-      
-      if (ttsCacheRef && buildSceneMarkup && makeTtsKey) {
-        const sceneVoiceTemplate = scene.voiceTemplate || voiceTemplate
-        if (sceneVoiceTemplate) {
-          const markups = buildSceneMarkup(timeline, sceneIndex)
-          if (markups.length > 0) {
-            let partAccumulatedTime = 0
-            
-            // 각 part를 순회하며 해당하는 part 찾기
-            for (let p = 0; p < markups.length; p++) {
-              const markup = markups[p]
-              if (!markup) continue
-              
-              const key = makeTtsKey(sceneVoiceTemplate, markup)
-              const cached = ttsCacheRef.current.get(key)
-              const partDuration = cached?.durationSec || 0
-              const partEndTime = partAccumulatedTime + partDuration
-              
-              // relativeTime이 이 part 범위에 있으면
-              if (relativeTime >= partAccumulatedTime && relativeTime < partEndTime) {
-                partIndex = p
-                break
-              }
-              
-              // 마지막 part이고 relativeTime이 partEndTime 이상이면 마지막 part 사용
-              if (p === markups.length - 1 && relativeTime >= partEndTime) {
-                partIndex = p
-                break
-              }
-              
-              partAccumulatedTime = partEndTime
-            }
-          }
         }
-      }
+      )
+      sceneIndex = calculated.sceneIndex
+      partIndex = calculated.partIndex
+      sceneStartTime = calculated.sceneStartTime
     }
   } else {
-    // 일반적인 경우: tSec 기반으로 씬 계산
     const calculated = calculateSceneFromTime(
       timeline,
       tSec,

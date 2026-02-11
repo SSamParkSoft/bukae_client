@@ -1,14 +1,14 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { ProPreviewPanel } from './components/ProPreviewPanel'
-import { ProSceneListPanel } from './components/ProSceneListPanel'
-import { ProEffectsPanel } from './components/ProEffectsPanel'
+import { ProPreviewPanel } from './ui/ProPreviewPanel'
+import { ProSceneListPanel } from './ui/ProSceneListPanel'
+import { ProEffectsPanel } from './ui/ProEffectsPanel'
 import { useVideoCreateStore, type TimelineData } from '@/store/useVideoCreateStore'
 import { useCallback, useState } from 'react'
 import { allTransitions, transitions, movements } from '@/lib/data/transitions'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
-import { getPlayableSegments, reorderByIndexOrder } from '@/app/video/create/_utils/step3'
+import { getPlayableSegments, reorderByIndexOrder } from '@/app/video/create/step3/shared/model'
 import type { MotionConfig } from '@/hooks/video/effects/motion/types'
 import {
   useProStep3Scenes,
@@ -108,17 +108,49 @@ export default function ProStep3Page() {
     [setScenes, storeScenes]
   )
 
-  // 전환 효과 변경 핸들러 (Pro에서는 timeline이 없으므로 빈 함수)
+  // 전환 효과 변경 핸들러
   const handleTransitionChange = useCallback((sceneIndex: number, value: string) => {
-    // Pro에서는 전환 효과를 나중에 구현
-    console.log('전환 효과 변경:', sceneIndex, value)
-  }, [])
+    if (!timeline?.scenes?.[sceneIndex]) {
+      return
+    }
 
-  // 모션 변경 핸들러 (Pro에서는 timeline이 없으므로 빈 함수)
+    const nextScenes = timeline.scenes.map((scene, index) => {
+      if (index !== sceneIndex) {
+        return scene
+      }
+      return {
+        ...scene,
+        transition: value,
+      }
+    })
+
+    setTimeline({
+      ...timeline,
+      scenes: nextScenes,
+    })
+  }, [setTimeline, timeline])
+
+  // 모션 변경 핸들러
   const handleMotionChange = useCallback((sceneIndex: number, motion: MotionConfig | null) => {
-    // Pro에서는 모션 효과를 나중에 구현
-    console.log('모션 변경:', sceneIndex, motion)
-  }, [])
+    if (!timeline?.scenes?.[sceneIndex]) {
+      return
+    }
+
+    const nextScenes = timeline.scenes.map((scene, index) => {
+      if (index !== sceneIndex) {
+        return scene
+      }
+      return {
+        ...scene,
+        motion: motion ?? undefined,
+      }
+    })
+
+    setTimeline({
+      ...timeline,
+      scenes: nextScenes,
+    })
+  }, [setTimeline, timeline])
 
   // Timeline 설정 핸들러 (store의 setTimeline 사용)
   const handleSetTimeline = useCallback((newTimeline: TimelineData) => {
@@ -143,7 +175,6 @@ export default function ProStep3Page() {
               currentVideoUrl={currentVideoUrl}
               currentSelectionStartSeconds={currentSelectionStartSeconds}
               currentSceneIndex={currentSceneIndex}
-              onCurrentSceneIndexChange={setCurrentSceneIndex}
               scenes={proStep3Scenes}
               isPlaying={isPlaying}
               onPlayPause={handleProPlayPause}
