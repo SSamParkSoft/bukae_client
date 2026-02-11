@@ -32,18 +32,6 @@ function sceneScriptToProScene(s: SceneScript, index: number): ProScene {
     selectionEndSeconds?: number
   }
 
-  // 디버깅: Step2에서 설정한 selection 값 확인
-  if (index === 0) {
-    console.log('[useProStep3Scenes] sceneScriptToProScene 변환:', {
-      index,
-      hasSelectionStartSeconds: extended.selectionStartSeconds !== undefined,
-      selectionStartSeconds: extended.selectionStartSeconds,
-      hasSelectionEndSeconds: extended.selectionEndSeconds !== undefined,
-      selectionEndSeconds: extended.selectionEndSeconds,
-      script: s.script?.substring(0, 30),
-    })
-  }
-
   return {
     id: extended.id || `scene-${index}`,
     script: s.script || '',
@@ -82,43 +70,27 @@ export function useProStep3Scenes() {
     return safeScenes.map((s, index) => sceneScriptToProScene(s, index))
   }, [storeScenes])
 
-  // ProStep3Scene으로 변환 (selectionStartSeconds, selectionEndSeconds는 기본값 사용)
+  // ProStep3Scene으로 변환 (Step2에서 설정한 selectionStartSeconds, selectionEndSeconds 사용)
   const proStep3Scenes: ProStep3Scene[] = useMemo(() => {
     // proScenes가 배열이 아니거나 빈 배열이면 빈 배열 반환
     if (!isValidSceneArray(proScenes)) {
       return []
     }
     return proScenes.map((scene, index) => {
-      const extended = scene as ProScene & {
-        selectionStartSeconds?: number
-        selectionEndSeconds?: number
-      }
-
-      // selectionStartSeconds와 selectionEndSeconds가 없으면 기본값 사용
-      // ttsDuration을 기준으로 선택 영역 설정 (0부터 ttsDuration까지)
       const ttsDuration = scene.ttsDuration || 10
-      // ProScene에서 이미 selectionStartSeconds와 selectionEndSeconds를 포함하고 있으므로 그대로 사용
+      
+      // Step2에서 설정한 값이 있으면 그대로 사용, 없으면 기본값 사용
+      // selectionStartSeconds가 없으면 0부터 시작
       const selectionStartSeconds = scene.selectionStartSeconds ?? 0
-      const selectionEndSeconds = scene.selectionEndSeconds ?? ttsDuration
-
-      // 디버깅: ProStep3Scene 변환 시 selection 값 확인
-      if (index === 0) {
-        console.log('[useProStep3Scenes] ProStep3Scene 변환:', {
-          index,
-          sceneSelectionStartSeconds: scene.selectionStartSeconds,
-          sceneSelectionEndSeconds: scene.selectionEndSeconds,
-          finalSelectionStartSeconds: selectionStartSeconds,
-          finalSelectionEndSeconds: selectionEndSeconds,
-          script: scene.script?.substring(0, 30),
-        })
-      }
+      // selectionEndSeconds가 없으면 selectionStartSeconds + ttsDuration
+      const selectionEndSeconds = scene.selectionEndSeconds ?? (selectionStartSeconds + ttsDuration)
 
       return {
         id: scene.id,
         script: scene.script,
         videoUrl: scene.videoUrl,
-        selectionStartSeconds, // Step2에서 설정한 값 사용
-        selectionEndSeconds, // Step2에서 설정한 값 사용
+        selectionStartSeconds, // Step2에서 설정한 값 사용 (없으면 기본값)
+        selectionEndSeconds, // Step2에서 설정한 값 사용 (없으면 기본값)
         voiceLabel: scene.voiceLabel,
         voiceTemplate: scene.voiceTemplate,
         ttsDuration: scene.ttsDuration,

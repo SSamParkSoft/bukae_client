@@ -83,40 +83,10 @@ export default function ProStep2EditPage() {
       ? currentStoreScenes.map((s: SceneScript, index: number) => sceneScriptToProScene(s, index))
       : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
     
-    // 디버깅: 현재 씬들의 ttsAudioBase64 확인
-    console.log('[Step2 Edit] updateScenes 호출 전:', {
-      currentScenes: currentScenes.map((s, i) => ({
-        index: i,
-        hasTtsAudioBase64: !!s.ttsAudioBase64,
-        ttsAudioBase64Length: s.ttsAudioBase64?.length,
-        script: s.script?.substring(0, 30),
-      })),
-    })
-    
     const updated = updater(currentScenes)
-    
-    // 디버깅: 업데이트 후 씬들의 ttsAudioBase64 확인
-    console.log('[Step2 Edit] updateScenes 호출 후:', {
-      updatedScenes: updated.map((s, i) => ({
-        index: i,
-        hasTtsAudioBase64: !!s.ttsAudioBase64,
-        ttsAudioBase64Length: s.ttsAudioBase64?.length,
-        script: s.script?.substring(0, 30),
-      })),
-    })
     
     // store에 저장 (localStorage에 자동 저장됨)
     const scenesToSave = updated.map((s: ProScene, index: number) => proSceneToSceneScript(s, index))
-    
-    // 디버깅: 저장 전 SceneScript들의 ttsAudioBase64 확인
-    console.log('[Step2 Edit] 저장 전 SceneScript:', {
-      scenesToSave: scenesToSave.map((s, i) => ({
-        index: i,
-        hasTtsAudioBase64: !!(s as ExtendedSceneScript).ttsAudioBase64,
-        ttsAudioBase64Length: (s as ExtendedSceneScript).ttsAudioBase64?.length,
-        script: s.script?.substring(0, 30),
-      })),
-    })
     
     // 상태 변경 전에 autoSaveEnabled 확인 및 설정
     const store = useVideoCreateStore.getState()
@@ -125,6 +95,16 @@ export default function ProStep2EditPage() {
     }
     
     setStoreScenes(scenesToSave)
+    
+    // 디버깅: store에 저장한 selection 값 확인
+    setTimeout(() => {
+      const savedScenes = useVideoCreateStore.getState().scenes
+      console.log('[Step2 Edit] 저장 완료:', savedScenes?.map((s, i) => {
+        const ext = s as ExtendedSceneScript
+        return `씬${i}: ${ext.selectionStartSeconds ?? '없음'}~${ext.selectionEndSeconds ?? '없음'}`
+      }).join(', '))
+    }, 100)
+    
     // 강제로 저장되도록 상태 업데이트
     setHasUnsavedChanges(true)
   }, [setStoreScenes, setHasUnsavedChanges])
@@ -165,19 +145,8 @@ export default function ProStep2EditPage() {
         selectionEndSeconds: endSeconds,
       }
       
-      // 디버깅: 업데이트 전후 비교
-      console.log(`[Step2 Edit] handleSelectionChange 씬 ${index}:`, {
-        before: {
-          hasTtsAudioBase64: !!currentScene.ttsAudioBase64,
-          ttsAudioBase64Length: currentScene.ttsAudioBase64?.length,
-        },
-        after: {
-          hasTtsAudioBase64: !!next[index].ttsAudioBase64,
-          ttsAudioBase64Length: next[index].ttsAudioBase64?.length,
-        },
-        selectionStartSeconds: startSeconds,
-        selectionEndSeconds: endSeconds,
-      })
+      // 디버깅: selection 변경 확인
+      console.log(`[Step2 Edit] 씬${index} selection 변경: ${currentScene.selectionStartSeconds ?? '없음'}~${currentScene.selectionEndSeconds ?? '없음'} → ${startSeconds}~${endSeconds}`)
       
       return next
     })

@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
+import type { ExtendedSceneScript } from '../../step2/utils/types'
 
 /**
  * Pro step3 격자 선택 영역 변경 핸들러 훅
@@ -30,11 +31,15 @@ export function useProStep3SelectionChange() {
       // 배열 복사 후 업데이트
       const next = [...safeScenes]
       if (next[sceneIndex]) {
+        const currentScene = next[sceneIndex]
+        
+        // 기존 씬의 모든 필드를 유지하면서 selection만 업데이트
         next[sceneIndex] = {
-          ...next[sceneIndex],
+          ...currentScene,
           selectionStartSeconds: startSeconds,
           selectionEndSeconds: endSeconds,
         } as SceneScript
+        
         setScenes(next)
       }
     },

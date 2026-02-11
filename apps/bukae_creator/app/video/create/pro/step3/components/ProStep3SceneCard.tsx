@@ -96,8 +96,10 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   // 격자(선택 영역) 드래그 관련 상태
-  const [selectionStartSeconds, setSelectionStartSeconds] = useState(() => initialSelectionStartSeconds ?? 0)
-  const [selectionEndSeconds, setSelectionEndSeconds] = useState(() => initialSelectionEndSeconds ?? (initialSelectionStartSeconds ?? 0) + (ttsDuration || 10))
+  // Step2에서 가져온 값을 확실히 반영하기 위해 props를 직접 사용
+  // useState의 초기값을 props로 설정하고, props 변경 시 동기화
+  const [selectionStartSeconds, setSelectionStartSeconds] = useState(initialSelectionStartSeconds ?? 0)
+  const [selectionEndSeconds, setSelectionEndSeconds] = useState(initialSelectionEndSeconds ?? ((initialSelectionStartSeconds ?? 0) + (ttsDuration || 10)))
   const [isDraggingSelection, setIsDraggingSelection] = useState(false)
   const [dragStartX, setDragStartX] = useState(0)
   const [dragStartSelectionLeft, setDragStartSelectionLeft] = useState(0)
@@ -119,67 +121,49 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   useEffect(() => {
     if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
     
-    const prevValue = prevInitialSelectionStartRef.current
     const currentValue = initialSelectionStartSeconds
     
-    // 값이 없거나 변경되지 않았으면 무시
+    // 값이 없으면 무시
     if (currentValue === undefined || currentValue === null) {
       return
     }
     
-    // 이전 값과 현재 값이 같으면 무시 (ref만 업데이트)
-    if (prevValue !== undefined && Math.abs((prevValue ?? 0) - currentValue) < 0.01) {
+    // 내부 state와 props가 다르면 동기화 (비동기로 처리)
+    if (Math.abs(selectionStartSeconds - currentValue) > 0.01) {
       prevInitialSelectionStartRef.current = currentValue
-      return
-    }
-    
-    // 내부 상태와 외부 prop이 다를 때만 동기화
-    const currentDiff = Math.abs(selectionStartSeconds - currentValue)
-    if (currentDiff > 0.01) {
-      prevInitialSelectionStartRef.current = currentValue
-      // 외부 prop 변경 시 내부 상태 동기화는 필요하므로 비동기로 처리
       const timeoutId = setTimeout(() => {
         setSelectionStartSeconds(currentValue)
       }, 0)
       return () => clearTimeout(timeoutId)
     } else {
-      // 값이 이미 동일하면 ref만 업데이트
+      // 값이 같으면 ref만 업데이트
       prevInitialSelectionStartRef.current = currentValue
     }
-  }, [initialSelectionStartSeconds, selectionStartSeconds, isDraggingSelection])
+  }, [initialSelectionStartSeconds, isDraggingSelection, selectionStartSeconds])
 
   // initialSelectionEndSeconds가 외부에서 변경될 때만 동기화 (드래그 중이 아닐 때만)
   useEffect(() => {
     if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
     
-    const prevValue = prevInitialSelectionEndRef.current
     const currentValue = initialSelectionEndSeconds
     
-    // 값이 없거나 변경되지 않았으면 무시
+    // 값이 없으면 무시
     if (currentValue === undefined || currentValue === null) {
       return
     }
     
-    // 이전 값과 현재 값이 같으면 무시 (ref만 업데이트)
-    if (prevValue !== undefined && Math.abs((prevValue ?? 0) - currentValue) < 0.01) {
+    // 내부 state와 props가 다르면 동기화 (비동기로 처리)
+    if (Math.abs(selectionEndSeconds - currentValue) > 0.01) {
       prevInitialSelectionEndRef.current = currentValue
-      return
-    }
-    
-    // 내부 상태와 외부 prop이 다를 때만 동기화
-    const currentDiff = Math.abs(selectionEndSeconds - currentValue)
-    if (currentDiff > 0.01) {
-      prevInitialSelectionEndRef.current = currentValue
-      // 외부 prop 변경 시 내부 상태 동기화는 필요하므로 비동기로 처리
       const timeoutId = setTimeout(() => {
         setSelectionEndSeconds(currentValue)
       }, 0)
       return () => clearTimeout(timeoutId)
     } else {
-      // 값이 이미 동일하면 ref만 업데이트
+      // 값이 같으면 ref만 업데이트
       prevInitialSelectionEndRef.current = currentValue
     }
-  }, [initialSelectionEndSeconds, selectionEndSeconds, isDraggingSelection])
+  }, [initialSelectionEndSeconds, isDraggingSelection, selectionEndSeconds])
 
   // TTS duration이 변경되면 격자 위치 조정
   useEffect(() => {
@@ -229,7 +213,6 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
 
     const handleLoadedMetadata = () => {
       if (video.duration && isFinite(video.duration)) {
-        console.log(`[비디오 길이] 정확한 duration: ${video.duration}초 (${video.duration.toFixed(3)}초)`)
         setVideoDuration(video.duration)
       }
     }
@@ -274,25 +257,39 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   const timeMarkers = generateTimeMarkers()
 
   // 격자(선택 영역) 위치 계산 - Step2에서 설정한 selectionStartSeconds와 selectionEndSeconds 사용
+  // 드래그 중이면 내부 state를 사용하고, 그렇지 않으면 props를 직접 사용
+  const displaySelectionStartSeconds = isDraggingSelection ? selectionStartSeconds : (initialSelectionStartSeconds ?? 0)
+  const displaySelectionEndSeconds = isDraggingSelection ? selectionEndSeconds : (initialSelectionEndSeconds ?? ((initialSelectionStartSeconds ?? 0) + (ttsDuration || 10)))
+  
   // 실제 영상의 마지막 지점 계산
-  // timeMarkers.length = timelineDuration + 1 (0부터 timelineDuration까지)
-  // 마지막 프레임 썸네일의 인덱스는 timelineDuration (예: 6초면 인덱스 6)
-  // 마지막 프레임 썸네일의 끝은 timeMarkers.length * FRAME_WIDTH
-  const actualVideoEndPx = timeMarkers.length * FRAME_WIDTH // 마지막 프레임 썸네일의 끝 (픽셀)
-  const actualVideoEndSeconds = actualVideoEndPx / FRAME_WIDTH // 마지막 프레임 썸네일의 끝 (초 단위)
+  // 우선순위:
+  // 1. videoDuration이 있으면 실제 영상 길이 사용 (가장 정확)
+  // 2. Step2에서 설정한 selectionEndSeconds가 있으면 그것 사용 (마지막 씬에서 특히 중요)
+  // 3. 그 외에는 타임라인 duration 사용
+  const actualVideoEndSeconds = videoDuration !== null && videoDuration > 0 
+    ? videoDuration  // 실제 영상 길이 사용 (예: 6.5초) - 가장 정확
+    : (initialSelectionEndSeconds && initialSelectionEndSeconds > 0 
+      ? initialSelectionEndSeconds  // Step2에서 설정한 끝지점 사용 (마지막 씬에서 videoDuration 로드 전에도 정확한 끝지점 반영)
+      : timelineDuration)  // 타임라인 duration 사용 (예: 6초)
+  
+  // 타임라인 표시용 픽셀 계산
+  // 실제 영상 길이를 픽셀로 변환 (예: 6.5초 = 6.5 * FRAME_WIDTH)
+  // 이렇게 하면 격자의 끝지점이 실제 영상의 끝에 정확히 맞춰집니다
+  const actualVideoEndPx = actualVideoEndSeconds * FRAME_WIDTH
   
   // Step2에서 설정한 selectionEndSeconds를 사용하여 격자 너비 계산
-  const selectionWidthSeconds = selectionEndSeconds - selectionStartSeconds // 실제 선택 영역 너비
+  const selectionWidthSeconds = displaySelectionEndSeconds - displaySelectionStartSeconds // 실제 선택 영역 너비
   
   // 선택 영역의 픽셀 단위 크기 (먼저 계산)
   const selectionWidthPx = selectionWidthSeconds * FRAME_WIDTH
   
   // 격자의 시작점과 끝점을 실제 영상 범위 내로 클램핑
   // Step2에서 설정한 selectionStartSeconds와 selectionEndSeconds를 사용하되, 영상 범위를 벗어나지 않도록 클램핑
+  // actualVideoEndSeconds는 실제 영상 길이를 사용하므로 정확한 끝지점 반영 가능
   const maxSelectionStartSeconds = Math.max(0, actualVideoEndSeconds - selectionWidthSeconds)
-  const finalClampedSelectionStartSeconds = Math.max(0, Math.min(selectionStartSeconds, maxSelectionStartSeconds))
-  // selectionEndSeconds를 직접 사용하되, 영상 범위를 벗어나지 않도록 클램핑
-  const finalClampedSelectionEndSeconds = Math.min(Math.max(selectionEndSeconds, finalClampedSelectionStartSeconds), actualVideoEndSeconds)
+  const finalClampedSelectionStartSeconds = Math.max(0, Math.min(displaySelectionStartSeconds, maxSelectionStartSeconds))
+  // selectionEndSeconds를 실제 영상 길이 내로 클램핑 (타임라인 마커가 아닌 실제 영상 길이 기준)
+  const finalClampedSelectionEndSeconds = Math.min(Math.max(displaySelectionEndSeconds, finalClampedSelectionStartSeconds), actualVideoEndSeconds)
   
   // 선택 영역의 픽셀 단위 위치
   const selectionLeftPx = finalClampedSelectionStartSeconds * FRAME_WIDTH
@@ -469,6 +466,11 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   useEffect(() => {
     if (!onSelectionChange) return
     
+    // 드래그 중이 아닐 때만 자동 저장 (드래그 중에는 handleMouseUp에서 저장)
+    if (isDraggingSelection) {
+      return
+    }
+    
     // initialSelectionStartSeconds와 initialSelectionEndSeconds와 비교하여 실제로 사용자가 변경한 경우에만 호출
     const initialStart = initialSelectionStartSeconds ?? 0
     const initialEnd = initialSelectionEndSeconds ?? (initialStart + (ttsDuration || 10))
@@ -480,21 +482,18 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
       Math.abs(prev.end - finalClampedSelectionEndSeconds) > 0.01
     
     // store의 초기값과 다를 때만 호출 (사용자가 실제로 변경한 경우)
-    // 또는 드래그 중일 때만 호출
     const differsFromInitial = Math.abs(finalClampedSelectionStartSeconds - initialStart) > 0.01 ||
       Math.abs(finalClampedSelectionEndSeconds - initialEnd) > 0.01
     
-    if (hasChanged && (differsFromInitial || isDraggingSelection)) {
+    if (hasChanged && differsFromInitial) {
       prevSelectionRef.current = {
         start: finalClampedSelectionStartSeconds,
         end: finalClampedSelectionEndSeconds,
       }
-      // 드래그 중이거나 초기값과 다를 때만 호출
-      if (differsFromInitial || isDraggingSelection) {
-        onSelectionChange(finalClampedSelectionStartSeconds, finalClampedSelectionEndSeconds)
-      }
+      // 초기값과 다를 때만 호출
+      onSelectionChange(finalClampedSelectionStartSeconds, finalClampedSelectionEndSeconds)
     } else if (hasChanged) {
-      // 값이 변경되었지만 초기값과 같고 드래그 중이 아니면 ref만 업데이트
+      // 값이 변경되었지만 초기값과 같으면 ref만 업데이트
       prevSelectionRef.current = {
         start: finalClampedSelectionStartSeconds,
         end: finalClampedSelectionEndSeconds,
@@ -506,9 +505,27 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   const handleSelectionMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    // 드래그 시작할 때 props 값을 내부 state로 초기화
+    const startValue = initialSelectionStartSeconds ?? 0
+    const endValue = initialSelectionEndSeconds ?? (startValue + (ttsDuration || 10))
+    setSelectionStartSeconds(startValue)
+    setSelectionEndSeconds(endValue)
     setIsDraggingSelection(true)
     setDragStartX(e.clientX)
-    setDragStartSelectionLeft(selectionLeftPx)
+    // 현재 표시되는 selection 위치를 기준으로 드래그 시작 위치 설정
+    const currentStart = initialSelectionStartSeconds ?? 0
+    const currentEnd = initialSelectionEndSeconds ?? (currentStart + (ttsDuration || 10))
+    const currentWidthSeconds = currentEnd - currentStart
+    // 실제 영상 길이 사용 (videoDuration이 있으면 정확한 길이, 없으면 타임라인 duration)
+    const actualVideoEndSeconds = videoDuration !== null && videoDuration > 0 
+      ? videoDuration 
+      : Math.floor(ttsDuration || 10)
+    const actualVideoEndPx = actualVideoEndSeconds * FRAME_WIDTH
+    const currentWidthPx = currentWidthSeconds * FRAME_WIDTH
+    const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - currentWidthPx)
+    const clampedStart = Math.max(0, Math.min(currentStart, maxSelectionLeftPx / FRAME_WIDTH))
+    const clampedStartPx = clampedStart * FRAME_WIDTH
+    setDragStartSelectionLeft(clampedStartPx)
   }
 
   const handleSelectionMouseMove = (e: React.MouseEvent) => {
@@ -518,8 +535,11 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
     const deltaX = e.clientX - dragStartX
     // 마우스를 정확히 따라가도록 1:1 비율 사용
     
-    // 마지막 프레임 썸네일의 끝까지 갈 수 있도록 제한
-    const actualVideoEndPx = timeMarkers.length * FRAME_WIDTH
+    // 실제 영상 길이 사용 (videoDuration이 있으면 정확한 길이, 없으면 타임라인 duration)
+    const actualVideoEndSeconds = videoDuration !== null && videoDuration > 0 
+      ? videoDuration 
+      : Math.floor(ttsDuration || 10)
+    const actualVideoEndPx = actualVideoEndSeconds * FRAME_WIDTH
     const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
     
     // 끝에 도달했으면 더 이상 오른쪽으로 이동하지 않도록 고정
@@ -541,6 +561,22 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   }
 
   const handleSelectionMouseUp = () => {
+    // 드래그가 끝날 때 최종 값을 저장
+    if (onSelectionChange && isDraggingSelection) {
+      // 실제 영상 길이 사용 (videoDuration이 있으면 정확한 길이, 없으면 타임라인 duration)
+      const actualVideoEndSeconds = videoDuration !== null && videoDuration > 0 
+        ? videoDuration 
+        : Math.floor(ttsDuration || 10)
+      const actualVideoEndPx = actualVideoEndSeconds * FRAME_WIDTH
+      const currentWidthSeconds = selectionEndSeconds - selectionStartSeconds
+      const currentWidthPx = currentWidthSeconds * FRAME_WIDTH
+      const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - currentWidthPx)
+      const currentStart = selectionStartSeconds
+      const clampedStart = Math.max(0, Math.min(currentStart, maxSelectionLeftPx / FRAME_WIDTH))
+      const clampedEnd = Math.min(clampedStart + currentWidthSeconds, actualVideoEndSeconds)
+      
+      onSelectionChange(clampedStart, clampedEnd)
+    }
     setIsDraggingSelection(false)
   }
 
@@ -555,11 +591,14 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
       // 마우스를 정확히 따라가도록 1:1 비율 사용
       
       // 마지막 프레임 썸네일의 끝까지 갈 수 있도록 제한
-      // timelineDuration을 계산하여 timeMarkers.length를 구함
-      const timelineDuration = Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
-      const timeMarkersCount = timelineDuration + 1 // 0부터 timelineDuration까지
-      const actualVideoEndPx = timeMarkersCount * FRAME_WIDTH
-      const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
+      // 실제 영상 길이 사용 (videoDuration이 있으면 정확한 길이, 없으면 타임라인 duration)
+      const actualVideoEndSeconds = videoDuration !== null && videoDuration > 0 
+        ? videoDuration 
+        : Math.floor(ttsDuration || 10)
+      const actualVideoEndPx = actualVideoEndSeconds * FRAME_WIDTH
+      const currentSelectionWidthSeconds = selectionEndSeconds - selectionStartSeconds
+      const currentSelectionWidthPx = currentSelectionWidthSeconds * FRAME_WIDTH
+      const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - currentSelectionWidthPx)
       
       // 끝에 도달했으면 더 이상 오른쪽으로 이동하지 않도록 고정
       const newSelectionLeftPx = Math.max(0, Math.min(
@@ -580,6 +619,22 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
     }
 
     const handleMouseUp = () => {
+      // 드래그가 끝날 때 최종 값을 저장
+      if (onSelectionChange) {
+        // 실제 영상 길이 사용 (videoDuration이 있으면 정확한 길이, 없으면 타임라인 duration)
+        const actualVideoEndSeconds = videoDuration !== null && videoDuration > 0 
+          ? videoDuration 
+          : Math.floor(ttsDuration || 10)
+        const actualVideoEndPx = actualVideoEndSeconds * FRAME_WIDTH
+        const currentWidthSeconds = selectionEndSeconds - selectionStartSeconds
+        const currentWidthPx = currentWidthSeconds * FRAME_WIDTH
+        const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - currentWidthPx)
+        const currentStart = selectionStartSeconds
+        const clampedStart = Math.max(0, Math.min(currentStart, maxSelectionLeftPx / FRAME_WIDTH))
+        const clampedEnd = Math.min(clampedStart + currentWidthSeconds, actualVideoEndSeconds)
+        
+        onSelectionChange(clampedStart, clampedEnd)
+      }
       setIsDraggingSelection(false)
     }
 
@@ -590,7 +645,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isDraggingSelection, dragStartX, dragStartSelectionLeft, timeMarkers, selectionWidthPx, videoDuration, ttsDuration, FRAME_WIDTH, selectionStartSeconds, selectionEndSeconds])
+  }, [isDraggingSelection, dragStartX, dragStartSelectionLeft, timeMarkers, videoDuration, ttsDuration, FRAME_WIDTH, selectionStartSeconds, selectionEndSeconds, onSelectionChange])
   
   // 격자에 포함되는 시간 마커 인덱스 계산
   const getIsInSelection = (idx: number) => {
@@ -864,7 +919,8 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
               }}
             >
               {/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
-              <div className="relative shrink-0" style={{ width: `${timeMarkers.length * FRAME_WIDTH + FRAME_WIDTH / 2}px`, paddingTop: `${TIMELINE_PADDING}px`, paddingBottom: `${TIMELINE_PADDING}px`, paddingLeft: `${FRAME_WIDTH / 2}px` }}>
+              {/* 실제 영상 길이만큼 표시 영역 확장 (예: 6.5초면 6.5 * FRAME_WIDTH) */}
+              <div className="relative shrink-0" style={{ width: `${actualVideoEndPx + FRAME_WIDTH / 2}px`, paddingTop: `${TIMELINE_PADDING}px`, paddingBottom: `${TIMELINE_PADDING}px`, paddingLeft: `${FRAME_WIDTH / 2}px` }}>
                 {/* 실제 영상 프레임 박스 (클리핑 영역) */}
                 <div className="relative bg-white rounded-2xl border border-gray-300 overflow-hidden" style={{ height: `${FRAME_HEIGHT}px` }}>
                   {/* 격자 패턴 - 각 FRAME_WIDTH 너비의 프레임들 */}
@@ -958,17 +1014,17 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
               {/* 시간 마커 */}
               <div 
                 className="relative flex shrink-0"
-                style={{ width: `${timeMarkers.length * FRAME_WIDTH}px` }}
+                style={{ width: `${actualVideoEndPx}px` }}
                 onDragStart={(e) => {
                   // 시간 마커 영역에서도 씬 카드 드래그 방지
                   e.stopPropagation()
                   e.preventDefault()
                 }}
               >
-                {/* 가로 라인 - 영상 프레임 전체 길이만큼 */}
+                {/* 가로 라인 - 실제 영상 길이만큼 (예: 6.5초면 6.5 * FRAME_WIDTH) */}
                 <div 
                   className="absolute top-0 left-0 h-px bg-[#a6a6a6]"
-                  style={{ width: `${timeMarkers.length * FRAME_WIDTH}px` }}
+                  style={{ width: `${actualVideoEndPx}px` }}
                 />
                 
                 {timeMarkers.map((marker, idx) => {

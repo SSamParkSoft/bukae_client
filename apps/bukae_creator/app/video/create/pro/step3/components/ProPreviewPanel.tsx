@@ -121,19 +121,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
   // Step2에서 저장된 TTS 캐시를 store에서 로드
   useEffect(() => {
-    console.log('[ProPreviewPanel] TTS 캐시 로드 시작 (storeScenes 변경 감지):', {
-      storeScenesLength: storeScenes?.length,
-      storeScenes: storeScenes?.map((s, i) => ({
-        index: i,
-        script: s.script?.substring(0, 30),
-        hasTtsAudioBase64: !!(s as SceneScript & { ttsAudioBase64?: string }).ttsAudioBase64,
-        ttsAudioBase64Length: (s as SceneScript & { ttsAudioBase64?: string }).ttsAudioBase64?.length,
-        voiceTemplate: (s as SceneScript & { voiceTemplate?: string | null }).voiceTemplate,
-      })),
-    })
-
     if (!storeScenes || storeScenes.length === 0) {
-      console.warn('[ProPreviewPanel] storeScenes가 비어있습니다.')
       return
     }
 
@@ -151,14 +139,11 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         const extended = storeScene as SceneScript & {
           ttsAudioBase64?: string
           voiceTemplate?: string | null
+          selectionStartSeconds?: number
+          selectionEndSeconds?: number
         }
 
         if (!extended.ttsAudioBase64 || !extended.script || !extended.voiceTemplate) {
-          console.warn(`[ProPreviewPanel] 씬 ${index} 스킵: 필수 데이터 없음`, {
-            hasTtsAudioBase64: !!extended.ttsAudioBase64,
-            hasScript: !!extended.script,
-            hasVoiceTemplate: !!extended.voiceTemplate,
-          })
           resolve()
           return
         }
@@ -167,22 +152,9 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         const ttsKey = `${extended.voiceTemplate}::${extended.script}`
         const existingCache = ttsCacheRef.current.get(ttsKey)
         if (existingCache && existingCache.url) {
-          console.log(`[ProPreviewPanel] 씬 ${index} 캐시 이미 존재, 스킵:`, {
-            ttsKey: ttsKey.substring(0, 80),
-            duration: existingCache.durationSec,
-          })
           resolve()
           return
         }
-
-        console.log(`[ProPreviewPanel] 씬 ${index} 캐시 로드 시작:`, {
-          hasTtsAudioBase64: !!extended.ttsAudioBase64,
-          hasScript: !!extended.script,
-          hasVoiceTemplate: !!extended.voiceTemplate,
-          script: extended.script?.substring(0, 30),
-          voiceTemplate: extended.voiceTemplate,
-          ttsKey: ttsKey.substring(0, 80),
-        })
 
         try {
           // base64 문자열을 blob으로 변환
@@ -221,12 +193,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
                 durationSec: duration,
                 url,
               })
-
-              console.log(`[ProPreviewPanel] 씬 ${index} TTS 캐시 저장 완료:`, {
-                ttsKey: ttsKey.substring(0, 80),
-                duration,
-                cacheSize: ttsCacheRef.current.size,
-              })
             } else {
               // 이미 캐시에 있으면 URL만 정리
               URL.revokeObjectURL(url)
@@ -237,7 +203,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           }
 
           const onError = () => {
-            console.warn('[ProPreviewPanel] TTS 캐시 로드 실패:', index)
             cleanup()
             resolve() // 에러가 나도 다른 씬 로딩을 계속하기 위해 resolve
           }
@@ -246,7 +211,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           audio.addEventListener('error', onError)
           audio.load()
         } catch (error) {
-          console.error('[ProPreviewPanel] TTS base64 변환 오류:', error, { index })
           resolve() // 에러가 나도 다른 씬 로딩을 계속하기 위해 resolve
         }
       })
@@ -254,12 +218,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
     // 모든 캐시 로딩이 완료될 때까지 대기
     Promise.all(loadPromises).then(() => {
-      if (!cancelled) {
-        console.log('[ProPreviewPanel] TTS 캐시 로드 완료:', {
-          cacheSize: ttsCacheRef.current.size,
-          cacheKeys: Array.from(ttsCacheRef.current.keys()).map((k) => k.substring(0, 80)),
-        })
-      }
+      // 캐시 로드 완료
     })
 
     return () => {
