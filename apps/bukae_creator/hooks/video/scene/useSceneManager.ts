@@ -314,7 +314,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         onComplete()
       }
     },
-    [timeline, appRef, containerRef, textsRef]
+    [timeline, appRef, containerRef, textsRef, stageDimensions]
   )
 
   // renderSubtitlePartRef 동기화
@@ -739,6 +739,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
       setTimeline,
       setCurrentSceneIndex,
       renderUnderline,
+      stageDimensions,
     ]
   )
 

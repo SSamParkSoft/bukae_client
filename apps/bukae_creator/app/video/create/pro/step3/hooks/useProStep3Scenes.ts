@@ -76,7 +76,7 @@ export function useProStep3Scenes() {
     if (!isValidSceneArray(proScenes)) {
       return []
     }
-    return proScenes.map((scene, index) => {
+    return proScenes.map((scene) => {
       const ttsDuration = scene.ttsDuration || 10
       
       // Step2에서 설정한 값이 있으면 그대로 사용, 없으면 기본값 사용

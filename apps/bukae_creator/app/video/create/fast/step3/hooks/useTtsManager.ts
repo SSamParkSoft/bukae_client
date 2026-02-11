@@ -20,13 +20,15 @@ interface UseTtsManagerProps {
 
 export function useTtsManager({
   timeline,
-  voiceTemplate,
+  voiceTemplate: _voiceTemplate,
   setTimeline,
   isPlaying,
   setCurrentTime,
   changedScenesRef,
   onDurationChange,
 }: UseTtsManagerProps) {
+  void _voiceTemplate
+
   // TTS 캐시 및 상태 관리
   const ttsCacheRef = useRef(
     new Map<string, { blob: Blob; durationSec: number; markup: string; url?: string | null }>()
@@ -90,16 +92,6 @@ export function useTtsManager({
     ttsInFlightRef.current.clear()
     ttsCacheRef.current.clear()
   }, [stopTtsAudio, stopScenePreviewAudio])
-
-  // voiceTemplate 변경 시 캐시 초기화 (deprecated: 더 이상 사용하지 않지만 하위 호환성을 위해 유지)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    // 전역 voiceTemplate은 더 이상 사용하지 않으므로 이 로직도 제거 가능
-    // 하지만 하위 호환성을 위해 주석 처리만 함
-    // if (voiceTemplate) {
-    //   resetTtsSession()
-    // }
-  }, [])
 
   // 씬 duration을 오디오에서 설정
   const setSceneDurationFromAudio = useCallback(

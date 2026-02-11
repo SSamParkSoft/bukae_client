@@ -26,7 +26,6 @@ interface UseTransportTtsSyncParams {
   renderAtRef: React.MutableRefObject<((tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number }) => void) | undefined>
   onSegmentStartRef: React.MutableRefObject<((segmentStartTime: number, sceneIndex: number) => void) | null>
   onSegmentEndRef: React.MutableRefObject<((segmentEndTime: number, sceneIndex: number) => void) | null>
-  transportRendererRef: React.MutableRefObject<{ renderAt: (tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number }) => void } | null>
   sceneGroupPlayStartTimeRef: React.MutableRefObject<number | null>
   sceneGroupPlayStartAudioCtxTimeRef: React.MutableRefObject<number | null>
   /** 씬/그룹 재생 종료 시간 (rAF 루프에서 범위 체크용) */
@@ -59,7 +58,6 @@ export function useTransportTtsSync({
   renderAtRef,
   onSegmentStartRef,
   onSegmentEndRef,
-  transportRendererRef,
   sceneGroupPlayStartTimeRef,
   sceneGroupPlayStartAudioCtxTimeRef,
   sceneGroupPlayEndTimeRef,

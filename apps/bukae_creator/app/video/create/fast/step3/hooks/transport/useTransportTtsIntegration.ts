@@ -5,7 +5,6 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 import { useTransport } from '@/hooks/video/transport/useTransport'
 import { useTtsTrack } from '@/hooks/video/audio/useTtsTrack'
 import { calculateTotalDuration } from '@/utils/timeline'
-import { buildSceneMarkup } from '@/lib/utils/tts'
 import type { MakeTtsKeyFunction } from '@/lib/utils/tts'
 
 interface UseTransportTtsIntegrationParams {
@@ -79,13 +78,8 @@ export function useTransportTtsIntegration({
   // totalDuration 계산 (Transport에 설정)
   const calculatedTotalDuration = useMemo(() => {
     if (!timeline) return 0
-    return calculateTotalDuration(timeline, {
-      ttsCacheRef: ttsCacheRefShared,
-      voiceTemplate,
-      buildSceneMarkup: buildSceneMarkupWithTimeline,
-      makeTtsKey,
-    })
-  }, [timeline, voiceTemplate, buildSceneMarkupWithTimeline, makeTtsKey])
+    return calculateTotalDuration(timeline)
+  }, [timeline])
 
   // Transport에 totalDuration 설정
   useEffect(() => {

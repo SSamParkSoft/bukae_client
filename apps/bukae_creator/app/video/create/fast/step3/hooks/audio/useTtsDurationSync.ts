@@ -30,7 +30,7 @@ export function useTtsDurationSync({
   onDurationChangeRef,
 }: UseTtsDurationSyncParams) {
   // TTS duration 변경 시 렌더링 즉시 업데이트를 위한 콜백
-  const handleDurationChange = useCallback((_sceneIndex: number, _durationSec: number) => {
+  const handleDurationChange = useCallback(() => {
     // TTS duration이 변경되면 ttsCacheRefShared를 먼저 동기화한 후 렌더링
     // useTtsManager의 ttsCacheRef가 업데이트되었으므로 ttsCacheRefShared에도 반영
     if (ttsCacheRef && ttsCacheRefShared) {

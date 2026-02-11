@@ -221,7 +221,7 @@ export function usePlaybackState({
                       })
                     }
                   }
-                } catch (error) {
+                } catch {
                   alert('TTS 생성에 실패했습니다. 개발자에게 문의해주세요.')
                 }
               })

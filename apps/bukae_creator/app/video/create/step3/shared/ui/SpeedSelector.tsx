@@ -17,9 +17,7 @@ interface SpeedSelectorProps {
 
 export const SpeedSelector = memo(function SpeedSelector({
   playbackSpeed,
-  totalDuration,
   onPlaybackSpeedChange,
-  onResizeTemplate,
   onImageFitChange,
   currentSceneIndex = 0,
   timeline,

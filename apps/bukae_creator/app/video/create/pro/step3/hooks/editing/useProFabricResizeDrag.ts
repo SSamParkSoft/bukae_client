@@ -215,6 +215,8 @@ export function useProFabricResizeDrag({
     scale: number
     stageDimensions: { width: number; height: number }
   }): Promise<fabric.Image | null> => {
+    void stageDimensions
+
     // imageTransform이 있으면 그것을 우선 사용 (사용자가 편집한 결과)
     // 없으면 스프라이트의 현재 위치를 사용 (초기 상태)
     const sprite = spritesRef.current.get(sceneIndex)

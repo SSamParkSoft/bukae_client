@@ -7,10 +7,8 @@ import { getSceneStartTime } from '@/utils/timeline'
 
 interface UsePlaybackHandlersParams {
   timelineRef: React.MutableRefObject<TimelineData | null>
-  voiceTemplateRef: React.MutableRefObject<string | null>
   isPlaying: boolean
   setIsPlaying: (playing: boolean, options?: { sceneIndex?: number | null; groupSceneId?: number | null; startFromSceneIndex?: number }) => void | Promise<void>
-  setCurrentTime: (time: number) => void
   setShowVoiceRequiredMessage: (show: boolean) => void
   setScenesWithoutVoice: (scenes: number[]) => void
   setRightPanelTab: (tab: string) => void
@@ -20,8 +18,6 @@ interface UsePlaybackHandlersParams {
   onFullPlayStart?: () => void
   playingSceneIndex: number | null
   playingGroupSceneId: number | null
-  /** 전체 재생 시 이 씬의 세그먼트 시작 시점부터 재생 (선택된 씬이 있을 때) */
-  currentSceneIndex: number
 }
 
 /**
@@ -30,10 +26,8 @@ interface UsePlaybackHandlersParams {
  */
 export function usePlaybackHandlers({
   timelineRef,
-  voiceTemplateRef,
   isPlaying,
   setIsPlaying,
-  setCurrentTime,
   setShowVoiceRequiredMessage,
   setScenesWithoutVoice,
   setRightPanelTab,
@@ -42,14 +36,11 @@ export function usePlaybackHandlers({
   onScenePlayStart,
   playingSceneIndex,
   playingGroupSceneId,
-  currentSceneIndex,
 }: UsePlaybackHandlersParams) {
   // 재생/일시정지 핸들러 (Transport 기반)
   const handlePlayPause = useCallback(() => {
     const currentIsPlaying = isPlaying
     const currentTimeline = timelineRef.current
-    const currentVoiceTemplate = voiceTemplateRef.current
-    
     if (currentIsPlaying) {
       // 일시정지
       setIsPlaying(false)
@@ -93,13 +84,11 @@ export function usePlaybackHandlers({
       setShowVoiceRequiredMessage(false)
       void setIsPlaying(true)
     }
-  }, [isPlaying, setIsPlaying, setRightPanelTab, setShowVoiceRequiredMessage, setScenesWithoutVoice, timelineRef, voiceTemplateRef, currentSceneIndex])
+  }, [isPlaying, setIsPlaying, setRightPanelTab, setShowVoiceRequiredMessage, setScenesWithoutVoice, timelineRef])
 
   // 그룹 재생 핸들러 (Transport 기반)
   const handleGroupPlay = useCallback(async (sceneId: number, groupIndices: number[]) => {
     const currentTimeline = timelineRef.current
-    const currentVoiceTemplate = voiceTemplateRef.current
-    
     if (!currentTimeline) return
     
     // 이미 해당 그룹이 재생 중이면 정지
@@ -132,8 +121,6 @@ export function usePlaybackHandlers({
       return
     }
     
-    const startTime = getSceneStartTime(currentTimeline, firstSceneIndex)
-    
     // 그룹의 마지막 씬의 종료 시간 계산
     const lastSceneIndex = groupIndices[groupIndices.length - 1]
     if (lastSceneIndex === undefined || lastSceneIndex < 0 || lastSceneIndex >= currentTimeline.scenes.length) {
@@ -153,13 +140,11 @@ export function usePlaybackHandlers({
     if (onGroupPlayStart) {
       onGroupPlayStart(sceneId, endTime)
     }
-  }, [setIsPlaying, setCurrentTime, setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, voiceTemplateRef, onGroupPlayStart, isPlaying, playingGroupSceneId])
+  }, [setIsPlaying, setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, onGroupPlayStart, isPlaying, playingGroupSceneId])
 
   // 씬 재생 핸들러 (Transport 기반 - 특정 씬부터 재생)
   const handleScenePlay = useCallback(async (sceneIndex: number) => {
     const currentTimeline = timelineRef.current
-    const currentVoiceTemplate = voiceTemplateRef.current
-    
     try {
       if (!currentTimeline) return
       
@@ -229,7 +214,7 @@ export function usePlaybackHandlers({
       
       // 기타 오류는 무시
     }
-  }, [setIsPlaying, setCurrentTime, router, setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, voiceTemplateRef, onScenePlayStart, isPlaying, playingSceneIndex])
+  }, [setIsPlaying, router, setRightPanelTab, setShowVoiceRequiredMessage, timelineRef, onScenePlayStart, isPlaying, playingSceneIndex])
 
   return {
     handlePlayPause,

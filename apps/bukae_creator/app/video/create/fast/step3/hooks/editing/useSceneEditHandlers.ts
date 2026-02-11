@@ -4,7 +4,6 @@ import { useCallback } from 'react'
 import type { TimelineData, TimelineScene, SceneScript } from '@/store/useVideoCreateStore'
 
 interface UseSceneEditHandlersParams {
-  timeline: TimelineData | null
   scenes: SceneScript[]
   setTimeline: (timeline: TimelineData | null) => void
   setScenes: (scenes: SceneScript[]) => void
@@ -23,7 +22,6 @@ interface UseSceneEditHandlersParams {
  * 그룹 복사, 삭제, voiceTemplate 변경, 템플릿 리사이즈 핸들러를 제공합니다.
  */
 export function useSceneEditHandlers({
-  timeline,
   scenes,
   setTimeline,
   setScenes,
@@ -157,7 +155,7 @@ export function useSceneEditHandlers({
       ...currentTimeline,
       scenes: newTimelineScenes,
     })
-  }, [timeline, scenes, setScenes, setTimeline, timelineRef])
+  }, [scenes, setScenes, setTimeline, timelineRef])
 
   // 되돌리기 핸들러
   const handleResizeTemplate = useCallback(() => {
@@ -209,7 +207,7 @@ export function useSceneEditHandlers({
       // Canvas 크기 재계산
       recalculateCanvasSize()
     }, 100)
-  }, [timeline, scenes.length, stageDimensions, setTimeline, loadAllScenes, recalculateCanvasSize, timelineRef])
+  }, [scenes.length, stageDimensions, setTimeline, loadAllScenes, recalculateCanvasSize, timelineRef])
 
   return {
     handleGroupDuplicate,

@@ -47,7 +47,6 @@ export const PreviewPanel = memo(function PreviewPanel({
   totalDuration,
   progressRatio,
   isPlaying,
-  showReadyMessage,
   isTtsBootstrapping,
   isBgmBootstrapping,
   isPreparing,
@@ -61,8 +60,6 @@ export const PreviewPanel = memo(function PreviewPanel({
   onResizeTemplate,
   onImageFitChange,
   currentSceneIndex = 0,
-  textsRef,
-  appRef,
   bgmTemplate,
 }: PreviewPanelProps) {
   const speed = timeline?.playbackSpeed ?? playbackSpeed ?? 1.0
@@ -188,4 +185,3 @@ export const PreviewPanel = memo(function PreviewPanel({
     </div>
   )
 })
-

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import * as PIXI from 'pixi.js'
 import * as fabric from 'fabric'

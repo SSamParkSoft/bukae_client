@@ -72,7 +72,6 @@ export function useStep3Container() {
     setConfirmedSoundEffect,
     // Refs (Pixi, Fabric, 편집)
     timelineRef,
-    voiceTemplateRef,
     pixiContainerRef,
     appRef,
     containerRef,
@@ -483,11 +482,6 @@ export function useStep3Container() {
     ttsTrack,
     transport,
     isPlaying,
-    renderAtRef,
-    ttsCacheRefShared,
-    voiceTemplate,
-    buildSceneMarkupWithTimeline,
-    makeTtsKey,
     currentSceneIndexRef,
   })
   // TTS 관리
@@ -722,7 +716,6 @@ export function useStep3Container() {
     renderAtRef,
     onSegmentStartRef,
     onSegmentEndRef,
-    transportRendererRef,
     sceneGroupPlayStartTimeRef,
     sceneGroupPlayStartAudioCtxTimeRef,
     sceneGroupPlayEndTimeRef,
@@ -952,7 +945,6 @@ export function useStep3Container() {
     handleSceneVoiceTemplateChange: handleSceneVoiceTemplateChangeBase,
     handleResizeTemplate: handleResizeTemplateBase,
   } = useSceneEditHandlers({
-    timeline,
     scenes,
     setTimeline,
     setScenes,
@@ -1091,17 +1083,14 @@ export function useStep3Container() {
   // 재생 핸들러 훅 (Transport 기반)
   const playbackHandlers = usePlaybackHandlers({
     timelineRef,
-    voiceTemplateRef,
     isPlaying,
     setIsPlaying,
-    setCurrentTime,
     setShowVoiceRequiredMessage,
     setScenesWithoutVoice,
     setRightPanelTab,
     router,
     playingSceneIndex,
     playingGroupSceneId,
-    currentSceneIndex,
     onGroupPlayStart: (sceneId, endTime) => {
       setPlayingGroupSceneId(sceneId)
       setPlayingSceneIndex(null)
