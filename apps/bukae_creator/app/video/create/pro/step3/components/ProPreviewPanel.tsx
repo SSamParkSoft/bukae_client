@@ -956,6 +956,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   }, [timeline, currentSceneIndex])
 
   const { syncFromScene: syncFabricScene, fabricCanvasRef: proFabricCanvasRef } = useProFabricResizeDrag({
+    videoElementsRef,
     enabled: pixiReady && !isPlaying,
     playbackContainerRef,
     canvasDisplaySize,
@@ -968,6 +969,30 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     spritesRef,
     textsRef,
   })
+
+  // Fabric.js 편집 모드일 때 PixiJS 캔버스 숨기기 (Fast track과 동일한 방식)
+  useEffect(() => {
+    if (!pixiReady || !appRef.current) {
+      return
+    }
+
+    const appCanvas = getAppCanvas(appRef.current)
+    if (!appCanvas) {
+      return
+    }
+
+    const fabricEditingEnabled = proFabricCanvasRef?.current !== null
+    
+    if (fabricEditingEnabled && !isPlaying) {
+      // Fabric.js 편집 모드일 때 PixiJS 캔버스 숨김
+      appCanvas.style.opacity = '0'
+      appCanvas.style.pointerEvents = 'none'
+    } else {
+      // 재생 중이거나 Fabric.js 편집 모드가 아닐 때 PixiJS 캔버스 표시
+      appCanvas.style.opacity = '1'
+      appCanvas.style.pointerEvents = 'auto'
+    }
+  }, [pixiReady, isPlaying, proFabricCanvasRef, appRef])
 
   // 스프라이트 클릭 이벤트 설정 헬퍼 함수 (useProFabricResizeDrag 호출 후 정의)
   const setupSpriteClickEvent = useCallback((sceneIndex: number, sprite: PIXI.Sprite) => {
@@ -1268,9 +1293,19 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         return
       }
 
+      // Fabric.js 편집 모드일 때는 PixiJS 스프라이트를 숨김 (Fabric.js 이미지 객체만 표시)
+      const fabricEditingEnabled = proFabricCanvasRef?.current !== null
+      
       spritesRef.current.forEach((sprite, index) => {
         if (index !== currentSceneIndex) {
           hideSprite(sprite)
+        } else if (fabricEditingEnabled) {
+          // Fabric.js 편집 모드일 때는 현재 씬 스프라이트도 숨김
+          hideSprite(sprite)
+        } else {
+          // Fabric.js 편집 모드가 아닐 때는 스프라이트 표시
+          sprite.visible = true
+          sprite.alpha = 1
         }
       })
 

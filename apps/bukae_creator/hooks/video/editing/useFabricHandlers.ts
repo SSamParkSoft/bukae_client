@@ -92,12 +92,28 @@ export function useFabricHandlers({
       let scaledWidth: number
       let scaledHeight: number
       try {
-        scaledWidth = target.getScaledWidth?.() ?? (target.width || 0)
-        scaledHeight = target.getScaledHeight?.() ?? (target.height || 0)
+        // getScaledWidth/getScaledHeight가 있으면 사용, 없으면 width/height * scaleX/scaleY 계산
+        if (typeof target.getScaledWidth === 'function' && typeof target.getScaledHeight === 'function') {
+          scaledWidth = target.getScaledWidth()
+          scaledHeight = target.getScaledHeight()
+        } else {
+          // fabric.Rect 같은 경우 직접 계산
+          const width = target.width || 0
+          const height = target.height || 0
+          const scaleX = target.scaleX || 1
+          const scaleY = target.scaleY || 1
+          scaledWidth = width * scaleX
+          scaledHeight = height * scaleY
+        }
       } catch (error) {
-        console.warn('[useFabricHandlers] getScaledWidth/getScaledHeight 에러:', error)
-        scaledWidth = target.width || 0
-        scaledHeight = target.height || 0
+        console.warn('[useFabricHandlers] 크기 계산 에러:', error)
+        // 폴백: width/height * scaleX/scaleY
+        const width = target.width || 0
+        const height = target.height || 0
+        const scaleX = target.scaleX || 1
+        const scaleY = target.scaleY || 1
+        scaledWidth = width * scaleX
+        scaledHeight = height * scaleY
       }
       const centerX = target.left ?? 0
       const centerY = target.top ?? 0
@@ -356,8 +372,56 @@ export function useFabricHandlers({
     [currentSceneIndexRef, isSavingTransformRef, savedSceneIndexRef, isManualSceneSelectRef, saveTextTransform, clearFlags]
   )
 
-  // 불필요한 복잡한 리사이즈 핸들러들 제거
-  // centeredScaling: true 옵션으로 충분히 처리됨
+  /**
+   * 드래그/리사이즈 중 실시간 업데이트 핸들러
+   */
+  const handleMoving = useCallback(
+    (e: fabric.ModifiedEvent<fabric.TPointerEvent>) => {
+      const target = e?.target as fabric.Object & { dataType?: 'image' | 'text' }
+      if (!target || (target as fabric.Object & { destroyed?: boolean }).destroyed) {
+        return
+      }
+
+      if (target.dataType === 'image') {
+        saveImageTransform(target, currentSceneIndexRef.current)
+      }
+    },
+    [currentSceneIndexRef, saveImageTransform]
+  )
+
+  const handleScaling = useCallback(
+    (e: fabric.ModifiedEvent<fabric.TPointerEvent>) => {
+      const target = e?.target as fabric.Object & { dataType?: 'image' | 'text' }
+      if (!target || (target as fabric.Object & { destroyed?: boolean }).destroyed) {
+        return
+      }
+
+      if (target.dataType === 'image') {
+        saveImageTransform(target, currentSceneIndexRef.current)
+      } else if (target.dataType === 'text') {
+        const textbox = target as fabric.Textbox
+        saveTextTransform(textbox, currentSceneIndexRef.current, false)
+      }
+    },
+    [currentSceneIndexRef, saveImageTransform, saveTextTransform]
+  )
+
+  const handleRotating = useCallback(
+    (e: fabric.ModifiedEvent<fabric.TPointerEvent>) => {
+      const target = e?.target as fabric.Object & { dataType?: 'image' | 'text' }
+      if (!target || (target as fabric.Object & { destroyed?: boolean }).destroyed) {
+        return
+      }
+
+      if (target.dataType === 'image') {
+        saveImageTransform(target, currentSceneIndexRef.current)
+      } else if (target.dataType === 'text') {
+        const textbox = target as fabric.Textbox
+        saveTextTransform(textbox, currentSceneIndexRef.current, false)
+      }
+    },
+    [currentSceneIndexRef, saveImageTransform, saveTextTransform]
+  )
 
   // Fabric.js 이벤트 리스너 등록
   useEffect(() => {
@@ -374,14 +438,29 @@ export function useFabricHandlers({
     const fabricCanvas = fabricCanvasRef.current
     
     // 이벤트 핸들러 등록
+    // 드래그/리사이즈 중 실시간 업데이트
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('object:moving', handleMoving as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('object:scaling', handleScaling as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('object:rotating', handleRotating as any)
+    // 드래그/리사이즈 완료 후 최종 저장
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fabricCanvas.on('object:modified', handleModified as any)
+    // 텍스트 관련 이벤트
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fabricCanvas.on('text:changed', handleTextChanged as any)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fabricCanvas.on('text:editing:exited', handleTextEditingExited as any)
 
     return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('object:moving', handleMoving as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('object:scaling', handleScaling as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('object:rotating', handleRotating as any)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       fabricCanvas.off('object:modified', handleModified as any)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -394,6 +473,9 @@ export function useFabricHandlers({
     fabricReady,
     timeline,
     fabricCanvasRef,
+    handleMoving,
+    handleScaling,
+    handleRotating,
     handleModified,
     handleTextChanged,
     handleTextEditingExited,

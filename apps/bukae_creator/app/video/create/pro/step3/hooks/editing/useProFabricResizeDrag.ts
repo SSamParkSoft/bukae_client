@@ -23,6 +23,7 @@ interface UseProFabricResizeDragParams {
   fallbackScript: string
   spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
+  videoElementsRef: React.MutableRefObject<Map<number, HTMLVideoElement>>
 }
 
 interface FabricDataObject {
@@ -41,6 +42,7 @@ export function useProFabricResizeDrag({
   fallbackScript,
   spritesRef,
   textsRef,
+  videoElementsRef,
 }: UseProFabricResizeDragParams) {
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
   const fabricCanvasElRef = useRef<HTMLCanvasElement | null>(null)
@@ -202,15 +204,19 @@ export function useProFabricResizeDrag({
     }
   }, [currentSceneIndex, timeline, spritesRef, textsRef])
 
-  const resolveSceneImageObject = useCallback(({
+  const resolveSceneImageObject = useCallback(async ({
     scene,
     sceneIndex,
     scale,
+    stageDimensions,
   }: {
     scene: TimelineData['scenes'][number]
     sceneIndex: number
     scale: number
-  }) => {
+    stageDimensions: { width: number; height: number }
+  }): Promise<fabric.Image | null> => {
+    // imageTransform이 있으면 그것을 우선 사용 (사용자가 편집한 결과)
+    // 없으면 스프라이트의 현재 위치를 사용 (초기 상태)
     const sprite = spritesRef.current.get(sceneIndex)
     const imageTransform = scene.imageTransform ?? (
       sprite && !sprite.destroyed
@@ -228,23 +234,52 @@ export function useProFabricResizeDrag({
       return null
     }
 
-    const imageHandleObj = new fabric.Rect({
+    // 비디오 요소에서 프레임 캡처
+    const video = videoElementsRef.current.get(sceneIndex)
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      return null
+    }
+
+    // 비디오 프레임을 캔버스에 그려서 이미지로 변환
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      return null
+    }
+
+    // 비디오 프레임을 캔버스에 그리기
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9)
+
+    // fabric.Image 생성
+    const fabricImage = await fabric.Image.fromURL(imageDataUrl, {
+      crossOrigin: 'anonymous',
+    })
+
+    // imageTransform을 기준으로 위치와 크기 설정
+    fabricImage.set({
       originX: 'center',
       originY: 'center',
       left: imageTransform.x * scale,
       top: imageTransform.y * scale,
-      width: Math.max(1, imageTransform.width * scale),
-      height: Math.max(1, imageTransform.height * scale),
+      scaleX: (imageTransform.width * scale) / fabricImage.width!,
+      scaleY: (imageTransform.height * scale) / fabricImage.height!,
       angle: (imageTransform.rotation * 180) / Math.PI,
-      fill: 'rgba(0,0,0,0.001)',
+      selectable: true,
+      evented: true,
       hasBorders: true,
       hasControls: true,
       hoverCursor: 'move',
+      centeredScaling: true,
+      centeredRotation: true,
+      lockScalingFlip: true,
     })
 
-    ;(imageHandleObj as fabric.Rect & FabricDataObject).dataType = 'image'
-    return imageHandleObj
-  }, [spritesRef])
+    ;(fabricImage as fabric.Image & FabricDataObject).dataType = 'image'
+    return fabricImage
+  }, [spritesRef, videoElementsRef])
 
   const resolveSceneTextContent = useCallback(() => {
     return fallbackScriptRef.current
@@ -281,14 +316,21 @@ export function useProFabricResizeDrag({
       objects.forEach((obj) => {
         if (obj.dataType === 'image') {
           obj.set({
+            selectable: true,
+            evented: true,
             hasBorders: true,
             hasControls: true,
             hoverCursor: 'move',
+            centeredScaling: true,
+            centeredRotation: true,
+            lockScalingFlip: true,
             ...FABRIC_HANDLE_STYLE,
           })
         }
         if (obj.dataType === 'text') {
           obj.set({
+            selectable: true,
+            evented: true,
             hasBorders: true,
             hasControls: true,
             hoverCursor: 'move',
