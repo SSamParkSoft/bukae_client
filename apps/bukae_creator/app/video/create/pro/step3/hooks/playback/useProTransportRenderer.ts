@@ -7,7 +7,7 @@ import { useTransportState } from '@/hooks/video/renderer/transport/useTransport
 import { useRenderLoop } from '@/hooks/video/renderer/playback/useRenderLoop'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { ProStep3Scene } from '@/app/video/create/pro/step3/model/types'
-import { resolveProSceneAtTime } from '../../utils/proPlaybackUtils'
+import { clampVideoTimeToSelection, resolveProSceneAtTime } from '../../utils/proPlaybackUtils'
 
 interface UseProTransportRendererParams {
   timeline: TimelineData | null
@@ -121,7 +121,8 @@ export function useProTransportRenderer({
         return
       }
 
-      const videoTime = (targetScene.selectionStartSeconds ?? 0) + resolved.sceneTimeInSegment
+      const segmentVideoTime = (targetScene.selectionStartSeconds ?? 0) + resolved.sceneTimeInSegment
+      const videoTime = clampVideoTimeToSelection(targetScene, segmentVideoTime)
       const sceneChanged = lastRenderedSceneIndexRef.current !== targetSceneIndex
 
       const applyVisualState = () => {

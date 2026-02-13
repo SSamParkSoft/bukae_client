@@ -192,11 +192,11 @@ export function useFabricHandlers({
       }
 
       const textContent = target.text ?? ''
-      const baseFontSize = target.fontSize ?? DEFAULT_FONT_SIZE
-      const textScaleY = target.scaleY ?? 1
-      const actualFontSize = baseFontSize * textScaleY * invScale
       const fill = target.fill ?? DEFAULT_TEXT_COLOR
       const align = target.textAlign ?? DEFAULT_TEXT_ALIGN
+
+      // 폰트사이즈는 변경하지 않고 기존 값을 유지 (패스트트랙처럼 width만 변경)
+      const existingFontSize = timeline.scenes[sceneIndex]?.text?.fontSize ?? DEFAULT_FONT_SIZE
 
       const nextTimeline: TimelineData = {
         ...timeline,
@@ -207,13 +207,13 @@ export function useFabricHandlers({
                 text: {
                   ...scene.text,
                   ...(updateContent && { content: textContent }),
-                  fontSize: actualFontSize,
+                  fontSize: existingFontSize, // 폰트사이즈는 변경하지 않음
                   color: typeof fill === 'string' ? fill : DEFAULT_TEXT_COLOR,
                   style: {
                     ...scene.text.style,
                     align: align as 'left' | 'center' | 'right' | 'justify',
                   },
-                  transform: nextTransform,
+                  transform: nextTransform, // width만 변경됨
                 },
               }
             : scene
@@ -222,14 +222,48 @@ export function useFabricHandlers({
 
       setTimeline(nextTimeline)
 
-      // 리사이즈 후 scale을 1로 리셋하고 fontSize를 실제 크기로 설정
+      // 리사이즈 후 스케일을 width로 변환하고 scale을 1로 리셋 (패스트트랙처럼 width만 변경)
+      // Fabric.js Textbox의 width를 변경하면 자동으로 줄바꿈이 일어남
       if (fabricCanvasRef.current && target && !(target as fabric.Object & { destroyed?: boolean }).destroyed) {
         try {
-          target.set({
-            fontSize: baseFontSize * textScaleY,
-            scaleX: 1,
-            scaleY: 1,
-          })
+          // 스케일된 width를 실제 width로 변환
+          const newWidth = scaledWidth
+          const newHeight = scaledHeight
+          
+          // Group인 경우 내부 Textbox 객체들의 width를 업데이트해야 함
+          if (target instanceof fabric.Group) {
+            const group = target as fabric.Group
+            // Group 내부의 모든 Textbox 객체에 width 업데이트
+            group._objects.forEach((obj) => {
+              if (obj instanceof fabric.Textbox) {
+                const currentText = obj.text
+                obj.set({
+                  width: newWidth,
+                  height: newHeight,
+                })
+                // width 변경 후 텍스트를 다시 설정하여 줄바꿈이 적용되도록 함
+                obj.text = currentText || ''
+              }
+            })
+            // Group 자체의 스케일은 1로 리셋
+            group.set({
+              scaleX: 1,
+              scaleY: 1,
+            })
+          } else {
+            // Group이 아닌 경우 직접 Textbox이므로 width 업데이트
+            const currentText = (target as fabric.Textbox).text
+            target.set({
+              width: newWidth,
+              height: newHeight,
+              scaleX: 1,
+              scaleY: 1,
+            })
+            // width 변경 후 텍스트를 다시 설정하여 줄바꿈이 적용되도록 함
+            if (target instanceof fabric.Textbox) {
+              target.text = currentText || ''
+            }
+          }
           fabricCanvasRef.current.requestRenderAll()
         } catch (error) {
           console.warn('[useFabricHandlers] target.set 에러:', error)
@@ -280,17 +314,49 @@ export function useFabricHandlers({
       try {
         if (target.dataType === 'image') {
           saveImageTransform(target, savedIndex)
-        } else if (target.dataType === 'text') {
-          const textbox = target as fabric.Textbox
-          saveTextTransform(textbox, savedIndex, true)
+      } else if (target.dataType === 'text') {
+        const textbox = target as fabric.Textbox
+        
+        // 텍스트의 경우: 스케일을 리셋하고 width만 유지
+        if (target instanceof fabric.Group) {
+          const group = target as fabric.Group
+          // Group의 스케일을 1로 리셋
+          group.set({
+            scaleX: 1,
+            scaleY: 1,
+          })
+          // 내부 Textbox 객체들의 스케일도 리셋
+          group._objects.forEach((obj) => {
+            if (obj instanceof fabric.Textbox) {
+              obj.set({
+                scaleX: 1,
+                scaleY: 1,
+              })
+            }
+          })
+          if (fabricCanvasRef.current) {
+            fabricCanvasRef.current.requestRenderAll()
+          }
+        } else {
+          // Group이 아닌 경우: 직접 Textbox이므로 스케일 리셋
+          target.set({
+            scaleX: 1,
+            scaleY: 1,
+          })
+          if (fabricCanvasRef.current) {
+            fabricCanvasRef.current.requestRenderAll()
+          }
         }
+        
+        saveTextTransform(textbox, savedIndex, true)
+      }
       } catch (error) {
         console.error('[useFabricHandlers] handleModified 에러:', error)
       }
 
       clearFlags()
     },
-    [currentSceneIndexRef, isSavingTransformRef, savedSceneIndexRef, isManualSceneSelectRef, saveImageTransform, saveTextTransform, clearFlags]
+    [currentSceneIndexRef, isSavingTransformRef, savedSceneIndexRef, isManualSceneSelectRef, saveImageTransform, saveTextTransform, clearFlags, fabricCanvasRef]
   )
 
   /**
@@ -396,14 +462,227 @@ export function useFabricHandlers({
         return
       }
 
-      if (target.dataType === 'image') {
-        saveImageTransform(target, currentSceneIndexRef.current)
-      } else if (target.dataType === 'text') {
-        const textbox = target as fabric.Textbox
-        saveTextTransform(textbox, currentSceneIndexRef.current, false)
+      // Pro 트랙: 코너 핸들러는 드래그 가능하지만 스케일 변경은 무시됨
+      // 텍스트의 경우: width만 변경 (폰트사이즈는 변경하지 않음, 패스트트랙처럼)
+      if (target.dataType === 'text') {
+        if (!timeline || !fabricCanvasRef.current) {
+          return
+        }
+        
+        // 패스트트랙처럼: 리사이즈 중에 스케일을 완전히 막고 width만 변경
+        // Fabric.js의 object:scaling 이벤트에서 스케일을 즉시 리셋하고 width만 업데이트
+        // 동기적으로 처리하여 시각적 스케일링이 보이지 않도록 함
+        
+        if (target instanceof fabric.Group) {
+          // Group인 경우: 내부 Textbox 객체들의 width를 업데이트
+          const group = target as fabric.Group
+          
+          // 현재 스케일된 크기 계산 (스케일이 적용되기 전에 계산)
+          let scaledWidth: number
+          let scaledHeight: number
+          try {
+            // 스케일이 적용된 현재 크기 계산
+            const currentScaleX = group.scaleX ?? 1
+            const currentScaleY = group.scaleY ?? 1
+            const baseWidth = group.width ?? 0
+            const baseHeight = group.height ?? 0
+            scaledWidth = baseWidth * currentScaleX
+            scaledHeight = baseHeight * currentScaleY
+          } catch (error) {
+            console.warn('[useFabricHandlers] Group 크기 계산 에러:', error)
+            scaledWidth = group.width || 0
+            scaledHeight = group.height || 0
+          }
+          
+          // 패스트트랙처럼: 스케일을 즉시 1로 고정하고 width만 변경
+          // 동기적으로 처리하여 시각적 스케일링이 보이지 않도록 함
+          // 내부 Textbox 객체들의 width 업데이트 및 스케일 리셋 (먼저 처리)
+          group._objects.forEach((obj) => {
+            if (obj instanceof fabric.Textbox) {
+              const currentText = obj.text
+              // 스케일을 즉시 1로 고정하고 width만 업데이트 (폰트 사이즈는 변경하지 않음)
+              obj.set({
+                scaleX: 1,
+                scaleY: 1,
+                width: scaledWidth,
+                height: scaledHeight,
+              })
+              // width 변경 후 텍스트를 다시 설정하여 줄바꿈이 적용되도록 함
+              obj.text = currentText || ''
+              obj.setCoords()
+            }
+          })
+          
+          // Group 자체의 스케일 리셋 및 width 업데이트
+          group.set({
+            scaleX: 1,
+            scaleY: 1,
+            width: scaledWidth,
+            height: scaledHeight,
+          })
+          group.setCoords()
+          
+          // 즉시 렌더링하여 스케일이 적용된 상태가 보이지 않도록 함
+          fabricCanvasRef.current.requestRenderAll()
+          
+          // 리사이즈가 계속 진행 중이면 매 프레임마다 스케일 체크 및 리셋
+          const checkAndResetScale = () => {
+            if (group && !(group as fabric.Object & { destroyed?: boolean }).destroyed && fabricCanvasRef.current) {
+              const activeObject = fabricCanvasRef.current.getActiveObject()
+              if (activeObject !== group) {
+                return // 리사이즈가 끝났으면 체크 중단
+              }
+              
+              let needsReset = false
+              
+              // Group 스케일 체크
+              if (group.scaleX !== 1 || group.scaleY !== 1) {
+                const currentScaleX = group.scaleX ?? 1
+                const currentScaleY = group.scaleY ?? 1
+                const baseWidth = group.width ?? 0
+                const baseHeight = group.height ?? 0
+                const newWidth = baseWidth * currentScaleX
+                const newHeight = baseHeight * currentScaleY
+                
+                group._objects.forEach((obj) => {
+                  if (obj instanceof fabric.Textbox) {
+                    const currentText = obj.text
+                    obj.set({
+                      scaleX: 1,
+                      scaleY: 1,
+                      width: newWidth,
+                      height: newHeight,
+                    })
+                    obj.text = currentText || ''
+                    obj.setCoords()
+                  }
+                })
+                
+                group.set({
+                  scaleX: 1,
+                  scaleY: 1,
+                  width: newWidth,
+                  height: newHeight,
+                })
+                group.setCoords()
+                needsReset = true
+              }
+              
+              // 내부 Textbox 스케일 체크
+              group._objects.forEach((obj) => {
+                if (obj instanceof fabric.Textbox && !(obj as fabric.Object & { destroyed?: boolean }).destroyed) {
+                  if (obj.scaleX !== 1 || obj.scaleY !== 1) {
+                    const currentScaleX = obj.scaleX ?? 1
+                    const currentScaleY = obj.scaleY ?? 1
+                    const baseWidth = obj.width ?? 0
+                    const baseHeight = obj.height ?? 0
+                    const currentText = obj.text
+                    
+                    obj.set({
+                      scaleX: 1,
+                      scaleY: 1,
+                      width: baseWidth * currentScaleX,
+                      height: baseHeight * currentScaleY,
+                    })
+                    obj.text = currentText || ''
+                    obj.setCoords()
+                    needsReset = true
+                  }
+                }
+              })
+              
+              if (needsReset) {
+                fabricCanvasRef.current.requestRenderAll()
+              }
+              
+              // 다음 프레임에서도 계속 체크
+              requestAnimationFrame(checkAndResetScale)
+            }
+          }
+          
+          // 다음 프레임부터 계속 체크
+          requestAnimationFrame(checkAndResetScale)
+        } else {
+          // Group이 아닌 경우: 일반 Textbox 처리
+          const textbox = target as fabric.Textbox
+          
+          // 스케일이 적용된 현재 크기 계산
+          const currentScaleX = textbox.scaleX ?? 1
+          const currentScaleY = textbox.scaleY ?? 1
+          const baseWidth = textbox.width ?? 0
+          const baseHeight = textbox.height ?? 0
+          const scaledWidth = baseWidth * currentScaleX
+          const scaledHeight = baseHeight * currentScaleY
+          const currentText = textbox.text
+          
+          // 패스트트랙처럼: 스케일을 즉시 1로 고정하고 width만 변경
+          // 동기적으로 처리하여 시각적 스케일링이 보이지 않도록 함
+          textbox.set({
+            scaleX: 1,
+            scaleY: 1,
+            width: scaledWidth,
+            height: scaledHeight,
+          })
+          // width 변경 후 텍스트를 다시 설정하여 줄바꿈이 적용되도록 함 (폰트 사이즈는 변경하지 않음)
+          textbox.text = currentText || ''
+          textbox.setCoords()
+          
+          // 즉시 렌더링하여 스케일이 적용된 상태가 보이지 않도록 함
+          fabricCanvasRef.current.requestRenderAll()
+          
+          // 리사이즈가 계속 진행 중이면 매 프레임마다 스케일 체크 및 리셋
+          const checkAndResetScale = () => {
+            if (textbox && !(textbox as fabric.Object & { destroyed?: boolean }).destroyed && fabricCanvasRef.current) {
+              const activeObject = fabricCanvasRef.current.getActiveObject()
+              if (activeObject !== textbox) {
+                return // 리사이즈가 끝났으면 체크 중단
+              }
+              
+              if (textbox.scaleX !== 1 || textbox.scaleY !== 1) {
+                const currentScaleX = textbox.scaleX ?? 1
+                const currentScaleY = textbox.scaleY ?? 1
+                const baseWidth = textbox.width ?? 0
+                const baseHeight = textbox.height ?? 0
+                const currentText = textbox.text
+                
+                textbox.set({
+                  scaleX: 1,
+                  scaleY: 1,
+                  width: baseWidth * currentScaleX,
+                  height: baseHeight * currentScaleY,
+                })
+                textbox.text = currentText || ''
+                textbox.setCoords()
+                fabricCanvasRef.current.requestRenderAll()
+              }
+              
+              // 다음 프레임에서도 계속 체크
+              requestAnimationFrame(checkAndResetScale)
+            }
+          }
+          
+          // 다음 프레임부터 계속 체크
+          requestAnimationFrame(checkAndResetScale)
+        }
+      } else if (target.dataType === 'image') {
+        // 이미지의 경우: 스케일을 원래대로 되돌림 (width/height만 유지)
+        const currentScaleX = target.scaleX ?? 1
+        const currentScaleY = target.scaleY ?? 1
+        
+        if (currentScaleX !== 1 || currentScaleY !== 1) {
+          target.set({
+            scaleX: 1,
+            scaleY: 1,
+          })
+          if (fabricCanvasRef.current) {
+            fabricCanvasRef.current.requestRenderAll()
+          }
+        }
+        
+        // 타임라인 업데이트는 하지 않음 (object:modified에서만 수행)
       }
     },
-    [currentSceneIndexRef, saveImageTransform, saveTextTransform]
+    [currentSceneIndexRef, saveImageTransform, saveTextTransform, fabricCanvasRef, timeline, setTimeline, fabricScaleRatioRef]
   )
 
   const handleRotating = useCallback(
@@ -431,7 +710,8 @@ export function useFabricHandlers({
     }
     
     // 조건이 만족되지 않으면 리턴 (조건이 만족되면 자동으로 다시 실행됨)
-    if (!fabricReady || !fabricCanvasRef.current || !timeline) {
+    // fabricReady 대신 fabricCanvasRef.current를 직접 확인 (더 정확함)
+    if (!fabricCanvasRef.current || !timeline) {
       return
     }
 

@@ -6,6 +6,7 @@ import { getPlayableSceneStartTime } from '../../utils/proPlaybackUtils'
 
 interface TransportHookLike {
   currentTime: number
+  getTime: () => number
   setTotalDuration: (duration: number) => void
   setRate: (rate: number) => void
   play: () => void
@@ -21,7 +22,6 @@ interface TransportStateLike {
 interface UseProTransportPlaybackParams {
   transportHook: TransportHookLike
   transportState: TransportStateLike
-  isPlaying: boolean
   playbackSpeed: number
   totalDurationValue: number
   currentSceneIndex: number
@@ -30,7 +30,8 @@ interface UseProTransportPlaybackParams {
   renderAtRef: React.MutableRefObject<
     ((tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number }) => void) | undefined
   >
-  onPlayPause: () => void
+  onBeforePlay?: () => boolean
+  onPlayingChange?: (isPlaying: boolean) => void
   setCurrentTime: React.Dispatch<React.SetStateAction<number>>
   setTotalDuration: React.Dispatch<React.SetStateAction<number>>
 }
@@ -38,14 +39,14 @@ interface UseProTransportPlaybackParams {
 export function useProTransportPlayback({
   transportHook,
   transportState,
-  isPlaying,
   playbackSpeed,
   totalDurationValue,
   currentSceneIndex,
   scenes,
   pixiReady,
   renderAtRef,
-  onPlayPause,
+  onBeforePlay,
+  onPlayingChange,
   setCurrentTime,
   setTotalDuration,
 }: UseProTransportPlaybackParams) {
@@ -60,18 +61,10 @@ export function useProTransportPlayback({
   }, [transportHook, playbackSpeed])
 
   useEffect(() => {
-    if (isPlaying && !transportState.isPlaying) {
-      transportHook.play()
-    } else if (!isPlaying && transportState.isPlaying) {
-      transportHook.pause()
-    }
-  }, [transportHook, isPlaying, transportState.isPlaying])
-
-  useEffect(() => {
     if (!transportState.isPlaying) return
 
     const updateCurrentTime = () => {
-      setCurrentTime(transportHook.currentTime)
+      setCurrentTime(transportHook.getTime())
     }
 
     let rafId: number | null = null
@@ -95,7 +88,7 @@ export function useProTransportPlayback({
   }, [setTotalDuration, transportState.totalDuration])
 
   useEffect(() => {
-    if (isPlaying || currentSceneIndex < 0 || !pixiReady) {
+    if (transportState.isPlaying || currentSceneIndex < 0 || !pixiReady) {
       return
     }
 
@@ -108,19 +101,25 @@ export function useProTransportPlayback({
     if (renderAtRef.current) {
       renderAtRef.current(sceneStartTime, { forceSceneIndex: currentSceneIndex })
     }
-  }, [transportHook, currentSceneIndex, scenes, isPlaying, pixiReady, renderAtRef])
+  }, [transportHook, currentSceneIndex, scenes, transportState.isPlaying, pixiReady, renderAtRef])
+
+  useEffect(() => {
+    onPlayingChange?.(transportState.isPlaying)
+  }, [onPlayingChange, transportState.isPlaying])
 
   const handlePlayPause = useCallback(() => {
     if (transportState.isPlaying) {
       transportHook.pause()
     } else {
+      if (onBeforePlay && !onBeforePlay()) {
+        return
+      }
       if (renderAtRef.current) {
-        renderAtRef.current(transportHook.currentTime, { skipAnimation: false })
+        renderAtRef.current(transportHook.getTime(), { skipAnimation: false })
       }
       transportHook.play()
     }
-    onPlayPause()
-  }, [onPlayPause, renderAtRef, transportHook, transportState.isPlaying])
+  }, [onBeforePlay, renderAtRef, transportHook, transportState.isPlaying])
 
   return {
     handlePlayPause,

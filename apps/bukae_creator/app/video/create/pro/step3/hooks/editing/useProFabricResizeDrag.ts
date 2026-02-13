@@ -6,10 +6,60 @@ import * as fabric from 'fabric'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 import { useFabricHandlers } from '@/hooks/video/editing/useFabricHandlers'
 import { useFabricSync } from '@/hooks/video/scene/management/useFabricSync'
-import { applyFabricObjectDefaults, FABRIC_HANDLE_STYLE } from '@/hooks/video/pixi/fabricObjectDefaults'
+import { applyFabricObjectDefaults } from '@/hooks/video/pixi/fabricObjectDefaults'
 import { calculateAspectFittedSize } from '../../utils/proPreviewLayout'
 
 const FABRIC_SYNC_DEBOUNCE_MS = 80
+// Fast 트랙 usePixiEditor와 동일: 브랜드 teal #5e8790, 흰색 테두리
+const FAST_HANDLER_BORDER_COLOR = '#5e8790'
+// Fast와 동일한 논리 크기 (Pixi 월드). Pro는 캔버스가 디스플레이 크기라 scaleRatio로 보정해 화면에서 동일하게 보이게 함.
+const FAST_IMAGE_HANDLE_SIZE = 20
+const FAST_TEXT_HANDLE_SIZE = 16
+const MIN_HANDLE_SIZE = 6
+
+function getFastImageHandleStyle(scaleRatio: number) {
+  const cornerSize = Math.max(MIN_HANDLE_SIZE, Math.round(FAST_IMAGE_HANDLE_SIZE * scaleRatio))
+  return {
+    transparentCorners: false,
+    cornerColor: '#5e8790',
+    cornerStrokeColor: '#ffffff',
+    cornerSize,
+    cornerStyle: 'rect' as const,
+    borderColor: FAST_HANDLER_BORDER_COLOR,
+    borderScaleFactor: 2,
+    padding: 0,
+  }
+}
+
+function getFastTextHandleStyle(scaleRatio: number) {
+  const cornerSize = Math.max(MIN_HANDLE_SIZE, Math.round(FAST_TEXT_HANDLE_SIZE * scaleRatio))
+  return {
+    transparentCorners: false,
+    cornerColor: '#5e8790',
+    cornerStrokeColor: '#ffffff',
+    cornerSize,
+    cornerStyle: 'rect' as const,
+    borderColor: FAST_HANDLER_BORDER_COLOR,
+    borderScaleFactor: 2,
+    padding: 0,
+  }
+}
+const FAST_LOCKED_TRANSFORM_STYLE = {
+  // lockScalingX/Y를 false로 설정하여 코너 핸들러 드래그 가능하게 함
+  // 하지만 실제 스케일 변경은 이벤트 핸들러에서 무시됨
+  lockScalingX: false,
+  lockScalingY: false,
+  lockRotation: true,
+  lockScalingFlip: true,
+}
+
+// 텍스트 전용: 스케일은 허용하되 이벤트 핸들러에서 즉시 리셋
+const TEXT_LOCKED_SCALE_STYLE = {
+  lockScalingX: false,  // 리사이즈 핸들이 작동하도록 허용
+  lockScalingY: false,  // 하지만 object:scaling 이벤트에서 즉시 리셋
+  lockRotation: true,
+  lockScalingFlip: true,
+}
 
 interface UseProFabricResizeDragParams {
   enabled: boolean
@@ -28,6 +78,19 @@ interface UseProFabricResizeDragParams {
 
 interface FabricDataObject {
   dataType?: 'image' | 'text'
+}
+
+function applyFastLikeControlPolicy(target: fabric.Object) {
+  if (typeof (target as { setControlsVisibility?: (options: Record<string, boolean>) => void }).setControlsVisibility === 'function') {
+    ;(target as { setControlsVisibility: (options: Record<string, boolean>) => void }).setControlsVisibility({
+      mtr: false, // Fast와 동일하게 회전 핸들 미사용
+      // 대각선 핸들러(코너 핸들러)는 활성화하되, 스케일은 lockScalingX/Y로 막혀있음
+      tl: true, // top-left
+      tr: true, // top-right
+      bl: true, // bottom-left
+      br: true, // bottom-right
+    })
+  }
 }
 
 export function useProFabricResizeDrag({
@@ -140,10 +203,18 @@ export function useProFabricResizeDrag({
     }
 
     // Fabric.js의 내부 오프셋 계산 (마우스 이벤트 좌표 변환에 필요)
-    // wrapper 위치 변경 후 오프셋을 다시 계산해야 함
+    // wrapper 위치 변경 후 오프셋을 다시 계산해야 함. 리사이즈 시 핸들 크기도 위에서 구한 ratio로 갱신.
     requestAnimationFrame(() => {
       if (canvas && !canvas.disposed) {
         canvas.calcOffset()
+        const objects = canvas.getObjects() as Array<fabric.Object & FabricDataObject>
+        objects.forEach((obj) => {
+          if (obj.dataType === 'image') {
+            obj.set(getFastImageHandleStyle(ratio))
+          } else if (obj.dataType === 'text') {
+            obj.set(getFastTextHandleStyle(ratio))
+          }
+        })
         canvas.requestRenderAll()
       }
     })
@@ -287,13 +358,15 @@ export function useProFabricResizeDrag({
       angle: (imageTransform.rotation * 180) / Math.PI,
       selectable: true,
       evented: true,
-      hasBorders: true,
+      hasBorders: false, // Fast처럼 박스 테두리 없이 코너 핸들만
       hasControls: true,
       hoverCursor: 'move',
       centeredScaling: true,
       centeredRotation: true,
-      lockScalingFlip: true,
+      ...FAST_LOCKED_TRANSFORM_STYLE,
+      ...getFastImageHandleStyle(scale),
     })
+    applyFastLikeControlPolicy(fabricImage)
 
     ;(fabricImage as fabric.Image & FabricDataObject).dataType = 'image'
     return fabricImage
@@ -330,30 +403,34 @@ export function useProFabricResizeDrag({
     try {
       await syncFabricWithScene()
 
+      const ratio = scaleRatioRef.current
       const objects = fabricCanvas.getObjects() as Array<fabric.Object & FabricDataObject>
       objects.forEach((obj) => {
         if (obj.dataType === 'image') {
           obj.set({
             selectable: true,
             evented: true,
-            hasBorders: true,
+            hasBorders: false, // Fast처럼 박스 테두리 없이 코너 핸들만
             hasControls: true,
             hoverCursor: 'move',
             centeredScaling: true,
             centeredRotation: true,
-            lockScalingFlip: true,
-            ...FABRIC_HANDLE_STYLE,
+            ...FAST_LOCKED_TRANSFORM_STYLE,
+            ...getFastImageHandleStyle(ratio),
           })
+          applyFastLikeControlPolicy(obj)
         }
         if (obj.dataType === 'text') {
           obj.set({
             selectable: true,
             evented: true,
-            hasBorders: true,
+            hasBorders: false, // Fast처럼 박스 테두리 없이 코너 핸들만
             hasControls: true,
             hoverCursor: 'move',
-            ...FABRIC_HANDLE_STYLE,
+            ...TEXT_LOCKED_SCALE_STYLE,  // 텍스트는 스케일을 완전히 막음
+            ...getFastTextHandleStyle(ratio),
           })
+          applyFastLikeControlPolicy(obj)
         }
       })
 
@@ -415,7 +492,12 @@ export function useProFabricResizeDrag({
     applyFabricObjectDefaults()
 
     fabricCanvasRef.current = canvas
-    setFabricReady(true)
+    
+    // fabricCanvasRef.current가 설정된 후에 fabricReady를 true로 설정
+    // requestAnimationFrame을 사용하여 다음 프레임에 실행되도록 함
+    requestAnimationFrame(() => {
+      setFabricReady(true)
+    })
 
     // Fabric.js가 wrapper를 생성한 후 위치 설정
     updateFabricSize()

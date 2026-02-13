@@ -283,7 +283,10 @@ export function useSubtitleRenderer({
           textWidth = scene.text.transform.width / (scene.text.transform.scaleX || 1)
         }
 
-        const styleConfig: Record<string, unknown> = {
+        const strokeColor = scene.text.stroke?.color || '#000000'
+        const strokeWidth = scene.text.stroke?.width ?? 10
+        
+        const styleConfig: Partial<PIXI.TextStyle> = {
           fontFamily,
           fontSize: scene.text.fontSize || 80,
           fill: scene.text.color || '#ffffff',
@@ -293,10 +296,12 @@ export function useSubtitleRenderer({
           wordWrap: true,
           wordWrapWidth: textWidth,
           breakWords: true,
-          stroke: {
-            color: scene.text.stroke?.color || '#000000',
-            width: scene.text.stroke?.width ?? 10,
-          },
+        }
+        
+        // stroke는 strokeWidth가 0보다 클 때만 설정
+        if (strokeWidth > 0) {
+          styleConfig.stroke = strokeColor
+          styleConfig.strokeThickness = strokeWidth
         }
 
         const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
@@ -306,25 +311,62 @@ export function useSubtitleRenderer({
         // 텍스트 업데이트 (스타일 적용을 위해 스타일 설정 후에 실행)
         textObj.text = partText
 
-        // 텍스트 Transform 적용
+        // 텍스트 Transform 적용 (ANIMATION.md 6.2/6.3: 박스 anchor → top-left 정규화 후 박스 내 정렬)
         if (scene.text.transform) {
           const transform = scene.text.transform
           const scaleX = transform.scaleX ?? 1
           const scaleY = transform.scaleY ?? 1
-          
-          // Top-Left(0, 0) 앵커로 고정: 변환 시에도 좌표계 일관성을 유지하여
-          // 저장된 좌표가 useTransportRenderer.ts, useSceneLoader.ts와 동일한 Top-Left 기준으로 일치하도록 함
+          const anchorX = transform.anchor?.x ?? 0.5
+          const anchorY = transform.anchor?.y ?? 0.5
+          const hAlign = transform.hAlign ?? 'center'
+
           textObj.anchor.set(0, 0)
-          
-          const textX = transform.x
-          const textY = transform.y
-          
-          // 텍스트 실제 크기 계산 (스타일이 설정된 후이므로 bounds를 계산할 수 있음)
+
+          // 텍스트 실제 크기 측정 (스타일 적용 후)
           const textBounds = textObj.getLocalBounds()
-          const measuredTextWidth = textBounds.width || 0
-          const measuredTextHeight = textBounds.height || 0
-          
-          // 저장된 Top-Left 기준 x, y 그대로 사용
+          let measuredTextWidth = textBounds.width || 0
+          let measuredTextHeight = textBounds.height || 0
+
+          // 박스 크기: transform에 width/height가 유효하면 사용, 없으면 측정된 텍스트 크기로 박스 생성 (anchor 기준 정렬만 적용)
+          let boxW: number
+          let boxH: number
+          let boxX: number
+          let boxY: number
+          const hasBoxSize = (transform.width != null && transform.width > 0) && (transform.height != null && transform.height > 0)
+          if (hasBoxSize) {
+            const { boxX: bx, boxY: by, boxW: bw, boxH: bh } = normalizeAnchorToTopLeft(
+              transform.x,
+              transform.y,
+              transform.width,
+              transform.height,
+              scaleX,
+              scaleY,
+              anchorX,
+              anchorY
+            )
+            boxX = bx
+            boxY = by
+            boxW = bw
+            boxH = bh
+          } else {
+            // width/height 없음: 측정된 텍스트의 스케일 적용 크기를 박스로 쓰고 (x,y)를 anchor 기준으로 해석 (스테이지 좌표)
+            boxW = measuredTextWidth * scaleX
+            boxH = measuredTextHeight * scaleY
+            boxX = transform.x - boxW * anchorX
+            boxY = transform.y - boxH * anchorY
+          }
+
+          // 박스 내 정렬: 텍스트의 스테이지 상 크기(measured*scale)로 위치 계산
+          const { textX, textY } = calculateTextPositionInBox(
+            boxX,
+            boxY,
+            boxW,
+            boxH,
+            measuredTextWidth * scaleX,
+            measuredTextHeight * scaleY,
+            hAlign
+          )
+
           textObj.x = textX
           textObj.y = textY
           textObj.scale.set(scaleX, scaleY)

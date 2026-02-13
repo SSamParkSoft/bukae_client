@@ -14,7 +14,7 @@ import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateSto
 import { calculateAspectFittedSize } from '../utils/proPreviewLayout'
 import {
   getDurationBeforeSceneIndex,
-  getSceneSegmentDuration,
+  getPlayableScenes,
 } from '../utils/proPlaybackUtils'
 import { useProFabricResizeDrag } from '../hooks/editing/useProFabricResizeDrag'
 
@@ -24,7 +24,8 @@ interface ProPreviewPanelProps {
   currentSceneIndex?: number
   scenes: ProStep3Scene[]
   isPlaying: boolean
-  onPlayPause: () => void
+  onBeforePlay?: () => boolean
+  onPlayingChange?: (isPlaying: boolean) => void
   bgmTemplate?: string | null
   onExport?: () => void
   isExporting?: boolean
@@ -76,7 +77,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   currentSceneIndex = 0,
   scenes,
   isPlaying,
-  onPlayPause,
+  onBeforePlay,
+  onPlayingChange,
   bgmTemplate,
   onExport,
   isExporting = false,
@@ -98,6 +100,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   const timelineRef = useRef(timeline)
 
   const textsRef = useRef<Map<number, PIXI.Text>>(new Map())
+  const textStrokesRef = useRef<Map<number, PIXI.Text>>(new Map()) // stroke 전용 레이어
   const spritesRef = useRef<Map<number, PIXI.Sprite>>(new Map())
   const videoTexturesRef = useRef<Map<number, PIXI.Texture>>(new Map())
   const videoElementsRef = useRef<Map<number, HTMLVideoElement>>(new Map())
@@ -347,6 +350,17 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       }
       textsRef.current.delete(sceneIndex)
     }
+
+    const strokeObj = textStrokesRef.current.get(sceneIndex)
+    if (strokeObj) {
+      if (subtitleContainerRef.current && !strokeObj.destroyed && strokeObj.parent === subtitleContainerRef.current) {
+        subtitleContainerRef.current.removeChild(strokeObj)
+      }
+      if (!strokeObj.destroyed) {
+        strokeObj.destroy()
+      }
+      textStrokesRef.current.delete(sceneIndex)
+    }
   }, [])
 
   const cleanupAllMediaResources = useCallback(() => {
@@ -355,6 +369,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       ...videoTexturesRef.current.keys(),
       ...videoElementsRef.current.keys(),
       ...textsRef.current.keys(),
+      ...textStrokesRef.current.keys(),
     ])
 
     sceneIndices.forEach((sceneIndex) => {
@@ -679,8 +694,12 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       return
     }
 
+    // 기존 텍스트와 stroke 숨기기
     textsRef.current.forEach((textObj) => {
       hideText(textObj)
+    })
+    textStrokesRef.current.forEach((strokeObj) => {
+      hideText(strokeObj)
     })
 
     if (!script || !script.trim()) {
@@ -710,10 +729,16 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
     let textX = stageWidth / 2
     let textY = stageHeight * 0.885
+    let wordWrapWidth = stageWidth * 0.75
+    const textAlign = textSettings?.style?.align || 'center'
 
     if (textSettings?.transform) {
       textX = textSettings.transform.x || textX
       textY = textSettings.transform.y || textY
+      // transform에 width가 있으면 wordWrapWidth로 사용
+      if (textSettings.transform.width) {
+        wordWrapWidth = textSettings.transform.width
+      }
     } else {
       const position = textSettings?.position || 'bottom'
       if (position === 'top') {
@@ -725,48 +750,129 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       }
     }
 
-    const textStyle = new PIXI.TextStyle({
+    const strokeColor = textSettings?.stroke?.color || '#000000'
+    const strokeWidth = textSettings?.stroke?.width ?? 10
+    
+    // 기본 텍스트 스타일 (fill만)
+    const fillStyleConfig: Partial<PIXI.TextStyle> = {
       fontFamily,
       fontSize,
       fill: fillColor,
-      align: 'center',
+      align: textAlign as 'left' | 'center' | 'right' | 'justify',
       fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
       fontStyle,
       wordWrap: true,
-      wordWrapWidth: stageWidth * 0.75,
+      wordWrapWidth: wordWrapWidth,
       breakWords: true,
-      stroke: {
-        color: textSettings?.stroke?.color || '#000000',
-        width: textSettings?.stroke?.width ?? 10,
-      },
-    })
-
+    }
+    
+    const fillStyle = new PIXI.TextStyle(fillStyleConfig)
     if (isUnderline) {
-      ;(textStyle as PIXI.TextStyle & { underline?: boolean }).underline = true
+      ;(fillStyle as PIXI.TextStyle & { underline?: boolean }).underline = true
     }
 
-    let textObj = textsRef.current.get(sceneIndex)
-    if (!textObj || textObj.destroyed) {
-      textObj = new PIXI.Text({
-        text: script,
-        style: textStyle,
-      })
-      textObj.anchor.set(0.5, 0.5)
-      subtitleContainer.addChild(textObj)
-      textsRef.current.set(sceneIndex, textObj)
+    // stroke가 있으면 두 레이어로 렌더링 (외곽에만 테두리)
+    if (strokeWidth > 0) {
+      // stroke 레이어 (뒤): stroke만, fill은 투명하게 설정
+      // fill 레이어를 위에 올려서 stroke가 외곽에만 보이도록 함
+      const strokeStyleConfig: Partial<PIXI.TextStyle> = {
+        fontFamily,
+        fontSize,
+        fill: 'transparent', // fill을 투명하게 설정
+        align: textAlign as 'left' | 'center' | 'right' | 'justify',
+        fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
+        fontStyle,
+        wordWrap: true,
+        wordWrapWidth: wordWrapWidth,
+        breakWords: true,
+        stroke: strokeColor,
+        strokeThickness: strokeWidth,
+      }
+      
+      const strokeStyle = new PIXI.TextStyle(strokeStyleConfig)
+      if (isUnderline) {
+        ;(strokeStyle as PIXI.TextStyle & { underline?: boolean }).underline = true
+      }
+
+      // stroke 레이어 생성/업데이트
+      let strokeObj = textStrokesRef.current.get(sceneIndex)
+      if (!strokeObj || strokeObj.destroyed) {
+        strokeObj = new PIXI.Text({
+          text: script,
+          style: strokeStyle,
+        })
+        strokeObj.anchor.set(0.5, 0.5)
+        subtitleContainer.addChild(strokeObj)
+        textStrokesRef.current.set(sceneIndex, strokeObj)
+      } else {
+        strokeObj.style = strokeStyle
+        strokeObj.text = script
+      }
+
+      strokeObj.x = textX
+      strokeObj.y = textY
+      strokeObj.visible = true
+      strokeObj.alpha = 1
+      
+      // fill 레이어를 stroke 레이어 위에 배치
+      const strokeIndex = subtitleContainer.getChildIndex(strokeObj)
+      
+      // fill 레이어 생성/업데이트
+      let textObj = textsRef.current.get(sceneIndex)
+      if (!textObj || textObj.destroyed) {
+        textObj = new PIXI.Text({
+          text: script,
+          style: fillStyle,
+        })
+        textObj.anchor.set(0.5, 0.5)
+        subtitleContainer.addChild(textObj)
+        textsRef.current.set(sceneIndex, textObj)
+      } else {
+        textObj.style = fillStyle
+        textObj.text = script
+      }
+
+      textObj.x = textX
+      textObj.y = textY
+      textObj.visible = true
+      textObj.alpha = 1
+      
+      // fill 레이어를 stroke 레이어 위에 배치
+      const fillIndex = subtitleContainer.getChildIndex(textObj)
+      if (fillIndex <= strokeIndex) {
+        subtitleContainer.setChildIndex(textObj, strokeIndex + 1)
+      }
     } else {
-      textObj.style = textStyle
-      textObj.text = script
-    }
+      // stroke가 없으면 fill만 렌더링
+      let textObj = textsRef.current.get(sceneIndex)
+      if (!textObj || textObj.destroyed) {
+        textObj = new PIXI.Text({
+          text: script,
+          style: fillStyle,
+        })
+        textObj.anchor.set(0.5, 0.5)
+        subtitleContainer.addChild(textObj)
+        textsRef.current.set(sceneIndex, textObj)
+      } else {
+        textObj.style = fillStyle
+        textObj.text = script
+      }
 
-    textObj.x = textX
-    textObj.y = textY
-    textObj.visible = true
-    textObj.alpha = 1
+      textObj.x = textX
+      textObj.y = textY
+      textObj.visible = true
+      textObj.alpha = 1
+      
+      // stroke 레이어가 있으면 제거
+      const strokeObj = textStrokesRef.current.get(sceneIndex)
+      if (strokeObj && !strokeObj.destroyed) {
+        hideText(strokeObj)
+      }
+    }
   }, [isPlaying, pixiReady])
 
   const totalDurationValue = useMemo(() => {
-    return scenes.reduce((sum, scene) => sum + getSceneSegmentDuration(scene), 0)
+    return getPlayableScenes(scenes).reduce((sum, playable) => sum + playable.duration, 0)
   }, [scenes])
 
   // totalDurationValue가 변경될 때마다 totalDuration state 업데이트
@@ -1261,14 +1367,14 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   const { handlePlayPause } = useProTransportPlayback({
     transportHook,
     transportState,
-    isPlaying,
     playbackSpeed,
     totalDurationValue,
     currentSceneIndex,
     scenes,
     pixiReady,
     renderAtRef,
-    onPlayPause,
+    onBeforePlay,
+    onPlayingChange,
     setCurrentTime,
     setTotalDuration,
   })

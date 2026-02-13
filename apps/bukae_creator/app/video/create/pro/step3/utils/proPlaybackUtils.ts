@@ -96,6 +96,30 @@ export function clampPlaybackTime(time: number, totalDuration: number): number {
   return clampPlaybackTimeShared(time, totalDuration)
 }
 
+const SEGMENT_END_EPSILON_SEC = 0.001
+
+/**
+ * 씬의 선택 구간(selectionStart~selectionEnd) 안으로 비디오 시간을 제한합니다.
+ * 타임라인 세그먼트 길이가 TTS 기준으로 더 길더라도, 영상은 사용자가 선택한 구간 밖으로 재생하지 않습니다.
+ */
+export function clampVideoTimeToSelection(scene: ProStep3Scene, rawVideoTime: number): number {
+  const safeTime = Number.isFinite(rawVideoTime) ? rawVideoTime : 0
+  const selectionStart = Number.isFinite(scene.selectionStartSeconds)
+    ? scene.selectionStartSeconds
+    : 0
+  const selectionEnd = Number.isFinite(scene.selectionEndSeconds)
+    ? scene.selectionEndSeconds
+    : selectionStart
+
+  if (selectionEnd <= selectionStart) {
+    return Math.max(0, selectionStart)
+  }
+
+  // 마지막 프레임 안정성을 위해 end 바로 직전까지만 허용
+  const maxPlayableTime = Math.max(selectionStart, selectionEnd - SEGMENT_END_EPSILON_SEC)
+  return Math.max(selectionStart, Math.min(safeTime, maxPlayableTime))
+}
+
 export function hasRecentGesture(
   timestamp: number | null | undefined,
   now = Date.now(),

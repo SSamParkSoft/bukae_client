@@ -337,7 +337,10 @@ export function useTransportRenderer({
           .filter((part) => part.length > 0)
         const displayText = textContent.length > 0 ? textContent[0] : scene.text.content
 
-        const styleConfig: Record<string, unknown> = {
+        const strokeColor = scene.text.stroke?.color || '#000000'
+        const strokeWidth = scene.text.stroke?.width ?? 10
+
+        const styleConfig: Partial<PIXI.TextStyle> = {
           fontFamily,
           fontSize: scene.text.fontSize || 80,
           fill: scene.text.color || '#ffffff',
@@ -347,12 +350,15 @@ export function useTransportRenderer({
           wordWrap: true,
           wordWrapWidth: textWidth,
           breakWords: true,
-          stroke: {
-            color: scene.text.stroke?.color || '#000000',
-            width: scene.text.stroke?.width ?? 10,
-          },
         }
-        const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
+        
+        // stroke는 strokeWidth가 0보다 클 때만 설정
+        if (strokeWidth > 0) {
+          styleConfig.stroke = strokeColor
+          styleConfig.strokeThickness = strokeWidth
+        }
+        
+        const textStyle = new PIXI.TextStyle(styleConfig)
 
         const text = new PIXI.Text({
           text: displayText,
@@ -379,10 +385,10 @@ export function useTransportRenderer({
           const scaleX = scene.text.transform.scaleX ?? 1
           const scaleY = scene.text.transform.scaleY ?? 1
           
-          // Transform이 있을 때는 normalizeAnchorToTopLeft로 계산된 Top-Left 좌표를 사용
+          // Transform이 있을 때는 normalizeAnchorToTopLeft로 계산된 Top-Left 좌표를 사용 (ANIMATION.md 6.2)
           const transform = scene.text.transform
-          const anchorX = transform.anchor?.x ?? 0
-          const anchorY = transform.anchor?.y ?? 0
+          const anchorX = transform.anchor?.x ?? 0.5
+          const anchorY = transform.anchor?.y ?? 0.5
           
           // Anchor→TopLeft 정규화 (ANIMATION.md 6.2)
           const { boxX, boxY, boxW, boxH } = normalizeAnchorToTopLeft(
@@ -451,15 +457,14 @@ export function useTransportRenderer({
               text.visible = wasVisible
               text.alpha = wasAlpha
               
-              // 박스 내부 정렬 계산 (ANIMATION.md 6.3)
-              // vAlign은 middle 고정이므로 파라미터로 전달하지 않음
+              // 박스 내부 정렬 계산 (ANIMATION.md 6.3) — 박스와 동일 좌표계(스테이지)로 텍스트 스케일 반영
               const { textX, textY } = calculateTextPositionInBox(
                 boxX,
                 boxY,
                 boxW,
                 boxH,
-                measuredTextWidth,
-                measuredTextHeight,
+                measuredTextWidth * scaleX,
+                measuredTextHeight * scaleY,
                 hAlign
               )
               
@@ -833,7 +838,10 @@ export function useTransportRenderer({
           textWidth = scene.text.transform.width / (scene.text.transform.scaleX || 1)
         }
 
-        const styleConfig: Record<string, unknown> = {
+        const strokeColor = scene.text.stroke?.color || '#000000'
+        const strokeWidth = scene.text.stroke?.width ?? 10
+
+        const styleConfig: Partial<PIXI.TextStyle> = {
           fontFamily,
           fontSize: scene.text.fontSize || 80,
           fill: scene.text.color || '#ffffff',
@@ -843,13 +851,15 @@ export function useTransportRenderer({
           wordWrap: true,
           wordWrapWidth: textWidth,
           breakWords: true,
-          stroke: {
-            color: scene.text.stroke?.color || '#000000',
-            width: scene.text.stroke?.width ?? 10,
-          },
+        }
+        
+        // stroke는 strokeWidth가 0보다 클 때만 설정
+        if (strokeWidth > 0) {
+          styleConfig.stroke = strokeColor
+          styleConfig.strokeThickness = strokeWidth
         }
 
-        const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
+        const textStyle = new PIXI.TextStyle(styleConfig)
         textObj.style = textStyle
 
         // 텍스트 Transform 적용 (ANIMATION.md 박스+정렬 규칙)

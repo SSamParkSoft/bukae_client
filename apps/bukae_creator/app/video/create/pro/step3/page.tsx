@@ -52,12 +52,7 @@ export default function ProStep3Page() {
   // 격자 선택 영역 변경 훅
   const { handleSelectionChange } = useProStep3SelectionChange()
 
-  const handleProPlayPause = useCallback(() => {
-    if (isPlaying) {
-      setIsPlaying(false)
-      return
-    }
-
+  const canStartPlayback = useCallback(() => {
     const playableScenes = getPlayableSegments(
       proStep3Scenes.map((scene) => ({
         ...scene,
@@ -67,11 +62,14 @@ export default function ProStep3Page() {
 
     if (playableScenes.length === 0) {
       alert('재생할 영상이 없습니다.')
-      return
+      return false
     }
+    return true
+  }, [proStep3Scenes])
 
-    setIsPlaying(true)
-  }, [isPlaying, proStep3Scenes])
+  const handlePlayingChange = useCallback((nextPlaying: boolean) => {
+    setIsPlaying(nextPlaying)
+  }, [])
 
   // 효과 패널 및 사운드 상태 관리 훅
   const {
@@ -177,7 +175,8 @@ export default function ProStep3Page() {
               currentSceneIndex={currentSceneIndex}
               scenes={proStep3Scenes}
               isPlaying={isPlaying}
-              onPlayPause={handleProPlayPause}
+              onBeforePlay={canStartPlayback}
+              onPlayingChange={handlePlayingChange}
               bgmTemplate={bgmTemplate}
               onExport={() => {
                 // 내보내기 기능은 나중에 구현
@@ -199,9 +198,9 @@ export default function ProStep3Page() {
               isTtsBootstrapping={false}
               onSelect={handleSceneSelect}
               onReorder={handleSceneReorder}
-              onPlayScene={async () => {
-                // 개별 씬 재생은 ProPreviewPanel의 전체 재생으로 대체
-                handleProPlayPause()
+              onPlayScene={async (sceneIndex) => {
+                // 개별 씬 재생 버튼은 현재 씬 선택으로 동작하고, 재생은 미리보기 패널 버튼으로 제어
+                handleSceneSelect(sceneIndex)
               }}
               onOpenEffectPanel={() => {
                 // 효과 패널은 나중에 구현

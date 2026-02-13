@@ -138,7 +138,8 @@ export function useStep3Container() {
     setSelectedPart,
   } = step3State
 
-  const useFabricEditing = false // PixiJS 편집 사용
+  // 텍스트 편집 모드일 때만 Fabric.js 편집 활성화 (캔버스 위에서 직접 텍스트 입력 가능)
+  const useFabricEditing = editMode === 'text'
 
   useVideoCreateAuth()
 

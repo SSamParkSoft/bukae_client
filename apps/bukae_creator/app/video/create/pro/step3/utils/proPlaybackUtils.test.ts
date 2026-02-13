@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   clampPlaybackTime,
+  clampVideoTimeToSelection,
   getDurationBeforeSceneIndex,
   getPlayableSceneStartTime,
   getPlayableScenes,
@@ -123,6 +124,18 @@ test('clampPlaybackTime keeps value within 0..totalDuration', () => {
   assert.equal(clampPlaybackTime(12, 10), 10)
   assert.equal(clampPlaybackTime(2, 0), 0)
   assert.equal(clampPlaybackTime(Number.NaN, 10), 0)
+})
+
+test('clampVideoTimeToSelection keeps playback inside selected video window', () => {
+  const scene = makeScene({
+    selectionStartSeconds: 5,
+    selectionEndSeconds: 7,
+    ttsDuration: 4,
+  })
+
+  assert.equal(clampVideoTimeToSelection(scene, 4), 5)
+  assert.equal(clampVideoTimeToSelection(scene, 5.8), 5.8)
+  assert.ok(Math.abs(clampVideoTimeToSelection(scene, 9) - 6.999) < 1e-9)
 })
 
 test('hasRecentGesture validates timestamp in TTL window', () => {

@@ -6,6 +6,7 @@ import { resolveProSceneAtTime } from '../../utils/proPlaybackUtils'
 
 interface TransportHookLike {
   currentTime: number
+  getTime?: () => number
 }
 
 interface TtsCacheItem {
@@ -56,7 +57,10 @@ export function useProTransportTtsSync({
       return
     }
 
-    const resolved = resolveProSceneAtTime(scenes, transportHook.currentTime)
+    const transportTime = typeof transportHook.getTime === 'function'
+      ? transportHook.getTime()
+      : transportHook.currentTime
+    const resolved = resolveProSceneAtTime(scenes, transportTime)
     if (!resolved) {
       stopAllTtsPlayback()
       return

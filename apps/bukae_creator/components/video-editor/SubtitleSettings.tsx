@@ -112,6 +112,23 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
   }, [showToast])
 
   const fontSizeInputRef = useRef<HTMLInputElement | null>(null)
+  const isFontSizeInputFocusedRef = useRef(false)
+
+  // fontSize가 변경될 때마다 input의 value를 업데이트 (사용자가 입력 중이 아닐 때만)
+  useEffect(() => {
+    if (!isFontSizeInputFocusedRef.current && fontSizeInputRef.current) {
+      const currentFontSize = currentScene?.text?.fontSize || 80
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[SubtitleSettings] fontSize 업데이트:', {
+          currentSceneIndex,
+          currentFontSize,
+          timelineFontSize: currentScene?.text?.fontSize,
+          inputValue: fontSizeInputRef.current.value,
+        })
+      }
+      fontSizeInputRef.current.value = String(currentFontSize)
+    }
+  }, [currentScene?.text?.fontSize, currentSceneIndex])
 
   const applyFontSizeInput = useCallback(
     (value?: string) => {
@@ -710,14 +727,21 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
             <div className="flex items-center gap-1">
               <input
                 type="number"
-                key={currentSceneIndex}
+                key={`${currentSceneIndex}-${currentScene.text?.fontSize || 80}`}
                 defaultValue={currentScene.text?.fontSize || 80}
                 ref={fontSizeInputRef}
                 min={0}
                 max={200}
-                onBlur={(e) => applyFontSizeInput(e.target.value)}
+                onFocus={() => {
+                  isFontSizeInputFocusedRef.current = true
+                }}
+                onBlur={(e) => {
+                  isFontSizeInputFocusedRef.current = false
+                  applyFontSizeInput(e.target.value)
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
+                    isFontSizeInputFocusedRef.current = false
                     applyFontSizeInput((e.target as HTMLInputElement).value)
                   }
                 }}
