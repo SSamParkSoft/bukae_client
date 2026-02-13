@@ -109,17 +109,40 @@ export function useProTransportPlayback({
 
   const handlePlayPause = useCallback(() => {
     if (transportState.isPlaying) {
+      onPlayingChange?.(false)
       transportHook.pause()
     } else {
       if (onBeforePlay && !onBeforePlay()) {
         return
       }
-      if (renderAtRef.current) {
-        renderAtRef.current(transportHook.getTime(), { skipAnimation: false })
+
+      let playTime = transportHook.getTime()
+      const selectedSceneStartTime = getPlayableSceneStartTime(scenes, currentSceneIndex)
+      if (selectedSceneStartTime !== null) {
+        playTime = selectedSceneStartTime
+        transportHook.seek(playTime)
+        setCurrentTime(playTime)
       }
+
+      if (renderAtRef.current) {
+        renderAtRef.current(playTime, {
+          skipAnimation: false,
+          forceSceneIndex: selectedSceneStartTime !== null ? currentSceneIndex : undefined,
+        })
+      }
+      onPlayingChange?.(true)
       transportHook.play()
     }
-  }, [onBeforePlay, renderAtRef, transportHook, transportState.isPlaying])
+  }, [
+    currentSceneIndex,
+    onBeforePlay,
+    onPlayingChange,
+    renderAtRef,
+    scenes,
+    setCurrentTime,
+    transportHook,
+    transportState.isPlaying,
+  ])
 
   return {
     handlePlayPause,

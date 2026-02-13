@@ -528,12 +528,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     try {
       await videoSpriteAdapter.waitForMetadata(video, VIDEO_METADATA_TIMEOUT_MS)
 
-      // 비동기 작업 후 video 요소가 여전히 유효한지 확인
-      if (!video || video.readyState === 0) {
-        cleanupSceneResources(sceneIndex)
-        return
-      }
-
       // 비동기 작업 후 ref 재확인
       const app = appRef.current
       const videoContainer = videoContainerRef.current
@@ -560,12 +554,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       // selectionStartSeconds가 파라미터로 전달되면 사용하고, 없으면 scenesRef에서 읽기 (fallback)
       const sceneStart = selectionStartSeconds ?? scenesRef.current[sceneIndex]?.selectionStartSeconds ?? 0
       await videoSpriteAdapter.seekFrame(video, sceneStart, VIDEO_SEEK_TIMEOUT_MS)
-      
-      // seeked 후 video 요소가 여전히 유효한지 확인
-      if (!video || video.readyState === 0) {
-        cleanupSceneResources(sceneIndex)
-        return
-      }
       
       // seeked 후 다시 ref 재확인
       const appAfterSeek = appRef.current
@@ -615,8 +603,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       
       // 비디오 크기를 다시 확인 (seek 후 변경될 수 있음)
       // currentVideo가 null이 아닌지 다시 확인
-      const sourceWidth = (currentVideo && currentVideo.videoWidth) || texture.width || 0
-      const sourceHeight = (currentVideo && currentVideo.videoHeight) || texture.height || 0
+      const sourceWidth = (currentVideo && currentVideo.videoWidth) || texture.width || stageWidth
+      const sourceHeight = (currentVideo && currentVideo.videoHeight) || texture.height || stageHeight
 
       if (!sourceWidth || !sourceHeight || sourceWidth <= 0 || sourceHeight <= 0) {
         sprite.destroy()
@@ -924,6 +912,14 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     // 일시정지 상태에서도 Pixi 미리보기는 항상 유지한다.
     appCanvas.style.opacity = '1'
     appCanvas.style.pointerEvents = isPausedEditing ? 'none' : 'auto'
+
+    // 편집 모드에서는 Fabric 텍스트만 보이도록 Pixi 자막 레이어를 숨겨 중복 렌더링을 방지한다.
+    const subtitleContainer = subtitleContainerRef.current
+    if (subtitleContainer) {
+      const showPixiSubtitle = !isPausedEditing
+      subtitleContainer.visible = showPixiSubtitle
+      subtitleContainer.alpha = showPixiSubtitle ? 1 : 0
+    }
   }, [pixiReady, isPlaying, proFabricCanvasRef, appRef])
 
   // 스프라이트 클릭 이벤트 설정 헬퍼 함수 (useProFabricResizeDrag 호출 후 정의)
@@ -1235,6 +1231,17 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     setCurrentTime,
     setTotalDuration,
   })
+
+  useEffect(() => {
+    if (!pixiReady || isPlaying || currentSceneIndex < 0 || !renderAtRef.current) {
+      return
+    }
+
+    const selectedSceneStartTime = getDurationBeforeSceneIndex(scenes, currentSceneIndex)
+    renderAtRef.current(selectedSceneStartTime, {
+      forceSceneIndex: currentSceneIndex,
+    })
+  }, [currentSceneIndex, isPlaying, pixiReady, scenes, timelineScenesKey, renderAtRef])
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">

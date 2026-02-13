@@ -193,9 +193,6 @@ export function useProFabricResizeDrag({
       canvas.lowerCanvasEl.style.top = '0'
       canvas.lowerCanvasEl.style.zIndex = '40'
       canvas.lowerCanvasEl.style.backgroundColor = 'transparent'
-      // 실제 영상/자막은 Pixi 캔버스가 담당하고, Fabric은 편집 컨트롤만 표시한다.
-      // 이렇게 하면 재생/비재생 시 해상도 차이를 줄일 수 있다.
-      canvas.lowerCanvasEl.style.opacity = '0'
     }
 
     // Fabric.js의 내부 오프셋 계산 (마우스 이벤트 좌표 변환에 필요)
@@ -371,12 +368,6 @@ export function useProFabricResizeDrag({
     return fabricImage
   }, [spritesRef, videoElementsRef])
 
-  const resolveSceneTextContent = useCallback(() => {
-    // Pro 편집 모드에서는 자막 시각 표현을 Pixi 렌더러로 통일한다.
-    // Fabric 텍스트를 생성하면 재생/일시정지 시 폰트 렌더링 차이가 커져 이질감이 발생한다.
-    return null
-  }, [])
-
   const { syncFabricWithScene } = useFabricSync({
     useFabricEditing: enabled,
     fabricCanvasRef,
@@ -387,9 +378,7 @@ export function useProFabricResizeDrag({
       width: stageWidth,
       height: stageHeight,
     },
-    preferResolvedSceneTextContent: true,
     resolveSceneImageObject,
-    resolveSceneTextContent,
   })
 
   const syncFromScene = useCallback(async () => {

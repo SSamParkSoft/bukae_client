@@ -196,7 +196,7 @@ export function useProTransportRenderer({
       const applyVisualState = () => {
         const sprite = spritesRef.current.get(targetSceneIndex)
         if (!sprite || sprite.destroyed) {
-          return
+          return false
         }
 
         const timelineScene = timeline.scenes?.[targetSceneIndex]
@@ -215,12 +215,30 @@ export function useProTransportRenderer({
             video.pause()
           }
         })
+
+        if (appRef.current) {
+          appRef.current.renderer.render(appRef.current.stage)
+        }
+        return true
       }
 
       if (sceneChanged || options?.forceSceneIndex !== undefined) {
         // 씬 전환 순간에도 자막이 즉시 보이도록 비디오 로드 전 먼저 렌더링
         renderSubtitle(targetSceneIndex, targetScene.script ?? '')
         currentSceneIndexRef.current = targetSceneIndex
+        const immediateVideo = videoElementsRef.current.get(targetSceneIndex)
+        if (immediateVideo) {
+          syncVideoPlaybackToTimeline(immediateVideo, targetScene, videoTime)
+        }
+        const appliedImmediately = applyVisualState()
+        if (!appliedImmediately) {
+          // 대상 씬 스프라이트가 아직 없다면 기존 씬 스프라이트를 숨겨 잘못된 프레임 노출을 방지
+          spritesRef.current.forEach((sprite, index) => {
+            if (index !== targetSceneIndex) {
+              hideSprite(sprite)
+            }
+          })
+        }
         const requestId = ++renderRequestIdRef.current
 
         void ensureSceneLoaded(targetSceneIndex, targetScene, videoTime).then(() => {
@@ -231,17 +249,29 @@ export function useProTransportRenderer({
           if (loadedVideo) {
             syncVideoPlaybackToTimeline(loadedVideo, targetScene, videoTime)
           }
-          applyVisualState()
-          lastRenderedSceneIndexRef.current = targetSceneIndex
+          const applied = applyVisualState()
+          // 로드가 실패했거나 스프라이트가 아직 없으면 다음 tick에서 재시도될 수 있게 유지
+          lastRenderedSceneIndexRef.current = applied ? targetSceneIndex : -1
         })
       } else {
+        const currentSprite = spritesRef.current.get(targetSceneIndex)
         const currentVideo = videoElementsRef.current.get(targetSceneIndex)
+        if (!currentSprite || currentSprite.destroyed || !currentVideo) {
+          // 동일 씬에서 자원이 빠진 상태면 sceneChanged 경로로 다시 진입해 재로딩
+          lastRenderedSceneIndexRef.current = -1
+          renderSubtitle(targetSceneIndex, targetScene.script ?? '')
+          return
+        }
+
         if (currentVideo) {
           syncVideoPlaybackToTimeline(currentVideo, targetScene, videoTime)
         }
         // 동일 씬 내 시작 프레임에서도 자막이 누락되지 않도록 매 tick에서 자막 동기화
         renderSubtitle(targetSceneIndex, targetScene.script ?? '')
-        applyVisualState()
+        const applied = applyVisualState()
+        if (!applied) {
+          lastRenderedSceneIndexRef.current = -1
+        }
       }
 
       lastRenderedTimeRef.current = tSec
