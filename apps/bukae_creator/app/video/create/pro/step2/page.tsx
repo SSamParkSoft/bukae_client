@@ -1,17 +1,21 @@
 'use client'
 
 import { useCallback, useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
 import { ScriptStyleSection, AiScriptGenerateButton } from '@/app/video/create/_components'
-import { ProSceneCard, ProVoicePanel } from './components'
+import { ProSceneCard } from './components/ProSceneCard'
 import { conceptOptions } from '@/lib/data/templates'
 import type { ConceptType } from '@/lib/data/templates'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { studioScriptApi } from '@/lib/api/studio-script'
+import { authStorage } from '@/lib/api/auth-storage'
+import { prefetchPublicVoices } from '@/lib/tts/public-voices-cache'
 import { convertProductToProductResponse } from '@/lib/utils/converters/product-to-response'
+import type { ProVoicePanelProps } from './components/ProVoicePanel'
 import { synthesizeAllScenes } from './utils/synthesizeAllScenes'
 import {
   generateSceneId,
@@ -22,6 +26,21 @@ import {
 } from './utils/types'
 
 const DEFAULT_SCENE_COUNT = 6
+
+const ProVoicePanel = dynamic<ProVoicePanelProps>(
+  () => import('./components/ProVoicePanel').then((mod) => mod.ProVoicePanel),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[min(calc(100vw-2rem),560px)] min-w-[360px] sm:w-[640px] sm:min-w-0 max-h-[85vh] flex items-center justify-center bg-white/40 border border-white/10 backdrop-blur-sm rounded-2xl p-6"
+        style={{ boxShadow: 'var(--shadow-container)' }}
+      >
+        <Loader2 className="w-6 h-6 animate-spin text-[#5e8790]" />
+      </div>
+    ),
+  }
+)
 
 export default function ProStep2Page() {
   const router = useRouter()
@@ -115,6 +134,12 @@ export default function ProStep2Page() {
   const [isGeneratingAll, setIsGeneratingAll] = useState(false)
   const [isSynthesizingTts, setIsSynthesizingTts] = useState(false)
   const [ttsProgress, setTtsProgress] = useState({ completed: 0, total: 0 })
+
+  useEffect(() => {
+    const token = authStorage.getAccessToken()
+    prefetchPublicVoices(token)
+    void import('./components/ProVoicePanel')
+  }, [])
 
   const handleScriptStyleSelect = useCallback(
     (concept: ConceptType) => {

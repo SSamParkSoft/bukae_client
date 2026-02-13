@@ -1,11 +1,23 @@
+import { useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BgmSelector } from '@/components/video-editor/BgmSelector'
 import { SoundEffectSelector } from '@/components/video-editor/SoundEffectSelector'
 import { SubtitleSettings } from '@/components/video-editor/SubtitleSettings'
-import VoiceSelector from '@/components/VoiceSelector'
+import { authStorage } from '@/lib/api/auth-storage'
+import { prefetchPublicVoices } from '@/lib/tts/public-voices-cache'
 import { cn } from '@/lib/utils'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { MotionConfig, MotionType } from '@/hooks/video/effects/motion/types'
+
+const VoiceSelector = dynamic(() => import('@/components/VoiceSelector'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center py-12 text-sm text-[#5d5d5d]">
+      보이스 패널 로딩 중...
+    </div>
+  ),
+})
 
 type EffectsTabId = 'animation' | 'bgm' | 'subtitle' | 'voice' | 'template' | 'sound'
 
@@ -113,6 +125,12 @@ export function EffectsPanel({
   onVoiceTemplateChange,
   onMotionChange,
 }: EffectsPanelProps) {
+  useEffect(() => {
+    const token = authStorage.getAccessToken()
+    prefetchPublicVoices(token)
+    void import('@/components/VoiceSelector')
+  }, [])
+
   // transitions와 movements가 제공되면 사용, 아니면 allTransitions 사용 (하위 호환성)
   const displayTransitions = transitions || allTransitions
   const transitionsWithoutNone = displayTransitions.filter((t) => t.value !== 'none')
@@ -411,18 +429,20 @@ export function EffectsPanel({
                     </div>
                   )}
                   <div className="w-full max-w-full overflow-x-hidden box-border">
-                    <VoiceSelector
-                      theme={theme ?? 'light'}
-                      title="보이스 선택"
-                      disabled={!timeline || currentSceneIndex < 0}
-                      layout="panel"
-                      sceneVoiceTemplate={sceneVoiceTemplate}
-                      onSceneVoiceTemplateChange={onVoiceTemplateChange ? (voiceTemplate: string | null) => {
-                        if (currentSceneIndex >= 0) {
-                          onVoiceTemplateChange(currentSceneIndex, voiceTemplate)
-                        }
-                      } : undefined}
-                    />
+                    {rightPanelTab === 'voice' ? (
+                      <VoiceSelector
+                        theme={theme ?? 'light'}
+                        title="보이스 선택"
+                        disabled={!timeline || currentSceneIndex < 0}
+                        layout="panel"
+                        sceneVoiceTemplate={sceneVoiceTemplate}
+                        onSceneVoiceTemplateChange={onVoiceTemplateChange ? (voiceTemplate: string | null) => {
+                          if (currentSceneIndex >= 0) {
+                            onVoiceTemplateChange(currentSceneIndex, voiceTemplate)
+                          }
+                        } : undefined}
+                      />
+                    ) : null}
                   </div>
                 </TabsContent>
 
@@ -447,4 +467,3 @@ export function EffectsPanel({
     </div>
   )
 }
-
