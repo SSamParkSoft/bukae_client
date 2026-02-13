@@ -26,11 +26,20 @@ interface RenderAtOptions {
   forceSceneIndex?: number
 }
 
+const VIDEO_SYNC_SEEK_EPSILON_SEC = 0.08
+const VIDEO_SEGMENT_END_EPSILON_SEC = 0.02
+
 function hideSprite(sprite: PIXI.Sprite) {
   if (!sprite.destroyed) {
     sprite.visible = false
     sprite.alpha = 0
   }
+}
+
+function hideAllSprites(spritesMap: Map<number, PIXI.Sprite>) {
+  spritesMap.forEach((sprite) => {
+    hideSprite(sprite)
+  })
 }
 
 function applySceneBaseTransform(sprite: PIXI.Sprite, scene: TimelineData['scenes'][number] | null | undefined) {
@@ -65,7 +74,46 @@ export function useProTransportRenderer({
   const renderAtRef = useRef<((tSec: number, options?: RenderAtOptions) => void) | undefined>(undefined)
   const lastRenderedTimeRef = useRef<number>(-1)
   const lastRenderedSceneIndexRef = useRef<number>(-1)
+  const renderRequestIdRef = useRef(0)
   const pendingSceneLoadRef = useRef<Map<number, Promise<void>>>(new Map())
+
+  const syncVideoPlaybackToTimeline = useCallback(
+    (video: HTMLVideoElement, scene: ProStep3Scene, expectedVideoTime: number) => {
+      if (video.readyState < 2) {
+        return
+      }
+
+      const selectionStart = scene.selectionStartSeconds ?? 0
+      const selectionEnd = scene.selectionEndSeconds ?? selectionStart
+      const hasSelectionWindow = selectionEnd > selectionStart
+      const reachedSegmentEnd =
+        hasSelectionWindow && expectedVideoTime >= selectionEnd - VIDEO_SEGMENT_END_EPSILON_SEC
+
+      const currentDrift = Math.abs(video.currentTime - expectedVideoTime)
+      if (currentDrift > VIDEO_SYNC_SEEK_EPSILON_SEC) {
+        video.currentTime = expectedVideoTime
+      }
+
+      if (!transportState.isPlaying || reachedSegmentEnd) {
+        if (!video.paused) {
+          video.pause()
+        }
+        if (Math.abs(video.currentTime - expectedVideoTime) > 0.01) {
+          video.currentTime = expectedVideoTime
+        }
+        return
+      }
+
+      if (video.playbackRate !== transportState.playbackRate) {
+        video.playbackRate = transportState.playbackRate
+      }
+
+      if (video.paused) {
+        void video.play().catch(() => undefined)
+      }
+    },
+    [transportState.isPlaying, transportState.playbackRate]
+  )
 
   const ensureSceneLoaded = useCallback(
     (sceneIndex: number, scene: ProStep3Scene, videoTime: number): Promise<void> => {
@@ -112,12 +160,32 @@ export function useProTransportRenderer({
         forceSceneIndex: options?.forceSceneIndex,
       })
       if (!resolved) {
+        hideAllSprites(spritesRef.current)
+        videoElementsRef.current.forEach((video) => {
+          if (!video.paused) {
+            video.pause()
+          }
+        })
         return
       }
 
       const targetSceneIndex = resolved.sceneIndex
       const targetScene = scenes[targetSceneIndex]
-      if (!targetScene || !targetScene.videoUrl) {
+      if (!targetScene) {
+        return
+      }
+
+      if (!targetScene.videoUrl) {
+        hideAllSprites(spritesRef.current)
+        videoElementsRef.current.forEach((video) => {
+          if (!video.paused) {
+            video.pause()
+          }
+        })
+        renderSubtitle(targetSceneIndex, targetScene.script ?? '')
+        currentSceneIndexRef.current = targetSceneIndex
+        lastRenderedSceneIndexRef.current = targetSceneIndex
+        lastRenderedTimeRef.current = tSec
         return
       }
 
@@ -141,20 +209,38 @@ export function useProTransportRenderer({
             hideSprite(s)
           }
         })
+
+        videoElementsRef.current.forEach((video, index) => {
+          if (index !== targetSceneIndex && !video.paused) {
+            video.pause()
+          }
+        })
       }
 
       if (sceneChanged || options?.forceSceneIndex !== undefined) {
+        // 씬 전환 순간에도 자막이 즉시 보이도록 비디오 로드 전 먼저 렌더링
+        renderSubtitle(targetSceneIndex, targetScene.script ?? '')
+        currentSceneIndexRef.current = targetSceneIndex
+        const requestId = ++renderRequestIdRef.current
+
         void ensureSceneLoaded(targetSceneIndex, targetScene, videoTime).then(() => {
-          renderSubtitle(targetSceneIndex, targetScene.script ?? '')
+          if (requestId !== renderRequestIdRef.current) {
+            return
+          }
+          const loadedVideo = videoElementsRef.current.get(targetSceneIndex)
+          if (loadedVideo) {
+            syncVideoPlaybackToTimeline(loadedVideo, targetScene, videoTime)
+          }
           applyVisualState()
-          currentSceneIndexRef.current = targetSceneIndex
           lastRenderedSceneIndexRef.current = targetSceneIndex
         })
       } else {
         const currentVideo = videoElementsRef.current.get(targetSceneIndex)
-        if (currentVideo && currentVideo.readyState >= 2 && Math.abs(currentVideo.currentTime - videoTime) > 0.1) {
-          currentVideo.currentTime = videoTime
+        if (currentVideo) {
+          syncVideoPlaybackToTimeline(currentVideo, targetScene, videoTime)
         }
+        // 동일 씬 내 시작 프레임에서도 자막이 누락되지 않도록 매 tick에서 자막 동기화
+        renderSubtitle(targetSceneIndex, targetScene.script ?? '')
         applyVisualState()
       }
 
@@ -166,6 +252,7 @@ export function useProTransportRenderer({
       ensureSceneLoaded,
       pixiReady,
       renderSubtitle,
+      syncVideoPlaybackToTimeline,
       scenes,
       spritesRef,
       timeline,

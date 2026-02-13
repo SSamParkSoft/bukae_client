@@ -70,7 +70,6 @@ interface UseProFabricResizeDragParams {
   currentSceneIndex: number
   timeline: TimelineData | null
   setTimeline: (timeline: TimelineData | null) => void
-  fallbackScript: string
   spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
   videoElementsRef: React.MutableRefObject<Map<number, HTMLVideoElement>>
@@ -102,7 +101,6 @@ export function useProFabricResizeDrag({
   currentSceneIndex,
   timeline,
   setTimeline,
-  fallbackScript,
   spritesRef,
   textsRef,
   videoElementsRef,
@@ -114,7 +112,6 @@ export function useProFabricResizeDrag({
   const isSyncingRef = useRef(false)
   const timelineRef = useRef<TimelineData | null>(timeline)
   const currentSceneIndexRef = useRef(currentSceneIndex)
-  const fallbackScriptRef = useRef(fallbackScript)
   const isSavingTransformRef = useRef(false)
   const savedSceneIndexRef = useRef<number | null>(null)
   const isManualSceneSelectRef = useRef(false)
@@ -127,10 +124,6 @@ export function useProFabricResizeDrag({
   useEffect(() => {
     currentSceneIndexRef.current = currentSceneIndex
   }, [currentSceneIndex])
-
-  useEffect(() => {
-    fallbackScriptRef.current = fallbackScript
-  }, [fallbackScript])
 
   const getDisplaySize = useCallback(() => {
     const container = playbackContainerRef.current
@@ -200,6 +193,9 @@ export function useProFabricResizeDrag({
       canvas.lowerCanvasEl.style.top = '0'
       canvas.lowerCanvasEl.style.zIndex = '40'
       canvas.lowerCanvasEl.style.backgroundColor = 'transparent'
+      // 실제 영상/자막은 Pixi 캔버스가 담당하고, Fabric은 편집 컨트롤만 표시한다.
+      // 이렇게 하면 재생/비재생 시 해상도 차이를 줄일 수 있다.
+      canvas.lowerCanvasEl.style.opacity = '0'
     }
 
     // Fabric.js의 내부 오프셋 계산 (마우스 이벤트 좌표 변환에 필요)
@@ -334,13 +330,16 @@ export function useProFabricResizeDrag({
     // seek 완료 후 프레임이 업데이트되었는지 확인하기 위해
     // 비디오가 정지 상태이고 현재 시간이 설정되어 있는지 확인
     try {
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
     } catch (error) {
       // 프레임 캡처 실패 시 null 반환
       console.warn('[resolveSceneImageObject] 비디오 프레임 캡처 실패:', error)
       return null
     }
-    const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9)
+    // 편집 모드 해상도 저하를 줄이기 위해 손실 압축(JPEG) 대신 PNG 사용
+    const imageDataUrl = canvas.toDataURL('image/png')
 
     // fabric.Image 생성
     const fabricImage = await fabric.Image.fromURL(imageDataUrl, {
@@ -373,7 +372,9 @@ export function useProFabricResizeDrag({
   }, [spritesRef, videoElementsRef])
 
   const resolveSceneTextContent = useCallback(() => {
-    return fallbackScriptRef.current
+    // Pro 편집 모드에서는 자막 시각 표현을 Pixi 렌더러로 통일한다.
+    // Fabric 텍스트를 생성하면 재생/일시정지 시 폰트 렌더링 차이가 커져 이질감이 발생한다.
+    return null
   }, [])
 
   const { syncFabricWithScene } = useFabricSync({
@@ -386,6 +387,7 @@ export function useProFabricResizeDrag({
       width: stageWidth,
       height: stageHeight,
     },
+    preferResolvedSceneTextContent: true,
     resolveSceneImageObject,
     resolveSceneTextContent,
   })

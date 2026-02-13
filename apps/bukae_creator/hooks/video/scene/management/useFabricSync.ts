@@ -17,6 +17,11 @@ interface UseFabricSyncParams {
   currentSceneIndexRef: React.MutableRefObject<number>
   timeline: TimelineData | null
   stageDimensions: StageDimensions
+  /**
+   * true면 resolveSceneTextContent 결과를 우선 사용합니다.
+   * false면 기존처럼 scene.text.content를 우선 사용합니다.
+   */
+  preferResolvedSceneTextContent?: boolean
   resolveSceneImageObject?: (params: {
     scene: TimelineData['scenes'][number]
     sceneIndex: number
@@ -39,6 +44,7 @@ export function useFabricSync({
   currentSceneIndexRef,
   timeline,
   stageDimensions,
+  preferResolvedSceneTextContent = false,
   resolveSceneImageObject,
   resolveSceneTextContent,
 }: UseFabricSyncParams) {
@@ -158,7 +164,10 @@ export function useFabricSync({
     }
 
     // 텍스트 (좌표를 스케일 비율에 맞게 조정)
-    const resolvedTextContent = scene.text?.content ?? resolveSceneTextContent?.({ scene, sceneIndex })
+    const resolvedByOverride = resolveSceneTextContent?.({ scene, sceneIndex })
+    const resolvedTextContent = preferResolvedSceneTextContent
+      ? resolvedByOverride
+      : (scene.text?.content ?? resolvedByOverride)
     if (resolvedTextContent && resolvedTextContent.trim()) {
       const transform = scene.text?.transform
       const angleDeg = (transform?.rotation || 0) * (180 / Math.PI)
@@ -317,6 +326,7 @@ export function useFabricSync({
     currentSceneIndexRef,
     timeline,
     stageDimensions,
+    preferResolvedSceneTextContent,
     resolveSceneImageObject,
     resolveSceneTextContent,
   ])

@@ -37,13 +37,6 @@ const STAGE_ASPECT_RATIO = STAGE_WIDTH / STAGE_HEIGHT
 const VIDEO_METADATA_TIMEOUT_MS = 5000
 const VIDEO_SEEK_TIMEOUT_MS = 1200
 
-function hideSprite(sprite: PIXI.Sprite) {
-  if (!sprite.destroyed) {
-    sprite.visible = false
-    sprite.alpha = 0
-  }
-}
-
 function hideText(textObj: PIXI.Text) {
   if (!textObj.destroyed) {
     textObj.visible = false
@@ -73,7 +66,6 @@ function getAppCanvas(app: PIXI.Application | null | undefined): HTMLCanvasEleme
 
 export const ProPreviewPanel = memo(function ProPreviewPanel({
   currentVideoUrl,
-  currentSelectionStartSeconds,
   currentSceneIndex = 0,
   scenes,
   isPlaying,
@@ -706,11 +698,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       return
     }
 
-    // 일시정지 편집 모드에서는 Fabric 텍스트를 사용하므로 Pixi 텍스트를 숨긴다.
-    if (!isPlaying) {
-      return
-    }
-
     const timelineScene = timelineRef.current?.scenes?.[sceneIndex]
     const textSettings = timelineScene?.text
 
@@ -869,7 +856,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         hideText(strokeObj)
       }
     }
-  }, [isPlaying, pixiReady])
+  }, [pixiReady])
 
   const totalDurationValue = useMemo(() => {
     return getPlayableScenes(scenes).reduce((sum, playable) => sum + playable.duration, 0)
@@ -893,8 +880,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   const currentScene = scenes[currentSceneIndex]
   const currentSceneVideoUrl = currentScene?.videoUrl
   const currentSceneScript = currentScene?.script ?? ''
-  // currentSelectionStartSeconds prop이 있으면 사용하고, 없으면 scenes에서 읽기
-  const currentSceneSelectionStart = currentSelectionStartSeconds ?? currentScene?.selectionStartSeconds ?? 0
 
   const subtitleSettingsKey = useMemo(() => {
     return JSON.stringify(timeline?.scenes?.[currentSceneIndex]?.text ?? null)
@@ -918,7 +903,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     currentSceneIndex,
     timeline,
     setTimeline,
-    fallbackScript: currentSceneScript,
     spritesRef,
     textsRef,
   })
@@ -935,16 +919,11 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     }
 
     const fabricEditingEnabled = proFabricCanvasRef?.current !== null
-    
-    if (fabricEditingEnabled && !isPlaying) {
-      // Fabric.js 편집 모드일 때 PixiJS 캔버스 숨김
-      appCanvas.style.opacity = '0'
-      appCanvas.style.pointerEvents = 'none'
-    } else {
-      // 재생 중이거나 Fabric.js 편집 모드가 아닐 때 PixiJS 캔버스 표시
-      appCanvas.style.opacity = '1'
-      appCanvas.style.pointerEvents = 'auto'
-    }
+    const isPausedEditing = fabricEditingEnabled && !isPlaying
+
+    // 일시정지 상태에서도 Pixi 미리보기는 항상 유지한다.
+    appCanvas.style.opacity = '1'
+    appCanvas.style.pointerEvents = isPausedEditing ? 'none' : 'auto'
   }, [pixiReady, isPlaying, proFabricCanvasRef, appRef])
 
   // 스프라이트 클릭 이벤트 설정 헬퍼 함수 (useProFabricResizeDrag 호출 후 정의)
@@ -1104,178 +1083,56 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   }, [isPlaying, pixiReady, currentSceneIndex, proFabricCanvasRef, setupSpriteClickEvent])
 
   useEffect(() => {
-    if (!pixiReady || isPlaying || currentSceneIndex < 0) {
+    if (!pixiReady || isPlaying || currentSceneIndex < 0 || !syncFromSceneDirect) {
+      return
+    }
+
+    const fabricEditingEnabled = proFabricCanvasRef?.current !== null
+    if (!fabricEditingEnabled || !currentSceneVideoUrl) {
       return
     }
 
     let cancelled = false
+    let retryCount = 0
+    const MAX_RETRIES = 120
 
-    const renderCurrentScene = async () => {
-      // 먼저 다른 씬의 스프라이트는 숨김 (현재 씬 스프라이트는 나중에 처리)
-      spritesRef.current.forEach((sprite, index) => {
-        if (index !== currentSceneIndex && !sprite.destroyed) {
-          hideSprite(sprite)
-        }
-      })
-
-      if (currentSceneVideoUrl) {
-        // 최신 selectionStartSeconds 값을 사용 (prop 또는 scenes에서)
-        await loadVideoAsSprite(currentSceneIndex, currentSceneVideoUrl, currentSceneSelectionStart)
-      } else {
-        // 비디오 URL이 없으면 모든 스프라이트 숨김
-        spritesRef.current.forEach((sprite) => {
-          if (!sprite.destroyed) {
-            hideSprite(sprite)
-          }
-        })
-      }
-
+    const runSyncWhenVideoReady = () => {
       if (cancelled) {
         return
       }
 
-      // loadVideoAsSprite 완료 후 현재 씬 스프라이트의 가시성 처리
-      // Fabric.js 편집 모드일 때는 PixiJS 스프라이트를 숨김 (Fabric.js 이미지 객체만 표시)
-      const fabricEditingEnabled = proFabricCanvasRef?.current !== null
-      const currentSprite = spritesRef.current.get(currentSceneIndex)
-      
-      // 스프라이트가 생성되었는지 확인하고 표시
-      if (currentSprite && !currentSprite.destroyed) {
-        // 타임라인의 imageTransform이 있으면 적용 (loadVideoAsSprite에서 이미 적용했지만 재확인)
-        const currentTimeline = useVideoCreateStore.getState().timeline
-        const timelineScene = currentTimeline?.scenes?.[currentSceneIndex]
-        const imageTransform = timelineScene?.imageTransform
-        
-        if (imageTransform) {
-          currentSprite.x = imageTransform.x
-          currentSprite.y = imageTransform.y
-          currentSprite.width = imageTransform.width
-          currentSprite.height = imageTransform.height
-          currentSprite.rotation = imageTransform.rotation ?? 0
-        }
-        
-        // 일단 스프라이트를 표시 (Fabric.js 객체가 생성되기 전까지는 스프라이트를 보여줌)
-        currentSprite.visible = true
-        currentSprite.alpha = 1
-        
-        // PixiJS 앱이 렌더링되도록 강제
-        const app = appRef.current
-        if (app) {
-          app.renderer.render(app.stage)
-        }
+      const currentVideo = videoElementsRef.current.get(currentSceneIndex)
+      if (currentVideo && currentVideo.readyState >= 2 && currentVideo.videoWidth > 0 && currentVideo.videoHeight > 0) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (!cancelled) {
+              void syncFromSceneDirect()
+            }
+          })
+        })
+        return
       }
 
-      renderSubtitle(currentSceneIndex, currentSceneScript)
-      
-      // 비디오 로드 완료 후 Fabric.js 동기화 (비디오가 있어야 Fabric.js 이미지 생성 가능)
-      if (fabricEditingEnabled && !isPlaying && pixiReady && currentSceneVideoUrl) {
-        // 비디오가 완전히 준비될 때까지 기다린 후 동기화
-        const video = videoElementsRef.current.get(currentSceneIndex)
-        // readyState >= 2: 프레임 데이터를 사용할 수 있음
-        // videoWidth와 videoHeight가 있어야 프레임 캡처 가능
-        
-        const performSync = async () => {
-          if (cancelled || !syncFromSceneDirect) {
-            return
-          }
-          
-          // Fabric.js 동기화 실행 (debounce 없이 직접 호출)
-          await syncFromSceneDirect()
-          
-          // 동기화 완료 후 Fabric.js 객체가 생성되었는지 확인
-          const fabricCanvas = proFabricCanvasRef?.current
-          if (fabricCanvas) {
-            const objects = fabricCanvas.getObjects() as Array<fabric.Object & { dataType?: 'image' | 'text' }>
-            const hasImageObject = objects.some((obj) => obj.dataType === 'image')
-            
-            // 이미지 객체가 생성되었으면 스프라이트 숨김
-            if (hasImageObject && currentSprite && !currentSprite.destroyed) {
-              hideSprite(currentSprite)
-            }
-          }
-        }
-        
-        if (video && video.readyState >= 2 && video.videoWidth && video.videoHeight) {
-          // 비디오가 이미 준비되어 있으면 즉시 동기화
-          // seek 완료 후 프레임이 업데이트될 때까지 약간의 지연 추가
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              void performSync()
-            })
-          })
-        } else {
-          // 비디오가 아직 준비되지 않았으면 준비될 때까지 대기
-          const checkVideoReady = () => {
-            if (cancelled) {
-              return
-            }
-            const currentVideo = videoElementsRef.current.get(currentSceneIndex)
-            if (currentVideo && currentVideo.readyState >= 2 && currentVideo.videoWidth && currentVideo.videoHeight) {
-              // 비디오가 준비되면 동기화
-              requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                  if (!cancelled) {
-                    void performSync()
-                  }
-                })
-              })
-            } else {
-              // 아직 준비되지 않았으면 다음 프레임에 다시 확인 (최대 60프레임, 약 1초)
-              const maxRetries = 60
-              let retryCount = 0
-              const retryCheck = () => {
-                if (cancelled) {
-                  return
-                }
-                const checkVideo = videoElementsRef.current.get(currentSceneIndex)
-                if (checkVideo && checkVideo.readyState >= 2 && checkVideo.videoWidth && checkVideo.videoHeight) {
-                  requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                      if (!cancelled) {
-                        void performSync()
-                      }
-                    })
-                  })
-                } else if (retryCount < maxRetries) {
-                  retryCount++
-                  requestAnimationFrame(retryCheck)
-                }
-              }
-              requestAnimationFrame(retryCheck)
-            }
-          }
-          requestAnimationFrame(checkVideoReady)
-        }
-      } else if (!fabricEditingEnabled && currentSprite && !currentSprite.destroyed) {
-        // Fabric.js 편집 모드가 아닐 때는 스프라이트 표시 (이미 위에서 설정했지만 명시적으로)
-        currentSprite.visible = true
-        currentSprite.alpha = 1
+      if (retryCount >= MAX_RETRIES) {
+        return
       }
-      
-      // 스프라이트 생성 완료 - 클릭 이벤트는 별도 useEffect에서 설정됨
+
+      retryCount += 1
+      requestAnimationFrame(runSyncWhenVideoReady)
     }
 
-    void renderCurrentScene().catch(() => {
-      // 현재 씬 렌더링 오류
-    })
+    runSyncWhenVideoReady()
 
     return () => {
       cancelled = true
     }
   }, [
     currentSceneIndex,
-    currentSceneScript,
     currentSceneVideoUrl,
-    currentSceneSelectionStart,
     isPlaying,
-    loadVideoAsSprite,
     pixiReady,
-    renderSubtitle,
-    syncFabricScene,
     syncFromSceneDirect,
     proFabricCanvasRef,
-    timelineScenesKey, // 타임라인 변경 감지
-    fabricReady,
   ])
 
   useEffect(() => {
