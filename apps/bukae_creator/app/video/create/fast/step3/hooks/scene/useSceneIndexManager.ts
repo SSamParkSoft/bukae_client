@@ -27,13 +27,15 @@ export function useSceneIndexManager({
   // 재생 중일 때는 계산된 값을 사용, 재생 중이 아닐 때는 수동 선택을 우선
   const [manualSceneIndex, setManualSceneIndex] = useState<number | null>(null)
   
-  // 실제 재생 중인 TTS 세그먼트를 우선 사용하고, 없으면 timeline 시간 기반으로 fallback합니다.
+  // 실제 재생 중일 때만 TTS 세그먼트를 사용하고,
+  // 그 외에는 timeline 시간 기반 계산을 사용합니다.
+  // (보이스 일괄 변경 직후 임시 0초 세그먼트가 있을 때 마지막 씬으로 튀는 현상 방지)
   const calculatedSceneIndex = (() => {
     if (!timeline) {
       return 0
     }
 
-    if (ttsTrack.getActiveSegment) {
+    if (isPlaying && ttsTrack.getActiveSegment) {
       const activeSegment = ttsTrack.getActiveSegment(transport.currentTime)
       if (activeSegment?.segment.sceneIndex !== undefined) {
         return activeSegment.segment.sceneIndex
