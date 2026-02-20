@@ -21,6 +21,7 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [dropdownWidth, setDropdownWidth] = useState<number | undefined>(undefined)
+  const [imageError, setImageError] = useState(false)
 
   // 프로필 버튼의 너비를 측정하여 드롭다운 너비에 적용
   useEffect(() => {
@@ -28,6 +29,11 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
       setDropdownWidth(buttonRef.current.offsetWidth)
     }
   }, [isOpen, user])
+
+  // 프로필 이미지 URL이 변경되면 에러 상태 리셋
+  useEffect(() => {
+    setImageError(false)
+  }, [user?.profileImage])
 
   const handleLogout = async () => {
     try {
@@ -72,13 +78,15 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
         className="flex items-center h-[58px] px-5 rounded-3xl bg-white/10 gap-3 shadow-md hover:bg-white/20 transition-colors"
       >
         {/* 프로필 사진 */}
-        {user.profileImage ? (
+        {user.profileImage && !imageError ? (
           <Image
             src={user.profileImage}
             alt={user.name}
             width={36}
             height={36}
             className="w-9 h-9 rounded-xl object-cover"
+            unoptimized
+            onError={() => setImageError(true)}
           />
         ) : (
           <div className="w-9 h-9 rounded-xl bg-[#e3b8ff] flex items-center justify-center shrink-0">
@@ -123,13 +131,15 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
             {/* 상단 프로필 영역 */}
             <div className="flex items-center gap-2.5 h-8">
               {/* 프로필 이미지 */}
-              {user.profileImage ? (
+              {user.profileImage && !imageError ? (
                 <Image
                   src={user.profileImage}
                   alt={user.name}
                   width={32}
                   height={32}
                   className="w-8 h-8 rounded-lg object-cover shrink-0"
+                  unoptimized
+                  onError={() => setImageError(true)}
                 />
               ) : (
                 <div className="w-8 h-8 rounded-lg bg-[#e3b8ff] flex items-center justify-center shrink-0">

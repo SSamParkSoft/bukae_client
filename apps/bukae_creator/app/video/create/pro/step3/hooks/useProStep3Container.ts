@@ -9,6 +9,7 @@ import { useProTransportPlayback } from './playback/useProTransportPlayback'
 import { useProFabricResizeDrag } from './editing/useProFabricResizeDrag'
 import { useProEditModeManager } from './editing/useProEditModeManager'
 import { useTimelineChangeHandler } from '@/app/video/create/step3/shared/hooks/timeline'
+import { getPlayableScenes } from '../utils/proPlaybackUtils'
 import type { ProStep3Scene } from '../model/types'
 
 export interface UseProStep3ContainerParams {
@@ -83,7 +84,21 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
   const timeline = useVideoCreateStore((state) => state.timeline)
   const setTimeline = useVideoCreateStore((state) => state.setTimeline)
 
-  const totalDurationValue = totalDuration
+  // scenes에서 직접 totalDuration을 계산 (state 의존 제거로 초기 로드 시 0 문제 해결)
+  const computedTotalDuration = useMemo(() => {
+    return getPlayableScenes(scenes).reduce((sum, playable) => sum + playable.duration, 0)
+  }, [scenes])
+
+  // computedTotalDuration이 유효하면 사용, 아니면 state 값 사용
+  const totalDurationValue = computedTotalDuration > 0 ? computedTotalDuration : totalDuration
+
+  // computedTotalDuration이 변경되면 state도 업데이트
+  useEffect(() => {
+    if (computedTotalDuration > 0) {
+      setTotalDuration(computedTotalDuration)
+    }
+  }, [computedTotalDuration, setTotalDuration])
+
   const useFabricEditing = editMode === 'text'
 
   const { transportHook, transportState, renderAtRef } = useProTransportRenderer({

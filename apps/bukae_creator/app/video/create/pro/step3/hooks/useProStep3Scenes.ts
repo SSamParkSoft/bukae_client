@@ -104,12 +104,12 @@ export function useProStep3Scenes() {
         id: scene.id,
         script: scene.script,
         videoUrl: scene.videoUrl,
-        selectionStartSeconds, // Step2에서 설정한 값 사용 (없으면 기본값)
-        selectionEndSeconds, // Step2에서 설정한 값 사용 (없으면 기본값)
+        selectionStartSeconds,
+        selectionEndSeconds,
         voiceLabel: scene.voiceLabel,
         voiceTemplate: scene.voiceTemplate,
-        ttsDuration: scene.ttsDuration,
-        ttsAudioBase64: scene.ttsAudioBase64, // ttsAudioBase64 포함
+        ttsDuration,
+        ttsAudioBase64: scene.ttsAudioBase64,
       }
     })
   }, [proScenes])
