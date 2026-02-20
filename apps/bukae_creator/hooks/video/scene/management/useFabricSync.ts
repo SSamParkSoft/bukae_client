@@ -242,6 +242,7 @@ export function useFabricSync({
           angle: angleDeg,
           selectable: true,
           evented: true,
+          opacity: 0, // 투명하게 설정 (PixiJS만 보이게)
         })
         
         // Group 내부 객체들이 캔버스에 직접 추가되지 않도록 보장
@@ -290,6 +291,7 @@ export function useFabricSync({
           selectable: true,
           evented: true,
           angle: angleDeg,
+          opacity: 0, // 투명하게 설정 (PixiJS만 보이게)
         })
         
         if (transform) {

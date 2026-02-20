@@ -450,9 +450,11 @@ export function useFabricHandlers({
 
       if (target.dataType === 'image') {
         saveImageTransform(target, currentSceneIndexRef.current)
+      } else if (target.dataType === 'text') {
+        saveTextTransform(target as fabric.Textbox, currentSceneIndexRef.current, false)
       }
     },
-    [currentSceneIndexRef, saveImageTransform]
+    [currentSceneIndexRef, saveImageTransform, saveTextTransform]
   )
 
   const handleScaling = useCallback(
@@ -462,8 +464,7 @@ export function useFabricHandlers({
         return
       }
 
-      // Pro 트랙: 코너 핸들러는 드래그 가능하지만 스케일 변경은 무시됨
-      // 텍스트의 경우: width만 변경 (폰트사이즈는 변경하지 않음, 패스트트랙처럼)
+      // 텍스트의 경우 width만 갱신하고 폰트사이즈는 유지한다.
       if (target.dataType === 'text') {
         if (!timeline || !fabricCanvasRef.current) {
           return
@@ -664,22 +665,9 @@ export function useFabricHandlers({
           // 다음 프레임부터 계속 체크
           requestAnimationFrame(checkAndResetScale)
         }
+        saveTextTransform(target as fabric.Textbox, currentSceneIndexRef.current, false)
       } else if (target.dataType === 'image') {
-        // 이미지의 경우: 스케일을 원래대로 되돌림 (width/height만 유지)
-        const currentScaleX = target.scaleX ?? 1
-        const currentScaleY = target.scaleY ?? 1
-        
-        if (currentScaleX !== 1 || currentScaleY !== 1) {
-          target.set({
-            scaleX: 1,
-            scaleY: 1,
-          })
-          if (fabricCanvasRef.current) {
-            fabricCanvasRef.current.requestRenderAll()
-          }
-        }
-        
-        // 타임라인 업데이트는 하지 않음 (object:modified에서만 수행)
+        saveImageTransform(target, currentSceneIndexRef.current)
       }
     },
     [currentSceneIndexRef, saveImageTransform, saveTextTransform, fabricCanvasRef, timeline, setTimeline, fabricScaleRatioRef]

@@ -10,8 +10,6 @@ import { applyFabricObjectDefaults } from '@/hooks/video/pixi/fabricObjectDefaul
 import { calculateAspectFittedSize } from '../../utils/proPreviewLayout'
 
 const FABRIC_SYNC_DEBOUNCE_MS = 80
-// Fast 트랙 usePixiEditor와 동일: 브랜드 teal #5e8790, 흰색 테두리
-const FAST_HANDLER_BORDER_COLOR = '#5e8790'
 // Fast와 동일한 논리 크기 (Pixi 월드). Pro는 캔버스가 디스플레이 크기라 scaleRatio로 보정해 화면에서 동일하게 보이게 함.
 const FAST_IMAGE_HANDLE_SIZE = 20
 const FAST_TEXT_HANDLE_SIZE = 16
@@ -25,7 +23,7 @@ function getFastImageHandleStyle(scaleRatio: number) {
     cornerStrokeColor: '#ffffff',
     cornerSize,
     cornerStyle: 'rect' as const,
-    borderColor: FAST_HANDLER_BORDER_COLOR,
+    borderColor: '#5e8790',
     borderScaleFactor: 2,
     padding: 0,
   }
@@ -39,14 +37,13 @@ function getFastTextHandleStyle(scaleRatio: number) {
     cornerStrokeColor: '#ffffff',
     cornerSize,
     cornerStyle: 'rect' as const,
-    borderColor: FAST_HANDLER_BORDER_COLOR,
+    borderColor: '#5e8790',
     borderScaleFactor: 2,
     padding: 0,
   }
 }
 const FAST_LOCKED_TRANSFORM_STYLE = {
-  // lockScalingX/Y를 false로 설정하여 코너 핸들러 드래그 가능하게 함
-  // 하지만 실제 스케일 변경은 이벤트 핸들러에서 무시됨
+  // 코너 핸들로 자유 리사이즈 가능
   lockScalingX: false,
   lockScalingY: false,
   lockRotation: true,
@@ -73,6 +70,7 @@ interface UseProFabricResizeDragParams {
   spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
   videoElementsRef: React.MutableRefObject<Map<number, HTMLVideoElement>>
+  editMode?: 'none' | 'image' | 'text'
 }
 
 interface FabricDataObject {
@@ -104,6 +102,7 @@ export function useProFabricResizeDrag({
   spritesRef,
   textsRef,
   videoElementsRef,
+  editMode = 'image',
 }: UseProFabricResizeDragParams) {
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
   const fabricCanvasElRef = useRef<HTMLCanvasElement | null>(null)
@@ -156,9 +155,17 @@ export function useProFabricResizeDrag({
       return
     }
 
+    // 현재 크기와 동일하면 업데이트 스킵 (깜빡임 방지)
+    const currentWidth = canvas.width
+    const currentHeight = canvas.height
+    if (currentWidth === size.width && currentHeight === size.height) {
+      return
+    }
+
     const ratio = size.width / stageWidth
     scaleRatioRef.current = ratio > 0 ? ratio : 1
 
+    // 크기는 항상 PixiJS와 동일하게 유지 (깜빡임 방지)
     canvas.setDimensions({ width: size.width, height: size.height })
 
     // Fabric.js가 wrapper를 생성하므로 wrapper의 위치만 설정
@@ -172,7 +179,7 @@ export function useProFabricResizeDrag({
       wrapper.style.width = `${size.width}px`
       wrapper.style.height = `${size.height}px`
       wrapper.style.zIndex = '40'
-      wrapper.style.pointerEvents = enabled ? 'auto' : 'none'
+      // pointerEvents는 useProEditModeManager에서 관리하므로 여기서는 설정하지 않음
     }
 
     if (canvas.upperCanvasEl) {
@@ -181,7 +188,7 @@ export function useProFabricResizeDrag({
       canvas.upperCanvasEl.style.position = 'absolute'
       canvas.upperCanvasEl.style.left = '0'
       canvas.upperCanvasEl.style.top = '0'
-      canvas.upperCanvasEl.style.pointerEvents = enabled ? 'auto' : 'none'
+      // pointerEvents는 useProEditModeManager에서 관리
       canvas.upperCanvasEl.style.zIndex = '41'
       canvas.upperCanvasEl.style.touchAction = 'none'
     }
@@ -211,7 +218,7 @@ export function useProFabricResizeDrag({
         canvas.requestRenderAll()
       }
     })
-  }, [enabled, getDisplaySize, playbackContainerRef, stageWidth])
+  }, [getDisplaySize, playbackContainerRef, stageWidth])
 
   const setTimelineNonNull = useCallback((nextTimeline: TimelineData) => {
     timelineRef.current = nextTimeline
@@ -230,7 +237,7 @@ export function useProFabricResizeDrag({
     isManualSceneSelectRef,
     useFabricEditing: enabled,
     fabricCanvasElementRef: fabricCanvasElRef,
-    editMode: 'image',
+    editMode,
   })
 
   // 공용 useFabricHandlers는 timeline 갱신만 담당하므로 Pro 미리보기(Pixi) 객체는 별도로 즉시 동기화한다.
@@ -344,6 +351,7 @@ export function useProFabricResizeDrag({
     })
 
     // imageTransform을 기준으로 위치와 크기 설정
+    // Fabric 객체는 투명하게 설정 (PixiJS만 보이게)
     fabricImage.set({
       originX: 'center',
       originY: 'center',
@@ -354,6 +362,7 @@ export function useProFabricResizeDrag({
       angle: (imageTransform.rotation * 180) / Math.PI,
       selectable: true,
       evented: true,
+      opacity: 0, // 투명하게 설정 (PixiJS만 보이게)
       hasBorders: false, // Fast처럼 박스 테두리 없이 코너 핸들만
       hasControls: true,
       hoverCursor: 'move',
@@ -401,6 +410,7 @@ export function useProFabricResizeDrag({
           obj.set({
             selectable: true,
             evented: true,
+            opacity: 0, // 투명하게 설정 (PixiJS만 보이게)
             hasBorders: false, // Fast처럼 박스 테두리 없이 코너 핸들만
             hasControls: true,
             hoverCursor: 'move',
@@ -415,6 +425,7 @@ export function useProFabricResizeDrag({
           obj.set({
             selectable: true,
             evented: true,
+            opacity: 0, // 투명하게 설정 (PixiJS만 보이게)
             hasBorders: false, // Fast처럼 박스 테두리 없이 코너 핸들만
             hasControls: true,
             hoverCursor: 'move',
@@ -455,11 +466,19 @@ export function useProFabricResizeDrag({
   }, [syncFromScene])
 
   useEffect(() => {
+    // Fast 트랙과 동일: useFabricEditing이 true일 때만 Fabric 캔버스 생성
+    // enabled는 useFabricEditing && pixiReady && !isPlaying이므로
+    // enabled가 true일 때만 생성하면 됨
     if (!enabled || !playbackContainerRef.current) {
       return
     }
 
     const container = playbackContainerRef.current
+    
+    // 이미 생성되어 있으면 스킵
+    if (fabricCanvasRef.current) {
+      return
+    }
 
     const canvasEl = document.createElement('canvas')
     canvasEl.width = stageWidth
@@ -510,6 +529,7 @@ export function useProFabricResizeDrag({
         syncTimerRef.current = null
       }
 
+      // enabled가 false가 되면 Fabric 캔버스 정리
       canvas.dispose()
       fabricCanvasRef.current = null
       fabricCanvasElRef.current = null
@@ -529,13 +549,14 @@ export function useProFabricResizeDrag({
   ])
 
   useEffect(() => {
+    // Fabric 캔버스가 생성되어 있고 enabled일 때만 크기 동기화
     if (!enabled || !fabricCanvasRef.current) {
       return
     }
 
     updateFabricSize()
     scheduleSync()
-  }, [enabled, currentSceneIndex, canvasDisplaySize, timeline, scheduleSync, updateFabricSize])
+  }, [enabled, currentSceneIndex, canvasDisplaySize, scheduleSync, updateFabricSize])
 
   return {
     syncFromScene: scheduleSync,
