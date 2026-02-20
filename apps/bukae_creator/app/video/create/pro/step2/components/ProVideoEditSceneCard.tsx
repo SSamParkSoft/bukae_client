@@ -164,7 +164,6 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
 
     const handleLoadedMetadata = () => {
       if (video.duration && isFinite(video.duration)) {
-        console.log(`[비디오 길이] 정확한 duration: ${video.duration}초 (${video.duration.toFixed(3)}초)`)
         setVideoDuration(video.duration)
       }
     }
@@ -322,13 +321,11 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       // duration은 timelineDuration과 같으므로, duration + 1개를 생성해야 함
       const frameCount = duration + 1
 
-      console.log(`[썸네일 생성 시작] duration: ${duration}, frameCount: ${frameCount}, videoWidth: ${video.videoWidth}, videoHeight: ${video.videoHeight}`)
 
       // 각 초마다 프레임 캡처 (0초부터 duration초까지, 총 duration + 1개)
       for (let i = 0; i <= duration; i++) {
         if (isCancelled) break
         await captureFrame(i)
-        console.log(`[프레임 캡처 완료] ${i}초`)
       }
 
       // 썸네일 배열 설정 (취소되지 않았을 때만)
@@ -337,7 +334,6 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
         for (let i = 0; i <= duration; i++) {
           thumbnailArray[i] = thumbnails[i] || ''
         }
-        console.log(`[썸네일 설정 완료] 총 ${thumbnailArray.length}개, 실제 생성된 썸네일: ${thumbnailArray.filter(t => t).length}개`)
         setFrameThumbnails(thumbnailArray)
       }
     }

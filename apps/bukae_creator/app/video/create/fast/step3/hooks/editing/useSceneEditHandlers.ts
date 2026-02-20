@@ -70,11 +70,6 @@ export function useSceneEditHandlers({
       changedScenesRef.current.add(sceneIndex)
       invalidateSceneTtsCache(sceneIndex)
       
-      console.log('[useSceneEditHandlers] 씬별 voiceTemplate 변경', {
-        sceneIndex,
-        newVoiceTemplate,
-        oldVoiceTemplate: scene.voiceTemplate,
-      })
     },
     [setTimeline, changedScenesRef, invalidateSceneTtsCache, timelineRef, currentSceneIndexRef, setCurrentSceneIndex]
   )

@@ -134,19 +134,12 @@ export function useProTransportRenderer({
 
       const pendingLoad = pendingSceneLoadRef.current.get(sceneIndex)
       if (pendingLoad) {
-        console.log('[ensureSceneLoaded] 이미 로딩 중인 씬:', { sceneIndex, videoUrl: scene.videoUrl })
         return pendingLoad
       }
 
       // loadVideoAsSprite는 selectionStartSeconds를 받아서 비디오를 처음 로드할 때 seek합니다
       // 로드 후에는 syncVideoPlaybackToTimeline에서 videoTime으로 seek합니다
       const selectionStartSeconds = scene.selectionStartSeconds ?? 0
-      console.log('[ensureSceneLoaded] 새 비디오 로드 시작:', {
-        sceneIndex,
-        videoUrl: scene.videoUrl,
-        selectionStartSeconds,
-        videoTime,
-      })
       const loadPromise = loadVideoAsSprite(sceneIndex, scene.videoUrl, selectionStartSeconds)
         .catch(() => undefined)
         .finally(() => {
@@ -211,18 +204,6 @@ export function useProTransportRenderer({
       
       // 디버깅: 씬별 비디오 시간 계산 확인
       if (sceneChanged) {
-        console.log('[ProTransportRenderer] 씬별 비디오 시간 계산:', {
-          sceneIndex: targetSceneIndex,
-          videoUrl: targetScene.videoUrl,
-          selectionStartSeconds: targetScene.selectionStartSeconds,
-          selectionEndSeconds: targetScene.selectionEndSeconds,
-          timelineTime: tSec,
-          sceneStartTime: resolved.sceneStartTime,
-          sceneTimeInSegment: resolved.sceneTimeInSegment,
-          segmentVideoTime,
-          clampedVideoTime: videoTime,
-          sceneDuration: resolved.duration,
-        })
       }
 
       const applyVisualState = () => {

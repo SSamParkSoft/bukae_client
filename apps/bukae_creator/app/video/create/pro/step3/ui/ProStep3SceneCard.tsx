@@ -433,7 +433,6 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
       // duration은 timelineDuration과 같으므로, duration + 1개를 생성해야 함
       const frameCount = duration + 1
 
-      console.log(`[썸네일 생성 시작] duration: ${duration}, frameCount: ${frameCount}, videoWidth: ${video.videoWidth}, videoHeight: ${video.videoHeight}`)
 
       // 각 초마다 프레임 캡처 (0초부터 duration초까지, 총 duration + 1개)
       for (let i = 0; i <= duration; i++) {

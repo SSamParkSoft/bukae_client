@@ -12,7 +12,6 @@ import {
   proSceneToSceneScript,
   sceneScriptToProScene,
   type ProScene,
-  type ExtendedSceneScript,
 } from '../utils/types'
 
 const DEFAULT_SCENE_COUNT = 6
@@ -56,22 +55,6 @@ export default function ProStep2EditPage() {
           try {
             const parsed = JSON.parse(saved)
             const savedScenes = parsed?.state?.scenes
-            console.log('[Step2 Edit] 캐싱 데이터 확인:', {
-              hasLocalStorage: !!saved,
-              hasParsed: !!parsed,
-              hasScenes: !!savedScenes,
-              scenesLength: savedScenes?.length || 0,
-              scenes: savedScenes?.map((s: ExtendedSceneScript, i: number) => ({
-                index: i,
-                id: s.id,
-                script: s.script?.substring(0, 30),
-                videoUrl: s.videoUrl ? '있음' : '없음',
-                selectionStartSeconds: s.selectionStartSeconds,
-                selectionEndSeconds: s.selectionEndSeconds,
-                ttsDuration: s.ttsDuration,
-                ttsAudioBase64: s.ttsAudioBase64 ? `있음 (${s.ttsAudioBase64.length} chars)` : '없음',
-              })) || [],
-            })
             // localStorage에 저장된 scenes가 있으면 초기화하지 않고 그대로 사용
             if (savedScenes && Array.isArray(savedScenes) && savedScenes.length > 0) {
               setHasInitialized(true)
@@ -81,7 +64,6 @@ export default function ProStep2EditPage() {
             console.error('[Step2 Edit] 캐싱 데이터 파싱 실패:', e)
           }
         } else {
-          console.log('[Step2 Edit] 캐싱 데이터 없음: localStorage에 저장된 데이터가 없습니다.')
         }
       }
       

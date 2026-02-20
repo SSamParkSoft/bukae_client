@@ -64,11 +64,6 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
         ...timeline,
         scenes: timeline.scenes.map((scene, idx) => (idx === currentSceneIndex ? updater(scene) : scene)),
       }
-      console.log('[SubtitleSettings] updateScene: timeline 업데이트:', {
-        currentSceneIndex,
-        oldText: timeline.scenes[currentSceneIndex]?.text,
-        newText: nextTimeline.scenes[currentSceneIndex]?.text,
-      })
       setTimeline(nextTimeline)
     },
     [timeline, currentSceneIndex, setTimeline],
@@ -119,12 +114,6 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
     if (!isFontSizeInputFocusedRef.current && fontSizeInputRef.current) {
       const currentFontSize = currentScene?.text?.fontSize || 80
       if (process.env.NODE_ENV === 'development') {
-        console.log('[SubtitleSettings] fontSize 업데이트:', {
-          currentSceneIndex,
-          currentFontSize,
-          timelineFontSize: currentScene?.text?.fontSize,
-          inputValue: fontSizeInputRef.current.value,
-        })
       }
       fontSizeInputRef.current.value = String(currentFontSize)
     }

@@ -792,10 +792,6 @@ export function useStep3Container() {
   useEffect(() => {
     // 재생 중이 아니고, timeline과 현재 씬이 유효할 때만 자막 업데이트
     if (!isPlaying && timeline && currentSceneIndex >= 0 && currentSceneTextSettings && renderSubtitlePart && pixiReady) {
-      console.log('[FastStep3] Timeline 자막 설정 변경 감지, 자막 다시 렌더링:', {
-        currentSceneIndex,
-        textSettings: currentSceneTextSettings,
-      })
       // 현재 씬의 자막을 다시 렌더링 (partIndex는 null로 설정하여 전체 텍스트 렌더링)
       renderSubtitlePart(currentSceneIndex, null, {
         skipAnimation: true,

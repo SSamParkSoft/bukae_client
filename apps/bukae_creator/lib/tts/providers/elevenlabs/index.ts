@@ -18,11 +18,8 @@ export const ElevenLabsProvider: TtsProviderInterface = {
    */
   async listVoices(): Promise<PublicVoiceInfo[]> {
     const voices = await listVoices()
-    console.log(`[ElevenLabs Provider] Raw voices count: ${voices.length}`)
     const mapped = voices.map(toPublicVoiceInfo)
-    console.log(`[ElevenLabs Provider] After toPublicVoiceInfo mapping: ${mapped.length} (nulls: ${mapped.filter(v => v === null).length})`)
     const result = mapped.filter(Boolean) as PublicVoiceInfo[]
-    console.log(`[ElevenLabs Provider] Final result: ${result.length}`)
     return result
   },
 

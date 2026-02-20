@@ -41,7 +41,6 @@ class WebSocketManager {
     // 이미 연결이 있으면 구독자만 추가
     const existing = this.connections.get(jobId)
     if (existing && existing.websocket.isConnected()) {
-      console.log('[WebSocketManager] 기존 연결 재사용, jobId:', jobId)
       existing.subscribers.add(onUpdate)
       if (onError) existing.errorCallbacks.add(onError)
       if (onClose) existing.closeCallbacks.add(onClose)
@@ -50,13 +49,11 @@ class WebSocketManager {
 
     // 기존 연결이 있지만 끊어진 경우 정리
     if (existing) {
-      console.log('[WebSocketManager] 기존 연결 정리 후 재연결, jobId:', jobId)
       existing.websocket.disconnect()
       this.connections.delete(jobId)
     }
 
     // 새 연결 생성
-    console.log('[WebSocketManager] 새 연결 생성, jobId:', jobId)
     const subscribers = new Set<UpdateCallback>([onUpdate])
     const errorCallbacks = new Set<ErrorCallback>()
     const closeCallbacks = new Set<CloseCallback>()
@@ -115,7 +112,6 @@ class WebSocketManager {
 
     try {
       await websocket.connect()
-      console.log('[WebSocketManager] 연결 성공, jobId:', jobId)
     } catch (error) {
       console.error('[WebSocketManager] 연결 실패, jobId:', jobId, error)
       this.connections.delete(jobId)
@@ -148,11 +144,9 @@ class WebSocketManager {
 
     // 모든 구독자가 없으면 연결 끊기
     if (connection.subscribers.size === 0) {
-      console.log('[WebSocketManager] 모든 구독자 해제, 연결 끊기, jobId:', jobId)
       connection.websocket.disconnect()
       this.connections.delete(jobId)
     } else {
-      console.log('[WebSocketManager] 구독자 제거, 연결 유지, jobId:', jobId, '남은 구독자:', connection.subscribers.size)
     }
   }
 
@@ -175,7 +169,6 @@ class WebSocketManager {
    * 모든 연결을 끊습니다 (앱 종료 시 사용).
    */
   disconnectAll(): void {
-    console.log('[WebSocketManager] 모든 연결 끊기')
     this.connections.forEach((connection, jobId) => {
       connection.websocket.disconnect()
     })

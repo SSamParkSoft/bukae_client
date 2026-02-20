@@ -42,7 +42,6 @@ export async function POST(request: Request) {
     }
 
     // Provider 정보 로깅
-    console.log(`[TTS Synthesize] Provider: ${voiceInfo.provider}, VoiceId: ${voiceInfo.voiceId}, DisplayName: ${voiceInfo.displayName}`)
 
     const mode = body.mode === 'markup' ? 'markup' : 'text'
     const text = String(body.text ?? '').trim()
@@ -81,7 +80,6 @@ export async function POST(request: Request) {
 
     // Provider 팩토리를 사용하여 적절한 Provider 선택
     const provider = getProvider(voiceInfo.provider)
-    console.log(`[TTS Synthesize] Selected provider: ${provider.name} (${provider.displayName})`)
 
     // Provider의 synthesize 메서드 호출
     const speakingRate = typeof body.speakingRate === 'number' ? body.speakingRate : undefined
@@ -100,7 +98,6 @@ export async function POST(request: Request) {
 
     // 문자 수 추적 (ElevenLabs인 경우)
     if (result.charCount) {
-      console.log(`[${voiceInfo.provider}] Character count: ${result.charCount}, Request ID: ${result.requestId}`)
     }
 
     return new Response(new Uint8Array(audioBuffer), {

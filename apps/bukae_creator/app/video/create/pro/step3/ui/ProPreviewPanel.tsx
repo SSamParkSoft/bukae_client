@@ -518,12 +518,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       return
     }
 
-    console.log('[loadVideoAsSprite] 씬별 비디오 로드 시작:', {
-      sceneIndex,
-      videoUrl,
-      selectionStartSeconds,
-      expectedSceneVideoUrl: scenesRef.current[sceneIndex]?.videoUrl,
-    })
 
     cleanupSceneResources(sceneIndex)
 
@@ -654,13 +648,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       const sprite = new PIXI.Sprite(texture)
       sprite.anchor.set(0.5, 0.5)
 
-      console.log('[loadVideoAsSprite] 스프라이트 생성 완료:', {
-        sceneIndex,
-        videoUrl,
-        spriteCreated: !!sprite,
-        videoCurrentTime: currentVideo.currentTime,
-        selectionStartSeconds: sceneStart,
-      })
 
       const stageWidth = appAfterSeek.screen.width
       const stageHeight = appAfterSeek.screen.height
@@ -731,14 +718,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         }
       }
       
-      console.log('[loadVideoAsSprite] 스프라이트 stage 추가 완료:', {
-        sceneIndex,
-        spriteAdded: finalVideoContainer.children.includes(sprite),
-        spriteVisible: sprite.visible,
-        spriteAlpha: sprite.alpha,
-        spritePosition: { x: sprite.x, y: sprite.y },
-        spriteSize: { width: sprite.width, height: sprite.height },
-      })
       
       // 스프라이트 생성 직후 클릭 이벤트 설정 (다음 프레임에서 실행하여 렌더링 완료 보장)
       requestAnimationFrame(() => {

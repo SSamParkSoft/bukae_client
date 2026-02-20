@@ -27,13 +27,11 @@ export function applyShortsTemplateToScenes(
   timeline: TimelineData,
   stageDimensions: StageDimensions
 ): TimelineData {
-  console.log(`[scene-template] 쇼츠 템플릿 적용 시작 | 씬 수: ${timeline.scenes.length}, 스테이지 크기: ${stageDimensions.width}x${stageDimensions.height}`)
 
   const { width, height } = stageDimensions
 
   // 모든 씬에 템플릿 적용
   const updatedScenes = timeline.scenes.map((scene, index) => {
-    console.log(`[scene-template] 씬 ${index} 템플릿 적용 중`)
 
     // 이미지 Transform: 상단 15%부터 시작, 가로 100%, 높이 70% (하단 15% 여백)
     // contain 모드로 이미지 비율 유지하면서 영역 내에 맞춤
@@ -83,7 +81,6 @@ export function applyShortsTemplateToScenes(
       },
     }
 
-    console.log(`[scene-template] 씬 ${index} 템플릿 적용 완료 | 이미지: (${imageTransform.x}, ${imageTransform.y}, ${imageTransform.width}x${imageTransform.height}), 텍스트: (${textTransform.x}, ${textTransform.y}, ${textTransform.width}x${textTransform.height})`)
 
     return updatedScene
   })
@@ -93,7 +90,6 @@ export function applyShortsTemplateToScenes(
     scenes: updatedScenes,
   }
 
-  console.log(`[scene-template] 쇼츠 템플릿 적용 완료 | 총 ${updatedScenes.length}개 씬 업데이트됨`)
 
   return nextTimeline
 }

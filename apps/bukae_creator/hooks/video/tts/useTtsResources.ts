@@ -79,7 +79,6 @@ export function useTtsResources() {
         cache.delete(key)
       })
       if (process.env.NODE_ENV === 'development') {
-        console.log(`[TTS Cache] Cleaned up ${toRemove.length} old entries, remaining: ${cache.size}`)
       }
     }
     

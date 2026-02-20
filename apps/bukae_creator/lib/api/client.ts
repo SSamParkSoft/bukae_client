@@ -127,20 +127,16 @@ async function checkAndRefreshToken(): Promise<void> {
     const expiresInSeconds = expiresIn || 1800
     const shouldRefresh = authStorage.shouldRefreshToken()
     const isExpired = authStorage.isTokenExpired()
-    console.log(`[Token Refresh] 체크 중 - 경과: ${ageSeconds}초, 만료시간: ${expiresInSeconds}초, 리프레시 필요: ${shouldRefresh}, 만료됨: ${isExpired}`)
   }
   
   // 토큰이 이미 만료된 경우 즉시 리프레시 시도
   if (age !== null && authStorage.isTokenExpired()) {
-    console.log(`[Token Refresh] 토큰 만료 감지 - 즉시 리프레시 시도 (${Math.floor(age / 1000)}초 경과)`)
     const result = await refreshAccessToken()
     if (!result) {
       consecutiveRefreshFailures++
-      console.log(`[Token Refresh] 리프레시 실패 (${consecutiveRefreshFailures}/${MAX_CONSECUTIVE_FAILURES})`)
       
       // 연속 실패 횟수가 최대치를 넘으면 로그아웃 처리
       if (consecutiveRefreshFailures >= MAX_CONSECUTIVE_FAILURES) {
-        console.log('[Token Refresh] 연속 리프레시 실패로 인한 로그아웃 처리')
         authStorage.clearTokens()
         consecutiveRefreshFailures = 0
         if (typeof window !== 'undefined') {
@@ -163,15 +159,12 @@ async function checkAndRefreshToken(): Promise<void> {
   
   // 토큰이 5분 경과했는지 확인 (사전 리프레시)
   if (age !== null && authStorage.shouldRefreshToken()) {
-    console.log(`[Token Refresh] 사전 리프레시 시작 (${Math.floor(age / 1000)}초 경과)`)
     const result = await refreshAccessToken()
     if (!result) {
       consecutiveRefreshFailures++
-      console.log(`[Token Refresh] 리프레시 실패 (${consecutiveRefreshFailures}/${MAX_CONSECUTIVE_FAILURES}) - 다음 체크에서 재시도합니다.`)
       
       // 연속 실패 횟수가 최대치를 넘으면 로그아웃 처리
       if (consecutiveRefreshFailures >= MAX_CONSECUTIVE_FAILURES) {
-        console.log('[Token Refresh] 연속 리프레시 실패로 인한 로그아웃 처리')
         authStorage.clearTokens()
         consecutiveRefreshFailures = 0
         if (typeof window !== 'undefined') {
@@ -190,7 +183,6 @@ async function checkAndRefreshToken(): Promise<void> {
       consecutiveRefreshFailures = 0
     }
   } else if (age !== null) {
-    console.log(`[Token Refresh] 리프레시 불필요 - 경과: ${Math.floor(age / 1000)}초`)
   }
 }
 
@@ -208,7 +200,6 @@ export function startTokenRefreshScheduler(): void {
   refreshIntervalId = setInterval(() => {
     void checkAndRefreshToken()
   }, REFRESH_CHECK_INTERVAL)
-  console.log(`[Token Refresh] setInterval 설정 완료 (interval ID: ${refreshIntervalId})`)
 
   // 페이지 포커스 시 즉시 체크 (탭 전환 후 돌아왔을 때)
   refreshFocusHandler = () => {
@@ -268,8 +259,6 @@ async function refreshAccessToken(): Promise<string | null> {
         ? '/api/auth/refresh' // 로컬: 프록시 사용
         : `${API_BASE_URL}/api/v1/auth/refresh` // 프로덕션: 직접 호출
       
-      console.log(`[Token Refresh] 리프레시 요청 시작: ${refreshUrl} (${isLocal ? '프록시' : '직접 호출'})`)
-      console.log(`[Token Refresh] credentials: 'include' 설정됨 - 쿠키가 자동으로 전달됩니다`)
       
       const response = await fetch(refreshUrl, {
         method: 'POST',
@@ -280,7 +269,6 @@ async function refreshAccessToken(): Promise<string | null> {
         // body 없음 - 백엔드가 쿠키에서 refreshToken을 읽음
       })
 
-      console.log(`[Token Refresh] 응답 상태: ${response.status} ${response.statusText}`)
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '응답을 읽을 수 없습니다.')
@@ -303,7 +291,6 @@ async function refreshAccessToken(): Promise<string | null> {
         expiresIn: data.accessExpiresIn,
       })
       
-      console.log('[Token Refresh] ✅ 리프레시 완료: accessToken 갱신됨, refreshToken은 쿠키(HttpOnly)에 자동 설정됨')
       
       return data.accessToken
     } catch (error) {

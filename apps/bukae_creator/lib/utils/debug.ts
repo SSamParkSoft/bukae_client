@@ -66,9 +66,7 @@ class Debugger {
     
     const formatted = this.formatMessage(tag, message)
     if (data !== undefined) {
-      console.log(formatted, this.serializeData(data, depth))
     } else {
-      console.log(formatted)
     }
   }
 
@@ -82,9 +80,7 @@ class Debugger {
     
     const formatted = this.formatMessage(tag, message)
     if (data !== undefined) {
-      console.info(formatted, this.serializeData(data, depth))
     } else {
-      console.info(formatted)
     }
   }
 

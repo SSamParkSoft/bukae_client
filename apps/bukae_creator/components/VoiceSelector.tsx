@@ -132,9 +132,6 @@ export default function VoiceSelector({
           // 디버깅: Provider별 목소리 확인
           const googleVoices = voicesList.filter((v: PublicVoiceInfo) => v.provider === 'google' || !v.provider)
           const elevenlabsVoices = voicesList.filter((v: PublicVoiceInfo) => v.provider === 'elevenlabs')
-          console.log('[VoiceSelector] Initial voices loaded:', voicesList.length)
-          console.log('[VoiceSelector] Google voices:', googleVoices.length)
-          console.log('[VoiceSelector] ElevenLabs voices:', elevenlabsVoices.length)
         }
       } catch (err) {
         if (!cancelled) {

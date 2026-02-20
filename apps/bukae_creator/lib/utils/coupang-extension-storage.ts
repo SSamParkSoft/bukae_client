@@ -84,7 +84,6 @@ export function requestCoupangExtensionStorage(): Promise<CoupangExtensionStorag
   return new Promise((resolve) => {
     const isDev = process.env.NODE_ENV === 'development'
     if (isDev) {
-      console.log('[Extension Storage] 요청 메시지 전송')
     }
     
     // 확장프로그램에 메시지 전송
@@ -100,7 +99,6 @@ export function requestCoupangExtensionStorage(): Promise<CoupangExtensionStorag
     // 응답 대기 (최대 5초)
     const timeout = setTimeout(() => {
       if (isDev) {
-        console.log('[Extension Storage] 응답 타임아웃')
       }
       window.removeEventListener('message', messageHandler)
       resolve(null)
@@ -111,12 +109,6 @@ export function requestCoupangExtensionStorage(): Promise<CoupangExtensionStorag
       
       if (storageData) {
         if (isDev) {
-          console.log('[Extension Storage] Storage 데이터 수신:', {
-            hasData: !!storageData,
-            products: Object.keys(storageData.products || {}).length,
-            productimages: Object.keys(storageData.productimages || {}).length,
-            productDetaillmages: Object.keys(storageData.productDetaillmages || {}).length,
-          })
         }
         clearTimeout(timeout)
         window.removeEventListener('message', messageHandler)
@@ -184,7 +176,6 @@ export function extractImagesFromStorage(
   const isDev = process.env.NODE_ENV === 'development'
 
   if (isDev) {
-    console.log('[Extension Storage] 이미지 추출 시작:', { productId })
   }
 
   // productDetailImages 키 이름 확인 (오타 가능성 - productDetaillmages vs productDetailImages)
@@ -195,7 +186,6 @@ export function extractImagesFromStorage(
   // productId가 제공된 경우 해당 상품의 이미지만 추출
   if (productId) {
     if (isDev) {
-      console.log('[Extension Storage] productId로 이미지 찾기:', productId)
     }
     
     // 대표 이미지
@@ -213,7 +203,6 @@ export function extractImagesFromStorage(
     // productId로 매칭이 안 되면 모든 이미지 가져오기 (fallback)
     if (seenImages.size === 0) {
       if (isDev) {
-        console.log('[Extension Storage] productId 매칭 실패, 모든 이미지 가져오기')
       }
       collectValidImages(Object.values(storageData.productimages || {}), seenImages)
       collectValidImages(Object.values(detailImages), seenImages)
@@ -226,7 +215,6 @@ export function extractImagesFromStorage(
 
   const images = Array.from(seenImages)
   if (isDev) {
-    console.log('[Extension Storage] 추출된 이미지:', images.length, '개')
   }
   return images
 }

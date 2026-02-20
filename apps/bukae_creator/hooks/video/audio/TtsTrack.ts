@@ -303,19 +303,6 @@ export class TtsTrack {
 
     const duration = segment.durationSec - offset
     
-    // TTS 음성파일 시작 로그 (성능 최적화를 위해 주석 처리)
-    // console.log('[TtsTrack] 세그먼트 시작', {
-    //   segmentId: segment.id,
-    //   segmentStartSec: segment.startSec,
-    //   segmentDurationSec: segment.durationSec,
-    //   tSec: segment.startSec, // 타임라인 시간
-    //   sceneIndex: segment.sceneIndex,
-    //   partIndex: segment.partIndex,
-    //   audioContextStartTime: startTime,
-    //   offset,
-    //   duration,
-    // })
-    
     // 세그먼트 시작 시 즉시 씬 전환 트리거 (TTS와 씬 전환 동기화)
     // sceneIndex를 함께 전달하여 정확한 씬 전환 보장
     if (this.onSegmentStartCallback && segment.sceneIndex !== undefined) {
@@ -340,16 +327,6 @@ export class TtsTrack {
       // 세그먼트 종료 시간 계산 및 콜백 호출 (즉시 렌더링 업데이트)
       if (this.onSegmentEndCallback && segment.sceneIndex !== undefined) {
         const segmentEndTime = segment.startSec + segment.durationSec
-        // TTS 음성파일 종료 로그 (성능 최적화를 위해 주석 처리)
-        // console.log('[TtsTrack] 세그먼트 종료', {
-        //   segmentId: segment.id,
-        //   segmentStartSec: segment.startSec,
-        //   segmentDurationSec: segment.durationSec,
-        //   segmentEndTime,
-        //   tSec: segmentEndTime, // 타임라인 시간
-        //   sceneIndex: segment.sceneIndex,
-        //   partIndex: segment.partIndex,
-        // })
         this.onSegmentEndCallback(segmentEndTime, segment.sceneIndex)
       }
     }

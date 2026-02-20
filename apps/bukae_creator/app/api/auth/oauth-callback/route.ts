@@ -22,7 +22,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const oauthCallbackUrl = `${API_BASE_URL}/oauth/callback?${searchParams.toString()}`
     
-    console.log('[OAuth Callback Proxy] 프록시 리다이렉트:', oauthCallbackUrl)
     
     // 백엔드로 리다이렉트 (쿠키를 받기 위해)
     const response = await fetch(oauthCallbackUrl, {
@@ -51,7 +50,6 @@ export async function GET(request: NextRequest) {
               .replace(/Secure/gi, '') // Secure 제거 (HTTP 환경)
             nextResponse.headers.append('Set-Cookie', modifiedCookie)
           })
-          console.log('[OAuth Callback Proxy] Set-Cookie 헤더 전달:', setCookieHeaders.length, '개')
         }
         
         return nextResponse

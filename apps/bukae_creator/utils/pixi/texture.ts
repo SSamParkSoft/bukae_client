@@ -76,32 +76,22 @@ export const loadPixiTexture = (
         ? `${window.location.origin}/api/media/proxy?url=${encodeURIComponent(url)}`
         : `/api/media/proxy?url=${encodeURIComponent(url)}`
       
-      console.log(`[Texture] 쿠팡 이미지 프록시 로드 시도:`, {
-        originalUrl: url.substring(0, 80),
-        proxyUrl: proxyUrl.substring(0, 150),
-        windowOrigin: typeof window !== 'undefined' ? window.location.origin : 'undefined'
-      })
       
       // 프록시 API를 통해 이미지를 blob으로 가져온 후 텍스처 생성
-      console.log(`[Texture] fetch 시작: ${proxyUrl}`)
       fetch(proxyUrl)
         .then((response) => {
-          console.log(`[Texture] 프록시 API 응답 상태:`, response.status, response.statusText)
           if (!response.ok) {
             const errorText = response.statusText || `HTTP ${response.status}`
             throw new Error(`Proxy API returned ${response.status}: ${errorText}`)
           }
           const contentType = response.headers.get('content-type')
-          console.log(`[Texture] 프록시 API 응답 받음, Content-Type: ${contentType}, blob으로 변환`)
           return response.blob()
         })
         .then((blob) => {
           if (!blob || blob.size === 0) {
             throw new Error('프록시 API가 빈 blob을 반환했습니다')
           }
-          console.log(`[Texture] Blob 생성 완료, 크기: ${blob.size} bytes, 타입: ${blob.type}`)
           const blobUrl = URL.createObjectURL(blob)
-          console.log(`[Texture] Blob URL 생성 완료: ${blobUrl.substring(0, 50)}..., HTMLImageElement로 로드`)
           
           // Blob URL을 HTMLImageElement로 먼저 로드한 후 텍스처 생성
           const img = new Image()
@@ -109,7 +99,6 @@ export const loadPixiTexture = (
           
           img.onload = () => {
             try {
-              console.log(`[Texture] HTMLImageElement 로드 완료, 텍스처 생성`)
               
               // 이미지가 완전히 로드되었는지 확인
               if (!img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) {
@@ -132,7 +121,6 @@ export const loadPixiTexture = (
               
               // 이미지가 로드되었으므로 텍스처도 즉시 resolve
               // baseTexture.valid가 false여도 이미지가 로드되었으므로 사용 가능
-              console.log(`[Texture] 프록시 로드 성공: ${url.substring(0, 50)}... (이미지 크기: ${img.naturalWidth}x${img.naturalHeight})`)
               textureCache.set(url, texture)
               URL.revokeObjectURL(blobUrl)
               resolve(texture)
