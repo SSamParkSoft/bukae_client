@@ -17,6 +17,7 @@ import {
   getPlayableScenes,
 } from '../utils/proPlaybackUtils'
 import { useProFabricResizeDrag } from '../hooks/editing/useProFabricResizeDrag'
+import { useProEditModeManager } from '../hooks/editing/useProEditModeManager'
 
 interface ProPreviewPanelProps {
   currentVideoUrl?: string | null
@@ -106,6 +107,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0)
   const [pixiReady, setPixiReady] = useState(false)
   const [canvasDisplaySize, setCanvasDisplaySize] = useState<{ width: number; height: number } | null>(null)
+  const [editMode, setEditMode] = useState<'none' | 'image' | 'text'>('none')
 
   useEffect(() => {
     scenesRef.current = scenes
@@ -881,9 +883,10 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     ).join('|')
   }, [timeline])
 
+  const useFabricEditing = editMode === 'text'
   const { syncFromScene: syncFabricScene, syncFromSceneDirect, fabricCanvasRef: proFabricCanvasRef, fabricReady } = useProFabricResizeDrag({
     videoElementsRef,
-    enabled: pixiReady && !isPlaying,
+    enabled: pixiReady && !isPlaying && useFabricEditing,
     playbackContainerRef,
     canvasDisplaySize,
     stageWidth: STAGE_WIDTH,
@@ -895,32 +898,23 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     textsRef,
   })
 
-  // Fabric.js 편집 모드일 때 PixiJS 캔버스 숨기기 (Fast track과 동일한 방식)
+  // 재생 시작 시 편집 모드 해제 (Fast와 동일)
   useEffect(() => {
-    if (!pixiReady || !appRef.current) {
-      return
+    if (isPlaying && editMode !== 'none') {
+      setEditMode('none')
     }
+  }, [isPlaying, editMode])
 
-    const appCanvas = getAppCanvas(appRef.current)
-    if (!appCanvas) {
-      return
-    }
-
-    const fabricEditingEnabled = proFabricCanvasRef?.current !== null
-    const isPausedEditing = fabricEditingEnabled && !isPlaying
-
-    // 일시정지 상태에서도 Pixi 미리보기는 항상 유지한다.
-    appCanvas.style.opacity = '1'
-    appCanvas.style.pointerEvents = isPausedEditing ? 'none' : 'auto'
-
-    // 편집 모드에서는 Fabric 텍스트만 보이도록 Pixi 자막 레이어를 숨겨 중복 렌더링을 방지한다.
-    const subtitleContainer = subtitleContainerRef.current
-    if (subtitleContainer) {
-      const showPixiSubtitle = !isPausedEditing
-      subtitleContainer.visible = showPixiSubtitle
-      subtitleContainer.alpha = showPixiSubtitle ? 1 : 0
-    }
-  }, [pixiReady, isPlaying, proFabricCanvasRef, appRef])
+  // Fast와 동일: 텍스트 편집 모드(useFabricEditing)일 때만 Fabric 표시, 그 외에는 Pixi 표시
+  useProEditModeManager({
+    appRef,
+    fabricCanvasRef: proFabricCanvasRef,
+    subtitleContainerRef,
+    useFabricEditing,
+    pixiReady,
+    fabricReady,
+    isPlaying,
+  })
 
   // 스프라이트 클릭 이벤트 설정 헬퍼 함수 (useProFabricResizeDrag 호출 후 정의)
   const setupSpriteClickEvent = useCallback((sceneIndex: number, sprite: PIXI.Sprite) => {
