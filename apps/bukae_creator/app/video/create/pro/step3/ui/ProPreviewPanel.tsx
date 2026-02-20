@@ -6,19 +6,14 @@ import * as fabric from 'fabric'
 import { TimelineBar, SpeedSelector, ExportButton } from '@/app/video/create/step3/shared/ui'
 import type { ProStep3Scene } from '../model/types'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
-import { useProTransportRenderer } from '../hooks/playback/useProTransportRenderer'
-import { useProTransportPlayback } from '../hooks/playback/useProTransportPlayback'
-import { useProTransportTtsSync } from '../hooks/playback/useProTransportTtsSync'
 import { videoSpriteAdapter } from '../hooks/playback/media/videoSpriteAdapter'
+import { useProStep3Container } from '../hooks/useProStep3Container'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { calculateAspectFittedSize } from '../utils/proPreviewLayout'
 import {
   getDurationBeforeSceneIndex,
   getPlayableScenes,
 } from '../utils/proPlaybackUtils'
-import { useProFabricResizeDrag } from '../hooks/editing/useProFabricResizeDrag'
-import { useProEditModeManager } from '../hooks/editing/useProEditModeManager'
-import { useTimelineChangeHandler } from '@/app/video/create/step3/shared/hooks/timeline'
 
 interface ProPreviewPanelProps {
   currentVideoUrl?: string | null
@@ -876,46 +871,53 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     return JSON.stringify(timeline?.scenes?.[currentSceneIndex]?.text ?? null)
   }, [timeline, currentSceneIndex])
 
-  // Fast 트랙과 동일하게 timeline scenes의 키를 생성하여 변경 감지
   const timelineScenesKey = useMemo(() => {
     if (!timeline?.scenes || timeline.scenes.length === 0) return ''
-    return timeline.scenes.map((scene, idx) => 
-      `${idx}-${scene.imageTransform ? JSON.stringify(scene.imageTransform) : 'none'}-${scene.text?.content || ''}`
-    ).join('|')
+    return timeline.scenes
+      .map(
+        (scene, idx) =>
+          `${idx}-${scene.imageTransform ? JSON.stringify(scene.imageTransform) : 'none'}-${scene.text?.content || ''}`
+      )
+      .join('|')
   }, [timeline])
 
-  const useFabricEditing = editMode === 'text'
-  const { syncFromScene: syncFabricScene, syncFromSceneDirect, fabricCanvasRef: proFabricCanvasRef, fabricReady } = useProFabricResizeDrag({
-    videoElementsRef,
-    enabled: pixiReady && !isPlaying && useFabricEditing,
-    playbackContainerRef,
-    canvasDisplaySize,
-    stageWidth: STAGE_WIDTH,
-    stageHeight: STAGE_HEIGHT,
+  const container = useProStep3Container({
+    scenes,
     currentSceneIndex,
-    timeline,
-    setTimeline,
+    isPlaying,
+    pixiReady,
+    canvasDisplaySize,
+    currentTime,
+    setCurrentTime,
+    totalDuration,
+    setTotalDuration,
+    playbackSpeed,
+    setPlaybackSpeed,
+    editMode,
+    setEditMode,
+    onBeforePlay,
+    onPlayingChange,
+    loadVideoAsSprite,
+    renderSubtitle,
+    appRef,
     spritesRef,
     textsRef,
-  })
-
-  // 재생 시작 시 편집 모드 해제 (Fast와 동일)
-  useEffect(() => {
-    if (isPlaying && editMode !== 'none') {
-      setEditMode('none')
-    }
-  }, [isPlaying, editMode])
-
-  // Fast와 동일: 텍스트 편집 모드(useFabricEditing)일 때만 Fabric 표시, 그 외에는 Pixi 표시
-  useProEditModeManager({
-    appRef,
-    fabricCanvasRef: proFabricCanvasRef,
+    videoElementsRef,
+    currentSceneIndexRef,
+    playbackContainerRef,
+    pixiContainerRef,
     subtitleContainerRef,
-    useFabricEditing,
-    pixiReady,
-    fabricReady,
-    isPlaying,
+    ttsCacheRef,
+    ttsAudioRefsRef,
   })
+  const {
+    handlePlayPause,
+    syncFromSceneDirect,
+    syncFabricScene,
+    proFabricCanvasRef,
+    fabricReady,
+    useFabricEditing,
+  } = container
 
   // 스프라이트 클릭 이벤트 설정 헬퍼 함수 (useProFabricResizeDrag 호출 후 정의)
   const setupSpriteClickEvent = useCallback((sceneIndex: number, sprite: PIXI.Sprite) => {
@@ -1156,60 +1158,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fabricReady, timelineScenesKey, currentSceneIndex, isPlaying, pixiReady, syncFabricScene])
 
-  // Transport 기반 렌더러 (Fast 트랙과 동일한 방식)
-  const { transportHook, transportState, renderAtRef } = useProTransportRenderer({
-    timeline,
-    scenes,
-    pixiReady,
-    appRef,
-    spritesRef,
-    videoElementsRef,
-    currentSceneIndexRef,
-    loadVideoAsSprite,
-    renderSubtitle,
-  })
-
-  useProTransportTtsSync({
-    transportHook,
-    isPlaying: transportState.isPlaying,
-    pixiReady,
-    playbackSpeed,
-    currentTime,
-    scenes,
-    ttsCacheRef,
-    ttsAudioRefsRef,
-  })
-
-  const { handlePlayPause } = useProTransportPlayback({
-    transportHook,
-    transportState,
-    playbackSpeed,
-    totalDurationValue,
-    currentSceneIndex,
-    scenes,
-    pixiReady,
-    renderAtRef,
-    onBeforePlay,
-    onPlayingChange,
-    setCurrentTime,
-    setTotalDuration,
-  })
-
-  // Fast와 동일: motion/transition 변경 시 !isPlaying이면 renderAt(현재 시간) 한 번 호출
-  useTimelineChangeHandler({
-    timeline,
-    renderAtRef,
-    pixiReady,
-    isPlaying: transportState.isPlaying,
-    transport: transportHook,
-  })
-
-  // 타임라인 씬 데이터(imageTransform 등) 변경 시 !isPlaying이면 renderAt 한 번 호출
-  useEffect(() => {
-    if (!pixiReady || transportState.isPlaying || !renderAtRef.current) return
-    const t = transportHook.getTime()
-    renderAtRef.current(t, { skipAnimation: false })
-  }, [timelineScenesKey, pixiReady, transportState.isPlaying, transportHook, renderAtRef])
+  // 재생/렌더/편집 오케스트레이션은 useProStep3Container에서 처리
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
