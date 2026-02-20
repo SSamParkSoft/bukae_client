@@ -300,8 +300,7 @@ export function useSubtitleRenderer({
         
         // stroke는 strokeWidth가 0보다 클 때만 설정
         if (strokeWidth > 0) {
-          styleConfig.stroke = strokeColor
-          styleConfig.strokeThickness = strokeWidth
+          styleConfig.stroke = { color: strokeColor, width: strokeWidth }
         }
 
         const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)

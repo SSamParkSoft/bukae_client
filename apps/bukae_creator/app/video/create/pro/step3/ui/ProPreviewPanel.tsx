@@ -73,7 +73,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   isExporting = false,
 }: ProPreviewPanelProps) {
   const timeline = useVideoCreateStore((state) => state.timeline)
-  const setTimeline = useVideoCreateStore((state) => state.setTimeline)
 
   const playbackContainerRef = useRef<HTMLDivElement | null>(null)
   const pixiContainerRef = useRef<HTMLDivElement | null>(null)
@@ -494,10 +493,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       videoContainerRef.current = null
       subtitleContainerRef.current = null
     }
-  // applyCanvasStyle은 안정적인 콜백(빈 deps)이므로 deps에 포함해도 재초기화 없음
-  // canvasDisplaySize는 의도적으로 제외 - 크기 변경은 별도 effect가 처리하며
-  // 여기서 포함하면 resize마다 Pixi 전체가 파괴·재초기화됨
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applyCanvasStyle, cleanupAllMediaResources])
 
   // 컴포넌트 언마운트 시에만 모든 리소스 정리 (TTS 캐시 포함)
@@ -589,7 +584,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
             cleanup()
           }
           try {
-            ;(video as any).requestVideoFrameCallback(handleFrame)
+            ;(video as HTMLVideoElement & { requestVideoFrameCallback: (cb: () => void) => void }).requestVideoFrameCallback(handleFrame)
             const playPromise = video.play()
             if (playPromise !== undefined) {
               playPromise.catch((error) => {
@@ -847,8 +842,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         wordWrap: true,
         wordWrapWidth: wordWrapWidth,
         breakWords: true,
-        stroke: strokeColor,
-        strokeThickness: strokeWidth,
+        stroke: { color: strokeColor, width: strokeWidth },
       }
       
       const strokeStyle = new PIXI.TextStyle(strokeStyleConfig)
@@ -1005,7 +999,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     syncFabricScene,
     proFabricCanvasRef,
     fabricReady,
-    useFabricEditing,
   } = container
 
   // 스프라이트 클릭 이벤트 설정 헬퍼 함수 (useProFabricResizeDrag 호출 후 정의)
