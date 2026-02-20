@@ -82,8 +82,23 @@ export function useProStep3Scenes() {
       // Step2에서 설정한 값이 있으면 그대로 사용, 없으면 기본값 사용
       // selectionStartSeconds가 없으면 0부터 시작
       const selectionStartSeconds = scene.selectionStartSeconds ?? 0
-      // selectionEndSeconds가 없으면 selectionStartSeconds + ttsDuration
-      const selectionEndSeconds = scene.selectionEndSeconds ?? (selectionStartSeconds + ttsDuration)
+
+      // selectionEndSeconds: store에 0이 저장된 경우를 방어
+      // ?? 대신 명시적으로 selectionStartSeconds보다 큰 값인지 확인
+      // (store에 잘못된 0이 저장됐을 때 duration=0→isPlayableSegment=false→렌더링 불가 버그 방지)
+      const selectionEndSeconds =
+        scene.selectionEndSeconds != null && scene.selectionEndSeconds > selectionStartSeconds
+          ? scene.selectionEndSeconds
+          : selectionStartSeconds + ttsDuration
+
+      if (scene.selectionEndSeconds != null && scene.selectionEndSeconds <= selectionStartSeconds) {
+        console.warn('[useProStep3Scenes] selectionEndSeconds가 유효하지 않아 기본값으로 대체:', {
+          sceneId: scene.id,
+          storedSelectionEndSeconds: scene.selectionEndSeconds,
+          selectionStartSeconds,
+          fallback: selectionStartSeconds + ttsDuration,
+        })
+      }
 
       return {
         id: scene.id,

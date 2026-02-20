@@ -140,24 +140,20 @@ export const ProVideoUpload = memo(function ProVideoUpload({
     if (isHovered && hasUserActivation) {
       // 호버 시 선택 영역의 시작 시간으로 이동 후 재생
       hoverVideo.currentTime = startTime
-      try {
-        const playPromise = hoverVideo.play()
-        if (playPromise !== undefined) {
-          playPromise.catch((error: unknown) => {
-            if (error instanceof DOMException && error.name === 'NotAllowedError') {
-              // 정책상 재생 불가한 환경이면 이후 hover 자동재생 시도를 멈춤
-              setHasUserActivation(false)
-              return
-            }
-            console.error('호버 영상 재생 오류:', error)
-          })
-        }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'NotAllowedError') {
-          setHasUserActivation(false)
-        } else {
+      let cancelled = false
+      const playPromise = hoverVideo.play()
+      if (playPromise !== undefined) {
+        playPromise.catch((error: unknown) => {
+          if (cancelled) return // cleanup에서 pause() 호출로 인한 AbortError는 무시
+          if (error instanceof DOMException && error.name === 'NotAllowedError') {
+            setHasUserActivation(false)
+            return
+          }
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            return // play/pause 레이스 컨디션은 정상 동작이므로 무시
+          }
           console.error('호버 영상 재생 오류:', error)
-        }
+        })
       }
 
       // 선택 영역 끝에 도달하면 다시 시작 시간으로 돌아가기
@@ -170,9 +166,13 @@ export const ProVideoUpload = memo(function ProVideoUpload({
       hoverVideo.addEventListener('timeupdate', handleTimeUpdate)
 
       return () => {
+        cancelled = true
         hoverVideo.removeEventListener('timeupdate', handleTimeUpdate)
-        hoverVideo.pause()
-        hoverVideo.currentTime = startTime
+        // play() Promise가 아직 진행 중일 수 있으므로 settle 후 pause
+        void (playPromise ?? Promise.resolve()).then(() => {
+          hoverVideo.pause()
+          hoverVideo.currentTime = startTime
+        }).catch(() => undefined)
       }
     } else {
       // 호버 해제 시 영상 일시정지

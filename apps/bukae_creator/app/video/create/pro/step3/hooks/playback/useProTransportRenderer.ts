@@ -24,6 +24,8 @@ interface UseProTransportRendererParams {
 interface RenderAtOptions {
   skipAnimation?: boolean
   forceSceneIndex?: number
+  /** 타임라인 내용만 바뀐 경우에도 같은 t에서 다시 그리기 위해 사용 */
+  forceRender?: boolean
 }
 
 const VIDEO_SYNC_SEEK_EPSILON_SEC = 0.08
@@ -132,10 +134,20 @@ export function useProTransportRenderer({
 
       const pendingLoad = pendingSceneLoadRef.current.get(sceneIndex)
       if (pendingLoad) {
+        console.log('[ensureSceneLoaded] 이미 로딩 중인 씬:', { sceneIndex, videoUrl: scene.videoUrl })
         return pendingLoad
       }
 
-      const loadPromise = loadVideoAsSprite(sceneIndex, scene.videoUrl, videoTime)
+      // loadVideoAsSprite는 selectionStartSeconds를 받아서 비디오를 처음 로드할 때 seek합니다
+      // 로드 후에는 syncVideoPlaybackToTimeline에서 videoTime으로 seek합니다
+      const selectionStartSeconds = scene.selectionStartSeconds ?? 0
+      console.log('[ensureSceneLoaded] 새 비디오 로드 시작:', {
+        sceneIndex,
+        videoUrl: scene.videoUrl,
+        selectionStartSeconds,
+        videoTime,
+      })
+      const loadPromise = loadVideoAsSprite(sceneIndex, scene.videoUrl, selectionStartSeconds)
         .catch(() => undefined)
         .finally(() => {
           pendingSceneLoadRef.current.delete(sceneIndex)
@@ -152,7 +164,11 @@ export function useProTransportRenderer({
         return
       }
 
-      if (!options?.forceSceneIndex && Math.abs(tSec - lastRenderedTimeRef.current) < 0.01) {
+      if (
+        !options?.forceRender &&
+        options?.forceSceneIndex === undefined &&
+        Math.abs(tSec - lastRenderedTimeRef.current) < 0.01
+      ) {
         return
       }
 
@@ -192,6 +208,22 @@ export function useProTransportRenderer({
       const segmentVideoTime = (targetScene.selectionStartSeconds ?? 0) + resolved.sceneTimeInSegment
       const videoTime = clampVideoTimeToSelection(targetScene, segmentVideoTime)
       const sceneChanged = lastRenderedSceneIndexRef.current !== targetSceneIndex
+      
+      // 디버깅: 씬별 비디오 시간 계산 확인
+      if (sceneChanged) {
+        console.log('[ProTransportRenderer] 씬별 비디오 시간 계산:', {
+          sceneIndex: targetSceneIndex,
+          videoUrl: targetScene.videoUrl,
+          selectionStartSeconds: targetScene.selectionStartSeconds,
+          selectionEndSeconds: targetScene.selectionEndSeconds,
+          timelineTime: tSec,
+          sceneStartTime: resolved.sceneStartTime,
+          sceneTimeInSegment: resolved.sceneTimeInSegment,
+          segmentVideoTime,
+          clampedVideoTime: videoTime,
+          sceneDuration: resolved.duration,
+        })
+      }
 
       const applyVisualState = () => {
         const sprite = spritesRef.current.get(targetSceneIndex)
@@ -249,9 +281,24 @@ export function useProTransportRenderer({
           if (loadedVideo) {
             syncVideoPlaybackToTimeline(loadedVideo, targetScene, videoTime)
           }
-          const applied = applyVisualState()
-          // 로드가 실패했거나 스프라이트가 아직 없으면 다음 tick에서 재시도될 수 있게 유지
-          lastRenderedSceneIndexRef.current = applied ? targetSceneIndex : -1
+          
+          // 스프라이트가 준비될 때까지 약간의 지연 후 applyVisualState 호출
+          // (비동기 로딩 완료 후 DOM 업데이트가 완료되기까지 시간이 필요할 수 있음)
+          requestAnimationFrame(() => {
+            if (requestId !== renderRequestIdRef.current) {
+              return
+            }
+            const applied = applyVisualState()
+            if (!applied) {
+              console.warn('[renderAt] 스프라이트가 아직 준비되지 않음:', {
+                sceneIndex: targetSceneIndex,
+                spriteExists: !!spritesRef.current.get(targetSceneIndex),
+                spriteDestroyed: spritesRef.current.get(targetSceneIndex)?.destroyed,
+              })
+            }
+            // 로드가 실패했거나 스프라이트가 아직 없으면 다음 tick에서 재시도될 수 있게 유지
+            lastRenderedSceneIndexRef.current = applied ? targetSceneIndex : -1
+          })
         })
       } else {
         const currentSprite = spritesRef.current.get(targetSceneIndex)

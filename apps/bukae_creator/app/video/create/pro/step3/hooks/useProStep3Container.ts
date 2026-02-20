@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useEffect } from 'react'
+import { useMemo, useEffect, useRef } from 'react'
 import * as PIXI from 'pixi.js'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { useProTransportRenderer } from './playback/useProTransportRenderer'
@@ -172,10 +172,30 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     transport: transportHook,
   })
 
+  // 초기 로드 시 타임라인을 0초로 초기화하고 첫 번째 씬 렌더링
+  const hasInitializedRef = useRef(false)
+  useEffect(() => {
+    // pixiReady가 처음 true가 되었을 때만 초기화 (한 번만 실행)
+    if (!pixiReady || hasInitializedRef.current || transportState.isPlaying || !renderAtRef.current || scenes.length === 0) return
+    
+    // Transport를 0초로 초기화
+    transportHook.seek(0)
+    setCurrentTime(0)
+    
+    // 첫 번째 씬 렌더링
+    if (currentSceneIndex >= 0) {
+      renderAtRef.current(0, { forceSceneIndex: currentSceneIndex, forceRender: true })
+    } else {
+      renderAtRef.current(0, { forceRender: true })
+    }
+    
+    hasInitializedRef.current = true
+  }, [pixiReady, transportState.isPlaying, transportHook, renderAtRef, scenes, currentSceneIndex, setCurrentTime])
+
   useEffect(() => {
     if (!pixiReady || transportState.isPlaying || !renderAtRef.current) return
     const t = transportHook.getTime()
-    renderAtRef.current(t, { skipAnimation: false })
+    renderAtRef.current(t, { skipAnimation: false, forceRender: true })
   }, [timelineScenesKey, pixiReady, transportState.isPlaying, transportHook, renderAtRef])
 
   return {

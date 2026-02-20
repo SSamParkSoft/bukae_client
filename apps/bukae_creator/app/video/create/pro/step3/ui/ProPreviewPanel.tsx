@@ -245,14 +245,12 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     canvas.style.top = '50%'
     canvas.style.left = '50%'
     canvas.style.transform = 'translate(-50%, -50%)'
-    // 재생 중이 아닐 때는 클릭 이벤트를 받을 수 있도록 설정
-    canvas.style.pointerEvents = isPlaying ? 'none' : 'auto'
 
     if (pixiContainer) {
       pixiContainer.style.width = `${width}px`
       pixiContainer.style.height = `${height}px`
     }
-  }, [isPlaying])
+  }, [])
 
   useEffect(() => {
     const container = playbackContainerRef.current
@@ -431,9 +429,10 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         
         host.appendChild(appCanvas)
 
-        const fitted = canvasDisplaySize ?? calculateAspectFittedSize(
-          host.clientWidth,
-          host.clientHeight,
+        // init 시점에는 canvasDisplaySize 상태가 아직 없을 수 있으므로 DOM에서 직접 측정
+        const fitted = calculateAspectFittedSize(
+          host.clientWidth || host.getBoundingClientRect().width,
+          host.clientHeight || host.getBoundingClientRect().height,
           STAGE_ASPECT_RATIO
         )
 
@@ -495,7 +494,11 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
       videoContainerRef.current = null
       subtitleContainerRef.current = null
     }
-  }, [applyCanvasStyle, canvasDisplaySize, cleanupAllMediaResources])
+  // applyCanvasStyle은 안정적인 콜백(빈 deps)이므로 deps에 포함해도 재초기화 없음
+  // canvasDisplaySize는 의도적으로 제외 - 크기 변경은 별도 effect가 처리하며
+  // 여기서 포함하면 resize마다 Pixi 전체가 파괴·재초기화됨
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applyCanvasStyle, cleanupAllMediaResources])
 
   // 컴포넌트 언마운트 시에만 모든 리소스 정리 (TTS 캐시 포함)
   useEffect(() => {
@@ -516,8 +519,16 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   const loadVideoAsSprite = useCallback(async (sceneIndex: number, videoUrl: string, selectionStartSeconds?: number): Promise<void> => {
     // 초기 검증
     if (!pixiReady) {
+      console.warn('[loadVideoAsSprite] pixiReady가 false입니다', { sceneIndex, videoUrl })
       return
     }
+
+    console.log('[loadVideoAsSprite] 씬별 비디오 로드 시작:', {
+      sceneIndex,
+      videoUrl,
+      selectionStartSeconds,
+      expectedSceneVideoUrl: scenesRef.current[sceneIndex]?.videoUrl,
+    })
 
     cleanupSceneResources(sceneIndex)
 
@@ -561,8 +572,62 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
         return
       }
 
-      // seeked 후 VideoTexture가 프레임을 업데이트하도록 명시적으로 업데이트
-      // PixiJS v8에서는 VideoTexture가 별도로 export되지 않을 수 있으므로 update 메서드 존재 여부로 확인
+      // seeked 후 비디오를 한 프레임 재생하여 텍스처가 업데이트되도록 함
+      // WebGL 텍스처는 비디오가 실제로 재생되어야 프레임이 업데이트됨
+      await new Promise<void>((resolve) => {
+        let resolved = false
+        const cleanup = () => {
+          if (resolved) return
+          resolved = true
+          video.pause()
+          resolve()
+        }
+        
+        // requestVideoFrameCallback 사용 (지원되는 경우)
+        if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+          const handleFrame = () => {
+            cleanup()
+          }
+          try {
+            ;(video as any).requestVideoFrameCallback(handleFrame)
+            const playPromise = video.play()
+            if (playPromise !== undefined) {
+              playPromise.catch((error) => {
+                if (error instanceof DOMException && error.name !== 'AbortError') {
+                  console.warn('[loadVideoAsSprite] 비디오 재생 실패:', error)
+                }
+                cleanup()
+              })
+            }
+            // 타임아웃: 1초 후에도 프레임이 오지 않으면 강제로 resolve
+            setTimeout(cleanup, 1000)
+          } catch {
+            // requestVideoFrameCallback이 실패하면 fallback 사용
+            cleanup()
+          }
+        } else {
+          // requestVideoFrameCallback을 지원하지 않는 경우 timeupdate 사용
+          const handleTimeUpdate = () => {
+            cleanup()
+          }
+          video.addEventListener('timeupdate', handleTimeUpdate, { once: true })
+          
+          const playPromise = video.play()
+          if (playPromise !== undefined) {
+            playPromise.catch((error) => {
+              if (error instanceof DOMException && error.name !== 'AbortError') {
+                console.warn('[loadVideoAsSprite] 비디오 재생 실패:', error)
+              }
+              cleanup()
+            })
+          }
+          
+          // 타임아웃: 1초 후에도 timeupdate가 오지 않으면 강제로 resolve
+          setTimeout(cleanup, 1000)
+        }
+      })
+      
+      // VideoTexture가 프레임을 업데이트하도록 명시적으로 업데이트
       if (texture && !texture.destroyed && typeof (texture as { update?: () => void }).update === 'function') {
         try {
           ;(texture as { update: () => void }).update()
@@ -570,8 +635,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           // VideoTexture 업데이트 실패
         }
       }
-      
-      video.pause()
 
       // 비디오 요소가 여전히 유효한지 확인
       const currentVideo = videoElementsRef.current.get(sceneIndex)
@@ -595,6 +658,14 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
       const sprite = new PIXI.Sprite(texture)
       sprite.anchor.set(0.5, 0.5)
+
+      console.log('[loadVideoAsSprite] 스프라이트 생성 완료:', {
+        sceneIndex,
+        videoUrl,
+        spriteCreated: !!sprite,
+        videoCurrentTime: currentVideo.currentTime,
+        selectionStartSeconds: sceneStart,
+      })
 
       const stageWidth = appAfterSeek.screen.width
       const stageHeight = appAfterSeek.screen.height
@@ -655,6 +726,24 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
 
       finalVideoContainer.addChild(sprite)
       spritesRef.current.set(sceneIndex, sprite)
+      
+      // 스프라이트 생성 직후 즉시 렌더링 시도
+      if (finalApp && finalApp.renderer) {
+        try {
+          finalApp.renderer.render(finalApp.stage)
+        } catch (error) {
+          console.warn('[loadVideoAsSprite] 초기 렌더링 실패:', error)
+        }
+      }
+      
+      console.log('[loadVideoAsSprite] 스프라이트 stage 추가 완료:', {
+        sceneIndex,
+        spriteAdded: finalVideoContainer.children.includes(sprite),
+        spriteVisible: sprite.visible,
+        spriteAlpha: sprite.alpha,
+        spritePosition: { x: sprite.x, y: sprite.y },
+        spriteSize: { width: sprite.width, height: sprite.height },
+      })
       
       // 스프라이트 생성 직후 클릭 이벤트 설정 (다음 프레임에서 실행하여 렌더링 완료 보장)
       requestAnimationFrame(() => {

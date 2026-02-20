@@ -8,7 +8,7 @@ type UseTransportReturnType = ReturnType<typeof useTransport>
 
 interface UseTimelineChangeHandlerParams {
   timeline: TimelineData | null
-  renderAtRef: React.MutableRefObject<((tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number }) => void) | undefined>
+  renderAtRef: React.MutableRefObject<((tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number; forceRender?: boolean }) => void) | undefined>
   pixiReady: boolean
   isPlaying: boolean
   transport: UseTransportReturnType
@@ -49,8 +49,8 @@ export function useTimelineChangeHandler({
     // 재생 중이 아닐 때만 수동 렌더링 (재생 중에는 Transport 루프가 자동으로 처리)
     if (!isPlaying) {
       const currentTime = transport.currentTime
-      // timeline 변경 시 현재 시간에서 렌더링하여 변경사항 반영
-      renderAtRef.current(currentTime, { skipAnimation: false })
+      // timeline 변경 시 현재 시간에서 렌더링하여 변경사항 반영 (forceRender: 같은 t여도 다시 그림)
+      renderAtRef.current(currentTime, { skipAnimation: false, forceRender: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timelineMotionTransitionKey, pixiReady, isPlaying, isPreviewingTransitionRef])
