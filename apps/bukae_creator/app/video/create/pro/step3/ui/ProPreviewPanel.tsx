@@ -18,6 +18,7 @@ import {
 } from '../utils/proPlaybackUtils'
 import { useProFabricResizeDrag } from '../hooks/editing/useProFabricResizeDrag'
 import { useProEditModeManager } from '../hooks/editing/useProEditModeManager'
+import { useTimelineChangeHandler } from '@/app/video/create/step3/shared/hooks/timeline'
 
 interface ProPreviewPanelProps {
   currentVideoUrl?: string | null
@@ -1140,38 +1141,6 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     renderSubtitle,
   ])
 
-  // 타임라인 변경 시 스프라이트 업데이트 (imageTransform 변경 반영)
-  useEffect(() => {
-    if (!pixiReady || isPlaying || currentSceneIndex < 0 || !timeline) {
-      return
-    }
-
-    const timelineScene = timeline.scenes?.[currentSceneIndex]
-    if (!timelineScene) {
-      return
-    }
-
-    const sprite = spritesRef.current.get(currentSceneIndex)
-    if (sprite && !sprite.destroyed && timelineScene.imageTransform) {
-      // 타임라인의 imageTransform 적용
-      sprite.x = timelineScene.imageTransform.x
-      sprite.y = timelineScene.imageTransform.y
-      sprite.width = timelineScene.imageTransform.width
-      sprite.height = timelineScene.imageTransform.height
-      sprite.rotation = timelineScene.imageTransform.rotation ?? 0
-      
-      // 스프라이트가 표시되도록 보장
-      sprite.visible = true
-      sprite.alpha = 1
-      
-      // PixiJS 앱이 렌더링되도록 강제
-      const app = appRef.current
-      if (app) {
-        app.renderer.render(app.stage)
-      }
-    }
-  }, [timelineScenesKey, currentSceneIndex, isPlaying, pixiReady, timeline])
-
   // Fabric.js 씬 동기화 (Fast 트랙과 동일한 방식)
   // timeline이 변경될 때 동기화 (renderCurrentScene에서도 호출하지만, timeline 변경 시에도 동기화 필요)
   useEffect(() => {
@@ -1226,16 +1195,21 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     setTotalDuration,
   })
 
-  useEffect(() => {
-    if (!pixiReady || isPlaying || currentSceneIndex < 0 || !renderAtRef.current) {
-      return
-    }
+  // Fast와 동일: motion/transition 변경 시 !isPlaying이면 renderAt(현재 시간) 한 번 호출
+  useTimelineChangeHandler({
+    timeline,
+    renderAtRef,
+    pixiReady,
+    isPlaying: transportState.isPlaying,
+    transport: transportHook,
+  })
 
-    const selectedSceneStartTime = getDurationBeforeSceneIndex(scenes, currentSceneIndex)
-    renderAtRef.current(selectedSceneStartTime, {
-      forceSceneIndex: currentSceneIndex,
-    })
-  }, [currentSceneIndex, isPlaying, pixiReady, scenes, timelineScenesKey, renderAtRef])
+  // 타임라인 씬 데이터(imageTransform 등) 변경 시 !isPlaying이면 renderAt 한 번 호출
+  useEffect(() => {
+    if (!pixiReady || transportState.isPlaying || !renderAtRef.current) return
+    const t = transportHook.getTime()
+    renderAtRef.current(t, { skipAnimation: false })
+  }, [timelineScenesKey, pixiReady, transportState.isPlaying, transportHook, renderAtRef])
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
