@@ -489,13 +489,30 @@ export function useStep2Container() {
         return
       }
 
-      // Product를 ProductResponse 형태로 변환
+      // Product를 ProductResponse 형태로 변환 (auto-create API는 product 내 imageUrls 사용)
       const productResponse = convertProductToProductResponse(product)
+      // 백엔드 유효성 검사: productId는 문자열, imageUrls는 http(s) URL만 (blob/data 불가)
+      const imageUrlsForApi = selectedImages.filter(
+        (url) => typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'))
+      )
+      const productWithImages = {
+        ...productResponse,
+        productId: String(productResponse.productId ?? productResponse.id ?? ''),
+        id: String(productResponse.id ?? productResponse.productId ?? ''),
+        imageUrls: imageUrlsForApi,
+      }
+
+      if (imageUrlsForApi.length === 0) {
+        alert('대본 생성에는 웹 이미지 URL이 필요해요. 블롭/업로드 이미지만 있으면 서버에서 인식하지 못해요.')
+        setIsGeneratingAll(false)
+        setGeneratingScenes(new Set())
+        return
+      }
 
       const data = await studioScriptApi.generateScripts({
-        product: productResponse,
+        product: productWithImages,
         type: scriptStyle,
-        imageUrls: selectedImages,
+        imageUrls: imageUrlsForApi,
       })
 
       const items = Array.isArray(data) ? data : [data]

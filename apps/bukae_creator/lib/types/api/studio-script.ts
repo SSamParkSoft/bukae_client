@@ -1,31 +1,41 @@
 /**
  * Studio Script API DTO (Data Transfer Object) 정의
- * 백엔드 OpenAPI 스펙 기준
- * 
+ * 백엔드 OpenAPI 스펙: POST /api/v1/studio/scripts/auto-create
+ *
  * 이 파일의 타입들은 백엔드 API와의 통신을 위한 DTO입니다.
- * 내부 도메인 로직에서는 사용하지 않고, 반드시 변환 함수를 통해
- * 도메인 모델로 변환하여 사용해야 합니다.
  */
 
 import type { ConceptType } from '@/lib/data/templates'
 import type { ProductResponse } from './products'
 
-// 대본 스타일 타입 (ConceptType과 동일)
+// 대본 스타일 타입 (ShortsScriptType Code = ConceptType)
 export type ScriptType = ConceptType
 
-// /api/v1/studio/scripts 의 요청 스키마 (ScriptRequest)
-export interface StudioScriptRequest {
-  product: ProductResponse // 상품 정보 (상품검색결과에서 주는 정보 그대로)
-  type: ScriptType // 대본 스타일
-  imageUrls: string[] // 분석할 이미지 URL 목록
+/**
+ * /api/v1/studio/scripts/auto-create 요청 스키마
+ * - product: 상품 정보 (product 내 imageUrls + 기타 필드)
+ * - type: 스크립트 페르소나 Code (UNEXPECTED_TIP, MUST_BUY_ITEM 등 19종)
+ * - imageUrls: 루트 레벨 이미지 URL 배열 (대본 생성에 사용할 선택 이미지)
+ */
+export interface StudioScriptAutoCreateRequest {
+  product: ProductResponse & { imageUrls: string[] }
+  type: ScriptType
+  imageUrls: string[]
 }
 
-// /api/v1/studio/scripts 의 응답 스키마 (ScriptResponse)
+/** [Pro] 기존 스크립트 API 요청 (product + type + imageUrls) */
+export interface StudioScriptRequestPro {
+  product: ProductResponse
+  type: ScriptType
+  imageUrls: string[]
+}
+
+/** 대본 1건 응답 (imageUrl + script) */
 export interface StudioScriptResponseItem {
   imageUrl: string
   script: string
 }
 
-// 구현체에 따라 단일 객체 또는 배열을 반환할 수 있으므로 Union 타입으로 정의
-export type StudioScriptResponse = StudioScriptResponseItem | StudioScriptResponseItem[]
+/** 200 OK 시 생성된 대본 리스트 */
+export type StudioScriptResponse = StudioScriptResponseItem[]
 

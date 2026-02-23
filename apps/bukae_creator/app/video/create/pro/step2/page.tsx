@@ -190,10 +190,10 @@ export default function ProStep2Page() {
         return
       }
 
-      // Product를 ProductResponse 형태로 변환
+      // Product를 ProductResponse 형태로 변환 (Pro 전용 API)
       const productResponse = convertProductToProductResponse(product)
 
-      const data = await studioScriptApi.generateScripts({
+      const data = await studioScriptApi.generateScriptsPro({
         product: productResponse,
         type: scriptStyle,
         imageUrls: selectedImages,
