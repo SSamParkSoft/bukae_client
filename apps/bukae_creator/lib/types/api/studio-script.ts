@@ -30,6 +30,19 @@ export interface StudioScriptRequestPro {
   imageUrls: string[]
 }
 
+/**
+ * [Pro] 사용자 촬영 대본 생성 (1단계) 응답
+ * POST /api/v1/studio/scripts/user-edit/script
+ * - scene: 씬 번호 (1-based)
+ * - script: 생성된 나레이션 대본
+ * - duration: 재생 시간(초)
+ */
+export interface StudioScriptUserEditResponse {
+  scene: number
+  script: string
+  duration: number
+}
+
 /** 대본 1건 응답 (imageUrl + script) */
 export interface StudioScriptResponseItem {
   imageUrl: string

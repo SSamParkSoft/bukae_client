@@ -251,7 +251,21 @@ export const ProSceneCard = memo(function ProSceneCard({
             )}
           </div>
 
-          <div className="relative">
+          <div className="relative min-h-[calc(var(--font-size-14)*var(--line-height-14-140)*2+24px)]">
+            {isGenerating && (
+              <div
+                className="absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-lg bg-white/90 text-brand-teal shadow-(--shadow-card-default)"
+                style={{
+                  fontSize: 'var(--font-size-14)',
+                  lineHeight: 'var(--line-height-14-140)',
+                }}
+                aria-busy="true"
+                aria-label="대본 생성 중"
+              >
+                <Loader2 className="w-5 h-5 shrink-0 animate-spin" />
+                <span>대본 생성 중...</span>
+              </div>
+            )}
             <textarea
               value={scriptText}
               onChange={(e) => onScriptChange(e.target.value)}
@@ -301,12 +315,6 @@ export const ProSceneCard = memo(function ProSceneCard({
               )}
             </button>
           </div>
-          {isGenerating && (
-            <div className="flex items-center gap-2 text-brand-teal text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>대본 생성 중...</span>
-            </div>
-          )}
 
           <div className="flex items-center justify-between gap-2">
             <button

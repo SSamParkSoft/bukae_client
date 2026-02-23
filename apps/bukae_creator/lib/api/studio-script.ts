@@ -5,6 +5,7 @@ import type {
   StudioScriptAutoCreateRequest,
   StudioScriptRequestPro,
   StudioScriptResponse,
+  StudioScriptUserEditResponse,
 } from '@/lib/types/api/studio-script'
 
 export const studioScriptApi = {
@@ -19,7 +20,18 @@ export const studioScriptApi = {
   },
 
   /**
-   * [Pro] 대본 생성 (Pro 전용 엔드포인트)
+   * [Pro] 사용자 촬영 대본 생성 (1단계)
+   * POST /api/v1/studio/scripts/user-edit/script
+   * - 사용자가 직접 촬영할 영상을 위한 맞춤형 나레이션 대본 우선 생성
+   */
+  generateScriptUserEdit: async (
+    data: StudioScriptRequestPro
+  ): Promise<StudioScriptUserEditResponse> => {
+    return api.post<StudioScriptUserEditResponse>('/api/v1/studio/scripts/user-edit/script', data)
+  },
+
+  /**
+   * [Pro] 대본 생성 (Pro 레거시 엔드포인트)
    * POST /api/v1/studio/scripts
    */
   generateScriptsPro: async (data: StudioScriptRequestPro): Promise<StudioScriptResponse> => {

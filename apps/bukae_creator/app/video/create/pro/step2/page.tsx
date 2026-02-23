@@ -174,11 +174,6 @@ export default function ProStep2Page() {
       return
     }
 
-    if (!selectedImages || selectedImages.length === 0) {
-      alert('이미지를 먼저 선택해주세요.')
-      return
-    }
-
     setIsGeneratingAll(true)
 
     try {
@@ -190,27 +185,82 @@ export default function ProStep2Page() {
         return
       }
 
-      // Product를 ProductResponse 형태로 변환 (Pro 전용 API)
+      // Pro 사용자 촬영 대본 API: product + type만 필수. 이미지 없으면 상품 이미지로 대체
       const productResponse = convertProductToProductResponse(product)
+      const fallbackImages = Array.isArray(product.images)
+        ? product.images
+        : product.image
+          ? [product.image]
+          : []
+      const imageUrls: string[] =
+        selectedImages?.length > 0
+          ? selectedImages
+          : Array.isArray(productResponse.imageUrls)
+            ? productResponse.imageUrls
+            : fallbackImages
 
-      const data = await studioScriptApi.generateScriptsPro({
-        product: productResponse,
+      const productWithImages = {
+        ...productResponse,
+        productId: String(productResponse.productId ?? productResponse.id ?? ''),
+        imageUrls,
+      }
+
+      const data = await studioScriptApi.generateScriptUserEdit({
+        product: productWithImages,
         type: scriptStyle,
-        imageUrls: selectedImages,
+        imageUrls,
       })
 
-      const items = Array.isArray(data) ? data : [data]
+      // API 응답에서 대본 문자열 추출 (백엔드 키/구조가 다를 수 있음)
+      const from = (obj: unknown): string => {
+        if (!obj || typeof obj !== 'object') return ''
+        const o = obj as Record<string, unknown>
+        if (typeof o.script === 'string') return o.script
+        if (typeof (o.script as { text?: string })?.text === 'string') return (o.script as { text: string }).text
+        if (typeof o.content === 'string') return o.content
+        if (typeof o.narration === 'string') return o.narration
+        if (typeof o.text === 'string') return o.text
+        return ''
+      }
 
-      // 응답 데이터를 scenes에 반영
+      // 응답이 배열(씬별 스크립트)인지 단일 객체인지 정규화 → API 리스트 길이만큼 씬을 유연하게 생성
+      const raw = data as unknown
+      const items: { script: string; duration?: number }[] = []
+
+      const list = Array.isArray(raw)
+        ? raw
+        : Array.isArray((raw as Record<string, unknown>).scripts)
+          ? (raw as Record<string, unknown>).scripts as unknown[]
+          : Array.isArray((raw as Record<string, unknown>).data)
+            ? (raw as Record<string, unknown>).data as unknown[]
+            : null
+
+      if (list && list.length > 0) {
+        list.forEach((item: unknown, index: number) => {
+          const r = item as Record<string, unknown>
+          const script = from(item) || from((item as Record<string, unknown>).data) || ''
+          const duration = typeof r.duration === 'number' ? r.duration : undefined
+          items.push({ script: script.trim(), duration })
+        })
+      } else {
+        const r = raw as Record<string, unknown>
+        const script = from(r) || from(r.data) || ''
+        const duration = typeof r.duration === 'number' ? r.duration : undefined
+        items.push({ script: script.trim(), duration })
+      }
+
+      // API 리스트 길이만큼 씬을 새로 만들어 UI에 반영 (기존 보이스는 유지)
       updateScenes((prev) => {
-        const updated = prev.map((scene, index) => {
-          const sceneData = items.find((item) => item.imageUrl === selectedImages[index]) || items[index]
+        return items.map((item, index) => {
+          const existing = prev[index]
           return {
-            ...scene,
-            script: sceneData?.script || scene.script || '생성된 대본이 없어요.',
+            id: existing?.id ?? generateSceneId(),
+            script: item.script,
+            voiceLabel: existing?.voiceLabel,
+            voiceTemplate: existing?.voiceTemplate ?? null,
+            ttsDuration: item.duration ?? existing?.ttsDuration,
           }
         })
-        return updated
       })
       // updateScenes 내부에서 이미 setHasUnsavedChanges를 호출하므로 중복 호출 제거
     } catch (error) {
@@ -492,7 +542,7 @@ export default function ProStep2Page() {
                           onDragOver={(e) => handleDragOver(e, index)}
                           onDrop={(e) => handleDrop(e)}
                           onDragEnd={handleDragEnd}
-                          isGenerating={false}
+                          isGenerating={isGeneratingAll}
                           draggedIndex={draggedIndex}
                           dragOver={dragOver}
                         />
