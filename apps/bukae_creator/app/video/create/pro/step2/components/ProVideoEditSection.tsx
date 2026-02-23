@@ -94,6 +94,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
             videoUrl={scene.videoUrl}
             isUploading={uploadingSceneIndex === index}
             initialSelectionStartSeconds={scene.selectionStartSeconds}
+            initialSelectionEndSeconds={scene.selectionEndSeconds}
             originalVideoDurationSeconds={scene.originalVideoDurationSeconds}
             onSelectionChange={onSelectionChange ? (startSeconds, endSeconds) => onSelectionChange(index, startSeconds, endSeconds) : undefined}
             onDragStart={onDragStart ? (e) => onDragStart(index) : undefined}

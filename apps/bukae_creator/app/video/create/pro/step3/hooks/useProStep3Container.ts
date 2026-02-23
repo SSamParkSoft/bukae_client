@@ -776,8 +776,16 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
 
     const strokeColor = textSettings?.stroke?.color || '#000000'
     const strokeWidth = textSettings?.stroke?.width ?? 10
-    
-    const fillStyleConfig: Partial<PIXI.TextStyle> = {
+
+    // 기존 stroke 전용 텍스트 제거(테두리는 이제 글자 하나의 stroke 스타일로 처리)
+    const existingStroke = textStrokesRef.current.get(sceneIndex)
+    if (existingStroke) {
+      if (existingStroke.parent === subtitleContainer) subtitleContainer.removeChild(existingStroke)
+      if (!existingStroke.destroyed) existingStroke.destroy()
+      textStrokesRef.current.delete(sceneIndex)
+    }
+
+    const styleConfig: Partial<PIXI.TextStyle> = {
       fontFamily,
       fontSize,
       fill: fillColor,
@@ -787,101 +795,27 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
       wordWrap: true,
       wordWrapWidth: wordWrapWidth,
       breakWords: true,
+      ...(strokeWidth > 0 ? { stroke: { color: strokeColor, width: strokeWidth } } : {}),
     }
-    
-    const fillStyle = new PIXI.TextStyle(fillStyleConfig)
+    const textStyle = new PIXI.TextStyle(styleConfig)
     if (isUnderline) {
-      ;(fillStyle as PIXI.TextStyle & { underline?: boolean }).underline = true
+      ;(textStyle as PIXI.TextStyle & { underline?: boolean }).underline = true
     }
 
-    if (strokeWidth > 0) {
-      const strokeStyleConfig: Partial<PIXI.TextStyle> = {
-        fontFamily,
-        fontSize,
-        fill: 'transparent',
-        align: textAlign as 'left' | 'center' | 'right' | 'justify',
-        fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
-        fontStyle,
-        wordWrap: true,
-        wordWrapWidth: wordWrapWidth,
-        breakWords: true,
-        stroke: { color: strokeColor, width: strokeWidth },
-      }
-      
-      const strokeStyle = new PIXI.TextStyle(strokeStyleConfig)
-      if (isUnderline) {
-        ;(strokeStyle as PIXI.TextStyle & { underline?: boolean }).underline = true
-      }
-
-      let strokeObj = textStrokesRef.current.get(sceneIndex)
-      if (!strokeObj || strokeObj.destroyed) {
-        strokeObj = new PIXI.Text({
-          text: script,
-          style: strokeStyle,
-        })
-        strokeObj.anchor.set(0.5, 0.5)
-        subtitleContainer.addChild(strokeObj)
-        textStrokesRef.current.set(sceneIndex, strokeObj)
-      } else {
-        strokeObj.style = strokeStyle
-        strokeObj.text = script
-      }
-
-      strokeObj.x = textX
-      strokeObj.y = textY
-      strokeObj.visible = true
-      strokeObj.alpha = 1
-      
-      const strokeIndex = subtitleContainer.getChildIndex(strokeObj)
-      
-      let textObj = textsRef.current.get(sceneIndex)
-      if (!textObj || textObj.destroyed) {
-        textObj = new PIXI.Text({
-          text: script,
-          style: fillStyle,
-        })
-        textObj.anchor.set(0.5, 0.5)
-        subtitleContainer.addChild(textObj)
-        textsRef.current.set(sceneIndex, textObj)
-      } else {
-        textObj.style = fillStyle
-        textObj.text = script
-      }
-
-      textObj.x = textX
-      textObj.y = textY
-      textObj.visible = true
-      textObj.alpha = 1
-      
-      const fillIndex = subtitleContainer.getChildIndex(textObj)
-      if (fillIndex <= strokeIndex) {
-        subtitleContainer.setChildIndex(textObj, strokeIndex + 1)
-      }
+    let textObj = textsRef.current.get(sceneIndex)
+    if (!textObj || textObj.destroyed) {
+      textObj = new PIXI.Text({ text: script, style: textStyle })
+      textObj.anchor.set(0.5, 0.5)
+      subtitleContainer.addChild(textObj)
+      textsRef.current.set(sceneIndex, textObj)
     } else {
-      let textObj = textsRef.current.get(sceneIndex)
-      if (!textObj || textObj.destroyed) {
-        textObj = new PIXI.Text({
-          text: script,
-          style: fillStyle,
-        })
-        textObj.anchor.set(0.5, 0.5)
-        subtitleContainer.addChild(textObj)
-        textsRef.current.set(sceneIndex, textObj)
-      } else {
-        textObj.style = fillStyle
-        textObj.text = script
-      }
-
-      textObj.x = textX
-      textObj.y = textY
-      textObj.visible = true
-      textObj.alpha = 1
-      
-      const strokeObj = textStrokesRef.current.get(sceneIndex)
-      if (strokeObj && !strokeObj.destroyed) {
-        hideText(strokeObj)
-      }
+      textObj.style = textStyle
+      textObj.text = script
     }
+    textObj.x = textX
+    textObj.y = textY
+    textObj.visible = true
+    textObj.alpha = 1
   }, [pixiReady])
 
   // ===== Timeline 및 상태 관리 =====

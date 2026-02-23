@@ -204,7 +204,6 @@ export function useFabricHandlers({
 
       const textContent = target.text ?? ''
       const fill = target.fill ?? DEFAULT_TEXT_COLOR
-      const align = target.textAlign ?? DEFAULT_TEXT_ALIGN
       const existingColor = currentTimeline.scenes[sceneIndex]?.text?.color ?? DEFAULT_TEXT_COLOR
       const normalizedExistingColor = existingColor.trim().toLowerCase()
       const isExistingColorTransparent =
@@ -221,6 +220,12 @@ export function useFabricHandlers({
         typeof fill === 'string' && !isProxyTransparentFill
           ? fill
           : fallbackColor
+
+      // 프록시(투명 fill)인 경우 Fabric 기본값(left)이 저장되지 않도록 기존 씬 정렬 유지 → 가운데 정렬 유지
+      const align =
+        isProxyTransparentFill
+          ? (currentTimeline.scenes[sceneIndex]?.text?.style?.align ?? DEFAULT_TEXT_ALIGN)
+          : (target.textAlign ?? DEFAULT_TEXT_ALIGN)
 
       // 폰트사이즈는 변경하지 않고 기존 값을 유지 (패스트트랙처럼 width만 변경)
       const existingFontSize = currentTimeline.scenes[sceneIndex]?.text?.fontSize ?? DEFAULT_FONT_SIZE

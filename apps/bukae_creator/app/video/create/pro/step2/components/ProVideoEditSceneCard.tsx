@@ -27,6 +27,8 @@ export interface ProVideoEditSceneCardProps {
   isUploading?: boolean
   /** 격자 선택 영역 시작 시간 (초) - 초기값 */
   initialSelectionStartSeconds?: number
+  /** 격자 선택 영역 끝 시간 (초) - 초기값 (store 저장값 유지용) */
+  initialSelectionEndSeconds?: number
   /** 업로드된 원본 영상 길이(초). TTS보다 짧을 때 타임라인을 이어붙인 길이로 표시 */
   originalVideoDurationSeconds?: number
   /** 격자 선택 영역 변경 콜백 */
@@ -54,6 +56,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   videoUrl,
   isUploading = false,
   initialSelectionStartSeconds = 0,
+  initialSelectionEndSeconds,
   originalVideoDurationSeconds,
   onSelectionChange,
   onDragStart,
@@ -395,7 +398,12 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   const maxSelectionStartPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
   const maxSelectionStartSeconds = maxSelectionStartPx / FRAME_WIDTH
   const clampedSelectionStartSeconds = Math.max(0, Math.min(selectionStartSeconds, maxSelectionStartSeconds))
-  const clampedSelectionEndSeconds = Math.min(clampedSelectionStartSeconds + selectionWidthSeconds, actualVideoEndSeconds)
+  // store에 저장된 끝 시간이 있으면 사용(step3로 넘어갈 때 격자 위치 유지), 드래그 중이면 start+width 사용
+  const clampedSelectionEndSeconds = isDraggingSelection
+    ? Math.min(clampedSelectionStartSeconds + selectionWidthSeconds, actualVideoEndSeconds)
+    : (initialSelectionEndSeconds != null && initialSelectionEndSeconds > clampedSelectionStartSeconds)
+      ? Math.min(initialSelectionEndSeconds, actualVideoEndSeconds)
+      : Math.min(clampedSelectionStartSeconds + selectionWidthSeconds, actualVideoEndSeconds)
   
   // 선택 영역의 픽셀 단위 위치
   const selectionLeftPx = clampedSelectionStartSeconds * FRAME_WIDTH
@@ -412,9 +420,9 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       return
     }
     
-    // initialSelectionStartSeconds와 비교하여 실제로 사용자가 변경한 경우에만 호출
+    // store 초기값과 비교하여 실제로 사용자가 변경한 경우에만 호출 (initialSelectionEndSeconds 있으면 사용)
     const initialStart = initialSelectionStartSeconds ?? 0
-    const initialEnd = initialStart + (ttsDuration || 10)
+    const initialEnd = initialSelectionEndSeconds ?? (initialStart + (ttsDuration || 10))
     
     // 이전 값과 비교하여 실제로 변경된 경우에만 호출
     const prev = prevSelectionRef.current
@@ -440,7 +448,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
         end: clampedSelectionEndSeconds,
       }
     }
-  }, [clampedSelectionStartSeconds, clampedSelectionEndSeconds, onSelectionChange, initialSelectionStartSeconds, ttsDuration, isDraggingSelection])
+  }, [clampedSelectionStartSeconds, clampedSelectionEndSeconds, onSelectionChange, initialSelectionStartSeconds, initialSelectionEndSeconds, ttsDuration, isDraggingSelection])
 
   // 격자 드래그 핸들러
   const handleSelectionMouseDown = (e: React.MouseEvent) => {

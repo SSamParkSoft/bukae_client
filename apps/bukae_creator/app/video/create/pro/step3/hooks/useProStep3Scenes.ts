@@ -20,32 +20,41 @@ export type ProScene = {
   originalVideoDurationSeconds?: number
 }
 
-// SceneScript를 ProScene으로 변환
-function sceneScriptToProScene(s: SceneScript, index: number): ProScene {
-  // SceneScript의 확장된 필드 확인 (localStorage에서 복원된 데이터)
-  const extended = s as SceneScript & {
-    id?: string
-    voiceLabel?: string
-    voiceTemplate?: string | null
-    ttsDuration?: number
-    ttsAudioBase64?: string // TTS 오디오 데이터 (base64 인코딩된 문자열)
-    videoUrl?: string | null
-    selectionStartSeconds?: number
-    selectionEndSeconds?: number
-    originalVideoDurationSeconds?: number
-  }
+// Step2 edit에서 저장한 확장 필드 (store에는 SceneScript + 이 필드들이 직렬화되어 있음)
+type StoreSceneExtended = SceneScript & {
+  id?: string
+  voiceLabel?: string
+  voiceTemplate?: string | null
+  ttsDuration?: number
+  ttsAudioBase64?: string
+  videoUrl?: string | null
+  selectionStartSeconds?: number
+  selectionEndSeconds?: number
+  originalVideoDurationSeconds?: number
+}
 
+// SceneScript를 ProScene으로 변환 (씬별 격자 선택값 selectionStartSeconds, selectionEndSeconds 포함)
+function sceneScriptToProScene(s: SceneScript, index: number): ProScene {
+  const ext = s as StoreSceneExtended
+  const start =
+    typeof ext.selectionStartSeconds === 'number' && Number.isFinite(ext.selectionStartSeconds)
+      ? ext.selectionStartSeconds
+      : undefined
+  const end =
+    typeof ext.selectionEndSeconds === 'number' && Number.isFinite(ext.selectionEndSeconds)
+      ? ext.selectionEndSeconds
+      : undefined
   return {
-    id: extended.id || `scene-${index}`,
+    id: ext.id || `scene-${index}`,
     script: s.script || '',
-    voiceLabel: extended.voiceLabel,
-    voiceTemplate: extended.voiceTemplate,
-    ttsDuration: extended.ttsDuration,
-    ttsAudioBase64: extended.ttsAudioBase64, // ttsAudioBase64 포함
-    videoUrl: extended.videoUrl,
-    selectionStartSeconds: extended.selectionStartSeconds, // Step2에서 설정한 값 포함
-    selectionEndSeconds: extended.selectionEndSeconds, // Step2에서 설정한 값 포함
-    originalVideoDurationSeconds: extended.originalVideoDurationSeconds,
+    voiceLabel: ext.voiceLabel,
+    voiceTemplate: ext.voiceTemplate,
+    ttsDuration: ext.ttsDuration,
+    ttsAudioBase64: ext.ttsAudioBase64,
+    videoUrl: ext.videoUrl,
+    selectionStartSeconds: start,
+    selectionEndSeconds: end,
+    originalVideoDurationSeconds: ext.originalVideoDurationSeconds,
   }
 }
 

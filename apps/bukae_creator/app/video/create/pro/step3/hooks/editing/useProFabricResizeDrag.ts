@@ -389,6 +389,7 @@ export function useProFabricResizeDrag({
         normalizeNumber((pixiText?.style as { fontSize?: number } | undefined)?.fontSize, 80)
       )
 
+      // 드래그 시 글씨가 보이지 않도록 투명 fill (테두리만 보이지 않게 stroke도 투명)
       const textProxy = new fabric.Textbox(textContent || ' ', {
         originX: 'center',
         originY: 'center',
@@ -400,8 +401,9 @@ export function useProFabricResizeDrag({
         fontSize: Math.max(8, fontSize * ratio),
         fill: INVISIBLE_HIT_FILL,
         stroke: INVISIBLE_HIT_FILL,
-        strokeWidth: 1,
+        strokeWidth: 0,
         backgroundColor: INVISIBLE_HIT_FILL,
+        textAlign: 'center',
         selectable: true,
         evented: true,
         activeOn: 'down',

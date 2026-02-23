@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { ProVideoEditSection } from '../components'
@@ -44,6 +45,7 @@ function getVideoDurationFromUrl(url: string): Promise<number | null> {
 }
 
 export default function ProStep2EditPage() {
+  const router = useRouter()
   const {
     setHasUnsavedChanges,
     scenes: storeScenes,
@@ -362,6 +364,35 @@ export default function ProStep2EditPage() {
     setDragOver(null)
   }, [])
 
+  // 다음 단계(step3)로 이동 전에 씬별 격자 선택값을 store에 반드시 반영한 뒤 이동
+  const handleGoToStep3 = useCallback(() => {
+    const currentStoreScenes = useVideoCreateStore.getState().scenes
+    const currentScenes: ProScene[] = currentStoreScenes?.length
+      ? currentStoreScenes.map((s: SceneScript, i: number) => sceneScriptToProScene(s, i))
+      : []
+    const normalized: ProScene[] = currentScenes.map((scene) => {
+      if (!scene.videoUrl) return scene
+      const tts = scene.ttsDuration ?? 10
+      const orig = scene.originalVideoDurationSeconds ?? 0
+      const effective = orig > 0 && orig < tts ? getEffectiveSourceDuration(tts, orig) : orig > 0 ? orig : tts
+      const start = scene.selectionStartSeconds ?? 0
+      const end =
+        scene.selectionEndSeconds != null && scene.selectionEndSeconds > start
+          ? scene.selectionEndSeconds
+          : start + Math.min(tts, effective)
+      return {
+        ...scene,
+        selectionStartSeconds: start,
+        selectionEndSeconds: end,
+      }
+    })
+    const toSave = normalized.map((s: ProScene, i: number) => proSceneToSceneScript(s, i))
+    setStoreScenes(toSave)
+    requestAnimationFrame(() => {
+      router.push('/video/create/pro/step3')
+    })
+  }, [setStoreScenes, router])
+
   // 두 번째 화면용 scenes 데이터 (TTS duration 포함)
   const videoEditScenes = scenes.map((scene) => ({
     id: scene.id,
@@ -480,8 +511,9 @@ export default function ProStep2EditPage() {
                     <ArrowLeft className="w-5 h-5" />
                     이전 단계
                   </Link>
-                  <Link
-                    href="/video/create/pro/step3"
+                  <button
+                    type="button"
+                    onClick={handleGoToStep3}
                     className="flex-1 h-14 rounded-2xl bg-[#5e8790] text-white hover:bg-[#5e8790]/90 transition-all flex items-center justify-center gap-2 font-bold tracking-[-0.48px] shadow-(--shadow-card-default)"
                     style={{
                       fontSize: 'var(--font-size-24)',
@@ -490,7 +522,7 @@ export default function ProStep2EditPage() {
                   >
                     다음 단계
                     <ArrowRight className="w-5 h-5" />
-                  </Link>
+                  </button>
                 </div>
               </section>
             </div>
