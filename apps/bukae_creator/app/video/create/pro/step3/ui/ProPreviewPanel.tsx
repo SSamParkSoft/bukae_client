@@ -16,6 +16,7 @@ interface ProPreviewPanelProps {
   onPlayingChange?: (isPlaying: boolean) => void
   onScenePlaybackComplete?: () => void
   bgmTemplate?: string | null
+  confirmedBgmTemplate?: string | null
   onExport?: () => void
   isExporting?: boolean
 }
@@ -30,6 +31,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   onPlayingChange,
   onScenePlaybackComplete,
   bgmTemplate,
+  confirmedBgmTemplate,
   onExport,
   isExporting = false,
 }: ProPreviewPanelProps) {
@@ -38,6 +40,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     currentSceneIndex,
     isPlaying,
     scenePlaybackRequest,
+    confirmedBgmTemplate,
     onBeforePlay,
     onPlayingChange,
     onScenePlaybackComplete,
@@ -92,7 +95,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
             // Pro step3에서는 수동 seek 미지원
           }}
           timeline={null}
-          bgmTemplate={bgmTemplate}
+          bgmTemplate={confirmedBgmTemplate ?? bgmTemplate}
           showGrid={false}
           onPlayPause={handlePlayPause}
           isTtsBootstrapping={false}

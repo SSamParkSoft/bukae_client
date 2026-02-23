@@ -191,6 +191,9 @@ export function useSoundEffectManager({
     if (typeof window === 'undefined' || !timeline || !timeline.scenes || !getActiveSegment) {
       return
     }
+    if (!isPlaying) {
+      return
+    }
 
     // 현재 활성 세그먼트 가져오기
     const activeSegment = getActiveSegment(currentTime)

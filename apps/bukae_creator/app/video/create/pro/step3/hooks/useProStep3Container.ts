@@ -10,7 +10,11 @@ import { useProTransportPlayback } from './playback/useProTransportPlayback'
 import { useProFabricResizeDrag } from './editing/useProFabricResizeDrag'
 import { useProEditModeManager } from './editing/useProEditModeManager'
 import { useTimelineChangeHandler } from '@/app/video/create/step3/shared/hooks/timeline'
-import { getPlayableScenes, getDurationBeforeSceneIndex, getPlayableSceneStartTime } from '../utils/proPlaybackUtils'
+import { useBgmPlayback } from '@/app/video/create/step3/shared/hooks/audio'
+import { useBgmManager } from '@/hooks/video/audio/useBgmManager'
+import { useSoundEffectManager } from '@/hooks/video/audio/useSoundEffectManager'
+import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
+import { getPlayableScenes, getDurationBeforeSceneIndex, getPlayableSceneStartTime, getSceneSegmentDuration, resolveProSceneAtTime } from '../utils/proPlaybackUtils'
 import { calculateAspectFittedSize } from '../utils/proPreviewLayout'
 import { videoSpriteAdapter } from './playback/media/videoSpriteAdapter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
@@ -23,6 +27,7 @@ export interface UseProStep3ContainerParams {
   currentSceneIndex: number
   isPlaying: boolean
   scenePlaybackRequest?: { sceneIndex: number; requestId: number } | null
+  confirmedBgmTemplate?: string | null
   onBeforePlay?: () => boolean
   onPlayingChange?: (isPlaying: boolean) => void
   onScenePlaybackComplete?: () => void
@@ -71,6 +76,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     currentSceneIndex,
     isPlaying,
     scenePlaybackRequest,
+    confirmedBgmTemplate,
     onBeforePlay,
     onPlayingChange,
     onScenePlaybackComplete,
@@ -939,6 +945,170 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     onPlayingChange,
     setCurrentTime,
     setTotalDuration,
+  })
+
+  const {
+    confirmedBgmTemplate: resolvedBgmTemplate,
+    bgmAudioRef,
+    startBgmAudio,
+    pauseBgmAudio,
+    resumeBgmAudio,
+    stopBgmAudio,
+    seekBgmAudio,
+  } = useBgmManager({
+    bgmTemplate: confirmedBgmTemplate ?? null,
+    playbackSpeed,
+    isPlaying: transportState.isPlaying,
+  })
+
+  useBgmPlayback({
+    isPlaying: transportState.isPlaying,
+    confirmedBgmTemplate: resolvedBgmTemplate,
+    playbackSpeed,
+    transport: transportHook,
+    bgmAudioRef,
+    startBgmAudio,
+    pauseBgmAudio,
+    resumeBgmAudio,
+    stopBgmAudio,
+  })
+
+  // 정지/씬 이동 등 seek 시점에 BGM 위치를 현재 타임라인 시간에 맞춰 둔다.
+  useEffect(() => {
+    if (!resolvedBgmTemplate || transportState.isPlaying) {
+      return
+    }
+
+    const pausedTime = transportHook.getTime()
+    seekBgmAudio(pausedTime)
+  }, [currentTime, resolvedBgmTemplate, seekBgmAudio, transportHook, transportState.isPlaying])
+
+  useEffect(() => {
+    return () => {
+      stopBgmAudio()
+    }
+  }, [stopBgmAudio])
+
+  const resolveSceneVoiceTemplate = useCallback((sceneIndex: number): string | null => {
+    const sceneVoiceFromTimeline = timelineRef.current?.scenes?.[sceneIndex]?.voiceTemplate
+    if (sceneVoiceFromTimeline && sceneVoiceFromTimeline.trim().length > 0) {
+      return sceneVoiceFromTimeline
+    }
+
+    const sceneVoiceFromSource = scenesRef.current[sceneIndex]?.voiceTemplate
+    if (sceneVoiceFromSource && sceneVoiceFromSource.trim().length > 0) {
+      return sceneVoiceFromSource
+    }
+
+    return null
+  }, [])
+
+  const getScenePartDurations = useCallback(
+    (sceneIndex: number, fallbackDuration: number): number[] => {
+      const safeFallbackDuration = Math.max(fallbackDuration, 0.001)
+      const currentTimeline = timelineRef.current
+      if (!currentTimeline?.scenes?.[sceneIndex]) {
+        return [safeFallbackDuration]
+      }
+
+      const sceneVoiceTemplate = resolveSceneVoiceTemplate(sceneIndex)
+      const markups = buildSceneMarkup(currentTimeline, sceneIndex)
+      if (!sceneVoiceTemplate || markups.length === 0) {
+        return [safeFallbackDuration]
+      }
+
+      const partDurations = markups.map((markup) => {
+        const key = makeTtsKey(sceneVoiceTemplate, markup)
+        const cached = ttsCacheRef.current.get(key)
+        return cached?.durationSec && cached.durationSec > 0 ? cached.durationSec : 0
+      })
+
+      const hasMissingDuration = partDurations.some((duration) => duration <= 0)
+      const totalPartDuration = partDurations.reduce((sum, duration) => sum + duration, 0)
+      if (hasMissingDuration || totalPartDuration <= 0) {
+        return [safeFallbackDuration]
+      }
+
+      return partDurations
+    },
+    [resolveSceneVoiceTemplate]
+  )
+
+  const getActiveSegmentForSoundEffect = useCallback(
+    (timeSec: number) => {
+      const resolved = resolveProSceneAtTime(scenesRef.current, timeSec)
+      if (!resolved) {
+        return null
+      }
+
+      const sceneDuration = Math.max(resolved.duration, 0.001)
+      const partDurations = getScenePartDurations(resolved.sceneIndex, sceneDuration)
+      const clampedSceneTime = Math.max(0, Math.min(resolved.sceneTimeInSegment, sceneDuration))
+
+      let partIndex = partDurations.length - 1
+      let accumulatedPartTime = 0
+      let partStartOffset = 0
+
+      for (let index = 0; index < partDurations.length; index++) {
+        const duration = partDurations[index] ?? 0
+        const nextAccumulatedPartTime = accumulatedPartTime + duration
+        if (clampedSceneTime < nextAccumulatedPartTime || index === partDurations.length - 1) {
+          partIndex = index
+          partStartOffset = accumulatedPartTime
+          break
+        }
+        accumulatedPartTime = nextAccumulatedPartTime
+      }
+
+      let segmentIndex = partIndex
+      for (let index = 0; index < resolved.sceneIndex; index++) {
+        const prevScene = scenesRef.current[index]
+        if (!prevScene) {
+          continue
+        }
+        const prevSceneDuration = Math.max(getSceneSegmentDuration(prevScene), 0.001)
+        segmentIndex += getScenePartDurations(index, prevSceneDuration).length
+      }
+
+      const segmentStartTime = resolved.sceneStartTime + partStartOffset
+
+      return {
+        segment: {
+          sceneIndex: resolved.sceneIndex,
+          partIndex,
+          startSec: segmentStartTime,
+        },
+        offset: Math.max(0, timeSec - segmentStartTime),
+        segmentIndex,
+      }
+    },
+    [getScenePartDurations]
+  )
+
+  const voiceTemplateForSoundEffect = useMemo(() => {
+    const timelineVoice = timeline?.scenes?.find((scene) => (scene.voiceTemplate ?? '').trim().length > 0)?.voiceTemplate
+    if (timelineVoice) {
+      return timelineVoice
+    }
+
+    const sourceVoice = scenes.find((scene) => (scene.voiceTemplate ?? '').trim().length > 0)?.voiceTemplate
+    if (sourceVoice) {
+      return sourceVoice
+    }
+
+    // cleanup/seek 로직이 동작하도록 truthy fallback 유지
+    return '__pro_default_voice__'
+  }, [scenes, timeline])
+
+  useSoundEffectManager({
+    timeline,
+    isPlaying: transportState.isPlaying,
+    currentTime,
+    ttsCacheRef,
+    voiceTemplate: voiceTemplateForSoundEffect,
+    buildSceneMarkup,
+    makeTtsKey,
+    getActiveSegment: getActiveSegmentForSoundEffect,
   })
 
   const clearScenePlaybackState = useCallback((notifyComplete: boolean) => {

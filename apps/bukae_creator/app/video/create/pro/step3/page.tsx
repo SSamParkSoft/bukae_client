@@ -206,6 +206,7 @@ export default function ProStep3Page() {
               onPlayingChange={handlePlayingChange}
               onScenePlaybackComplete={handleScenePlaybackComplete}
               bgmTemplate={bgmTemplate}
+              confirmedBgmTemplate={confirmedBgmTemplate}
               onExport={() => {
                 // 내보내기 기능은 나중에 구현
                 alert('내보내기 기능은 준비 중입니다.')
