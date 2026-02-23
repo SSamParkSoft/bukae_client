@@ -91,6 +91,8 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
   const videoTexturesRef = useRef<Map<number, PIXI.Texture>>(new Map())
   const videoElementsRef = useRef<Map<number, HTMLVideoElement>>(new Map())
   const setupSpriteClickEventRef = useRef<(sceneIndex: number, sprite: PIXI.Sprite) => boolean>(() => false)
+  const prevSceneIndexRef = useRef(currentSceneIndex)
+  const prevFabricSceneIndexRef = useRef(currentSceneIndex)
 
   const ttsAudioRefsRef = useRef<Map<number, HTMLAudioElement>>(new Map())
   const ttsCacheRef = useRef<Map<string, { blob: Blob; durationSec: number; url?: string | null }>>(new Map())
@@ -111,6 +113,14 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
   useEffect(() => {
     currentSceneIndexRef.current = currentSceneIndex
   }, [currentSceneIndex])
+
+  useEffect(() => {
+    const prevSceneIndex = prevSceneIndexRef.current
+    if (prevSceneIndex !== currentSceneIndex && !isPlaying && editMode !== 'none') {
+      setEditMode('none')
+    }
+    prevSceneIndexRef.current = currentSceneIndex
+  }, [currentSceneIndex, isPlaying, editMode, setEditMode])
 
   // ===== TTS 캐시 로딩 =====
   const storeScenes = useVideoCreateStore((state) => state.scenes)
@@ -930,7 +940,8 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
   // ===== Fabric 캔버스 =====
   const { syncFromScene: syncFabricScene, syncFromSceneDirect, fabricCanvasRef: proFabricCanvasRef, fabricReady } = useProFabricResizeDrag({
     videoElementsRef,
-    enabled: pixiReady && !isPlaying && (editMode === 'image' || editMode === 'text'),
+    // Pro는 재생 중이 아닐 때 Fabric 캔버스를 유지해 두고, editMode에서만 상호작용을 켠다.
+    enabled: pixiReady && !isPlaying,
     playbackContainerRef,
     canvasDisplaySize,
     stageWidth: STAGE_WIDTH,
@@ -949,6 +960,20 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     }
   }, [isPlaying, editMode, setEditMode])
 
+  useEffect(() => {
+    const prevSceneIndex = prevFabricSceneIndexRef.current
+    if (prevSceneIndex === currentSceneIndex) {
+      return
+    }
+    prevFabricSceneIndexRef.current = currentSceneIndex
+    const fabricCanvas = proFabricCanvasRef.current
+    if (!fabricCanvas) {
+      return
+    }
+    fabricCanvas.discardActiveObject()
+    fabricCanvas.requestRenderAll()
+  }, [currentSceneIndex, proFabricCanvasRef])
+
   useProEditModeManager({
     appRef,
     fabricCanvasRef: proFabricCanvasRef,
@@ -961,7 +986,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
 
   const activateFabricObjectByType = useCallback((dataType: 'image' | 'text') => {
     let attempts = 0
-    const MAX_ATTEMPTS = 90
+    const MAX_ATTEMPTS = 120
 
     const activate = () => {
       const fabricCanvas = proFabricCanvasRef.current
@@ -983,8 +1008,15 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
         return
       }
 
+      target.set({
+        hasControls: true,
+        hasBorders: false,
+        selectable: true,
+        evented: true,
+      })
+      target.setCoords()
       fabricCanvas.setActiveObject(target)
-      fabricCanvas.requestRenderAll()
+      fabricCanvas.renderAll()
     }
 
     requestAnimationFrame(activate)
@@ -997,6 +1029,29 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     activateFabricObjectByType(editMode)
   }, [fabricReady, isPlaying, editMode, activateFabricObjectByType])
 
+  useEffect(() => {
+    if (editMode !== 'none') {
+      return
+    }
+    const fabricCanvas = proFabricCanvasRef.current
+    if (!fabricCanvas) {
+      return
+    }
+    fabricCanvas.discardActiveObject()
+    fabricCanvas.requestRenderAll()
+  }, [editMode, proFabricCanvasRef])
+
+  const enterEditMode = useCallback((mode: 'image' | 'text') => {
+    setEditMode(mode)
+    if (syncFromSceneDirect) {
+      void syncFromSceneDirect().then(() => {
+        activateFabricObjectByType(mode)
+      })
+      return
+    }
+    activateFabricObjectByType(mode)
+  }, [setEditMode, syncFromSceneDirect, activateFabricObjectByType])
+
   // ===== 스프라이트 클릭 이벤트 설정 =====
   const setupSpriteClickEvent = useCallback((sceneIndex: number, sprite: PIXI.Sprite) => {
     if (isPlaying || !pixiReady) {
@@ -1008,16 +1063,16 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     }
 
     sprite.interactive = true
+    ;(sprite as PIXI.Sprite & { eventMode?: string }).eventMode = 'static'
     sprite.cursor = 'pointer'
     sprite.off('pointerdown')
     sprite.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
       e.stopPropagation()
-      setEditMode('image')
-      activateFabricObjectByType('image')
+      enterEditMode('image')
     })
 
     return true
-  }, [isPlaying, pixiReady, setEditMode, activateFabricObjectByType])
+  }, [isPlaying, pixiReady, enterEditMode])
 
   useEffect(() => {
     setupSpriteClickEventRef.current = setupSpriteClickEvent
@@ -1037,16 +1092,16 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     }
 
     textObj.interactive = true
+    ;(textObj as PIXI.Text & { eventMode?: string }).eventMode = 'static'
     textObj.cursor = 'pointer'
     textObj.off('pointerdown')
     textObj.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
       e.stopPropagation()
-      setEditMode('text')
-      activateFabricObjectByType('text')
+      enterEditMode('text')
     })
 
     return true
-  }, [isPlaying, pixiReady, setEditMode, activateFabricObjectByType])
+  }, [isPlaying, pixiReady, enterEditMode])
 
   // ===== ESC 키 처리 =====
   useEffect(() => {
@@ -1068,6 +1123,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
       spritesRef.current.forEach((sprite) => {
         if (sprite && !sprite.destroyed) {
           sprite.interactive = false
+          ;(sprite as PIXI.Sprite & { eventMode?: string }).eventMode = 'none'
           sprite.cursor = 'default'
           sprite.off('pointerdown')
         }
@@ -1075,12 +1131,83 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
       textsRef.current.forEach((textObj) => {
         if (textObj && !textObj.destroyed) {
           textObj.interactive = false
+          ;(textObj as PIXI.Text & { eventMode?: string }).eventMode = 'none'
           textObj.cursor = 'default'
           textObj.off('pointerdown')
         }
       })
     }
   }, [isPlaying])
+
+  // Pixi 이벤트 누락 대비: 캔버스 기준 수동 hit-test로 편집 모드 진입 보장
+  useEffect(() => {
+    if (!pixiReady || isPlaying || !appRef.current) {
+      return
+    }
+    if (editMode !== 'none') {
+      return
+    }
+
+    const app = appRef.current
+    const appCanvas = getAppCanvas(app)
+    if (!appCanvas || !app.screen) {
+      return
+    }
+
+    type HitTestTarget = {
+      destroyed?: boolean
+      visible?: boolean
+      alpha?: number
+      getBounds?: () => { x: number; y: number; width: number; height: number }
+    }
+
+    const isPointInsideObject = (displayObject: HitTestTarget | null | undefined, x: number, y: number) => {
+      if (!displayObject || displayObject.destroyed) {
+        return false
+      }
+      if (!displayObject.visible || displayObject.alpha === 0) {
+        return false
+      }
+      try {
+        const bounds = displayObject.getBounds?.()
+        if (!bounds) {
+          return false
+        }
+        return x >= bounds.x && x <= bounds.x + bounds.width && y >= bounds.y && y <= bounds.y + bounds.height
+      } catch {
+        return false
+      }
+    }
+
+    const handleCanvasMouseDown = (event: MouseEvent) => {
+      const rect = appCanvas.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0 || !app.screen) {
+        return
+      }
+
+      const scaleX = app.screen.width / rect.width
+      const scaleY = app.screen.height / rect.height
+      const x = (event.clientX - rect.left) * scaleX
+      const y = (event.clientY - rect.top) * scaleY
+      const sceneIndex = currentSceneIndexRef.current
+
+      const textObj = textsRef.current.get(sceneIndex)
+      if (isPointInsideObject(textObj, x, y)) {
+        enterEditMode('text')
+        return
+      }
+
+      const sprite = spritesRef.current.get(sceneIndex)
+      if (isPointInsideObject(sprite, x, y)) {
+        enterEditMode('image')
+      }
+    }
+
+    appCanvas.addEventListener('mousedown', handleCanvasMouseDown, true)
+    return () => {
+      appCanvas.removeEventListener('mousedown', handleCanvasMouseDown, true)
+    }
+  }, [pixiReady, isPlaying, editMode, appRef, currentSceneIndexRef, textsRef, spritesRef, enterEditMode])
 
   // ===== Fabric 캔버스 이벤트 처리 =====
   useEffect(() => {
@@ -1103,9 +1230,13 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     const handleMouseDown = (e: any) => {
       const selectedType = resolveTargetType(e.target as fabric.Object | null)
       if (!selectedType) {
+        const activeObject = fabricCanvas.getActiveObject() as fabric.Object & { dataType?: 'image' | 'text' } | null
+        if (activeObject?.dataType) {
+          return
+        }
+        setEditMode((prev) => (prev === 'none' ? prev : 'none'))
         fabricCanvas.discardActiveObject()
         fabricCanvas.requestRenderAll()
-        setEditMode((prev) => (prev === 'none' ? prev : 'none'))
         return
       }
       setEditMode((prev) => (prev === selectedType ? prev : selectedType))
@@ -1218,18 +1349,40 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     if (!pixiReady || isPlaying || currentSceneIndex < 0 || !syncFromSceneDirect) {
       return
     }
+    if (!fabricReady || editMode === 'none') {
+      return
+    }
 
     const fabricEditingEnabled = proFabricCanvasRef?.current !== null
-    if (!fabricEditingEnabled || !currentSceneVideoUrl) {
+    if (!fabricEditingEnabled) {
       return
     }
 
     let cancelled = false
     let retryCount = 0
-    const MAX_RETRIES = 120
+    const MAX_RETRIES = 180
+    const syncNow = () => {
+      if (!cancelled) {
+        void syncFromSceneDirect().then(() => {
+          if (!cancelled) {
+            activateFabricObjectByType(editMode)
+          }
+        })
+      }
+    }
+
+    // 편집모드 진입 직후 1회 즉시 동기화 (비디오 미준비면 proxy 오브젝트로라도 생성)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(syncNow)
+    })
 
     const runSyncWhenVideoReady = () => {
       if (cancelled) {
+        return
+      }
+
+      // 비디오가 없는 씬은 즉시 동기화만으로 충분
+      if (!currentSceneVideoUrl) {
         return
       }
 
@@ -1237,9 +1390,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
       if (currentVideo && currentVideo.readyState >= 2 && currentVideo.videoWidth > 0 && currentVideo.videoHeight > 0) {
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            if (!cancelled) {
-              void syncFromSceneDirect()
-            }
+            syncNow()
           })
         })
         return
@@ -1265,6 +1416,9 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     pixiReady,
     syncFromSceneDirect,
     proFabricCanvasRef,
+    fabricReady,
+    editMode,
+    activateFabricObjectByType,
   ])
 
   // ===== 자막 렌더링 (씬 변경 시) =====
@@ -1332,9 +1486,10 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
 
   useEffect(() => {
     if (!pixiReady || transportState.isPlaying || !renderAtRef.current) return
+    if (editMode !== 'none') return
     const t = transportHook.getTime()
     renderAtRef.current(t, { skipAnimation: false, forceRender: true })
-  }, [timelineScenesKey, pixiReady, transportState.isPlaying, transportHook, renderAtRef])
+  }, [timelineScenesKey, pixiReady, transportState.isPlaying, transportHook, renderAtRef, editMode])
 
   return {
     // Refs

@@ -1,6 +1,7 @@
 /**
  * Next.js 커스텀 이미지 로더
  * 외부 이미지(알리익스프레스, 쿠팡)는 프록시를 통해 로드
+ * 프로필/아바타 이미지 URL은 쿼리 파라미터를 붙이지 않음 (깨짐 방지)
  */
 export default function customImageLoader({
   src,
@@ -30,14 +31,25 @@ export default function customImageLoader({
     return `/api/media/proxy?${params.toString()}`
   }
 
-  // next/image custom loader 경고 방지를 위해 모든 URL에 width/quality를 반영
+  // data URL, blob은 그대로 반환
   if (src.startsWith('data:') || src.startsWith('blob:')) {
     return src
   }
 
+  // 프로필/아바타 이미지: w·q 쿼리 붙이면 깨지는 경우가 있으므로 URL 그대로 반환
   if (src.startsWith('http://') || src.startsWith('https://')) {
     try {
       const url = new URL(src)
+      const host = url.hostname.toLowerCase()
+      const isProfileImageHost =
+        host === 'lh3.googleusercontent.com' || // Google 프로필
+        host.endsWith('.googleusercontent.com') ||
+        host.includes('supabase') || // Supabase Storage 등
+        host === 'avatars.githubusercontent.com' ||
+        host === 'platform-lookaside.fbsbx.com' // Facebook 등
+      if (isProfileImageHost) {
+        return src
+      }
       url.searchParams.set('w', width.toString())
       url.searchParams.set('q', imageQuality.toString())
       return url.toString()

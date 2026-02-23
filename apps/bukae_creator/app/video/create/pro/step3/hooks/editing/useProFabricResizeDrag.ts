@@ -5,55 +5,42 @@ import * as PIXI from 'pixi.js'
 import * as fabric from 'fabric'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 import { useFabricHandlers } from '@/hooks/video/editing/useFabricHandlers'
-import { useFabricSync } from '@/hooks/video/scene/management/useFabricSync'
-import { applyFabricObjectDefaults } from '@/hooks/video/pixi/fabricObjectDefaults'
+import { applyFabricObjectDefaults, FABRIC_HANDLE_STYLE } from '@/hooks/video/pixi/fabricObjectDefaults'
 import { calculateAspectFittedSize } from '../../utils/proPreviewLayout'
+import { useProSubtitleTextBounds } from './useProSubtitleTextBounds'
 
-const FABRIC_SYNC_DEBOUNCE_MS = 80
-// Fast와 동일한 논리 크기 (Pixi 월드). Pro는 캔버스가 디스플레이 크기라 scaleRatio로 보정해 화면에서 동일하게 보이게 함.
-const FAST_IMAGE_HANDLE_SIZE = 20
-const FAST_TEXT_HANDLE_SIZE = 16
-const MIN_HANDLE_SIZE = 6
+const INVISIBLE_HIT_FILL = 'rgba(0,0,0,0)'
 
 function getFastImageHandleStyle(scaleRatio: number) {
-  const cornerSize = Math.max(MIN_HANDLE_SIZE, Math.round(FAST_IMAGE_HANDLE_SIZE * scaleRatio))
+  void scaleRatio
   return {
-    transparentCorners: false,
-    cornerColor: '#5e8790',
-    cornerStrokeColor: '#ffffff',
-    cornerSize,
-    cornerStyle: 'rect' as const,
-    borderColor: '#5e8790',
-    borderScaleFactor: 2,
-    padding: 0,
+    ...FABRIC_HANDLE_STYLE,
+    cornerSize: 7,
+    touchCornerSize: 7,
+    padding: 4,
   }
 }
 
 function getFastTextHandleStyle(scaleRatio: number) {
-  const cornerSize = Math.max(MIN_HANDLE_SIZE, Math.round(FAST_TEXT_HANDLE_SIZE * scaleRatio))
+  void scaleRatio
   return {
-    transparentCorners: false,
-    cornerColor: '#5e8790',
-    cornerStrokeColor: '#ffffff',
-    cornerSize,
-    cornerStyle: 'rect' as const,
-    borderColor: '#5e8790',
-    borderScaleFactor: 2,
-    padding: 0,
+    ...FABRIC_HANDLE_STYLE,
+    cornerSize: 7,
+    touchCornerSize: 7,
+    padding: 4,
   }
 }
+
 const FAST_LOCKED_TRANSFORM_STYLE = {
-  // 코너 핸들로 자유 리사이즈 가능
   lockScalingX: false,
   lockScalingY: false,
   lockRotation: true,
   lockScalingFlip: true,
 }
 
-// 텍스트 전용: 스케일은 허용하되 이벤트 핸들러에서 즉시 리셋
 const TEXT_LOCKED_SCALE_STYLE = {
-  lockScalingX: false,  // 리사이즈 핸들이 작동하도록 허용
-  lockScalingY: false,  // 하지만 object:scaling 이벤트에서 즉시 리셋
+  lockScalingX: false,
+  lockScalingY: false,
   lockRotation: true,
   lockScalingFlip: true,
 }
@@ -80,14 +67,17 @@ interface FabricDataObject {
 function applyFastLikeControlPolicy(target: fabric.Object) {
   if (typeof (target as { setControlsVisibility?: (options: Record<string, boolean>) => void }).setControlsVisibility === 'function') {
     ;(target as { setControlsVisibility: (options: Record<string, boolean>) => void }).setControlsVisibility({
-      mtr: false, // Fast와 동일하게 회전 핸들 미사용
-      // 대각선 핸들러(코너 핸들러)는 활성화하되, 스케일은 lockScalingX/Y로 막혀있음
-      tl: true, // top-left
-      tr: true, // top-right
-      bl: true, // bottom-left
-      br: true, // bottom-right
+      mtr: false,
+      tl: true,
+      tr: true,
+      bl: true,
+      br: true,
     })
   }
+}
+
+function normalizeNumber(value: unknown, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
 export function useProFabricResizeDrag({
@@ -101,20 +91,23 @@ export function useProFabricResizeDrag({
   setTimeline,
   spritesRef,
   textsRef,
-  videoElementsRef,
+  videoElementsRef: _videoElementsRef,
   editMode = 'image',
 }: UseProFabricResizeDragParams) {
+  void _videoElementsRef
   const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
   const fabricCanvasElRef = useRef<HTMLCanvasElement | null>(null)
   const scaleRatioRef = useRef(1)
-  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isSyncingRef = useRef(false)
+  const syncRafRef = useRef<number | null>(null)
+  const timelineCommitRafRef = useRef<number | null>(null)
+  const pendingTimelineRef = useRef<TimelineData | null>(null)
   const timelineRef = useRef<TimelineData | null>(timeline)
   const currentSceneIndexRef = useRef(currentSceneIndex)
   const isSavingTransformRef = useRef(false)
   const savedSceneIndexRef = useRef<number | null>(null)
   const isManualSceneSelectRef = useRef(false)
   const [fabricReady, setFabricReady] = useState(false)
+  const { getSubtitleTextBounds } = useProSubtitleTextBounds({ textsRef })
 
   useEffect(() => {
     timelineRef.current = timeline
@@ -140,7 +133,7 @@ export function useProFabricResizeDrag({
       rect.height || container.clientHeight,
       stageWidth / stageHeight
     )
-  }, [canvasDisplaySize, playbackContainerRef, stageHeight, stageWidth])
+  }, [canvasDisplaySize, playbackContainerRef, stageWidth, stageHeight])
 
   const updateFabricSize = useCallback(() => {
     const canvas = fabricCanvasRef.current
@@ -155,21 +148,13 @@ export function useProFabricResizeDrag({
       return
     }
 
-    // 현재 크기와 동일하면 업데이트 스킵 (깜빡임 방지)
-    const currentWidth = canvas.width
-    const currentHeight = canvas.height
-    if (currentWidth === size.width && currentHeight === size.height) {
-      return
-    }
-
     const ratio = size.width / stageWidth
     scaleRatioRef.current = ratio > 0 ? ratio : 1
 
-    // 크기는 항상 PixiJS와 동일하게 유지 (깜빡임 방지)
-    canvas.setDimensions({ width: size.width, height: size.height })
+    if (canvas.width !== size.width || canvas.height !== size.height) {
+      canvas.setDimensions({ width: size.width, height: size.height })
+    }
 
-    // Fabric.js가 wrapper를 생성하므로 wrapper의 위치만 설정
-    // canvasEl은 wrapper 내부에 있으므로 위치 설정 불필요
     if (canvas.wrapperEl) {
       const wrapper = canvas.wrapperEl
       wrapper.style.position = 'absolute'
@@ -179,22 +164,17 @@ export function useProFabricResizeDrag({
       wrapper.style.width = `${size.width}px`
       wrapper.style.height = `${size.height}px`
       wrapper.style.zIndex = '40'
-      // pointerEvents는 useProEditModeManager에서 관리하므로 여기서는 설정하지 않음
     }
 
     if (canvas.upperCanvasEl) {
-      // upper-canvas는 wrapper 내부에 있으므로 wrapper의 위치를 따라감
-      // wrapper 내부에서 left: 0, top: 0으로 설정하여 wrapper와 정렬
       canvas.upperCanvasEl.style.position = 'absolute'
       canvas.upperCanvasEl.style.left = '0'
       canvas.upperCanvasEl.style.top = '0'
-      // pointerEvents는 useProEditModeManager에서 관리
       canvas.upperCanvasEl.style.zIndex = '41'
       canvas.upperCanvasEl.style.touchAction = 'none'
     }
 
     if (canvas.lowerCanvasEl) {
-      // lower-canvas도 wrapper 내부에 있으므로 명시적으로 위치 설정
       canvas.lowerCanvasEl.style.position = 'absolute'
       canvas.lowerCanvasEl.style.left = '0'
       canvas.lowerCanvasEl.style.top = '0'
@@ -202,27 +182,39 @@ export function useProFabricResizeDrag({
       canvas.lowerCanvasEl.style.backgroundColor = 'transparent'
     }
 
-    // Fabric.js의 내부 오프셋 계산 (마우스 이벤트 좌표 변환에 필요)
-    // wrapper 위치 변경 후 오프셋을 다시 계산해야 함. 리사이즈 시 핸들 크기도 위에서 구한 ratio로 갱신.
     requestAnimationFrame(() => {
-      if (canvas && !canvas.disposed) {
-        canvas.calcOffset()
-        const objects = canvas.getObjects() as Array<fabric.Object & FabricDataObject>
-        objects.forEach((obj) => {
-          if (obj.dataType === 'image') {
-            obj.set(getFastImageHandleStyle(ratio))
-          } else if (obj.dataType === 'text') {
-            obj.set(getFastTextHandleStyle(ratio))
-          }
-        })
-        canvas.requestRenderAll()
+      if (!canvas || canvas.disposed) {
+        return
       }
+      canvas.calcOffset()
+      const objects = canvas.getObjects() as Array<fabric.Object & FabricDataObject>
+      objects.forEach((obj) => {
+        if (obj.dataType === 'image') {
+          obj.set(getFastImageHandleStyle(ratio))
+        } else if (obj.dataType === 'text') {
+          obj.set(getFastTextHandleStyle(ratio))
+        }
+      })
+      canvas.requestRenderAll()
     })
   }, [getDisplaySize, playbackContainerRef, stageWidth])
 
   const setTimelineNonNull = useCallback((nextTimeline: TimelineData) => {
     timelineRef.current = nextTimeline
-    setTimeline(nextTimeline)
+    pendingTimelineRef.current = nextTimeline
+    if (timelineCommitRafRef.current !== null) {
+      return
+    }
+    timelineCommitRafRef.current = requestAnimationFrame(() => {
+      timelineCommitRafRef.current = null
+      const latest = pendingTimelineRef.current
+      pendingTimelineRef.current = null
+      if (!latest) {
+        return
+      }
+      timelineRef.current = latest
+      setTimeline(latest)
+    })
   }, [setTimeline])
 
   useFabricHandlers({
@@ -238,9 +230,11 @@ export function useProFabricResizeDrag({
     useFabricEditing: enabled,
     fabricCanvasElementRef: fabricCanvasElRef,
     editMode,
+    disableContinuousTextScaleCorrection: true,
+    persistTimelineDuringTransform: false,
   })
 
-  // 공용 useFabricHandlers는 timeline 갱신만 담당하므로 Pro 미리보기(Pixi) 객체는 별도로 즉시 동기화한다.
+  // Timeline 변경을 Pixi 객체에 즉시 반영
   useEffect(() => {
     if (!timeline || currentSceneIndex < 0) {
       return
@@ -268,214 +262,177 @@ export function useProFabricResizeDrag({
 
       if (pixiText.style) {
         pixiText.style.fontSize = scene.text.fontSize ?? pixiText.style.fontSize ?? 80
-        if (scene.text.transform.width > 0) {
-          pixiText.style.wordWrapWidth = scene.text.transform.width
+        const wrapWidth = normalizeNumber(scene.text.transform.width, 0)
+        if (wrapWidth > 0) {
+          pixiText.style.wordWrapWidth = wrapWidth
         }
       }
     }
   }, [currentSceneIndex, timeline, spritesRef, textsRef])
 
-  const resolveSceneImageObject = useCallback(async ({
-    scene,
-    sceneIndex,
-    scale,
-    stageDimensions,
-  }: {
-    scene: TimelineData['scenes'][number]
-    sceneIndex: number
-    scale: number
-    stageDimensions: { width: number; height: number }
-  }): Promise<fabric.Image | null> => {
-    void stageDimensions
+  const buildFabricScene = useCallback(() => {
+    const fabricCanvas = fabricCanvasRef.current
+    if (!fabricCanvas) {
+      return
+    }
 
-    // imageTransform이 있으면 그것을 우선 사용 (사용자가 편집한 결과)
-    // 없으면 스프라이트의 현재 위치를 사용 (초기 상태)
+    const ratio = scaleRatioRef.current > 0 ? scaleRatioRef.current : 1
+    const sceneIndex = currentSceneIndexRef.current
+    const scene = timelineRef.current?.scenes?.[sceneIndex]
+
+    fabricCanvas.clear()
+
     const sprite = spritesRef.current.get(sceneIndex)
-    const imageTransform = scene.imageTransform ?? (
-      sprite && !sprite.destroyed
+    const imageTransform =
+      scene?.imageTransform
         ? {
-            x: sprite.x,
-            y: sprite.y,
-            width: sprite.width,
-            height: sprite.height,
-            rotation: sprite.rotation ?? 0,
+            x: scene.imageTransform.x,
+            y: scene.imageTransform.y,
+            width: scene.imageTransform.width,
+            height: scene.imageTransform.height,
+            rotation: scene.imageTransform.rotation ?? 0,
           }
-        : null
-    )
+        : sprite && !sprite.destroyed
+          ? {
+              x: sprite.x,
+              y: sprite.y,
+              width: sprite.width,
+              height: sprite.height,
+              rotation: sprite.rotation ?? 0,
+            }
+          : {
+              x: stageWidth / 2,
+              y: stageHeight / 2,
+              width: stageWidth,
+              height: stageHeight,
+              rotation: 0,
+            }
 
-    if (!imageTransform) {
-      return null
-    }
-
-    // 비디오 요소에서 프레임 캡처
-    const video = videoElementsRef.current.get(sceneIndex)
-    if (!video || !video.videoWidth || !video.videoHeight) {
-      return null
-    }
-
-    // 비디오가 프레임 데이터를 가지고 있는지 확인 (readyState >= 2)
-    // readyState가 2 미만이면 프레임을 캡처할 수 없음
-    if (video.readyState < 2) {
-      // 비디오가 아직 준비되지 않았으면 null 반환
-      // 호출하는 쪽에서 비디오가 준비될 때까지 기다린 후 다시 시도해야 함
-      return null
-    }
-
-    // 비디오 프레임을 캔버스에 그려서 이미지로 변환
-    const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    const ctx = canvas.getContext('2d')
-    if (!ctx) {
-      return null
-    }
-
-    // 비디오 프레임을 캔버스에 그리기
-    // seek 완료 후 프레임이 업데이트되었는지 확인하기 위해
-    // 비디오가 정지 상태이고 현재 시간이 설정되어 있는지 확인
-    try {
-      ctx.imageSmoothingEnabled = true
-      ctx.imageSmoothingQuality = 'high'
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-    } catch (error) {
-      // 프레임 캡처 실패 시 null 반환
-      console.warn('[resolveSceneImageObject] 비디오 프레임 캡처 실패:', error)
-      return null
-    }
-    // 편집 모드 해상도 저하를 줄이기 위해 손실 압축(JPEG) 대신 PNG 사용
-    const imageDataUrl = canvas.toDataURL('image/png')
-
-    // fabric.Image 생성
-    const fabricImage = await fabric.Image.fromURL(imageDataUrl, {
-      crossOrigin: 'anonymous',
-    })
-
-    // imageTransform을 기준으로 위치와 크기 설정
-    // Fabric 객체는 투명하게 설정 (PixiJS만 보이게)
-    fabricImage.set({
+    const imageProxy = new fabric.Rect({
       originX: 'center',
       originY: 'center',
-      left: imageTransform.x * scale,
-      top: imageTransform.y * scale,
-      scaleX: (imageTransform.width * scale) / fabricImage.width!,
-      scaleY: (imageTransform.height * scale) / fabricImage.height!,
+      left: imageTransform.x * ratio,
+      top: imageTransform.y * ratio,
+      width: Math.max(1, imageTransform.width * ratio),
+      height: Math.max(1, imageTransform.height * ratio),
       angle: (imageTransform.rotation * 180) / Math.PI,
+      fill: INVISIBLE_HIT_FILL,
+      stroke: INVISIBLE_HIT_FILL,
+      strokeWidth: 1,
       selectable: true,
       evented: true,
-      opacity: 0, // 투명하게 설정 (PixiJS만 보이게)
-      hasBorders: false, // Fast처럼 박스 테두리 없이 코너 핸들만
+      activeOn: 'down',
+      opacity: 1,
+      hasBorders: false,
       hasControls: true,
       hoverCursor: 'move',
       centeredScaling: true,
       centeredRotation: true,
       ...FAST_LOCKED_TRANSFORM_STYLE,
-      ...getFastImageHandleStyle(scale),
+      ...getFastImageHandleStyle(ratio),
     })
-    applyFastLikeControlPolicy(fabricImage)
+    applyFastLikeControlPolicy(imageProxy)
+    imageProxy.setCoords()
+    ;(imageProxy as fabric.Rect & FabricDataObject).dataType = 'image'
+    fabricCanvas.add(imageProxy)
 
-    ;(fabricImage as fabric.Image & FabricDataObject).dataType = 'image'
-    return fabricImage
-  }, [spritesRef, videoElementsRef])
+    const pixiText = textsRef.current.get(sceneIndex)
+    const timelineText = scene?.text
+    const textContentFromPixi = typeof pixiText?.text === 'string' ? pixiText.text : ''
+    const textContent = (timelineText?.content ?? textContentFromPixi).trim()
+    const measuredTextBounds = getSubtitleTextBounds(sceneIndex)
+    const measuredTextWidth = normalizeNumber(measuredTextBounds?.width, 0)
+    const measuredTextHeight = normalizeNumber(measuredTextBounds?.height, 0)
+    const fallbackTextWidth = Math.max(10, normalizeNumber(timelineText?.transform?.width, stageWidth * 0.25))
+    const fallbackTextHeight = Math.max(10, Math.max(24, normalizeNumber(timelineText?.fontSize, 80) * 1.2))
+    const exactTextWidth = measuredTextWidth > 0 ? measuredTextWidth : fallbackTextWidth
+    const exactTextHeight = measuredTextHeight > 0 ? measuredTextHeight : fallbackTextHeight
+    const textCenterX = normalizeNumber(
+      pixiText?.x,
+      normalizeNumber(timelineText?.transform?.x, stageWidth / 2)
+    )
+    const textCenterY = normalizeNumber(
+      pixiText?.y,
+      normalizeNumber(timelineText?.transform?.y, stageHeight * 0.885)
+    )
+    const textRotation = normalizeNumber(
+      pixiText?.rotation,
+      normalizeNumber(timelineText?.transform?.rotation, 0)
+    )
 
-  const { syncFabricWithScene } = useFabricSync({
-    useFabricEditing: enabled,
-    fabricCanvasRef,
-    fabricScaleRatioRef: scaleRatioRef,
-    currentSceneIndexRef,
-    timeline,
-    stageDimensions: {
-      width: stageWidth,
-      height: stageHeight,
-    },
-    resolveSceneImageObject,
-  })
+    if (textContent.length > 0 || measuredTextBounds) {
+      const fontSize = normalizeNumber(
+        timelineText?.fontSize,
+        normalizeNumber((pixiText?.style as { fontSize?: number } | undefined)?.fontSize, 80)
+      )
+
+      const textProxy = new fabric.Textbox(textContent || ' ', {
+        originX: 'center',
+        originY: 'center',
+        left: textCenterX * ratio,
+        top: textCenterY * ratio,
+        width: Math.max(10, exactTextWidth * ratio),
+        height: Math.max(10, exactTextHeight * ratio),
+        angle: (textRotation * 180) / Math.PI,
+        fontSize: Math.max(8, fontSize * ratio),
+        fill: INVISIBLE_HIT_FILL,
+        stroke: INVISIBLE_HIT_FILL,
+        strokeWidth: 1,
+        backgroundColor: INVISIBLE_HIT_FILL,
+        selectable: true,
+        evented: true,
+        activeOn: 'down',
+        opacity: 1,
+        hasBorders: false,
+        hasControls: true,
+        hoverCursor: 'move',
+        editable: false,
+        ...TEXT_LOCKED_SCALE_STYLE,
+        ...getFastTextHandleStyle(ratio),
+      })
+      applyFastLikeControlPolicy(textProxy)
+      textProxy.setCoords()
+      ;(textProxy as fabric.Textbox & FabricDataObject).dataType = 'text'
+      fabricCanvas.add(textProxy)
+    }
+
+    if (editMode === 'image' || editMode === 'text') {
+      const objects = fabricCanvas.getObjects() as Array<fabric.Object & FabricDataObject>
+      const target = objects.find((obj) => obj.dataType === editMode) ?? null
+      if (target) {
+        fabricCanvas.setActiveObject(target)
+      }
+    }
+
+    fabricCanvas.requestRenderAll()
+  }, [editMode, stageWidth, stageHeight, spritesRef, textsRef, getSubtitleTextBounds])
 
   const syncFromScene = useCallback(async () => {
-    const fabricCanvas = fabricCanvasRef.current
-    if (!enabled || !fabricCanvas) {
+    if (!enabled || !fabricCanvasRef.current) {
       return
     }
-
-    const activeBeforeSync = fabricCanvas.getActiveObject() as (fabric.Object & FabricDataObject) | null
-    const activeTypeBeforeSync = activeBeforeSync?.dataType ?? null
-
-    isSyncingRef.current = true
-    try {
-      await syncFabricWithScene()
-
-      const ratio = scaleRatioRef.current
-      const objects = fabricCanvas.getObjects() as Array<fabric.Object & FabricDataObject>
-      objects.forEach((obj) => {
-        if (obj.dataType === 'image') {
-          obj.set({
-            selectable: true,
-            evented: true,
-            opacity: 0, // 투명하게 설정 (PixiJS만 보이게)
-            hasBorders: false, // Fast처럼 박스 테두리 없이 코너 핸들만
-            hasControls: true,
-            hoverCursor: 'move',
-            centeredScaling: true,
-            centeredRotation: true,
-            ...FAST_LOCKED_TRANSFORM_STYLE,
-            ...getFastImageHandleStyle(ratio),
-          })
-          applyFastLikeControlPolicy(obj)
-        }
-        if (obj.dataType === 'text') {
-          obj.set({
-            selectable: true,
-            evented: true,
-            opacity: 0, // 투명하게 설정 (PixiJS만 보이게)
-            hasBorders: false, // Fast처럼 박스 테두리 없이 코너 핸들만
-            hasControls: true,
-            hoverCursor: 'move',
-            ...TEXT_LOCKED_SCALE_STYLE,  // 텍스트는 스케일을 완전히 막음
-            ...getFastTextHandleStyle(ratio),
-          })
-          applyFastLikeControlPolicy(obj)
-        }
-      })
-
-      if (activeTypeBeforeSync) {
-        const sameTypeObject = objects.find((obj) => obj.dataType === activeTypeBeforeSync) ?? null
-        if (sameTypeObject) {
-          fabricCanvas.setActiveObject(sameTypeObject)
-        } else {
-          fabricCanvas.discardActiveObject()
-        }
-      } else {
-        fabricCanvas.discardActiveObject()
-      }
-
-      fabricCanvas.requestRenderAll()
-    } finally {
-      isSyncingRef.current = false
-    }
-  }, [enabled, syncFabricWithScene])
+    buildFabricScene()
+  }, [enabled, buildFabricScene])
 
   const scheduleSync = useCallback(() => {
-    if (syncTimerRef.current) {
-      clearTimeout(syncTimerRef.current)
-      syncTimerRef.current = null
+    if (syncRafRef.current !== null) {
+      cancelAnimationFrame(syncRafRef.current)
+      syncRafRef.current = null
     }
 
-    syncTimerRef.current = setTimeout(() => {
-      syncTimerRef.current = null
+    syncRafRef.current = requestAnimationFrame(() => {
+      syncRafRef.current = null
       void syncFromScene()
-    }, FABRIC_SYNC_DEBOUNCE_MS)
+    })
   }, [syncFromScene])
 
   useEffect(() => {
-    // Fast 트랙과 동일: useFabricEditing이 true일 때만 Fabric 캔버스 생성
-    // enabled는 useFabricEditing && pixiReady && !isPlaying이므로
-    // enabled가 true일 때만 생성하면 됨
     if (!enabled || !playbackContainerRef.current) {
       return
     }
 
     const container = playbackContainerRef.current
-    
-    // 이미 생성되어 있으면 스킵
+
     if (fabricCanvasRef.current) {
       return
     }
@@ -484,8 +441,6 @@ export function useProFabricResizeDrag({
     canvasEl.width = stageWidth
     canvasEl.height = stageHeight
     canvasEl.style.backgroundColor = 'transparent'
-    // Fabric.js가 wrapper를 생성하므로 canvasEl의 위치는 설정하지 않음
-    // wrapper 위치는 updateFabricSize()에서 설정됨
 
     container.appendChild(canvasEl)
     fabricCanvasElRef.current = canvasEl
@@ -495,6 +450,7 @@ export function useProFabricResizeDrag({
       preserveObjectStacking: true,
       backgroundColor: 'transparent',
     })
+    canvas.controlsAboveOverlay = true
     canvas.defaultCursor = 'default'
     canvas.hoverCursor = 'move'
     canvas.moveCursor = 'move'
@@ -502,15 +458,13 @@ export function useProFabricResizeDrag({
     applyFabricObjectDefaults()
 
     fabricCanvasRef.current = canvas
-    
-    // fabricCanvasRef.current가 설정된 후에 fabricReady를 true로 설정
-    // requestAnimationFrame을 사용하여 다음 프레임에 실행되도록 함
+
     requestAnimationFrame(() => {
       setFabricReady(true)
     })
 
-    // Fabric.js가 wrapper를 생성한 후 위치 설정
     updateFabricSize()
+    scheduleSync()
 
     const resizeObserver = new ResizeObserver(() => {
       requestAnimationFrame(() => {
@@ -520,16 +474,22 @@ export function useProFabricResizeDrag({
     })
     resizeObserver.observe(container)
 
-    scheduleSync()
-
     return () => {
       resizeObserver.disconnect()
-      if (syncTimerRef.current) {
-        clearTimeout(syncTimerRef.current)
-        syncTimerRef.current = null
+      if (syncRafRef.current !== null) {
+        cancelAnimationFrame(syncRafRef.current)
+        syncRafRef.current = null
+      }
+      if (timelineCommitRafRef.current !== null) {
+        cancelAnimationFrame(timelineCommitRafRef.current)
+        timelineCommitRafRef.current = null
+      }
+      const pendingTimeline = pendingTimelineRef.current
+      pendingTimelineRef.current = null
+      if (pendingTimeline) {
+        setTimeline(pendingTimeline)
       }
 
-      // enabled가 false가 되면 Fabric 캔버스 정리
       canvas.dispose()
       fabricCanvasRef.current = null
       fabricCanvasElRef.current = null
@@ -539,28 +499,106 @@ export function useProFabricResizeDrag({
         container.removeChild(canvasEl)
       }
     }
-  }, [
-    enabled,
-    playbackContainerRef,
-    scheduleSync,
-    stageHeight,
-    stageWidth,
-    updateFabricSize,
-  ])
+  }, [enabled, playbackContainerRef, scheduleSync, stageHeight, stageWidth, updateFabricSize, setTimeline])
 
   useEffect(() => {
-    // Fabric 캔버스가 생성되어 있고 enabled일 때만 크기 동기화
     if (!enabled || !fabricCanvasRef.current) {
       return
     }
 
     updateFabricSize()
     scheduleSync()
-  }, [enabled, currentSceneIndex, canvasDisplaySize, scheduleSync, updateFabricSize])
+  }, [enabled, currentSceneIndex, canvasDisplaySize, editMode, scheduleSync, updateFabricSize])
+
+  useEffect(() => {
+    if (!enabled || !fabricCanvasRef.current) {
+      return
+    }
+
+    const fabricCanvas = fabricCanvasRef.current
+    const applyTargetToPixi = (target: fabric.Object | null | undefined) => {
+      if (!target || (target as fabric.Object & { destroyed?: boolean }).destroyed) {
+        return
+      }
+
+      const typedTarget = target as fabric.Object & FabricDataObject
+      const scale = scaleRatioRef.current || 1
+      const invScale = 1 / scale
+      const sceneIndex = currentSceneIndexRef.current
+
+      if (typedTarget.dataType === 'image') {
+        const sprite = spritesRef.current.get(sceneIndex)
+        if (!sprite || sprite.destroyed) {
+          return
+        }
+
+        const scaledWidth = typeof target.getScaledWidth === 'function'
+          ? target.getScaledWidth()
+          : (target.width || 0) * (target.scaleX || 1)
+        const scaledHeight = typeof target.getScaledHeight === 'function'
+          ? target.getScaledHeight()
+          : (target.height || 0) * (target.scaleY || 1)
+
+        sprite.x = (target.left ?? 0) * invScale
+        sprite.y = (target.top ?? 0) * invScale
+        sprite.width = scaledWidth * invScale
+        sprite.height = scaledHeight * invScale
+        sprite.rotation = ((target.angle || 0) * Math.PI) / 180
+        return
+      }
+
+      if (typedTarget.dataType === 'text') {
+        const pixiText = textsRef.current.get(sceneIndex)
+        if (!pixiText || pixiText.destroyed) {
+          return
+        }
+
+        const scaledWidth = typeof target.getScaledWidth === 'function'
+          ? target.getScaledWidth()
+          : (target.width || 0) * (target.scaleX || 1)
+
+        pixiText.x = (target.left ?? 0) * invScale
+        pixiText.y = (target.top ?? 0) * invScale
+        pixiText.rotation = ((target.angle || 0) * Math.PI) / 180
+        if (pixiText.style && scaledWidth > 0) {
+          pixiText.style.wordWrapWidth = scaledWidth * invScale
+        }
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleMoving = (e: any) => {
+      applyTargetToPixi(e?.target as fabric.Object | null | undefined)
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleScaling = (e: any) => {
+      applyTargetToPixi(e?.target as fabric.Object | null | undefined)
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleRotating = (e: any) => {
+      applyTargetToPixi(e?.target as fabric.Object | null | undefined)
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('object:moving', handleMoving as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('object:scaling', handleScaling as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('object:rotating', handleRotating as any)
+
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('object:moving', handleMoving as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('object:scaling', handleScaling as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('object:rotating', handleRotating as any)
+    }
+  }, [enabled, spritesRef, textsRef])
 
   return {
     syncFromScene: scheduleSync,
-    syncFromSceneDirect: syncFromScene, // debounce 없이 직접 동기화하는 함수
+    syncFromSceneDirect: syncFromScene,
     fabricCanvasRef,
     fabricReady,
   }

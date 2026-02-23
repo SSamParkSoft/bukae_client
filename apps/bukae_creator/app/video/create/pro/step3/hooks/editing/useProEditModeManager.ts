@@ -74,8 +74,8 @@ export function useProEditModeManager({
     if (!fabricCanvasRef.current) return
     const fabricCanvas = fabricCanvasRef.current
 
-    if (isPlaying || !useFabricEditing) {
-      // 재생 중이거나 편집 모드가 아닐 때는 Fabric 캔버스를 완전히 숨기고 클릭을 통과시킴
+    if (isPlaying) {
+      // 재생 중에는 Fabric을 완전히 숨기고 클릭을 통과시킴
       if (fabricCanvas.wrapperEl) {
         fabricCanvas.wrapperEl.style.opacity = '0'
         fabricCanvas.wrapperEl.style.pointerEvents = 'none'
@@ -89,18 +89,21 @@ export function useProEditModeManager({
         fabricCanvas.lowerCanvasEl.style.pointerEvents = 'none'
       }
     } else {
-      // 편집 모드일 때: Fabric 캔버스는 투명하지만 pointerEvents는 활성화 (리사이즈/드래그 처리)
+      // 비재생 상태에서는 upper-canvas를 항상 활성화해 첫 클릭에서도 선택/핸들 진입 보장
+      // - upper-canvas: 컨트롤/선택 hit-test 처리
+      // - lower-canvas: 픽셀 렌더는 숨겨서 Pixi만 보이게 유지
       if (fabricCanvas.wrapperEl) {
-        fabricCanvas.wrapperEl.style.opacity = '0' // 투명하게 유지
-        fabricCanvas.wrapperEl.style.pointerEvents = 'auto' // 클릭은 받음
+        fabricCanvas.wrapperEl.style.opacity = '1'
+        fabricCanvas.wrapperEl.style.pointerEvents = 'auto'
       }
       if (fabricCanvas.upperCanvasEl) {
-        fabricCanvas.upperCanvasEl.style.opacity = '0' // 투명하게 유지
-        fabricCanvas.upperCanvasEl.style.pointerEvents = 'auto' // 클릭은 받음
+        fabricCanvas.upperCanvasEl.style.opacity = '1'
+        fabricCanvas.upperCanvasEl.style.pointerEvents = 'auto'
       }
       if (fabricCanvas.lowerCanvasEl) {
-        fabricCanvas.lowerCanvasEl.style.opacity = '0' // 투명하게 유지
-        fabricCanvas.lowerCanvasEl.style.pointerEvents = 'auto' // 클릭은 받음
+        // 일부 Fabric 버전/상태에서 컨트롤이 lower canvas에 그려질 수 있어 편집 중에는 visible 유지
+        fabricCanvas.lowerCanvasEl.style.opacity = '1'
+        fabricCanvas.lowerCanvasEl.style.pointerEvents = 'none'
       }
     }
   }, [isPlaying, fabricReady, useFabricEditing, fabricCanvasRef])
