@@ -43,6 +43,33 @@ export interface StudioScriptUserEditResponse {
   duration: number
 }
 
+/**
+ * [Pro] 촬영 가이드 생성 (2단계) 요청
+ * POST /api/v1/studio/scripts/user-edit/guide
+ * - product: 상품 정보
+ * - type: 스크립트 타입 (VIRAL 등)
+ * - previousScripts: 1단계에서 생성된 씬별 대본 목록
+ */
+export interface StudioScriptUserEditGuideRequest {
+  product: ProductResponse
+  type: ScriptType
+  previousScripts: Array<{ scene: number; script: string; duration?: number }>
+}
+
+/**
+ * [Pro] 촬영 가이드 생성 (2단계) 응답 1건
+ * - scene: 씬 번호 (1-based)
+ * - script: 나레이션 대본
+ * - actionGuide: 촬영 지문(액션 가이드)
+ * - duration: 재생 시간(초)
+ */
+export interface StudioScriptUserEditGuideResponseItem {
+  scene: number
+  script: string
+  actionGuide: string
+  duration: number
+}
+
 /** 대본 1건 응답 (imageUrl + script) */
 export interface StudioScriptResponseItem {
   imageUrl: string

@@ -5,6 +5,8 @@ import type {
   StudioScriptAutoCreateRequest,
   StudioScriptRequestPro,
   StudioScriptResponse,
+  StudioScriptUserEditGuideRequest,
+  StudioScriptUserEditGuideResponseItem,
   StudioScriptUserEditResponse,
 } from '@/lib/types/api/studio-script'
 
@@ -36,6 +38,21 @@ export const studioScriptApi = {
    */
   generateScriptsPro: async (data: StudioScriptRequestPro): Promise<StudioScriptResponse> => {
     return api.post<StudioScriptResponse>('/api/v1/studio/scripts', data)
+  },
+
+  /**
+   * [Pro] 사용자 촬영 가이드 생성 (2단계)
+   * POST /api/v1/studio/scripts/user-edit/guide
+   * - 1단계 대본을 기반으로 촬영 지문(Action Guide) 생성
+   * - 응답: 단일 객체 또는 배열
+   */
+  generateGuideUserEdit: async (
+    data: StudioScriptUserEditGuideRequest
+  ): Promise<StudioScriptUserEditGuideResponseItem | StudioScriptUserEditGuideResponseItem[]> => {
+    return api.post<StudioScriptUserEditGuideResponseItem | StudioScriptUserEditGuideResponseItem[]>(
+      '/api/v1/studio/scripts/user-edit/guide',
+      data
+    )
   },
 }
 

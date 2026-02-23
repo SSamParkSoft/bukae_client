@@ -7,6 +7,8 @@ import type { SceneScript } from '@/store/useVideoCreateStore'
 export type ProScene = {
   id: string // 고유 ID (드래그 앤 드롭 시 안정적인 key를 위해)
   script: string
+  /** 촬영 지문(액션 가이드) - 2단계 API에서 생성 */
+  actionGuide?: string
   voiceLabel?: string
   voiceTemplate?: string | null
   ttsDuration?: number // TTS duration (초)
@@ -21,6 +23,7 @@ export type ProScene = {
  */
 export type ExtendedSceneScript = SceneScript & {
   id?: string // 고유 ID (드래그 앤 드롭 시 안정적인 key를 위해)
+  actionGuide?: string // 촬영 지문(액션 가이드)
   voiceLabel?: string
   voiceTemplate?: string | null
   ttsDuration?: number // TTS duration (초)
@@ -45,6 +48,7 @@ export function sceneScriptToProScene(s: SceneScript, _index: number): ProScene 
   return {
     id: extended.id || generateSceneId(), // 기존 ID가 없으면 새로 생성
     script: s.script || '',
+    actionGuide: extended.actionGuide,
     voiceLabel: extended.voiceLabel,
     voiceTemplate: extended.voiceTemplate,
     ttsDuration: extended.ttsDuration,
@@ -63,6 +67,7 @@ export function proSceneToSceneScript(s: ProScene, index: number): ExtendedScene
     sceneId: index + 1,
     id: s.id, // 고유 ID 유지
     script: s.script,
+    actionGuide: s.actionGuide,
     voiceLabel: s.voiceLabel,
     voiceTemplate: s.voiceTemplate,
     ttsDuration: s.ttsDuration,

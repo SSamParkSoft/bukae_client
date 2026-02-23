@@ -21,6 +21,7 @@ export interface ProVideoEditSectionProps {
   onAiScriptClick?: (index: number) => void
   onAiGuideClick?: (index: number) => void
   onAiGuideGenerateAll?: () => void
+  isGeneratingGuide?: boolean
   onSelectionChange?: (index: number, startSeconds: number, endSeconds: number) => void
   /** 드래그 앤 드롭 관련 */
   onDragStart?: (index: number) => void
@@ -40,6 +41,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
   onAiScriptClick,
   onAiGuideClick,
   onAiGuideGenerateAll,
+  isGeneratingGuide = false,
   onSelectionChange,
   onDragStart,
   onDragOver,
@@ -55,6 +57,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
       {onAiGuideGenerateAll && (
         <AiScriptGenerateButton
           onClick={onAiGuideGenerateAll}
+          loading={isGeneratingGuide}
           labelIdle="AI 촬영가이드 생성"
           labelLoading="AI 촬영가이드 생성 중..."
         />

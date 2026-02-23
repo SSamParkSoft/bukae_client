@@ -7,20 +7,25 @@ import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { ProVideoEditSection } from '../components'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { authStorage } from '@/lib/api/auth-storage'
+import { studioScriptApi } from '@/lib/api/studio-script'
+import { convertProductToProductResponse } from '@/lib/utils/converters/product-to-response'
 import {
   generateSceneId,
   proSceneToSceneScript,
   sceneScriptToProScene,
   type ProScene,
 } from '../utils/types'
+import type { StudioScriptUserEditGuideResponseItem } from '@/lib/types/api/studio-script'
 
 const DEFAULT_SCENE_COUNT = 6
 
 export default function ProStep2EditPage() {
-  const { 
+  const {
     setHasUnsavedChanges,
     scenes: storeScenes,
-    setScenes: setStoreScenes
+    setScenes: setStoreScenes,
+    selectedProducts,
+    scriptStyle,
   } = useVideoCreateStore()
   
   // store의 scenes를 현재 형식으로 변환하여 사용
@@ -102,8 +107,7 @@ export default function ProStep2EditPage() {
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
-  // 촬영가이드 텍스트 상태 관리
-  const [guideTexts, setGuideTexts] = useState<Record<string, string>>({})
+  const [isGeneratingGuide, setIsGeneratingGuide] = useState(false)
 
   const handleScriptChange = useCallback((index: number, value: string) => {
     updateScenes((prev) => {
@@ -114,16 +118,16 @@ export default function ProStep2EditPage() {
     // updateScenes 내부에서 이미 setHasUnsavedChanges를 호출하므로 중복 호출 제거
   }, [updateScenes])
 
-  const handleGuideChange = useCallback((index: number, value: string) => {
-    const sceneId = scenes[index]?.id
-    if (sceneId) {
-      setGuideTexts((prev) => ({
-        ...prev,
-        [sceneId]: value,
-      }))
-      setHasUnsavedChanges(true)
-    }
-  }, [scenes, setHasUnsavedChanges])
+  const handleGuideChange = useCallback(
+    (index: number, value: string) => {
+      updateScenes((prev) => {
+        const next = [...prev]
+        next[index] = { ...next[index], actionGuide: value }
+        return next
+      })
+    },
+    [updateScenes]
+  )
 
   const handleSelectionChange = useCallback((index: number, startSeconds: number, endSeconds: number) => {
     updateScenes((prev) => {
@@ -188,9 +192,69 @@ export default function ProStep2EditPage() {
     }
   }, [scenes, updateScenes])
 
-  const handleAiGuideGenerateAll = useCallback(() => {
-    // TODO: AI 촬영가이드 생성 로직 구현
-  }, [])
+  const handleAiGuideGenerateAll = useCallback(async () => {
+    const product = selectedProducts?.[0]
+    if (!product) {
+      alert('상품을 먼저 선택해주세요.')
+      return
+    }
+    if (!scriptStyle) {
+      alert('대본 스타일을 먼저 선택해주세요.')
+      return
+    }
+    if (!scenes.length || scenes.every((s) => !s.script?.trim())) {
+      alert('1단계에서 대본을 먼저 생성해주세요.')
+      return
+    }
+
+    setIsGeneratingGuide(true)
+    try {
+      const productResponse = convertProductToProductResponse(product)
+      const imageUrls = Array.isArray(product.images)
+        ? product.images
+        : product.image
+          ? [product.image]
+          : (productResponse.imageUrls ?? productResponse.imageURL ?? [])
+      const productWithImages = {
+        ...productResponse,
+        productId: String(productResponse.productId ?? productResponse.id ?? ''),
+        imageUrls: Array.isArray(imageUrls) ? imageUrls : [],
+      }
+      const previousScripts = scenes.map((s, i) => ({
+        scene: i + 1,
+        script: s.script || '',
+        duration: s.ttsDuration ?? 0,
+      }))
+
+      const data = await studioScriptApi.generateGuideUserEdit({
+        product: productWithImages,
+        type: scriptStyle,
+        previousScripts,
+      })
+
+      const list = Array.isArray(data)
+        ? data
+        : [data as StudioScriptUserEditGuideResponseItem]
+
+      updateScenes((prev) => {
+        return list.map((item, index) => {
+          const existing = prev[index]
+          return {
+            ...existing,
+            id: existing?.id ?? generateSceneId(),
+            script: item.script?.trim() ?? existing?.script ?? '',
+            actionGuide: item.actionGuide?.trim() ?? existing?.actionGuide ?? '',
+            ttsDuration: typeof item.duration === 'number' ? item.duration : existing?.ttsDuration,
+          }
+        })
+      })
+    } catch (error) {
+      console.error('촬영 가이드 생성 오류:', error)
+      alert('촬영 가이드 생성 중 오류가 발생했어요.')
+    } finally {
+      setIsGeneratingGuide(false)
+    }
+  }, [selectedProducts, scriptStyle, scenes, updateScenes])
 
   const handleAiScriptClick = useCallback((index: number) => {
     // TODO: 개별 씬 AI 스크립트 생성 로직 구현
@@ -253,7 +317,7 @@ export default function ProStep2EditPage() {
     id: scene.id,
     script: scene.script,
     ttsDuration: scene.ttsDuration || 10, // 실제 TTS duration 값 사용 (없으면 기본값 10초)
-    guideText: guideTexts[scene.id] || '', // 촬영가이드 텍스트 가져오기
+    guideText: scene.actionGuide ?? '', // 촬영가이드(액션 가이드) - store에 저장
     voiceLabel: scene.voiceLabel, // 적용된 보이스 라벨
     videoUrl: scene.videoUrl, // 업로드된 영상 URL
     selectionStartSeconds: scene.selectionStartSeconds, // 격자 선택 영역 시작 시간
@@ -341,6 +405,7 @@ export default function ProStep2EditPage() {
                     onAiScriptClick={handleAiScriptClick}
                     onAiGuideClick={handleAiGuideClick}
                     onAiGuideGenerateAll={handleAiGuideGenerateAll}
+                    isGeneratingGuide={isGeneratingGuide}
                     onSelectionChange={handleSelectionChange}
                     onDragStart={handleDragStart}
                     onDragOver={handleDragOver}
