@@ -6,6 +6,7 @@ import * as fabric from 'fabric'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 import { useFabricHandlers } from '@/hooks/video/editing/useFabricHandlers'
 import { applyFabricObjectDefaults, FABRIC_HANDLE_STYLE } from '@/hooks/video/pixi/fabricObjectDefaults'
+import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import { calculateAspectFittedSize } from '../../utils/proPreviewLayout'
 import { useProSubtitleTextBounds } from './useProSubtitleTextBounds'
 
@@ -246,12 +247,29 @@ export function useProFabricResizeDrag({
     }
 
     const sprite = spritesRef.current.get(currentSceneIndex)
-    if (sprite && !sprite.destroyed && scene.imageTransform) {
-      sprite.x = scene.imageTransform.x
-      sprite.y = scene.imageTransform.y
-      sprite.width = scene.imageTransform.width
-      sprite.height = scene.imageTransform.height
-      sprite.rotation = scene.imageTransform.rotation
+    if (sprite && !sprite.destroyed) {
+      if (scene.imageTransform) {
+        sprite.x = scene.imageTransform.x
+        sprite.y = scene.imageTransform.y
+        sprite.width = scene.imageTransform.width
+        sprite.height = scene.imageTransform.height
+        sprite.rotation = scene.imageTransform.rotation
+      } else {
+        const textureWidth = sprite.texture?.width || stageWidth
+        const textureHeight = sprite.texture?.height || stageHeight
+        const fitted = calculateSpriteParams(
+          textureWidth,
+          textureHeight,
+          stageWidth,
+          stageHeight,
+          scene.imageFit ?? 'contain'
+        )
+        sprite.x = fitted.x + fitted.width / 2
+        sprite.y = fitted.y + fitted.height / 2
+        sprite.width = fitted.width
+        sprite.height = fitted.height
+        sprite.rotation = 0
+      }
     }
 
     const pixiText = textsRef.current.get(currentSceneIndex)
@@ -268,7 +286,7 @@ export function useProFabricResizeDrag({
         }
       }
     }
-  }, [currentSceneIndex, timeline, spritesRef, textsRef])
+  }, [currentSceneIndex, timeline, spritesRef, textsRef, stageHeight, stageWidth])
 
   const buildFabricScene = useCallback(() => {
     const fabricCanvas = fabricCanvasRef.current

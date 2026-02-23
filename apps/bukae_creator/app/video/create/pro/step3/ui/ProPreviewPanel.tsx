@@ -47,6 +47,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     setPlaybackSpeed,
     canvasDisplaySize,
     handlePlayPause,
+    handleSceneImageFitChange,
+    timeline,
   } = container
 
   return (
@@ -99,11 +101,9 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           onResizeTemplate={() => {
             // Pro step3에서는 미지원
           }}
-          onImageFitChange={() => {
-            // Pro step3에서는 미지원
-          }}
-          currentSceneIndex={0}
-          timeline={null}
+          onImageFitChange={handleSceneImageFitChange}
+          currentSceneIndex={currentSceneIndex}
+          timeline={timeline}
         />
 
         {onExport && (

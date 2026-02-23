@@ -14,6 +14,7 @@ import { getPlayableScenes, getDurationBeforeSceneIndex } from '../utils/proPlay
 import { calculateAspectFittedSize } from '../utils/proPreviewLayout'
 import { videoSpriteAdapter } from './playback/media/videoSpriteAdapter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
+import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import type { ProStep3Scene } from '../model/types'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 
@@ -637,6 +638,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
       const currentTimeline = useVideoCreateStore.getState().timeline
       const timelineScene = currentTimeline?.scenes?.[sceneIndex]
       const imageTransform = timelineScene?.imageTransform
+      const imageFit = timelineScene?.imageFit ?? 'contain'
 
       if (imageTransform) {
         sprite.x = imageTransform.x
@@ -645,19 +647,17 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
         sprite.height = imageTransform.height
         sprite.rotation = imageTransform.rotation ?? 0
       } else {
-        const videoAspect = sourceWidth / sourceHeight
-        const stageAspect = stageWidth / stageHeight
-
-        if (videoAspect > stageAspect) {
-          sprite.width = stageWidth
-          sprite.height = stageWidth / videoAspect
-        } else {
-          sprite.height = stageHeight
-          sprite.width = stageHeight * videoAspect
-        }
-
-        sprite.x = stageWidth / 2
-        sprite.y = stageHeight / 2
+        const fitted = calculateSpriteParams(
+          sourceWidth,
+          sourceHeight,
+          stageWidth,
+          stageHeight,
+          imageFit
+        )
+        sprite.width = fitted.width
+        sprite.height = fitted.height
+        sprite.x = fitted.x + fitted.width / 2
+        sprite.y = fitted.y + fitted.height / 2
         sprite.rotation = 0
       }
 
@@ -939,7 +939,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     return timeline.scenes
       .map(
         (scene, idx) =>
-          `${idx}-${scene.imageTransform ? JSON.stringify(scene.imageTransform) : 'none'}-${scene.text?.content || ''}`
+          `${idx}-${scene.imageFit || 'contain'}-${scene.imageTransform ? JSON.stringify(scene.imageTransform) : 'none'}-${scene.text?.content || ''}`
       )
       .join('|')
   }, [timeline])
@@ -1510,6 +1510,99 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     renderAtRef.current(t, { skipAnimation: false, forceRender: true })
   }, [timelineScenesKey, pixiReady, transportState.isPlaying, transportHook, renderAtRef, editMode])
 
+  const applySceneImageFitToSprite = useCallback(
+    (sceneIndex: number, fit: 'cover' | 'contain' | 'fill') => {
+      const sprite = spritesRef.current.get(sceneIndex)
+      if (!sprite || sprite.destroyed) {
+        return false
+      }
+
+      const app = appRef.current
+      const stageWidth = app?.screen?.width || STAGE_WIDTH
+      const stageHeight = app?.screen?.height || STAGE_HEIGHT
+      if (stageWidth <= 0 || stageHeight <= 0) {
+        return false
+      }
+
+      const videoElement = videoElementsRef.current.get(sceneIndex)
+      const sourceWidth = videoElement?.videoWidth || sprite.texture?.width || stageWidth
+      const sourceHeight = videoElement?.videoHeight || sprite.texture?.height || stageHeight
+      if (sourceWidth <= 0 || sourceHeight <= 0) {
+        return false
+      }
+
+      const fitted = calculateSpriteParams(
+        sourceWidth,
+        sourceHeight,
+        stageWidth,
+        stageHeight,
+        fit
+      )
+
+      sprite.width = fitted.width
+      sprite.height = fitted.height
+      sprite.x = fitted.x + fitted.width / 2
+      sprite.y = fitted.y + fitted.height / 2
+      sprite.rotation = 0
+      sprite.visible = true
+      sprite.alpha = 1
+
+      if (app) {
+        try {
+          app.renderer.render(app.stage)
+        } catch {
+          // no-op
+        }
+      }
+
+      return true
+    },
+    []
+  )
+
+  const handleSceneImageFitChange = useCallback(
+    (index: number, fit: 'cover' | 'contain' | 'fill') => {
+      const currentTimeline = timelineRef.current ?? timeline
+      if (!currentTimeline?.scenes?.[index]) {
+        return
+      }
+
+      const nextTimeline: TimelineData = {
+        ...currentTimeline,
+        scenes: currentTimeline.scenes.map((scene, sceneIndex) =>
+          sceneIndex === index
+            ? { ...scene, imageFit: fit, imageTransform: undefined }
+            : scene
+        ),
+      }
+
+      timelineRef.current = nextTimeline
+      setTimeline(nextTimeline)
+      const applied = applySceneImageFitToSprite(index, fit)
+
+      if (!transportState.isPlaying && index === currentSceneIndex) {
+        if (!applied && renderAtRef.current) {
+          const t = transportHook.getTime()
+          renderAtRef.current(t, { forceSceneIndex: index, forceRender: true })
+        }
+
+        if (syncFromSceneDirect) {
+          void syncFromSceneDirect()
+        }
+      }
+    },
+    [
+      applySceneImageFitToSprite,
+      currentSceneIndex,
+      renderAtRef,
+      setTimeline,
+      syncFromSceneDirect,
+      timeline,
+      transportHook,
+      transportState.isPlaying,
+    ]
+  )
+
   return {
     // Refs
     playbackContainerRef,
@@ -1534,6 +1627,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     
     // Handlers
     handlePlayPause,
+    handleSceneImageFitChange,
     
     // Fabric
     syncFabricScene,

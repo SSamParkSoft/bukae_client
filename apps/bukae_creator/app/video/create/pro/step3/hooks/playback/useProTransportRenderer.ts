@@ -5,6 +5,7 @@ import * as PIXI from 'pixi.js'
 import { useTransport } from '@/hooks/video/transport/useTransport'
 import { useTransportState } from '@/hooks/video/renderer/transport/useTransportState'
 import { useRenderLoop } from '@/hooks/video/renderer/playback/useRenderLoop'
+import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { ProStep3Scene } from '@/app/video/create/pro/step3/model/types'
 import { clampVideoTimeToSelection, resolveProSceneAtTime } from '../../utils/proPlaybackUtils'
@@ -44,16 +45,43 @@ function hideAllSprites(spritesMap: Map<number, PIXI.Sprite>) {
   })
 }
 
-function applySceneBaseTransform(sprite: PIXI.Sprite, scene: TimelineData['scenes'][number] | null | undefined) {
-  if (!scene?.imageTransform || sprite.destroyed) {
+function applySceneBaseTransform(
+  sprite: PIXI.Sprite,
+  scene: TimelineData['scenes'][number] | null | undefined,
+  stageWidth: number,
+  stageHeight: number
+) {
+  if (sprite.destroyed) {
     return
   }
 
-  sprite.x = scene.imageTransform.x
-  sprite.y = scene.imageTransform.y
-  sprite.width = scene.imageTransform.width
-  sprite.height = scene.imageTransform.height
-  sprite.rotation = scene.imageTransform.rotation ?? 0
+  if (scene?.imageTransform) {
+    sprite.x = scene.imageTransform.x
+    sprite.y = scene.imageTransform.y
+    sprite.width = scene.imageTransform.width
+    sprite.height = scene.imageTransform.height
+    sprite.rotation = scene.imageTransform.rotation ?? 0
+    return
+  }
+
+  const textureWidth = sprite.texture?.width
+  const textureHeight = sprite.texture?.height
+  if (!textureWidth || !textureHeight || textureWidth <= 0 || textureHeight <= 0) {
+    return
+  }
+
+  const fitted = calculateSpriteParams(
+    textureWidth,
+    textureHeight,
+    stageWidth,
+    stageHeight,
+    scene?.imageFit ?? 'contain'
+  )
+  sprite.width = fitted.width
+  sprite.height = fitted.height
+  sprite.x = fitted.x + fitted.width / 2
+  sprite.y = fitted.y + fitted.height / 2
+  sprite.rotation = 0
 }
 
 /**
@@ -212,8 +240,13 @@ export function useProTransportRenderer({
           return false
         }
 
+        const app = appRef.current
+        if (!app || !app.screen || app.screen.width <= 0 || app.screen.height <= 0) {
+          return false
+        }
+
         const timelineScene = timeline.scenes?.[targetSceneIndex]
-        applySceneBaseTransform(sprite, timelineScene)
+        applySceneBaseTransform(sprite, timelineScene, app.screen.width, app.screen.height)
         sprite.visible = true
         sprite.alpha = 1
 
@@ -229,9 +262,7 @@ export function useProTransportRenderer({
           }
         })
 
-        if (appRef.current) {
-          appRef.current.renderer.render(appRef.current.stage)
-        }
+        app.renderer.render(app.stage)
         return true
       }
 
