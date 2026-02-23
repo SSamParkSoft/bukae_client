@@ -10,7 +10,7 @@ import { useProTransportPlayback } from './playback/useProTransportPlayback'
 import { useProFabricResizeDrag } from './editing/useProFabricResizeDrag'
 import { useProEditModeManager } from './editing/useProEditModeManager'
 import { useTimelineChangeHandler } from '@/app/video/create/step3/shared/hooks/timeline'
-import { getPlayableScenes, getDurationBeforeSceneIndex } from '../utils/proPlaybackUtils'
+import { getPlayableScenes, getDurationBeforeSceneIndex, getPlayableSceneStartTime } from '../utils/proPlaybackUtils'
 import { calculateAspectFittedSize } from '../utils/proPreviewLayout'
 import { videoSpriteAdapter } from './playback/media/videoSpriteAdapter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
@@ -22,8 +22,10 @@ export interface UseProStep3ContainerParams {
   scenes: ProStep3Scene[]
   currentSceneIndex: number
   isPlaying: boolean
+  scenePlaybackRequest?: { sceneIndex: number; requestId: number } | null
   onBeforePlay?: () => boolean
   onPlayingChange?: (isPlaying: boolean) => void
+  onScenePlaybackComplete?: () => void
 }
 
 const STAGE_WIDTH = 1080
@@ -68,8 +70,10 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     scenes,
     currentSceneIndex,
     isPlaying,
+    scenePlaybackRequest,
     onBeforePlay,
     onPlayingChange,
+    onScenePlaybackComplete,
   } = params
 
   // ===== Refs =====
@@ -97,6 +101,9 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
 
   const ttsAudioRefsRef = useRef<Map<number, HTMLAudioElement>>(new Map())
   const ttsCacheRef = useRef<Map<string, { blob: Blob; durationSec: number; url?: string | null }>>(new Map())
+  const scenePlaybackEndTimeRef = useRef<number | null>(null)
+  const scenePlaybackSceneIndexRef = useRef<number | null>(null)
+  const lastHandledScenePlaybackRequestIdRef = useRef<number | null>(null)
 
   // ===== State =====
   const [currentTime, setCurrentTime] = useState(0)
@@ -933,6 +940,129 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     setCurrentTime,
     setTotalDuration,
   })
+
+  const clearScenePlaybackState = useCallback((notifyComplete: boolean) => {
+    const hadScenePlayback = scenePlaybackSceneIndexRef.current !== null || scenePlaybackEndTimeRef.current !== null
+    scenePlaybackSceneIndexRef.current = null
+    scenePlaybackEndTimeRef.current = null
+    if (notifyComplete && hadScenePlayback) {
+      onScenePlaybackComplete?.()
+    }
+  }, [onScenePlaybackComplete])
+
+  const handleScenePlaybackRequest = useCallback((sceneIndex: number) => {
+    if (sceneIndex < 0 || sceneIndex >= scenes.length || !pixiReady) {
+      onScenePlaybackComplete?.()
+      return
+    }
+
+    const isSameScenePlayback =
+      transportState.isPlaying &&
+      scenePlaybackSceneIndexRef.current === sceneIndex &&
+      scenePlaybackEndTimeRef.current !== null
+    if (isSameScenePlayback) {
+      const pausedTime = transportHook.getTime()
+      setCurrentTime(pausedTime)
+      transportHook.pause()
+      onPlayingChange?.(false)
+      clearScenePlaybackState(true)
+      return
+    }
+
+    if (onBeforePlay && !onBeforePlay()) {
+      onScenePlaybackComplete?.()
+      return
+    }
+
+    const sceneStartTime = getPlayableSceneStartTime(scenes, sceneIndex)
+    const playableScene = getPlayableScenes(scenes).find((item) => item.originalIndex === sceneIndex)
+    if (sceneStartTime === null || !playableScene || playableScene.duration <= 0) {
+      clearScenePlaybackState(true)
+      return
+    }
+
+    const sceneEndTime = sceneStartTime + playableScene.duration
+    scenePlaybackSceneIndexRef.current = sceneIndex
+    scenePlaybackEndTimeRef.current = sceneEndTime
+
+    transportHook.seek(sceneStartTime)
+    setCurrentTime(sceneStartTime)
+    if (renderAtRef.current) {
+      renderAtRef.current(sceneStartTime, { forceSceneIndex: sceneIndex, forceRender: true })
+    }
+
+    onPlayingChange?.(true)
+    if (!transportState.isPlaying) {
+      transportHook.play()
+    }
+  }, [
+    clearScenePlaybackState,
+    onBeforePlay,
+    onPlayingChange,
+    onScenePlaybackComplete,
+    pixiReady,
+    renderAtRef,
+    scenes,
+    setCurrentTime,
+    transportHook,
+    transportState.isPlaying,
+  ])
+
+  const scenePlaybackRequestId = scenePlaybackRequest?.requestId ?? null
+  useEffect(() => {
+    if (!scenePlaybackRequest) {
+      return
+    }
+    if (lastHandledScenePlaybackRequestIdRef.current === scenePlaybackRequest.requestId) {
+      return
+    }
+    lastHandledScenePlaybackRequestIdRef.current = scenePlaybackRequest.requestId
+    handleScenePlaybackRequest(scenePlaybackRequest.sceneIndex)
+  }, [handleScenePlaybackRequest, scenePlaybackRequest, scenePlaybackRequestId])
+
+  useEffect(() => {
+    if (!transportState.isPlaying) {
+      return
+    }
+    const sceneEndTime = scenePlaybackEndTimeRef.current
+    const sceneIndex = scenePlaybackSceneIndexRef.current
+    if (sceneEndTime === null || sceneIndex === null) {
+      return
+    }
+
+    const now = transportHook.getTime()
+    if (now < sceneEndTime - 0.01) {
+      return
+    }
+
+    const finalTime = Math.max(0, sceneEndTime)
+    transportHook.pause()
+    transportHook.seek(finalTime)
+    setCurrentTime(finalTime)
+    if (renderAtRef.current) {
+      renderAtRef.current(finalTime, { forceSceneIndex: sceneIndex, forceRender: true })
+    }
+    onPlayingChange?.(false)
+    clearScenePlaybackState(true)
+  }, [
+    clearScenePlaybackState,
+    currentTime,
+    onPlayingChange,
+    renderAtRef,
+    setCurrentTime,
+    transportHook,
+    transportState.isPlaying,
+  ])
+
+  useEffect(() => {
+    if (transportState.isPlaying) {
+      return
+    }
+    if (scenePlaybackSceneIndexRef.current === null && scenePlaybackEndTimeRef.current === null) {
+      return
+    }
+    clearScenePlaybackState(true)
+  }, [clearScenePlaybackState, transportState.isPlaying])
 
   const timelineScenesKey = useMemo(() => {
     if (!timeline?.scenes || timeline.scenes.length === 0) return ''

@@ -34,6 +34,8 @@ export default function ProStep3Page() {
   // 현재 선택된 씬 인덱스
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [playingSceneIndex, setPlayingSceneIndex] = useState<number | null>(null)
+  const [scenePlaybackRequest, setScenePlaybackRequest] = useState<{ sceneIndex: number; requestId: number } | null>(null)
 
   // Pro step3 씬 데이터 변환 훅
   const { proStep3Scenes } = useProStep3Scenes()
@@ -69,6 +71,13 @@ export default function ProStep3Page() {
 
   const handlePlayingChange = useCallback((nextPlaying: boolean) => {
     setIsPlaying(nextPlaying)
+    if (!nextPlaying) {
+      setPlayingSceneIndex(null)
+    }
+  }, [])
+
+  const handleScenePlaybackComplete = useCallback(() => {
+    setPlayingSceneIndex(null)
   }, [])
 
   // 효과 패널 및 사운드 상태 관리 훅
@@ -92,6 +101,23 @@ export default function ProStep3Page() {
   const handleSceneSelect = useCallback((index: number) => {
     setCurrentSceneIndex(index)
   }, [])
+
+  const handleScenePlay = useCallback(async (sceneIndex: number) => {
+    const targetScene = proStep3Scenes[sceneIndex]
+    if (!targetScene?.videoUrl) {
+      alert('재생할 영상이 없습니다.')
+      return
+    }
+
+    setCurrentSceneIndex(sceneIndex)
+    if (!isPlaying || playingSceneIndex !== sceneIndex) {
+      setPlayingSceneIndex(sceneIndex)
+    }
+    setScenePlaybackRequest((prev) => ({
+      sceneIndex,
+      requestId: (prev?.requestId ?? 0) + 1,
+    }))
+  }, [isPlaying, playingSceneIndex, proStep3Scenes])
 
   // 씬 재정렬 핸들러
   const handleSceneReorder = useCallback(
@@ -174,9 +200,11 @@ export default function ProStep3Page() {
               currentSelectionStartSeconds={currentSelectionStartSeconds}
               currentSceneIndex={currentSceneIndex}
               scenes={proStep3Scenes}
+              scenePlaybackRequest={scenePlaybackRequest}
               isPlaying={isPlaying}
               onBeforePlay={canStartPlayback}
               onPlayingChange={handlePlayingChange}
+              onScenePlaybackComplete={handleScenePlaybackComplete}
               bgmTemplate={bgmTemplate}
               onExport={() => {
                 // 내보내기 기능은 나중에 구현
@@ -193,15 +221,12 @@ export default function ProStep3Page() {
               scenes={proStep3Scenes}
               timeline={timeline}
               currentSceneIndex={currentSceneIndex}
-              playingSceneIndex={null}
+              playingSceneIndex={playingSceneIndex}
               isPreparing={false}
               isTtsBootstrapping={false}
               onSelect={handleSceneSelect}
               onReorder={handleSceneReorder}
-              onPlayScene={async (sceneIndex) => {
-                // 개별 씬 재생 버튼은 현재 씬 선택으로 동작하고, 재생은 미리보기 패널 버튼으로 제어
-                handleSceneSelect(sceneIndex)
-              }}
+              onPlayScene={handleScenePlay}
               onOpenEffectPanel={() => {
                 // 효과 패널은 나중에 구현
               }}

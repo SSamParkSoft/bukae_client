@@ -103,6 +103,7 @@ export function useProFabricResizeDrag({
   const timelineCommitRafRef = useRef<number | null>(null)
   const pendingTimelineRef = useRef<TimelineData | null>(null)
   const timelineRef = useRef<TimelineData | null>(timeline)
+  const setTimelineRef = useRef(setTimeline)
   const currentSceneIndexRef = useRef(currentSceneIndex)
   const isSavingTransformRef = useRef(false)
   const savedSceneIndexRef = useRef<number | null>(null)
@@ -113,6 +114,10 @@ export function useProFabricResizeDrag({
   useEffect(() => {
     timelineRef.current = timeline
   }, [timeline])
+
+  useEffect(() => {
+    setTimelineRef.current = setTimeline
+  }, [setTimeline])
 
   useEffect(() => {
     currentSceneIndexRef.current = currentSceneIndex
@@ -444,6 +449,15 @@ export function useProFabricResizeDrag({
     })
   }, [syncFromScene])
 
+  const updateFabricSizeRef = useRef(updateFabricSize)
+  const scheduleSyncRef = useRef(scheduleSync)
+  useEffect(() => {
+    updateFabricSizeRef.current = updateFabricSize
+  }, [updateFabricSize])
+  useEffect(() => {
+    scheduleSyncRef.current = scheduleSync
+  }, [scheduleSync])
+
   useEffect(() => {
     if (!enabled || !playbackContainerRef.current) {
       return
@@ -481,13 +495,13 @@ export function useProFabricResizeDrag({
       setFabricReady(true)
     })
 
-    updateFabricSize()
-    scheduleSync()
+    updateFabricSizeRef.current()
+    scheduleSyncRef.current()
 
     const resizeObserver = new ResizeObserver(() => {
       requestAnimationFrame(() => {
-        updateFabricSize()
-        scheduleSync()
+        updateFabricSizeRef.current()
+        scheduleSyncRef.current()
       })
     })
     resizeObserver.observe(container)
@@ -505,7 +519,7 @@ export function useProFabricResizeDrag({
       const pendingTimeline = pendingTimelineRef.current
       pendingTimelineRef.current = null
       if (pendingTimeline) {
-        setTimeline(pendingTimeline)
+        setTimelineRef.current(pendingTimeline)
       }
 
       canvas.dispose()
@@ -517,7 +531,7 @@ export function useProFabricResizeDrag({
         container.removeChild(canvasEl)
       }
     }
-  }, [enabled, playbackContainerRef, scheduleSync, stageHeight, stageWidth, updateFabricSize, setTimeline])
+  }, [enabled, playbackContainerRef, stageHeight, stageWidth])
 
   useEffect(() => {
     if (!enabled || !fabricCanvasRef.current) {

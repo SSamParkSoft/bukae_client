@@ -10,9 +10,11 @@ interface ProPreviewPanelProps {
   currentSelectionStartSeconds?: number
   currentSceneIndex?: number
   scenes: ProStep3Scene[]
+  scenePlaybackRequest?: { sceneIndex: number; requestId: number } | null
   isPlaying: boolean
   onBeforePlay?: () => boolean
   onPlayingChange?: (isPlaying: boolean) => void
+  onScenePlaybackComplete?: () => void
   bgmTemplate?: string | null
   onExport?: () => void
   isExporting?: boolean
@@ -22,9 +24,11 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   currentVideoUrl,
   currentSceneIndex = 0,
   scenes,
+  scenePlaybackRequest,
   isPlaying,
   onBeforePlay,
   onPlayingChange,
+  onScenePlaybackComplete,
   bgmTemplate,
   onExport,
   isExporting = false,
@@ -33,8 +37,10 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     scenes,
     currentSceneIndex,
     isPlaying,
+    scenePlaybackRequest,
     onBeforePlay,
     onPlayingChange,
+    onScenePlaybackComplete,
   })
 
   const {
