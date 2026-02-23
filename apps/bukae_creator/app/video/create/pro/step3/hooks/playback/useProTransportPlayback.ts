@@ -89,7 +89,12 @@ export function useProTransportPlayback({
 
   // 씬 선택 시 또는 초기 로드 시(pixiReady가 true가 될 때) 해당 씬의 시작 시간으로 이동
   const lastPixiReadyRef = useRef(false)
+  const wasPlayingRef = useRef(false)
+  const lastAutoSeekSceneIndexRef = useRef<number | null>(null)
   useEffect(() => {
+    const wasPlaying = wasPlayingRef.current
+    wasPlayingRef.current = transportState.isPlaying
+
     if (transportState.isPlaying || currentSceneIndex < 0 || !pixiReady) {
       lastPixiReadyRef.current = pixiReady
       return
@@ -97,7 +102,18 @@ export function useProTransportPlayback({
 
     // pixiReady가 false에서 true로 변경되었거나, currentSceneIndex가 변경된 경우 실행
     const pixiReadyChanged = !lastPixiReadyRef.current && pixiReady
+    const sceneIndexChanged = lastAutoSeekSceneIndexRef.current !== currentSceneIndex
     lastPixiReadyRef.current = pixiReady
+
+    // 재생 중 -> 일시정지 전환 직후에는 현재 위치를 유지한다.
+    if (wasPlaying) {
+      lastAutoSeekSceneIndexRef.current = currentSceneIndex
+      return
+    }
+
+    if (!pixiReadyChanged && !sceneIndexChanged) {
+      return
+    }
 
     const sceneStartTime = getPlayableSceneStartTime(scenes, currentSceneIndex)
     if (sceneStartTime === null) {
@@ -115,10 +131,12 @@ export function useProTransportPlayback({
     // 초기 로드 시에는 0초로 초기화, 그 외에는 씬 시작 시간으로 이동
     const targetTime = pixiReadyChanged ? 0 : sceneStartTime
     transportHook.seek(targetTime)
+    setCurrentTime(targetTime)
     if (renderAtRef.current) {
       renderAtRef.current(targetTime, { forceSceneIndex: currentSceneIndex })
     }
-  }, [transportHook, currentSceneIndex, scenes, transportState.isPlaying, pixiReady, renderAtRef])
+    lastAutoSeekSceneIndexRef.current = currentSceneIndex
+  }, [transportHook, currentSceneIndex, scenes, transportState.isPlaying, pixiReady, renderAtRef, setCurrentTime])
 
   useEffect(() => {
     onPlayingChange?.(transportState.isPlaying)
@@ -126,6 +144,8 @@ export function useProTransportPlayback({
 
   const handlePlayPause = useCallback(() => {
     if (transportState.isPlaying) {
+      const pausedTime = transportHook.getTime()
+      setCurrentTime(pausedTime)
       onPlayingChange?.(false)
       transportHook.pause()
     } else {
@@ -135,16 +155,25 @@ export function useProTransportPlayback({
 
       let playTime = transportHook.getTime()
       const selectedSceneStartTime = getPlayableSceneStartTime(scenes, currentSceneIndex)
-      if (selectedSceneStartTime !== null) {
+      const totalDuration = totalDurationValue > 0 ? totalDurationValue : transportState.totalDuration
+      const shouldRestartFromSelectedScene =
+        selectedSceneStartTime !== null &&
+        (
+          !Number.isFinite(playTime) ||
+          playTime < 0.001 ||
+          (totalDuration > 0 && playTime >= totalDuration - 0.001)
+        )
+
+      if (shouldRestartFromSelectedScene) {
         playTime = selectedSceneStartTime
         transportHook.seek(playTime)
-        setCurrentTime(playTime)
       }
+      setCurrentTime(playTime)
 
       if (renderAtRef.current) {
         renderAtRef.current(playTime, {
           skipAnimation: false,
-          forceSceneIndex: selectedSceneStartTime !== null ? currentSceneIndex : undefined,
+          forceSceneIndex: shouldRestartFromSelectedScene ? currentSceneIndex : undefined,
         })
       }
       onPlayingChange?.(true)
@@ -157,7 +186,9 @@ export function useProTransportPlayback({
     renderAtRef,
     scenes,
     setCurrentTime,
+    totalDurationValue,
     transportHook,
+    transportState.totalDuration,
     transportState.isPlaying,
   ])
 

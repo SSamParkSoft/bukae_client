@@ -879,8 +879,15 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
   }, [computedTotalDuration, setTotalDuration])
 
   // 씬 선택 시 타임라인 위치 업데이트
+  const previousSceneIndexForTimelineRef = useRef(currentSceneIndex)
   useEffect(() => {
+    const previousSceneIndex = previousSceneIndexForTimelineRef.current
+    previousSceneIndexForTimelineRef.current = currentSceneIndex
+
     if (!isPlaying && currentSceneIndex >= 0 && pixiReady) {
+      if (previousSceneIndex === currentSceneIndex) {
+        return
+      }
       const previousDuration = getDurationBeforeSceneIndex(scenes, currentSceneIndex)
       setCurrentTime(previousDuration)
     }
@@ -1470,7 +1477,19 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
   // ===== 초기화 =====
   const hasInitializedRef = useRef(false)
   useEffect(() => {
-    if (!pixiReady || hasInitializedRef.current || transportState.isPlaying || !renderAtRef.current || scenes.length === 0) return
+    if (transportState.isPlaying) {
+      hasInitializedRef.current = true
+    }
+  }, [transportState.isPlaying])
+
+  useEffect(() => {
+    if (!pixiReady || hasInitializedRef.current || !renderAtRef.current || scenes.length === 0) return
+
+    const existingTime = transportHook.getTime()
+    if (transportState.isPlaying || existingTime > 0.001) {
+      hasInitializedRef.current = true
+      return
+    }
     
     transportHook.seek(0)
     setCurrentTime(0)
