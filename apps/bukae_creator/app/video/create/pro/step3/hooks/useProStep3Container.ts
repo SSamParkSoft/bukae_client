@@ -14,7 +14,7 @@ import { useBgmPlayback } from '@/app/video/create/step3/shared/hooks/audio'
 import { useBgmManager } from '@/hooks/video/audio/useBgmManager'
 import { useSoundEffectManager } from '@/hooks/video/audio/useSoundEffectManager'
 import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
-import { getPlayableScenes, getDurationBeforeSceneIndex, getPlayableSceneStartTime, getSceneSegmentDuration, resolveProSceneAtTime } from '../utils/proPlaybackUtils'
+import { getPlayableScenes, getDurationBeforeSceneIndex, getPlayableSceneStartTime } from '../utils/proPlaybackUtils'
 import { calculateAspectFittedSize } from '../utils/proPreviewLayout'
 import { videoSpriteAdapter } from './playback/media/videoSpriteAdapter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
@@ -38,6 +38,15 @@ const STAGE_HEIGHT = 1920
 const STAGE_ASPECT_RATIO = STAGE_WIDTH / STAGE_HEIGHT
 const VIDEO_METADATA_TIMEOUT_MS = 5000
 const VIDEO_SEEK_TIMEOUT_MS = 1200
+const MIN_AUDIO_SEGMENT_SEC = 0.001
+
+interface SoundEffectSegmentInfo {
+  segmentIndex: number
+  sceneIndex: number
+  partIndex: number
+  startSec: number
+  endSec: number
+}
 
 function hideText(textObj: PIXI.Text) {
   if (!textObj.destroyed) {
@@ -110,6 +119,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
   const scenePlaybackEndTimeRef = useRef<number | null>(null)
   const scenePlaybackSceneIndexRef = useRef<number | null>(null)
   const lastHandledScenePlaybackRequestIdRef = useRef<number | null>(null)
+  const lastBgmSeekTimeRef = useRef<number | null>(null)
 
   // ===== State =====
   const [currentTime, setCurrentTime] = useState(0)
@@ -118,6 +128,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
   const [pixiReady, setPixiReady] = useState(false)
   const [canvasDisplaySize, setCanvasDisplaySize] = useState<{ width: number; height: number } | null>(null)
   const [editMode, setEditMode] = useState<'none' | 'image' | 'text'>('none')
+  const [ttsCacheVersion, setTtsCacheVersion] = useState(0)
 
   // ===== Refs 동기화 =====
   useEffect(() => {
@@ -228,7 +239,9 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     })
 
     Promise.all(loadPromises).then(() => {
-      // 캐시 로드 완료
+      if (!cancelled) {
+        setTtsCacheVersion((prev) => prev + 1)
+      }
     })
 
     return () => {
@@ -980,7 +993,12 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     }
 
     const pausedTime = transportHook.getTime()
+    const lastSeekedTime = lastBgmSeekTimeRef.current
+    if (lastSeekedTime !== null && Math.abs(lastSeekedTime - pausedTime) < 0.01) {
+      return
+    }
     seekBgmAudio(pausedTime)
+    lastBgmSeekTimeRef.current = pausedTime
   }, [currentTime, resolvedBgmTemplate, seekBgmAudio, transportHook, transportState.isPlaying])
 
   useEffect(() => {
@@ -989,123 +1007,177 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     }
   }, [stopBgmAudio])
 
-  const resolveSceneVoiceTemplate = useCallback((sceneIndex: number): string | null => {
-    const sceneVoiceFromTimeline = timelineRef.current?.scenes?.[sceneIndex]?.voiceTemplate
-    if (sceneVoiceFromTimeline && sceneVoiceFromTimeline.trim().length > 0) {
-      return sceneVoiceFromTimeline
+  const soundEffectTimelineKey = useMemo(() => {
+    if (!timeline?.scenes || timeline.scenes.length === 0) {
+      return ''
     }
 
-    const sceneVoiceFromSource = scenesRef.current[sceneIndex]?.voiceTemplate
-    if (sceneVoiceFromSource && sceneVoiceFromSource.trim().length > 0) {
-      return sceneVoiceFromSource
+    return timeline.scenes
+      .map((scene, sceneIndex) => {
+        const textContent = scene.text?.content ?? ''
+        const voiceTemplate = scene.voiceTemplate ?? ''
+        const soundEffect = scene.soundEffect ?? ''
+        const duration = Number.isFinite(scene.duration) ? scene.duration : 0
+        return `${sceneIndex}:${textContent}:${voiceTemplate}:${soundEffect}:${duration}`
+      })
+      .join('|')
+  }, [timeline])
+
+  const soundEffectSceneKey = useMemo(() => {
+    if (scenes.length === 0) {
+      return ''
     }
 
-    return null
-  }, [])
+    return scenes
+      .map((scene, sceneIndex) => {
+        const voiceTemplate = scene.voiceTemplate ?? ''
+        const script = scene.script ?? ''
+        const ttsDuration = scene.ttsDuration ?? 0
+        const selectionStart = scene.selectionStartSeconds ?? 0
+        const selectionEnd = scene.selectionEndSeconds ?? 0
+        return `${sceneIndex}:${voiceTemplate}:${script}:${ttsDuration}:${selectionStart}:${selectionEnd}`
+      })
+      .join('|')
+  }, [scenes])
 
-  const getScenePartDurations = useCallback(
-    (sceneIndex: number, fallbackDuration: number): number[] => {
-      const safeFallbackDuration = Math.max(fallbackDuration, 0.001)
-      const currentTimeline = timelineRef.current
-      if (!currentTimeline?.scenes?.[sceneIndex]) {
-        return [safeFallbackDuration]
+  const soundEffectSegments = useMemo<SoundEffectSegmentInfo[]>(() => {
+    const currentTimeline = timeline
+    if (!currentTimeline?.scenes || currentTimeline.scenes.length === 0 || scenes.length === 0) {
+      return []
+    }
+
+    const playableScenes = getPlayableScenes(scenes)
+    if (playableScenes.length === 0) {
+      return []
+    }
+
+    const segments: SoundEffectSegmentInfo[] = []
+    let accumulatedTime = 0
+    let segmentIndex = 0
+
+    playableScenes.forEach((playableScene) => {
+      const sceneIndex = playableScene.originalIndex
+      const timelineScene = currentTimeline.scenes[sceneIndex]
+      if (!timelineScene) {
+        accumulatedTime += playableScene.duration
+        return
       }
 
-      const sceneVoiceTemplate = resolveSceneVoiceTemplate(sceneIndex)
+      const sceneDuration = Math.max(playableScene.duration, MIN_AUDIO_SEGMENT_SEC)
+      const sceneVoiceTemplate = (timelineScene.voiceTemplate ?? scenes[sceneIndex]?.voiceTemplate ?? '').trim()
       const markups = buildSceneMarkup(currentTimeline, sceneIndex)
-      if (!sceneVoiceTemplate || markups.length === 0) {
-        return [safeFallbackDuration]
+
+      let partDurations: number[] = [sceneDuration]
+      if (sceneVoiceTemplate && markups.length > 0) {
+        const cachedDurations = markups.map((markup) => {
+          const key = makeTtsKey(sceneVoiceTemplate, markup)
+          const cached = ttsCacheRef.current.get(key)
+          return cached?.durationSec && cached.durationSec > 0 ? cached.durationSec : 0
+        })
+
+        const hasAllDurations = cachedDurations.every((duration) => duration > 0)
+        const totalCachedDuration = cachedDurations.reduce((sum, duration) => sum + duration, 0)
+        if (hasAllDurations && totalCachedDuration > 0) {
+          const scale = sceneDuration / totalCachedDuration
+          const normalizedDurations = cachedDurations.map((duration) => duration * scale)
+          const leadingDurationSum = normalizedDurations
+            .slice(0, Math.max(0, normalizedDurations.length - 1))
+            .reduce((sum, duration) => sum + duration, 0)
+
+          if (normalizedDurations.length > 0) {
+            normalizedDurations[normalizedDurations.length - 1] = Math.max(
+              MIN_AUDIO_SEGMENT_SEC,
+              sceneDuration - leadingDurationSum
+            )
+          }
+
+          partDurations = normalizedDurations
+        }
       }
 
-      const partDurations = markups.map((markup) => {
-        const key = makeTtsKey(sceneVoiceTemplate, markup)
-        const cached = ttsCacheRef.current.get(key)
-        return cached?.durationSec && cached.durationSec > 0 ? cached.durationSec : 0
+      let partStartTime = accumulatedTime
+      partDurations.forEach((duration, partIndex) => {
+        const safeDuration = Math.max(duration, MIN_AUDIO_SEGMENT_SEC)
+        const isLastPart = partIndex === partDurations.length - 1
+        const partEndTime = isLastPart ? accumulatedTime + sceneDuration : partStartTime + safeDuration
+
+        segments.push({
+          segmentIndex,
+          sceneIndex,
+          partIndex,
+          startSec: partStartTime,
+          endSec: partEndTime,
+        })
+
+        segmentIndex += 1
+        partStartTime = partEndTime
       })
 
-      const hasMissingDuration = partDurations.some((duration) => duration <= 0)
-      const totalPartDuration = partDurations.reduce((sum, duration) => sum + duration, 0)
-      if (hasMissingDuration || totalPartDuration <= 0) {
-        return [safeFallbackDuration]
-      }
+      accumulatedTime += sceneDuration
+    })
 
-      return partDurations
-    },
-    [resolveSceneVoiceTemplate]
-  )
+    return segments
+    // timeline/scenes 전체 변경은 잦아서 오디오 관련 키 기반으로만 재계산한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [soundEffectTimelineKey, soundEffectSceneKey, ttsCacheVersion])
 
   const getActiveSegmentForSoundEffect = useCallback(
     (timeSec: number) => {
-      const resolved = resolveProSceneAtTime(scenesRef.current, timeSec)
-      if (!resolved) {
+      if (soundEffectSegments.length === 0) {
         return null
       }
 
-      const sceneDuration = Math.max(resolved.duration, 0.001)
-      const partDurations = getScenePartDurations(resolved.sceneIndex, sceneDuration)
-      const clampedSceneTime = Math.max(0, Math.min(resolved.sceneTimeInSegment, sceneDuration))
+      const safeTime = Number.isFinite(timeSec) ? Math.max(0, timeSec) : 0
+      let left = 0
+      let right = soundEffectSegments.length - 1
+      let matched: SoundEffectSegmentInfo | null = null
 
-      let partIndex = partDurations.length - 1
-      let accumulatedPartTime = 0
-      let partStartOffset = 0
-
-      for (let index = 0; index < partDurations.length; index++) {
-        const duration = partDurations[index] ?? 0
-        const nextAccumulatedPartTime = accumulatedPartTime + duration
-        if (clampedSceneTime < nextAccumulatedPartTime || index === partDurations.length - 1) {
-          partIndex = index
-          partStartOffset = accumulatedPartTime
+      while (left <= right) {
+        const mid = Math.floor((left + right) / 2)
+        const candidate = soundEffectSegments[mid]
+        if (!candidate) {
           break
         }
-        accumulatedPartTime = nextAccumulatedPartTime
-      }
 
-      let segmentIndex = partIndex
-      for (let index = 0; index < resolved.sceneIndex; index++) {
-        const prevScene = scenesRef.current[index]
-        if (!prevScene) {
+        if (safeTime < candidate.startSec) {
+          right = mid - 1
           continue
         }
-        const prevSceneDuration = Math.max(getSceneSegmentDuration(prevScene), 0.001)
-        segmentIndex += getScenePartDurations(index, prevSceneDuration).length
+        if (safeTime >= candidate.endSec) {
+          left = mid + 1
+          continue
+        }
+
+        matched = candidate
+        break
       }
 
-      const segmentStartTime = resolved.sceneStartTime + partStartOffset
+      if (!matched) {
+        matched = safeTime < soundEffectSegments[0]!.startSec
+          ? soundEffectSegments[0]!
+          : soundEffectSegments[soundEffectSegments.length - 1]!
+      }
 
       return {
         segment: {
-          sceneIndex: resolved.sceneIndex,
-          partIndex,
-          startSec: segmentStartTime,
+          sceneIndex: matched.sceneIndex,
+          partIndex: matched.partIndex,
+          startSec: matched.startSec,
         },
-        offset: Math.max(0, timeSec - segmentStartTime),
-        segmentIndex,
+        offset: Math.max(0, safeTime - matched.startSec),
+        segmentIndex: matched.segmentIndex,
       }
     },
-    [getScenePartDurations]
+    [soundEffectSegments]
   )
-
-  const voiceTemplateForSoundEffect = useMemo(() => {
-    const timelineVoice = timeline?.scenes?.find((scene) => (scene.voiceTemplate ?? '').trim().length > 0)?.voiceTemplate
-    if (timelineVoice) {
-      return timelineVoice
-    }
-
-    const sourceVoice = scenes.find((scene) => (scene.voiceTemplate ?? '').trim().length > 0)?.voiceTemplate
-    if (sourceVoice) {
-      return sourceVoice
-    }
-
-    // cleanup/seek 로직이 동작하도록 truthy fallback 유지
-    return '__pro_default_voice__'
-  }, [scenes, timeline])
 
   useSoundEffectManager({
     timeline,
     isPlaying: transportState.isPlaying,
     currentTime,
     ttsCacheRef,
-    voiceTemplate: voiceTemplateForSoundEffect,
+    // 내부 cleanup 로직이 동작하도록 truthy 플래그를 유지한다.
+    voiceTemplate: '__pro_sound_effect__',
     buildSceneMarkup,
     makeTtsKey,
     getActiveSegment: getActiveSegmentForSoundEffect,

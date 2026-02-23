@@ -51,7 +51,7 @@ export function useSoundEffectManager({
 
   // 모든 효과음 정리
   const cleanupAllSoundEffects = useCallback(() => {
-    soundEffectAudioRefs.current.forEach((audio, sceneIndex) => {
+    soundEffectAudioRefs.current.forEach((audio) => {
       try {
         audio.pause()
         audio.currentTime = 0
@@ -133,31 +133,6 @@ export function useSoundEffectManager({
     }
   }, [timeline, isPlaying, cleanupSoundEffect])
 
-  // 효과음 일시정지
-  const pauseSoundEffect = useCallback((key: string) => {
-    const audio = soundEffectAudioRefs.current.get(key)
-    if (audio) {
-      try {
-        audio.pause()
-      } catch {
-        // ignore
-      }
-    }
-  }, [])
-
-  // 효과음 재개
-  const resumeSoundEffect = useCallback(async (key: string) => {
-    const audio = soundEffectAudioRefs.current.get(key)
-    if (audio) {
-      try {
-        await audio.play()
-        activeSoundEffectsRef.current.add(key)
-      } catch {
-        // ignore
-      }
-    }
-  }, [])
-
   // 모든 효과음 일시정지
   const pauseAllSoundEffects = useCallback(() => {
     soundEffectAudioRefs.current.forEach((audio) => {
@@ -236,6 +211,9 @@ export function useSoundEffectManager({
     if (typeof window === 'undefined' || !timeline || !timeline.scenes) {
       return
     }
+    if (soundEffectAudioRefs.current.size === 0) {
+      return
+    }
 
     // TTS 캐시와 마크업 함수가 없으면 처리 불가
     if (!ttsCacheRef || !buildSceneMarkup || !makeTtsKey || !voiceTemplate) {
@@ -294,7 +272,6 @@ export function useSoundEffectManager({
         const key = makeTtsKey(sceneVoiceTemplate, markup)
         const cached = ttsCacheRef.current.get(key)
         const partDuration = cached?.durationSec || 0
-        const partStartTime = partAccumulatedTime
         const partEndTime = partAccumulatedTime + partDuration
 
         // 다음 세그먼트의 시작 시간 계산
