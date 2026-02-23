@@ -20,6 +20,7 @@ interface ProSceneListPanelProps {
   onPlayScene: (sceneIndex: number) => Promise<void>
   onOpenEffectPanel?: (tab: 'animation' | 'subtitle' | 'sound') => void
   onSelectionChange?: (sceneIndex: number, startSeconds: number, endSeconds: number) => void
+  onOriginalVideoDurationLoaded?: (sceneIndex: number, seconds: number) => void
 }
 
 export const ProSceneListPanel = memo(function ProSceneListPanel({
@@ -34,6 +35,7 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
   onPlayScene,
   onOpenEffectPanel,
   onSelectionChange,
+  onOriginalVideoDurationLoaded,
 }: ProSceneListPanelProps) {
   const { scrollContainerRef, showScrollGutter } = useScrollableGutter()
   const dropOccurredRef = useRef(false)
@@ -156,6 +158,9 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
                 onOpenEffectPanel={onOpenEffectPanel}
                 onSelectionChange={onSelectionChange ? (startSeconds, endSeconds) => {
                   onSelectionChange(index, startSeconds, endSeconds)
+                } : undefined}
+                onOriginalVideoDurationLoaded={onOriginalVideoDurationLoaded ? (seconds) => {
+                  onOriginalVideoDurationLoaded(index, seconds)
                 } : undefined}
               />
             )

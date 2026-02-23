@@ -14,6 +14,8 @@ export interface ProVideoEditSectionProps {
     videoUrl?: string | null
     selectionStartSeconds?: number
     selectionEndSeconds?: number
+    /** 업로드된 원본 영상 길이(초). TTS보다 짧을 때 타임라인을 이어붙인 길이로 표시 */
+    originalVideoDurationSeconds?: number
   }>
   onScriptChange: (index: number, value: string) => void
   onGuideChange?: (index: number, value: string) => void
@@ -92,6 +94,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
             videoUrl={scene.videoUrl}
             isUploading={uploadingSceneIndex === index}
             initialSelectionStartSeconds={scene.selectionStartSeconds}
+            originalVideoDurationSeconds={scene.originalVideoDurationSeconds}
             onSelectionChange={onSelectionChange ? (startSeconds, endSeconds) => onSelectionChange(index, startSeconds, endSeconds) : undefined}
             onDragStart={onDragStart ? (e) => onDragStart(index) : undefined}
             onDragOver={onDragOver ? (e) => onDragOver(e, index) : undefined}

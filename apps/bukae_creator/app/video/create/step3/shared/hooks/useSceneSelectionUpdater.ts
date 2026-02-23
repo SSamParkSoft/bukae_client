@@ -26,6 +26,19 @@ export function applySelectionRange<T>(
   )
 }
 
+export function applyOriginalVideoDuration<T extends Record<string, unknown>>(
+  scenes: T[],
+  sceneIndex: number,
+  originalVideoDurationSeconds: number
+): T[] {
+  if (sceneIndex < 0 || sceneIndex >= scenes.length) {
+    return scenes
+  }
+  return scenes.map((scene, index) =>
+    index === sceneIndex ? { ...scene, originalVideoDurationSeconds } as T : scene
+  )
+}
+
 export function useSceneSelectionUpdater() {
   const setScenes = useVideoCreateStore((state) => state.setScenes)
 
@@ -43,7 +56,21 @@ export function useSceneSelectionUpdater() {
     [setScenes]
   )
 
+  const updateOriginalVideoDuration = useCallback(
+    (sceneIndex: number, originalVideoDurationSeconds: number) => {
+      const storeScenes = useVideoCreateStore.getState().scenes
+      const safeScenes = ensureSceneArray<SceneScript>(storeScenes)
+      if (!isValidSceneArray(safeScenes)) {
+        return
+      }
+      const next = applyOriginalVideoDuration(safeScenes, sceneIndex, originalVideoDurationSeconds)
+      setScenes(next)
+    },
+    [setScenes]
+  )
+
   return {
     updateSelectionRange,
+    updateOriginalVideoDuration,
   }
 }

@@ -5,6 +5,7 @@ import { GripVertical } from 'lucide-react'
 import Image from 'next/image'
 import { ProVideoUpload } from './ProVideoUpload'
 import { ProVideoTimelineGrid } from './ProVideoTimelineGrid'
+import { getEffectiveSourceDuration } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
 
 export interface ProVideoEditSceneCardProps {
   sceneIndex: number
@@ -26,6 +27,8 @@ export interface ProVideoEditSceneCardProps {
   isUploading?: boolean
   /** 격자 선택 영역 시작 시간 (초) - 초기값 */
   initialSelectionStartSeconds?: number
+  /** 업로드된 원본 영상 길이(초). TTS보다 짧을 때 타임라인을 이어붙인 길이로 표시 */
+  originalVideoDurationSeconds?: number
   /** 격자 선택 영역 변경 콜백 */
   onSelectionChange?: (startSeconds: number, endSeconds: number) => void
   /** 드래그 핸들 관련 props */
@@ -51,6 +54,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   videoUrl,
   isUploading = false,
   initialSelectionStartSeconds = 0,
+  originalVideoDurationSeconds,
   onSelectionChange,
   onDragStart,
   onDragOver,
@@ -117,15 +121,15 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     }
   }, [initialSelectionStartSeconds, selectionStartSeconds, isDraggingSelection])
 
-  // TTS duration이 변경되면 격자 위치 조정
+  // TTS duration이 변경되면 격자 위치 조정 (확장 소스일 때는 이어붙인 길이 기준)
   useEffect(() => {
     if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
     
-    // 실제 영상 길이 기준으로 제한
-    // timelineDuration을 계산하여 정확한 끝지점 구하기
-    const timelineDuration = videoDuration !== null && videoDuration > 0 
-      ? Math.floor(videoDuration) 
-      : Math.floor(ttsDuration || 10)
+    const tts = Math.floor(ttsDuration || 10)
+    const original = originalVideoDurationSeconds ?? (videoDuration !== null && videoDuration > 0 ? videoDuration : 0)
+    const timelineDuration = original > 0 && original < tts
+      ? Math.floor(getEffectiveSourceDuration(tts, original))
+      : (videoDuration !== null && videoDuration > 0 ? Math.floor(videoDuration) : tts)
     const timeMarkersCount = timelineDuration + 1
     const actualVideoEndPx = timeMarkersCount * 74 // FRAME_WIDTH = 74
     const selectionWidthPx = (ttsDuration || 10) * 74
@@ -140,7 +144,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       }, 0)
       return () => clearTimeout(timeoutId)
     }
-  }, [ttsDuration, videoDuration, selectionStartSeconds, isDraggingSelection])
+  }, [ttsDuration, videoDuration, originalVideoDurationSeconds, selectionStartSeconds, isDraggingSelection])
 
   // videoUrl이 없을 때 videoDuration 즉시 초기화 (stale UI 방지)
   useEffect(() => {
@@ -211,16 +215,17 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
 
     let isCancelled = false
 
-    // 실제 영상 길이만 사용 (타임라인과 일치시키기 위해)
-    // 비디오가 정확히 6초면 6초까지만 썸네일 생성 (0~6초 = 7개)
-    // Math.floor를 사용하여 실제 비디오 길이의 초 단위까지만 생성
-    const duration = videoDuration !== null && videoDuration > 0
-      ? Math.floor(videoDuration)
-      : Math.floor(ttsDuration || 10)
-    
+    // 타임라인과 동일: 원본이 TTS보다 짧으면 이어붙인 길이만큼 썸네일 생성, 각 초에는 원본 루프 프레임 표시
+    const ttsSec = ttsDuration || 10
+    const originalSec = originalVideoDurationSeconds ?? (videoDuration ?? 0)
+    const isExtended = originalSec > 0 && originalSec < ttsSec
+    const duration = isExtended
+      ? Math.floor(getEffectiveSourceDuration(ttsSec, originalSec))
+      : (videoDuration !== null && videoDuration > 0 ? Math.floor(videoDuration) : Math.floor(ttsSec))
+
     const thumbnails: string[] = []
 
-    const captureFrame = (second: number): Promise<void> => {
+    const captureFrame = (index: number, seekToSeconds: number): Promise<void> => {
       return new Promise((resolve) => {
         if (isCancelled) {
           resolve()
@@ -282,23 +287,23 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
 
             // 캔버스를 이미지 URL로 변환
             const thumbnail = canvas.toDataURL('image/jpeg', 0.8)
-            thumbnails[second] = thumbnail
+            thumbnails[index] = thumbnail
 
             video.removeEventListener('seeked', handleSeeked)
             resolve()
           } catch (error) {
             video.removeEventListener('seeked', handleSeeked)
             if (error instanceof Error && error.name === 'SecurityError') {
-              console.warn(`CORS 오류로 인해 ${second}초 프레임을 캡처할 수 없습니다.`)
+              console.warn(`CORS 오류로 인해 ${seekToSeconds}초 프레임을 캡처할 수 없습니다.`)
             } else {
-              console.error(`${second}초 프레임 캡처 오류:`, error)
+              console.error(`${seekToSeconds}초 프레임 캡처 오류:`, error)
             }
             resolve() // 에러가 나도 계속 진행
           }
         }
 
         video.addEventListener('seeked', handleSeeked)
-        video.currentTime = second
+        video.currentTime = seekToSeconds
       })
     }
 
@@ -317,15 +322,11 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
         return
       }
 
-      // 타임라인 마커는 timelineDuration + 1개이므로, 썸네일도 같은 개수 생성
-      // duration은 timelineDuration과 같으므로, duration + 1개를 생성해야 함
-      const frameCount = duration + 1
-
-
-      // 각 초마다 프레임 캡처 (0초부터 duration초까지, 총 duration + 1개)
+      // 각 초마다 프레임 캡처 (0~duration초). 확장 모드면 타임라인 초 i에 원본의 (i % originalSec) 프레임 표시
       for (let i = 0; i <= duration; i++) {
         if (isCancelled) break
-        await captureFrame(i)
+        const seekTo = isExtended ? i % originalSec : i
+        await captureFrame(i, seekTo)
       }
 
       // 썸네일 배열 설정 (취소되지 않았을 때만)
@@ -344,19 +345,20 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     return () => {
       isCancelled = true
     }
-  }, [videoUrl, ttsDuration, videoDuration])
+  }, [videoUrl, ttsDuration, videoDuration, originalVideoDurationSeconds])
 
   // 타임라인 시간 마커 생성 (1초 단위)
-  // 실제 영상 길이를 우선 사용하고, 영상이 없으면 TTS duration 사용
-  // 격자가 실제 영상 길이 내에서만 움직이도록 타임라인도 실제 영상 길이만큼만 표시
-  // Math.floor를 사용하여 실제 비디오 길이의 초 단위까지만 표시
+  // 원본이 TTS보다 짧으면 이어붙인(확장) 소스 길이 사용; 아니면 원본 또는 TTS
   const getTimelineDuration = () => {
+    const tts = Math.floor(ttsDuration || 10)
+    const original = originalVideoDurationSeconds ?? (videoDuration !== null && videoDuration > 0 ? videoDuration : 0)
+    if (original > 0 && original < tts) {
+      return Math.floor(getEffectiveSourceDuration(tts, original))
+    }
     if (videoDuration !== null && videoDuration > 0) {
-      // 실제 영상 길이 사용 (초 단위로 내림)
       return Math.floor(videoDuration)
     }
-    // 영상이 없으면 TTS duration 사용 (초 단위로 내림)
-    return Math.floor(ttsDuration || 10)
+    return tts
   }
 
   const timelineDuration = getTimelineDuration()
@@ -477,7 +479,11 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   const handleSelectionMouseUp = () => {
     // 드래그가 끝날 때 최종 값을 저장 (ref에서 최신 값 가져오기)
     if (onSelectionChange && isDraggingSelection) {
-      const timelineDuration = Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
+      const tts = Math.floor(ttsDuration || 10)
+      const original = originalVideoDurationSeconds ?? (videoDuration !== null && videoDuration > 0 ? videoDuration : 0)
+      const timelineDuration = original > 0 && original < tts
+        ? Math.floor(getEffectiveSourceDuration(tts, original))
+        : Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
       const timeMarkersCount = timelineDuration + 1
       const actualVideoEndPx = timeMarkersCount * FRAME_WIDTH
       const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
@@ -500,10 +506,12 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       const deltaX = e.clientX - dragStartX
       // 마우스를 정확히 따라가도록 1:1 비율 사용
       
-      // 마지막 프레임 썸네일의 끝까지 갈 수 있도록 제한
-      // timelineDuration을 계산하여 timeMarkers.length를 구함
-      const timelineDuration = Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
-      const timeMarkersCount = timelineDuration + 1 // 0부터 timelineDuration까지
+      const tts = Math.floor(ttsDuration || 10)
+      const original = originalVideoDurationSeconds ?? (videoDuration !== null && videoDuration > 0 ? videoDuration : 0)
+      const timelineDuration = original > 0 && original < tts
+        ? Math.floor(getEffectiveSourceDuration(tts, original))
+        : Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
+      const timeMarkersCount = timelineDuration + 1
       const actualVideoEndPx = timeMarkersCount * FRAME_WIDTH
       const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
       
@@ -524,7 +532,11 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     const handleMouseUp = () => {
       // 드래그가 끝날 때 최종 값을 저장 (ref에서 최신 값 가져오기)
       if (onSelectionChange) {
-        const timelineDuration = Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
+        const tts = Math.floor(ttsDuration || 10)
+        const original = originalVideoDurationSeconds ?? (videoDuration !== null && videoDuration > 0 ? videoDuration : 0)
+        const timelineDuration = original > 0 && original < tts
+          ? Math.floor(getEffectiveSourceDuration(tts, original))
+          : Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
         const timeMarkersCount = timelineDuration + 1
         const actualVideoEndPx = timeMarkersCount * FRAME_WIDTH
         const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
@@ -544,7 +556,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }
-  }, [isDraggingSelection, dragStartX, dragStartSelectionLeft, timeMarkers, selectionWidthPx, selectionWidthSeconds, videoDuration, ttsDuration, onSelectionChange, selectionStartSeconds])
+  }, [isDraggingSelection, dragStartX, dragStartSelectionLeft, timelineDuration, selectionWidthPx, selectionWidthSeconds, videoDuration, originalVideoDurationSeconds, ttsDuration, onSelectionChange, selectionStartSeconds])
   
   // 격자에 포함되는 시간 마커 인덱스 계산
   const getIsInSelection = (idx: number) => {

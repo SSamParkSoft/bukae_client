@@ -15,9 +15,33 @@ import {
   sceneScriptToProScene,
   type ProScene,
 } from '../utils/types'
+import { getEffectiveSourceDuration } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
 import type { StudioScriptUserEditGuideResponseItem } from '@/lib/types/api/studio-script'
 
 const DEFAULT_SCENE_COUNT = 6
+
+/** 비디오 URL에서 메타데이터만 로드해 duration(초)을 반환. 실패 시 null */
+function getVideoDurationFromUrl(url: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.crossOrigin = 'anonymous'
+    const onDone = (sec: number | null) => {
+      video.removeEventListener('loadedmetadata', onMeta)
+      video.removeEventListener('error', onErr)
+      video.src = ''
+      resolve(sec)
+    }
+    const onMeta = () => {
+      const d = video.duration
+      onDone(Number.isFinite(d) && d > 0 ? d : null)
+    }
+    const onErr = () => onDone(null)
+    video.addEventListener('loadedmetadata', onMeta, { once: true })
+    video.addEventListener('error', onErr, { once: true })
+    video.src = url
+  })
+}
 
 export default function ProStep2EditPage() {
   const {
@@ -184,6 +208,32 @@ export default function ProStep2EditPage() {
         next[index] = { ...next[index], videoUrl: result.url }
         return next
       })
+
+      // 원본 영상 길이를 로드해, 씬 duration(TTS)보다 짧으면 이어붙인 구간으로 선택 자동 설정
+      const ttsDuration = scenes[index]?.ttsDuration
+      const durationSec = await getVideoDurationFromUrl(result.url)
+      if (durationSec != null && Number.isFinite(durationSec)) {
+        updateScenes((prev) => {
+          const next = [...prev]
+          const scene = next[index]
+          next[index] = {
+            ...scene,
+            originalVideoDurationSeconds: durationSec,
+            ...(typeof ttsDuration === 'number' &&
+            ttsDuration > 0 &&
+            durationSec < ttsDuration
+              ? {
+                  selectionStartSeconds: 0,
+                  selectionEndSeconds: Math.min(
+                    ttsDuration,
+                    getEffectiveSourceDuration(ttsDuration, durationSec)
+                  ),
+                }
+              : {}),
+          }
+          return next
+        })
+      }
     } catch (error) {
       console.error('영상 업로드 오류:', error)
       alert(error instanceof Error ? error.message : '영상 업로드 중 오류가 발생했습니다.')

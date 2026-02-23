@@ -5,6 +5,7 @@ import { GripVertical, Pause, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatTime } from '@/utils/timeline'
+import { getEffectiveSourceDuration } from '../utils/proPlaybackUtils'
 import { transitionLabels } from '@/lib/data/transitions'
 import { findSoundEffectMetadataByPath } from '@/lib/data/sound-effects'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
@@ -45,6 +46,8 @@ export interface ProStep3SceneCardProps {
   isTtsBootstrapping?: boolean
   /** 격자 선택 영역 변경 콜백 */
   onSelectionChange?: (startSeconds: number, endSeconds: number) => void
+  /** 원본 영상 길이 로드 시 스토어 반영 (TTS보다 짧을 때 이어붙여 격자 배경 길이 계산용) */
+  onOriginalVideoDurationLoaded?: (seconds: number) => void
   /** 드래그 핸들 관련 props */
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void
   onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void
@@ -75,6 +78,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   isPreparing = false,
   isTtsBootstrapping = false,
   onSelectionChange,
+  onOriginalVideoDurationLoaded,
   onDragStart,
   onDragOver,
   onDrop,
@@ -94,6 +98,8 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   const [videoDuration, setVideoDuration] = useState<number | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  /** 같은 videoUrl에 대해 duration 보고/확장 선택은 한 번만 수행 (무한 루프 방지) */
+  const reportedDurationForUrlRef = useRef<string | null>(null)
 
   // 격자(선택 영역) 드래그 관련 상태
   // Step2에서 가져온 값을 확실히 반영하기 위해 props를 직접 사용
@@ -200,9 +206,10 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
     }
   }, [videoUrl])
 
-  // 영상의 실제 duration 가져오기
+  // 영상의 실제 duration 가져오기 (같은 videoUrl에 대해 한 번만 보고하여 무한 루프 방지)
   useEffect(() => {
     if (!videoUrl) {
+      reportedDurationForUrlRef.current = null
       return
     }
 
@@ -212,12 +219,24 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
     }
 
     const handleLoadedMetadata = () => {
-      if (video.duration && isFinite(video.duration)) {
-        setVideoDuration(video.duration)
+      if (!video.duration || !isFinite(video.duration)) return
+      const original = video.duration
+      if (reportedDurationForUrlRef.current === videoUrl) return
+      reportedDurationForUrlRef.current = videoUrl
+
+      setVideoDuration(original)
+      onOriginalVideoDurationLoaded?.(original)
+      const tts = ttsDuration ?? 10
+      if (original < tts && onSelectionChange) {
+        const span = (initialSelectionEndSeconds ?? 0) - (initialSelectionStartSeconds ?? 0)
+        if (span <= original + 0.1) {
+          const effective = getEffectiveSourceDuration(tts, original)
+          const start = initialSelectionStartSeconds ?? 0
+          onSelectionChange(start, start + Math.min(tts, effective))
+        }
       }
     }
 
-    // 이미 로드된 경우 즉시 처리
     if (video.readyState >= 1) {
       handleLoadedMetadata()
     } else {
@@ -227,19 +246,19 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
     return () => {
       video.removeEventListener('loadedmetadata', handleLoadedMetadata)
     }
-  }, [videoUrl])
+  }, [videoUrl, onOriginalVideoDurationLoaded, onSelectionChange, ttsDuration, initialSelectionStartSeconds, initialSelectionEndSeconds])
 
-  // 타임라인 시간 마커 생성 (1초 단위)
-  // 실제 영상 길이를 우선 사용하고, 영상이 없으면 TTS duration 사용
-  // 격자가 실제 영상 길이 내에서만 움직이도록 타임라인도 실제 영상 길이만큼만 표시
-  // Math.floor를 사용하여 실제 비디오 길이의 초 단위까지만 표시
+  // 타임라인(격자) 길이: TTS보다 원본이 짧으면 원본을 이어붙인 확장 소스 길이 사용 (예: 원본 7초, TTS 12초 → 14초)
   const getTimelineDuration = () => {
+    const tts = Math.floor(ttsDuration || 10)
     if (videoDuration !== null && videoDuration > 0) {
-      // 실제 영상 길이 사용 (초 단위로 내림)
-      return Math.floor(videoDuration)
+      const original = videoDuration
+      if (original < tts) {
+        return Math.floor(getEffectiveSourceDuration(tts, original))
+      }
+      return Math.floor(original)
     }
-    // 영상이 없으면 TTS duration 사용 (초 단위로 내림)
-    return Math.floor(ttsDuration || 10)
+    return tts
   }
 
   const timelineDuration = getTimelineDuration()
@@ -261,16 +280,8 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   const displaySelectionStartSeconds = isDraggingSelection ? selectionStartSeconds : (initialSelectionStartSeconds ?? 0)
   const displaySelectionEndSeconds = isDraggingSelection ? selectionEndSeconds : (initialSelectionEndSeconds ?? ((initialSelectionStartSeconds ?? 0) + (ttsDuration || 10)))
   
-  // 실제 영상의 마지막 지점 계산
-  // 우선순위:
-  // 1. videoDuration이 있으면 실제 영상 길이 사용 (가장 정확)
-  // 2. Step2에서 설정한 selectionEndSeconds가 있으면 그것 사용 (마지막 씬에서 특히 중요)
-  // 3. 그 외에는 타임라인 duration 사용
-  const actualVideoEndSeconds = videoDuration !== null && videoDuration > 0 
-    ? videoDuration  // 실제 영상 길이 사용 (예: 6.5초) - 가장 정확
-    : (initialSelectionEndSeconds && initialSelectionEndSeconds > 0 
-      ? initialSelectionEndSeconds  // Step2에서 설정한 끝지점 사용 (마지막 씬에서 videoDuration 로드 전에도 정확한 끝지점 반영)
-      : timelineDuration)  // 타임라인 duration 사용 (예: 6초)
+  // 격자 편집 가능한 "소스" 끝 지점 (확장 시 확장 소스 길이, 아니면 원본 길이)
+  const actualVideoEndSeconds = timelineDuration
   
   // 타임라인 표시용 픽셀 계산
   // 실제 영상 길이를 픽셀로 변환 (예: 6.5초 = 6.5 * FRAME_WIDTH)
@@ -323,16 +334,19 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
 
     let isCancelled = false
 
-    // 실제 영상 길이만 사용 (타임라인과 일치시키기 위해)
-    // 비디오가 정확히 6초면 6초까지만 썸네일 생성 (0~6초 = 7개)
-    // Math.floor를 사용하여 실제 비디오 길이의 초 단위까지만 생성
-    const duration = videoDuration !== null && videoDuration > 0
-      ? Math.floor(videoDuration)
-      : Math.floor(ttsDuration || 10)
-    
+    const tts = Math.floor(ttsDuration || 10)
+    const originalDurationSec = videoDuration !== null && videoDuration > 0 ? Math.floor(videoDuration) : 0
+    const isExtended = originalDurationSec > 0 && originalDurationSec < tts
+    const duration = isExtended
+      ? Math.floor(getEffectiveSourceDuration(tts, originalDurationSec))
+      : originalDurationSec > 0
+        ? originalDurationSec
+        : tts
+
     const thumbnails: string[] = []
 
-    const captureFrame = (second: number): Promise<void> => {
+    const captureFrame = (timelineSecond: number): Promise<void> => {
+      const seekSec = isExtended ? timelineSecond % originalDurationSec : timelineSecond
       return new Promise((resolve) => {
         if (isCancelled) {
           resolve()
@@ -394,23 +408,23 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
 
             // 캔버스를 이미지 URL로 변환
             const thumbnail = canvas.toDataURL('image/jpeg', 0.8)
-            thumbnails[second] = thumbnail
+            thumbnails[timelineSecond] = thumbnail
 
             video.removeEventListener('seeked', handleSeeked)
             resolve()
           } catch (error) {
             video.removeEventListener('seeked', handleSeeked)
             if (error instanceof Error && error.name === 'SecurityError') {
-              console.warn(`CORS 오류로 인해 ${second}초 프레임을 캡처할 수 없습니다.`)
+              console.warn(`CORS 오류로 인해 ${timelineSecond}초 프레임을 캡처할 수 없습니다.`)
             } else {
-              console.error(`${second}초 프레임 캡처 오류:`, error)
+              console.error(`${timelineSecond}초 프레임 캡처 오류:`, error)
             }
             resolve() // 에러가 나도 계속 진행
           }
         }
 
         video.addEventListener('seeked', handleSeeked)
-        video.currentTime = second
+        video.currentTime = seekSec
       })
     }
 

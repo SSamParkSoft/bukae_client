@@ -16,6 +16,8 @@ export type ProScene = {
   videoUrl?: string | null // 업로드된 영상 URL
   selectionStartSeconds?: number // 격자 선택 영역 시작 시간 (초)
   selectionEndSeconds?: number // 격자 선택 영역 끝 시간 (초)
+  /** 업로드된 원본 영상 길이(초). TTS보다 짧을 때 이어붙여 격자 배경 길이 계산용 (Step3) */
+  originalVideoDurationSeconds?: number
 }
 
 /**
@@ -31,6 +33,7 @@ export type ExtendedSceneScript = SceneScript & {
   videoUrl?: string | null // 업로드된 영상 URL
   selectionStartSeconds?: number // 격자 선택 영역 시작 시간 (초)
   selectionEndSeconds?: number // 격자 선택 영역 끝 시간 (초)
+  originalVideoDurationSeconds?: number
 }
 
 /**
@@ -56,6 +59,7 @@ export function sceneScriptToProScene(s: SceneScript, _index: number): ProScene 
     videoUrl: extended.videoUrl,
     selectionStartSeconds: extended.selectionStartSeconds,
     selectionEndSeconds: extended.selectionEndSeconds,
+    originalVideoDurationSeconds: extended.originalVideoDurationSeconds,
   }
 }
 
@@ -75,5 +79,6 @@ export function proSceneToSceneScript(s: ProScene, index: number): ExtendedScene
     videoUrl: s.videoUrl,
     selectionStartSeconds: s.selectionStartSeconds,
     selectionEndSeconds: s.selectionEndSeconds,
+    originalVideoDurationSeconds: s.originalVideoDurationSeconds,
   }
 }

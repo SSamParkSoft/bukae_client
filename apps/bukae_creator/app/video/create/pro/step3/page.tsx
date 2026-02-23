@@ -52,7 +52,7 @@ export default function ProStep3Page() {
   })
 
   // 격자 선택 영역 변경 훅
-  const { handleSelectionChange } = useProStep3SelectionChange()
+  const { handleSelectionChange, handleOriginalVideoDurationLoaded } = useProStep3SelectionChange()
 
   const canStartPlayback = useCallback(() => {
     const playableScenes = getPlayableSegments(
@@ -232,6 +232,7 @@ export default function ProStep3Page() {
                 // 효과 패널은 나중에 구현
               }}
               onSelectionChange={handleSelectionChange}
+              onOriginalVideoDurationLoaded={handleOriginalVideoDurationLoaded}
             />
           </div>
 

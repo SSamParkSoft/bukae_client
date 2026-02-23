@@ -8,7 +8,7 @@ import { useRenderLoop } from '@/hooks/video/renderer/playback/useRenderLoop'
 import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { ProStep3Scene } from '@/app/video/create/pro/step3/model/types'
-import { clampVideoTimeToSelection, resolveProSceneAtTime } from '../../utils/proPlaybackUtils'
+import { getVideoTimeInSelectionWithLoop, resolveProSceneAtTime } from '../../utils/proPlaybackUtils'
 
 interface UseProTransportRendererParams {
   timeline: TimelineData | null
@@ -226,8 +226,11 @@ export function useProTransportRenderer({
         return
       }
 
-      const segmentVideoTime = (targetScene.selectionStartSeconds ?? 0) + resolved.sceneTimeInSegment
-      const videoTime = clampVideoTimeToSelection(targetScene, segmentVideoTime)
+      const videoTime = getVideoTimeInSelectionWithLoop(
+        targetScene,
+        resolved.sceneTimeInSegment,
+        targetScene.originalVideoDurationSeconds
+      )
       const sceneChanged = lastRenderedSceneIndexRef.current !== targetSceneIndex
       
       // 디버깅: 씬별 비디오 시간 계산 확인

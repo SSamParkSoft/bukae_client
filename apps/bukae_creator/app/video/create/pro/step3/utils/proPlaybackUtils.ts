@@ -120,6 +120,69 @@ export function clampVideoTimeToSelection(scene: ProStep3Scene, rawVideoTime: nu
   return Math.max(selectionStart, Math.min(safeTime, maxPlayableTime))
 }
 
+/**
+ * TTS보다 원본 영상이 짧을 때: 원본을 이어붙인 "확장 소스" 위에서 사용자가 격자로 선택한 구간을 재생합니다.
+ * 선택 구간 내 시간(sceneTimeInSegment)을 원본 비디오의 재생 시간으로 변환합니다.
+ * - originalVideoDurationSeconds가 있으면: 소스 시간 = selectionStart + sceneTimeInSegment, 비디오 시간 = 소스 시간 % 원본길이 (원본 영상을 1번, 2번, … 재생하는 식).
+ * - 없으면: 기존처럼 선택 구간 길이로 나머지 연산(하위 호환).
+ */
+export function getVideoTimeInSelectionWithLoop(
+  scene: ProStep3Scene,
+  sceneTimeInSegment: number,
+  originalVideoDurationSeconds?: number
+): number {
+  const selectionStart = Number.isFinite(scene.selectionStartSeconds)
+    ? scene.selectionStartSeconds
+    : 0
+  const selectionEnd = Number.isFinite(scene.selectionEndSeconds)
+    ? scene.selectionEndSeconds
+    : selectionStart
+  const selectionDuration = Math.max(0, selectionEnd - selectionStart)
+  const safeTime = Number.isFinite(sceneTimeInSegment) && sceneTimeInSegment >= 0 ? sceneTimeInSegment : 0
+
+  const originalDuration =
+    originalVideoDurationSeconds != null && Number.isFinite(originalVideoDurationSeconds) && originalVideoDurationSeconds > 0
+      ? originalVideoDurationSeconds
+      : 0
+
+  if (originalDuration > 0) {
+    // 확장 소스: 소스 시간 = 선택 시작 + 세그먼트 내 시간 → 원본 비디오 시간 = 소스 % 원본길이
+    const sourceTime = selectionStart + safeTime
+    const offsetInOriginal = sourceTime % originalDuration
+    const clamped = Math.min(offsetInOriginal, originalDuration - SEGMENT_END_EPSILON_SEC)
+    return Math.max(0, clamped)
+  }
+
+  if (selectionDuration <= 0) {
+    return selectionStart
+  }
+
+  const offsetInSelection = safeTime % selectionDuration
+  const clampedOffset = Math.min(offsetInSelection, selectionDuration - SEGMENT_END_EPSILON_SEC)
+  return selectionStart + clampedOffset
+}
+
+/**
+ * TTS보다 원본 영상이 짧을 때, 격자 편집용 "확장 소스" 길이(초).
+ * 예: 원본 7초, TTS 12초 → ceil(12/7)*7 = 14초. 이 14초 위에서 사용자가 12초 구간을 선택.
+ */
+export function getEffectiveSourceDuration(
+  ttsDuration: number,
+  originalVideoDurationSeconds: number
+): number {
+  if (!Number.isFinite(originalVideoDurationSeconds) || originalVideoDurationSeconds <= 0) {
+    return ttsDuration
+  }
+  if (!Number.isFinite(ttsDuration) || ttsDuration <= 0) {
+    return originalVideoDurationSeconds
+  }
+  if (originalVideoDurationSeconds >= ttsDuration) {
+    return originalVideoDurationSeconds
+  }
+  const n = Math.ceil(ttsDuration / originalVideoDurationSeconds)
+  return n * originalVideoDurationSeconds
+}
+
 export function hasRecentGesture(
   timestamp: number | null | undefined,
   now = Date.now(),

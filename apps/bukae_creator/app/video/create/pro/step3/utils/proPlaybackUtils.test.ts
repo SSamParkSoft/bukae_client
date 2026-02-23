@@ -4,10 +4,12 @@ import {
   clampPlaybackTime,
   clampVideoTimeToSelection,
   getDurationBeforeSceneIndex,
+  getEffectiveSourceDuration,
   getPlayableSceneStartTime,
   getPlayableScenes,
   getPreviousPlayableDuration,
   getSceneSegmentDuration,
+  getVideoTimeInSelectionWithLoop,
   hasRecentGesture,
   isPlayableScene,
   resolveProSceneAtTime,
@@ -136,6 +138,54 @@ test('clampVideoTimeToSelection keeps playback inside selected video window', ()
   assert.equal(clampVideoTimeToSelection(scene, 4), 5)
   assert.equal(clampVideoTimeToSelection(scene, 5.8), 5.8)
   assert.ok(Math.abs(clampVideoTimeToSelection(scene, 9) - 6.999) < 1e-9)
+})
+
+test('getVideoTimeInSelectionWithLoop loops video when TTS is longer than selection', () => {
+  const scene = makeScene({
+    selectionStartSeconds: 0,
+    selectionEndSeconds: 5,
+    ttsDuration: 12,
+  })
+  const selectionDuration = 5
+
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 0), 0)
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 2), 2)
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 4.5), 4.5)
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 5), 0)
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 7), 2)
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 10), 0)
+  assert.ok(Math.abs(getVideoTimeInSelectionWithLoop(scene, 11) - 1) < 0.01)
+})
+
+test('getVideoTimeInSelectionWithLoop with non-zero selection start', () => {
+  const scene = makeScene({
+    selectionStartSeconds: 2,
+    selectionEndSeconds: 6,
+  })
+
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 0), 2)
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 3), 5)
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 4), 2)
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 8), 2)
+})
+
+test('getVideoTimeInSelectionWithLoop extended source: original 7s, selection 0-12', () => {
+  const scene = makeScene({
+    selectionStartSeconds: 0,
+    selectionEndSeconds: 12,
+    ttsDuration: 12,
+    originalVideoDurationSeconds: 7,
+  })
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 0, 7), 0)
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 6, 7), 6)
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 7, 7), 0)
+  assert.equal(getVideoTimeInSelectionWithLoop(scene, 12, 7), 5)
+})
+
+test('getEffectiveSourceDuration extends when original < TTS', () => {
+  assert.equal(getEffectiveSourceDuration(12, 7), 14)
+  assert.equal(getEffectiveSourceDuration(7, 7), 7)
+  assert.equal(getEffectiveSourceDuration(5, 10), 10)
 })
 
 test('hasRecentGesture validates timestamp in TTL window', () => {
