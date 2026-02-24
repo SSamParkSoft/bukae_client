@@ -5,6 +5,7 @@ import {
   clampVideoTimeToSelection,
   getDurationBeforeSceneIndex,
   getEffectiveSourceDuration,
+  normalizeSelectionRange,
   getPlayableSceneStartTime,
   getPlayableScenes,
   getPreviousPlayableDuration,
@@ -146,7 +147,6 @@ test('getVideoTimeInSelectionWithLoop loops video when TTS is longer than select
     selectionEndSeconds: 5,
     ttsDuration: 12,
   })
-  const selectionDuration = 5
 
   assert.equal(getVideoTimeInSelectionWithLoop(scene, 0), 0)
   assert.equal(getVideoTimeInSelectionWithLoop(scene, 2), 2)
@@ -186,6 +186,59 @@ test('getEffectiveSourceDuration extends when original < TTS', () => {
   assert.equal(getEffectiveSourceDuration(12, 7), 14)
   assert.equal(getEffectiveSourceDuration(7, 7), 7)
   assert.equal(getEffectiveSourceDuration(5, 10), 10)
+})
+
+test('normalizeSelectionRange keeps stored selection when valid', () => {
+  const normalized = normalizeSelectionRange({
+    ttsDuration: 7,
+    originalVideoDurationSeconds: 5,
+    selectionStartSeconds: 3,
+    selectionEndSeconds: 10,
+  })
+
+  assert.equal(normalized.startSeconds, 3)
+  assert.equal(normalized.endSeconds, 10)
+  assert.equal(normalized.spanSeconds, 7)
+  assert.equal(normalized.effectiveSourceDurationSeconds, 10)
+})
+
+test('normalizeSelectionRange preserves stored extended range when original duration is missing', () => {
+  const normalized = normalizeSelectionRange({
+    ttsDuration: 7,
+    selectionStartSeconds: 3,
+    selectionEndSeconds: 10,
+  })
+
+  assert.equal(normalized.startSeconds, 3)
+  assert.equal(normalized.endSeconds, 10)
+  assert.equal(normalized.spanSeconds, 7)
+  assert.equal(normalized.effectiveSourceDurationSeconds, 10)
+})
+
+test('normalizeSelectionRange clamps out-of-range selection into effective source', () => {
+  const normalized = normalizeSelectionRange({
+    ttsDuration: 7,
+    originalVideoDurationSeconds: 5,
+    selectionStartSeconds: 4,
+    selectionEndSeconds: 11,
+  })
+
+  assert.equal(normalized.startSeconds, 3)
+  assert.equal(normalized.endSeconds, 10)
+  assert.equal(normalized.spanSeconds, 7)
+})
+
+test('normalizeSelectionRange falls back to TTS span when end is missing', () => {
+  const normalized = normalizeSelectionRange({
+    ttsDuration: 6,
+    originalVideoDurationSeconds: 0,
+    selectionStartSeconds: 1.5,
+  })
+
+  assert.equal(normalized.startSeconds, 0)
+  assert.equal(normalized.endSeconds, 6)
+  assert.equal(normalized.spanSeconds, 6)
+  assert.equal(normalized.effectiveSourceDurationSeconds, 6)
 })
 
 test('hasRecentGesture validates timestamp in TTL window', () => {

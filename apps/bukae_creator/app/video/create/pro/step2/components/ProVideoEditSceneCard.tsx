@@ -7,6 +7,11 @@ import { ProVideoUpload } from './ProVideoUpload'
 import { ProVideoTimelineGrid } from './ProVideoTimelineGrid'
 import { getEffectiveSourceDuration } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
 
+const FRAME_WIDTH_PX = 74
+const TIMELINE_FRAME_HEIGHT_PX = 84
+const TIMELINE_GRID_EXTEND_PX = 18
+const TIMELINE_LEFT_OFFSET_PX = FRAME_WIDTH_PX / 2
+
 export interface ProVideoEditSceneCardProps {
   sceneIndex: number
   scriptText: string
@@ -133,11 +138,10 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     const timelineDuration = original > 0 && original < tts
       ? Math.floor(getEffectiveSourceDuration(tts, original))
       : (videoDuration !== null && videoDuration > 0 ? Math.floor(videoDuration) : tts)
-    const timeMarkersCount = timelineDuration + 1
-    const actualVideoEndPx = timeMarkersCount * 74 // FRAME_WIDTH = 74
-    const selectionWidthPx = (ttsDuration || 10) * 74
+    const actualVideoEndPx = timelineDuration * FRAME_WIDTH_PX
+    const selectionWidthPx = (ttsDuration || 10) * FRAME_WIDTH_PX
     const maxSelectionStartPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
-    const maxStart = maxSelectionStartPx / 74
+    const maxStart = maxSelectionStartPx / FRAME_WIDTH_PX
     
     // selectionStartSeconds가 범위를 벗어나면 조정 (비동기로 처리)
     if (selectionStartSeconds > maxStart) {
@@ -250,8 +254,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
             }
 
             // 캔버스 크기를 프레임 박스 크기에 맞춤 (74x84)
-            canvas.width = 74
-            canvas.height = 84
+            canvas.width = FRAME_WIDTH_PX
+            canvas.height = TIMELINE_FRAME_HEIGHT_PX
 
             const ctx = canvas.getContext('2d')
             if (!ctx) {
@@ -325,8 +329,11 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
         return
       }
 
-      // 각 초마다 프레임 캡처 (0~duration초). 확장 모드면 타임라인 초 i에 원본의 (i % originalSec) 프레임 표시
-      for (let i = 0; i <= duration; i++) {
+      const frameSegmentCount = Math.max(1, duration)
+
+      // 각 1초 구간 시작 프레임을 캡처 (0~duration-1초)
+      // 확장 모드면 타임라인 초 i에 원본의 (i % originalSec) 프레임 표시
+      for (let i = 0; i < frameSegmentCount; i++) {
         if (isCancelled) break
         const seekTo = isExtended ? i % originalSec : i
         await captureFrame(i, seekTo)
@@ -335,7 +342,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       // 썸네일 배열 설정 (취소되지 않았을 때만)
       if (!isCancelled) {
         const thumbnailArray: string[] = []
-        for (let i = 0; i <= duration; i++) {
+        for (let i = 0; i < frameSegmentCount; i++) {
           thumbnailArray[i] = thumbnails[i] || ''
         }
         setFrameThumbnails(thumbnailArray)
@@ -365,10 +372,11 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   }
 
   const timelineDuration = getTimelineDuration()
+  const frameSegmentCount = Math.max(1, timelineDuration)
 
   const generateTimeMarkers = () => {
     const markers = []
-    for (let i = 0; i <= timelineDuration; i++) {
+    for (let i = 0; i <= frameSegmentCount; i++) {
       const minutes = Math.floor(i / 60)
       const seconds = i % 60
       markers.push(`${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`)
@@ -379,24 +387,19 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   const timeMarkers = generateTimeMarkers()
 
   // 격자(선택 영역) 위치 계산 - TTS duration에 맞게 조정
-  const FRAME_WIDTH = 74 // 각 프레임 너비 (px)
   const selectionWidthSeconds = ttsDuration || 10 // 격자 너비 = TTS duration
   
   // 선택 영역의 픽셀 단위 크기 (먼저 계산)
-  const selectionWidthPx = selectionWidthSeconds * FRAME_WIDTH
+  const selectionWidthPx = selectionWidthSeconds * FRAME_WIDTH_PX
   
-  // 실제 영상의 마지막 지점 계산
-  // timeMarkers.length = timelineDuration + 1 (0부터 timelineDuration까지)
-  // 마지막 프레임 썸네일의 인덱스는 timelineDuration (예: 6초면 인덱스 6)
-  // 마지막 프레임 썸네일의 끝은 timeMarkers.length * FRAME_WIDTH (예: 7 * 74 = 518px)
-  // 격자의 오른쪽 끝이 마지막 프레임 썸네일의 끝에 닿을 수 있도록 해야 함
-  const actualVideoEndPx = timeMarkers.length * FRAME_WIDTH // 마지막 프레임 썸네일의 끝 (픽셀)
-  const actualVideoEndSeconds = actualVideoEndPx / FRAME_WIDTH // 마지막 프레임 썸네일의 끝 (초 단위)
+  // 실제 소스 길이(초) 기준 끝 지점 계산
+  const actualVideoEndSeconds = frameSegmentCount
+  const actualVideoEndPx = actualVideoEndSeconds * FRAME_WIDTH_PX
   
   // 격자의 오른쪽 끝이 마지막 프레임 썸네일의 끝에 닿을 수 있도록 허용
   // 격자의 시작점은 (마지막 프레임 끝 - 격자 너비)까지만 가능
   const maxSelectionStartPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
-  const maxSelectionStartSeconds = maxSelectionStartPx / FRAME_WIDTH
+  const maxSelectionStartSeconds = maxSelectionStartPx / FRAME_WIDTH_PX
   const clampedSelectionStartSeconds = Math.max(0, Math.min(selectionStartSeconds, maxSelectionStartSeconds))
   // store에 저장된 끝 시간이 있으면 사용(step3로 넘어갈 때 격자 위치 유지), 드래그 중이면 start+width 사용
   const clampedSelectionEndSeconds = isDraggingSelection
@@ -406,7 +409,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       : Math.min(clampedSelectionStartSeconds + selectionWidthSeconds, actualVideoEndSeconds)
   
   // 선택 영역의 픽셀 단위 위치
-  const selectionLeftPx = clampedSelectionStartSeconds * FRAME_WIDTH
+  const selectionLeftPx = clampedSelectionStartSeconds * FRAME_WIDTH_PX
 
   // 선택 영역이 실제로 변경될 때만 콜백 호출 (무한 루프 방지)
   // store에서 오는 initialSelectionStartSeconds와 비교하여 실제로 사용자가 변경한 경우에만 호출
@@ -467,7 +470,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     // 마우스를 정확히 따라가도록 1:1 비율 사용
     
     // 마지막 프레임 썸네일의 끝까지 갈 수 있도록 제한
-    const actualVideoEndPx = timeMarkers.length * FRAME_WIDTH
+    const actualVideoEndPx = timelineDuration * FRAME_WIDTH_PX
     const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
     
     // 끝에 도달했으면 더 이상 오른쪽으로 이동하지 않도록 고정
@@ -480,7 +483,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     const isAtEnd = Math.abs(newSelectionLeftPx - maxSelectionLeftPx) < 0.1
     const finalSelectionLeftPx = isAtEnd ? maxSelectionLeftPx : newSelectionLeftPx
     
-    const newSelectionStartSeconds = finalSelectionLeftPx / FRAME_WIDTH
+    const newSelectionStartSeconds = finalSelectionLeftPx / FRAME_WIDTH_PX
     setSelectionStartSeconds(newSelectionStartSeconds)
   }
 
@@ -492,12 +495,11 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       const timelineDuration = original > 0 && original < tts
         ? Math.floor(getEffectiveSourceDuration(tts, original))
         : Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
-      const timeMarkersCount = timelineDuration + 1
-      const actualVideoEndPx = timeMarkersCount * FRAME_WIDTH
+      const actualVideoEndPx = timelineDuration * FRAME_WIDTH_PX
       const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
       const currentStart = selectionStartSecondsRef.current
-      const clampedStart = Math.max(0, Math.min(currentStart, maxSelectionLeftPx / FRAME_WIDTH))
-      const clampedEnd = Math.min(clampedStart + selectionWidthSeconds, actualVideoEndPx / FRAME_WIDTH)
+      const clampedStart = Math.max(0, Math.min(currentStart, maxSelectionLeftPx / FRAME_WIDTH_PX))
+      const clampedEnd = Math.min(clampedStart + selectionWidthSeconds, timelineDuration)
       
       onSelectionChange(clampedStart, clampedEnd)
     }
@@ -519,8 +521,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       const timelineDuration = original > 0 && original < tts
         ? Math.floor(getEffectiveSourceDuration(tts, original))
         : Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
-      const timeMarkersCount = timelineDuration + 1
-      const actualVideoEndPx = timeMarkersCount * FRAME_WIDTH
+      const actualVideoEndPx = timelineDuration * FRAME_WIDTH_PX
       const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
       
       // 끝에 도달했으면 더 이상 오른쪽으로 이동하지 않도록 고정
@@ -533,7 +534,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       const isAtEnd = Math.abs(newSelectionLeftPx - maxSelectionLeftPx) < 0.1
       const finalSelectionLeftPx = isAtEnd ? maxSelectionLeftPx : newSelectionLeftPx
       
-      const newSelectionStartSeconds = finalSelectionLeftPx / FRAME_WIDTH
+      const newSelectionStartSeconds = finalSelectionLeftPx / FRAME_WIDTH_PX
       setSelectionStartSeconds(newSelectionStartSeconds)
     }
 
@@ -545,12 +546,11 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
         const timelineDuration = original > 0 && original < tts
           ? Math.floor(getEffectiveSourceDuration(tts, original))
           : Math.floor(videoDuration !== null && videoDuration > 0 ? videoDuration : (ttsDuration || 10))
-        const timeMarkersCount = timelineDuration + 1
-        const actualVideoEndPx = timeMarkersCount * FRAME_WIDTH
+        const actualVideoEndPx = timelineDuration * FRAME_WIDTH_PX
         const maxSelectionLeftPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
         const currentStart = selectionStartSecondsRef.current
-        const clampedStart = Math.max(0, Math.min(currentStart, maxSelectionLeftPx / FRAME_WIDTH))
-        const clampedEnd = Math.min(clampedStart + selectionWidthSeconds, actualVideoEndPx / FRAME_WIDTH)
+        const clampedStart = Math.max(0, Math.min(currentStart, maxSelectionLeftPx / FRAME_WIDTH_PX))
+        const clampedEnd = Math.min(clampedStart + selectionWidthSeconds, timelineDuration)
         
         onSelectionChange(clampedStart, clampedEnd)
       }
@@ -755,16 +755,30 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
               }}
             >
               {/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
-              <div className="relative shrink-0" style={{ width: `${timeMarkers.length * 74 + 37}px`, paddingTop: '18px', paddingBottom: '18px', paddingLeft: '37px' }}>
+              <div
+                className="relative shrink-0"
+                style={{
+                  width: `${actualVideoEndPx}px`,
+                  paddingTop: `${TIMELINE_GRID_EXTEND_PX}px`,
+                  paddingBottom: `${TIMELINE_GRID_EXTEND_PX}px`,
+                  paddingLeft: `${TIMELINE_LEFT_OFFSET_PX}px`,
+                }}
+              >
                 {/* 실제 영상 프레임 박스 (클리핑 영역) */}
-                <div className="relative h-[84px] bg-white rounded-2xl border border-gray-300 overflow-hidden">
+                <div
+                  className="relative bg-white rounded-2xl border border-gray-300 overflow-hidden"
+                  style={{
+                    height: `${TIMELINE_FRAME_HEIGHT_PX}px`,
+                    width: `${actualVideoEndPx}px`,
+                  }}
+                >
                   {/* 격자 패턴 - 각 74px 너비의 프레임들 */}
                   <div className="absolute inset-0 flex" style={{ left: '0px' }}>
-                    {Array.from({ length: timeMarkers.length }).map((_, idx) => (
+                    {Array.from({ length: frameSegmentCount }).map((_, idx) => (
                       <div
                         key={idx}
                         className="shrink-0 relative border-r border-[#a6a6a6] overflow-hidden"
-                        style={{ width: '74px', height: '100%' }}
+                        style={{ width: `${FRAME_WIDTH_PX}px`, height: '100%' }}
                       >
                         {/* 비디오 프레임 썸네일 또는 배경 */}
                         {frameThumbnails[idx] ? (
@@ -830,19 +844,19 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                   className="cursor-move"
                   style={{
                     position: 'absolute',
-                    left: `${37 + selectionLeftPx}px`,
+                    left: `${TIMELINE_LEFT_OFFSET_PX + selectionLeftPx}px`,
                     width: `${selectionWidthPx}px`,
-                    top: '18px', // 프레임 박스와 같은 위치 (paddingTop 아래)
-                    height: 'calc(100% - 18px)', // paddingTop을 제외한 높이
+                    top: `${TIMELINE_GRID_EXTEND_PX}px`, // 프레임 박스와 같은 위치 (paddingTop 아래)
+                    height: `calc(100% - ${TIMELINE_GRID_EXTEND_PX}px)`, // paddingTop을 제외한 높이
                     zIndex: 10,
                     pointerEvents: 'auto', // 격자 내부 전체가 클릭 가능하도록
                   }}
                 >
                   <ProVideoTimelineGrid
-                    frameHeight={84}
+                    frameHeight={TIMELINE_FRAME_HEIGHT_PX}
                     selectionLeft={0}
                     selectionWidth={selectionWidthPx}
-                    extendY={18}
+                    extendY={TIMELINE_GRID_EXTEND_PX}
                   />
                 </div>
               </div>
@@ -850,7 +864,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
               {/* 시간 마커 */}
               <div 
                 className="relative flex shrink-0"
-                style={{ width: `${timeMarkers.length * 74}px` }}
+                style={{ width: `${timeMarkers.length * FRAME_WIDTH_PX}px` }}
                 onDragStart={(e) => {
                   // 시간 마커 영역에서도 씬 카드 드래그 방지
                   e.stopPropagation()
@@ -860,7 +874,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                 {/* 가로 라인 - 영상 프레임 전체 길이만큼 */}
                 <div 
                   className="absolute top-0 left-0 h-px bg-[#a6a6a6]"
-                  style={{ width: `${timeMarkers.length * 74}px` }}
+                  style={{ width: `${timeMarkers.length * FRAME_WIDTH_PX}px` }}
                 />
                 
                 {timeMarkers.map((marker, idx) => {
@@ -871,7 +885,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                     <div
                       key={idx}
                       className="shrink-0 flex flex-col items-center relative"
-                      style={{ width: '74px' }}
+                      style={{ width: `${FRAME_WIDTH_PX}px` }}
                     >
                       {/* 세로 틱 */}
                       {isMajorTick ? (

@@ -183,6 +183,85 @@ export function getEffectiveSourceDuration(
   return n * originalVideoDurationSeconds
 }
 
+const DEFAULT_TTS_DURATION_SEC = 10
+const MIN_SELECTION_SPAN_SEC = 0.001
+
+export interface NormalizeSelectionRangeParams {
+  ttsDuration?: number
+  originalVideoDurationSeconds?: number
+  selectionStartSeconds?: number
+  selectionEndSeconds?: number
+}
+
+export interface NormalizedSelectionRange {
+  startSeconds: number
+  endSeconds: number
+  spanSeconds: number
+  ttsDurationSeconds: number
+  effectiveSourceDurationSeconds: number
+}
+
+/**
+ * 선택 구간을 안정적으로 정규화합니다.
+ * - 원본이 TTS보다 짧으면 확장 소스 길이를 기준으로 계산합니다.
+ * - start/end가 누락/역전/범위초과여도 항상 유효한 구간으로 보정합니다.
+ * - span은 기본적으로 TTS 길이를 유지하되 소스 길이를 넘지 않도록 제한합니다.
+ */
+export function normalizeSelectionRange({
+  ttsDuration,
+  originalVideoDurationSeconds,
+  selectionStartSeconds,
+  selectionEndSeconds,
+}: NormalizeSelectionRangeParams): NormalizedSelectionRange {
+  const safeTtsDuration =
+    Number.isFinite(ttsDuration) && (ttsDuration as number) > 0
+      ? (ttsDuration as number)
+      : DEFAULT_TTS_DURATION_SEC
+
+  const safeOriginalDuration =
+    Number.isFinite(originalVideoDurationSeconds) && (originalVideoDurationSeconds as number) > 0
+      ? (originalVideoDurationSeconds as number)
+      : 0
+
+  const rawStart =
+    Number.isFinite(selectionStartSeconds) && (selectionStartSeconds as number) >= 0
+      ? (selectionStartSeconds as number)
+      : 0
+
+  const hasValidEnd =
+    Number.isFinite(selectionEndSeconds) &&
+    (selectionEndSeconds as number) > rawStart
+
+  const rawEnd = hasValidEnd ? (selectionEndSeconds as number) : null
+
+  const effectiveSourceDurationSeconds =
+    safeOriginalDuration > 0
+      ? getEffectiveSourceDuration(safeTtsDuration, safeOriginalDuration)
+      : Math.max(safeTtsDuration, rawEnd ?? 0)
+
+  const defaultSpan = Math.min(safeTtsDuration, effectiveSourceDurationSeconds)
+  const rawSpan = hasValidEnd
+    ? (selectionEndSeconds as number) - rawStart
+    : defaultSpan
+
+  const spanSeconds = Math.max(
+    MIN_SELECTION_SPAN_SEC,
+    Math.min(rawSpan, effectiveSourceDurationSeconds)
+  )
+
+  const maxStartSeconds = Math.max(0, effectiveSourceDurationSeconds - spanSeconds)
+  const startSeconds = Math.max(0, Math.min(rawStart, maxStartSeconds))
+  const endSeconds = startSeconds + spanSeconds
+
+  return {
+    startSeconds,
+    endSeconds,
+    spanSeconds,
+    ttsDurationSeconds: safeTtsDuration,
+    effectiveSourceDurationSeconds,
+  }
+}
+
 export function hasRecentGesture(
   timestamp: number | null | undefined,
   now = Date.now(),

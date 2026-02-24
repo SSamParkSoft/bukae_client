@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
-import { getEffectiveSourceDuration } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
+import { normalizeSelectionRange } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
 import type { ProStep3Scene } from '@/app/video/create/pro/step3/model/types'
 
 // Pro step2에서 사용하는 확장된 Scene 타입
@@ -90,50 +90,23 @@ export function useProStep3Scenes() {
       return []
     }
     return proScenes.map((scene) => {
-      const ttsDuration = scene.ttsDuration || 10
-      
-      // Step2에서 설정한 값이 있으면 그대로 사용, 없으면 기본값 사용
-      // selectionStartSeconds가 없으면 0부터 시작
-      const selectionStartSeconds = scene.selectionStartSeconds ?? 0
-
-      const originalDuration = scene.originalVideoDurationSeconds ?? 0
-      const isExtended = originalDuration > 0 && originalDuration < ttsDuration
-      const effectiveSourceDuration = isExtended
-        ? getEffectiveSourceDuration(ttsDuration, originalDuration)
-        : originalDuration > 0 ? originalDuration : ttsDuration
-
-      // 확장 모드(원본 < TTS)일 때: 저장된 선택이 원본 한 번 분량 이하면 TTS 길이만큼 격자로 확장 (UI가 확장 타임라인 전체에서 0~TTS 선택하도록)
-      const storedEnd = scene.selectionEndSeconds
-      const selectionSpan = storedEnd != null && storedEnd > selectionStartSeconds ? storedEnd - selectionStartSeconds : 0
-      const shouldExpandToTts =
-        isExtended &&
-        (storedEnd == null || storedEnd <= selectionStartSeconds || selectionSpan <= originalDuration)
-
-      const selectionEndSeconds = shouldExpandToTts
-        ? selectionStartSeconds + Math.min(ttsDuration, effectiveSourceDuration)
-        : storedEnd != null && storedEnd > selectionStartSeconds
-          ? storedEnd
-          : selectionStartSeconds + ttsDuration
-
-      if (scene.selectionEndSeconds != null && scene.selectionEndSeconds <= selectionStartSeconds && !shouldExpandToTts) {
-        console.warn('[useProStep3Scenes] selectionEndSeconds가 유효하지 않아 기본값으로 대체:', {
-          sceneId: scene.id,
-          storedSelectionEndSeconds: scene.selectionEndSeconds,
-          selectionStartSeconds,
-          fallback: selectionStartSeconds + ttsDuration,
-        })
-      }
+      const normalized = normalizeSelectionRange({
+        ttsDuration: scene.ttsDuration,
+        originalVideoDurationSeconds: scene.originalVideoDurationSeconds,
+        selectionStartSeconds: scene.selectionStartSeconds,
+        selectionEndSeconds: scene.selectionEndSeconds,
+      })
 
       return {
         id: scene.id,
         script: scene.script,
         videoUrl: scene.videoUrl,
-        selectionStartSeconds,
-        selectionEndSeconds,
+        selectionStartSeconds: normalized.startSeconds,
+        selectionEndSeconds: normalized.endSeconds,
         originalVideoDurationSeconds: scene.originalVideoDurationSeconds,
         voiceLabel: scene.voiceLabel,
         voiceTemplate: scene.voiceTemplate,
-        ttsDuration,
+        ttsDuration: normalized.ttsDurationSeconds,
         ttsAudioBase64: scene.ttsAudioBase64,
       }
     })

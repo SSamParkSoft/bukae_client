@@ -16,7 +16,7 @@ import {
   sceneScriptToProScene,
   type ProScene,
 } from '../utils/types'
-import { getEffectiveSourceDuration } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
+import { getEffectiveSourceDuration, normalizeSelectionRange } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
 import type { StudioScriptUserEditGuideResponseItem } from '@/lib/types/api/studio-script'
 
 const DEFAULT_SCENE_COUNT = 6
@@ -308,11 +308,11 @@ export default function ProStep2EditPage() {
     }
   }, [selectedProducts, scriptStyle, scenes, updateScenes])
 
-  const handleAiScriptClick = useCallback((index: number) => {
+  const handleAiScriptClick = useCallback(() => {
     // TODO: 개별 씬 AI 스크립트 생성 로직 구현
   }, [])
 
-  const handleAiGuideClick = useCallback((index: number) => {
+  const handleAiGuideClick = useCallback(() => {
     // TODO: 개별 씬 AI 촬영가이드 생성 로직 구현
   }, [])
 
@@ -364,30 +364,66 @@ export default function ProStep2EditPage() {
     setDragOver(null)
   }, [])
 
-  // 다음 단계(step3)로 이동 전에 씬별 격자 선택값을 store에 반드시 반영한 뒤 이동
-  const handleGoToStep3 = useCallback(() => {
+  // 다음 단계(step3) 이동 전:
+  // 1) 누락된 원본 길이 메타데이터를 보강하고
+  // 2) 씬별 selection range를 확장 소스 기준으로 정규화해서
+  // 3) 어떤 상황에서도 같은 지점을 복원 가능하게 저장한다.
+  const handleGoToStep3 = useCallback(async () => {
     const currentStoreScenes = useVideoCreateStore.getState().scenes
     const currentScenes: ProScene[] = currentStoreScenes?.length
       ? currentStoreScenes.map((s: SceneScript, i: number) => sceneScriptToProScene(s, i))
       : []
-    const normalized: ProScene[] = currentScenes.map((scene) => {
-      if (!scene.videoUrl) return scene
-      const tts = scene.ttsDuration ?? 10
-      const orig = scene.originalVideoDurationSeconds ?? 0
-      const effective = orig > 0 && orig < tts ? getEffectiveSourceDuration(tts, orig) : orig > 0 ? orig : tts
-      const start = scene.selectionStartSeconds ?? 0
-      const end =
-        scene.selectionEndSeconds != null && scene.selectionEndSeconds > start
-          ? scene.selectionEndSeconds
-          : start + Math.min(tts, effective)
+
+    const scenesWithResolvedOriginalDuration = await Promise.all(
+      currentScenes.map(async (scene) => {
+        if (!scene.videoUrl) {
+          return scene
+        }
+
+        const hasOriginalDuration =
+          typeof scene.originalVideoDurationSeconds === 'number' &&
+          Number.isFinite(scene.originalVideoDurationSeconds) &&
+          scene.originalVideoDurationSeconds > 0
+
+        if (hasOriginalDuration) {
+          return scene
+        }
+
+        const resolvedDuration = await getVideoDurationFromUrl(scene.videoUrl)
+        if (!resolvedDuration || !Number.isFinite(resolvedDuration) || resolvedDuration <= 0) {
+          return scene
+        }
+
+        return {
+          ...scene,
+          originalVideoDurationSeconds: resolvedDuration,
+        }
+      })
+    )
+
+    const normalized: ProScene[] = scenesWithResolvedOriginalDuration.map((scene) => {
+      if (!scene.videoUrl) {
+        return scene
+      }
+
+      const normalizedRange = normalizeSelectionRange({
+        ttsDuration: scene.ttsDuration,
+        originalVideoDurationSeconds: scene.originalVideoDurationSeconds,
+        selectionStartSeconds: scene.selectionStartSeconds,
+        selectionEndSeconds: scene.selectionEndSeconds,
+      })
+
       return {
         ...scene,
-        selectionStartSeconds: start,
-        selectionEndSeconds: end,
+        ttsDuration: normalizedRange.ttsDurationSeconds,
+        selectionStartSeconds: normalizedRange.startSeconds,
+        selectionEndSeconds: normalizedRange.endSeconds,
       }
     })
-    const toSave = normalized.map((s: ProScene, i: number) => proSceneToSceneScript(s, i))
+
+    const toSave = normalized.map((scene, index) => proSceneToSceneScript(scene, index))
     setStoreScenes(toSave)
+
     requestAnimationFrame(() => {
       router.push('/video/create/pro/step3')
     })
@@ -403,6 +439,7 @@ export default function ProStep2EditPage() {
     videoUrl: scene.videoUrl, // 업로드된 영상 URL
     selectionStartSeconds: scene.selectionStartSeconds, // 격자 선택 영역 시작 시간
     selectionEndSeconds: scene.selectionEndSeconds, // 격자 선택 영역 끝 시간
+    originalVideoDurationSeconds: scene.originalVideoDurationSeconds,
   }))
 
 

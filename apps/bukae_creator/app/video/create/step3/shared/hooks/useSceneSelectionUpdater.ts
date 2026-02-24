@@ -26,7 +26,7 @@ export function applySelectionRange<T>(
   )
 }
 
-export function applyOriginalVideoDuration<T extends Record<string, unknown>>(
+export function applyOriginalVideoDuration<T>(
   scenes: T[],
   sceneIndex: number,
   originalVideoDurationSeconds: number
