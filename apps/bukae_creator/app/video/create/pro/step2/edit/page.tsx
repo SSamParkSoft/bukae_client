@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { ProVideoEditSection } from '../components'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
+import { useVideoCreateStoreHydration } from '@/store/useVideoCreateStoreHydration'
 import { authStorage } from '@/lib/api/auth-storage'
 import { studioScriptApi } from '@/lib/api/studio-script'
 import { convertProductToProductResponse } from '@/lib/utils/converters/product-to-response'
@@ -53,58 +54,33 @@ export default function ProStep2EditPage() {
     selectedProducts,
     scriptStyle,
   } = useVideoCreateStore()
-  
-  // store의 scenes를 현재 형식으로 변환하여 사용
-  const scenes: ProScene[] = 
-    storeScenes && storeScenes.length > 0
-      ? storeScenes.map((s, index) => sceneScriptToProScene(s, index))
-      : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
-  
-  // store의 scenes가 비어있으면 기본값으로 초기화 (persist 복원 후에만)
-  // edit 페이지에서는 기존 작업 내용을 보존해야 하므로 초기화하지 않음
-  const [hasInitialized, setHasInitialized] = useState(false)
-  
-  // storeScenes의 길이를 안정적인 dependency로 사용
+  const isStoreHydrated = useVideoCreateStoreHydration()
   const storeScenesLength = storeScenes?.length ?? 0
-  
+  const [fallbackScenes] = useState<ProScene[]>(() =>
+    Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
+  )
+
+  // store의 scenes를 현재 형식으로 변환하여 사용 (hydration 전에는 기본값 렌더링 금지)
+  const scenes: ProScene[] = useMemo(
+    () =>
+      !isStoreHydrated
+        ? []
+        : storeScenesLength > 0
+          ? storeScenes.map((s, index) => sceneScriptToProScene(s, index))
+          : fallbackScenes,
+    [fallbackScenes, isStoreHydrated, storeScenes, storeScenesLength]
+  )
+
+  // persist 복원 완료 후 store가 비어있을 때만 기본 씬 초기화
   useEffect(() => {
-    // 이미 초기화되었으면 실행하지 않음
-    if (hasInitialized) return
-    
-    // persist 복원 대기 후 초기화 상태만 설정
-    const timer = setTimeout(() => {
-      // store에 데이터가 있으면 초기화 완료로 표시
-      if (storeScenes && storeScenes.length > 0) {
-        setHasInitialized(true)
-        return
-      }
-      
-      // store가 비어있어도 localStorage 확인
-      if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('bookae-video-create-storage')
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved)
-            const savedScenes = parsed?.state?.scenes
-            // localStorage에 저장된 scenes가 있으면 초기화하지 않고 그대로 사용
-            if (savedScenes && Array.isArray(savedScenes) && savedScenes.length > 0) {
-              setHasInitialized(true)
-              return
-            }
-          } catch (e) {
-            console.error('[Step2 Edit] 캐싱 데이터 파싱 실패:', e)
-          }
-        } else {
-        }
-      }
-      
-      // 정말로 비어있을 때만 초기화 완료 표시
-      setHasInitialized(true)
-    }, 300) // persist 복원 대기 시간을 조금 더 길게
-    
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeScenesLength])
+    if (!isStoreHydrated || storeScenesLength > 0) {
+      return
+    }
+
+    const defaultScenes = fallbackScenes.map((scene, index) => proSceneToSceneScript(scene, index))
+    setStoreScenes(defaultScenes)
+    setHasUnsavedChanges(true)
+  }, [fallbackScenes, isStoreHydrated, setHasUnsavedChanges, setStoreScenes, storeScenesLength])
   
   // scenes 업데이트 함수 - store에 직접 저장
   const updateScenes = useCallback((updater: (prev: ProScene[]) => ProScene[]) => {
@@ -112,7 +88,7 @@ export default function ProStep2EditPage() {
     const currentStoreScenes = useVideoCreateStore.getState().scenes
     const currentScenes: ProScene[] = currentStoreScenes && currentStoreScenes.length > 0
       ? currentStoreScenes.map((s: SceneScript, index: number) => sceneScriptToProScene(s, index))
-      : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
+      : fallbackScenes
     
     const updated = updater(currentScenes)
     
@@ -129,7 +105,7 @@ export default function ProStep2EditPage() {
     
     // 강제로 저장되도록 상태 업데이트
     setHasUnsavedChanges(true)
-  }, [setStoreScenes, setHasUnsavedChanges])
+  }, [fallbackScenes, setStoreScenes, setHasUnsavedChanges])
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)

@@ -258,15 +258,6 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
 
       setVideoDuration(original)
       onOriginalVideoDurationLoaded?.(original)
-      const tts = ttsDuration ?? 10
-      if (original < tts && onSelectionChange) {
-        const span = (initialSelectionEndSeconds ?? 0) - (initialSelectionStartSeconds ?? 0)
-        if (span <= original + 0.1) {
-          const effective = getEffectiveSourceDuration(tts, original)
-          const start = initialSelectionStartSeconds ?? 0
-          onSelectionChange(start, start + Math.min(tts, effective))
-        }
-      }
     }
 
     if (video.readyState >= 1) {
@@ -278,7 +269,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
     return () => {
       video.removeEventListener('loadedmetadata', handleLoadedMetadata)
     }
-  }, [videoUrl, onOriginalVideoDurationLoaded, onSelectionChange, ttsDuration, initialSelectionStartSeconds, initialSelectionEndSeconds])
+  }, [videoUrl, onOriginalVideoDurationLoaded])
 
   // 격자(선택 영역) 위치 계산 - Step2에서 설정한 selectionStartSeconds와 selectionEndSeconds 사용
   // 드래그 중이면 내부 state를 사용하고, 그렇지 않으면 props를 직접 사용
