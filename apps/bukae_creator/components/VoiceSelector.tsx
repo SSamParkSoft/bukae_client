@@ -130,8 +130,8 @@ export default function VoiceSelector({
         if (!cancelled) {
           setVoices(voicesList)
           // 디버깅: Provider별 목소리 확인
-          const googleVoices = voicesList.filter((v: PublicVoiceInfo) => v.provider === 'google' || !v.provider)
-          const elevenlabsVoices = voicesList.filter((v: PublicVoiceInfo) => v.provider === 'elevenlabs')
+          const _googleVoices = voicesList.filter((v: PublicVoiceInfo) => v.provider === 'google' || !v.provider)
+          const _elevenlabsVoices = voicesList.filter((v: PublicVoiceInfo) => v.provider === 'elevenlabs')
         }
       } catch (err) {
         if (!cancelled) {

@@ -1,5 +1,5 @@
 import type { PublicVoiceInfo, VoiceInfo, TtsProvider } from '@/lib/types/tts'
-import type { SynthesizerInterface, SynthesizeParams, SynthesizeResult } from './synthesizer.interface'
+import type { SynthesizerInterface, SynthesizeParams as _SynthesizeParams, SynthesizeResult as _SynthesizeResult } from './synthesizer.interface'
 import type { VoiceInterface } from './voice.interface'
 
 /**

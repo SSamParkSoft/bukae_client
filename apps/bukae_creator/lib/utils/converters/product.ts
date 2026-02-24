@@ -5,7 +5,7 @@
 
 import type { Product, Platform } from '@/lib/types/domain/product'
 import type { ProductResponse, TargetMall } from '@/lib/types/api/products'
-import type { ConverterFunction, ConverterOptions } from './types'
+import type { ConverterFunction, ConverterOptions as _ConverterOptions } from './types'
 
 /**
  * TargetMall을 Platform으로 변환

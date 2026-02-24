@@ -31,14 +31,10 @@ async function findPremiumVoiceIds(): Promise<Map<string, string>> {
   const foundVoiceIds = new Map<string, string>()
   
   // Step 1: list API로 Premium 목소리들의 voice_id 찾기
-  let nextPageToken: string | null | undefined = undefined
   let hasMore = true
-  let pageCount = 0
   
   
   while (hasMore) {
-    pageCount++
-    
     try {
       // ElevenLabs SDK의 voices API 호출 (타입 체크 우회)
       const voicesClient = client.voices as any
@@ -77,7 +73,6 @@ async function findPremiumVoiceIds(): Promise<Map<string, string>> {
       
       // 페이지네이션 처리 (SDK에 따라 다를 수 있음)
       hasMore = false // 일단 한 페이지만 처리 (필요시 수정)
-      nextPageToken = null
       
       // Premium 목소리를 모두 찾았으면 종료
       if (foundVoiceIds.size >= PREMIUM_VOICE_NAMES.length) {
@@ -122,7 +117,7 @@ async function saveToSupabase(voiceIds: Map<string, string>): Promise<void> {
   
   
   // upsert 사용 (이미 있으면 업데이트, 없으면 삽입)
-  const { data, error } = await supabase
+  const { data: _data, error } = await supabase
     .from('e_voices')
     .upsert(records, {
       onConflict: 'name',
@@ -134,10 +129,6 @@ async function saveToSupabase(voiceIds: Map<string, string>): Promise<void> {
     throw error
   }
   
-  
-  // 저장된 데이터 확인
-  for (const record of records) {
-  }
 }
 
 async function main() {

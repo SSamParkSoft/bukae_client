@@ -1,10 +1,10 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { ConceptType } from '@/lib/data/templates'
-import type { AutoScene } from '@/lib/types/video'
+import type { AutoScene as _AutoScene } from '@/lib/types/video'
 // 도메인 모델 import
-import type { Product, Platform } from '@/lib/types/domain/product'
-import type { TimelineData, TimelineScene } from '@/lib/types/domain/timeline'
+import type { Product, Platform as _Platform } from '@/lib/types/domain/product'
+import type { TimelineData, TimelineScene as _TimelineScene } from '@/lib/types/domain/timeline'
 import type { SceneScript } from '@/lib/types/domain/script'
 import type { VideoEditData, Step2Result, ScriptMethod, CreationMode } from '@/lib/types/domain/video'
 

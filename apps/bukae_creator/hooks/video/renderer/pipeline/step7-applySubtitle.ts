@@ -3,7 +3,7 @@
  * ANIMATION.md 표준 파이프라인 7단계
  */
 
-import type { PipelineContext, Step5Result } from './types'
+import type { PipelineContext, Step5Result as _Step5Result } from './types'
 import type { TimelineScene } from '@/lib/types/domain/timeline'
 import * as PIXI from 'pixi.js'
 
@@ -22,12 +22,12 @@ export function step7ApplySubtitle(
   context: PipelineContext,
   sceneIndex: number,
   partIndex: number | null,
-  scene: TimelineScene,
-  sprite: PIXI.Sprite | null,
-  spriteAfterMotion: { x: number; y: number; scaleX: number; scaleY: number } | null,
-  sceneLocalT: number
+  _scene: TimelineScene,
+  _sprite: PIXI.Sprite | null,
+  _spriteAfterMotion: { x: number; y: number; scaleX: number; scaleY: number } | null,
+  _sceneLocalT: number
 ): void {
-  const { tSec, options, renderSubtitlePart } = context
+  const { tSec: _tSec, options, renderSubtitlePart } = context
 
   // Motion과 Transition 동시 적용 확인 (개발 모드)
   // step6에서 Transition 적용 후 Motion을 재적용하므로, 이제는 Motion이 Transition을 덮어쓰지 않음

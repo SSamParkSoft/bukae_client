@@ -232,10 +232,6 @@ export function useProTransportRenderer({
         targetScene.originalVideoDurationSeconds
       )
       const sceneChanged = lastRenderedSceneIndexRef.current !== targetSceneIndex
-      
-      // 디버깅: 씬별 비디오 시간 계산 확인
-      if (sceneChanged) {
-      }
 
       const applyVisualState = () => {
         const sprite = spritesRef.current.get(targetSceneIndex)

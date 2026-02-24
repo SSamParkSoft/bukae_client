@@ -91,7 +91,6 @@ export function useSceneNavigation({
   setTimeline,
   isPlaying,
   setIsPlaying,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isPreviewingTransition: _isPreviewingTransition,
   setIsPreviewingTransition,
   setCurrentTime,
@@ -107,7 +106,6 @@ export function useSceneNavigation({
   renderSceneContent,
   renderSceneImage,
   renderSubtitlePart,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   prepareImageAndSubtitle: _prepareImageAndSubtitle,
 }: UseSceneNavigationParams) {
   // TTS 리소스 가져오기

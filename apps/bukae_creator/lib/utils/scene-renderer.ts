@@ -28,13 +28,13 @@ export function showScene(
   }
 
   // 모든 씬 숨기기
-  spritesRef.current.forEach((sprite, idx) => {
+  spritesRef.current.forEach((sprite, _idx) => {
     if (sprite) {
       sprite.visible = false
       sprite.alpha = 0
     }
   })
-  textsRef.current.forEach((text, idx) => {
+  textsRef.current.forEach((text, _idx) => {
     if (text) {
       text.visible = false
       text.alpha = 0

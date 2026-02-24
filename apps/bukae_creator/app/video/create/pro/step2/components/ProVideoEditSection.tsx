@@ -97,7 +97,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
             initialSelectionEndSeconds={scene.selectionEndSeconds}
             originalVideoDurationSeconds={scene.originalVideoDurationSeconds}
             onSelectionChange={onSelectionChange ? (startSeconds, endSeconds) => onSelectionChange(index, startSeconds, endSeconds) : undefined}
-            onDragStart={onDragStart ? (e) => onDragStart(index) : undefined}
+            onDragStart={onDragStart ? (_e) => onDragStart(index) : undefined}
             onDragOver={onDragOver ? (e) => onDragOver(e, index) : undefined}
             onDrop={onDrop}
             onDragEnd={onDragEnd}

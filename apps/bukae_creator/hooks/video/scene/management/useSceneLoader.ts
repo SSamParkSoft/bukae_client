@@ -68,7 +68,7 @@ export function useSceneLoader({
           child.parent.removeChild(child)
         }
         child.destroy({ children: true })
-      } catch (error) {
+      } catch (_error) {
         // 에러 무시
       }
     })
@@ -88,7 +88,7 @@ export function useSceneLoader({
           }
           sprite.destroy({ children: true })
         }
-      } catch (error) {
+      } catch (_error) {
         // 에러 무시
       }
     })
@@ -120,7 +120,7 @@ export function useSceneLoader({
           }
           text.destroy({ children: true })
         }
-      } catch (error) {
+      } catch (_error) {
         // 에러 무시
       }
     })
@@ -177,7 +177,7 @@ export function useSceneLoader({
         let texture: PIXI.Texture | null = null
         try {
           texture = await loadPixiTextureWithCache(imageToUse)
-        } catch (error) {
+        } catch (_error) {
           // 텍스처 로드 실패 시 무시
         }
         
@@ -349,7 +349,7 @@ export function useSceneLoader({
                 if (appRef.current?.renderer && containerRef.current) {
                   try {
                     appRef.current.renderer.render(containerRef.current)
-                  } catch (renderError) {
+                  } catch (_renderError) {
                     // 렌더러 호출 실패 시 무시
                   }
                 }
@@ -366,7 +366,7 @@ export function useSceneLoader({
                   if (appRef.current?.renderer && containerRef.current) {
                     try {
                       appRef.current.renderer.render(containerRef.current)
-                    } catch (renderError) {
+                    } catch (_renderError) {
                       // 렌더러 재호출 실패 시 무시
                     }
                   }
@@ -467,7 +467,7 @@ export function useSceneLoader({
             })
           }
         }
-      } catch (error) {
+      } catch (_error) {
         // 씬 로드 실패 시 무시
       }
     }

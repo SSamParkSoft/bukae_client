@@ -84,7 +84,7 @@ export const loadPixiTexture = (
             const errorText = response.statusText || `HTTP ${response.status}`
             throw new Error(`Proxy API returned ${response.status}: ${errorText}`)
           }
-          const contentType = response.headers.get('content-type')
+          const _contentType = response.headers.get('content-type')
           return response.blob()
         })
         .then((blob) => {
@@ -207,18 +207,18 @@ export const loadPixiTexture = (
                 } else {
                   reject(new Error(`Failed to create texture from image: ${url.substring(0, 50)}...`))
                 }
-              } catch (textureError) {
+              } catch (_textureError) {
                 reject(new Error(`Failed to create texture: ${url.substring(0, 50)}...`))
               }
             }
             
-            img.onerror = (e) => {
+            img.onerror = (_e) => {
               console.error(`[Texture] HTMLImageElement 로드 실패: ${url.substring(0, 50)}...`)
               reject(new Error(`Failed to load image: ${url.substring(0, 50)}... (CORS or invalid URL)`))
             }
             
             img.src = url
-          } catch (fallbackError) {
+          } catch (_fallbackError) {
             // 쿠팡 이미지인 경우 placeholder 반환
             if (isCoupangImage) {
               createPlaceholderTexture()

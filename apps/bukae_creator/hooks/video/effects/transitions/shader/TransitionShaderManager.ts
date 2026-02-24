@@ -12,7 +12,7 @@ import * as PIXI from 'pixi.js'
 import type { MutableRefObject } from 'react'
 import { RenderTexturePool } from './RenderTexturePool'
 import { SceneCapture } from './SceneCapture'
-import type { TransitionParams } from '../TransitionFactory'
+import type { TransitionParams as _TransitionParams } from '../TransitionFactory'
 
 /**
  * Transition Shader Manager

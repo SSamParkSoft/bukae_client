@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
-import { insertSceneDelimiters, splitSceneBySentences } from '@/lib/utils/scene-splitter'
+import { insertSceneDelimiters as _insertSceneDelimiters, splitSceneBySentences } from '@/lib/utils/scene-splitter'
 import { makeMarkupFromPlainText } from '@/lib/tts/auto-pause'
-import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
+import { buildSceneMarkup as _buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
 import type { TimelineData, SceneScript, TimelineScene } from '@/store/useVideoCreateStore'
 
 interface UseSceneEditHandlersParams {
@@ -212,12 +212,12 @@ export function useSceneEditHandlers({
           const remainingScene = newScenes[remainingSceneIndex]
           // splitIndex가 있으면 제거하여 원래 씬으로 복원
           if (remainingScene.splitIndex !== undefined) {
-            const { splitIndex, ...sceneWithoutSplitIndex } = remainingScene
+            const { splitIndex: _splitIndex, ...sceneWithoutSplitIndex } = remainingScene
             newScenes[remainingSceneIndex] = sceneWithoutSplitIndex
             
             // timeline도 동일하게 업데이트
             if (remainingSceneIndex < newTimelineScenes.length) {
-              const { splitIndex: timelineSplitIndex, ...timelineSceneWithoutSplitIndex } = newTimelineScenes[remainingSceneIndex]
+              const { splitIndex: _timelineSplitIndex, ...timelineSceneWithoutSplitIndex } = newTimelineScenes[remainingSceneIndex]
               newTimelineScenes[remainingSceneIndex] = timelineSceneWithoutSplitIndex
             }
           }
@@ -396,7 +396,7 @@ export function useSceneEditHandlers({
       }
 
       // 분할된 씬들: 같은 그룹 내에서 원본 씬을 제외한 순서로 splitIndex 할당
-      const sameGroupScenes = reorderedScenes.filter((s, i) => {
+      const _sameGroupScenes = reorderedScenes.filter((s, i) => {
         const origScene = scenes[newOrder[i]]
         return s.sceneId === scene.sceneId && origScene.splitIndex // 분할된 씬들만
       })

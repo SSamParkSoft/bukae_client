@@ -49,7 +49,7 @@ interface UserState {
   reset: () => void
 }
 
-const defaultUser: User = {
+const _defaultUser: User = {
   id: '1',
   name: '사용자',
   email: 'user@example.com',

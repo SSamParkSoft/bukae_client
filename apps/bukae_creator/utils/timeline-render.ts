@@ -173,10 +173,6 @@ export function calculateSceneFromTime(
           const markups = options.buildSceneMarkup(timeline, boundary.index)
           let partAccumulatedTime = boundary.start
           
-          // 디버깅: markups가 여러 개인지 확인 (첫 번째 part에서만)
-          if (markups.length > 1 && tSec >= boundary.start && tSec < boundary.start + 0.1) {
-          }
-          
           for (let p = 0; p < markups.length; p++) {
             const markup = markups[p]
             const key = options.makeTtsKey(sceneVoiceTemplate, markup)
@@ -211,17 +207,6 @@ export function calculateSceneFromTime(
             partAccumulatedTime = partEndTime
           }
           
-          // 디버깅: 재생 중 part 전환 확인 (여러 part가 있을 때)
-          if (process.env.NODE_ENV === 'development' && markups.length > 1 && options.makeTtsKey && options.ttsCacheRef) {
-            // 첫 번째 part의 duration 확인
-            const firstPartKey = options.makeTtsKey(sceneVoiceTemplate, markups[0])
-            const firstPartDuration = options.ttsCacheRef.current.get(firstPartKey)?.durationSec || 0
-            const firstPartEndTime = boundary.start + firstPartDuration
-            
-            // 첫 번째 part가 끝나고 두 번째 part가 시작되는 순간 감지
-            if (tSec >= firstPartEndTime - 0.01 && tSec < firstPartEndTime + 0.1) {
-            }
-          }
         }
       }
       

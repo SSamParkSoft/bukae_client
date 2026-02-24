@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback } from 'react'
-import type { TimelineData } from '@/store/useVideoCreateStore'
+import type { TimelineData as _TimelineData } from '@/store/useVideoCreateStore'
 import { useTtsResources } from '../tts/useTtsResources'
 
 interface PlayScenePartOptions {
@@ -38,13 +38,13 @@ export function usePlaybackEngine() {
    */
   const playScenePart = useCallback(async (options: PlayScenePartOptions): Promise<void> => {
     const {
-      sceneIndex,
-      partIndex,
-      markup,
-      playbackSpeed = 1.0,
+      sceneIndex: _sceneIndex,
+      partIndex: _partIndex,
+      markup: _markup,
+      playbackSpeed: _playbackSpeed,
       abortSignal,
       onComplete,
-      onError,
+      onError: _onError,
     } = options
 
     // AbortSignal 체크
@@ -193,7 +193,7 @@ export function usePlaybackEngine() {
         .then(() => {
           // 재생 시작 성공
         })
-        .catch((error) => {
+        .catch((_error) => {
           if (ttsResources.ttsAudioRef.current !== audio) {
             resolveOnce()
             return

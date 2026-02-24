@@ -11,7 +11,7 @@ interface AuthGuardProps {
 
 export default function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter()
-  const { isAuthenticated, checkAuth } = useUserStore()
+  const { isAuthenticated, checkAuth: _checkAuth } = useUserStore()
 
   useEffect(() => {
     // 초기 로드 시 자동 인증 확인하지 않음

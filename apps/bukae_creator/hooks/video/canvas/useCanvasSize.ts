@@ -15,7 +15,7 @@ interface UseCanvasSizeParams {
 export function useCanvasSize({
   appRef,
   pixiContainerRef,
-  stageDimensions,
+  stageDimensions: _stageDimensions,
 }: UseCanvasSizeParams) {
   const [canvasSize, setCanvasSize] = useState<{ width: string; height: string }>({ 
     width: '100%', 

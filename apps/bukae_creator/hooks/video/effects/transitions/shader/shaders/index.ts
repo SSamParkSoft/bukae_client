@@ -4,9 +4,9 @@
  */
 
 import * as PIXI from 'pixi.js'
-import { createFadeShader } from './fade'
+import { createFadeShader as _createFadeShader } from './fade'
 import { createWipeShader } from './wipe'
-import { createCircleShader } from './circle'
+import { createCircleShader as _createCircleShader } from './circle'
 
 /**
  * Transition Shader 생성

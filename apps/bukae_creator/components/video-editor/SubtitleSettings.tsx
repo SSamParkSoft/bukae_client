@@ -113,8 +113,6 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
   useEffect(() => {
     if (!isFontSizeInputFocusedRef.current && fontSizeInputRef.current) {
       const currentFontSize = currentScene?.text?.fontSize || 80
-      if (process.env.NODE_ENV === 'development') {
-      }
       fontSizeInputRef.current.value = String(currentFontSize)
     }
   }, [currentScene?.text?.fontSize, currentSceneIndex])
@@ -833,4 +831,3 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
     </div>
   )
 }
-

@@ -112,8 +112,6 @@ export function useStep2Container() {
   // Extension Storage에서 이미지 로드
   useEffect(() => {
     const isDev = process.env.NODE_ENV === 'development'
-    if (isDev) {
-    }
     
     const loadExtensionImages = async () => {
       try {
@@ -132,8 +130,6 @@ export function useStep2Container() {
         if (storageData) {
           const productId = selectedProduct?.id
           const images = extractImagesFromStorage(storageData, productId)
-          if (isDev) {
-          }
           setExtensionImages(images)
         }
       } catch (error) {
@@ -174,7 +170,7 @@ export function useStep2Container() {
         const { testExtensionStorageAccess, requestCoupangExtensionStorage } = await import('@/lib/utils/coupang-extension-storage')
         const canAccess = await testExtensionStorageAccess()
         if (canAccess) {
-          const data = await requestCoupangExtensionStorage()
+          const _data = await requestCoupangExtensionStorage()
         }
       }
     }
@@ -243,11 +239,7 @@ export function useStep2Container() {
 
   // 사용 가능한 이미지 목록
   const availableImages = useMemo(() => {
-    const isDev = process.env.NODE_ENV === 'development'
     const imageSet = new Set<string>()
-    
-    if (isDev) {
-    }
     
     // Product 도메인 모델의 images 필드 사용 (먼저 추가)
     if (selectedProduct?.images?.length) {
@@ -276,9 +268,6 @@ export function useStep2Container() {
     })
     
     const images = Array.from(imageSet)
-    if (isDev) {
-    }
-    
     return images
   }, [selectedProduct, extensionImages, uploadedImages])
   

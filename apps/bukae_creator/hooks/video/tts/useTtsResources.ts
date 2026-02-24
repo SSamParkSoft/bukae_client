@@ -78,8 +78,6 @@ export function useTtsResources() {
         }
         cache.delete(key)
       })
-      if (process.env.NODE_ENV === 'development') {
-      }
     }
     
     // 2. 메모리 사용량 체크 (개발 모드)
@@ -132,4 +130,3 @@ export function useTtsResources() {
     stopScenePreviewAudio,
   }
 }
-

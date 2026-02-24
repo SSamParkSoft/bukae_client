@@ -4,9 +4,9 @@
  */
 
 import * as PIXI from 'pixi.js'
-import * as fabric from 'fabric'
+import * as _fabric from 'fabric'
 import { gsap } from 'gsap'
-import { TimelineData } from '@/store/useVideoCreateStore'
+import { TimelineData as _TimelineData } from '@/store/useVideoCreateStore'
 
 /**
  * 공통 Ref 타입들

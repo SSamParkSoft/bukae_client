@@ -55,9 +55,6 @@ export function createFadeShader(): PIXI.Filter {
       vertex: vertexShader,
     })
     
-    // GlProgram 객체의 속성 확인 (디버깅용)
-    if (process.env.NODE_ENV === 'development') {
-    }
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
       console.error('[createFadeShader] Failed to create GlProgram', error)

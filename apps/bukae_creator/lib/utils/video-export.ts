@@ -1,5 +1,5 @@
 import type { TimelineScene, SceneScript } from '@/store/useVideoCreateStore'
-import { SUBTITLE_DEFAULT_FONT_ID, getFontFileName } from '@/lib/subtitle-fonts'
+import { SUBTITLE_DEFAULT_FONT_ID as _SUBTITLE_DEFAULT_FONT_ID, getFontFileName as _getFontFileName } from '@/lib/subtitle-fonts'
 
 /**
  * 씬 그룹화를 위한 타입

@@ -146,7 +146,6 @@ class WebSocketManager {
     if (connection.subscribers.size === 0) {
       connection.websocket.disconnect()
       this.connections.delete(jobId)
-    } else {
     }
   }
 
@@ -169,7 +168,7 @@ class WebSocketManager {
    * 모든 연결을 끊습니다 (앱 종료 시 사용).
    */
   disconnectAll(): void {
-    this.connections.forEach((connection, jobId) => {
+    this.connections.forEach((connection, _jobId) => {
       connection.websocket.disconnect()
     })
     this.connections.clear()
@@ -178,4 +177,3 @@ class WebSocketManager {
 
 // 싱글톤 인스턴스
 export const websocketManager = new WebSocketManager()
-

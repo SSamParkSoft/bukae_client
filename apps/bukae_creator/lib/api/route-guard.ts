@@ -38,7 +38,7 @@ function isRunningOnLocalhost(): boolean {
   return host === 'localhost' || host === '127.0.0.1'
 }
 
-function strEnv(name: string, fallback: string): string {
+function _strEnv(name: string, fallback: string): string {
   const raw = process.env[name]
   return raw?.trim() ? raw.trim() : fallback
 }

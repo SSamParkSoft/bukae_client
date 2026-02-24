@@ -786,7 +786,7 @@ export const usePixiEffects = ({
           if (appRef.current && toSprite.parent === containerRef.current && !toSprite.destroyed) {
             try {
               appRef.current.render()
-            } catch (error) {
+            } catch (_error) {
               // 렌더링 중 에러 발생 시 무시 (스프라이트가 destroyed될 수 있음)
             }
           }

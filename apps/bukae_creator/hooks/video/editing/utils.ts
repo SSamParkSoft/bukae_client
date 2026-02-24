@@ -51,7 +51,7 @@ export function isOutsideCanvas(element: PIXI.Sprite | PIXI.Text): boolean {
       return true
     }
     return false
-  } catch (error) {
+  } catch (_error) {
     // getBounds 실패 시 true 반환 (canvas 밖으로 간 것으로 간주)
     return true
   }

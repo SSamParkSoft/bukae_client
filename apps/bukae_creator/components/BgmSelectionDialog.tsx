@@ -16,7 +16,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
-import { bgmTemplates, getBgmTemplateUrl, getBgmTemplateUrlSync, type BgmTemplate } from '@/lib/data/templates'
+import { bgmTemplates, getBgmTemplateUrl as _getBgmTemplateUrl, getBgmTemplateUrlSync, BgmTemplate as _BgmTemplate } from '@/lib/data/templates'
 
 interface BgmSelectionDialogProps {
   children: React.ReactNode

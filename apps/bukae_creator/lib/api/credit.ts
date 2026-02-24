@@ -68,7 +68,7 @@ export async function isAdminUser(userId: string, userEmail?: string, userRole?:
  * 사용자 정보 조회 (이메일, role 등)
  * 개발 환경에서만 사용
  */
-async function getUserInfo(userId: string, accessToken?: string): Promise<{
+async function _getUserInfo(userId: string, accessToken?: string): Promise<{
   email?: string
   role?: string
 } | null> {
@@ -140,7 +140,7 @@ export async function consumeCredits(
   userId: string,
   provider: TtsProvider,
   charCount: number,
-  accessToken?: string // 추가: 사용자 정보 조회용
+  _accessToken?: string // 추가: 사용자 정보 조회용
 ): Promise<CreditUsageResult> {
   // 크레딧 시스템이 비활성화되어 있으면 항상 성공
   if (!isCreditSystemEnabled()) {

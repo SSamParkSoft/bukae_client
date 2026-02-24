@@ -407,9 +407,7 @@ export const usePixiEditor = ({
     (
       text: PIXI.Text,
       sceneIndex: number,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       _handleResize: (e: PIXI.FederatedPointerEvent, sceneIndex: number) => void,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       _saveTextTransform: (sceneIndex: number, text: PIXI.Text) => void
     ) => {
       if (useFabricEditing) return

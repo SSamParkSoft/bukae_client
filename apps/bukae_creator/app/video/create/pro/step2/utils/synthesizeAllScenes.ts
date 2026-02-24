@@ -160,7 +160,7 @@ export async function synthesizeAllScenes(
   // 실패한 씬이 있는지 확인
   const failedScenes = results.filter((r) => !r.success)
   if (failedScenes.length > 0) {
-    const errorMessages = failedScenes.map((r, idx) => {
+    const errorMessages = failedScenes.map((r, _idx) => {
       const sceneIndex = results.indexOf(r) + 1
       return `씬 ${sceneIndex}: ${r.error || '알 수 없는 오류'}`
     })
