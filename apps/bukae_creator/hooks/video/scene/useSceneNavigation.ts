@@ -498,6 +498,7 @@ export function useSceneNavigation({
     isPlayingRef,
     activeAnimationsRef,
     renderSceneContent,
+    getSeekTimeForScene,
   ])
 
   // 구간 선택 - 해당 구간의 자막만 표시
@@ -598,4 +599,3 @@ export function useSceneNavigation({
     lastRenderedSceneIndexRef,
   }
 }
-

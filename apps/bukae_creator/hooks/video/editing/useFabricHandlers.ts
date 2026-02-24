@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import * as fabric from 'fabric'
 import { TimelineData } from '@/store/useVideoCreateStore'
 
@@ -24,6 +24,8 @@ interface UseFabricHandlersParams {
   /** 포인터/선택 UI 동기화용 (단일 책임: Fabric 캔버스 UI 상태) */
   fabricCanvasElementRef?: React.RefObject<HTMLCanvasElement | null>
   editMode?: 'none' | 'image' | 'text'
+  disableContinuousTextScaleCorrection?: boolean
+  persistTimelineDuringTransform?: boolean
 }
 
 /**
@@ -43,15 +45,21 @@ export function useFabricHandlers({
   useFabricEditing = false,
   fabricCanvasElementRef,
   editMode,
+  disableContinuousTextScaleCorrection = false,
+  persistTimelineDuringTransform = true,
 }: UseFabricHandlersParams) {
+  const timelineRef = useRef<TimelineData | null>(timeline)
+
+  useEffect(() => {
+    timelineRef.current = timeline
+  }, [timeline])
+
   // Fabric 포인터 활성화 상태 (lower/upper 캔버스)
   useEffect(() => {
     if (!fabricCanvasElementRef?.current || editMode === undefined) return
     const lower = fabricCanvasElementRef.current
-    const upper = fabricCanvasRef.current?.upperCanvasEl
     const pointer = useFabricEditing ? 'auto' : 'none'
     if (lower) lower.style.pointerEvents = pointer
-    if (upper) upper.style.pointerEvents = pointer
   }, [editMode, useFabricEditing, fabricCanvasRef, fabricCanvasElementRef])
 
   // Fabric 오브젝트 선택 가능 여부 (편집 모드에 맞춰 갱신)
@@ -68,7 +76,6 @@ export function useFabricHandlers({
         moveCursor: 'move',
       })
     })
-    fabricCanvas.discardActiveObject()
     fabricCanvas.renderAll()
   }, [fabricReady, editMode, useFabricEditing, fabricCanvasRef])
 
@@ -77,7 +84,8 @@ export function useFabricHandlers({
    */
   const saveImageTransform = useCallback(
     (target: fabric.Object, sceneIndex: number) => {
-      if (!timeline) {
+      const currentTimeline = timelineRef.current
+      if (!currentTimeline) {
         return
       }
 
@@ -94,12 +102,28 @@ export function useFabricHandlers({
       let scaledWidth: number
       let scaledHeight: number
       try {
-        scaledWidth = target.getScaledWidth?.() ?? (target.width || 0)
-        scaledHeight = target.getScaledHeight?.() ?? (target.height || 0)
+        // getScaledWidth/getScaledHeight가 있으면 사용, 없으면 width/height * scaleX/scaleY 계산
+        if (typeof target.getScaledWidth === 'function' && typeof target.getScaledHeight === 'function') {
+          scaledWidth = target.getScaledWidth()
+          scaledHeight = target.getScaledHeight()
+        } else {
+          // fabric.Rect 같은 경우 직접 계산
+          const width = target.width || 0
+          const height = target.height || 0
+          const scaleX = target.scaleX || 1
+          const scaleY = target.scaleY || 1
+          scaledWidth = width * scaleX
+          scaledHeight = height * scaleY
+        }
       } catch (error) {
-        console.warn('[useFabricHandlers] getScaledWidth/getScaledHeight 에러:', error)
-        scaledWidth = target.width || 0
-        scaledHeight = target.height || 0
+        console.warn('[useFabricHandlers] 크기 계산 에러:', error)
+        // 폴백: width/height * scaleX/scaleY
+        const width = target.width || 0
+        const height = target.height || 0
+        const scaleX = target.scaleX || 1
+        const scaleY = target.scaleY || 1
+        scaledWidth = width * scaleX
+        scaledHeight = height * scaleY
       }
       const centerX = target.left ?? 0
       const centerY = target.top ?? 0
@@ -115,8 +139,8 @@ export function useFabricHandlers({
       }
 
       const nextTimeline: TimelineData = {
-        ...timeline,
-        scenes: timeline.scenes.map((scene, idx) =>
+        ...currentTimeline,
+        scenes: currentTimeline.scenes.map((scene, idx) =>
           idx === sceneIndex
             ? {
                 ...scene,
@@ -136,7 +160,7 @@ export function useFabricHandlers({
       // Fabric.js 객체는 리사이즈된 상태(scaleX/scaleY가 변경된 상태)로 그대로 둠
       // 다음에 로드할 때 useFabricSync에서 타임라인의 width/height를 기반으로 올바르게 복원됨
     },
-    [timeline, setTimeline, fabricScaleRatioRef]
+    [setTimeline, fabricScaleRatioRef]
   )
 
   /**
@@ -144,7 +168,8 @@ export function useFabricHandlers({
    */
   const saveTextTransform = useCallback(
     (target: fabric.Textbox, sceneIndex: number, updateContent: boolean = false) => {
-      if (!timeline) {
+      const currentTimeline = timelineRef.current
+      if (!currentTimeline) {
         return
       }
 
@@ -167,10 +192,6 @@ export function useFabricHandlers({
         scaledHeight = target.height || 0
       }
 
-      // Fabric.js의 originX/originY 확인 (중요: anchor 정보 파악)
-      const originX = (target as fabric.Object).originX || 'left'
-      const originY = (target as fabric.Object).originY || 'top'
-      
       const nextTransform = {
         x: (target.left ?? 0) * invScale,
         y: (target.top ?? 0) * invScale,
@@ -182,28 +203,49 @@ export function useFabricHandlers({
       }
 
       const textContent = target.text ?? ''
-      const baseFontSize = target.fontSize ?? DEFAULT_FONT_SIZE
-      const textScaleY = target.scaleY ?? 1
-      const actualFontSize = baseFontSize * textScaleY * invScale
       const fill = target.fill ?? DEFAULT_TEXT_COLOR
-      const align = target.textAlign ?? DEFAULT_TEXT_ALIGN
+      const existingColor = currentTimeline.scenes[sceneIndex]?.text?.color ?? DEFAULT_TEXT_COLOR
+      const normalizedExistingColor = existingColor.trim().toLowerCase()
+      const isExistingColorTransparent =
+        normalizedExistingColor === 'transparent' ||
+        normalizedExistingColor === 'rgba(0,0,0,0)' ||
+        normalizedExistingColor === 'rgba(255,255,255,0.001)'
+      const fallbackColor = isExistingColorTransparent ? DEFAULT_TEXT_COLOR : existingColor
+      const normalizedFill = typeof fill === 'string' ? fill.trim().toLowerCase() : ''
+      const isProxyTransparentFill =
+        normalizedFill === 'transparent' ||
+        normalizedFill === 'rgba(0,0,0,0)' ||
+        normalizedFill === 'rgba(255,255,255,0.001)'
+      const nextColor =
+        typeof fill === 'string' && !isProxyTransparentFill
+          ? fill
+          : fallbackColor
+
+      // 프록시(투명 fill)인 경우 Fabric 기본값(left)이 저장되지 않도록 기존 씬 정렬 유지 → 가운데 정렬 유지
+      const align =
+        isProxyTransparentFill
+          ? (currentTimeline.scenes[sceneIndex]?.text?.style?.align ?? DEFAULT_TEXT_ALIGN)
+          : (target.textAlign ?? DEFAULT_TEXT_ALIGN)
+
+      // 폰트사이즈는 변경하지 않고 기존 값을 유지 (패스트트랙처럼 width만 변경)
+      const existingFontSize = currentTimeline.scenes[sceneIndex]?.text?.fontSize ?? DEFAULT_FONT_SIZE
 
       const nextTimeline: TimelineData = {
-        ...timeline,
-        scenes: timeline.scenes.map((scene, idx) =>
+        ...currentTimeline,
+        scenes: currentTimeline.scenes.map((scene, idx) =>
           idx === sceneIndex
             ? {
                 ...scene,
                 text: {
                   ...scene.text,
                   ...(updateContent && { content: textContent }),
-                  fontSize: actualFontSize,
-                  color: typeof fill === 'string' ? fill : DEFAULT_TEXT_COLOR,
+                  fontSize: existingFontSize, // 폰트사이즈는 변경하지 않음
+                  color: nextColor,
                   style: {
                     ...scene.text.style,
                     align: align as 'left' | 'center' | 'right' | 'justify',
                   },
-                  transform: nextTransform,
+                  transform: nextTransform, // width만 변경됨
                 },
               }
             : scene
@@ -212,14 +254,48 @@ export function useFabricHandlers({
 
       setTimeline(nextTimeline)
 
-      // 리사이즈 후 scale을 1로 리셋하고 fontSize를 실제 크기로 설정
+      // 리사이즈 후 스케일을 width로 변환하고 scale을 1로 리셋 (패스트트랙처럼 width만 변경)
+      // Fabric.js Textbox의 width를 변경하면 자동으로 줄바꿈이 일어남
       if (fabricCanvasRef.current && target && !(target as fabric.Object & { destroyed?: boolean }).destroyed) {
         try {
-          target.set({
-            fontSize: baseFontSize * textScaleY,
-            scaleX: 1,
-            scaleY: 1,
-          })
+          // 스케일된 width를 실제 width로 변환
+          const newWidth = scaledWidth
+          const newHeight = scaledHeight
+          
+          // Group인 경우 내부 Textbox 객체들의 width를 업데이트해야 함
+          if (target instanceof fabric.Group) {
+            const group = target as fabric.Group
+            // Group 내부의 모든 Textbox 객체에 width 업데이트
+            group._objects.forEach((obj) => {
+              if (obj instanceof fabric.Textbox) {
+                const currentText = obj.text
+                obj.set({
+                  width: newWidth,
+                  height: newHeight,
+                })
+                // width 변경 후 텍스트를 다시 설정하여 줄바꿈이 적용되도록 함
+                obj.text = currentText || ''
+              }
+            })
+            // Group 자체의 스케일은 1로 리셋
+            group.set({
+              scaleX: 1,
+              scaleY: 1,
+            })
+          } else {
+            // Group이 아닌 경우 직접 Textbox이므로 width 업데이트
+            const currentText = (target as fabric.Textbox).text
+            target.set({
+              width: newWidth,
+              height: newHeight,
+              scaleX: 1,
+              scaleY: 1,
+            })
+            // width 변경 후 텍스트를 다시 설정하여 줄바꿈이 적용되도록 함
+            if (target instanceof fabric.Textbox) {
+              target.text = currentText || ''
+            }
+          }
           fabricCanvasRef.current.requestRenderAll()
         } catch (error) {
           console.warn('[useFabricHandlers] target.set 에러:', error)
@@ -227,7 +303,7 @@ export function useFabricHandlers({
       }
 
     },
-    [timeline, setTimeline, fabricScaleRatioRef, fabricCanvasRef]
+    [setTimeline, fabricScaleRatioRef, fabricCanvasRef]
   )
 
   /**
@@ -270,17 +346,49 @@ export function useFabricHandlers({
       try {
         if (target.dataType === 'image') {
           saveImageTransform(target, savedIndex)
-        } else if (target.dataType === 'text') {
-          const textbox = target as fabric.Textbox
-          saveTextTransform(textbox, savedIndex, true)
+      } else if (target.dataType === 'text') {
+        const textbox = target as fabric.Textbox
+        
+        // 텍스트의 경우: 스케일을 리셋하고 width만 유지
+        if (target instanceof fabric.Group) {
+          const group = target as fabric.Group
+          // Group의 스케일을 1로 리셋
+          group.set({
+            scaleX: 1,
+            scaleY: 1,
+          })
+          // 내부 Textbox 객체들의 스케일도 리셋
+          group._objects.forEach((obj) => {
+            if (obj instanceof fabric.Textbox) {
+              obj.set({
+                scaleX: 1,
+                scaleY: 1,
+              })
+            }
+          })
+          if (fabricCanvasRef.current) {
+            fabricCanvasRef.current.requestRenderAll()
+          }
+        } else {
+          // Group이 아닌 경우: 직접 Textbox이므로 스케일 리셋
+          target.set({
+            scaleX: 1,
+            scaleY: 1,
+          })
+          if (fabricCanvasRef.current) {
+            fabricCanvasRef.current.requestRenderAll()
+          }
         }
+        
+        saveTextTransform(textbox, savedIndex, true)
+      }
       } catch (error) {
         console.error('[useFabricHandlers] handleModified 에러:', error)
       }
 
       clearFlags()
     },
-    [currentSceneIndexRef, isSavingTransformRef, savedSceneIndexRef, isManualSceneSelectRef, saveImageTransform, saveTextTransform, clearFlags]
+    [currentSceneIndexRef, isSavingTransformRef, savedSceneIndexRef, isManualSceneSelectRef, saveImageTransform, saveTextTransform, clearFlags, fabricCanvasRef]
   )
 
   /**
@@ -300,7 +408,8 @@ export function useFabricHandlers({
       savedSceneIndexRef.current = savedIndex
       isManualSceneSelectRef.current = true
 
-      if (!timeline) {
+      const currentTimeline = timelineRef.current
+      if (!currentTimeline) {
         return
       }
 
@@ -312,8 +421,8 @@ export function useFabricHandlers({
       const fontSize = scaledFontSize * invScale
 
       const nextTimeline: TimelineData = {
-        ...timeline,
-        scenes: timeline.scenes.map((scene, idx) =>
+        ...currentTimeline,
+        scenes: currentTimeline.scenes.map((scene, idx) =>
           idx === savedIndex
             ? {
                 ...scene,
@@ -330,7 +439,7 @@ export function useFabricHandlers({
       setTimeline(nextTimeline)
       clearFlags()
     },
-    [currentSceneIndexRef, isSavingTransformRef, savedSceneIndexRef, isManualSceneSelectRef, timeline, setTimeline, fabricScaleRatioRef, clearFlags]
+    [currentSceneIndexRef, isSavingTransformRef, savedSceneIndexRef, isManualSceneSelectRef, setTimeline, fabricScaleRatioRef, clearFlags]
   )
 
   /**
@@ -362,8 +471,271 @@ export function useFabricHandlers({
     [currentSceneIndexRef, isSavingTransformRef, savedSceneIndexRef, isManualSceneSelectRef, saveTextTransform, clearFlags]
   )
 
-  // 불필요한 복잡한 리사이즈 핸들러들 제거
-  // centeredScaling: true 옵션으로 충분히 처리됨
+  /**
+   * 드래그/리사이즈 중 실시간 업데이트 핸들러
+   */
+  const handleMoving = useCallback(
+    (e: fabric.ModifiedEvent<fabric.TPointerEvent>) => {
+      if (!persistTimelineDuringTransform) {
+        return
+      }
+      const target = e?.target as fabric.Object & { dataType?: 'image' | 'text' }
+      if (!target || (target as fabric.Object & { destroyed?: boolean }).destroyed) {
+        return
+      }
+
+      if (target.dataType === 'image') {
+        saveImageTransform(target, currentSceneIndexRef.current)
+      } else if (target.dataType === 'text') {
+        saveTextTransform(target as fabric.Textbox, currentSceneIndexRef.current, false)
+      }
+    },
+    [currentSceneIndexRef, saveImageTransform, saveTextTransform, persistTimelineDuringTransform]
+  )
+
+  const handleScaling = useCallback(
+    (e: fabric.ModifiedEvent<fabric.TPointerEvent>) => {
+      const target = e?.target as fabric.Object & { dataType?: 'image' | 'text' }
+      if (!target || (target as fabric.Object & { destroyed?: boolean }).destroyed) {
+        return
+      }
+
+      // 텍스트의 경우 width만 갱신하고 폰트사이즈는 유지한다.
+      if (target.dataType === 'text') {
+        if (!timelineRef.current || !fabricCanvasRef.current) {
+          return
+        }
+        
+        // 패스트트랙처럼: 리사이즈 중에 스케일을 완전히 막고 width만 변경
+        // Fabric.js의 object:scaling 이벤트에서 스케일을 즉시 리셋하고 width만 업데이트
+        // 동기적으로 처리하여 시각적 스케일링이 보이지 않도록 함
+        
+        if (target instanceof fabric.Group) {
+          // Group인 경우: 내부 Textbox 객체들의 width를 업데이트
+          const group = target as fabric.Group
+          
+          // 현재 스케일된 크기 계산 (스케일이 적용되기 전에 계산)
+          let scaledWidth: number
+          let scaledHeight: number
+          try {
+            // 스케일이 적용된 현재 크기 계산
+            const currentScaleX = group.scaleX ?? 1
+            const currentScaleY = group.scaleY ?? 1
+            const baseWidth = group.width ?? 0
+            const baseHeight = group.height ?? 0
+            scaledWidth = baseWidth * currentScaleX
+            scaledHeight = baseHeight * currentScaleY
+          } catch (error) {
+            console.warn('[useFabricHandlers] Group 크기 계산 에러:', error)
+            scaledWidth = group.width || 0
+            scaledHeight = group.height || 0
+          }
+          
+          // 패스트트랙처럼: 스케일을 즉시 1로 고정하고 width만 변경
+          // 동기적으로 처리하여 시각적 스케일링이 보이지 않도록 함
+          // 내부 Textbox 객체들의 width 업데이트 및 스케일 리셋 (먼저 처리)
+          group._objects.forEach((obj) => {
+            if (obj instanceof fabric.Textbox) {
+              const currentText = obj.text
+              // 스케일을 즉시 1로 고정하고 width만 업데이트 (폰트 사이즈는 변경하지 않음)
+              obj.set({
+                scaleX: 1,
+                scaleY: 1,
+                width: scaledWidth,
+                height: scaledHeight,
+              })
+              // width 변경 후 텍스트를 다시 설정하여 줄바꿈이 적용되도록 함
+              obj.text = currentText || ''
+              obj.setCoords()
+            }
+          })
+          
+          // Group 자체의 스케일 리셋 및 width 업데이트
+          group.set({
+            scaleX: 1,
+            scaleY: 1,
+            width: scaledWidth,
+            height: scaledHeight,
+          })
+          group.setCoords()
+          
+          // 즉시 렌더링하여 스케일이 적용된 상태가 보이지 않도록 함
+          fabricCanvasRef.current.requestRenderAll()
+          
+          if (!disableContinuousTextScaleCorrection) {
+            // 리사이즈가 계속 진행 중이면 매 프레임마다 스케일 체크 및 리셋
+            const checkAndResetScale = () => {
+              if (group && !(group as fabric.Object & { destroyed?: boolean }).destroyed && fabricCanvasRef.current) {
+                const activeObject = fabricCanvasRef.current.getActiveObject()
+                if (activeObject !== group) {
+                  return // 리사이즈가 끝났으면 체크 중단
+                }
+                
+                let needsReset = false
+                
+                // Group 스케일 체크
+                if (group.scaleX !== 1 || group.scaleY !== 1) {
+                  const currentScaleX = group.scaleX ?? 1
+                  const currentScaleY = group.scaleY ?? 1
+                  const baseWidth = group.width ?? 0
+                  const baseHeight = group.height ?? 0
+                  const newWidth = baseWidth * currentScaleX
+                  const newHeight = baseHeight * currentScaleY
+                  
+                  group._objects.forEach((obj) => {
+                    if (obj instanceof fabric.Textbox) {
+                      const currentText = obj.text
+                      obj.set({
+                        scaleX: 1,
+                        scaleY: 1,
+                        width: newWidth,
+                        height: newHeight,
+                      })
+                      obj.text = currentText || ''
+                      obj.setCoords()
+                    }
+                  })
+                  
+                  group.set({
+                    scaleX: 1,
+                    scaleY: 1,
+                    width: newWidth,
+                    height: newHeight,
+                  })
+                  group.setCoords()
+                  needsReset = true
+                }
+                
+                // 내부 Textbox 스케일 체크
+                group._objects.forEach((obj) => {
+                  if (obj instanceof fabric.Textbox && !(obj as fabric.Object & { destroyed?: boolean }).destroyed) {
+                    if (obj.scaleX !== 1 || obj.scaleY !== 1) {
+                      const currentScaleX = obj.scaleX ?? 1
+                      const currentScaleY = obj.scaleY ?? 1
+                      const baseWidth = obj.width ?? 0
+                      const baseHeight = obj.height ?? 0
+                      const currentText = obj.text
+                      
+                      obj.set({
+                        scaleX: 1,
+                        scaleY: 1,
+                        width: baseWidth * currentScaleX,
+                        height: baseHeight * currentScaleY,
+                      })
+                      obj.text = currentText || ''
+                      obj.setCoords()
+                      needsReset = true
+                    }
+                  }
+                })
+                
+                if (needsReset) {
+                  fabricCanvasRef.current.requestRenderAll()
+                }
+                
+                // 다음 프레임에서도 계속 체크
+                requestAnimationFrame(checkAndResetScale)
+              }
+            }
+            
+            // 다음 프레임부터 계속 체크
+            requestAnimationFrame(checkAndResetScale)
+          }
+        } else {
+          // Group이 아닌 경우: 일반 Textbox 처리
+          const textbox = target as fabric.Textbox
+          
+          // 스케일이 적용된 현재 크기 계산
+          const currentScaleX = textbox.scaleX ?? 1
+          const currentScaleY = textbox.scaleY ?? 1
+          const baseWidth = textbox.width ?? 0
+          const baseHeight = textbox.height ?? 0
+          const scaledWidth = baseWidth * currentScaleX
+          const scaledHeight = baseHeight * currentScaleY
+          const currentText = textbox.text
+          
+          // 패스트트랙처럼: 스케일을 즉시 1로 고정하고 width만 변경
+          // 동기적으로 처리하여 시각적 스케일링이 보이지 않도록 함
+          textbox.set({
+            scaleX: 1,
+            scaleY: 1,
+            width: scaledWidth,
+            height: scaledHeight,
+          })
+          // width 변경 후 텍스트를 다시 설정하여 줄바꿈이 적용되도록 함 (폰트 사이즈는 변경하지 않음)
+          textbox.text = currentText || ''
+          textbox.setCoords()
+          
+          // 즉시 렌더링하여 스케일이 적용된 상태가 보이지 않도록 함
+          fabricCanvasRef.current.requestRenderAll()
+          
+          if (!disableContinuousTextScaleCorrection) {
+            // 리사이즈가 계속 진행 중이면 매 프레임마다 스케일 체크 및 리셋
+            const checkAndResetScale = () => {
+              if (textbox && !(textbox as fabric.Object & { destroyed?: boolean }).destroyed && fabricCanvasRef.current) {
+                const activeObject = fabricCanvasRef.current.getActiveObject()
+                if (activeObject !== textbox) {
+                  return // 리사이즈가 끝났으면 체크 중단
+                }
+                
+                if (textbox.scaleX !== 1 || textbox.scaleY !== 1) {
+                  const currentScaleX = textbox.scaleX ?? 1
+                  const currentScaleY = textbox.scaleY ?? 1
+                  const baseWidth = textbox.width ?? 0
+                  const baseHeight = textbox.height ?? 0
+                  const currentText = textbox.text
+                  
+                  textbox.set({
+                    scaleX: 1,
+                    scaleY: 1,
+                    width: baseWidth * currentScaleX,
+                    height: baseHeight * currentScaleY,
+                  })
+                  textbox.text = currentText || ''
+                  textbox.setCoords()
+                  fabricCanvasRef.current.requestRenderAll()
+                }
+                
+                // 다음 프레임에서도 계속 체크
+                requestAnimationFrame(checkAndResetScale)
+              }
+            }
+            
+            // 다음 프레임부터 계속 체크
+            requestAnimationFrame(checkAndResetScale)
+          }
+        }
+        if (persistTimelineDuringTransform) {
+          saveTextTransform(target as fabric.Textbox, currentSceneIndexRef.current, false)
+        }
+      } else if (target.dataType === 'image') {
+        if (persistTimelineDuringTransform) {
+          saveImageTransform(target, currentSceneIndexRef.current)
+        }
+      }
+    },
+    [currentSceneIndexRef, saveImageTransform, saveTextTransform, fabricCanvasRef, disableContinuousTextScaleCorrection, persistTimelineDuringTransform]
+  )
+
+  const handleRotating = useCallback(
+    (e: fabric.ModifiedEvent<fabric.TPointerEvent>) => {
+      if (!persistTimelineDuringTransform) {
+        return
+      }
+      const target = e?.target as fabric.Object & { dataType?: 'image' | 'text' }
+      if (!target || (target as fabric.Object & { destroyed?: boolean }).destroyed) {
+        return
+      }
+
+      if (target.dataType === 'image') {
+        saveImageTransform(target, currentSceneIndexRef.current)
+      } else if (target.dataType === 'text') {
+        const textbox = target as fabric.Textbox
+        saveTextTransform(textbox, currentSceneIndexRef.current, false)
+      }
+    },
+    [currentSceneIndexRef, saveImageTransform, saveTextTransform, persistTimelineDuringTransform]
+  )
 
   // Fabric.js 이벤트 리스너 등록
   useEffect(() => {
@@ -373,21 +745,37 @@ export function useFabricHandlers({
     }
     
     // 조건이 만족되지 않으면 리턴 (조건이 만족되면 자동으로 다시 실행됨)
-    if (!fabricReady || !fabricCanvasRef.current || !timeline) {
+    // fabricReady 대신 fabricCanvasRef.current를 직접 확인 (더 정확함)
+    if (!fabricCanvasRef.current) {
       return
     }
 
     const fabricCanvas = fabricCanvasRef.current
     
     // 이벤트 핸들러 등록
+    // 드래그/리사이즈 중 실시간 업데이트
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('object:moving', handleMoving as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('object:scaling', handleScaling as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('object:rotating', handleRotating as any)
+    // 드래그/리사이즈 완료 후 최종 저장
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fabricCanvas.on('object:modified', handleModified as any)
+    // 텍스트 관련 이벤트
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fabricCanvas.on('text:changed', handleTextChanged as any)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fabricCanvas.on('text:editing:exited', handleTextEditingExited as any)
 
     return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('object:moving', handleMoving as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('object:scaling', handleScaling as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('object:rotating', handleRotating as any)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       fabricCanvas.off('object:modified', handleModified as any)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -398,11 +786,12 @@ export function useFabricHandlers({
   }, [
     useFabricEditing,
     fabricReady,
-    timeline,
     fabricCanvasRef,
+    handleMoving,
+    handleScaling,
+    handleRotating,
     handleModified,
     handleTextChanged,
     handleTextEditingExited,
   ])
 }
-

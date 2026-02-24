@@ -1,17 +1,18 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { ProPreviewPanel } from './components/ProPreviewPanel'
-import { ProSceneListPanel } from './components/ProSceneListPanel'
-import { ProEffectsPanel } from './components/ProEffectsPanel'
+import { ProPreviewPanel } from './ui/ProPreviewPanel'
+import { ProSceneListPanel } from './ui/ProSceneListPanel'
+import { ProEffectsPanel } from './ui/ProEffectsPanel'
 import { useVideoCreateStore, type TimelineData } from '@/store/useVideoCreateStore'
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState } from 'react'
 import { allTransitions, transitions, movements } from '@/lib/data/transitions'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
+import { getPlayableSegments, reorderByIndexOrder } from '@/app/video/create/step3/shared/model'
+import type { MotionConfig } from '@/hooks/video/effects/motion/types'
 import {
   useProStep3Scenes,
   useProStep3SelectionChange,
-  useProStep3Playback,
   useProStep3State,
 } from './hooks'
 import type { SceneScript } from '@/lib/types/domain/script'
@@ -32,6 +33,9 @@ export default function ProStep3Page() {
   
   // 현재 선택된 씬 인덱스
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [playingSceneIndex, setPlayingSceneIndex] = useState<number | null>(null)
+  const [scenePlaybackRequest, setScenePlaybackRequest] = useState<{ sceneIndex: number; requestId: number } | null>(null)
 
   // Pro step3 씬 데이터 변환 훅
   const { proStep3Scenes } = useProStep3Scenes()
@@ -48,10 +52,33 @@ export default function ProStep3Page() {
   })
 
   // 격자 선택 영역 변경 훅
-  const { handleSelectionChange } = useProStep3SelectionChange()
+  const { handleSelectionChange, handleOriginalVideoDurationLoaded } = useProStep3SelectionChange()
 
-  // 재생 상태 관리 훅
-  const { isPlaying, handleProPlayPause } = useProStep3Playback(proStep3Scenes)
+  const canStartPlayback = useCallback(() => {
+    const playableScenes = getPlayableSegments(
+      proStep3Scenes.map((scene) => ({
+        ...scene,
+        mediaUrl: scene.videoUrl,
+      }))
+    )
+
+    if (playableScenes.length === 0) {
+      alert('재생할 영상이 없습니다.')
+      return false
+    }
+    return true
+  }, [proStep3Scenes])
+
+  const handlePlayingChange = useCallback((nextPlaying: boolean) => {
+    setIsPlaying(nextPlaying)
+    if (!nextPlaying) {
+      setPlayingSceneIndex(null)
+    }
+  }, [])
+
+  const handleScenePlaybackComplete = useCallback(() => {
+    setPlayingSceneIndex(null)
+  }, [])
 
   // 효과 패널 및 사운드 상태 관리 훅
   const {
@@ -75,6 +102,23 @@ export default function ProStep3Page() {
     setCurrentSceneIndex(index)
   }, [])
 
+  const handleScenePlay = useCallback(async (sceneIndex: number) => {
+    const targetScene = proStep3Scenes[sceneIndex]
+    if (!targetScene?.videoUrl) {
+      alert('재생할 영상이 없습니다.')
+      return
+    }
+
+    setCurrentSceneIndex(sceneIndex)
+    if (!isPlaying || playingSceneIndex !== sceneIndex) {
+      setPlayingSceneIndex(sceneIndex)
+    }
+    setScenePlaybackRequest((prev) => ({
+      sceneIndex,
+      requestId: (prev?.requestId ?? 0) + 1,
+    }))
+  }, [isPlaying, playingSceneIndex, proStep3Scenes])
+
   // 씬 재정렬 핸들러
   const handleSceneReorder = useCallback(
     (newOrder: number[]) => {
@@ -82,33 +126,60 @@ export default function ProStep3Page() {
       if (!isValidSceneArray(safeScenes)) {
         return
       }
-      const reordered = newOrder.map((index) => safeScenes[index])
+      const reordered = reorderByIndexOrder(safeScenes, newOrder)
       setScenes(reordered)
     },
     [setScenes, storeScenes]
   )
 
-  // 전환 효과 변경 핸들러 (Pro에서는 timeline이 없으므로 빈 함수)
+  // 전환 효과 변경 핸들러
   const handleTransitionChange = useCallback((sceneIndex: number, value: string) => {
-    // Pro에서는 전환 효과를 나중에 구현
-    console.log('전환 효과 변경:', sceneIndex, value)
-  }, [])
+    if (!timeline?.scenes?.[sceneIndex]) {
+      return
+    }
 
-  // 모션 변경 핸들러 (Pro에서는 timeline이 없으므로 빈 함수)
-  const handleMotionChange = useCallback((sceneIndex: number, motion: any) => {
-    // Pro에서는 모션 효과를 나중에 구현
-    console.log('모션 변경:', sceneIndex, motion)
-  }, [])
+    const nextScenes = timeline.scenes.map((scene, index) => {
+      if (index !== sceneIndex) {
+        return scene
+      }
+      return {
+        ...scene,
+        transition: value,
+      }
+    })
+
+    setTimeline({
+      ...timeline,
+      scenes: nextScenes,
+    })
+  }, [setTimeline, timeline])
+
+  // 모션 변경 핸들러
+  const handleMotionChange = useCallback((sceneIndex: number, motion: MotionConfig | null) => {
+    if (!timeline?.scenes?.[sceneIndex]) {
+      return
+    }
+
+    const nextScenes = timeline.scenes.map((scene, index) => {
+      if (index !== sceneIndex) {
+        return scene
+      }
+      return {
+        ...scene,
+        motion: motion ?? undefined,
+      }
+    })
+
+    setTimeline({
+      ...timeline,
+      scenes: nextScenes,
+    })
+  }, [setTimeline, timeline])
 
   // Timeline 설정 핸들러 (store의 setTimeline 사용)
   const handleSetTimeline = useCallback((newTimeline: TimelineData) => {
-    console.log('[ProStep3Page] handleSetTimeline 호출:', {
-      scenesLength: newTimeline.scenes.length,
-      currentSceneIndex,
-      textSettings: newTimeline.scenes[currentSceneIndex]?.text,
-    })
     setTimeline(newTimeline)
-  }, [setTimeline, currentSceneIndex])
+  }, [setTimeline])
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -128,11 +199,14 @@ export default function ProStep3Page() {
               currentVideoUrl={currentVideoUrl}
               currentSelectionStartSeconds={currentSelectionStartSeconds}
               currentSceneIndex={currentSceneIndex}
-              onCurrentSceneIndexChange={setCurrentSceneIndex}
               scenes={proStep3Scenes}
+              scenePlaybackRequest={scenePlaybackRequest}
               isPlaying={isPlaying}
-              onPlayPause={handleProPlayPause}
+              onBeforePlay={canStartPlayback}
+              onPlayingChange={handlePlayingChange}
+              onScenePlaybackComplete={handleScenePlaybackComplete}
               bgmTemplate={bgmTemplate}
+              confirmedBgmTemplate={confirmedBgmTemplate}
               onExport={() => {
                 // 내보내기 기능은 나중에 구현
                 alert('내보내기 기능은 준비 중입니다.')
@@ -148,19 +222,17 @@ export default function ProStep3Page() {
               scenes={proStep3Scenes}
               timeline={timeline}
               currentSceneIndex={currentSceneIndex}
-              playingSceneIndex={null}
+              playingSceneIndex={playingSceneIndex}
               isPreparing={false}
               isTtsBootstrapping={false}
               onSelect={handleSceneSelect}
               onReorder={handleSceneReorder}
-              onPlayScene={async () => {
-                // 개별 씬 재생은 ProPreviewPanel의 전체 재생으로 대체
-                handleProPlayPause()
-              }}
+              onPlayScene={handleScenePlay}
               onOpenEffectPanel={() => {
                 // 효과 패널은 나중에 구현
               }}
               onSelectionChange={handleSelectionChange}
+              onOriginalVideoDurationLoaded={handleOriginalVideoDurationLoaded}
             />
           </div>
 

@@ -153,7 +153,6 @@ export async function consumeCredits(
 
   // 개발 환경에서는 크레딧 제한 없음 (모든 사용자)
   if (process.env.NODE_ENV !== 'production') {
-    console.log(`[Credit] 개발 환경 - 크레딧 차감 스킵 (userId: ${userId}, provider: ${provider}, 문자: ${charCount})`)
     return {
       success: true,
       creditsUsed: calculateCredits(provider, charCount), // 통계용으로 계산
@@ -187,7 +186,6 @@ export async function consumeCredits(
     const remaining = await redis.decrby(key, creditsToDeduct)
     await logCreditUsage(userId, provider, charCount, creditsToDeduct)
     
-    console.log(`[Credit] ${provider} TTS 사용 - 문자: ${charCount}, 크레딧: ${creditsToDeduct}, 잔액: ${remaining}`)
     
     return {
       success: true,
@@ -271,7 +269,6 @@ export async function addCredits(
     
     const newBalance = await redis.incrby(key, amount)
     
-    console.log(`[Credit] 크레딧 충전 - 사용자: ${userId}, 추가: ${amount}, 잔액: ${newBalance}`)
     
     return {
       success: true,

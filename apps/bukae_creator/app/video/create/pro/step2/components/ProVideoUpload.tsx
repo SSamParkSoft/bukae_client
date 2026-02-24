@@ -27,6 +27,31 @@ export const ProVideoUpload = memo(function ProVideoUpload({
   const hoverVideoRef = useRef<HTMLVideoElement>(null)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null)
   const [isHovered, setIsHovered] = useState(false)
+  const [hasUserActivation, setHasUserActivation] = useState(false)
+
+  // 브라우저 자동재생 정책 대응:
+  // 사용자 상호작용(pointer/keyboard/touch) 이후에만 hover 재생을 시도한다.
+  useEffect(() => {
+    const activation = (navigator as Navigator & { userActivation?: { hasBeenActive?: boolean } }).userActivation
+    if (activation?.hasBeenActive) {
+      setHasUserActivation(true)
+      return
+    }
+
+    const markActivated = () => {
+      setHasUserActivation(true)
+    }
+
+    window.addEventListener('pointerdown', markActivated, { once: true, capture: true })
+    window.addEventListener('keydown', markActivated, { once: true, capture: true })
+    window.addEventListener('touchstart', markActivated, { once: true, capture: true })
+
+    return () => {
+      window.removeEventListener('pointerdown', markActivated, true)
+      window.removeEventListener('keydown', markActivated, true)
+      window.removeEventListener('touchstart', markActivated, true)
+    }
+  }, [])
 
   // 영상에서 썸네일 생성 (격자 시작 지점의 프레임)
   useEffect(() => {
@@ -112,12 +137,24 @@ export const ProVideoUpload = memo(function ProVideoUpload({
     // 선택 영역이 유효하지 않으면 종료
     if (endTime <= startTime) return
 
-    if (isHovered) {
+    if (isHovered && hasUserActivation) {
       // 호버 시 선택 영역의 시작 시간으로 이동 후 재생
       hoverVideo.currentTime = startTime
-      hoverVideo.play().catch(() => {
-        // 자동 재생 실패 시 무시
-      })
+      let cancelled = false
+      const playPromise = hoverVideo.play()
+      if (playPromise !== undefined) {
+        playPromise.catch((error: unknown) => {
+          if (cancelled) return // cleanup에서 pause() 호출로 인한 AbortError는 무시
+          if (error instanceof DOMException && error.name === 'NotAllowedError') {
+            setHasUserActivation(false)
+            return
+          }
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            return // play/pause 레이스 컨디션은 정상 동작이므로 무시
+          }
+          console.error('호버 영상 재생 오류:', error)
+        })
+      }
 
       // 선택 영역 끝에 도달하면 다시 시작 시간으로 돌아가기
       const handleTimeUpdate = () => {
@@ -129,16 +166,20 @@ export const ProVideoUpload = memo(function ProVideoUpload({
       hoverVideo.addEventListener('timeupdate', handleTimeUpdate)
 
       return () => {
+        cancelled = true
         hoverVideo.removeEventListener('timeupdate', handleTimeUpdate)
-        hoverVideo.pause()
-        hoverVideo.currentTime = startTime
+        // play() Promise가 아직 진행 중일 수 있으므로 settle 후 pause
+        void (playPromise ?? Promise.resolve()).then(() => {
+          hoverVideo.pause()
+          hoverVideo.currentTime = startTime
+        }).catch(() => undefined)
       }
     } else {
       // 호버 해제 시 영상 일시정지
       hoverVideo.pause()
       hoverVideo.currentTime = startTime
     }
-  }, [isHovered, videoUrl, selectionStartSeconds, selectionEndSeconds])
+  }, [isHovered, videoUrl, selectionStartSeconds, selectionEndSeconds, hasUserActivation])
 
   const handleClick = () => {
     fileInputRef.current?.click()

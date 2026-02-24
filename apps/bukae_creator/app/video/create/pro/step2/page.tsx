@@ -1,27 +1,46 @@
 'use client'
 
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
 import { ScriptStyleSection, AiScriptGenerateButton } from '@/app/video/create/_components'
-import { ProSceneCard, ProVoicePanel } from './components'
+import { ProSceneCard } from './components/ProSceneCard'
 import { conceptOptions } from '@/lib/data/templates'
 import type { ConceptType } from '@/lib/data/templates'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
+import { useVideoCreateStoreHydration } from '@/store/useVideoCreateStoreHydration'
 import { studioScriptApi } from '@/lib/api/studio-script'
+import { authStorage } from '@/lib/api/auth-storage'
+import { prefetchPublicVoices } from '@/lib/tts/public-voices-cache'
 import { convertProductToProductResponse } from '@/lib/utils/converters/product-to-response'
+import type { ProVoicePanelProps } from './components/ProVoicePanel'
 import { synthesizeAllScenes } from './utils/synthesizeAllScenes'
 import {
   generateSceneId,
   proSceneToSceneScript,
   sceneScriptToProScene,
-  type ExtendedSceneScript,
   type ProScene,
 } from './utils/types'
 
 const DEFAULT_SCENE_COUNT = 6
+
+const ProVoicePanel = dynamic<ProVoicePanelProps>(
+  () => import('./components/ProVoicePanel').then((mod) => mod.ProVoicePanel),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[min(calc(100vw-2rem),560px)] min-w-[360px] sm:w-[640px] sm:min-w-0 max-h-[85vh] flex items-center justify-center bg-white/40 border border-white/10 backdrop-blur-sm rounded-2xl p-6"
+        style={{ boxShadow: 'var(--shadow-container)' }}
+      >
+        <Loader2 className="w-6 h-6 animate-spin text-[#5e8790]" />
+      </div>
+    ),
+  }
+)
 
 export default function ProStep2Page() {
   const router = useRouter()
@@ -32,57 +51,33 @@ export default function ProStep2Page() {
     scenes: storeScenes,
     setScenes: setStoreScenes
   } = useVideoCreateStore()
-  
-  // store의 scenes를 현재 형식으로 변환하여 사용
-  const scenes: ProScene[] = 
-    storeScenes && storeScenes.length > 0
-      ? storeScenes.map((s, index) => sceneScriptToProScene(s, index))
-      : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
-  
-  // store의 scenes가 비어있으면 기본값으로 초기화 (persist 복원 후에만)
-  const [hasInitialized, setHasInitialized] = useState(false)
-  
+  const isStoreHydrated = useVideoCreateStoreHydration()
+  const storeScenesLength = storeScenes?.length ?? 0
+  const [fallbackScenes] = useState<ProScene[]>(() =>
+    Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
+  )
+
+  // store의 scenes를 현재 형식으로 변환하여 사용 (hydration 전에는 기본값 렌더링 금지)
+  const scenes: ProScene[] = useMemo(
+    () =>
+      !isStoreHydrated
+        ? []
+        : storeScenesLength > 0
+          ? storeScenes.map((s, index) => sceneScriptToProScene(s, index))
+          : fallbackScenes,
+    [fallbackScenes, isStoreHydrated, storeScenes, storeScenesLength]
+  )
+
+  // persist 복원 완료 후 store가 비어있는 경우에만 기본 씬을 1회 초기화
   useEffect(() => {
-    // 마운트 후 일정 시간이 지난 후에만 초기화 (persist 복원 대기)
-    const timer = setTimeout(() => {
-      // persist가 복원된 후에만 실행
-      if (!hasInitialized && (!storeScenes || storeScenes.length === 0)) {
-        // localStorage에서 직접 확인하여 실제로 비어있는지 확인
-        if (typeof window !== 'undefined') {
-          const saved = localStorage.getItem('bookae-video-create-storage')
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved)
-              const savedScenes = parsed?.state?.scenes
-              // localStorage에 저장된 scenes가 있으면 초기화하지 않음
-              if (savedScenes && Array.isArray(savedScenes) && savedScenes.length > 0) {
-                setHasInitialized(true)
-                return
-              }
-            } catch (e) {
-              // 파싱 실패 시 무시
-            }
-          }
-        }
-        
-        // 실제로 비어있을 때만 초기화
-        const defaultScenes: ExtendedSceneScript[] = 
-          Array.from({ length: DEFAULT_SCENE_COUNT }, (_, i) => ({ 
-            sceneId: i + 1,
-            id: generateSceneId(), // 고유 ID 생성
-            script: '' 
-          }))
-        setStoreScenes(defaultScenes)
-        setHasUnsavedChanges(true)
-        setHasInitialized(true)
-      } else if (storeScenes && storeScenes.length > 0) {
-        // 이미 데이터가 있으면 초기화 완료로 표시
-        setHasInitialized(true)
-      }
-    }, 200) // persist 복원 대기 시간
-    
-    return () => clearTimeout(timer)
-  }, [storeScenes, hasInitialized, setStoreScenes, setHasUnsavedChanges])
+    if (!isStoreHydrated || storeScenesLength > 0) {
+      return
+    }
+
+    const defaultScenes = fallbackScenes.map((scene, index) => proSceneToSceneScript(scene, index))
+    setStoreScenes(defaultScenes)
+    setHasUnsavedChanges(true)
+  }, [fallbackScenes, isStoreHydrated, setHasUnsavedChanges, setStoreScenes, storeScenesLength])
 
   
   // scenes 업데이트 함수 - store에 직접 저장
@@ -91,7 +86,7 @@ export default function ProStep2Page() {
     const currentStoreScenes = useVideoCreateStore.getState().scenes
     const currentScenes: ProScene[] = currentStoreScenes && currentStoreScenes.length > 0
       ? currentStoreScenes.map((s: SceneScript, index: number) => sceneScriptToProScene(s, index))
-      : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
+      : fallbackScenes
     
     const updated = updater(currentScenes)
     // store에 저장 (localStorage에 자동 저장됨)
@@ -106,7 +101,7 @@ export default function ProStep2Page() {
     setStoreScenes(scenesToSave)
     // 강제로 저장되도록 상태 업데이트
     setHasUnsavedChanges(true)
-  }, [setStoreScenes, setHasUnsavedChanges])
+  }, [fallbackScenes, setStoreScenes, setHasUnsavedChanges])
   const { selectedImages, selectedProducts } = useVideoCreateStore()
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
@@ -115,6 +110,12 @@ export default function ProStep2Page() {
   const [isGeneratingAll, setIsGeneratingAll] = useState(false)
   const [isSynthesizingTts, setIsSynthesizingTts] = useState(false)
   const [ttsProgress, setTtsProgress] = useState({ completed: 0, total: 0 })
+
+  useEffect(() => {
+    const token = authStorage.getAccessToken()
+    prefetchPublicVoices(token)
+    void import('./components/ProVoicePanel')
+  }, [])
 
   const handleScriptStyleSelect = useCallback(
     (concept: ConceptType) => {
@@ -149,11 +150,6 @@ export default function ProStep2Page() {
       return
     }
 
-    if (!selectedImages || selectedImages.length === 0) {
-      alert('이미지를 먼저 선택해주세요.')
-      return
-    }
-
     setIsGeneratingAll(true)
 
     try {
@@ -165,27 +161,82 @@ export default function ProStep2Page() {
         return
       }
 
-      // Product를 ProductResponse 형태로 변환
+      // Pro 사용자 촬영 대본 API: product + type만 필수. 이미지 없으면 상품 이미지로 대체
       const productResponse = convertProductToProductResponse(product)
+      const fallbackImages = Array.isArray(product.images)
+        ? product.images
+        : product.image
+          ? [product.image]
+          : []
+      const imageUrls: string[] =
+        selectedImages?.length > 0
+          ? selectedImages
+          : Array.isArray(productResponse.imageUrls)
+            ? productResponse.imageUrls
+            : fallbackImages
 
-      const data = await studioScriptApi.generateScripts({
-        product: productResponse,
+      const productWithImages = {
+        ...productResponse,
+        productId: String(productResponse.productId ?? productResponse.id ?? ''),
+        imageUrls,
+      }
+
+      const data = await studioScriptApi.generateScriptUserEdit({
+        product: productWithImages,
         type: scriptStyle,
-        imageUrls: selectedImages,
+        imageUrls,
       })
 
-      const items = Array.isArray(data) ? data : [data]
+      // API 응답에서 대본 문자열 추출 (백엔드 키/구조가 다를 수 있음)
+      const from = (obj: unknown): string => {
+        if (!obj || typeof obj !== 'object') return ''
+        const o = obj as Record<string, unknown>
+        if (typeof o.script === 'string') return o.script
+        if (typeof (o.script as { text?: string })?.text === 'string') return (o.script as { text: string }).text
+        if (typeof o.content === 'string') return o.content
+        if (typeof o.narration === 'string') return o.narration
+        if (typeof o.text === 'string') return o.text
+        return ''
+      }
 
-      // 응답 데이터를 scenes에 반영
+      // 응답이 배열(씬별 스크립트)인지 단일 객체인지 정규화 → API 리스트 길이만큼 씬을 유연하게 생성
+      const raw = data as unknown
+      const items: { script: string; duration?: number }[] = []
+
+      const list = Array.isArray(raw)
+        ? raw
+        : Array.isArray((raw as Record<string, unknown>).scripts)
+          ? (raw as Record<string, unknown>).scripts as unknown[]
+          : Array.isArray((raw as Record<string, unknown>).data)
+            ? (raw as Record<string, unknown>).data as unknown[]
+            : null
+
+      if (list && list.length > 0) {
+        list.forEach((item: unknown) => {
+          const r = item as Record<string, unknown>
+          const script = from(item) || from((item as Record<string, unknown>).data) || ''
+          const duration = typeof r.duration === 'number' ? r.duration : undefined
+          items.push({ script: script.trim(), duration })
+        })
+      } else {
+        const r = raw as Record<string, unknown>
+        const script = from(r) || from(r.data) || ''
+        const duration = typeof r.duration === 'number' ? r.duration : undefined
+        items.push({ script: script.trim(), duration })
+      }
+
+      // API 리스트 길이만큼 씬을 새로 만들어 UI에 반영 (기존 보이스는 유지)
       updateScenes((prev) => {
-        const updated = prev.map((scene, index) => {
-          const sceneData = items.find((item) => item.imageUrl === selectedImages[index]) || items[index]
+        return items.map((item, index) => {
+          const existing = prev[index]
           return {
-            ...scene,
-            script: sceneData?.script || scene.script || '생성된 대본이 없어요.',
+            id: existing?.id ?? generateSceneId(),
+            script: item.script,
+            voiceLabel: existing?.voiceLabel,
+            voiceTemplate: existing?.voiceTemplate ?? null,
+            ttsDuration: item.duration ?? existing?.ttsDuration,
           }
         })
-        return updated
       })
       // updateScenes 내부에서 이미 setHasUnsavedChanges를 호출하므로 중복 호출 제거
     } catch (error) {
@@ -194,7 +245,7 @@ export default function ProStep2Page() {
     } finally {
       setIsGeneratingAll(false)
     }
-  }, [scriptStyle, selectedImages, selectedProducts, updateScenes, setHasUnsavedChanges])
+  }, [scriptStyle, selectedImages, selectedProducts, updateScenes])
 
   const handleDragStart = useCallback((index: number) => {
     setDraggedIndex(index)
@@ -300,11 +351,11 @@ export default function ProStep2Page() {
     const latestStoreScenes = useVideoCreateStore.getState().scenes
     const latestScenes: ProScene[] = latestStoreScenes && latestStoreScenes.length > 0
       ? latestStoreScenes.map((s, index) => sceneScriptToProScene(s, index))
-      : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
+      : fallbackScenes
     
     // 모든 씬에 스크립트와 보이스가 있는지 확인
     const invalidScenes = latestScenes.filter(
-      (scene, index) => !scene.script.trim() || !scene.voiceTemplate
+      (scene) => !scene.script.trim() || !scene.voiceTemplate
     )
 
     if (invalidScenes.length > 0) {
@@ -342,14 +393,21 @@ export default function ProStep2Page() {
       const currentStoreScenes = useVideoCreateStore.getState().scenes
       const currentScenes: ProScene[] = currentStoreScenes && currentStoreScenes.length > 0
         ? currentStoreScenes.map((s: SceneScript, index: number) => sceneScriptToProScene(s, index))
-        : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
+        : fallbackScenes
       
+      // TTS 합성 결과를 ProScene에 저장 (duration과 base64 포함)
       const updatedScenes = currentScenes.map((scene, index) => {
         const ttsResult = result.results[index]
         return {
           ...scene,
           ttsDuration: ttsResult?.duration,
+          ttsAudioBase64: ttsResult?.audioBase64, // base64도 ProScene에 포함
         }
+      })
+      
+      // ProScene을 SceneScript로 변환 (proSceneToSceneScript가 자동으로 ttsAudioBase64 포함)
+      const updatedStoreScenes = updatedScenes.map((scene: ProScene, index: number) => {
+        return proSceneToSceneScript(scene, index)
       })
       
       // 상태 변경 전에 autoSaveEnabled 확인 및 설정
@@ -358,7 +416,7 @@ export default function ProStep2Page() {
         useVideoCreateStore.setState({ autoSaveEnabled: true })
       }
       
-      setStoreScenes(updatedScenes.map((s: ProScene, index: number) => proSceneToSceneScript(s, index)))
+      setStoreScenes(updatedStoreScenes)
       setHasUnsavedChanges(true)
 
       // TTS 합성 완료 후 다음 페이지로 이동
@@ -368,7 +426,7 @@ export default function ProStep2Page() {
       alert(error instanceof Error ? error.message : 'TTS 합성 중 오류가 발생했습니다.')
       setIsSynthesizingTts(false)
     }
-  }, [router, setStoreScenes, setHasUnsavedChanges])
+  }, [fallbackScenes, router, setStoreScenes, setHasUnsavedChanges])
 
   return (
     <div>
@@ -460,7 +518,7 @@ export default function ProStep2Page() {
                           onDragOver={(e) => handleDragOver(e, index)}
                           onDrop={(e) => handleDrop(e)}
                           onDragEnd={handleDragEnd}
-                          isGenerating={false}
+                          isGenerating={isGeneratingAll}
                           draggedIndex={draggedIndex}
                           dragOver={dragOver}
                         />

@@ -12,7 +12,6 @@ export async function GET(request: Request) {
     const width = searchParams.get('w') // Next.js 이미지 최적화에서 전달되는 width
     const quality = searchParams.get('q') // Next.js 이미지 최적화에서 전달되는 quality
 
-    console.log('[Image Proxy] 요청 받음:', imageUrl?.substring(0, 100), `width: ${width}, quality: ${quality}`)
 
     if (!imageUrl) {
       console.error('[Image Proxy] url 파라미터 없음')
@@ -52,7 +51,6 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: '쿠팡 또는 알리익스프레스 이미지만 프록시할 수 있습니다.' }, { status: 403 })
     }
 
-    console.log('[Image Proxy] 이미지 가져오기 시작:', imageUrl.substring(0, 100))
 
     // 이미지 가져오기
     const imageResponse = await fetch(imageUrl, {
@@ -97,21 +95,11 @@ export async function GET(request: Request) {
         
         contentType = 'image/webp'
         
-        console.log(
-          '[Image Proxy] 이미지 최적화 완료:',
-          imageUrl.substring(0, 100),
-          `원본: ${originalSize} bytes → 최적화: ${imageBuffer.byteLength} bytes (${widthNum ? `width: ${widthNum}, ` : ''}quality: ${qualityNum})`
-        )
       } catch (optimizeError) {
         console.warn('[Image Proxy] 이미지 최적화 실패, 원본 반환:', optimizeError)
         // 최적화 실패 시 원본 반환
       }
     } else {
-      console.log(
-        '[Image Proxy] 이미지 프록시 성공 (최적화 없음):',
-        imageUrl.substring(0, 100),
-        `크기: ${imageBuffer.byteLength} bytes`
-      )
     }
 
     // 이미지 반환 (Buffer를 Uint8Array로 변환하여 NextResponse에 전달)

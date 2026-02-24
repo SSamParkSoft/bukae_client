@@ -1,3 +1,4 @@
-export { TimelineBar } from './TimelineBar'
-export { SpeedSelector } from './SpeedSelector'
-export { ExportButton } from './ExportButton'
+/**
+ * @deprecated Use "@/app/video/create/step3/shared/ui" instead.
+ */
+export * from '@/app/video/create/step3/shared/ui'

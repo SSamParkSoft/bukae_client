@@ -15,5 +15,7 @@ export interface SceneScript {
   isAiGenerated?: boolean
   /** 씬 분할 시 하위 번호 (1, 2, 3...) */
   splitIndex?: number
+  /** TTS 오디오 데이터 (base64 인코딩된 문자열) - Step2에서 합성된 오디오를 Step3에서 사용하기 위해 저장 */
+  ttsAudioBase64?: string
 }
 

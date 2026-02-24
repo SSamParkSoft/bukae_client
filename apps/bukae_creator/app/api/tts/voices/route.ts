@@ -27,13 +27,10 @@ export async function GET(request: Request) {
 
     // 모든 Provider에서 목소리 수집
     const providers = getAllProviders()
-    console.log(`[TTS] Loading voices from ${providers.length} providers:`, providers.map(p => p.name))
     
     for (const provider of providers) {
       try {
-        console.log(`[TTS] Loading voices from ${provider.name}...`)
         const voices = await provider.listVoices()
-        console.log(`[TTS] ${provider.name} returned ${voices.length} voices`)
         allVoices.push(...voices)
       } catch (error) {
         console.error(`[TTS] ${provider.name} voices error:`, error)
@@ -45,7 +42,6 @@ export async function GET(request: Request) {
       }
     }
     
-    console.log(`[TTS] Total voices loaded: ${allVoices.length} (Google: ${allVoices.filter(v => v.provider === 'google' || !v.provider).length}, ElevenLabs: ${allVoices.filter(v => v.provider === 'elevenlabs').length})`)
 
     // limit이 지정된 경우: Provider별로 균등하게 분배하여 반환
     let finalVoices = allVoices

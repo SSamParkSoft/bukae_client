@@ -984,6 +984,8 @@ export function useSceneTransition({
       previousSceneIndexRef,
       isManualSceneSelectRef,
       renderSubtitlePartRef,
+      fabricCanvasRef,
+      fabricScaleRatioRef,
     ]
   )
 
@@ -992,4 +994,3 @@ export function useSceneTransition({
     groupTransitionTimelinesRef,
   }
 }
-

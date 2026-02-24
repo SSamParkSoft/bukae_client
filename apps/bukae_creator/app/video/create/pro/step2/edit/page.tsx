@@ -1,78 +1,86 @@
 'use client'
 
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { ProVideoEditSection } from '../components'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
+import { useVideoCreateStoreHydration } from '@/store/useVideoCreateStoreHydration'
 import { authStorage } from '@/lib/api/auth-storage'
+import { studioScriptApi } from '@/lib/api/studio-script'
+import { convertProductToProductResponse } from '@/lib/utils/converters/product-to-response'
 import {
   generateSceneId,
   proSceneToSceneScript,
   sceneScriptToProScene,
   type ProScene,
 } from '../utils/types'
+import { getEffectiveSourceDuration, normalizeSelectionRange } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
+import type { StudioScriptUserEditGuideResponseItem } from '@/lib/types/api/studio-script'
 
 const DEFAULT_SCENE_COUNT = 6
 
+/** 비디오 URL에서 메타데이터만 로드해 duration(초)을 반환. 실패 시 null */
+function getVideoDurationFromUrl(url: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.crossOrigin = 'anonymous'
+    const onDone = (sec: number | null) => {
+      video.removeEventListener('loadedmetadata', onMeta)
+      video.removeEventListener('error', onErr)
+      video.src = ''
+      resolve(sec)
+    }
+    const onMeta = () => {
+      const d = video.duration
+      onDone(Number.isFinite(d) && d > 0 ? d : null)
+    }
+    const onErr = () => onDone(null)
+    video.addEventListener('loadedmetadata', onMeta, { once: true })
+    video.addEventListener('error', onErr, { once: true })
+    video.src = url
+  })
+}
+
 export default function ProStep2EditPage() {
-  const { 
+  const router = useRouter()
+  const {
     setHasUnsavedChanges,
     scenes: storeScenes,
-    setScenes: setStoreScenes
+    setScenes: setStoreScenes,
+    selectedProducts,
+    scriptStyle,
   } = useVideoCreateStore()
-  
-  // store의 scenes를 현재 형식으로 변환하여 사용
-  const scenes: ProScene[] = 
-    storeScenes && storeScenes.length > 0
-      ? storeScenes.map((s, index) => sceneScriptToProScene(s, index))
-      : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
-  
-  // store의 scenes가 비어있으면 기본값으로 초기화 (persist 복원 후에만)
-  // edit 페이지에서는 기존 작업 내용을 보존해야 하므로 초기화하지 않음
-  const [hasInitialized, setHasInitialized] = useState(false)
-  
-  // storeScenes의 길이를 안정적인 dependency로 사용
+  const isStoreHydrated = useVideoCreateStoreHydration()
   const storeScenesLength = storeScenes?.length ?? 0
-  
+  const [fallbackScenes] = useState<ProScene[]>(() =>
+    Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
+  )
+
+  // store의 scenes를 현재 형식으로 변환하여 사용 (hydration 전에는 기본값 렌더링 금지)
+  const scenes: ProScene[] = useMemo(
+    () =>
+      !isStoreHydrated
+        ? []
+        : storeScenesLength > 0
+          ? storeScenes.map((s, index) => sceneScriptToProScene(s, index))
+          : fallbackScenes,
+    [fallbackScenes, isStoreHydrated, storeScenes, storeScenesLength]
+  )
+
+  // persist 복원 완료 후 store가 비어있을 때만 기본 씬 초기화
   useEffect(() => {
-    // 이미 초기화되었으면 실행하지 않음
-    if (hasInitialized) return
-    
-    // persist 복원 대기 후 초기화 상태만 설정
-    const timer = setTimeout(() => {
-      // store에 데이터가 있으면 초기화 완료로 표시
-      if (storeScenes && storeScenes.length > 0) {
-        setHasInitialized(true)
-        return
-      }
-      
-      // store가 비어있어도 localStorage 확인
-      if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('bookae-video-create-storage')
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved)
-            const savedScenes = parsed?.state?.scenes
-            // localStorage에 저장된 scenes가 있으면 초기화하지 않고 그대로 사용
-            if (savedScenes && Array.isArray(savedScenes) && savedScenes.length > 0) {
-              setHasInitialized(true)
-              return
-            }
-          } catch (e) {
-            // 파싱 실패 시 무시
-          }
-        }
-      }
-      
-      // 정말로 비어있을 때만 초기화 완료 표시
-      setHasInitialized(true)
-    }, 300) // persist 복원 대기 시간을 조금 더 길게
-    
-    return () => clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeScenesLength])
+    if (!isStoreHydrated || storeScenesLength > 0) {
+      return
+    }
+
+    const defaultScenes = fallbackScenes.map((scene, index) => proSceneToSceneScript(scene, index))
+    setStoreScenes(defaultScenes)
+    setHasUnsavedChanges(true)
+  }, [fallbackScenes, isStoreHydrated, setHasUnsavedChanges, setStoreScenes, storeScenesLength])
   
   // scenes 업데이트 함수 - store에 직접 저장
   const updateScenes = useCallback((updater: (prev: ProScene[]) => ProScene[]) => {
@@ -80,9 +88,10 @@ export default function ProStep2EditPage() {
     const currentStoreScenes = useVideoCreateStore.getState().scenes
     const currentScenes: ProScene[] = currentStoreScenes && currentStoreScenes.length > 0
       ? currentStoreScenes.map((s: SceneScript, index: number) => sceneScriptToProScene(s, index))
-      : Array.from({ length: DEFAULT_SCENE_COUNT }, () => ({ id: generateSceneId(), script: '' }))
+      : fallbackScenes
     
     const updated = updater(currentScenes)
+    
     // store에 저장 (localStorage에 자동 저장됨)
     const scenesToSave = updated.map((s: ProScene, index: number) => proSceneToSceneScript(s, index))
     
@@ -93,14 +102,14 @@ export default function ProStep2EditPage() {
     }
     
     setStoreScenes(scenesToSave)
+    
     // 강제로 저장되도록 상태 업데이트
     setHasUnsavedChanges(true)
-  }, [setStoreScenes, setHasUnsavedChanges])
+  }, [fallbackScenes, setStoreScenes, setHasUnsavedChanges])
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
-  // 촬영가이드 텍스트 상태 관리
-  const [guideTexts, setGuideTexts] = useState<Record<string, string>>({})
+  const [isGeneratingGuide, setIsGeneratingGuide] = useState(false)
 
   const handleScriptChange = useCallback((index: number, value: string) => {
     updateScenes((prev) => {
@@ -111,25 +120,28 @@ export default function ProStep2EditPage() {
     // updateScenes 내부에서 이미 setHasUnsavedChanges를 호출하므로 중복 호출 제거
   }, [updateScenes])
 
-  const handleGuideChange = useCallback((index: number, value: string) => {
-    const sceneId = scenes[index]?.id
-    if (sceneId) {
-      setGuideTexts((prev) => ({
-        ...prev,
-        [sceneId]: value,
-      }))
-      setHasUnsavedChanges(true)
-    }
-  }, [scenes, setHasUnsavedChanges])
+  const handleGuideChange = useCallback(
+    (index: number, value: string) => {
+      updateScenes((prev) => {
+        const next = [...prev]
+        next[index] = { ...next[index], actionGuide: value }
+        return next
+      })
+    },
+    [updateScenes]
+  )
 
   const handleSelectionChange = useCallback((index: number, startSeconds: number, endSeconds: number) => {
     updateScenes((prev) => {
       const next = [...prev]
+      const currentScene = next[index]
+      // 기존 씬의 모든 필드를 유지하면서 selection만 업데이트
       next[index] = { 
-        ...next[index], 
+        ...currentScene, 
         selectionStartSeconds: startSeconds,
         selectionEndSeconds: endSeconds,
       }
+      
       return next
     })
   }, [updateScenes])
@@ -174,6 +186,32 @@ export default function ProStep2EditPage() {
         next[index] = { ...next[index], videoUrl: result.url }
         return next
       })
+
+      // 원본 영상 길이를 로드해, 씬 duration(TTS)보다 짧으면 이어붙인 구간으로 선택 자동 설정
+      const ttsDuration = scenes[index]?.ttsDuration
+      const durationSec = await getVideoDurationFromUrl(result.url)
+      if (durationSec != null && Number.isFinite(durationSec)) {
+        updateScenes((prev) => {
+          const next = [...prev]
+          const scene = next[index]
+          next[index] = {
+            ...scene,
+            originalVideoDurationSeconds: durationSec,
+            ...(typeof ttsDuration === 'number' &&
+            ttsDuration > 0 &&
+            durationSec < ttsDuration
+              ? {
+                  selectionStartSeconds: 0,
+                  selectionEndSeconds: Math.min(
+                    ttsDuration,
+                    getEffectiveSourceDuration(ttsDuration, durationSec)
+                  ),
+                }
+              : {}),
+          }
+          return next
+        })
+      }
     } catch (error) {
       console.error('영상 업로드 오류:', error)
       alert(error instanceof Error ? error.message : '영상 업로드 중 오류가 발생했습니다.')
@@ -182,19 +220,76 @@ export default function ProStep2EditPage() {
     }
   }, [scenes, updateScenes])
 
-  const handleAiGuideGenerateAll = useCallback(() => {
-    // TODO: AI 촬영가이드 생성 로직 구현
-    console.log('AI 촬영가이드 생성')
-  }, [])
+  const handleAiGuideGenerateAll = useCallback(async () => {
+    const product = selectedProducts?.[0]
+    if (!product) {
+      alert('상품을 먼저 선택해주세요.')
+      return
+    }
+    if (!scriptStyle) {
+      alert('대본 스타일을 먼저 선택해주세요.')
+      return
+    }
+    if (!scenes.length || scenes.every((s) => !s.script?.trim())) {
+      alert('1단계에서 대본을 먼저 생성해주세요.')
+      return
+    }
 
-  const handleAiScriptClick = useCallback((index: number) => {
+    setIsGeneratingGuide(true)
+    try {
+      const productResponse = convertProductToProductResponse(product)
+      const imageUrls = Array.isArray(product.images)
+        ? product.images
+        : product.image
+          ? [product.image]
+          : (productResponse.imageUrls ?? productResponse.imageURL ?? [])
+      const productWithImages = {
+        ...productResponse,
+        productId: String(productResponse.productId ?? productResponse.id ?? ''),
+        imageUrls: Array.isArray(imageUrls) ? imageUrls : [],
+      }
+      const previousScripts = scenes.map((s, i) => ({
+        scene: i + 1,
+        script: s.script || '',
+        duration: s.ttsDuration ?? 0,
+      }))
+
+      const data = await studioScriptApi.generateGuideUserEdit({
+        product: productWithImages,
+        type: scriptStyle,
+        previousScripts,
+      })
+
+      const list = Array.isArray(data)
+        ? data
+        : [data as StudioScriptUserEditGuideResponseItem]
+
+      updateScenes((prev) => {
+        return list.map((item, index) => {
+          const existing = prev[index]
+          return {
+            ...existing,
+            id: existing?.id ?? generateSceneId(),
+            script: item.script?.trim() ?? existing?.script ?? '',
+            actionGuide: item.actionGuide?.trim() ?? existing?.actionGuide ?? '',
+            ttsDuration: typeof item.duration === 'number' ? item.duration : existing?.ttsDuration,
+          }
+        })
+      })
+    } catch (error) {
+      console.error('촬영 가이드 생성 오류:', error)
+      alert('촬영 가이드 생성 중 오류가 발생했어요.')
+    } finally {
+      setIsGeneratingGuide(false)
+    }
+  }, [selectedProducts, scriptStyle, scenes, updateScenes])
+
+  const handleAiScriptClick = useCallback(() => {
     // TODO: 개별 씬 AI 스크립트 생성 로직 구현
-    console.log('AI 스크립트 생성', index)
   }, [])
 
-  const handleAiGuideClick = useCallback((index: number) => {
+  const handleAiGuideClick = useCallback(() => {
     // TODO: 개별 씬 AI 촬영가이드 생성 로직 구현
-    console.log('AI 촬영가이드 생성', index)
   }, [])
 
   const handleDragStart = useCallback((index: number) => {
@@ -245,26 +340,84 @@ export default function ProStep2EditPage() {
     setDragOver(null)
   }, [])
 
+  // 다음 단계(step3) 이동 전:
+  // 1) 누락된 원본 길이 메타데이터를 보강하고
+  // 2) 씬별 selection range를 확장 소스 기준으로 정규화해서
+  // 3) 어떤 상황에서도 같은 지점을 복원 가능하게 저장한다.
+  const handleGoToStep3 = useCallback(async () => {
+    const currentStoreScenes = useVideoCreateStore.getState().scenes
+    const currentScenes: ProScene[] = currentStoreScenes?.length
+      ? currentStoreScenes.map((s: SceneScript, i: number) => sceneScriptToProScene(s, i))
+      : []
+
+    const scenesWithResolvedOriginalDuration = await Promise.all(
+      currentScenes.map(async (scene) => {
+        if (!scene.videoUrl) {
+          return scene
+        }
+
+        const hasOriginalDuration =
+          typeof scene.originalVideoDurationSeconds === 'number' &&
+          Number.isFinite(scene.originalVideoDurationSeconds) &&
+          scene.originalVideoDurationSeconds > 0
+
+        if (hasOriginalDuration) {
+          return scene
+        }
+
+        const resolvedDuration = await getVideoDurationFromUrl(scene.videoUrl)
+        if (!resolvedDuration || !Number.isFinite(resolvedDuration) || resolvedDuration <= 0) {
+          return scene
+        }
+
+        return {
+          ...scene,
+          originalVideoDurationSeconds: resolvedDuration,
+        }
+      })
+    )
+
+    const normalized: ProScene[] = scenesWithResolvedOriginalDuration.map((scene) => {
+      if (!scene.videoUrl) {
+        return scene
+      }
+
+      const normalizedRange = normalizeSelectionRange({
+        ttsDuration: scene.ttsDuration,
+        originalVideoDurationSeconds: scene.originalVideoDurationSeconds,
+        selectionStartSeconds: scene.selectionStartSeconds,
+        selectionEndSeconds: scene.selectionEndSeconds,
+      })
+
+      return {
+        ...scene,
+        ttsDuration: normalizedRange.ttsDurationSeconds,
+        selectionStartSeconds: normalizedRange.startSeconds,
+        selectionEndSeconds: normalizedRange.endSeconds,
+      }
+    })
+
+    const toSave = normalized.map((scene, index) => proSceneToSceneScript(scene, index))
+    setStoreScenes(toSave)
+
+    requestAnimationFrame(() => {
+      router.push('/video/create/pro/step3')
+    })
+  }, [setStoreScenes, router])
+
   // 두 번째 화면용 scenes 데이터 (TTS duration 포함)
   const videoEditScenes = scenes.map((scene) => ({
     id: scene.id,
     script: scene.script,
     ttsDuration: scene.ttsDuration || 10, // 실제 TTS duration 값 사용 (없으면 기본값 10초)
-    guideText: guideTexts[scene.id] || '', // 촬영가이드 텍스트 가져오기
+    guideText: scene.actionGuide ?? '', // 촬영가이드(액션 가이드) - store에 저장
     voiceLabel: scene.voiceLabel, // 적용된 보이스 라벨
     videoUrl: scene.videoUrl, // 업로드된 영상 URL
     selectionStartSeconds: scene.selectionStartSeconds, // 격자 선택 영역 시작 시간
     selectionEndSeconds: scene.selectionEndSeconds, // 격자 선택 영역 끝 시간
+    originalVideoDurationSeconds: scene.originalVideoDurationSeconds,
   }))
 
-  // 각 씬의 TTS duration 콘솔 출력
-  useEffect(() => {
-    console.log('=== 각 씬의 TTS Duration ===')
-    scenes.forEach((scene, index) => {
-      console.log(`씬 ${index + 1}: ${scene.ttsDuration?.toFixed(2) || '없음'}초`)
-    })
-    console.log('===========================')
-  }, [scenes])
 
   return (
     <div>
@@ -346,6 +499,7 @@ export default function ProStep2EditPage() {
                     onAiScriptClick={handleAiScriptClick}
                     onAiGuideClick={handleAiGuideClick}
                     onAiGuideGenerateAll={handleAiGuideGenerateAll}
+                    isGeneratingGuide={isGeneratingGuide}
                     onSelectionChange={handleSelectionChange}
                     onDragStart={handleDragStart}
                     onDragOver={handleDragOver}
@@ -370,8 +524,9 @@ export default function ProStep2EditPage() {
                     <ArrowLeft className="w-5 h-5" />
                     이전 단계
                   </Link>
-                  <Link
-                    href="/video/create/pro/step3"
+                  <button
+                    type="button"
+                    onClick={handleGoToStep3}
                     className="flex-1 h-14 rounded-2xl bg-[#5e8790] text-white hover:bg-[#5e8790]/90 transition-all flex items-center justify-center gap-2 font-bold tracking-[-0.48px] shadow-(--shadow-card-default)"
                     style={{
                       fontSize: 'var(--font-size-24)',
@@ -380,7 +535,7 @@ export default function ProStep2EditPage() {
                   >
                     다음 단계
                     <ArrowRight className="w-5 h-5" />
-                  </Link>
+                  </button>
                 </div>
               </section>
             </div>

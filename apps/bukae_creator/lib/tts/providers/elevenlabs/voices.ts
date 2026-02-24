@@ -40,16 +40,13 @@ async function getVoiceIdsFromSupabase(names: string[]): Promise<Map<string, str
  * 하드코딩된 Premium 목소리 메타데이터와 Supabase의 voice_id를 결합하여 반환
  */
 export async function listVoices(): Promise<ElevenLabsVoice[]> {
-  console.log('[ElevenLabs] listVoices() called')
   
   try {
     // 1. 하드코딩된 메타데이터 가져오기
     const premiumVoices = PREMIUM_VOICES
-    console.log(`[ElevenLabs] Loading ${premiumVoices.length} premium voices from hardcoded data`)
     
     // 2. Supabase에서 voice_id 일괄 조회 (20개만, 빠름)
     const voiceIds = await getVoiceIdsFromSupabase(premiumVoices.map(v => v.name))
-    console.log(`[ElevenLabs] Retrieved ${voiceIds.size} voice IDs from Supabase`)
     
     // 3. 메타데이터와 voice_id 결합하여 ElevenLabsVoice 형식으로 반환
     const voices: ElevenLabsVoice[] = premiumVoices.map(voice => {
@@ -73,7 +70,6 @@ export async function listVoices(): Promise<ElevenLabsVoice[]> {
     
     // voice_id가 있는 목소리만 반환
     const validVoices = voices.filter(v => v.voice_id)
-    console.log(`[ElevenLabs] Returning ${validVoices.length} valid voices`)
     
     return validVoices
   } catch (error) {

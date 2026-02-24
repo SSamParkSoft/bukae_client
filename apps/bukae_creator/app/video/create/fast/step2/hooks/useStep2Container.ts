@@ -113,7 +113,6 @@ export function useStep2Container() {
   useEffect(() => {
     const isDev = process.env.NODE_ENV === 'development'
     if (isDev) {
-      console.log('[Step2] Extension Storage 로드 시작')
     }
     
     const loadExtensionImages = async () => {
@@ -134,10 +133,6 @@ export function useStep2Container() {
           const productId = selectedProduct?.id
           const images = extractImagesFromStorage(storageData, productId)
           if (isDev) {
-            console.log('[Step2] Extension Storage 이미지 로드:', {
-              productId,
-              imagesCount: images.length,
-            })
           }
           setExtensionImages(images)
         }
@@ -177,13 +172,10 @@ export function useStep2Container() {
     if (typeof window !== 'undefined') {
       (window as Window & { testExtensionStorage?: () => Promise<void> }).testExtensionStorage = async () => {
         const { testExtensionStorageAccess, requestCoupangExtensionStorage } = await import('@/lib/utils/coupang-extension-storage')
-        console.log('=== Extension Storage 테스트 시작 ===')
         const canAccess = await testExtensionStorageAccess()
         if (canAccess) {
           const data = await requestCoupangExtensionStorage()
-          console.log('Storage 데이터:', data)
         }
-        console.log('=== Extension Storage 테스트 완료 ===')
       }
     }
   }, [])
@@ -255,17 +247,6 @@ export function useStep2Container() {
     const imageSet = new Set<string>()
     
     if (isDev) {
-      console.log('[Step2] availableImages 생성:', {
-        selectedProduct: selectedProduct ? {
-          id: selectedProduct.id,
-          name: selectedProduct.name,
-          image: selectedProduct.image,
-          imagesLength: selectedProduct.images?.length || 0,
-          platform: selectedProduct.platform,
-        } : null,
-        extensionImagesLength: extensionImages.length,
-        uploadedImagesLength: uploadedImages.length,
-      })
     }
     
     // Product 도메인 모델의 images 필드 사용 (먼저 추가)
@@ -296,12 +277,6 @@ export function useStep2Container() {
     
     const images = Array.from(imageSet)
     if (isDev) {
-      console.log('[Step2] 최종 availableImages:', {
-        count: images.length,
-        platform: selectedProduct?.platform,
-        extensionImagesIncluded: selectedProduct?.platform === 'coupang',
-        images: images.slice(0, 5) // 처음 5개만 로그
-      })
     }
     
     return images
@@ -514,13 +489,30 @@ export function useStep2Container() {
         return
       }
 
-      // Product를 ProductResponse 형태로 변환
+      // Product를 ProductResponse 형태로 변환 (auto-create API는 product 내 imageUrls 사용)
       const productResponse = convertProductToProductResponse(product)
+      // 백엔드 유효성 검사: productId는 문자열, imageUrls는 http(s) URL만 (blob/data 불가)
+      const imageUrlsForApi = selectedImages.filter(
+        (url) => typeof url === 'string' && (url.startsWith('http://') || url.startsWith('https://'))
+      )
+      const productWithImages = {
+        ...productResponse,
+        productId: String(productResponse.productId ?? productResponse.id ?? ''),
+        id: String(productResponse.id ?? productResponse.productId ?? ''),
+        imageUrls: imageUrlsForApi,
+      }
+
+      if (imageUrlsForApi.length === 0) {
+        alert('대본 생성에는 웹 이미지 URL이 필요해요. 블롭/업로드 이미지만 있으면 서버에서 인식하지 못해요.')
+        setIsGeneratingAll(false)
+        setGeneratingScenes(new Set())
+        return
+      }
 
       const data = await studioScriptApi.generateScripts({
-        product: productResponse,
+        product: productWithImages,
         type: scriptStyle,
-        imageUrls: selectedImages,
+        imageUrls: imageUrlsForApi,
       })
 
       const items = Array.isArray(data) ? data : [data]

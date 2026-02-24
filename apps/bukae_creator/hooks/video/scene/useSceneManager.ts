@@ -19,6 +19,7 @@ import { useSceneLoader } from './management/useSceneLoader'
 import { useSceneTransition } from './management/useSceneTransition'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { getSubtitlePosition } from '../renderer/utils/getSubtitlePosition'
+import { normalizeAnchorToTopLeft, calculateTextPositionInBox } from '../renderer/subtitle/useSubtitleRenderer'
 import type { UseSceneManagerParams } from '../types/scene'
 import type { TimelineScene } from '@/lib/types/domain/timeline'
 
@@ -224,7 +225,10 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
           textWidth = scene.text.transform.width / (scene.text.transform.scaleX || 1)
         }
 
-        const styleConfig: Record<string, unknown> = {
+        const strokeColor = scene.text.stroke?.color || '#000000'
+        const strokeWidth = scene.text.stroke?.width ?? 10
+        
+        const styleConfig: Partial<PIXI.TextStyle> = {
           fontFamily,
           fontSize: scene.text.fontSize || 80,
           fill: scene.text.color || '#ffffff',
@@ -234,10 +238,11 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
           wordWrap: true,
           wordWrapWidth: textWidth,
           breakWords: true,
-          stroke: {
-            color: scene.text.stroke?.color || '#000000',
-            width: scene.text.stroke?.width ?? 10,
-          },
+        }
+        
+        // stroke는 strokeWidth가 0보다 클 때만 설정
+        if (strokeWidth > 0) {
+          styleConfig.stroke = { color: strokeColor, width: strokeWidth }
         }
 
         const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
@@ -253,15 +258,42 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         }
         
         if (scene.text.transform) {
-          const scaleX = scene.text.transform.scaleX ?? 1
-          const scaleY = scene.text.transform.scaleY ?? 1
-          targetTextObj.x = scene.text.transform.x
-          targetTextObj.y = scene.text.transform.y
+          const transform = scene.text.transform
+          const scaleX = transform.scaleX ?? 1
+          const scaleY = transform.scaleY ?? 1
+          const anchorX = transform.anchor?.x ?? 0.5
+          const anchorY = transform.anchor?.y ?? 0.5
+          const hAlign = transform.hAlign ?? 'center'
+          targetTextObj.anchor.set(0, 0)
+          const bounds = targetTextObj.getLocalBounds()
+          const measuredW = bounds.width || 0
+          const measuredH = bounds.height || 0
+          const hasBoxSize = (transform.width != null && transform.width > 0) && (transform.height != null && transform.height > 0)
+          let boxX: number
+          let boxY: number
+          let boxW: number
+          let boxH: number
+          if (hasBoxSize) {
+            const r = normalizeAnchorToTopLeft(transform.x, transform.y, transform.width, transform.height, scaleX, scaleY, anchorX, anchorY)
+            boxX = r.boxX
+            boxY = r.boxY
+            boxW = r.boxW
+            boxH = r.boxH
+          } else {
+            boxW = measuredW * scaleX
+            boxH = measuredH * scaleY
+            boxX = transform.x - boxW * anchorX
+            boxY = transform.y - boxH * anchorY
+          }
+          const { textX, textY } = calculateTextPositionInBox(boxX, boxY, boxW, boxH, measuredW * scaleX, measuredH * scaleY, hAlign)
+          targetTextObj.x = textX
+          targetTextObj.y = textY
           targetTextObj.scale.set(scaleX, scaleY)
-          targetTextObj.rotation = scene.text.transform.rotation ?? 0
+          targetTextObj.rotation = transform.rotation ?? 0
         } else {
           // transform이 없을 때 공통 함수 사용
           const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
+          targetTextObj.anchor.set(0.5, 0.5)
           targetTextObj.x = subtitlePosition.x
           targetTextObj.y = subtitlePosition.y
           targetTextObj.scale.set(subtitlePosition.scaleX, subtitlePosition.scaleY)
@@ -314,7 +346,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         onComplete()
       }
     },
-    [timeline, appRef, containerRef, textsRef]
+    [timeline, appRef, containerRef, textsRef, stageDimensions]
   )
 
   // renderSubtitlePartRef 동기화
@@ -625,14 +657,57 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         
         targetTextObj.text = partText || ''
         
-        // Transform 위치 적용 (재생 중에도 위치가 올바르게 설정되도록)
+        // Transform 위치 적용 (ANIMATION.md 6.2/6.3: 박스 anchor → top-left 정규화 후 박스 내 정렬)
         if (scene.text?.transform && targetTextObj && !targetTextObj.destroyed) {
-          const scaleX = scene.text.transform.scaleX ?? 1
-          const scaleY = scene.text.transform.scaleY ?? 1
-          targetTextObj.x = scene.text.transform.x
-          targetTextObj.y = scene.text.transform.y
+          const transform = scene.text.transform
+          const scaleX = transform.scaleX ?? 1
+          const scaleY = transform.scaleY ?? 1
+          const anchorX = transform.anchor?.x ?? 0.5
+          const anchorY = transform.anchor?.y ?? 0.5
+          const hAlign = transform.hAlign ?? 'center'
+          const hasBoxSize = (transform.width != null && transform.width > 0) && (transform.height != null && transform.height > 0)
+          const bounds = targetTextObj.getLocalBounds()
+          const measuredW = bounds.width || 0
+          const measuredH = bounds.height || 0
+          let boxX: number
+          let boxY: number
+          let boxW: number
+          let boxH: number
+          if (hasBoxSize) {
+            const r = normalizeAnchorToTopLeft(
+              transform.x,
+              transform.y,
+              transform.width,
+              transform.height,
+              scaleX,
+              scaleY,
+              anchorX,
+              anchorY
+            )
+            boxX = r.boxX
+            boxY = r.boxY
+            boxW = r.boxW
+            boxH = r.boxH
+          } else {
+            boxW = measuredW * scaleX
+            boxH = measuredH * scaleY
+            boxX = transform.x - boxW * anchorX
+            boxY = transform.y - boxH * anchorY
+          }
+          const { textX, textY } = calculateTextPositionInBox(
+            boxX,
+            boxY,
+            boxW,
+            boxH,
+            measuredW * scaleX,
+            measuredH * scaleY,
+            hAlign
+          )
+          targetTextObj.anchor.set(0, 0)
+          targetTextObj.x = textX
+          targetTextObj.y = textY
           targetTextObj.scale.set(scaleX, scaleY)
-          targetTextObj.rotation = scene.text.transform.rotation ?? 0
+          targetTextObj.rotation = transform.rotation ?? 0
         } else if (scene.text && targetTextObj && !targetTextObj.destroyed) {
           // Transform이 없을 때: anchor (0.5, 0.5)로 고정하고 텍스트 중앙이 subtitlePosition.x에 오도록 설정
           const subtitlePosition = getSubtitlePosition(scene, stageDimensions)
@@ -739,6 +814,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
       setTimeline,
       setCurrentSceneIndex,
       renderUnderline,
+      stageDimensions,
     ]
   )
 

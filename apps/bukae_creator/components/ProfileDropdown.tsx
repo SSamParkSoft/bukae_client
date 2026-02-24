@@ -20,8 +20,8 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const [credits, setCredits] = useState<number | null>(null)
   const [dropdownWidth, setDropdownWidth] = useState<number | undefined>(undefined)
+  const [imageError, setImageError] = useState(false)
 
   // 프로필 버튼의 너비를 측정하여 드롭다운 너비에 적용
   useEffect(() => {
@@ -30,14 +30,10 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
     }
   }, [isOpen, user])
 
-  // 크레딧 정보 가져오기
+  // 프로필 이미지 URL이 변경되면 에러 상태 리셋
   useEffect(() => {
-    if (user && isOpen) {
-      // TODO: API를 통해 크레딧 정보 가져오기
-      // 임시로 9999로 설정
-      setCredits(9999)
-    }
-  }, [user, isOpen])
+    setImageError(false)
+  }, [user?.profileImage])
 
   const handleLogout = async () => {
     try {
@@ -67,11 +63,8 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
   const displayPlan = subscriptionPlan === 'none' ? 'Free' : subscriptionPlan
   const isAdmin = isAdminEmail(user.email)
 
-  // 크레딧 표시 포맷팅
-  const formatCredits = (credits: number | null) => {
-    if (credits === null) return '9999'
-    return credits.toLocaleString()
-  }
+  // TODO: API 연동 시 실제 크레딧 값으로 교체
+  const credits = 9999
 
   return (
     <div 
@@ -85,13 +78,15 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
         className="flex items-center h-[58px] px-5 rounded-3xl bg-white/10 gap-3 shadow-md hover:bg-white/20 transition-colors"
       >
         {/* 프로필 사진 */}
-        {user.profileImage ? (
+        {user.profileImage && !imageError ? (
           <Image
             src={user.profileImage}
             alt={user.name}
             width={36}
             height={36}
             className="w-9 h-9 rounded-xl object-cover"
+            unoptimized
+            onError={() => setImageError(true)}
           />
         ) : (
           <div className="w-9 h-9 rounded-xl bg-[#e3b8ff] flex items-center justify-center shrink-0">
@@ -136,13 +131,15 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
             {/* 상단 프로필 영역 */}
             <div className="flex items-center gap-2.5 h-8">
               {/* 프로필 이미지 */}
-              {user.profileImage ? (
+              {user.profileImage && !imageError ? (
                 <Image
                   src={user.profileImage}
                   alt={user.name}
                   width={32}
                   height={32}
                   className="w-8 h-8 rounded-lg object-cover shrink-0"
+                  unoptimized
+                  onError={() => setImageError(true)}
                 />
               ) : (
                 <div className="w-8 h-8 rounded-lg bg-[#e3b8ff] flex items-center justify-center shrink-0">
@@ -181,7 +178,7 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
               <Ticket className="w-5 h-5 text-[#454545] shrink-0" />
               <div className="flex items-baseline gap-1 flex-1 min-w-0">
                 <span className="text-xl font-bold text-[#454545] leading-none">
-                  {formatCredits(credits)}
+                  {credits.toLocaleString()}
                 </span>
                 <span className="text-[10px] font-bold text-[#454545] leading-none">
                   /1만 크레딧

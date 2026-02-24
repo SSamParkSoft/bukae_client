@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
 
 interface UseBgmManagerParams {
@@ -14,27 +14,18 @@ interface UseBgmManagerParams {
  */
 export function useBgmManager({
   bgmTemplate,
-  playbackSpeed,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  playbackSpeed: _playbackSpeed,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isPlaying,
 }: UseBgmManagerParams) {
-  const [confirmedBgmTemplate, setConfirmedBgmTemplate] = useState<string | null>(bgmTemplate)
+  const [confirmedBgmTemplateOverride, setConfirmedBgmTemplateOverride] = useState<string | null | undefined>(undefined)
+  const confirmedBgmTemplate = confirmedBgmTemplateOverride === undefined ? bgmTemplate : confirmedBgmTemplateOverride
   const [isBgmBootstrapping, setIsBgmBootstrapping] = useState(false)
   const isBgmBootstrappingRef = useRef(false)
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null)
   const bgmAudioUrlRef = useRef<string | null>(null)
   const bgmStartTimeRef = useRef<number | null>(null)
-  const isUserConfirmingRef = useRef(false) // 사용자가 직접 확정 중인지 추적
-
-  // bgmTemplate이 변경되면 confirmedBgmTemplate도 동기화 (새로고침 후 유지)
-  useEffect(() => {
-    // 사용자가 직접 확정 중이 아닐 때만 동기화
-    if (!isUserConfirmingRef.current && bgmTemplate !== confirmedBgmTemplate) {
-      setConfirmedBgmTemplate(bgmTemplate)
-    }
-    // 동기화 후 플래그 리셋
-    isUserConfirmingRef.current = false
-  }, [bgmTemplate, confirmedBgmTemplate])
 
   // 배속 변경 시 재생 중인 BGM의 playbackRate 업데이트 (비활성화: BGM은 배속 적용 안 함)
   // useEffect(() => {
@@ -195,10 +186,13 @@ export function useBgmManager({
     }
   }, [stopBgmAudio])
 
-  const handleBgmConfirm = useCallback((templateId: string | null) => {
-    isUserConfirmingRef.current = true // 사용자가 직접 확정 중
-    setConfirmedBgmTemplate(templateId)
+  const setConfirmedBgmTemplate = useCallback((templateId: string | null) => {
+    setConfirmedBgmTemplateOverride(templateId)
   }, [])
+
+  const handleBgmConfirm = useCallback((templateId: string | null) => {
+    setConfirmedBgmTemplate(templateId)
+  }, [setConfirmedBgmTemplate])
 
   // 타임라인 시간에 맞춰 BGM 재생 위치 업데이트
   const seekBgmAudio = useCallback((timelineTime: number) => {
@@ -226,4 +220,3 @@ export function useBgmManager({
     handleBgmConfirm,
   }
 }
-

@@ -120,13 +120,6 @@ export class GSAPTransportAdapter {
     // 매 0.1초마다 한 번씩만 출력하여 로그가 너무 많아지지 않도록 함
     const shouldLog = Math.floor(t * 10) % 2 === 0 // 0.2초마다 출력
     if (shouldLog || isInTransition || (Math.abs(t - startTime) < 0.1) || (Math.abs(t - endTime) < 0.1)) {
-      console.log('[GSAPTransportAdapter] syncToTransportTime called:', {
-        t: t.toFixed(3),
-        startTime: startTime.toFixed(3),
-        endTime: endTime.toFixed(3),
-        isInTransition,
-        transitionType: this.transitionTiming.transitionType,
-      })
     }
     
     // renderFunction 호출 전에 toSprite가 여전히 유효한지 다시 확인
@@ -190,31 +183,9 @@ export class GSAPTransportAdapter {
       // 샘플링하여 로그가 너무 많이 나오지 않도록 함
       const shouldLog = Math.floor(progress * 10) % 2 === 0
       if (shouldLog) {
-        console.log('[GSAPTransportAdapter] Fade (IN TRANSITION):', {
-          t: t.toFixed(3),
-          startTime: startTime.toFixed(3),
-          endTime: endTime.toFixed(3),
-          relativeTime: relativeTime.toFixed(3),
-          progress: progress.toFixed(3),
-          easedProgress: easedProgress.toFixed(3),
-          targetAlpha: targetAlpha.toFixed(3),
-          actualAlpha: toSprite.alpha.toFixed(3),
-          toSpriteVisible: toSprite.visible,
-          spriteDestroyed: toSprite.destroyed,
-        })
       }
     } else if (relativeTime >= -0.1 && relativeTime < 0.1) {
       // 전환효과 시작 직전/직후에도 로그 출력
-      console.log('[GSAPTransportAdapter] Fade (NEAR START):', {
-        t: t.toFixed(3),
-        startTime: startTime.toFixed(3),
-        relativeTime: relativeTime.toFixed(3),
-        progress: progress.toFixed(3),
-        easedProgress: easedProgress.toFixed(3),
-        targetAlpha: targetAlpha.toFixed(3),
-        actualAlpha: toSprite.alpha.toFixed(3),
-        toSpriteVisible: toSprite.visible,
-      })
     }
 
     // 이전 씬 페이드 아웃: alpha = 1 - easedProgress

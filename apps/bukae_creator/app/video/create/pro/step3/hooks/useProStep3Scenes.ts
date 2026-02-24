@@ -3,7 +3,8 @@
 import { useMemo } from 'react'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
-import type { ProStep3Scene } from '@/app/video/create/pro/step3/components/ProSceneListPanel'
+import { normalizeSelectionRange } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
+import type { ProStep3Scene } from '@/app/video/create/pro/step3/model/types'
 
 // Pro step2에서 사용하는 확장된 Scene 타입
 export type ProScene = {
@@ -12,33 +13,48 @@ export type ProScene = {
   voiceLabel?: string
   voiceTemplate?: string | null
   ttsDuration?: number
+  ttsAudioBase64?: string // TTS 오디오 데이터 (base64 인코딩된 문자열)
   videoUrl?: string | null
   selectionStartSeconds?: number
   selectionEndSeconds?: number
+  originalVideoDurationSeconds?: number
 }
 
-// SceneScript를 ProScene으로 변환
-function sceneScriptToProScene(s: SceneScript, index: number): ProScene {
-  // SceneScript의 확장된 필드 확인 (localStorage에서 복원된 데이터)
-  const extended = s as SceneScript & {
-    id?: string
-    voiceLabel?: string
-    voiceTemplate?: string | null
-    ttsDuration?: number
-    videoUrl?: string | null
-    selectionStartSeconds?: number
-    selectionEndSeconds?: number
-  }
+// Step2 edit에서 저장한 확장 필드 (store에는 SceneScript + 이 필드들이 직렬화되어 있음)
+type StoreSceneExtended = SceneScript & {
+  id?: string
+  voiceLabel?: string
+  voiceTemplate?: string | null
+  ttsDuration?: number
+  ttsAudioBase64?: string
+  videoUrl?: string | null
+  selectionStartSeconds?: number
+  selectionEndSeconds?: number
+  originalVideoDurationSeconds?: number
+}
 
+// SceneScript를 ProScene으로 변환 (씬별 격자 선택값 selectionStartSeconds, selectionEndSeconds 포함)
+function sceneScriptToProScene(s: SceneScript, index: number): ProScene {
+  const ext = s as StoreSceneExtended
+  const start =
+    typeof ext.selectionStartSeconds === 'number' && Number.isFinite(ext.selectionStartSeconds)
+      ? ext.selectionStartSeconds
+      : undefined
+  const end =
+    typeof ext.selectionEndSeconds === 'number' && Number.isFinite(ext.selectionEndSeconds)
+      ? ext.selectionEndSeconds
+      : undefined
   return {
-    id: extended.id || `scene-${index}`,
+    id: ext.id || `scene-${index}`,
     script: s.script || '',
-    voiceLabel: extended.voiceLabel,
-    voiceTemplate: extended.voiceTemplate,
-    ttsDuration: extended.ttsDuration,
-    videoUrl: extended.videoUrl,
-    selectionStartSeconds: extended.selectionStartSeconds,
-    selectionEndSeconds: extended.selectionEndSeconds,
+    voiceLabel: ext.voiceLabel,
+    voiceTemplate: ext.voiceTemplate,
+    ttsDuration: ext.ttsDuration,
+    ttsAudioBase64: ext.ttsAudioBase64,
+    videoUrl: ext.videoUrl,
+    selectionStartSeconds: start,
+    selectionEndSeconds: end,
+    originalVideoDurationSeconds: ext.originalVideoDurationSeconds,
   }
 }
 
@@ -67,33 +83,31 @@ export function useProStep3Scenes() {
     return safeScenes.map((s, index) => sceneScriptToProScene(s, index))
   }, [storeScenes])
 
-  // ProStep3Scene으로 변환 (selectionStartSeconds, selectionEndSeconds는 기본값 사용)
+  // ProStep3Scene으로 변환 (Step2에서 설정한 selectionStartSeconds, selectionEndSeconds 사용)
   const proStep3Scenes: ProStep3Scene[] = useMemo(() => {
     // proScenes가 배열이 아니거나 빈 배열이면 빈 배열 반환
     if (!isValidSceneArray(proScenes)) {
       return []
     }
-    return proScenes.map((scene, index) => {
-      const extended = scene as ProScene & {
-        selectionStartSeconds?: number
-        selectionEndSeconds?: number
-      }
-
-      // selectionStartSeconds와 selectionEndSeconds가 없으면 기본값 사용
-      // ttsDuration을 기준으로 선택 영역 설정 (0부터 ttsDuration까지)
-      const ttsDuration = scene.ttsDuration || 10
-      const selectionStartSeconds = extended.selectionStartSeconds ?? 0
-      const selectionEndSeconds = extended.selectionEndSeconds ?? ttsDuration
+    return proScenes.map((scene) => {
+      const normalized = normalizeSelectionRange({
+        ttsDuration: scene.ttsDuration,
+        originalVideoDurationSeconds: scene.originalVideoDurationSeconds,
+        selectionStartSeconds: scene.selectionStartSeconds,
+        selectionEndSeconds: scene.selectionEndSeconds,
+      })
 
       return {
         id: scene.id,
         script: scene.script,
         videoUrl: scene.videoUrl,
-        selectionStartSeconds,
-        selectionEndSeconds,
+        selectionStartSeconds: normalized.startSeconds,
+        selectionEndSeconds: normalized.endSeconds,
+        originalVideoDurationSeconds: scene.originalVideoDurationSeconds,
         voiceLabel: scene.voiceLabel,
         voiceTemplate: scene.voiceTemplate,
-        ttsDuration: scene.ttsDuration,
+        ttsDuration: normalized.ttsDurationSeconds,
+        ttsAudioBase64: scene.ttsAudioBase64,
       }
     })
   }, [proScenes])

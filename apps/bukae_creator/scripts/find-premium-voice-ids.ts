@@ -26,8 +26,6 @@ import { getSupabaseServiceClient } from '../lib/api/supabase-server'
 const PREMIUM_VOICE_NAMES = PREMIUM_VOICES.map(v => v.name.toLowerCase())
 
 async function findPremiumVoiceIds(): Promise<Map<string, string>> {
-  console.log('[Find Voice IDs] Starting to find premium voice IDs...')
-  console.log(`[Find Voice IDs] Looking for ${PREMIUM_VOICE_NAMES.length} premium voices`)
   
   const client = getElevenLabsClient()
   const foundVoiceIds = new Map<string, string>()
@@ -37,11 +35,9 @@ async function findPremiumVoiceIds(): Promise<Map<string, string>> {
   let hasMore = true
   let pageCount = 0
   
-  console.log('[Find Voice IDs] Step 1: Searching for premium voices using list API...')
   
   while (hasMore) {
     pageCount++
-    console.log(`[Find Voice IDs] Fetching page ${pageCount}...`)
     
     try {
       // ElevenLabs SDK의 voices API 호출 (타입 체크 우회)
@@ -74,7 +70,6 @@ async function findPremiumVoiceIds(): Promise<Map<string, string>> {
             const originalName = PREMIUM_VOICES.find(pv => pv.name.toLowerCase() === firstName)?.name
             if (originalName && !foundVoiceIds.has(originalName)) {
               foundVoiceIds.set(originalName, voiceId)
-              console.log(`[Find Voice IDs] ✓ Found: ${originalName} -> ${voiceId}`)
             }
           }
         }
@@ -86,7 +81,6 @@ async function findPremiumVoiceIds(): Promise<Map<string, string>> {
       
       // Premium 목소리를 모두 찾았으면 종료
       if (foundVoiceIds.size >= PREMIUM_VOICE_NAMES.length) {
-        console.log('[Find Voice IDs] Found all premium voices, stopping search')
         break
       }
       
@@ -103,7 +97,6 @@ async function findPremiumVoiceIds(): Promise<Map<string, string>> {
     }
   }
   
-  console.log(`[Find Voice IDs] Found ${foundVoiceIds.size} premium voice IDs`)
   
   // 찾지 못한 목소리 확인
   const foundNames = Array.from(foundVoiceIds.keys()).map(n => n.toLowerCase())
@@ -117,7 +110,6 @@ async function findPremiumVoiceIds(): Promise<Map<string, string>> {
 }
 
 async function saveToSupabase(voiceIds: Map<string, string>): Promise<void> {
-  console.log('[Find Voice IDs] Step 2: Saving to Supabase e_voices table...')
   
   const supabase = getSupabaseServiceClient()
   
@@ -128,7 +120,6 @@ async function saveToSupabase(voiceIds: Map<string, string>): Promise<void> {
     updated_at: new Date().toISOString(),
   }))
   
-  console.log(`[Find Voice IDs] Preparing to save ${records.length} records...`)
   
   // upsert 사용 (이미 있으면 업데이트, 없으면 삽입)
   const { data, error } = await supabase
@@ -143,21 +134,14 @@ async function saveToSupabase(voiceIds: Map<string, string>): Promise<void> {
     throw error
   }
   
-  console.log(`[Find Voice IDs] ✓ Successfully saved ${data?.length || 0} records to Supabase`)
   
   // 저장된 데이터 확인
-  console.log('\n[Find Voice IDs] Saved voice IDs:')
   for (const record of records) {
-    console.log(`  - ${record.name}: ${record.voice_id}`)
   }
 }
 
 async function main() {
   try {
-    console.log('='.repeat(60))
-    console.log('Premium Voice IDs Finder')
-    console.log('='.repeat(60))
-    console.log()
     
     // Step 1: voice_id 찾기
     const voiceIds = await findPremiumVoiceIds()
@@ -170,16 +154,8 @@ async function main() {
     // Step 2: Supabase에 저장
     await saveToSupabase(voiceIds)
     
-    console.log()
-    console.log('='.repeat(60))
-    console.log('✓ Successfully completed!')
-    console.log('='.repeat(60))
     
     // 최종 요약
-    console.log('\nSummary:')
-    console.log(`  - Total premium voices: ${PREMIUM_VOICE_NAMES.length}`)
-    console.log(`  - Found voice IDs: ${voiceIds.size}`)
-    console.log(`  - Saved to Supabase: ${voiceIds.size}`)
     
   } catch (error) {
     console.error('[Find Voice IDs] ❌ Fatal error:', error)

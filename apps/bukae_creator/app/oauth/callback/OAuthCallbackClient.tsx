@@ -58,7 +58,6 @@ export default function OAuthCallbackClient() {
         // refreshToken은 쿠키(HttpOnly)에만 저장되므로 localStorage에 저장하지 않음 (보안)
         authStorage.setTokens(accessToken, null, { source: 'backend' })
         
-        console.log('[OAuth Callback] ✅ 토큰 저장 완료: accessToken 저장됨, refreshToken은 쿠키(HttpOnly)에 저장됨')
 
         // 보안: 토큰을 저장한 후 URL에서 제거 (비동기 작업 전에 먼저 제거)
         if (typeof window !== 'undefined') {

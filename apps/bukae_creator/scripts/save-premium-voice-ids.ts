@@ -43,10 +43,6 @@ const VOICE_IDS: Record<string, string> = {
 }
 
 async function saveToSupabase() {
-  console.log('='.repeat(60))
-  console.log('Premium Voice IDs Saver')
-  console.log('='.repeat(60))
-  console.log()
   
   try {
     const supabase = getSupabaseServiceClient()
@@ -57,7 +53,6 @@ async function saveToSupabase() {
       voice_id,
     }))
     
-    console.log(`[Save Voice IDs] Preparing to save ${records.length} records...`)
     
     // upsert 사용 (이미 있으면 업데이트, 없으면 삽입)
     const { data, error } = await supabase
@@ -72,24 +67,13 @@ async function saveToSupabase() {
       throw error
     }
     
-    console.log(`[Save Voice IDs] ✓ Successfully saved ${data?.length || 0} records to Supabase`)
-    console.log()
     
     // 저장된 데이터 확인
-    console.log('[Save Voice IDs] Saved voice IDs:')
     for (const record of records) {
-      console.log(`  - ${record.name}: ${record.voice_id}`)
     }
     
-    console.log()
-    console.log('='.repeat(60))
-    console.log('✓ Successfully completed!')
-    console.log('='.repeat(60))
     
     // 최종 요약
-    console.log('\nSummary:')
-    console.log(`  - Total premium voices: ${records.length}`)
-    console.log(`  - Saved to Supabase: ${records.length}`)
     
   } catch (error) {
     console.error('[Save Voice IDs] ❌ Fatal error:', error)

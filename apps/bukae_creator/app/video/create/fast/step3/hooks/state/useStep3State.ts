@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
-import { useVideoCreateStore, TimelineData } from '@/store/useVideoCreateStore'
+import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import * as PIXI from 'pixi.js'
 import { gsap } from 'gsap'
@@ -125,7 +125,12 @@ export function useStep3State() {
   // 패널 및 UI 상태 (조건부 렌더링에 사용)
   const [rightPanelTab, setRightPanelTab] = useState('animation')
   const [showGrid, setShowGrid] = useState(false) // 격자 표시 여부
-  const [mounted, setMounted] = useState(false) // 클라이언트 마운트 상태 (SSR/Hydration mismatch 방지)
+  // SSR에서는 false, 클라이언트에서는 true를 반환해 hydration mismatch를 피합니다.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  )
   
   // 편집 모드 상태 (UI에 표시됨)
   const [editMode, setEditMode] = useState<'none' | 'image' | 'text'>('none')
@@ -168,11 +173,6 @@ export function useStep3State() {
     setSelectedPartState(part)
   }, [])
   
-  // 클라이언트에서만 렌더링 (SSR/Hydration mismatch 방지)
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
   return {
     // Router
     router,

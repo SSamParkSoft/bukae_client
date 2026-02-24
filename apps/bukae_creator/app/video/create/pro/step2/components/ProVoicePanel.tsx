@@ -6,6 +6,7 @@ import { voiceTemplateHelpers } from '@/store/useVideoCreateStore'
 import { authStorage } from '@/lib/api/auth-storage'
 import type { PublicVoiceInfo } from '@/lib/types/tts'
 import { publicVoiceInfoToVoiceInfo } from '@/lib/types/tts'
+import { fetchAndCachePublicVoices, getCachedPublicVoices } from '@/lib/tts/public-voices-cache'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
@@ -63,16 +64,19 @@ export function ProVoicePanel({
   onVoiceSelect,
   onVoiceSelectForAll,
 }: ProVoicePanelProps) {
-  const [voices, setVoices] = useState<PublicVoiceInfo[]>([])
-  const [isLoadingVoices, setIsLoadingVoices] = useState(true)
+  const cachedVoices = getCachedPublicVoices() ?? []
+  const [voices, setVoices] = useState<PublicVoiceInfo[]>(cachedVoices)
+  const [isLoadingVoices, setIsLoadingVoices] = useState(cachedVoices.length === 0)
   const [error, setError] = useState<string | null>(null)
   const [playingVoiceName, setPlayingVoiceName] = useState<string | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [loadingPreviewVoiceName, setLoadingPreviewVoiceName] = useState<string | null>(null)
   const [pendingVoiceName, setPendingVoiceName] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const isMountedRef = useRef(true)
+  const previewRequestIdRef = useRef(0)
 
   // 현재 선택된 목소리에 따라 초기 탭 설정
   const initialTab = useMemo(() => {
@@ -98,7 +102,11 @@ export function ProVoicePanel({
     let cancelled = false
 
     async function loadVoices() {
-      setIsLoadingVoices(true)
+      const cached = getCachedPublicVoices() ?? []
+      if (cached.length > 0 && !cancelled) {
+        setVoices(cached)
+      }
+      setIsLoadingVoices(cached.length === 0)
       setError(null)
 
       try {
@@ -111,19 +119,8 @@ export function ProVoicePanel({
           return
         }
 
-        const res = await fetch('/api/tts/voices', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
-
-        if (!res.ok) {
-          throw new Error('목소리 목록을 불러오는데 실패했습니다.')
-        }
-
-        const data = await res.json()
+        const voicesList = await fetchAndCachePublicVoices(token)
         if (!cancelled) {
-          const voicesList = data.voices || []
           setVoices(voicesList)
         }
       } catch (err) {
@@ -171,6 +168,8 @@ export function ProVoicePanel({
         audioRef.current.onerror = null
         audioRef.current = null
       }
+      previewRequestIdRef.current += 1
+      setLoadingPreviewVoiceName(null)
       setIsPlaying(false)
       setPlayingVoiceName(null)
     }
@@ -191,6 +190,8 @@ export function ProVoicePanel({
         audioRef.current.onerror = null
         audioRef.current = null
       }
+      previewRequestIdRef.current += 1
+      setLoadingPreviewVoiceName(null)
     }
   }, [])
 
@@ -266,11 +267,15 @@ export function ProVoicePanel({
   }, [getGenderGroup, getShortName])
 
   const playDemo = useCallback(async (voiceName: string) => {
+    const requestId = previewRequestIdRef.current + 1
+    previewRequestIdRef.current = requestId
+
     if (isPlaying && playingVoiceName === voiceName) {
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current.currentTime = 0
       }
+      setLoadingPreviewVoiceName(null)
       setIsPlaying(false)
       setPlayingVoiceName(null)
       return
@@ -279,6 +284,7 @@ export function ProVoicePanel({
     if (audioRef.current) {
       audioRef.current.pause()
     }
+    setLoadingPreviewVoiceName(voiceName)
 
     try {
       const voice = voices.find(v => v.name === voiceName)
@@ -299,6 +305,7 @@ export function ProVoicePanel({
           const demoPath = `/voice-demos/premium/${fileName}`
           try {
             const response = await fetch(demoPath, { method: 'HEAD', cache: 'no-cache' })
+            if (previewRequestIdRef.current !== requestId) return
             if (response.ok) {
               const audio = new Audio(demoPath)
               audioRef.current = audio
@@ -317,11 +324,17 @@ export function ProVoicePanel({
               setPlayingVoiceName(voiceName)
               setIsPlaying(true)
               await audio.play()
+              if (previewRequestIdRef.current === requestId) {
+                setLoadingPreviewVoiceName(null)
+              }
               return
             }
           } catch {
             continue
           }
+        }
+        if (previewRequestIdRef.current === requestId) {
+          setLoadingPreviewVoiceName(null)
         }
         return
       }
@@ -343,6 +356,7 @@ export function ProVoicePanel({
           const demoPath = `/voice-demos/standard/${fileName}`
           try {
             const response = await fetch(demoPath, { method: 'HEAD', cache: 'no-cache' })
+            if (previewRequestIdRef.current !== requestId) return
             if (response.ok) {
               const audio = new Audio(demoPath)
               audioRef.current = audio
@@ -361,17 +375,30 @@ export function ProVoicePanel({
               setPlayingVoiceName(voiceName)
               setIsPlaying(true)
               await audio.play()
+              if (previewRequestIdRef.current === requestId) {
+                setLoadingPreviewVoiceName(null)
+              }
               return
             }
           } catch {
             continue
           }
         }
+        if (previewRequestIdRef.current === requestId) {
+          setLoadingPreviewVoiceName(null)
+        }
         return
       }
+
+      if (previewRequestIdRef.current === requestId) {
+        setLoadingPreviewVoiceName(null)
+      }
     } catch {
-      setIsPlaying(false)
-      setPlayingVoiceName(null)
+      if (previewRequestIdRef.current === requestId) {
+        setLoadingPreviewVoiceName(null)
+        setIsPlaying(false)
+        setPlayingVoiceName(null)
+      }
     }
   }, [isPlaying, playingVoiceName, voices, getShortName])
 
@@ -400,11 +427,13 @@ export function ProVoicePanel({
     if (!pendingVoiceName) return
     
     // 데모 오디오 정지
+    previewRequestIdRef.current += 1
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current.currentTime = 0
       audioRef.current = null
     }
+    setLoadingPreviewVoiceName(null)
     setIsPlaying(false)
     setPlayingVoiceName(null)
     
@@ -440,11 +469,13 @@ export function ProVoicePanel({
     }
     
     // 데모 오디오 정지
+    previewRequestIdRef.current += 1
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current.currentTime = 0
       audioRef.current = null
     }
+    setLoadingPreviewVoiceName(null)
     setIsPlaying(false)
     setPlayingVoiceName(null)
     
@@ -483,6 +514,7 @@ export function ProVoicePanel({
           : currentVoiceInfo.voiceId === v.name))
       : currentVoiceTemplate === v.name
     const label = getShortName(v.name, v)
+    const isPreviewLoading = loadingPreviewVoiceName === v.name
 
     const isPopoverOpen = confirmOpen && pendingVoiceName === v.name
 
@@ -503,16 +535,21 @@ export function ProVoicePanel({
               className="w-6 h-6 flex items-center justify-center shrink-0 cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation()
+                if (isPreviewLoading) return
                 playDemo(v.name)
               }}
             >
-              <Image
-                src="/voiceplay.svg"
-                alt="재생"
-                width={18}
-                height={19}
-                className="w-[18px] h-[19px]"
-              />
+              {isPreviewLoading ? (
+                <Loader2 className="w-[18px] h-[18px] animate-spin text-[#5e8790]" />
+              ) : (
+                <Image
+                  src="/voiceplay.svg"
+                  alt="재생"
+                  width={18}
+                  height={19}
+                  className="w-[18px] h-[19px]"
+                />
+              )}
             </div>
             <div
               onClick={(e) => {
@@ -667,7 +704,7 @@ export function ProVoicePanel({
         </PopoverContent>
       </Popover>
     )
-  }, [currentVoiceTemplate, getShortName, playDemo, confirmOpen, pendingVoiceName, openConfirm, confirmSelection, applyToAllScenes, onVoiceSelectForAll, onVoiceSelect])
+  }, [currentVoiceTemplate, getShortName, loadingPreviewVoiceName, playDemo, confirmOpen, pendingVoiceName, openConfirm, confirmSelection, applyToAllScenes, onVoiceSelectForAll, onVoiceSelect])
 
   const renderGenderColumn = useCallback((voices: PublicVoiceInfo[], genderLabel: string) => {
     if (voices.length === 0) return null
@@ -698,6 +735,24 @@ export function ProVoicePanel({
     )
   }, [renderVoiceItem])
 
+  const renderLoadingCards = useCallback(() => (
+    <div className="space-y-3">
+      <div className="text-sm text-[#5d5d5d]">목소리 목록을 불러오는 중이에요.</div>
+      <div className="grid grid-cols-2 gap-2">
+        {Array.from({ length: 8 }).map((_, index) => (
+          <div key={`pro-voice-loading-${index}`} className="flex items-center gap-2 h-[46px] min-w-0">
+            <div className="w-6 h-6 flex items-center justify-center shrink-0">
+              <Loader2 className="w-[18px] h-[18px] animate-spin text-[#5e8790]" />
+            </div>
+            <div className="flex-1 rounded-lg border border-[#d3dbdc] bg-white/70 h-[46px] flex items-center px-3">
+              <div className="h-4 w-20 rounded bg-[#dfe6e7] animate-pulse" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ), [])
+
   if (!open) return null
 
   return (
@@ -722,10 +777,8 @@ export function ProVoicePanel({
         </h3>
       </div>
 
-      {isLoadingVoices ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-[#5e8790]" />
-        </div>
+      {isLoadingVoices && voices.length === 0 ? (
+        renderLoadingCards()
       ) : error ? (
         <div className="text-sm text-red-600 py-4">{error}</div>
       ) : voices.length === 0 ? (

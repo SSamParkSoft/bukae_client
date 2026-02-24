@@ -43,11 +43,6 @@ export function useTransformManager({
 
       const isResizing = isResizingRef.current
 
-      let width: number
-      let height: number
-      let scaleX: number
-      let scaleY: number
-
       let bounds: PIXI.Bounds
       try {
         bounds = sprite.getBounds()
@@ -56,10 +51,10 @@ export function useTransformManager({
         return
       }
 
-      width = bounds.width
-      height = bounds.height
-      scaleX = sprite.scale.x
-      scaleY = sprite.scale.y
+      const width = bounds.width
+      const height = bounds.height
+      const scaleX = sprite.scale.x
+      const scaleY = sprite.scale.y
 
       const transform = {
         x: sprite.x,
@@ -159,13 +154,6 @@ export function useTransformManager({
 
       const isResizing = isResizingTextRef.current
 
-      let width: number
-      let height: number
-      let scaleX: number
-      let scaleY: number
-      let baseWidth: number
-      let baseHeight: number
-
       if (text.destroyed) {
         return
       }
@@ -193,12 +181,12 @@ export function useTransformManager({
       }
 
       const finalWordWrapWidth = text.style?.wordWrapWidth || bounds.width
-      width = bounds.width
-      height = bounds.height
-      scaleX = text.scale.x
-      scaleY = text.scale.y
-      baseWidth = finalWordWrapWidth
-      baseHeight = bounds.height
+      const width = bounds.width
+      const height = bounds.height
+      const scaleX = text.scale.x
+      const scaleY = text.scale.y
+      const baseWidth = finalWordWrapWidth
+      const baseHeight = bounds.height
 
       // PIXI.Text의 anchor 확인 (중요: anchor 정보 파악)
       // 현재는 항상 (0.5, 0.5)로 고정되어 있으므로 항상 저장
@@ -281,4 +269,3 @@ export function useTransformManager({
     applyTextTransform,
   }
 }
-

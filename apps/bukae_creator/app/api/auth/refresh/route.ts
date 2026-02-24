@@ -35,14 +35,8 @@ export async function POST(request: NextRequest) {
       return name === 'refresh_token' || name === 'refreshtoken'
     })
     
-    console.log('[Refresh Proxy] 프록시 요청 시작:', refreshUrl)
-    console.log('[Refresh Proxy] 전체 쿠키 개수:', cookies.length)
-    console.log('[Refresh Proxy] 전체 쿠키 이름:', cookies.map(c => c.name).join(', '))
-    console.log('[Refresh Proxy] refreshToken 관련 쿠키:', refreshTokenCookies.length > 0 ? refreshTokenCookies.map(c => c.name).join(', ') : '없음')
     
     if (refreshTokenCookies.length === 0) {
-      console.log('[Refresh Proxy] ⚠️ refresh_token 쿠키가 없습니다!')
-      console.log('[Refresh Proxy] ⚠️ 로그인 시 백엔드가 localhost 도메인에 쿠키를 설정했는지 확인하세요')
     }
     
     // 백엔드로 프록시 요청
@@ -54,9 +48,7 @@ export async function POST(request: NextRequest) {
       },
     })
     
-    console.log('[Refresh Proxy] 백엔드로 전달한 Cookie 헤더:', cookieHeader || '(없음)')
 
-    console.log('[Refresh Proxy] 백엔드 응답 상태:', response.status)
 
     // 응답 데이터 가져오기
     const data = await response.json().catch(() => null)
@@ -74,7 +66,6 @@ export async function POST(request: NextRequest) {
       setCookieHeaders.forEach(cookie => {
         nextResponse.headers.append('Set-Cookie', cookie)
       })
-      console.log('[Refresh Proxy] Set-Cookie 헤더 전달:', setCookieHeaders.length, '개')
     }
     
     // CORS 헤더 추가

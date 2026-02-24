@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import { Loader2 } from 'lucide-react'
 
 interface AiScriptGenerateButtonProps {
   onClick: () => void
@@ -25,13 +26,17 @@ export function AiScriptGenerateButton({
         disabled={loading}
         className="w-full h-14 sm:h-[82px] rounded-2xl bg-[#5e8790] text-white hover:bg-[#5e8790]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-[var(--shadow-card-default)]"
       >
-        <Image
-          src="/Subtract.svg"
-          alt="AI"
-          width={40}
-          height={20}
-          className="shrink-0"
-        />
+        {loading ? (
+          <Loader2 className="w-6 h-6 shrink-0 animate-spin" aria-hidden />
+        ) : (
+          <Image
+            src="/Subtract.svg"
+            alt="AI"
+            width={40}
+            height={20}
+            className="shrink-0"
+          />
+        )}
         <span
           className="font-bold tracking-[-0.48px]"
           style={{

@@ -2,8 +2,8 @@
 
 import { motion } from 'framer-motion'
 import { useStep3Container } from './hooks/useStep3Container'
-import { PreviewPanel } from './components/PreviewPanel'
-import { SceneListPanel } from './components/SceneListPanel'
+import { PreviewPanel } from './ui/PreviewPanel'
+import { SceneListPanel } from './ui/SceneListPanel'
 import { EffectsPanel } from '@/components/video-editor/EffectsPanel'
 
 export default function Step3Page() {

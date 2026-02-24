@@ -175,11 +175,6 @@ export function calculateSceneFromTime(
           
           // 디버깅: markups가 여러 개인지 확인 (첫 번째 part에서만)
           if (markups.length > 1 && tSec >= boundary.start && tSec < boundary.start + 0.1) {
-            console.log('[calculateSceneFromTime] 여러 part 감지', {
-              sceneIndex: boundary.index,
-              partCount: markups.length,
-              tSec: tSec.toFixed(3),
-            })
           }
           
           for (let p = 0; p < markups.length; p++) {
@@ -225,17 +220,6 @@ export function calculateSceneFromTime(
             
             // 첫 번째 part가 끝나고 두 번째 part가 시작되는 순간 감지
             if (tSec >= firstPartEndTime - 0.01 && tSec < firstPartEndTime + 0.1) {
-              console.log('[calculateSceneFromTime] 🔄 part 전환 지점 감지', {
-                tSec: tSec.toFixed(3),
-                sceneIndex: boundary.index,
-                firstPartEndTime: firstPartEndTime.toFixed(3),
-                계산된partIndex: partIndex,
-                partCount: markups.length,
-                partDurations: markups.map((m) => {
-                  const k = options.makeTtsKey!(sceneVoiceTemplate, m)
-                  return options.ttsCacheRef!.current.get(k)?.durationSec || 0
-                }),
-              })
             }
           }
         }

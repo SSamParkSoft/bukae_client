@@ -15,18 +15,14 @@ function getApiKeyFromEnv(): string {
  */
 export function getElevenLabsClient(): ElevenLabsClient {
   if (clientSingleton) {
-    console.log('[ElevenLabs] Returning existing client singleton')
     return clientSingleton
   }
 
-  console.log('[ElevenLabs] Creating new client instance...')
   try {
     const apiKey = getApiKeyFromEnv()
-    console.log('[ElevenLabs] API key found, creating client')
     clientSingleton = new ElevenLabsClient({
       apiKey,
     })
-    console.log('[ElevenLabs] Client created successfully')
     return clientSingleton
   } catch (error) {
     console.error('[ElevenLabs] Failed to create client:', error)

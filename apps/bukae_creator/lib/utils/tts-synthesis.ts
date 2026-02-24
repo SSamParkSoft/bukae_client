@@ -259,14 +259,6 @@ export async function ensureSceneTts({
         ttsCacheRef.current.set(key, entry)
         
         // 디버깅: 캐시 저장 확인
-        console.log('[ensureSceneTts] 캐시 저장 완료:', {
-          key: key.substring(0, 50),
-          hasBlob: !!blob,
-          blobSize: blob?.size,
-          blobType: blob?.type,
-          url: url?.substring(0, 50),
-          durationSec,
-        })
         
         return entry
       })().finally(() => {

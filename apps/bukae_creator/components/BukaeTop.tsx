@@ -95,7 +95,6 @@ function BukaeTopContent({
               alt="부캐 로고"
               width={189}
               height={34}
-              className="h-[34px] w-auto"
               priority
             />
           </Link>
@@ -166,7 +165,6 @@ export default function BukaeTop(props: BukaeTopProps) {
                 alt="부캐 로고"
                 width={189}
                 height={34}
-                className="h-[34px] w-auto"
                 priority
               />
             </Link>

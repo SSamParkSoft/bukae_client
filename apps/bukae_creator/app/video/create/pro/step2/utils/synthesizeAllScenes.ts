@@ -10,6 +10,7 @@ export interface SynthesizeSceneResult {
   error?: string
   duration?: number
   audioBlob?: Blob
+  audioBase64?: string // base64 인코딩된 오디오 데이터 (Step3에서 사용하기 위해)
 }
 
 /**
@@ -66,10 +67,42 @@ async function synthesizeScene(
       })
     })
 
+    // blob을 base64로 변환 (Step3에서 사용하기 위해)
+    let audioBase64: string | undefined
+    try {
+      audioBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const result = reader.result
+          if (typeof result === 'string') {
+            // data:audio/...;base64, 부분을 제거하고 순수 base64 문자열만 반환
+            const base64String = result.split(',')[1]
+            if (!base64String) {
+              reject(new Error('base64 문자열 추출 실패'))
+              return
+            }
+            resolve(base64String)
+          } else {
+            reject(new Error('FileReader 결과가 문자열이 아닙니다.'))
+          }
+        }
+        reader.onerror = (error) => {
+          console.error('[synthesizeScene] FileReader 오류:', error)
+          reject(new Error('FileReader 오류'))
+        }
+        reader.readAsDataURL(blob)
+      })
+    } catch (error) {
+      console.error('[synthesizeScene] base64 변환 실패:', error)
+      // base64 변환 실패해도 TTS 합성 자체는 성공한 것으로 처리
+      // 하지만 audioBase64는 undefined로 남김
+    }
+
     return {
       success: true,
       duration,
       audioBlob: blob,
+      audioBase64,
     }
   } catch (error) {
     console.error('TTS 합성 오류:', error)
@@ -90,9 +123,9 @@ export async function synthesizeAllScenes(
 ): Promise<{
   success: boolean
   error?: string
-  results: Array<{ success: boolean; duration?: number; error?: string }>
+  results: Array<{ success: boolean; duration?: number; error?: string; audioBase64?: string }>
 }> {
-  const results: Array<{ success: boolean; duration?: number; error?: string }> = []
+  const results: Array<{ success: boolean; duration?: number; error?: string; audioBase64?: string }> = []
   
   // 배치 크기: 한 번에 3개씩 처리 (레이트 리밋 방지)
   const BATCH_SIZE = 3
@@ -108,6 +141,7 @@ export async function synthesizeAllScenes(
         success: result.success,
         duration: result.duration,
         error: result.error,
+        audioBase64: result.audioBase64,
       }
     })
 

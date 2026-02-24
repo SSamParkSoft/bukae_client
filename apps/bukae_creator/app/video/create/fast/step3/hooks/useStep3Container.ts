@@ -18,22 +18,22 @@ import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
 import { useSceneEditHandlers as useSceneEditHandlersFromVideo } from '@/hooks/video/scene/useSceneEditHandlers'
 import { useVideoExport } from '@/hooks/video/export/useVideoExport'
 import { loadPixiTexture } from '@/utils/pixi'
-import { useTtsManager } from './useTtsManager'
+import { useTtsManager } from '@/app/video/create/step3/shared/hooks/tts'
 // PHASE0: Transport 및 TtsTrack 통합
 import { useTransportRenderer } from '@/hooks/video/renderer/useTransportRenderer'
 import { useFabricHandlers } from '@/hooks/video/editing/useFabricHandlers'
 import { transitionLabels, transitions, movements, allTransitions } from '@/lib/data/transitions'
 import { useVideoCreateAuth } from '@/hooks/auth/useVideoCreateAuth'
 import { useStep3State } from './state'
-import { usePlaybackHandlers, usePlaybackState, usePlaybackDurationTracker, usePlaybackStop, useHandlersWithStopPlayback, type StopPlaybackHandlerFn } from './playback'
+import { usePlaybackHandlers, usePlaybackState, usePlaybackDurationTracker, usePlaybackStop, useHandlersWithStopPlayback, type StopPlaybackHandlerFn } from '@/app/video/create/step3/shared/hooks/playback'
 import { useSceneEditHandlers, useEditModeManager, useEditHandlesManager } from './editing'
 import { usePixiRenderHandlers, useSceneContentRenderer } from './rendering'
 import { useSceneLoader } from './scene-loading'
-import { useTransportTtsIntegration, useTransportTtsSync, useTransportSeek } from './transport'
-import { useSceneIndexManager, useSceneThumbnails, useSceneStructureSync } from './scene'
-import { useTimelineChangeHandler } from './timeline'
+import { useTransportTtsIntegration, useTransportTtsSync, useTransportSeek } from '@/app/video/create/step3/shared/hooks/transport'
+import { useSceneIndexManager, useSceneThumbnails, useSceneStructureSync } from '@/app/video/create/step3/shared/hooks/scene'
+import { useTimelineChangeHandler } from '@/app/video/create/step3/shared/hooks/timeline'
 import { getPreviousSegmentEndTime } from '@/utils/timeline'
-import { useBgmPlayback, useTtsDurationSync } from './audio'
+import { useBgmPlayback, useTtsDurationSync } from '@/app/video/create/step3/shared/hooks/audio'
 // [강화] 리소스 모니터링 및 상태 동기화 검증 (비활성화됨)
 import * as PIXI from 'pixi.js'
 import * as fabric from 'fabric'
@@ -72,7 +72,6 @@ export function useStep3Container() {
     setConfirmedSoundEffect,
     // Refs (Pixi, Fabric, 편집)
     timelineRef,
-    voiceTemplateRef,
     pixiContainerRef,
     appRef,
     containerRef,
@@ -139,7 +138,8 @@ export function useStep3Container() {
     setSelectedPart,
   } = step3State
 
-  const useFabricEditing = false // PixiJS 편집 사용
+  // 텍스트 편집 모드일 때만 Fabric.js 편집 활성화 (캔버스 위에서 직접 텍스트 입력 가능)
+  const useFabricEditing = editMode === 'text'
 
   useVideoCreateAuth()
 
@@ -483,11 +483,6 @@ export function useStep3Container() {
     ttsTrack,
     transport,
     isPlaying,
-    renderAtRef,
-    ttsCacheRefShared,
-    voiceTemplate,
-    buildSceneMarkupWithTimeline,
-    makeTtsKey,
     currentSceneIndexRef,
   })
   // TTS 관리
@@ -722,7 +717,6 @@ export function useStep3Container() {
     renderAtRef,
     onSegmentStartRef,
     onSegmentEndRef,
-    transportRendererRef,
     sceneGroupPlayStartTimeRef,
     sceneGroupPlayStartAudioCtxTimeRef,
     sceneGroupPlayEndTimeRef,
@@ -798,10 +792,6 @@ export function useStep3Container() {
   useEffect(() => {
     // 재생 중이 아니고, timeline과 현재 씬이 유효할 때만 자막 업데이트
     if (!isPlaying && timeline && currentSceneIndex >= 0 && currentSceneTextSettings && renderSubtitlePart && pixiReady) {
-      console.log('[FastStep3] Timeline 자막 설정 변경 감지, 자막 다시 렌더링:', {
-        currentSceneIndex,
-        textSettings: currentSceneTextSettings,
-      })
       // 현재 씬의 자막을 다시 렌더링 (partIndex는 null로 설정하여 전체 텍스트 렌더링)
       renderSubtitlePart(currentSceneIndex, null, {
         skipAnimation: true,
@@ -952,7 +942,6 @@ export function useStep3Container() {
     handleSceneVoiceTemplateChange: handleSceneVoiceTemplateChangeBase,
     handleResizeTemplate: handleResizeTemplateBase,
   } = useSceneEditHandlers({
-    timeline,
     scenes,
     setTimeline,
     setScenes,
@@ -1091,17 +1080,14 @@ export function useStep3Container() {
   // 재생 핸들러 훅 (Transport 기반)
   const playbackHandlers = usePlaybackHandlers({
     timelineRef,
-    voiceTemplateRef,
     isPlaying,
     setIsPlaying,
-    setCurrentTime,
     setShowVoiceRequiredMessage,
     setScenesWithoutVoice,
     setRightPanelTab,
     router,
     playingSceneIndex,
     playingGroupSceneId,
-    currentSceneIndex,
     onGroupPlayStart: (sceneId, endTime) => {
       setPlayingGroupSceneId(sceneId)
       setPlayingSceneIndex(null)

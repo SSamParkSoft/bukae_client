@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import type { MutableRefObject } from 'react'
 import * as PIXI from 'pixi.js'
 import * as fabric from 'fabric'
+import { applyFabricObjectDefaults } from './fabricObjectDefaults'
 
 interface UsePixiFabricParams {
   pixiContainerRef: MutableRefObject<HTMLDivElement | null>
@@ -295,12 +296,9 @@ export function usePixiFabric({
     }
   }, [
     mounted,
-    stageDimensions.width,
-    stageDimensions.height,
+    stageDimensions,
     setPixiReady,
     setFabricReady,
-    // ref들은 안정적이므로 의존성 배열에서 제외
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     appRef,
     containerRef,
     fabricCanvasElementRef,
@@ -351,20 +349,7 @@ export function usePixiFabric({
     fabricCanvas.moveCursor = 'move'
     fabricCanvas.skipTargetFind = false
 
-    // 핸들 스타일 (원형/브랜드 컬러)
-    fabric.Object.prototype.set({
-      transparentCorners: false,
-      cornerColor: '#5e8790', // 브랜드 컬러 (brand-teal)
-      cornerStrokeColor: '#ffffff',
-      cornerSize: 12,
-      cornerStyle: 'circle',
-      borderColor: '#5e8790', // 브랜드 컬러 (brand-teal)
-      borderScaleFactor: 2,
-      padding: 8,
-    })
-    if (fabric.Object.prototype.controls?.mtr) {
-      fabric.Object.prototype.controls.mtr.offsetY = -30
-    }
+    applyFabricObjectDefaults()
 
     // upper/lower/wrapper 레이어 z-index 및 포인터 설정
     if (fabricCanvas.upperCanvasEl) {
@@ -451,4 +436,3 @@ export function usePixiFabric({
     setFabricReady,
   ])
 }
-

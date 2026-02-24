@@ -1,0 +1,1 @@
+export { useTtsManager } from './useTtsManager'

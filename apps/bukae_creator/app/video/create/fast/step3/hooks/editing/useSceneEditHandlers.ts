@@ -4,14 +4,13 @@ import { useCallback } from 'react'
 import type { TimelineData, TimelineScene, SceneScript } from '@/store/useVideoCreateStore'
 
 interface UseSceneEditHandlersParams {
-  timeline: TimelineData | null
   scenes: SceneScript[]
   setTimeline: (timeline: TimelineData | null) => void
   setScenes: (scenes: SceneScript[]) => void
   timelineRef: React.MutableRefObject<TimelineData | null>
   changedScenesRef: React.MutableRefObject<Set<number>>
   invalidateSceneTtsCache: (sceneIndex: number) => void
-  setCurrentSceneIndex: (index: number) => void
+  setCurrentSceneIndex: (index: number, options?: { skipSeek?: boolean }) => void
   currentSceneIndexRef: React.MutableRefObject<number>
   stageDimensions: { width: number; height: number }
   loadAllScenes: () => Promise<void>
@@ -23,7 +22,6 @@ interface UseSceneEditHandlersParams {
  * 그룹 복사, 삭제, voiceTemplate 변경, 템플릿 리사이즈 핸들러를 제공합니다.
  */
 export function useSceneEditHandlers({
-  timeline,
   scenes,
   setTimeline,
   setScenes,
@@ -44,12 +42,22 @@ export function useSceneEditHandlers({
       
       const scene = currentTimeline.scenes[sceneIndex]
       if (!scene) return
+
+      // 같은 값을 다시 선택한 경우 불필요한 타임라인 업데이트/재렌더링 방지
+      if (scene.voiceTemplate === newVoiceTemplate) {
+        return
+      }
       
-      // 씬의 voiceTemplate 업데이트 및 actualPlaybackDuration, duration 초기화
-      // (새로운 목소리로 재생성되므로 이전 재생 시간과 TTS 캐시 기반 duration 모두 무효화)
+      // 보이스 확정 직후 현재 씬 선택 상태를 고정하여
+      // 타임라인 재계산 중 마지막 씬으로 표시가 튀는 현상을 방지
+      currentSceneIndexRef.current = sceneIndex
+      setCurrentSceneIndex(sceneIndex, { skipSeek: true })
+
+      // 씬의 voiceTemplate 업데이트 및 actualPlaybackDuration만 무효화
+      // duration은 유지해서 렌더/씬 경계가 순간적으로 무너지지 않도록 함
       const updatedScenes = currentTimeline.scenes.map((s, idx) =>
         idx === sceneIndex
-          ? { ...s, voiceTemplate: newVoiceTemplate, actualPlaybackDuration: undefined, duration: 0 }
+          ? { ...s, voiceTemplate: newVoiceTemplate, actualPlaybackDuration: undefined }
           : s
       )
       
@@ -62,13 +70,8 @@ export function useSceneEditHandlers({
       changedScenesRef.current.add(sceneIndex)
       invalidateSceneTtsCache(sceneIndex)
       
-      console.log('[useSceneEditHandlers] 씬별 voiceTemplate 변경', {
-        sceneIndex,
-        newVoiceTemplate,
-        oldVoiceTemplate: scene.voiceTemplate,
-      })
     },
-    [setTimeline, changedScenesRef, invalidateSceneTtsCache, timelineRef]
+    [setTimeline, changedScenesRef, invalidateSceneTtsCache, timelineRef, currentSceneIndexRef, setCurrentSceneIndex]
   )
 
   // 그룹 복사 핸들러
@@ -157,7 +160,7 @@ export function useSceneEditHandlers({
       ...currentTimeline,
       scenes: newTimelineScenes,
     })
-  }, [timeline, scenes, setScenes, setTimeline, timelineRef])
+  }, [scenes, setScenes, setTimeline, timelineRef])
 
   // 되돌리기 핸들러
   const handleResizeTemplate = useCallback(() => {
@@ -209,7 +212,7 @@ export function useSceneEditHandlers({
       // Canvas 크기 재계산
       recalculateCanvasSize()
     }, 100)
-  }, [timeline, scenes.length, stageDimensions, setTimeline, loadAllScenes, recalculateCanvasSize, timelineRef])
+  }, [scenes.length, stageDimensions, setTimeline, loadAllScenes, recalculateCanvasSize, timelineRef])
 
   return {
     handleGroupDuplicate,

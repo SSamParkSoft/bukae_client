@@ -1,17 +1,16 @@
 'use client'
 
 import { Sun, Moon } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useSyncExternalStore } from 'react'
 import { useThemeStore } from '../store/useThemeStore'
 
 export default function ThemeToggle() {
   const { theme, toggleTheme } = useThemeStore()
-  const [mounted, setMounted] = useState(false)
-
-  // 클라이언트에서만 마운트 상태 설정 (서버와 클라이언트 일치를 위해)
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  )
 
   // 마운트 전에는 항상 light 테마로 렌더링 (서버와 클라이언트 일치)
   const displayTheme = mounted ? theme : 'light'
@@ -34,4 +33,3 @@ export default function ThemeToggle() {
     </button>
   )
 }
-
