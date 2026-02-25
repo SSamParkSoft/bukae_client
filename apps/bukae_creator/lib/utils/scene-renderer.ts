@@ -1,7 +1,4 @@
 import * as PIXI from 'pixi.js'
-import { createDebugger } from './debug'
-
-const sceneDebug = createDebugger('scene-renderer')
 
 /**
  * 씬을 표시하는 공통 함수
@@ -20,10 +17,11 @@ export function showScene(
   spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>,
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
 ): void {
-  sceneDebug.debug('씬 표시 시작', { index })
-
   if (!appRef.current || !containerRef.current) {
-    sceneDebug.warn('appRef 또는 containerRef가 없습니다', { index })
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.warn('[scene-renderer] appRef 또는 containerRef가 없습니다', { index })
+    }
     return
   }
 
@@ -51,7 +49,6 @@ export function showScene(
     }
     selectedSprite.visible = true
     selectedSprite.alpha = 1
-    sceneDebug.debug('스프라이트 표시', { index })
   }
 
   if (selectedText) {
@@ -60,10 +57,7 @@ export function showScene(
     }
     selectedText.visible = true
     selectedText.alpha = 1
-    sceneDebug.debug('텍스트 표시', { index })
   }
-
-  sceneDebug.debug('씬 표시 완료', { index })
   // 렌더링은 PixiJS ticker가 처리
 }
 

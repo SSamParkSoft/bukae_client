@@ -1,7 +1,3 @@
-import { createDebugger } from './debug'
-
-const playbackDebug = createDebugger('playback-controls')
-
 /**
  * 재생 버튼 핸들러 생성
  * 
@@ -33,20 +29,14 @@ export function createPlayButtonHandler({
   }
 }): () => void {
   return () => {
-    playbackDebug.debug('재생 버튼 클릭', {
-      hasToggle: typeof videoPlayback.toggle,
-      isTtsBootstrapping,
-      isBgmBootstrapping,
-      isPreparing,
-      hasSelectSceneRef: !!selectSceneRef.current,
-      hasSceneNavigation: !!sceneNavigation?.selectScene,
-    })
-
     if (videoPlayback.toggle) {
-      playbackDebug.debug('videoPlayback.toggle 호출')
       videoPlayback.toggle()
     } else {
-      playbackDebug.error('videoPlayback.toggle이 없습니다!')
+      if (process.env.NODE_ENV === 'development') {
+        // 개발 환경에서만 콘솔에 경고 출력
+         
+        console.warn('[playback-controls] videoPlayback.toggle이 없습니다!')
+      }
     }
   }
 }
