@@ -21,6 +21,10 @@ interface SubtitleSettingsProps {
   setTimeline: (timeline: TimelineData) => void
 }
 
+const MIN_STROKE_WIDTH = 0
+const MAX_STROKE_WIDTH = 20
+const DEFAULT_STROKE_WIDTH = 10
+
 export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeline }: SubtitleSettingsProps) {
   const currentScene = useMemo(() => timeline?.scenes[currentSceneIndex], [timeline, currentSceneIndex])
   const [isColorOpen, setIsColorOpen] = useState(false)
@@ -108,6 +112,8 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
 
   const fontSizeInputRef = useRef<HTMLInputElement | null>(null)
   const isFontSizeInputFocusedRef = useRef(false)
+  const strokeWidthInputRef = useRef<HTMLInputElement | null>(null)
+  const isStrokeWidthInputFocusedRef = useRef(false)
 
   // fontSize가 변경될 때마다 input의 value를 업데이트 (사용자가 입력 중이 아닐 때만)
   useEffect(() => {
@@ -116,6 +122,14 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
       fontSizeInputRef.current.value = String(currentFontSize)
     }
   }, [currentScene?.text?.fontSize, currentSceneIndex])
+
+  // strokeWidth가 변경될 때마다 input의 value를 업데이트 (사용자가 입력 중이 아닐 때만)
+  useEffect(() => {
+    if (!isStrokeWidthInputFocusedRef.current && strokeWidthInputRef.current) {
+      const currentStrokeWidth = currentScene?.text?.stroke?.width ?? DEFAULT_STROKE_WIDTH
+      strokeWidthInputRef.current.value = String(currentStrokeWidth)
+    }
+  }, [currentScene?.text?.stroke?.width, currentSceneIndex])
 
   const applyFontSizeInput = useCallback(
     (value?: string) => {
@@ -145,6 +159,55 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
       }))
     },
     [currentScene?.text?.fontSize, updateScene],
+  )
+
+  const applyStrokeWidthInput = useCallback(
+    (value?: string) => {
+      const currentWidth = currentScene?.text?.stroke?.width ?? DEFAULT_STROKE_WIDTH
+      const raw = value !== undefined ? value : strokeWidthInputRef.current?.value ?? ''
+      const trimmed = raw.trim()
+
+      if (trimmed === '') {
+        if (strokeWidthInputRef.current) {
+          strokeWidthInputRef.current.value = String(MIN_STROKE_WIDTH)
+        }
+        updateScene((scene) => ({
+          ...scene,
+          text: {
+            ...scene.text,
+            stroke: {
+              ...scene.text.stroke,
+              width: MIN_STROKE_WIDTH,
+            },
+          },
+        }))
+        return
+      }
+
+      const parsed = Number(trimmed)
+      if (Number.isNaN(parsed)) {
+        if (strokeWidthInputRef.current) {
+          strokeWidthInputRef.current.value = String(currentWidth)
+        }
+        return
+      }
+
+      const clamped = Math.min(MAX_STROKE_WIDTH, Math.max(MIN_STROKE_WIDTH, parsed))
+      if (strokeWidthInputRef.current) {
+        strokeWidthInputRef.current.value = String(clamped)
+      }
+      updateScene((scene) => ({
+        ...scene,
+        text: {
+          ...scene.text,
+          stroke: {
+            ...scene.text.stroke,
+            width: clamped,
+          },
+        },
+      }))
+    },
+    [currentScene?.text?.stroke?.width, updateScene],
   )
 
   if (!timeline || !currentScene) return null
@@ -300,54 +363,44 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1">
                       <input
+                        ref={strokeWidthInputRef}
                         type="number"
-                        value={currentScene.text?.stroke?.width || 10}
-                        min={0}
-                        max={20}
-                        onChange={(e) => {
-                          const width = parseInt(e.target.value, 10)
-                          if (!isNaN(width)) {
-                            const clampedWidth = Math.min(20, Math.max(0, width))
-                            updateScene((scene) => ({
-                              ...scene,
-                              text: {
-                                ...scene.text,
-                                stroke: {
-                                  ...scene.text.stroke,
-                                  width: clampedWidth,
-                                },
-                              },
-                            }))
-                          }
+                        defaultValue={currentScene.text?.stroke?.width ?? DEFAULT_STROKE_WIDTH}
+                        min={MIN_STROKE_WIDTH}
+                        max={MAX_STROKE_WIDTH}
+                        onFocus={() => {
+                          isStrokeWidthInputFocusedRef.current = true
                         }}
-                        onBlur={(e) => {
-                          const width = parseInt(e.target.value, 10)
-                          const clampedWidth = Math.min(20, Math.max(0, isNaN(width) ? 10 : width))
+                        onChange={(e) => {
+                          const raw = e.target.value.trim()
+                          if (raw === '') {
+                            return
+                          }
+                          const parsed = Number(raw)
+                          if (Number.isNaN(parsed)) return
+                          const clamped = Math.min(MAX_STROKE_WIDTH, Math.max(MIN_STROKE_WIDTH, parsed))
+                          if (String(clamped) !== e.target.value) {
+                            e.target.value = String(clamped)
+                          }
                           updateScene((scene) => ({
                             ...scene,
                             text: {
                               ...scene.text,
                               stroke: {
                                 ...scene.text.stroke,
-                                width: clampedWidth,
+                                width: clamped,
                               },
                             },
                           }))
                         }}
+                        onBlur={(e) => {
+                          isStrokeWidthInputFocusedRef.current = false
+                          applyStrokeWidthInput(e.target.value)
+                        }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
-                            const width = parseInt((e.target as HTMLInputElement).value, 10)
-                            const clampedWidth = Math.min(20, Math.max(0, isNaN(width) ? 10 : width))
-                            updateScene((scene) => ({
-                              ...scene,
-                              text: {
-                                ...scene.text,
-                                stroke: {
-                                  ...scene.text.stroke,
-                                  width: clampedWidth,
-                                },
-                              },
-                            }))
+                            applyStrokeWidthInput((e.target as HTMLInputElement).value)
+                            ;(e.target as HTMLInputElement).blur()
                           }
                         }}
                         className="h-7 text-text-dark text-center border-0 bg-transparent outline-none focus:outline-none appearance-none [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none px-0 w-auto min-w-[3ch]"
@@ -372,8 +425,11 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                       <button
                         type="button"
                         onClick={() => {
-                          const currentWidth = currentScene.text?.stroke?.width || 10
-                          const newWidth = Math.max(0, currentWidth - 1)
+                          const currentWidth = currentScene.text?.stroke?.width ?? DEFAULT_STROKE_WIDTH
+                          const newWidth = Math.max(MIN_STROKE_WIDTH, currentWidth - 1)
+                          if (strokeWidthInputRef.current) {
+                            strokeWidthInputRef.current.value = String(newWidth)
+                          }
                           updateScene((scene) => ({
                             ...scene,
                             text: {
@@ -392,8 +448,11 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                       <button
                         type="button"
                         onClick={() => {
-                          const currentWidth = currentScene.text?.stroke?.width || 10
-                          const newWidth = Math.min(20, currentWidth + 1)
+                          const currentWidth = currentScene.text?.stroke?.width ?? DEFAULT_STROKE_WIDTH
+                          const newWidth = Math.min(MAX_STROKE_WIDTH, currentWidth + 1)
+                          if (strokeWidthInputRef.current) {
+                            strokeWidthInputRef.current.value = String(newWidth)
+                          }
                           updateScene((scene) => ({
                             ...scene,
                             text: {
@@ -714,13 +773,28 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
             <div className="flex items-center gap-1">
               <input
                 type="number"
-                key={`${currentSceneIndex}-${currentScene.text?.fontSize || 80}`}
                 defaultValue={currentScene.text?.fontSize || 80}
                 ref={fontSizeInputRef}
                 min={0}
                 max={200}
                 onFocus={() => {
                   isFontSizeInputFocusedRef.current = true
+                }}
+                onChange={(e) => {
+                  const raw = e.target.value.trim()
+                  if (raw === '') {
+                    return
+                  }
+                  const parsed = Number(raw)
+                  if (Number.isNaN(parsed)) return
+                  const clamped = Math.min(200, Math.max(0, parsed))
+                  if (String(clamped) !== e.target.value) {
+                    e.target.value = String(clamped)
+                  }
+                  updateScene((scene) => ({
+                    ...scene,
+                    text: { ...scene.text, fontSize: clamped },
+                  }))
                 }}
                 onBlur={(e) => {
                   isFontSizeInputFocusedRef.current = false
