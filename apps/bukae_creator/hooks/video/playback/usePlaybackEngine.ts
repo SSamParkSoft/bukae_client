@@ -24,6 +24,19 @@ interface PlayScenePartsOptions {
   onError?: (error: Error) => void
 }
 
+function createAbortPlaybackError(): Error {
+  const error = new Error('재생이 중단되었습니다.')
+  error.name = 'AbortError'
+  return error
+}
+
+function toPlaybackError(error: unknown, fallbackMessage: string): Error {
+  if (error instanceof Error) {
+    return error
+  }
+  return new Error(fallbackMessage)
+}
+
 /**
  * 재생 엔진 훅
  * 핵심 재생 로직만 담당: TTS 오디오 재생, 구간별 순차 재생
@@ -44,23 +57,30 @@ export function usePlaybackEngine() {
       playbackSpeed: _playbackSpeed,
       abortSignal,
       onComplete,
-      onError: _onError,
+      onError,
     } = options
 
     // AbortSignal 체크
     if (abortSignal?.aborted) {
+      onError?.(createAbortPlaybackError())
       return
     }
 
-    // TTS 캐시에서 찾기
-    // makeTtsKey는 파라미터로 받아야 함 (voiceTemplate 필요)
-    // 일단 여기서는 캐시만 확인하고, 실제 키 생성은 상위에서 처리
-    // 캐시에서 직접 찾는 대신, 상위에서 캐시된 데이터를 전달받도록 수정 필요
+    try {
+      // TTS 캐시에서 찾기
+      // makeTtsKey는 파라미터로 받아야 함 (voiceTemplate 필요)
+      // 일단 여기서는 캐시만 확인하고, 실제 키 생성은 상위에서 처리
+      // 캐시에서 직접 찾는 대신, 상위에서 캐시된 데이터를 전달받도록 수정 필요
 
-    // 임시로 빈 함수로 구현 (실제 로직은 상위에서 처리)
-    // 이 함수는 나중에 리팩토링할 때 실제 구현
-    if (onComplete) {
-      onComplete()
+      // 임시로 빈 함수로 구현 (실제 로직은 상위에서 처리)
+      // 이 함수는 나중에 리팩토링할 때 실제 구현
+      if (onComplete) {
+        onComplete()
+      }
+    } catch (error) {
+      const playbackError = toPlaybackError(error, '씬 구간 재생 중 오류가 발생했습니다.')
+      onError?.(playbackError)
+      throw playbackError
     }
   }, [])
 
@@ -81,38 +101,55 @@ export function usePlaybackEngine() {
 
     // AbortSignal 체크
     if (abortSignal?.aborted) {
+      onError?.(createAbortPlaybackError())
       return
     }
 
-    // 각 구간을 순차적으로 재생
-    for (let partIndex = 0; partIndex < markups.length; partIndex++) {
-      if (abortSignal?.aborted) {
-        return
-      }
-
-      const markup = markups[partIndex]
-      if (!markup) {
-        continue
-      }
-
-      await playScenePart({
-        sceneIndex,
-        partIndex,
-        markup,
-        playbackSpeed,
-        abortSignal,
-        onComplete: () => {
-          if (onPartComplete) {
-            onPartComplete(partIndex)
-          }
-        },
-        onError,
-      })
+    let didReportError = false
+    const forwardError = (error: Error) => {
+      didReportError = true
+      onError?.(error)
     }
 
-    if (onComplete) {
-      onComplete()
+    try {
+      // 각 구간을 순차적으로 재생
+      for (let partIndex = 0; partIndex < markups.length; partIndex++) {
+        if (abortSignal?.aborted) {
+          forwardError(createAbortPlaybackError())
+          return
+        }
+
+        const markup = markups[partIndex]
+        if (!markup) {
+          continue
+        }
+
+        await playScenePart({
+          sceneIndex,
+          partIndex,
+          markup,
+          playbackSpeed,
+          abortSignal,
+          onComplete: () => {
+            if (onPartComplete) {
+              onPartComplete(partIndex)
+            }
+          },
+          onError: forwardError,
+        })
+      }
+
+      if (onComplete) {
+        onComplete()
+      }
+    } catch (error) {
+      const playbackError = toPlaybackError(error, '씬 순차 재생 중 오류가 발생했습니다.')
+      if (!didReportError) {
+        onError?.(playbackError)
+      }
+      throw playbackError
     }
+
   }, [playScenePart])
 
   /**
@@ -210,4 +247,3 @@ export function usePlaybackEngine() {
     ttsResources,
   }
 }
-

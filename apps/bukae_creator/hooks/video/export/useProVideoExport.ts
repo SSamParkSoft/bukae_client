@@ -106,9 +106,20 @@ export function useProVideoExport({
       }
       const scenesWithoutVoice: number[] = []
       for (let i = 0; i < proStep3Scenes.length; i++) {
-        if (!ttsUrls[i]) {
-          const scene = proStep3Scenes[i] as ProStep3Scene & { ttsAudioBase64?: string }
-          if (!scene.ttsAudioBase64) scenesWithoutVoice.push(i + 1)
+        const scene = proStep3Scenes[i]
+        if (!scene) {
+          scenesWithoutVoice.push(i + 1)
+          continue
+        }
+
+        const ttsUrl = ttsUrls[i]
+        const uploadedTtsUrl = typeof ttsUrl === 'string' ? ttsUrl.trim() : ''
+        const hasUploadedTtsUrl = uploadedTtsUrl.length > 0
+        const ttsAudioBase64 = typeof scene.ttsAudioBase64 === 'string' ? scene.ttsAudioBase64.trim() : ''
+        const hasTtsAudioBase64 = ttsAudioBase64.length > 0
+
+        if (!hasUploadedTtsUrl || !hasTtsAudioBase64) {
+          scenesWithoutVoice.push(i + 1)
         }
       }
       if (scenesWithoutVoice.length > 0) {
@@ -166,7 +177,15 @@ export function useProVideoExport({
           ? getSoundEffectStorageUrl(soundEffectPath) ?? `/sound-effects/${soundEffectPath}`
           : null
 
-        const subtitlePosition = getSubtitlePosition(tlScene!, { width, height })
+        const subtitlePosition = tlScene
+          ? getSubtitlePosition(tlScene, { width, height })
+          : {
+              x: width * 0.5,
+              y: height * 0.75,
+              scaleX: 1,
+              scaleY: 1,
+              rotation: 0,
+            }
         const textTransform = tlScene?.text?.transform ?? {
           x: subtitlePosition.x,
           y: subtitlePosition.y,
