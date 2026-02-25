@@ -20,7 +20,7 @@ import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import { TransitionShaderManager } from '../effects/transitions/shader/TransitionShaderManager'
 import { useContainerManager } from './containers/useContainerManager'
 import { useSubtitleRenderer, normalizeAnchorToTopLeft as _normalizeAnchorToTopLeft, calculateTextPositionInBox as _calculateTextPositionInBox } from './subtitle/useSubtitleRenderer'
-import { getPreviewStrokeWidth } from './subtitle/previewStroke'
+import { getPreviewLetterSpacing, getPreviewStrokeWidth } from './subtitle/previewStroke'
 import { useTransitionEffects } from './transitions/useTransitionEffects'
 import { useTransportState } from './transport/useTransportState'
 import { useRenderLoop } from './playback/useRenderLoop'
@@ -339,7 +339,12 @@ export function useTransportRenderer({
         const displayText = textContent.length > 0 ? textContent[0] : scene.text.content
 
         const strokeColor = scene.text.stroke?.color || '#000000'
-        const strokeWidth = getPreviewStrokeWidth(scene.text.stroke?.width)
+        const strokeWidth = getPreviewStrokeWidth(scene.text.stroke?.width, {
+          fontSize: scene.text.fontSize,
+        })
+        const letterSpacing = getPreviewLetterSpacing(strokeWidth, {
+          fontSize: scene.text.fontSize,
+        })
 
         const styleConfig: Partial<PIXI.TextStyle> = {
           fontFamily,
@@ -348,6 +353,7 @@ export function useTransportRenderer({
           align: scene.text.style?.align || 'center',
           fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
           fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
+          letterSpacing,
           wordWrap: true,
           wordWrapWidth: textWidth,
           breakWords: true,
@@ -838,7 +844,12 @@ export function useTransportRenderer({
         }
 
         const strokeColor = scene.text.stroke?.color || '#000000'
-        const strokeWidth = getPreviewStrokeWidth(scene.text.stroke?.width)
+        const strokeWidth = getPreviewStrokeWidth(scene.text.stroke?.width, {
+          fontSize: scene.text.fontSize,
+        })
+        const letterSpacing = getPreviewLetterSpacing(strokeWidth, {
+          fontSize: scene.text.fontSize,
+        })
 
         const styleConfig: Partial<PIXI.TextStyle> = {
           fontFamily,
@@ -847,6 +858,7 @@ export function useTransportRenderer({
           align: scene.text.style?.align || 'center',
           fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
           fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
+          letterSpacing,
           wordWrap: true,
           wordWrapWidth: textWidth,
           breakWords: true,

@@ -303,11 +303,11 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                         type="number"
                         value={currentScene.text?.stroke?.width || 10}
                         min={0}
-                        max={50}
+                        max={20}
                         onChange={(e) => {
                           const width = parseInt(e.target.value, 10)
                           if (!isNaN(width)) {
-                            const clampedWidth = Math.min(50, Math.max(0, width))
+                            const clampedWidth = Math.min(20, Math.max(0, width))
                             updateScene((scene) => ({
                               ...scene,
                               text: {
@@ -322,7 +322,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                         }}
                         onBlur={(e) => {
                           const width = parseInt(e.target.value, 10)
-                          const clampedWidth = Math.min(50, Math.max(0, isNaN(width) ? 10 : width))
+                          const clampedWidth = Math.min(20, Math.max(0, isNaN(width) ? 10 : width))
                           updateScene((scene) => ({
                             ...scene,
                             text: {
@@ -337,7 +337,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             const width = parseInt((e.target as HTMLInputElement).value, 10)
-                            const clampedWidth = Math.min(50, Math.max(0, isNaN(width) ? 10 : width))
+                            const clampedWidth = Math.min(20, Math.max(0, isNaN(width) ? 10 : width))
                             updateScene((scene) => ({
                               ...scene,
                               text: {
@@ -393,7 +393,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                         type="button"
                         onClick={() => {
                           const currentWidth = currentScene.text?.stroke?.width || 10
-                          const newWidth = Math.min(50, currentWidth + 1)
+                          const newWidth = Math.min(20, currentWidth + 1)
                           updateScene((scene) => ({
                             ...scene,
                             text: {

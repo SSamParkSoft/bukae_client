@@ -11,7 +11,7 @@ import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import { getSubtitlePosition } from '../../renderer/utils/getSubtitlePosition'
 import { normalizeAnchorToTopLeft, calculateTextPositionInBox } from '../../renderer/subtitle/useSubtitleRenderer'
-import { getPreviewStrokeWidth } from '../../renderer/subtitle/previewStroke'
+import { getPreviewLetterSpacing, getPreviewStrokeWidth } from '../../renderer/subtitle/previewStroke'
 import type { StageDimensions } from '../../types/common'
 
 interface UseSceneLoaderParams {
@@ -268,7 +268,12 @@ export function useSceneLoader({
 
           // stroke를 포함한 스타일 객체 생성 (PixiJS v8)
           const strokeColor = scene.text.stroke?.color || '#000000'
-          const strokeWidth = getPreviewStrokeWidth(scene.text.stroke?.width)
+          const strokeWidth = getPreviewStrokeWidth(scene.text.stroke?.width, {
+            fontSize: scene.text.fontSize,
+          })
+          const letterSpacing = getPreviewLetterSpacing(strokeWidth, {
+            fontSize: scene.text.fontSize,
+          })
           
           const styleConfig: Partial<PIXI.TextStyle> = {
             fontFamily,
@@ -277,6 +282,7 @@ export function useSceneLoader({
             align: scene.text.style?.align || 'center',
             fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
             fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
+            letterSpacing,
             wordWrap: true,
             wordWrapWidth: textWidth,
             breakWords: true,

@@ -213,10 +213,10 @@ export function useResizeHandler({
       const deltaX = globalPos.x - startPos.x
       const deltaY = globalPos.y - startPos.y
 
-      const left = original.left ?? original.x - original.width / 2
-      const right = original.right ?? original.x + original.width / 2
-      const top = original.top ?? original.y - original.height / 2
-      const bottom = original.bottom ?? original.y + original.height / 2
+      const left = original.left ?? original.x
+      const right = original.right ?? (left + original.width)
+      const top = original.top ?? original.y
+      const bottom = original.bottom ?? (top + original.height)
 
       const currentHandleX = startPos.handleX! + deltaX
       const currentHandleY = startPos.handleY! + deltaY
@@ -311,9 +311,6 @@ export function useResizeHandler({
         newHeight = MIN_TEXT_SIZE
       }
 
-      const newCenterX = (newLeft + newRight) / 2
-      const newCenterY = (newTop + newBottom) / 2
-
       const newWordWrapWidth = newWidth
 
       if (text.style) {
@@ -327,16 +324,14 @@ export function useResizeHandler({
       }
 
       text.scale.set(1, 1)
-      text.x = newCenterX
-      text.y = newCenterY
+      text.x = newLeft
+      text.y = newTop
 
       // 핸들 위치 및 경계선 업데이트
       const existingHandles = textEditHandlesRef.current.get(sceneIndex)
       if (existingHandles && text) {
-        const halfWidth = newWidth / 2
-        const halfHeight = newHeight / 2
-        const boundsX = newCenterX - halfWidth
-        const boundsY = newCenterY - halfHeight
+        const boundsX = newLeft
+        const boundsY = newTop
 
         existingHandles.children.forEach((child) => {
           if (child instanceof PIXI.Graphics) {
@@ -378,4 +373,3 @@ export function useResizeHandler({
     handleTextResize,
   }
 }
-
