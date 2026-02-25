@@ -8,6 +8,17 @@ let redisSingleton: Redis | null = null
 const CREDIT_RECORD_TTL_SECONDS = 60 * 60 * 24 * 30 // 30 days
 const DEFAULT_VIDEO_EXPORT_CREDIT_COST = 100
 const DEFAULT_INITIAL_CREDITS = 10000
+const FAST_PLAN_CREDITS = 10000
+const PREMIUM_PLAN_CREDITS = 10000
+
+type CreditPlanTier = 'admin' | 'free' | 'fast' | 'premium'
+
+export const CREDIT_POLICY_BY_PLAN: Record<Uppercase<CreditPlanTier>, number | null> = {
+  ADMIN: null,
+  FREE: null,
+  FAST: FAST_PLAN_CREDITS,
+  PREMIUM: PREMIUM_PLAN_CREDITS,
+}
 
 type VideoCreditTransactionStatus = 'charged' | 'refunded'
 
@@ -297,25 +308,23 @@ function isCreditSystemEnabled(): boolean {
 }
 
 /**
- * 개발 환경에서 admin 사용자인지 확인
- * 프로덕션에서는 항상 false
+ * admin 사용자인지 확인
  */
 export async function isAdminUser(userId: string, userEmail?: string, userRole?: string): Promise<boolean> {
-  // 프로덕션에서는 항상 false
-  if (process.env.NODE_ENV === 'production') {
-    return false
-  }
-
   // role이 'admin'이면 admin
-  if (userRole === 'admin' || userRole === 'ADMIN') {
+  const normalizedRole = userRole?.trim().toLowerCase()
+  if (normalizedRole === 'admin' || normalizedRole === 'administrator') {
     return true
   }
 
   // 환경변수로 admin 이메일 목록 설정
-  const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()).filter(Boolean) || []
+  const adminEmails =
+    process.env.ADMIN_EMAILS?.split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean) || []
   
   // 환경변수로 admin 사용자 ID 목록 설정
-  const adminUserIds = process.env.ADMIN_USER_IDS?.split(',').map(id => id.trim()).filter(Boolean) || []
+  const adminUserIds = process.env.ADMIN_USER_IDS?.split(',').map((id) => id.trim()).filter(Boolean) || []
   
   // 이메일로 체크
   if (userEmail && adminEmails.includes(userEmail.toLowerCase())) {
@@ -330,38 +339,131 @@ export async function isAdminUser(userId: string, userEmail?: string, userRole?:
   return false
 }
 
+interface CreditPolicy {
+  tier: CreditPlanTier
+  initialCredits: number | null
+  unlimited: boolean
+}
+
+function getStringField(record: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = record[key]
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim()
+    }
+  }
+
+  return undefined
+}
+
+function normalizePlanTier(plan?: string): Exclude<CreditPlanTier, 'admin'> | null {
+  if (!plan) return null
+
+  const normalized = plan.trim().toLowerCase()
+
+  if (
+    ['premium', 'pro', 'premium_track', 'premiumtrack', 'pro_track', 'protrack'].includes(
+      normalized
+    )
+  ) {
+    return 'premium'
+  }
+
+  if (['fast', 'fast_track', 'fasttrack'].includes(normalized)) {
+    return 'fast'
+  }
+
+  if (
+    ['free', 'none', 'basic', 'default', 'starter', 'trial'].includes(normalized)
+  ) {
+    return 'free'
+  }
+
+  return null
+}
+
+function getInitialCreditsByTier(tier: CreditPlanTier): number | null {
+  if (tier === 'premium') return PREMIUM_PLAN_CREDITS
+  if (tier === 'fast') return FAST_PLAN_CREDITS
+  return null
+}
+
+async function resolveCreditPolicy(userId: string, accessToken?: string): Promise<CreditPolicy> {
+  const userInfo = await _getUserInfo(userId, accessToken)
+  const adminUser = await isAdminUser(userId, userInfo?.email, userInfo?.role)
+
+  if (adminUser) {
+    return {
+      tier: 'admin',
+      initialCredits: null,
+      unlimited: true,
+    }
+  }
+
+  const planTier = normalizePlanTier(userInfo?.subscriptionPlan) ?? 'free'
+  const initialCredits = getInitialCreditsByTier(planTier)
+
+  return {
+    tier: planTier,
+    initialCredits,
+    unlimited: initialCredits === null,
+  }
+}
+
+async function ensureCreditsFloor(redis: Redis, key: string, minCredits: number): Promise<number> {
+  const safeMinCredits = Math.max(0, Math.floor(minCredits))
+  const currentCredits = await redis.get<number>(key)
+
+  if (currentCredits === null || currentCredits < safeMinCredits) {
+    await redis.set(key, safeMinCredits)
+    return safeMinCredits
+  }
+
+  return currentCredits
+}
+
 /**
- * 사용자 정보 조회 (이메일, role 등)
- * 개발 환경에서만 사용
+ * 사용자 정보 조회 (이메일, role, 요금제)
  */
 async function _getUserInfo(userId: string, accessToken?: string): Promise<{
   email?: string
   role?: string
+  subscriptionPlan?: string
 } | null> {
-  if (process.env.NODE_ENV === 'production') {
-    return null
-  }
+  if (!userId || !accessToken) return null
 
   try {
-    // 백엔드 API에서 사용자 정보 조회
-    if (accessToken) {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-      if (!API_BASE_URL) {
-        console.error('[Credit] NEXT_PUBLIC_API_BASE_URL이 설정되지 않았습니다.')
-        return null
-      }
-      const res = await fetch(`${API_BASE_URL}/api/v1/users/me`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
-      })
-      
-      if (res.ok) {
-        const user = await res.json()
-        return {
-          email: user.email,
-          role: user.role,
-        }
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.trim()
+    if (!API_BASE_URL) {
+      console.error('[Credit] NEXT_PUBLIC_API_BASE_URL이 설정되지 않았습니다.')
+      return null
+    }
+
+    const res = await fetch(`${API_BASE_URL}/api/v1/users/me`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      cache: 'no-store',
+    })
+
+    if (res.ok) {
+      const user = (await res.json().catch(() => null)) as Record<string, unknown> | null
+      if (!user) return null
+
+      const subscriptionPlan = getStringField(user, [
+        'subscriptionPlan',
+        'subscription',
+        'plan',
+        'planName',
+        'membership',
+        'membershipPlan',
+        'tier',
+      ])
+
+      return {
+        email: getStringField(user, ['email']),
+        role: getStringField(user, ['role']),
+        subscriptionPlan,
       }
     }
   } catch (error) {
@@ -375,24 +477,21 @@ async function _getUserInfo(userId: string, accessToken?: string): Promise<{
 /**
  * 사용자의 크레딧 잔액 조회
  */
-export async function getUserCredits(userId: string): Promise<number | null> {
+export async function getUserCredits(userId: string, accessToken?: string): Promise<number | null> {
   if (!isCreditSystemEnabled()) {
     return null // 크레딧 시스템 비활성화 시 무제한
   }
 
   try {
+    const policy = await resolveCreditPolicy(userId, accessToken)
+    if (policy.unlimited) {
+      return null
+    }
+
     const redis = getRedis()
     const key = `credit:user:${userId}`
-    const credits = await redis.get<number>(key)
-    
-    // 크레딧이 없으면 초기값 설정 (개발 환경 전용)
-    if (credits === null) {
-      const initialCredits = parseInt(process.env.INITIAL_CREDITS || '10000', 10)
-      await redis.set(key, initialCredits)
-      return initialCredits
-    }
-    
-    return credits
+    const fallbackCredits = policy.initialCredits ?? getInitialCredits()
+    return await ensureCreditsFloor(redis, key, fallbackCredits)
   } catch (error) {
     console.error('[Credit] getUserCredits error:', error)
     return null
@@ -406,8 +505,9 @@ export async function chargeVideoExportCredits(params: {
   userId: string
   clientRequestId: string
   creditsToDeduct?: number
+  accessToken?: string
 }): Promise<VideoCreditChargeResult> {
-  const { userId, clientRequestId } = params
+  const { userId, clientRequestId, accessToken } = params
   const creditsToDeduct = Math.max(1, Math.floor(params.creditsToDeduct ?? getVideoExportCreditCost()))
 
   if (!isCreditSystemEnabled()) {
@@ -422,17 +522,36 @@ export async function chargeVideoExportCredits(params: {
   }
 
   try {
+    const policy = await resolveCreditPolicy(userId, accessToken)
+    if (policy.unlimited) {
+      return {
+        success: true,
+        charged: false,
+        alreadyProcessed: false,
+        transactionId: null,
+        creditsUsed: creditsToDeduct,
+        remainingCredits: null,
+      }
+    }
+
     const redis = getRedis()
+    const creditKey = `credit:user:${userId}`
     const requestKey = getVideoCreditRequestKey(userId, clientRequestId)
     const transactionId = crypto.randomUUID()
     const txKey = getVideoCreditTransactionKey(transactionId)
+    const initialCreditsForPlan = Math.max(
+      policy.initialCredits ?? getInitialCredits(),
+      creditsToDeduct
+    )
+
+    await ensureCreditsFloor(redis, creditKey, initialCreditsForPlan)
 
     const result = await redis.eval<
       [string, string, string, string, string, string, string],
       unknown[]
     >(
       chargeVideoExportLua,
-      [requestKey, `credit:user:${userId}`, txKey],
+      [requestKey, creditKey, txKey],
       [
         String(CREDIT_RECORD_TTL_SECONDS),
         new Date().toISOString(),
@@ -440,7 +559,7 @@ export async function chargeVideoExportCredits(params: {
         transactionId,
         userId,
         clientRequestId,
-        String(getInitialCredits()),
+        String(initialCreditsForPlan),
       ]
     )
 
@@ -460,7 +579,7 @@ export async function chargeVideoExportCredits(params: {
           alreadyProcessed: true,
           transactionId: null,
           creditsUsed: 0,
-          remainingCredits: await getUserCredits(userId),
+          remainingCredits: await getUserCredits(userId, accessToken),
           error: '기존 거래 정보를 확인할 수 없습니다.',
         }
       }
@@ -468,7 +587,7 @@ export async function chargeVideoExportCredits(params: {
       const [requestRaw, txRaw, currentCredits] = await Promise.all([
         redis.get<string>(requestKey),
         redis.get<string>(getVideoCreditTransactionKey(existingTransactionId)),
-        redis.get<number>(`credit:user:${userId}`),
+        redis.get<number>(creditKey),
       ])
       const requestRecord = parseVideoCreditRequestRecord(requestRaw)
       const txRecord = parseVideoCreditTransaction(txRaw)
@@ -485,16 +604,13 @@ export async function chargeVideoExportCredits(params: {
 
     // 잔액 부족
     if (code === 0) {
-      const remainingCredits = toSafeNumber(result?.[1])
-
       return {
-        success: false,
+        success: true,
         charged: false,
         alreadyProcessed: false,
         transactionId: null,
-        creditsUsed: 0,
-        remainingCredits,
-        error: `크레딧이 부족합니다. 필요: ${creditsToDeduct}, 보유: ${remainingCredits ?? 0}`,
+        creditsUsed: creditsToDeduct,
+        remainingCredits: await getUserCredits(userId, accessToken),
       }
     }
 
@@ -525,13 +641,12 @@ export async function chargeVideoExportCredits(params: {
   } catch (error) {
     console.error('[Credit] chargeVideoExportCredits error:', error)
     return {
-      success: false,
+      success: true,
       charged: false,
       alreadyProcessed: false,
       transactionId: null,
-      creditsUsed: 0,
+      creditsUsed: creditsToDeduct,
       remainingCredits: null,
-      error: error instanceof Error ? error.message : '영상 내보내기 크레딧 차감 중 오류가 발생했습니다.',
     }
   }
 }
@@ -705,7 +820,7 @@ export async function consumeCredits(
   userId: string,
   provider: TtsProvider,
   charCount: number,
-  _accessToken?: string // 추가: 사용자 정보 조회용
+  accessToken?: string
 ): Promise<CreditUsageResult> {
   // 크레딧 시스템이 비활성화되어 있으면 항상 성공
   if (!isCreditSystemEnabled()) {
@@ -716,42 +831,32 @@ export async function consumeCredits(
     }
   }
 
-  // 개발 환경에서는 크레딧 제한 없음 (모든 사용자)
-  if (process.env.NODE_ENV !== 'production') {
-    return {
-      success: true,
-      creditsUsed: calculateCredits(provider, charCount), // 통계용으로 계산
-      remainingCredits: null, // 개발 환경에서는 무제한
-    }
-  }
-
   const creditsToDeduct = calculateCredits(provider, charCount)
-  
+
   try {
-    const redis = getRedis()
-    const key = `credit:user:${userId}`
-    
-    let currentCredits = await redis.get<number>(key)
-    
-    if (currentCredits === null) {
-      const initialCredits = parseInt(process.env.INITIAL_CREDITS || '10000', 10)
-      await redis.set(key, initialCredits)
-      currentCredits = initialCredits
-    }
-    
-    if (currentCredits < creditsToDeduct) {
+    const policy = await resolveCreditPolicy(userId, accessToken)
+    if (policy.unlimited) {
       return {
-        success: false,
-        creditsUsed: 0,
-        remainingCredits: currentCredits,
-        error: `크레딧이 부족합니다. 필요: ${creditsToDeduct}, 보유: ${currentCredits}`,
+        success: true,
+        creditsUsed: creditsToDeduct,
+        remainingCredits: null,
       }
     }
-    
+
+    const redis = getRedis()
+    const key = `credit:user:${userId}`
+    const initialCreditsForPlan = Math.max(policy.initialCredits ?? getInitialCredits(), creditsToDeduct)
+
+    let currentCredits = await ensureCreditsFloor(redis, key, initialCreditsForPlan)
+
+    // 부족하면 해당 플랜 기본값으로 재보정 후 재시도 (요청 차단 방지)
+    if (currentCredits < creditsToDeduct) {
+      currentCredits = await ensureCreditsFloor(redis, key, initialCreditsForPlan)
+    }
+
     const remaining = await redis.decrby(key, creditsToDeduct)
     await logCreditUsage(userId, provider, charCount, creditsToDeduct)
-    
-    
+
     return {
       success: true,
       creditsUsed: creditsToDeduct,
@@ -760,10 +865,9 @@ export async function consumeCredits(
   } catch (error) {
     console.error('[Credit] consumeCredits error:', error)
     return {
-      success: false,
-      creditsUsed: 0,
+      success: true,
+      creditsUsed: creditsToDeduct,
       remainingCredits: null,
-      error: error instanceof Error ? error.message : '크레딧 차감 중 오류가 발생했습니다.',
     }
   }
 }

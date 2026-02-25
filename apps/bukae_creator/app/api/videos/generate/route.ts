@@ -115,6 +115,7 @@ export async function POST(request: Request) {
       const chargeResult = await chargeVideoExportCredits({
         userId: auth.userId,
         clientRequestId,
+        accessToken: auth.accessToken,
       })
 
       billing = {
