@@ -17,6 +17,7 @@ import {
 } from './hooks'
 import type { SceneScript } from '@/lib/types/domain/script'
 import { useTimelineInitializer } from '@/hooks/video/timeline/useTimelineInitializer'
+import { useProVideoExport } from '@/hooks/video/export/useProVideoExport'
 
 export default function ProStep3Page() {
   const { 
@@ -29,6 +30,9 @@ export default function ProStep3Page() {
     subtitleFont,
     subtitleColor,
     subtitlePosition,
+    videoTitle,
+    videoDescription,
+    selectedProducts,
   } = useVideoCreateStore()
   
   // 현재 선택된 씬 인덱스
@@ -91,6 +95,17 @@ export default function ProStep3Page() {
     handleBgmConfirm,
     handleSoundEffectConfirm,
   } = useProStep3State()
+
+  // Pro 인코딩 내보내기 (fast와 동일 API → step4 이동)
+  const { isExporting, handleExport } = useProVideoExport({
+    proStep3Scenes,
+    timeline,
+    videoTitle: videoTitle || '',
+    videoDescription: videoDescription || '',
+    bgmTemplate,
+    subtitleFont,
+    selectedProducts: selectedProducts ?? [],
+  })
 
   // 현재 선택된 씬의 비디오 URL과 선택 영역
   const currentScene = proStep3Scenes[currentSceneIndex]
@@ -207,11 +222,8 @@ export default function ProStep3Page() {
               onScenePlaybackComplete={handleScenePlaybackComplete}
               bgmTemplate={bgmTemplate}
               confirmedBgmTemplate={confirmedBgmTemplate}
-              onExport={() => {
-                // 내보내기 기능은 나중에 구현
-                alert('내보내기 기능은 준비 중입니다.')
-              }}
-              isExporting={false}
+              onExport={handleExport}
+              isExporting={isExporting}
             />
           </div>
 

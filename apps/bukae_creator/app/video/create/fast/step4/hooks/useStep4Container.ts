@@ -161,7 +161,9 @@ export function useStep4Container() {
           : ''
     if (detailError && newStatus !== 'COMPLETED') {
       const errorText = detailError || statusData.errorMessage || '알 수 없는 오류가 발생했습니다.'
-      alert(`영상 생성이 실패했어요.\n\n${errorText}`)
+      // 실패 시 서버 응답 전체를 콘솔에 출력 (네트워크 탭에는 200으로 보일 수 있음)
+      console.error('[Step4] 영상 생성 실패 – 서버 응답 전체:', statusData)
+      alert(`영상 생성이 실패했어요.\n\n${errorText}\n\n자세한 내용은 브라우저 콘솔(F12)을 확인해주세요.`)
       setCurrentJobId(null)
       setJobStatus('FAILED')
       setJobProgress('')
@@ -260,6 +262,9 @@ export function useStep4Container() {
           if (detailMsg) errorMessages.push(detailMsg)
         }
       }
+      
+      // 디버깅: 실패 시 서버 응답 전체를 콘솔에 출력 (네트워크 탭에는 성공으로 보일 때 확인용)
+      console.error('[Step4] 영상 생성 실패 – 서버 응답 전체:', statusData)
       
       const errorText = errorMessages.length > 0 
         ? errorMessages.join('\n\n') 
