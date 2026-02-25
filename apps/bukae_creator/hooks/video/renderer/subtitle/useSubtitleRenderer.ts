@@ -10,6 +10,7 @@ import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { getSubtitlePosition } from '../utils/getSubtitlePosition'
+import { getPreviewStrokeWidth } from './previewStroke'
 
 /**
  * Anchor 좌표를 Box Top-left 좌표로 정규화
@@ -284,7 +285,7 @@ export function useSubtitleRenderer({
         }
 
         const strokeColor = scene.text.stroke?.color || '#000000'
-        const strokeWidth = scene.text.stroke?.width ?? 10
+        const strokeWidth = getPreviewStrokeWidth(scene.text.stroke?.width)
         
         const styleConfig: Partial<PIXI.TextStyle> = {
           fontFamily,

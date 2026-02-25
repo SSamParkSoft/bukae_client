@@ -7,7 +7,7 @@ import { createTransitionMap } from '@/lib/utils/video-export'
 import { getFontFileName, SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
 import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
 import { getSoundEffectStorageUrl } from '@/lib/utils/supabase-storage'
-import { getSubtitlePosition } from '../renderer/utils/getSubtitlePosition'
+import { serializeSubtitleForEncoding } from './utils/serializeSubtitleForEncoding'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { ProStep3Scene } from '@/app/video/create/pro/step3/model/types'
 
@@ -177,25 +177,29 @@ export function useProVideoExport({
           ? getSoundEffectStorageUrl(soundEffectPath) ?? `/sound-effects/${soundEffectPath}`
           : null
 
-        const subtitlePosition = tlScene
-          ? getSubtitlePosition(tlScene, { width, height })
-          : {
-              x: width * 0.5,
-              y: height * 0.75,
-              scaleX: 1,
-              scaleY: 1,
-              rotation: 0,
-            }
-        const textTransform = tlScene?.text?.transform ?? {
-          x: subtitlePosition.x,
-          y: subtitlePosition.y,
-          width: width * 0.75,
-          height: height * 0.07,
-          scaleX: subtitlePosition.scaleX ?? 1,
-          scaleY: subtitlePosition.scaleY ?? 1,
-          rotation: subtitlePosition.rotation ?? 0,
-          anchor: { x: 0.5, y: 0.5 },
+        const fallbackTimelineScene: TimelineData['scenes'][number] = tlScene ?? {
+          sceneId: index + 1,
+          duration,
+          transition: transitionType,
+          transitionDuration: tlScene?.transitionDuration ?? 0.5,
+          image: scene.videoUrl!,
+          imageFit: 'contain',
+          text: {
+            content: (scene.script || ' ').trim() || ' ',
+            font: subtitleFont ?? SUBTITLE_DEFAULT_FONT_ID,
+            fontWeight: sceneFontWeight,
+            color: '#FFFFFF',
+            position: 'bottom',
+            fontSize: fontSize,
+            style: { align: 'center' },
+            stroke: { color: '#000000', width: 5 },
+          },
         }
+        const serializedSubtitle = serializeSubtitleForEncoding(
+          fallbackTimelineScene,
+          { width, height },
+          'pro'
+        )
 
         encodingScenes.push({
           sceneId: index + 1,
@@ -230,21 +234,14 @@ export function useProVideoExport({
               style: tlScene?.text?.style?.italic ? 'italic' : 'normal',
             },
             color: tlScene?.text?.color ?? '#FFFFFF',
-            stroke: {
-              enabled: true,
-              color: tlScene?.text?.stroke?.color ?? '#000000',
-              width: tlScene?.text?.stroke?.width ?? 10,
-            },
+            stroke: serializedSubtitle.stroke,
             shadow: { enabled: false, color: '#000000', blur: 0, offsetX: 0, offsetY: 0 },
             decoration: {
               underline: tlScene?.text?.style?.underline ?? false,
               italic: tlScene?.text?.style?.italic ?? false,
             },
-            alignment: tlScene?.text?.position ?? 'center',
-            transform: {
-              ...textTransform,
-              anchor: { x: 0.5, y: 0.5 },
-            },
+            alignment: serializedSubtitle.alignment,
+            transform: serializedSubtitle.transform,
           },
           voice: {
             enabled: !!ttsUrls[index],

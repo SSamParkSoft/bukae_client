@@ -138,8 +138,8 @@ export function useStep3Container() {
     setSelectedPart,
   } = step3State
 
-  // 텍스트 편집 모드일 때만 Fabric.js 편집 활성화 (캔버스 위에서 직접 텍스트 입력 가능)
-  const useFabricEditing = editMode === 'text'
+  // 편집 모드(image/text)에서는 Fabric 투명 오버레이를 사용하고 Pixi를 항상 노출
+  const useFabricEditing = editMode !== 'none'
 
   useVideoCreateAuth()
 
@@ -1014,7 +1014,6 @@ export function useStep3Container() {
     ttsCacheRef: ttsCacheRefShared,
     ensureSceneTts,
     spritesRef,
-    textsRef,
   })
 
   // 설정 변경 시 재생 정지 후 실제 핸들러 호출 (한 훅으로 묶음)

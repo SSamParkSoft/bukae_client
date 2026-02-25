@@ -23,6 +23,10 @@ export interface SubtitlePosition {
   vAlign?: 'middle'
 }
 
+export interface GetSubtitlePositionOptions {
+  track?: 'fast' | 'pro'
+}
+
 /**
  * 사용자가 설정한 자막의 위치를 가져옴
  * 
@@ -36,7 +40,8 @@ export interface SubtitlePosition {
  */
 export function getSubtitlePosition(
   scene: TimelineData['scenes'][number],
-  stageDimensions: StageDimensions
+  stageDimensions: StageDimensions,
+  options?: GetSubtitlePositionOptions
 ): SubtitlePosition {
   // 우선순위 1: transform이 있으면 사용 (사용자가 직접 설정한 위치)
   if (scene.text?.transform) {
@@ -58,16 +63,27 @@ export function getSubtitlePosition(
   // 우선순위 2: position 값에 따라 계산
   const position = scene.text?.position || 'bottom'
   const { width, height } = stageDimensions
+  const track = options?.track ?? 'fast'
   
   let y: number
-  if (position === 'top') {
-    y = height * 0.15
-  } else if (position === 'bottom') {
-    // 하단 자막은 비디오 콘텐츠 위에 오버레이되도록 위치 조정
-    // 0.75 = 화면 하단에서 약 25% 위쪽 (비디오 콘텐츠 영역 내)
-    y = height * 0.75
+  if (track === 'pro') {
+    if (position === 'top') {
+      y = 200
+    } else if (position === 'bottom') {
+      y = height - 200
+    } else {
+      y = height * 0.5
+    }
   } else {
-    y = height * 0.5
+    if (position === 'top') {
+      y = height * 0.15
+    } else if (position === 'bottom') {
+      // 하단 자막은 비디오 콘텐츠 위에 오버레이되도록 위치 조정
+      // 0.75 = 화면 하단에서 약 25% 위쪽 (비디오 콘텐츠 영역 내)
+      y = height * 0.75
+    } else {
+      y = height * 0.5
+    }
   }
   
   return {

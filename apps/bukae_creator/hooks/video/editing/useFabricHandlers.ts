@@ -192,16 +192,6 @@ export function useFabricHandlers({
         scaledHeight = target.height || 0
       }
 
-      const nextTransform = {
-        x: (target.left ?? 0) * invScale,
-        y: (target.top ?? 0) * invScale,
-        width: scaledWidth * invScale,
-        height: scaledHeight * invScale,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: ((target.angle || 0) * Math.PI) / 180,
-      }
-
       const textContent = target.text ?? ''
       const fill = target.fill ?? DEFAULT_TEXT_COLOR
       const existingColor = currentTimeline.scenes[sceneIndex]?.text?.color ?? DEFAULT_TEXT_COLOR
@@ -226,6 +216,20 @@ export function useFabricHandlers({
         isProxyTransparentFill
           ? (currentTimeline.scenes[sceneIndex]?.text?.style?.align ?? DEFAULT_TEXT_ALIGN)
           : (target.textAlign ?? DEFAULT_TEXT_ALIGN)
+      const hAlign = align === 'left' || align === 'right' ? align : 'center'
+
+      const nextTransform = {
+        x: (target.left ?? 0) * invScale,
+        y: (target.top ?? 0) * invScale,
+        width: scaledWidth * invScale,
+        height: scaledHeight * invScale,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: ((target.angle || 0) * Math.PI) / 180,
+        anchor: { x: 0.5, y: 0.5 },
+        hAlign,
+        vAlign: 'middle' as const,
+      }
 
       // 폰트사이즈는 변경하지 않고 기존 값을 유지 (패스트트랙처럼 width만 변경)
       const existingFontSize = currentTimeline.scenes[sceneIndex]?.text?.fontSize ?? DEFAULT_FONT_SIZE
