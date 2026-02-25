@@ -18,7 +18,7 @@ interface BgmSelectorProps {
   onBgmConfirm: (templateId: string | null) => void
 }
 
-export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTemplate, onBgmConfirm }: BgmSelectorProps) {
+export function BgmSelector({ bgmTemplate, theme: _theme, setBgmTemplate, confirmedBgmTemplate, onBgmConfirm }: BgmSelectorProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [playingTemplateId, setPlayingTemplateId] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -61,7 +61,7 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
           alert(`BGM 파일을 불러올 수 없어요.\n상태: ${response.status} ${response.statusText}\n파일이 Supabase Storage에 업로드되어 있는지 확인해주세요.`)
           return
         }
-      } catch (fetchError) {
+      } catch (_fetchError) {
         alert(`BGM 파일에 접근할 수 없어요.\n파일이 Supabase Storage에 업로드되어 있는지 확인해주세요.`)
         return
       }
@@ -81,7 +81,7 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
       })
 
       await audio.play()
-    } catch (error) {
+    } catch (_error) {
       setPlayingTemplateId(null)
     }
   }
@@ -195,7 +195,7 @@ export function BgmSelector({ bgmTemplate, theme, setBgmTemplate, confirmedBgmTe
         {bgmTemplates.map((template) => {
           const isSelected = bgmTemplate === template.id
           const isPlaying = playingTemplateId === template.id
-          const isConfirmed = confirmedBgmTemplate === template.id
+          const _isConfirmed = confirmedBgmTemplate === template.id
           const isThisConfirmOpen = confirmOpen && pendingTemplateId === template.id
 
           return (

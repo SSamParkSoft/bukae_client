@@ -5,7 +5,7 @@
 
 import { useCallback } from 'react'
 import * as PIXI from 'pixi.js'
-import * as fabric from 'fabric'
+import * as _fabric from 'fabric'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import type { TimelineData } from '@/store/useVideoCreateStore'
@@ -323,8 +323,8 @@ export function useSubtitleRenderer({
 
           // 텍스트 실제 크기 측정 (스타일 적용 후)
           const textBounds = textObj.getLocalBounds()
-          let measuredTextWidth = textBounds.width || 0
-          let measuredTextHeight = textBounds.height || 0
+          const measuredTextWidth = textBounds.width || 0
+          const measuredTextHeight = textBounds.height || 0
 
           // 박스 크기: transform에 width/height가 유효하면 사용, 없으면 측정된 텍스트 크기로 박스 생성 (anchor 기준 정렬만 적용)
           let boxW: number
@@ -379,15 +379,11 @@ export function useSubtitleRenderer({
           // 현재 anchor 상태에서 먼저 측정한 후 anchor 변경
           const textBounds = textObj.getLocalBounds()
           const measuredTextWidth = textBounds.width || 0
-          const measuredTextHeight = textBounds.height || 0
           
           // transform이 없을 때 wordWrapWidth 문제 해결:
           // wordWrapWidth가 stageWidth (1080)로 설정되어 있으면 텍스트가 그 너비 내에서 정렬되어
           // 실제 텍스트 너비와 다를 수 있습니다. 따라서 wordWrapWidth를 실제 텍스트 너비로 업데이트하고
           // align을 'center'로 강제하여 텍스트가 정확히 중앙에 오도록 합니다.
-          let finalTextWidth = measuredTextWidth
-          let finalTextHeight = measuredTextHeight
-          
           if (measuredTextWidth > 0) {
             // 텍스트 스타일 업데이트: wordWrapWidth를 실제 텍스트 너비로 설정하고 align을 center로 강제
             const currentStyle = textObj.style as PIXI.TextStyle
@@ -399,10 +395,6 @@ export function useSubtitleRenderer({
             textObj.style = updatedStyle
             // 스타일 변경 후 텍스트를 다시 설정하여 스타일이 적용되도록 함
             textObj.text = partText
-            // 스타일 업데이트 후 다시 bounds 측정 (wordWrapWidth 변경으로 인해 크기가 달라질 수 있음)
-            const updatedBounds = textObj.getLocalBounds()
-            finalTextWidth = updatedBounds.width || measuredTextWidth
-            finalTextHeight = updatedBounds.height || measuredTextHeight
           }
           
           // anchor를 (0.5, 0.5)로 고정: 텍스트의 중앙이 기준점이 됨

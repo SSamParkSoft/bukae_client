@@ -14,10 +14,8 @@ interface UseBgmManagerParams {
  */
 export function useBgmManager({
   bgmTemplate,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   playbackSpeed: _playbackSpeed,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  isPlaying,
+  isPlaying: _isPlaying,
 }: UseBgmManagerParams) {
   const [confirmedBgmTemplateOverride, setConfirmedBgmTemplateOverride] = useState<string | null | undefined>(undefined)
   const confirmedBgmTemplate = confirmedBgmTemplateOverride === undefined ? bgmTemplate : confirmedBgmTemplateOverride

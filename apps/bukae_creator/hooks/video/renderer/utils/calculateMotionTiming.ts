@@ -68,7 +68,7 @@ export function calculateMotionDuration({
   timeline,
   sceneIndex,
   ttsCacheRef,
-  voiceTemplate,
+  voiceTemplate: _voiceTemplate,
   buildSceneMarkup,
   makeTtsKey,
   getActiveSegment,
@@ -139,7 +139,7 @@ export function calculateMotionDuration({
 export function calculateMotionLocalTime({
   sceneLocalT,
   sceneStartTime,
-  getActiveSegment,
+  getActiveSegment: _getActiveSegment,
   activeSegmentFromTts,
 }: Pick<CalculateMotionTimingParams, 'sceneLocalT' | 'sceneStartTime' | 'getActiveSegment' | 'activeSegmentFromTts'>): MotionLocalTimeResult {
   // Motion은 렌더링되자마자 시작되므로 씬 로컬 시간을 그대로 사용

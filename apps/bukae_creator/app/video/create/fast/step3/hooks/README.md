@@ -146,3 +146,24 @@ export function useStep3Container() {
 - 전역 훅: `hooks/video/README.md`
 - 전체 리팩토링 계획: `.cursor/plans/video_hooks_리팩토링_및_최적화_*.plan.md`
 
+
+---
+
+## 캐시 정책 (런타임 메모리)
+
+### 사용처
+
+- `useStep3Container.ts`
+  - `texturesRef: Map<string, PIXI.Texture>`
+  - `ttsCacheRefShared: Map<string, { blob, durationSec, markup, url }>`
+  - 기타 편집 핸들/스프라이트/텍스트 Map ref
+
+### 왜 필요한가
+
+- 실시간 미리보기 편집에서 프레임 드랍 최소화
+- 씬 재렌더 시 텍스처/TTS 재계산 비용 절감
+
+### 범위/정리
+
+- 전부 메모리 캐시이며 localStorage 저장 없음
+- Step3 언마운트 또는 전체 드래프트 초기화 시 캐시도 함께 소멸

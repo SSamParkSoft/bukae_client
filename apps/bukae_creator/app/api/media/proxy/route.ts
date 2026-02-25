@@ -70,7 +70,7 @@ export async function GET(request: Request) {
     const arrayBuffer = await imageResponse.arrayBuffer()
     let imageBuffer: Buffer = Buffer.from(arrayBuffer)
     let contentType = imageResponse.headers.get('content-type') || 'image/jpeg'
-    const originalSize = imageBuffer.byteLength
+    const _originalSize = imageBuffer.byteLength
 
     // 이미지 최적화 (width나 quality 파라미터가 있으면)
     if (width || quality) {
@@ -99,7 +99,6 @@ export async function GET(request: Request) {
         console.warn('[Image Proxy] 이미지 최적화 실패, 원본 반환:', optimizeError)
         // 최적화 실패 시 원본 반환
       }
-    } else {
     }
 
     // 이미지 반환 (Buffer를 Uint8Array로 변환하여 NextResponse에 전달)
@@ -118,4 +117,3 @@ export async function GET(request: Request) {
     )
   }
 }
-

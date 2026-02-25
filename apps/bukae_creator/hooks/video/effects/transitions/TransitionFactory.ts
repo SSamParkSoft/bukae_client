@@ -75,10 +75,10 @@ export class GsapTransitionRenderer implements TransitionRenderer {
   }
   
   apply(
-    t: number,
-    sceneA: PIXI.Container | null,
-    sceneB: PIXI.Container | null,
-    params: TransitionParams
+    _t: number,
+    _sceneA: PIXI.Container | null,
+    _sceneB: PIXI.Container | null,
+    _params: TransitionParams
   ): void {
     // GSAP 기반 Transition은 기존 applyEnterEffect를 사용
     // 현재는 placeholder
@@ -89,7 +89,7 @@ export class GsapTransitionRenderer implements TransitionRenderer {
     // GSAP timeline 정리
   }
   
-  updateProgress(t: number): void {
+  updateProgress(_t: number): void {
     // GSAP timeline의 time 업데이트
   }
 }
@@ -107,10 +107,10 @@ export class ShaderTransitionRenderer implements TransitionRenderer {
   }
   
   apply(
-    t: number,
-    sceneA: PIXI.Container | null,
-    sceneB: PIXI.Container | null,
-    params: TransitionParams
+    _t: number,
+    _sceneA: PIXI.Container | null,
+    _sceneB: PIXI.Container | null,
+    _params: TransitionParams
   ): void {
     // Shader 기반 Transition 구현
     // TODO: Shader Transition 구현 시 여기에 작성
@@ -120,7 +120,7 @@ export class ShaderTransitionRenderer implements TransitionRenderer {
     // Shader 정리
   }
   
-  updateProgress(t: number): void {
+  updateProgress(_t: number): void {
     // Shader uniform 업데이트
   }
 }

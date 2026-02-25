@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { ConceptType } from '@/lib/data/templates'
-import type { AutoScene } from '@/lib/types/video'
+import type { AutoScene as _AutoScene } from '@/lib/types/video'
+import type { TargetMall, ProductResponse } from '@/lib/types/products'
 // 도메인 모델 import
-import type { Product, Platform } from '@/lib/types/domain/product'
-import type { TimelineData, TimelineScene } from '@/lib/types/domain/timeline'
+import type { Product, Platform as _Platform } from '@/lib/types/domain/product'
+import type { TimelineData, TimelineScene as _TimelineScene } from '@/lib/types/domain/timeline'
 import type { SceneScript } from '@/lib/types/domain/script'
 import type { VideoEditData, Step2Result, ScriptMethod, CreationMode } from '@/lib/types/domain/video'
 
@@ -50,6 +51,13 @@ interface VideoCreateState {
   videoTitleCandidates: string[] // AI 추천 제목 후보
   videoDescription: string // 영상 상세 설명
   videoHashtags: string[] // 영상 해시태그
+  step1SearchCache: {
+    selectedPlatform: TargetMall | 'all'
+    prompt: string
+    currentProducts: Product[]
+    currentProductResponses: ProductResponse[]
+    visibleProductCount: number
+  } | null
   // 저장 제어
   autoSaveEnabled: boolean // 자동 저장 활성화 여부
   hasUnsavedChanges: boolean // 저장되지 않은 변경사항이 있는지
@@ -93,6 +101,14 @@ interface VideoCreateState {
   setVideoTitleCandidates: (candidates: string[]) => void
   setVideoDescription: (description: string) => void
   setVideoHashtags: (hashtags: string[]) => void
+  setStep1SearchCache: (cache: {
+    selectedPlatform: TargetMall | 'all'
+    prompt: string
+    currentProducts: Product[]
+    currentProductResponses: ProductResponse[]
+    visibleProductCount: number
+  }) => void
+  clearStep1SearchCache: () => void
   reset: () => void
 }
 
@@ -133,6 +149,7 @@ const initialState = {
   videoTitleCandidates: [],
   videoDescription: '',
   videoHashtags: [],
+  step1SearchCache: null,
   // 저장 제어 초기값
   autoSaveEnabled: true, // 기본값은 활성화
   hasUnsavedChanges: false,
@@ -248,6 +265,8 @@ export const useVideoCreateStore = create<VideoCreateState>()(
       setVideoTitleCandidates: (candidates) => set({ videoTitleCandidates: candidates }),
       setVideoDescription: (description) => set({ videoDescription: description }),
       setVideoHashtags: (hashtags) => set({ videoHashtags: hashtags }),
+      setStep1SearchCache: (cache) => set({ step1SearchCache: cache }),
+      clearStep1SearchCache: () => set({ step1SearchCache: null }),
       setAutoSaveEnabled: (enabled) => set({ autoSaveEnabled: enabled }),
       setHasUnsavedChanges: (hasChanges) => set({ hasUnsavedChanges: hasChanges }),
       reset: () => set(initialState),
@@ -293,6 +312,8 @@ export const useVideoCreateStore = create<VideoCreateState>()(
           // productVideos는 File[] 타입이므로 제외
           productVideos: {},
           step2Result: step2ResultWithoutFile,
+          // Step1 검색 결과는 같은 세션 내에서만 유지 (localStorage 저장 제외)
+          step1SearchCache: null,
         }
       },
     }

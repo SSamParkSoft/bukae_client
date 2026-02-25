@@ -49,7 +49,7 @@ interface UserState {
   reset: () => void
 }
 
-const defaultUser: User = {
+const _defaultUser: User = {
   id: '1',
   name: '사용자',
   email: 'user@example.com',
@@ -181,6 +181,8 @@ export const useUserStore = create<UserState>()(
             state.user = null
             // 다른 store들도 초기화
             useVideoCreateStore.getState().reset()
+            useVideoCreateStore.persist.clearStorage()
+            localStorage.removeItem('currentVideoJobId')
             useAppStore.getState().setProductUrl('')
           }
         }
@@ -188,4 +190,3 @@ export const useUserStore = create<UserState>()(
     }
   )
 )
-

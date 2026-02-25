@@ -4,6 +4,8 @@ const ACCESS_TOKEN_KEY = 'bookae_access_token'
 const REFRESH_TOKEN_KEY = 'bookae_refresh_token'
 const AUTH_SOURCE_KEY = 'bookae_auth_source'
 const TOKEN_TIMESTAMP_KEY = 'bookae_token_timestamp'
+const VIDEO_CREATE_STORAGE_KEY = 'bookae-video-create-storage'
+const CURRENT_VIDEO_JOB_ID_KEY = 'currentVideoJobId'
 
 // 액세스 토큰 만료 시간 (6분 = 360000ms)
 export const TOKEN_EXPIRY_MS = 360000
@@ -69,6 +71,9 @@ export const authStorage = {
     localStorage.removeItem(REFRESH_TOKEN_KEY)
     localStorage.removeItem(AUTH_SOURCE_KEY)
     localStorage.removeItem(TOKEN_TIMESTAMP_KEY)
+    // 인증이 해제되면 creator 임시 상태도 함께 정리
+    localStorage.removeItem(VIDEO_CREATE_STORAGE_KEY)
+    localStorage.removeItem(CURRENT_VIDEO_JOB_ID_KEY)
   },
 
   hasTokens(): boolean {
@@ -145,4 +150,3 @@ export const authStorage = {
     localStorage.setItem(TOKEN_TIMESTAMP_KEY, Date.now().toString())
   },
 }
-

@@ -157,7 +157,7 @@ const nextConfig: NextConfig = {
             }),
           ],
         };
-      } catch (error) {
+      } catch (_error) {
         // TerserPlugin을 사용할 수 없는 경우 무시 (Next.js 기본 최적화 사용)
       }
     }

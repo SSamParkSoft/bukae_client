@@ -31,7 +31,7 @@ export function applyShortsTemplateToScenes(
   const { width, height } = stageDimensions
 
   // 모든 씬에 템플릿 적용
-  const updatedScenes = timeline.scenes.map((scene, index) => {
+  const updatedScenes = timeline.scenes.map((scene, _index) => {
 
     // 이미지 Transform: 상단 15%부터 시작, 가로 100%, 높이 70% (하단 15% 여백)
     // contain 모드로 이미지 비율 유지하면서 영역 내에 맞춤

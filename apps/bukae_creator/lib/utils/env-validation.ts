@@ -5,7 +5,7 @@ function isProduction(): boolean {
   return process.env.NODE_ENV === 'production'
 }
 
-function isLocalhost(): boolean {
+function _isLocalhost(): boolean {
   // 서버 사이드에서는 환경 변수로 판단
   if (typeof window === 'undefined') {
     return process.env.NODE_ENV === 'development'

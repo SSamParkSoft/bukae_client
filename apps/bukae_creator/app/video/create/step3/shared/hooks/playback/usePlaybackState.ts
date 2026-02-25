@@ -51,7 +51,6 @@ interface UsePlaybackStateParams {
 
 export function usePlaybackState({
   timeline,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   voiceTemplate: _voiceTemplate, // deprecated: 더 이상 사용하지 않지만 하위 호환성을 위해 유지
   buildSceneMarkupWithTimeline,
   makeTtsKey,

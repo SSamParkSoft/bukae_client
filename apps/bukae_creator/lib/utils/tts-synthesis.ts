@@ -36,7 +36,7 @@ export interface EnsureSceneTtsParams {
 export async function ensureSceneTts({
   timeline,
   sceneIndex,
-  voiceTemplate,
+  voiceTemplate: _voiceTemplate,
   ttsCacheRef,
   ttsInFlightRef,
   changedScenesRef,

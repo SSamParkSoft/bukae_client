@@ -23,7 +23,7 @@ interface SelectedProductsPanelProps {
 function SelectedProductsPanelContent({ 
   className = '',
   productResponses = [],
-  currentProducts = []
+  currentProducts: _currentProducts
 }: SelectedProductsPanelProps) {
   const router = useRouter()
   const searchParams = useSearchParams()

@@ -59,7 +59,7 @@ export function useSceneHandlers({
   pixiReady,
   appRef,
   containerRef,
-  loadAllScenes,
+  loadAllScenes: _loadAllScenes,
   setPlaybackSpeed,
   spritesRef,
   stageDimensions,
@@ -141,7 +141,7 @@ export function useSceneHandlers({
       }
       
       // 효과 변경 시 현재 렌더링된 씬 인덱스 확인
-      const currentRenderedIndex = lastRenderedSceneIndexRef.current ?? currentSceneIndex
+      const _currentRenderedIndex = lastRenderedSceneIndexRef.current ?? currentSceneIndex
       
       requestAnimationFrame(() => {
         setTimeout(() => {

@@ -38,10 +38,10 @@ export function step3SetupContainers(
     subtitleContainerRef,
     transitionQuadContainerRef,
     lastRenderedSceneIndexRef,
-    resetBaseStateCallback,
-    fabricCanvasRef,
-    fabricScaleRatioRef,
-    stageDimensions,
+    resetBaseStateCallback: _resetBaseStateCallback,
+    fabricCanvasRef: _fabricCanvasRef,
+    fabricScaleRatioRef: _fabricScaleRatioRef,
+    stageDimensions: _stageDimensions,
   } = context
 
   const { sceneChanged, previousRenderedSceneIndex, isTransitionInProgress, isTransitionInProgressForRender } = step8Result

@@ -150,7 +150,7 @@ export function useTransitionEffects({
         }
 
         manager.createTransitionQuad(shader, containerRef.current)
-      } catch (error) {
+      } catch (_error) {
         manager.endTransition()
         return
       }

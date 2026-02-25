@@ -75,3 +75,24 @@ export default function Step4Page() {
 - [ ] 다른 페이지에서도 사용될 수 있는 순수 로직이 아닌가?
 
 모든 항목이 체크되면 이 디렉토리에 추가하세요.
+
+---
+
+## 캐시/로컬스토리지 정책
+
+### 사용처
+
+- `useStep4Container.ts`
+  - 키: `currentVideoJobId`
+  - 목적: 렌더링 중 페이지 이탈/새로고침 후 Step4 재진입 시 진행 중 job 복원
+
+### 왜 필요한가
+
+- 장시간 렌더링 작업의 추적 연속성 확보
+- 사용자가 다시 들어와도 상태 확인 가능
+
+### 초기화 규칙
+
+- 완료 처리(`handleComplete`)에서 `currentVideoJobId` 제거
+- 드래프트 삭제(`clearVideoCreateDraft`)에서도 제거
+- `bookae-video-create-storage`가 없는 고아 jobId는 `hasVideoCreateDraft()`에서 자동 정리

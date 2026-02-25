@@ -82,10 +82,6 @@ function extractStorageDataFromEvent(event: MessageEvent): CoupangExtensionStora
 
 export function requestCoupangExtensionStorage(): Promise<CoupangExtensionStorageData | null> {
   return new Promise((resolve) => {
-    const isDev = process.env.NODE_ENV === 'development'
-    if (isDev) {
-    }
-    
     // 확장프로그램에 메시지 전송
     window.postMessage(
       {
@@ -98,8 +94,6 @@ export function requestCoupangExtensionStorage(): Promise<CoupangExtensionStorag
 
     // 응답 대기 (최대 5초)
     const timeout = setTimeout(() => {
-      if (isDev) {
-      }
       window.removeEventListener('message', messageHandler)
       resolve(null)
     }, 5000)
@@ -108,8 +102,6 @@ export function requestCoupangExtensionStorage(): Promise<CoupangExtensionStorag
       const storageData = extractStorageDataFromEvent(event)
       
       if (storageData) {
-        if (isDev) {
-        }
         clearTimeout(timeout)
         window.removeEventListener('message', messageHandler)
         resolve(storageData)
@@ -173,10 +165,6 @@ export function extractImagesFromStorage(
   productId?: string
 ): string[] {
   const seenImages = new Set<string>()
-  const isDev = process.env.NODE_ENV === 'development'
-
-  if (isDev) {
-  }
 
   // productDetailImages 키 이름 확인 (오타 가능성 - productDetaillmages vs productDetailImages)
   const detailImages = storageData.productDetaillmages || 
@@ -185,9 +173,6 @@ export function extractImagesFromStorage(
   
   // productId가 제공된 경우 해당 상품의 이미지만 추출
   if (productId) {
-    if (isDev) {
-    }
-    
     // 대표 이미지
     const mainImage = storageData.productimages?.[productId]
     if (mainImage && isValidProductImage(mainImage)) {
@@ -202,8 +187,6 @@ export function extractImagesFromStorage(
     
     // productId로 매칭이 안 되면 모든 이미지 가져오기 (fallback)
     if (seenImages.size === 0) {
-      if (isDev) {
-      }
       collectValidImages(Object.values(storageData.productimages || {}), seenImages)
       collectValidImages(Object.values(detailImages), seenImages)
     }
@@ -214,8 +197,5 @@ export function extractImagesFromStorage(
   }
 
   const images = Array.from(seenImages)
-  if (isDev) {
-  }
   return images
 }
-

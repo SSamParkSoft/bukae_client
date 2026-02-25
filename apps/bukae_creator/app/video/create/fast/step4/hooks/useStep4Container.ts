@@ -99,6 +99,7 @@ export function useStep4Container() {
   const [encodingSceneIndex, setEncodingSceneIndex] = useState<number | null>(null)
   const [resultVideoUrl, setResultVideoUrl] = useState<string | null>(null)
   const jobStatusCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const refundedJobIdsRef = useRef<Set<string>>(new Set())
   const [isInitializing, setIsInitializing] = useState(false) // 초기 상태 로딩 중
   
   // 영상 제목 선택 관련 상태
@@ -139,19 +140,55 @@ export function useStep4Container() {
     }
   }, [resultVideoUrl, currentJobId])
 
+  const requestRefundForFailedJob = useCallback(async (failedJobId: string, reason: string) => {
+    const normalizedJobId = failedJobId.trim()
+    if (!normalizedJobId || refundedJobIdsRef.current.has(normalizedJobId)) return
+
+    refundedJobIdsRef.current.add(normalizedJobId)
+
+    try {
+      let accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        const supabase = getSupabaseClient()
+        const { data } = await supabase.auth.getSession()
+        accessToken = data.session?.access_token ?? null
+      }
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`
+      }
+
+      const refundResponse = await fetch('/api/videos/refund', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          jobId: normalizedJobId,
+          reason,
+        }),
+      })
+
+      if (!refundResponse.ok) {
+        refundedJobIdsRef.current.delete(normalizedJobId)
+        const errorPayload = await refundResponse.json().catch(() => ({}))
+        console.warn('[Step4] 크레딧 환불 요청 실패:', refundResponse.status, errorPayload)
+      }
+    } catch (error) {
+      refundedJobIdsRef.current.delete(normalizedJobId)
+      console.warn('[Step4] 크레딧 환불 요청 에러:', error)
+    }
+  }, [])
+
   // 상태 업데이트 처리 함수
   const handleStatusUpdate = useCallback((statusData: ExtendedStudioJobUpdate) => {
-    console.log('[handleStatusUpdate] 상태 업데이트 받음:', statusData)
     
     const newStatus = statusData.status
     
     // 이미 완료/실패 처리된 경우 추가 업데이트 무시
     setJobStatus((prevStatus) => {
       if (prevStatus === 'COMPLETED' || prevStatus === 'FAILED') {
-        console.log('[handleStatusUpdate] 이미 완료/실패 상태라 무시:', prevStatus)
         return prevStatus
       }
-      console.log('[handleStatusUpdate] 상태 업데이트:', prevStatus, '->', newStatus)
       return newStatus
     })
 
@@ -164,8 +201,13 @@ export function useStep4Container() {
           : ''
     if (detailError && newStatus !== 'COMPLETED') {
       const errorText = detailError || statusData.errorMessage || '알 수 없는 오류가 발생했습니다.'
-      console.log('[handleStatusUpdate] 실패 처리:', errorText)
-      alert(`영상 생성이 실패했어요.\n\n${errorText}`)
+      // 실패 시 서버 응답 전체를 콘솔에 출력 (네트워크 탭에는 200으로 보일 수 있음)
+      console.error('[Step4] 영상 생성 실패 – 서버 응답 전체:', statusData)
+      const failedJobId = statusData.jobId || urlJobId || currentJobId
+      if (failedJobId) {
+        void requestRefundForFailedJob(failedJobId, 'render_failed:progress_detail')
+      }
+      alert(`영상 생성이 실패했어요.\n\n${errorText}\n\n자세한 내용은 브라우저 콘솔(F12)을 확인해주세요.`)
       setCurrentJobId(null)
       setJobStatus('FAILED')
       setJobProgress('')
@@ -222,7 +264,6 @@ export function useStep4Container() {
         const currentSceneNum = parseInt(sceneMatch[1] || sceneMatch[3] || '0', 10)
         sceneIndex = currentSceneNum > 0 ? currentSceneNum - 1 : null
         if (typeof sceneIndex === 'number' && sceneIndex >= 0) {
-          console.log('[handleStatusUpdate] progressText에서 씬 인덱스 파싱:', sceneIndex, 'from:', progressText)
           setEncodingSceneIndex(sceneIndex)
         }
       }
@@ -238,9 +279,7 @@ export function useStep4Container() {
     setJobProgress(progressText)
     
     if (newStatus === 'COMPLETED') {
-      console.log('[handleStatusUpdate] 완료 처리 시작')
       const videoUrl = statusData.resultVideoUrl || null
-      console.log('[handleStatusUpdate] 비디오 URL:', videoUrl)
       setResultVideoUrl(videoUrl)
       setJobProgress('영상 생성이 완료되었어요!')
       setEncodingSceneIndex(null)
@@ -250,7 +289,6 @@ export function useStep4Container() {
         clearTimeout(jobStatusCheckTimeoutRef.current)
         jobStatusCheckTimeoutRef.current = null
       }
-      console.log('[handleStatusUpdate] 완료 처리 완료, jobStatus:', newStatus)
     } else if (newStatus === 'FAILED') {
       const errorMessages = [
         statusData.errorMessage,
@@ -268,6 +306,9 @@ export function useStep4Container() {
           if (detailMsg) errorMessages.push(detailMsg)
         }
       }
+      
+      // 디버깅: 실패 시 서버 응답 전체를 콘솔에 출력 (네트워크 탭에는 성공으로 보일 때 확인용)
+      console.error('[Step4] 영상 생성 실패 – 서버 응답 전체:', statusData)
       
       const errorText = errorMessages.length > 0 
         ? errorMessages.join('\n\n') 
@@ -290,13 +331,17 @@ export function useStep4Container() {
       userMessage += `에러 상세:\n${errorText.substring(0, 500)}${errorText.length > 500 ? '...' : ''}\n\n`
       userMessage += '자세한 내용은 브라우저 콘솔(F12)을 확인해주세요.'
       
+      const failedJobId = statusData.jobId || urlJobId || currentJobId
+      if (failedJobId) {
+        void requestRefundForFailedJob(failedJobId, 'render_failed:status_failed')
+      }
       alert(userMessage)
       setCurrentJobId(null)
       setJobStatus(null)
       setJobProgress('')
       setEncodingSceneIndex(null)
     }
-  }, [timeline, currentJobId])
+  }, [timeline, currentJobId, requestRefundForFailedJob, urlJobId])
 
   // HTTP 폴링 함수
   const startHttpPolling = useCallback((jobId: string, startTime: number) => {
@@ -319,7 +364,6 @@ export function useStep4Container() {
         const videoUrl = `${supabaseUrl}/storage/v1/object/public/videos/${jobId}/result.mp4`
         const headResponse = await fetch(videoUrl, { method: 'HEAD' })
         if (headResponse.ok) {
-          console.log('[HTTP Polling] Supabase Storage에서 비디오 파일 발견:', videoUrl)
           return videoUrl
         }
         return null
@@ -331,7 +375,6 @@ export function useStep4Container() {
     
     const checkJobStatus = async () => {
       checkCount++
-      console.log(`[HTTP Polling] 상태 확인 시도 #${checkCount}, jobId: ${jobId}`)
       
       const elapsed = Date.now() - startTime
       if (elapsed > MAX_WAIT_TIME) {
@@ -353,21 +396,17 @@ export function useStep4Container() {
           return
         }
         const statusUrl = `${API_BASE_URL}/api/v1/studio/jobs/${jobId}`
-        console.log('[HTTP Polling] 요청 URL:', statusUrl)
         
         const statusResponse = await fetch(statusUrl, {
           headers: { Authorization: `Bearer ${accessToken}` },
         })
         
-        console.log('[HTTP Polling] 응답 상태:', statusResponse.status)
         
         if (statusResponse.ok) {
           const statusData = await statusResponse.json()
-          console.log('[HTTP Polling] 상태 데이터:', statusData)
           
           if (statusData.progressDetail?.error || statusData.progressDetail?.errorMessage) {
             const errorMsg = statusData.progressDetail.error || statusData.progressDetail.errorMessage
-            console.log('[HTTP Polling] 에러 감지:', errorMsg)
             handleStatusUpdate({
               ...statusData,
               status: 'FAILED',
@@ -409,11 +448,9 @@ export function useStep4Container() {
             timeSinceLastUpdate > STALE_PROCESSING_THRESHOLD &&
             checkCount >= 6
           ) {
-            console.log('[HTTP Polling] PROCESSING 상태가 오래 지속됨, 파일 존재 여부 확인 시도')
             const videoUrl = await checkVideoFileExists(jobId)
             
             if (videoUrl) {
-              console.log('[HTTP Polling] 파일 발견, 완료 상태로 처리')
               handleStatusUpdate({
                 ...statusData,
                 status: 'COMPLETED',
@@ -424,16 +461,12 @@ export function useStep4Container() {
             }
           }
           
-          console.log('[HTTP Polling] handleStatusUpdate 호출 전, status:', statusData.status)
           handleStatusUpdate(statusData)
-          console.log('[HTTP Polling] handleStatusUpdate 호출 후')
           
           if (statusData.status !== 'COMPLETED' && statusData.status !== 'FAILED') {
             const pollingInterval = 5000
-            console.log(`[HTTP Polling] 다음 확인까지 ${pollingInterval}ms 대기 (현재 상태: ${statusData.status})`)
             jobStatusCheckTimeoutRef.current = setTimeout(checkJobStatus, pollingInterval)
           } else {
-            console.log('[HTTP Polling] 완료/실패 상태 도달, 폴링 중단. status:', statusData.status)
             if (jobStatusCheckTimeoutRef.current) {
               clearTimeout(jobStatusCheckTimeoutRef.current)
               jobStatusCheckTimeoutRef.current = null
@@ -464,7 +497,6 @@ export function useStep4Container() {
 
         // 진행 중인 작업이면 상태 확인 및 HTTP 폴링 재시작
         if (jobStatus === 'PENDING' || jobStatus === 'PROCESSING' || !jobStatus) {
-          console.log('[Visibility] 페이지가 다시 보임, 상태 확인 및 HTTP 폴링 재시작, jobId:', targetJobId)
           
           // 먼저 현재 상태 확인
           try {
@@ -495,6 +527,7 @@ export function useStep4Container() {
               
               // 실패한 경우 상태 업데이트
               if (statusData.status === 'FAILED') {
+                void requestRefundForFailedJob(targetJobId, 'render_failed:visibility_check')
                 setJobStatus('FAILED')
                 setJobProgress(statusData.errorMessage || '영상 생성이 실패했어요.')
                 return
@@ -542,8 +575,8 @@ export function useStep4Container() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlJobId, currentJobId, jobStatus, startHttpPolling])
+     
+  }, [urlJobId, currentJobId, jobStatus, startHttpPolling, requestRefundForFailedJob])
 
   // 초기 작업 상태 확인 (페이지 마운트 시 또는 jobId 변경 시)
   useEffect(() => {
@@ -597,7 +630,6 @@ export function useStep4Container() {
         
         if (statusResponse.ok) {
           const statusData = await statusResponse.json()
-          console.log('[Initial Status] 상태 데이터:', statusData)
           
           // 완료된 작업
           if (statusData.status === 'COMPLETED') {
@@ -610,6 +642,7 @@ export function useStep4Container() {
     
           // 실패한 작업
           if (statusData.status === 'FAILED') {
+            void requestRefundForFailedJob(targetJobId, 'render_failed:initial_status')
             setJobStatus('FAILED')
             setJobProgress(statusData.errorMessage || '영상 생성이 실패했어요.')
             setIsInitializing(false)
@@ -664,7 +697,7 @@ export function useStep4Container() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlJobId, currentJobId, startHttpPolling])
+  }, [urlJobId, currentJobId, startHttpPolling, requestRefundForFailedJob])
 
   // 경과 시간 업데이트
   useEffect(() => {
@@ -904,8 +937,6 @@ export function useStep4Container() {
           if (!videoMetadataResponse.ok) {
             console.warn('[handleComplete] Video metadata save failed', videoMetadataResponse.status)
             // 실패해도 계속 진행 (메타데이터 저장 실패는 치명적이지 않음)
-          } else {
-            console.log('[handleComplete] Video metadata saved successfully')
           }
         }
       } catch (error) {
@@ -957,6 +988,7 @@ export function useStep4Container() {
     }
     
     reset()
+    useVideoCreateStore.persist.clearStorage()
     setIsCompleteDialogOpen(false)
     setIsCompleting(false)
     router.push('/')

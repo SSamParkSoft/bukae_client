@@ -382,7 +382,6 @@ export function useEditModeManager({
         } catch {
           // 이미지 핸들 그리기 실패
         }
-      } else {
       }
       try {
         setupSpriteDragRef.current(sprite, currentSceneIndex)
@@ -429,7 +428,6 @@ export function useEditModeManager({
         } catch {
           // 자막 핸들 그리기 실패
         }
-      } else {
       }
       try {
         setupTextDragRef.current(text, currentSceneIndex)

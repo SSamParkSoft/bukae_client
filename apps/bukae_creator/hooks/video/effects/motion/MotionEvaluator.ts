@@ -8,7 +8,7 @@
  * - 결과를 sprite에 즉시 세팅
  */
 
-import type { MotionConfig, MotionResult, MotionType } from './types'
+import type { MotionConfig, MotionResult, MotionType as _MotionType } from './types'
 import { applyEasing, clampProgress } from './easing'
 
 export class MotionEvaluator {

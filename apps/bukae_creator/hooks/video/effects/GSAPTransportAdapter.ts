@@ -113,14 +113,7 @@ export class GSAPTransportAdapter {
 
     // Transport 시간 t를 직접 사용하여 전환효과 렌더링
     // 전환효과 범위 밖에서도 호출하여 초기/최종 상태 유지
-    const { startTime, endTime } = this.transitionTiming
-    const isInTransition = t >= startTime && t < endTime
-    
-    // 디버깅: syncToTransportTime이 호출되는지 확인 (항상 출력하되 샘플링)
-    // 매 0.1초마다 한 번씩만 출력하여 로그가 너무 많아지지 않도록 함
-    const shouldLog = Math.floor(t * 10) % 2 === 0 // 0.2초마다 출력
-    if (shouldLog || isInTransition || (Math.abs(t - startTime) < 0.1) || (Math.abs(t - endTime) < 0.1)) {
-    }
+    const { startTime: _startTime, endTime: _endTime } = this.transitionTiming
     
     // renderFunction 호출 전에 toSprite가 여전히 유효한지 다시 확인
     if (!this.toSprite || this.toSprite.destroyed) {
@@ -178,16 +171,6 @@ export class GSAPTransportAdapter {
     const targetAlpha = easedProgress
     toSprite.alpha = targetAlpha
     
-    // 디버깅: 전환효과 진행 중일 때 alpha 값 확인
-    if (progress > 0 && progress < 1) {
-      // 샘플링하여 로그가 너무 많이 나오지 않도록 함
-      const shouldLog = Math.floor(progress * 10) % 2 === 0
-      if (shouldLog) {
-      }
-    } else if (relativeTime >= -0.1 && relativeTime < 0.1) {
-      // 전환효과 시작 직전/직후에도 로그 출력
-    }
-
     // 이전 씬 페이드 아웃: alpha = 1 - easedProgress
     if (fromSprite && !fromSprite.destroyed) {
       if (t >= endTime) {

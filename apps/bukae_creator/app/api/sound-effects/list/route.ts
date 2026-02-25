@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getSupabaseServiceClient } from '@/lib/api/supabase-server'
 import {
   soundEffectsMetadata,
-  getSoundEffectPath,
+  getSoundEffectPath as _getSoundEffectPath,
   getSoundEffectsByCategory,
 } from '@/lib/data/sound-effects'
 

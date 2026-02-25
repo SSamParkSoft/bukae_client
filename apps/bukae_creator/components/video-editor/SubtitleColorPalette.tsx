@@ -27,7 +27,7 @@ function normalizeHex(value: string): string {
   return `#${v}`
 }
 
-export function SubtitleColorPalette({ value, onChange, theme }: SubtitleColorPaletteProps) {
+export function SubtitleColorPalette({ value, onChange, theme: _theme }: SubtitleColorPaletteProps) {
   const current = useMemo(() => normalizeHex(value), [value])
 
   return (

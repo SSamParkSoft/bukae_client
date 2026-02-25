@@ -4,7 +4,7 @@
  */
 
 import type { TimelineData } from '@/store/useVideoCreateStore'
-import { getSceneStartTime } from '@/utils/timeline'
+import { getSceneStartTime as _getSceneStartTime } from '@/utils/timeline'
 
 /**
  * Transition 시간 계산 파라미터
@@ -91,7 +91,7 @@ export function calculateTransitionStartTime({
  * @param params 계산 파라미터
  * @returns 씬의 TTS 캐시 duration (초)
  */
-function calculateSceneTtsDuration({
+function _calculateSceneTtsDuration({
   timeline,
   sceneIndex,
   ttsCacheRef,

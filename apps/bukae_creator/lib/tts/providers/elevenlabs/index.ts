@@ -1,7 +1,7 @@
 import type { TtsProviderInterface } from '@/lib/tts/core/provider.interface'
 import type { SynthesizeParams, SynthesizeResult } from '@/lib/tts/core/synthesizer.interface'
 import type { PublicVoiceInfo, VoiceInfo, ElevenLabsVoiceInfo } from '@/lib/types/tts'
-import { getElevenLabsClient } from './client'
+import { getElevenLabsClient as _getElevenLabsClient } from './client'
 import { listVoices, toPublicVoiceInfo } from './voices'
 import { synthesize as synthesizeElevenLabs } from './synthesizer'
 import { publicVoiceInfoToVoiceInfo } from '@/lib/types/tts'

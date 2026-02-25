@@ -64,7 +64,7 @@ export function SceneList({
   isPreparing,
   isTtsBootstrapping,
   voiceTemplate = null,
-  onVoiceTemplateChange,
+  onVoiceTemplateChange: _onVoiceTemplateChange,
   onOpenEffectPanel,
 }: SceneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -585,7 +585,9 @@ export function SceneList({
                         onPlayScene={async () => {
                           try {
                             await onPlayScene?.(index)
-                          } catch (_) {}
+                          } catch (_error) {
+                            // Intentionally ignore scene preview errors in list interaction.
+                          }
                         }}
                         onDuplicateScene={() => onDuplicateScene?.(index)}
                         onSplitScene={() => onSplitScene?.(index)}
@@ -1149,5 +1151,4 @@ export function SceneList({
     </div>
   )
 }
-
 

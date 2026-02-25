@@ -96,10 +96,6 @@ export async function POST(request: Request) {
 
     const audioBuffer = result.audio
 
-    // 문자 수 추적 (ElevenLabs인 경우)
-    if (result.charCount) {
-    }
-
     return new Response(new Uint8Array(audioBuffer), {
       headers: {
         'Content-Type': 'audio/mpeg',
@@ -119,5 +115,4 @@ export async function POST(request: Request) {
     )
   }
 }
-
 

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
+import { clearVideoCreateDraft } from './_utils/draft-storage'
 
 export default function VideoCreateLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -81,6 +82,7 @@ export default function VideoCreateLayout({ children }: { children: React.ReactN
   const handleDontSave = () => {
     setAutoSaveEnabled(false)
     setHasUnsavedChanges(false)
+    clearVideoCreateDraft()
     setShowSaveDialog(false)
     if (pendingNavigation) {
       router.push(pendingNavigation)
@@ -144,4 +146,3 @@ export default function VideoCreateLayout({ children }: { children: React.ReactN
     </>
   )
 }
-

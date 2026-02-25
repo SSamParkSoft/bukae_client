@@ -29,16 +29,6 @@ export async function POST(request: NextRequest) {
     const cookies = request.cookies.getAll()
     const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ')
     
-    // refreshToken 관련 쿠키 찾기 (정확한 이름만 매칭)
-    const refreshTokenCookies = cookies.filter(c => {
-      const name = c.name.toLowerCase()
-      return name === 'refresh_token' || name === 'refreshtoken'
-    })
-    
-    
-    if (refreshTokenCookies.length === 0) {
-    }
-    
     // 백엔드로 프록시 요청
     const response = await fetch(refreshUrl, {
       method: 'POST',
@@ -48,8 +38,6 @@ export async function POST(request: NextRequest) {
       },
     })
     
-
-
     // 응답 데이터 가져오기
     const data = await response.json().catch(() => null)
     

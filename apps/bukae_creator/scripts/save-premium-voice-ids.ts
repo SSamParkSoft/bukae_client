@@ -55,7 +55,7 @@ async function saveToSupabase() {
     
     
     // upsert 사용 (이미 있으면 업데이트, 없으면 삽입)
-    const { data, error } = await supabase
+    const { data: _data, error } = await supabase
       .from('e_voices')
       .upsert(records, {
         onConflict: 'name',
@@ -66,12 +66,6 @@ async function saveToSupabase() {
       console.error('[Save Voice IDs] ❌ Failed to save to Supabase:', error)
       throw error
     }
-    
-    
-    // 저장된 데이터 확인
-    for (const record of records) {
-    }
-    
     
     // 최종 요약
     

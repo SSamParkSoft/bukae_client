@@ -19,7 +19,7 @@ import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import { TransitionShaderManager } from '../effects/transitions/shader/TransitionShaderManager'
 import { useContainerManager } from './containers/useContainerManager'
-import { useSubtitleRenderer, normalizeAnchorToTopLeft, calculateTextPositionInBox } from './subtitle/useSubtitleRenderer'
+import { useSubtitleRenderer, normalizeAnchorToTopLeft as _normalizeAnchorToTopLeft, calculateTextPositionInBox as _calculateTextPositionInBox } from './subtitle/useSubtitleRenderer'
 import { useTransitionEffects } from './transitions/useTransitionEffects'
 import { useTransportState } from './transport/useTransportState'
 import { useRenderLoop } from './playback/useRenderLoop'
@@ -55,7 +55,7 @@ export function useTransportRenderer({
   textsRef,
   currentSceneIndexRef,
   previousSceneIndexRef,
-  activeAnimationsRef, // 타입 호환성을 위해 유지 (현재 사용되지 않음)
+  activeAnimationsRef: _activeAnimationsRef, // 타입 호환성을 위해 유지 (현재 사용되지 않음)
   stageDimensions,
   ttsCacheRef,
   voiceTemplate,
@@ -426,7 +426,7 @@ export function useTransportRenderer({
               if (appRef.current?.renderer && containerRef.current) {
                 try {
                   appRef.current.renderer.render(containerRef.current)
-                } catch (renderError) {
+                } catch (_renderError) {
                   // 렌더러 호출 실패 시 무시
                 }
               }
@@ -443,7 +443,7 @@ export function useTransportRenderer({
                 if (appRef.current?.renderer && containerRef.current) {
                   try {
                     appRef.current.renderer.render(containerRef.current)
-                  } catch (renderError) {
+                  } catch (_renderError) {
                     // 렌더러 재호출 실패 시 무시
                   }
                 }
@@ -660,7 +660,6 @@ export function useTransportRenderer({
    * 자막 렌더링 헬퍼 함수 (레거시 - useSubtitleRenderer로 대체됨)
    * @deprecated useSubtitleRenderer의 renderSubtitlePart를 사용하세요
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _renderSubtitlePartLegacy = useCallback(
     (sceneIndex: number, partIndex: number | null, options?: { skipAnimation?: boolean; onComplete?: () => void }) => {
       if (!timeline || !appRef.current) {
@@ -1182,7 +1181,7 @@ export function useTransportRenderer({
           step5Result.sceneLocalT
         )
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+       
     },
     [
         timeline,

@@ -344,7 +344,7 @@ export function getBgmTemplateUrlSync(template: BgmTemplate): string {
       if (storageUrl) {
         return storageUrl
       }
-    } catch (error) {
+    } catch (_error) {
       // 모듈이 아직 로드되지 않았거나 에러 발생 시 기본 경로 반환
     }
     // Storage URL을 가져오지 못한 경우, 기본 경로 반환

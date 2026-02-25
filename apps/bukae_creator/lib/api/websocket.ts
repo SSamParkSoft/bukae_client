@@ -95,7 +95,7 @@ export class StudioJobWebSocket {
         this.socket = new SockJS(wsUrl)
         
         // SockJS 연결 에러 핸들링
-        this.socket.onerror = (error: any) => {
+        this.socket.onerror = (_error: any) => {
           // 이미 연결이 완료되었으면 에러 무시
           if (this.isResolved) {
             return
@@ -156,7 +156,7 @@ export class StudioJobWebSocket {
               try {
                 const payload: StudioJobUpdate = JSON.parse(message.body)
                 this.onUpdate(payload)
-              } catch (error) {
+              } catch (_error) {
                 // 메시지 파싱 실패 시 무시
               }
             })
@@ -173,7 +173,7 @@ export class StudioJobWebSocket {
             this.onError?.(error)
             reject(error)
           },
-          onWebSocketClose: (event: CloseEvent) => {
+          onWebSocketClose: (_event: CloseEvent) => {
             this.subscription = null
             
             // 연결이 완료된 후에 끊어진 경우에만 onClose 콜백 호출

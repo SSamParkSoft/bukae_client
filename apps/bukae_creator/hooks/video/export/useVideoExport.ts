@@ -275,14 +275,14 @@ export function useVideoExport({
                     })
 
                     if (!uploadRes.ok) {
-                      const errorData = await uploadRes.json().catch(() => ({}))
+                      const _errorData = await uploadRes.json().catch(() => ({}))
                       partUrls.set(part.partIndex, null)
                       return
                     }
 
                     const uploadData = await uploadRes.json()
                     partUrls.set(part.partIndex, uploadData.url || null)
-                  } catch (error) {
+                  } catch (_error) {
                     partUrls.set(part.partIndex, null)
                   }
                 })()
@@ -352,14 +352,14 @@ export function useVideoExport({
                         })
 
                         if (!uploadRes.ok) {
-                          const errorData = await uploadRes.json().catch(() => ({}))
+                          const _errorData = await uploadRes.json().catch(() => ({}))
                           partUrls.set(part.partIndex, null)
                           return
                         }
 
                         const uploadData = await uploadRes.json()
                         partUrls.set(part.partIndex, uploadData.url || null)
-                      } catch (error) {
+                      } catch (_error) {
                         partUrls.set(part.partIndex, null)
                       }
                     })()
@@ -438,14 +438,14 @@ export function useVideoExport({
                     })
 
                     if (!uploadRes.ok) {
-                      const errorData = await uploadRes.json().catch(() => ({}))
+                      const _errorData = await uploadRes.json().catch(() => ({}))
                       partUrls.set(part.partIndex, null)
                       return
                     }
 
                     const uploadData = await uploadRes.json()
                     partUrls.set(part.partIndex, uploadData.url || null)
-                  } catch (error) {
+                  } catch (_error) {
                     partUrls.set(part.partIndex, null)
                   }
                 })()
@@ -464,7 +464,7 @@ export function useVideoExport({
               url: partUrls.get(part.partIndex) || part.url || null,
             }))
             ttsPartsByScene.set(index, partsInfo)
-          } catch (error) {
+          } catch (_error) {
             // TTS 정보 가져오기 실패 시 무시
           }
         }
@@ -472,6 +472,7 @@ export function useVideoExport({
 
       // 3. jobId 생성 (videoId로 사용)
       const jobId = crypto.randomUUID()
+      const clientRequestId = crypto.randomUUID()
 
       // 4. 이미지 URL 검증 (step2에서 이미 업로드되어 있어야 함)
       const imageUrls: (string | null)[] = []
@@ -526,7 +527,7 @@ export function useVideoExport({
       let globalSceneId = 1 // 순차적인 sceneId 할당
       let globalOrder = 0 // 순차적인 order 할당
 
-      Array.from(sceneGroups.entries()).forEach(([sceneId, group]) => {
+      Array.from(sceneGroups.entries()).forEach(([_sceneId, group]) => {
         // 각 그룹 내 씬들을 순회
         group.forEach((groupItem) => {
           const sceneIndex = groupItem.index
@@ -742,6 +743,7 @@ export function useVideoExport({
 
       const exportData = {
         jobType: 'AUTO_CREATE_VIDEO_FROM_DATA',
+        clientRequestId,
         encodingRequest,
       }
 

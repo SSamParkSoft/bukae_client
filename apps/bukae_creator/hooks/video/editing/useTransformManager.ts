@@ -6,7 +6,7 @@
 import { useCallback } from 'react'
 import * as PIXI from 'pixi.js'
 import { TimelineData, TimelineScene } from '@/store/useVideoCreateStore'
-import type { Transform } from '../types/common'
+import type { Transform as _Transform } from '../types/common'
 
 interface UseTransformManagerParams {
   timeline: TimelineData | null
@@ -41,7 +41,7 @@ export function useTransformManager({
         return
       }
 
-      const isResizing = isResizingRef.current
+      if (isResizingRef.current) return
 
       let bounds: PIXI.Bounds
       try {
@@ -152,7 +152,7 @@ export function useTransformManager({
         return
       }
 
-      const isResizing = isResizingTextRef.current
+      if (isResizingTextRef.current) return
 
       if (text.destroyed) {
         return
@@ -190,8 +190,8 @@ export function useTransformManager({
 
       // PIXI.Text의 anchor 확인 (중요: anchor 정보 파악)
       // 현재는 항상 (0.5, 0.5)로 고정되어 있으므로 항상 저장
-      const anchorX = text.anchor?.x ?? 0.5
-      const anchorY = text.anchor?.y ?? 0.5
+      const _anchorX = text.anchor?.x ?? 0.5
+      const _anchorY = text.anchor?.y ?? 0.5
       
       // anchor 정보를 함께 저장하여 렌더링 시 올바른 위치 계산 가능하도록 함
       // 인코딩 시에도 anchor (0.5, 0.5)로 고정하므로 항상 저장

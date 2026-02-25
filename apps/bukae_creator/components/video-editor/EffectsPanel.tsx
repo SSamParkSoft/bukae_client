@@ -121,7 +121,7 @@ export function EffectsPanel({
   setTimeline,
   showVoiceRequiredMessage = false,
   scenesWithoutVoice = [],
-  globalVoiceTemplate,
+  globalVoiceTemplate: _globalVoiceTemplate,
   onVoiceTemplateChange,
   onMotionChange,
 }: EffectsPanelProps) {
