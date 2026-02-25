@@ -75,3 +75,24 @@ export default function Step1Page() {
 - [ ] 다른 페이지에서도 사용될 수 있는 순수 로직이 아닌가?
 
 모든 항목이 체크되면 이 디렉토리에 추가하세요.
+
+---
+
+## 캐시/저장 정책
+
+### 사용처
+
+- `useStep1Container.ts`
+  - `step1SearchCache`를 통해 검색어/검색결과/페이지네이션 상태를 저장
+  - 저장 위치는 `useVideoCreateStore` 상태이며, `persist` 대상에서는 제외됨
+
+### 왜 필요한가
+
+- 같은 제작 프로세스 안에서 Step1로 되돌아올 때 검색 맥락 유지
+- Step1 반복 탐색 시 API 재호출/재입력 부담 감소
+
+### 초기화 규칙
+
+- 플랫폼이 실제로 변경되면 검색 캐시 초기화(`resetSearchData` + `clearStep1SearchCache`)
+- 드래프트 전체 초기화(`clearVideoCreateDraft`) 시 함께 제거
+- 새 세션/새 작업에서는 복원되지 않음(`persist partialize`에서 제외)
