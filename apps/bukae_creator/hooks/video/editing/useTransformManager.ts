@@ -16,6 +16,15 @@ interface UseTransformManagerParams {
   isResizingTextRef: React.MutableRefObject<boolean>
 }
 
+type HorizontalAlign = 'left' | 'center' | 'right'
+
+function normalizeHorizontalAlign(value?: string): HorizontalAlign {
+  if (value === 'left' || value === 'right' || value === 'center') {
+    return value
+  }
+  return 'center'
+}
+
 /**
  * Transform 관리 훅
  */
@@ -185,28 +194,50 @@ export function useTransformManager({
       const height = bounds.height
       const scaleX = text.scale.x
       const scaleY = text.scale.y
-      const baseWidth = finalWordWrapWidth
+      const sceneText = timeline.scenes[sceneIndex]?.text
+      const existingTransform = sceneText?.transform
+      const hAlign = normalizeHorizontalAlign(
+        existingTransform?.hAlign ?? sceneText?.style?.align ?? 'center'
+      )
+      const boxWidth = finalWordWrapWidth > 0
+        ? finalWordWrapWidth
+        : (existingTransform?.width && existingTransform.width > 0 ? existingTransform.width : width)
+      const boxHeight = existingTransform?.height && existingTransform.height > 0
+        ? existingTransform.height
+        : height
+      const baseWidth = boxWidth
       const baseHeight = bounds.height
 
-      // PIXI.Text의 anchor 확인 (중요: anchor 정보 파악)
-      // 현재는 항상 (0.5, 0.5)로 고정되어 있으므로 항상 저장
-      const _anchorX = text.anchor?.x ?? 0.5
-      const _anchorY = text.anchor?.y ?? 0.5
+      // Pixi 텍스트 좌표(text.x, text.y)는 top-left 기준이므로
+      // Timeline transform(앵커 중심점)으로 역변환해서 저장한다.
+      const textX = text.x
+      const textY = text.y
+      const centerX =
+        hAlign === 'left'
+          ? textX + boxWidth / 2
+          : hAlign === 'right'
+            ? textX - boxWidth / 2 + width
+            : textX + width / 2
+      const centerY = textY + height / 2
+      const anchor = existingTransform?.anchor ?? { x: 0.5, y: 0.5 }
+      const vAlign = existingTransform?.vAlign ?? 'middle'
       
-      // anchor 정보를 함께 저장하여 렌더링 시 올바른 위치 계산 가능하도록 함
-      // 인코딩 시에도 anchor (0.5, 0.5)로 고정하므로 항상 저장
       const transform = {
-        x: text.x,
-        y: text.y,
-        width,
-        height,
+        x: centerX,
+        y: centerY,
+        width: boxWidth,
+        height: boxHeight,
         scaleX,
         scaleY,
         rotation: text.rotation,
         baseWidth,
         baseHeight,
-        // anchor 정보 저장 (항상 (0.5, 0.5)로 고정)
-        anchor: { x: 0.5, y: 0.5 },
+        anchor: {
+          x: anchor.x ?? 0.5,
+          y: anchor.y ?? 0.5,
+        },
+        hAlign,
+        vAlign,
       }
 
       isSavingTransformRef.current = true
