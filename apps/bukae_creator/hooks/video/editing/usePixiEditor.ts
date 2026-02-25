@@ -75,7 +75,11 @@ export const usePixiEditor = ({
       text: PIXI.Text,
       sceneIndex: number,
       handleResize: (e: PIXI.FederatedPointerEvent, sceneIndex: number) => void,
-      saveTextTransform: (sceneIndex: number, text: PIXI.Text) => void
+      saveTextTransform: (
+        sceneIndex: number,
+        text: PIXI.Text,
+        options?: { preserveSize?: boolean }
+      ) => void
     ) => void) | null
   >(null)
   const handleResizeRef = useRef<((e: PIXI.FederatedPointerEvent | MouseEvent, sceneIndex: number) => void) | null>(
@@ -85,7 +89,13 @@ export const usePixiEditor = ({
     null
   )
   const saveImageTransformRef = useRef<((sceneIndex: number, sprite: PIXI.Sprite | null) => void) | null>(null)
-  const saveTextTransformRef = useRef<((sceneIndex: number, text: PIXI.Text | null) => void) | null>(null)
+  const saveTextTransformRef = useRef<(
+    (
+      sceneIndex: number,
+      text: PIXI.Text | null,
+      options?: { preserveSize?: boolean }
+    ) => void
+  ) | null>(null)
 
   // useTransformManager: Transform 저장 및 적용
   const {
@@ -408,7 +418,11 @@ export const usePixiEditor = ({
       text: PIXI.Text,
       sceneIndex: number,
       _handleResize: (e: PIXI.FederatedPointerEvent, sceneIndex: number) => void,
-      _saveTextTransform: (sceneIndex: number, text: PIXI.Text) => void
+      _saveTextTransform: (
+        sceneIndex: number,
+        text: PIXI.Text,
+        options?: { preserveSize?: boolean }
+      ) => void
     ) => {
       if (useFabricEditing) return
       if (isPlayingRef?.current) return
@@ -492,18 +506,16 @@ export const usePixiEditor = ({
           const text = textsRef.current.get(sceneIndex)
           if (text && appRef.current) {
             const bounds = text.getBounds()
-            const centerX = text.x
-            const centerY = text.y
             const currentWordWrapWidth = text.style?.wordWrapWidth || bounds.width
             const baseWidth = currentWordWrapWidth
             const baseHeight = bounds.height
 
-            const halfWidth = bounds.width / 2
-            const halfHeight = bounds.height / 2
-            const boundsLeft = centerX - halfWidth
-            const boundsTop = centerY - halfHeight
-            const boundsRight = centerX + halfWidth
-            const boundsBottom = centerY + halfHeight
+            const boundsLeft = bounds.x
+            const boundsTop = bounds.y
+            const boundsRight = bounds.x + bounds.width
+            const boundsBottom = bounds.y + bounds.height
+            const boundsCenterX = boundsLeft + bounds.width / 2
+            const boundsCenterY = boundsTop + bounds.height / 2
 
             let startHandleX = 0
             let startHandleY = 0
@@ -513,7 +525,7 @@ export const usePixiEditor = ({
                 startHandleY = boundsTop
                 break
               case 'n':
-                startHandleX = centerX
+                startHandleX = boundsCenterX
                 startHandleY = boundsTop
                 break
               case 'ne':
@@ -522,14 +534,14 @@ export const usePixiEditor = ({
                 break
               case 'e':
                 startHandleX = boundsRight
-                startHandleY = centerY
+                startHandleY = boundsCenterY
                 break
               case 'se':
                 startHandleX = boundsRight
                 startHandleY = boundsBottom
                 break
               case 's':
-                startHandleX = centerX
+                startHandleX = boundsCenterX
                 startHandleY = boundsBottom
                 break
               case 'sw':
@@ -538,13 +550,13 @@ export const usePixiEditor = ({
                 break
               case 'w':
                 startHandleX = boundsLeft
-                startHandleY = centerY
+                startHandleY = boundsCenterY
                 break
             }
 
             originalTransformRef.current = {
-              x: centerX,
-              y: centerY,
+              x: boundsLeft,
+              y: boundsTop,
               width: bounds.width,
               height: bounds.height,
               scaleX: 1,
@@ -552,10 +564,10 @@ export const usePixiEditor = ({
               rotation: text.rotation,
               baseWidth,
               baseHeight,
-              left: centerX - halfWidth,
-              right: centerX + halfWidth,
-              top: centerY - halfHeight,
-              bottom: centerY + halfHeight,
+              left: boundsLeft,
+              right: boundsRight,
+              top: boundsTop,
+              bottom: boundsBottom,
             }
 
             resizeStartPosRef.current = {
@@ -1012,7 +1024,7 @@ export const usePixiEditor = ({
                   }, 100)
                 } else {
                   if (hasMoved) {
-                    saveTextTransform(sceneIndex, currentText)
+                    saveTextTransform(sceneIndex, currentText, { preserveSize: true })
                   }
                   drawTextEditHandles(currentText, sceneIndex, handleTextResize, saveTextTransform)
                 }

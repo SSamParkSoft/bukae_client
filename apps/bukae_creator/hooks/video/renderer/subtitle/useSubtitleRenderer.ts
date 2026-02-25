@@ -10,7 +10,7 @@ import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { getSubtitlePosition } from '../utils/getSubtitlePosition'
-import { getPreviewStrokeWidth } from './previewStroke'
+import { getPreviewLetterSpacing, getPreviewStrokeWidth } from './previewStroke'
 
 /**
  * Anchor 좌표를 Box Top-left 좌표로 정규화
@@ -285,7 +285,12 @@ export function useSubtitleRenderer({
         }
 
         const strokeColor = scene.text.stroke?.color || '#000000'
-        const strokeWidth = getPreviewStrokeWidth(scene.text.stroke?.width)
+        const strokeWidth = getPreviewStrokeWidth(scene.text.stroke?.width, {
+          fontSize: scene.text.fontSize,
+        })
+        const letterSpacing = getPreviewLetterSpacing(strokeWidth, {
+          fontSize: scene.text.fontSize,
+        })
         
         const styleConfig: Partial<PIXI.TextStyle> = {
           fontFamily,
@@ -294,6 +299,7 @@ export function useSubtitleRenderer({
           align: scene.text.style?.align || 'center',
           fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
           fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
+          letterSpacing,
           wordWrap: true,
           wordWrapWidth: textWidth,
           breakWords: true,

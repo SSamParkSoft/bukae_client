@@ -17,6 +17,9 @@ interface UseTransformManagerParams {
 }
 
 type HorizontalAlign = 'left' | 'center' | 'right'
+interface SaveTextTransformOptions {
+  preserveSize?: boolean
+}
 
 function normalizeHorizontalAlign(value?: string): HorizontalAlign {
   if (value === 'left' || value === 'right' || value === 'center') {
@@ -152,7 +155,11 @@ export function useTransformManager({
 
   // 텍스트 Transform 데이터 저장
   const saveTextTransform = useCallback(
-    (sceneIndex: number, text: PIXI.Text | null) => {
+    (
+      sceneIndex: number,
+      text: PIXI.Text | null,
+      options?: SaveTextTransformOptions
+    ) => {
       if (!timeline || !text) {
         return
       }
@@ -196,17 +203,26 @@ export function useTransformManager({
       const scaleY = text.scale.y
       const sceneText = timeline.scenes[sceneIndex]?.text
       const existingTransform = sceneText?.transform
+      const preserveSize = options?.preserveSize === true
       const hAlign = normalizeHorizontalAlign(
         existingTransform?.hAlign ?? sceneText?.style?.align ?? 'center'
       )
-      const boxWidth = finalWordWrapWidth > 0
-        ? finalWordWrapWidth
-        : (existingTransform?.width && existingTransform.width > 0 ? existingTransform.width : width)
-      const boxHeight = existingTransform?.height && existingTransform.height > 0
+      const existingWidth = existingTransform?.width && existingTransform.width > 0
+        ? existingTransform.width
+        : null
+      const existingHeight = existingTransform?.height && existingTransform.height > 0
         ? existingTransform.height
-        : height
+        : null
+      const boxWidth = preserveSize && existingWidth
+        ? existingWidth
+        : (finalWordWrapWidth > 0 ? finalWordWrapWidth : (existingWidth || width))
+      const boxHeight = preserveSize && existingHeight
+        ? existingHeight
+        : (existingHeight || height)
       const baseWidth = boxWidth
-      const baseHeight = bounds.height
+      const baseHeight = preserveSize && existingTransform?.baseHeight && existingTransform.baseHeight > 0
+        ? existingTransform.baseHeight
+        : bounds.height
 
       // Pixi 텍스트 좌표(text.x, text.y)는 top-left 기준이므로
       // Timeline transform(앵커 중심점)으로 역변환해서 저장한다.

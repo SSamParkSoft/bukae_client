@@ -20,7 +20,7 @@ import { useSceneTransition } from './management/useSceneTransition'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { getSubtitlePosition } from '../renderer/utils/getSubtitlePosition'
 import { normalizeAnchorToTopLeft, calculateTextPositionInBox } from '../renderer/subtitle/useSubtitleRenderer'
-import { getPreviewStrokeWidth } from '../renderer/subtitle/previewStroke'
+import { getPreviewLetterSpacing, getPreviewStrokeWidth } from '../renderer/subtitle/previewStroke'
 import type { UseSceneManagerParams } from '../types/scene'
 import type { TimelineScene } from '@/lib/types/domain/timeline'
 
@@ -227,7 +227,12 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
         }
 
         const strokeColor = scene.text.stroke?.color || '#000000'
-        const strokeWidth = getPreviewStrokeWidth(scene.text.stroke?.width)
+        const strokeWidth = getPreviewStrokeWidth(scene.text.stroke?.width, {
+          fontSize: scene.text.fontSize,
+        })
+        const letterSpacing = getPreviewLetterSpacing(strokeWidth, {
+          fontSize: scene.text.fontSize,
+        })
         
         const styleConfig: Partial<PIXI.TextStyle> = {
           fontFamily,
@@ -236,6 +241,7 @@ export const useSceneManager = (useSceneManagerParams: UseSceneManagerParams) =>
           align: scene.text.style?.align || 'center',
           fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
           fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
+          letterSpacing,
           wordWrap: true,
           wordWrapWidth: textWidth,
           breakWords: true,

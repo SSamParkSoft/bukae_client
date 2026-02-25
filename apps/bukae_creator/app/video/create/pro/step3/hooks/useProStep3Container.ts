@@ -20,7 +20,7 @@ import { videoSpriteAdapter } from './playback/media/videoSpriteAdapter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import { getSubtitlePosition } from '@/hooks/video/renderer/utils/getSubtitlePosition'
-import { getPreviewStrokeWidth } from '@/hooks/video/renderer/subtitle/previewStroke'
+import { getPreviewLetterSpacing, getPreviewStrokeWidth } from '@/hooks/video/renderer/subtitle/previewStroke'
 import type { ProStep3Scene } from '../model/types'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 
@@ -780,7 +780,12 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     }
 
     const strokeColor = textSettings?.stroke?.color || '#000000'
-    const strokeWidth = getPreviewStrokeWidth(textSettings?.stroke?.width)
+    const strokeWidth = getPreviewStrokeWidth(textSettings?.stroke?.width, {
+      fontSize,
+    })
+    const letterSpacing = getPreviewLetterSpacing(strokeWidth, {
+      fontSize,
+    })
 
     // 기존 stroke 전용 텍스트 제거(테두리는 이제 글자 하나의 stroke 스타일로 처리)
     const existingStroke = textStrokesRef.current.get(sceneIndex)
@@ -797,6 +802,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
       align: textAlign as 'left' | 'center' | 'right' | 'justify',
       fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
       fontStyle,
+      letterSpacing,
       wordWrap: true,
       wordWrapWidth: wordWrapWidth,
       breakWords: true,
