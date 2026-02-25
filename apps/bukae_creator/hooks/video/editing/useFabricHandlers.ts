@@ -10,6 +10,20 @@ const DEFAULT_FONT_SIZE = 48 // 기본 폰트 크기
 const DEFAULT_TEXT_COLOR = '#ffffff' // 기본 텍스트 색상
 const DEFAULT_TEXT_ALIGN = 'center' // 기본 텍스트 정렬
 
+function toCenteredCoordinate(
+  position: number,
+  origin: string | undefined,
+  scaledSize: number
+): number {
+  if (origin === 'left' || origin === 'top') {
+    return position + scaledSize / 2
+  }
+  if (origin === 'right' || origin === 'bottom') {
+    return position - scaledSize / 2
+  }
+  return position
+}
+
 interface UseFabricHandlersParams {
   fabricReady: boolean
   fabricCanvasRef: React.RefObject<fabric.Canvas | null>
@@ -193,34 +207,29 @@ export function useFabricHandlers({
       }
 
       const textContent = target.text ?? ''
-      const fill = target.fill ?? DEFAULT_TEXT_COLOR
-      const existingColor = currentTimeline.scenes[sceneIndex]?.text?.color ?? DEFAULT_TEXT_COLOR
+      const existingSceneText = currentTimeline.scenes[sceneIndex]?.text
+      const existingColor = existingSceneText?.color ?? DEFAULT_TEXT_COLOR
       const normalizedExistingColor = existingColor.trim().toLowerCase()
       const isExistingColorTransparent =
         normalizedExistingColor === 'transparent' ||
         normalizedExistingColor === 'rgba(0,0,0,0)' ||
         normalizedExistingColor === 'rgba(255,255,255,0.001)'
-      const fallbackColor = isExistingColorTransparent ? DEFAULT_TEXT_COLOR : existingColor
-      const normalizedFill = typeof fill === 'string' ? fill.trim().toLowerCase() : ''
-      const isProxyTransparentFill =
-        normalizedFill === 'transparent' ||
-        normalizedFill === 'rgba(0,0,0,0)' ||
-        normalizedFill === 'rgba(255,255,255,0.001)'
-      const nextColor =
-        typeof fill === 'string' && !isProxyTransparentFill
-          ? fill
-          : fallbackColor
-
-      // 프록시(투명 fill)인 경우 Fabric 기본값(left)이 저장되지 않도록 기존 씬 정렬 유지 → 가운데 정렬 유지
-      const align =
-        isProxyTransparentFill
-          ? (currentTimeline.scenes[sceneIndex]?.text?.style?.align ?? DEFAULT_TEXT_ALIGN)
-          : (target.textAlign ?? DEFAULT_TEXT_ALIGN)
+      const nextColor = isExistingColorTransparent ? DEFAULT_TEXT_COLOR : existingColor
+      const existingHAlign = existingSceneText?.transform?.hAlign
+      const alignFromStyle = existingSceneText?.style?.align ?? DEFAULT_TEXT_ALIGN
+      const align = (existingHAlign === 'left' || existingHAlign === 'right' || existingHAlign === 'center')
+        ? existingHAlign
+        : alignFromStyle
       const hAlign = align === 'left' || align === 'right' ? align : 'center'
 
+      const left = target.left ?? 0
+      const top = target.top ?? 0
+      const centerX = toCenteredCoordinate(left, target.originX, scaledWidth)
+      const centerY = toCenteredCoordinate(top, target.originY, scaledHeight)
+
       const nextTransform = {
-        x: (target.left ?? 0) * invScale,
-        y: (target.top ?? 0) * invScale,
+        x: centerX * invScale,
+        y: centerY * invScale,
         width: scaledWidth * invScale,
         height: scaledHeight * invScale,
         scaleX: 1,

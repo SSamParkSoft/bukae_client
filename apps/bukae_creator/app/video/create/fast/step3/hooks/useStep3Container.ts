@@ -1150,6 +1150,7 @@ export function useStep3Container() {
     appRef: appRef as React.RefObject<PIXI.Application>,
     pixiContainerRef: pixiContainerRef as React.RefObject<HTMLDivElement>,
     fabricCanvasRef: step3State.fabricCanvasRef as React.RefObject<fabric.Canvas>,
+    fabricScaleRatioRef,
     currentSceneIndexRef,
     spritesRef,
     textsRef,
@@ -1187,6 +1188,7 @@ export function useStep3Container() {
   useEditHandlesManager({
     containerRef: containerRef as React.RefObject<PIXI.Container>,
     pixiReady,
+    useFabricEditing,
     editMode,
     selectedElementIndex,
     selectedElementType,
