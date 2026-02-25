@@ -59,6 +59,7 @@ export function useProVideoExport({
 
       const [width, height] = timeline.resolution.split('x').map(Number)
       const jobId = crypto.randomUUID()
+      const clientRequestId = crypto.randomUUID()
 
       // 1. 씬별 TTS 업로드 (ttsAudioBase64 -> Blob -> /api/media/upload)
       const ttsUrls: (string | null)[] = []
@@ -150,7 +151,8 @@ export function useProVideoExport({
       for (let index = 0; index < proStep3Scenes.length; index++) {
         const scene = proStep3Scenes[index]
         const tlScene = timeline.scenes[index]
-        const duration = scene.ttsDuration ?? (scene.selectionEndSeconds - scene.selectionStartSeconds) ?? 2.5
+        const selectionDuration = scene.selectionEndSeconds - scene.selectionStartSeconds
+        const duration = scene.ttsDuration ?? (selectionDuration > 0 ? selectionDuration : 2.5)
         const transitionType = tlScene?.transition ?? 'none'
         const transition = createTransitionMap(transitionType, tlScene?.transitionDuration ?? 0.5)
 
@@ -292,11 +294,9 @@ export function useProVideoExport({
 
       const exportPayload = {
         jobType: 'AUTO_CREATE_VIDEO_FROM_DATA',
+        clientRequestId,
         encodingRequest,
       }
-
-      // 내보내기 전송 JSON 원문 (디버깅용)
-      console.log('[Export] 전송 JSON 원문:', JSON.stringify(exportPayload, null, 2))
 
       const response = await fetch('/api/videos/generate', {
         method: 'POST',

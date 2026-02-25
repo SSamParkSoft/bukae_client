@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { requireUser } from '@/lib/api/route-guard'
 import { enforceRateLimit } from '@/lib/api/rate-limit'
+import {
+  bindVideoCreditTransactionToJob,
+  chargeVideoExportCredits,
+} from '@/lib/api/credit'
 import { requireEnvVars } from '@/lib/utils/env-validation'
 
 export const runtime = 'nodejs'
@@ -14,6 +18,31 @@ function getApiBaseUrl(): string {
   return envUrl
 }
 
+type VideoGenerateRequest = {
+  jobType?: unknown
+  encodingRequest?: {
+    scenes?: unknown
+  }
+  clientRequestId?: unknown
+  [key: string]: unknown
+}
+
+function normalizeClientRequestId(value: unknown): string {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value.trim()
+  }
+  return crypto.randomUUID()
+}
+
+function extractJobId(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return null
+  }
+
+  const maybeJobId = (payload as { jobId?: unknown }).jobId
+  return typeof maybeJobId === 'string' && maybeJobId.trim().length > 0 ? maybeJobId : null
+}
+
 export async function POST(request: Request) {
   try {
     // 프로덕션 환경에서 필수 환경 변수 검증
@@ -25,7 +54,8 @@ export async function POST(request: Request) {
     const rl = await enforceRateLimit(request, { endpoint: 'videos:generate', userId: auth.userId })
     if (rl instanceof NextResponse) return rl
 
-    const body = await request.json()
+    const body = (await request.json()) as VideoGenerateRequest
+    const clientRequestId = normalizeClientRequestId(body.clientRequestId)
     
     // 새로운 API 문서 형태 검증
     if (!body.jobType || body.jobType !== 'AUTO_CREATE_VIDEO_FROM_DATA') {
@@ -52,7 +82,7 @@ export async function POST(request: Request) {
 
     // 백엔드 API로 프록시 요청
     const API_BASE_URL = getApiBaseUrl()
-    const accessToken = request.headers.get('Authorization') || ''
+    const accessToken = auth.accessToken ? `Bearer ${auth.accessToken}` : ''
 
     const backendResponse = await fetch(`${API_BASE_URL}/api/v1/studio/jobs`, {
       method: 'POST',
@@ -60,14 +90,94 @@ export async function POST(request: Request) {
         'Content-Type': 'application/json',
         'Authorization': accessToken,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        ...body,
+        clientRequestId,
+      }),
     })
 
     // 백엔드 응답을 그대로 전달
     const responseData = await backendResponse.json().catch(() => ({}))
-    
+    const jobId = extractJobId(responseData)
+
+    let billing = {
+      success: true,
+      charged: false,
+      alreadyProcessed: false,
+      transactionId: null as string | null,
+      creditsUsed: 0,
+      remainingCredits: null as number | null,
+      error: undefined as string | undefined,
+    }
+
+    // jobId가 확인된 job 생성 성공 시점에만 크레딧 차감
+    if (backendResponse.ok && jobId) {
+      const chargeResult = await chargeVideoExportCredits({
+        userId: auth.userId,
+        clientRequestId,
+      })
+
+      billing = {
+        success: chargeResult.success,
+        charged: chargeResult.charged,
+        alreadyProcessed: chargeResult.alreadyProcessed,
+        transactionId: chargeResult.transactionId,
+        creditsUsed: chargeResult.creditsUsed,
+        remainingCredits: chargeResult.remainingCredits,
+        error: chargeResult.error,
+      }
+
+      if (!chargeResult.success) {
+        return NextResponse.json(
+          {
+            error: chargeResult.error || '크레딧 차감에 실패했습니다.',
+            billing: {
+              ...billing,
+              clientRequestId,
+            },
+          },
+          {
+            status: 402,
+            headers: {
+              ...(rl.headers ?? {}),
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+      }
+
+      // 렌더 실패 환불을 위해 transactionId <-> jobId 연결
+      if (chargeResult.transactionId) {
+        const bindResult = await bindVideoCreditTransactionToJob({
+          transactionId: chargeResult.transactionId,
+          jobId,
+        })
+
+        if (!bindResult.success) {
+          console.warn('[videos/generate] 거래-작업 연결 실패:', bindResult.error)
+        }
+      }
+    }
+
+    const responsePayload =
+      responseData && typeof responseData === 'object' && !Array.isArray(responseData)
+        ? {
+            ...responseData,
+            billing: {
+              ...billing,
+              clientRequestId,
+            },
+          }
+        : {
+            data: responseData,
+            billing: {
+              ...billing,
+              clientRequestId,
+            },
+          }
+
     return NextResponse.json(
-      responseData,
+      responsePayload,
       { 
         status: backendResponse.status,
         headers: { 
@@ -94,4 +204,3 @@ export async function POST(request: Request) {
     )
   }
 }
-

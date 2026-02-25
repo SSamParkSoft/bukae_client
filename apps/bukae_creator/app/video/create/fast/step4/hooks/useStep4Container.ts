@@ -99,6 +99,7 @@ export function useStep4Container() {
   const [encodingSceneIndex, setEncodingSceneIndex] = useState<number | null>(null)
   const [resultVideoUrl, setResultVideoUrl] = useState<string | null>(null)
   const jobStatusCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const refundedJobIdsRef = useRef<Set<string>>(new Set())
   const [isInitializing, setIsInitializing] = useState(false) // 초기 상태 로딩 중
   
   // 영상 제목 선택 관련 상태
@@ -139,6 +140,45 @@ export function useStep4Container() {
     }
   }, [resultVideoUrl, currentJobId])
 
+  const requestRefundForFailedJob = useCallback(async (failedJobId: string, reason: string) => {
+    const normalizedJobId = failedJobId.trim()
+    if (!normalizedJobId || refundedJobIdsRef.current.has(normalizedJobId)) return
+
+    refundedJobIdsRef.current.add(normalizedJobId)
+
+    try {
+      let accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        const supabase = getSupabaseClient()
+        const { data } = await supabase.auth.getSession()
+        accessToken = data.session?.access_token ?? null
+      }
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (accessToken) {
+        headers.Authorization = `Bearer ${accessToken}`
+      }
+
+      const refundResponse = await fetch('/api/videos/refund', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          jobId: normalizedJobId,
+          reason,
+        }),
+      })
+
+      if (!refundResponse.ok) {
+        refundedJobIdsRef.current.delete(normalizedJobId)
+        const errorPayload = await refundResponse.json().catch(() => ({}))
+        console.warn('[Step4] 크레딧 환불 요청 실패:', refundResponse.status, errorPayload)
+      }
+    } catch (error) {
+      refundedJobIdsRef.current.delete(normalizedJobId)
+      console.warn('[Step4] 크레딧 환불 요청 에러:', error)
+    }
+  }, [])
+
   // 상태 업데이트 처리 함수
   const handleStatusUpdate = useCallback((statusData: ExtendedStudioJobUpdate) => {
     
@@ -163,6 +203,10 @@ export function useStep4Container() {
       const errorText = detailError || statusData.errorMessage || '알 수 없는 오류가 발생했습니다.'
       // 실패 시 서버 응답 전체를 콘솔에 출력 (네트워크 탭에는 200으로 보일 수 있음)
       console.error('[Step4] 영상 생성 실패 – 서버 응답 전체:', statusData)
+      const failedJobId = statusData.jobId || urlJobId || currentJobId
+      if (failedJobId) {
+        void requestRefundForFailedJob(failedJobId, 'render_failed:progress_detail')
+      }
       alert(`영상 생성이 실패했어요.\n\n${errorText}\n\n자세한 내용은 브라우저 콘솔(F12)을 확인해주세요.`)
       setCurrentJobId(null)
       setJobStatus('FAILED')
@@ -287,13 +331,17 @@ export function useStep4Container() {
       userMessage += `에러 상세:\n${errorText.substring(0, 500)}${errorText.length > 500 ? '...' : ''}\n\n`
       userMessage += '자세한 내용은 브라우저 콘솔(F12)을 확인해주세요.'
       
+      const failedJobId = statusData.jobId || urlJobId || currentJobId
+      if (failedJobId) {
+        void requestRefundForFailedJob(failedJobId, 'render_failed:status_failed')
+      }
       alert(userMessage)
       setCurrentJobId(null)
       setJobStatus(null)
       setJobProgress('')
       setEncodingSceneIndex(null)
     }
-  }, [timeline, currentJobId])
+  }, [timeline, currentJobId, requestRefundForFailedJob, urlJobId])
 
   // HTTP 폴링 함수
   const startHttpPolling = useCallback((jobId: string, startTime: number) => {
@@ -479,6 +527,7 @@ export function useStep4Container() {
               
               // 실패한 경우 상태 업데이트
               if (statusData.status === 'FAILED') {
+                void requestRefundForFailedJob(targetJobId, 'render_failed:visibility_check')
                 setJobStatus('FAILED')
                 setJobProgress(statusData.errorMessage || '영상 생성이 실패했어요.')
                 return
@@ -527,7 +576,7 @@ export function useStep4Container() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
      
-  }, [urlJobId, currentJobId, jobStatus, startHttpPolling])
+  }, [urlJobId, currentJobId, jobStatus, startHttpPolling, requestRefundForFailedJob])
 
   // 초기 작업 상태 확인 (페이지 마운트 시 또는 jobId 변경 시)
   useEffect(() => {
@@ -593,6 +642,7 @@ export function useStep4Container() {
     
           // 실패한 작업
           if (statusData.status === 'FAILED') {
+            void requestRefundForFailedJob(targetJobId, 'render_failed:initial_status')
             setJobStatus('FAILED')
             setJobProgress(statusData.errorMessage || '영상 생성이 실패했어요.')
             setIsInitializing(false)
@@ -647,7 +697,7 @@ export function useStep4Container() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlJobId, currentJobId, startHttpPolling])
+  }, [urlJobId, currentJobId, startHttpPolling, requestRefundForFailedJob])
 
   // 경과 시간 업데이트
   useEffect(() => {
@@ -938,6 +988,7 @@ export function useStep4Container() {
     }
     
     reset()
+    useVideoCreateStore.persist.clearStorage()
     setIsCompleteDialogOpen(false)
     setIsCompleting(false)
     router.push('/')

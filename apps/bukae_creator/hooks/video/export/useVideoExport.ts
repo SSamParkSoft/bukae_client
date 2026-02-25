@@ -472,6 +472,7 @@ export function useVideoExport({
 
       // 3. jobId 생성 (videoId로 사용)
       const jobId = crypto.randomUUID()
+      const clientRequestId = crypto.randomUUID()
 
       // 4. 이미지 URL 검증 (step2에서 이미 업로드되어 있어야 함)
       const imageUrls: (string | null)[] = []
@@ -742,11 +743,9 @@ export function useVideoExport({
 
       const exportData = {
         jobType: 'AUTO_CREATE_VIDEO_FROM_DATA',
+        clientRequestId,
         encodingRequest,
       }
-
-      // 내보내기 전송 JSON 원문 (디버깅용)
-      console.log('[Export] 전송 JSON 원문:', JSON.stringify(exportData, null, 2))
 
       // 7. 최종 인코딩 요청 전송
       const response = await fetch('/api/videos/generate', {

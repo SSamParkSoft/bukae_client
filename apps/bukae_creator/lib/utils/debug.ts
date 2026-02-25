@@ -14,18 +14,6 @@ class Debugger {
 
   constructor() {
     this.isDev = process.env.NODE_ENV === 'development'
-
-    if (typeof window !== 'undefined') {
-      const debugTags = localStorage.getItem('debug:tags')
-      if (debugTags) {
-        this.enabledTags = new Set(debugTags.split(','))
-      }
-
-      const debugLevel = localStorage.getItem('debug:level') as LogLevel | null
-      if (debugLevel) {
-        this.minLevel = debugLevel
-      }
-    }
   }
 
   private shouldLog(level: LogLevel, tag?: string, devOnly = true): boolean {
@@ -154,24 +142,15 @@ class Debugger {
   }
 
   enableTags(tags: string[]): void {
-    if (typeof window !== 'undefined') {
-      this.enabledTags = new Set(tags)
-      localStorage.setItem('debug:tags', tags.join(','))
-    }
+    this.enabledTags = new Set(tags)
   }
 
   enableAllTags(): void {
-    if (typeof window !== 'undefined') {
-      this.enabledTags = null
-      localStorage.removeItem('debug:tags')
-    }
+    this.enabledTags = null
   }
 
   setMinLevel(level: LogLevel): void {
     this.minLevel = level
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('debug:level', level)
-    }
   }
 }
 
