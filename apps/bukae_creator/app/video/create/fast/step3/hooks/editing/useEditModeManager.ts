@@ -11,6 +11,7 @@ interface UseEditModeManagerParams {
   appRef: React.RefObject<PIXI.Application>
   pixiContainerRef: React.RefObject<HTMLDivElement>
   fabricCanvasRef: React.RefObject<fabric.Canvas>
+  fabricScaleRatioRef: React.MutableRefObject<number>
   currentSceneIndexRef: React.MutableRefObject<number>
   spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>
   textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
@@ -50,11 +51,32 @@ interface UseEditModeManagerParams {
   setupTextDrag: (text: PIXI.Text, sceneIndex: number) => void
 }
 
+interface FabricDataObject {
+  dataType?: 'image' | 'text'
+}
+
+function applyFastLikeControlPolicy(target: fabric.Object) {
+  if (typeof (target as { setControlsVisibility?: (options: Record<string, boolean>) => void }).setControlsVisibility === 'function') {
+    ;(target as { setControlsVisibility: (options: Record<string, boolean>) => void }).setControlsVisibility({
+      mtr: false,
+      tl: true,
+      tr: true,
+      bl: true,
+      br: true,
+      ml: false,
+      mt: false,
+      mr: false,
+      mb: false,
+    })
+  }
+}
+
 export function useEditModeManager({
   containerRef,
   appRef,
   pixiContainerRef,
   fabricCanvasRef,
+  fabricScaleRatioRef,
   currentSceneIndexRef,
   spritesRef,
   textsRef,
@@ -230,18 +252,130 @@ export function useEditModeManager({
     if (fabricCanvas.wrapperEl) {
       fabricCanvas.wrapperEl.style.opacity = '1'
       fabricCanvas.wrapperEl.style.pointerEvents = 'auto'
+      fabricCanvas.wrapperEl.style.zIndex = '40'
     }
     if (fabricCanvas.upperCanvasEl) {
       fabricCanvas.upperCanvasEl.style.opacity = '1'
       fabricCanvas.upperCanvasEl.style.pointerEvents = 'auto'
+      fabricCanvas.upperCanvasEl.style.zIndex = '41'
     }
     if (fabricCanvas.lowerCanvasEl) {
       fabricCanvas.lowerCanvasEl.style.opacity = '1'
       fabricCanvas.lowerCanvasEl.style.pointerEvents = 'none'
+      fabricCanvas.lowerCanvasEl.style.zIndex = '40'
     }
     // ref는 변경되어도 리렌더링을 트리거하지 않으므로 dependency에 포함할 필요 없음
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, isPreviewingTransition, fabricReady, useFabricEditing])
+
+  // Fabric 조작을 Pixi에 실시간 반영 (Pro와 동일한 sync 패턴)
+  useEffect(() => {
+    const fabricCanvas = fabricCanvasRef.current
+    if (!fabricCanvas || !useFabricEditing || isPlaying || isPreviewingTransition) {
+      return
+    }
+
+    const applyTargetToPixi = (target: fabric.Object | null | undefined) => {
+      if (!target || (target as fabric.Object & { destroyed?: boolean }).destroyed) {
+        return
+      }
+
+      const typedTarget = target as fabric.Object & FabricDataObject
+      const scale = fabricScaleRatioRef.current || 1
+      const invScale = 1 / scale
+      const sceneIndex = currentSceneIndexRef.current
+
+      if (typedTarget.dataType === 'image') {
+        const sprite = spritesRef.current.get(sceneIndex)
+        if (!sprite || sprite.destroyed) {
+          return
+        }
+
+        const scaledWidth = typeof target.getScaledWidth === 'function'
+          ? target.getScaledWidth()
+          : (target.width || 0) * (target.scaleX || 1)
+        const scaledHeight = typeof target.getScaledHeight === 'function'
+          ? target.getScaledHeight()
+          : (target.height || 0) * (target.scaleY || 1)
+
+        sprite.x = (target.left ?? 0) * invScale
+        sprite.y = (target.top ?? 0) * invScale
+        sprite.width = scaledWidth * invScale
+        sprite.height = scaledHeight * invScale
+        sprite.rotation = ((target.angle || 0) * Math.PI) / 180
+        return
+      }
+
+      if (typedTarget.dataType === 'text') {
+        const pixiText = textsRef.current.get(sceneIndex)
+        if (!pixiText || pixiText.destroyed) {
+          return
+        }
+
+        const scaledWidth = typeof target.getScaledWidth === 'function'
+          ? target.getScaledWidth()
+          : (target.width || 0) * (target.scaleX || 1)
+
+        const targetCenterX = (target.left ?? 0) * invScale
+        const targetCenterY = (target.top ?? 0) * invScale
+        const sceneTransform = timelineRef.current?.scenes?.[sceneIndex]?.text?.transform
+        const centerOffsetX =
+          typeof sceneTransform?.x === 'number'
+            ? (pixiText.x - sceneTransform.x)
+            : 0
+        const centerOffsetY =
+          typeof sceneTransform?.y === 'number'
+            ? (pixiText.y - sceneTransform.y)
+            : 0
+
+        pixiText.x = targetCenterX + centerOffsetX
+        pixiText.y = targetCenterY + centerOffsetY
+        pixiText.rotation = ((target.angle || 0) * Math.PI) / 180
+        if (pixiText.style && scaledWidth > 0) {
+          pixiText.style.wordWrapWidth = scaledWidth * invScale
+        }
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleMoving = (e: any) => {
+      applyTargetToPixi(e?.target as fabric.Object | null | undefined)
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleScaling = (e: any) => {
+      applyTargetToPixi(e?.target as fabric.Object | null | undefined)
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleRotating = (e: any) => {
+      applyTargetToPixi(e?.target as fabric.Object | null | undefined)
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('object:moving', handleMoving as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('object:scaling', handleScaling as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('object:rotating', handleRotating as any)
+
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('object:moving', handleMoving as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('object:scaling', handleScaling as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('object:rotating', handleRotating as any)
+    }
+  }, [
+    fabricCanvasRef,
+    fabricScaleRatioRef,
+    useFabricEditing,
+    isPlaying,
+    isPreviewingTransition,
+    currentSceneIndexRef,
+    timelineRef,
+    spritesRef,
+    textsRef,
+  ])
 
   // Fabric 활성 객체를 편집 모드 타입에 맞게 맞춘다 (Pro와 동일한 핸들 선택 UX)
   useEffect(() => {
@@ -269,6 +403,7 @@ export function useEditModeManager({
       selectable: true,
       evented: true,
     })
+    applyFastLikeControlPolicy(target)
     target.setCoords()
     fabricCanvas.setActiveObject(target)
     fabricCanvas.requestRenderAll()
@@ -478,6 +613,23 @@ export function useEditModeManager({
     const currentTimeline = timelineRef.current
     if (!containerRef.current || !currentTimeline || !pixiReady) return
 
+    // Fabric 편집 중에는 Pixi 핸들을 절대 그리지 않는다.
+    if (useFabricEditing) {
+      editHandlesRef.current.forEach((handles) => {
+        if (handles.parent) {
+          handles.parent.removeChild(handles)
+        }
+      })
+      editHandlesRef.current.clear()
+      textEditHandlesRef.current.forEach((handles) => {
+        if (handles.parent) {
+          handles.parent.removeChild(handles)
+        }
+      })
+      textEditHandlesRef.current.clear()
+      return
+    }
+
     // 편집 모드가 종료되면 핸들 제거
     if (editMode === 'none') {
       editHandlesRef.current.forEach((handles) => {
@@ -597,7 +749,7 @@ export function useEditModeManager({
       // 렌더링은 PixiJS ticker가 처리
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editMode, pixiReady])
+  }, [editMode, pixiReady, useFabricEditing])
 
   // 재생 시작 시 편집 모드 해제
   useEffect(() => {

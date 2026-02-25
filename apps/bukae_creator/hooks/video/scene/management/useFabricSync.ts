@@ -10,6 +10,24 @@ import { calculateSpriteParams } from '@/utils/pixi'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import type { StageDimensions } from '../../types/common'
 
+const INVISIBLE_HIT_FILL = 'rgba(0,0,0,0)'
+
+function applyFastLikeControlPolicy(target: fabric.Object) {
+  if (typeof (target as { setControlsVisibility?: (options: Record<string, boolean>) => void }).setControlsVisibility === 'function') {
+    ;(target as { setControlsVisibility: (options: Record<string, boolean>) => void }).setControlsVisibility({
+      mtr: false,
+      tl: true,
+      tr: true,
+      bl: true,
+      br: true,
+      ml: false,
+      mt: false,
+      mr: false,
+      mb: false,
+    })
+  }
+}
+
 interface UseFabricSyncParams {
   useFabricEditing: boolean
   fabricCanvasRef: React.RefObject<fabric.Canvas | null>
@@ -97,8 +115,9 @@ export function useFabricSync({
             centeredScaling: true,
             centeredRotation: true,
             lockScalingFlip: true,
-            opacity: 0, // Pixi만 보이도록 이미지 프록시는 투명 유지
+            opacity: 0.001, // hit-test 안정성을 위해 완전 0 대신 거의 투명값 사용
           })
+          applyFastLikeControlPolicy(customImageObject)
           ;(customImageObject as fabric.Object & { dataType?: 'image' | 'text' }).dataType ??= 'image'
           fabricCanvas.add(customImageObject)
         }
@@ -152,8 +171,9 @@ export function useFabricSync({
             centeredScaling: true, // 리사이즈 시 중심점 유지
             centeredRotation: true, // 회전 시 중심점 유지
             lockScalingFlip: true,
-            opacity: 0, // Pixi만 보이도록 이미지 프록시는 투명 유지
+            opacity: 0.001, // hit-test 안정성을 위해 완전 0 대신 거의 투명값 사용
           })
+          applyFastLikeControlPolicy(img)
           ;(img as fabric.Image & { dataType?: 'image' | 'text' }).dataType = 'image'
           fabricCanvas.add(img)
         }
@@ -182,9 +202,8 @@ export function useFabricSync({
       const centerX = (transform?.x ?? width / 2) * scale
       const centerY = (transform?.y ?? height * 0.9) * scale
       
-      const strokeColor = scene.text?.stroke?.color || '#000000'
       const strokeWidth = scene.text?.stroke?.width ?? 5
-      const fillColor = scene.text?.color || '#ffffff'
+      const textAlign = transform?.hAlign ?? scene.text?.style?.align ?? 'center'
       
       // stroke가 있으면 두 레이어를 Group으로 묶어서 하나처럼 동작하도록 함
       if (strokeWidth > 0) {
@@ -196,16 +215,16 @@ export function useFabricSync({
           originY: 'center',
           fontFamily,
           fontSize: scaledFontSize,
-          fill: 'transparent', // fill을 투명하게 설정
+          fill: INVISIBLE_HIT_FILL,
           fontWeight,
           fontStyle: scene.text?.style?.italic ? 'italic' : 'normal',
           underline: scene.text?.style?.underline || false,
-          textAlign: scene.text?.style?.align || 'center',
+          textAlign: textAlign,
           selectable: false, // stroke 레이어는 선택 불가
           evented: false, // stroke 레이어는 이벤트 처리 안 함
           angle: 0, // Group 내부에서는 회전 없음
-          stroke: strokeColor,
-          strokeWidth: strokeWidth,
+          stroke: INVISIBLE_HIT_FILL,
+          strokeWidth: 0,
         })
         
         // fill 레이어 (앞): fill만 설정, stroke 없음
@@ -216,11 +235,11 @@ export function useFabricSync({
           originY: 'center',
           fontFamily,
           fontSize: scaledFontSize,
-          fill: fillColor,
+          fill: INVISIBLE_HIT_FILL,
           fontWeight,
           fontStyle: scene.text?.style?.italic ? 'italic' : 'normal',
           underline: scene.text?.style?.underline || false,
-          textAlign: scene.text?.style?.align || 'center',
+          textAlign: textAlign,
           selectable: false, // Group 내부 객체는 개별 선택 불가
           evented: false, // Group 내부 객체는 개별 이벤트 처리 안 함
           angle: 0, // Group 내부에서는 회전 없음
@@ -244,8 +263,9 @@ export function useFabricSync({
           angle: angleDeg,
           selectable: true,
           evented: true,
-          opacity: 0, // 투명하게 설정 (PixiJS만 보이게)
+          opacity: 1,
         })
+        applyFastLikeControlPolicy(textGroup)
         
         // Group 내부 객체들이 캔버스에 직접 추가되지 않도록 보장
         textGroup._objects.forEach((obj) => {
@@ -285,16 +305,20 @@ export function useFabricSync({
           originY: 'center',
           fontFamily,
           fontSize: scaledFontSize,
-          fill: fillColor,
+          fill: INVISIBLE_HIT_FILL,
           fontWeight,
           fontStyle: scene.text?.style?.italic ? 'italic' : 'normal',
           underline: scene.text?.style?.underline || false,
-          textAlign: scene.text?.style?.align || 'center',
+          textAlign: textAlign,
+          stroke: INVISIBLE_HIT_FILL,
+          strokeWidth: 0,
+          backgroundColor: INVISIBLE_HIT_FILL,
           selectable: true,
           evented: true,
           angle: angleDeg,
-          opacity: 0, // 투명하게 설정 (PixiJS만 보이게)
+          opacity: 1,
         })
+        applyFastLikeControlPolicy(textObj)
         
         if (transform) {
           if (transform.width) {

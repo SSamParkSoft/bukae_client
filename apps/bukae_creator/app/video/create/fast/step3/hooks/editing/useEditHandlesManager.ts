@@ -7,6 +7,7 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 interface UseEditHandlesManagerParams {
   containerRef: React.RefObject<PIXI.Container>
   pixiReady: boolean
+  useFabricEditing: boolean
   editMode: 'none' | 'image' | 'text'
   selectedElementIndex: number | null
   selectedElementType: 'image' | 'text' | null
@@ -39,6 +40,7 @@ interface UseEditHandlesManagerParams {
 export function useEditHandlesManager({
   containerRef,
   pixiReady,
+  useFabricEditing,
   editMode,
   selectedElementIndex,
   selectedElementType,
@@ -64,6 +66,22 @@ export function useEditHandlesManager({
   useEffect(() => {
     const currentTimeline = timelineRef.current
     if (!containerRef.current || !currentTimeline || !pixiReady) return
+
+    if (useFabricEditing) {
+      editHandlesRef.current.forEach((handles) => {
+        if (handles.parent) {
+          handles.parent.removeChild(handles)
+        }
+      })
+      editHandlesRef.current.clear()
+      textEditHandlesRef.current.forEach((handles) => {
+        if (handles.parent) {
+          handles.parent.removeChild(handles)
+        }
+      })
+      textEditHandlesRef.current.clear()
+      return
+    }
 
     // 편집 모드가 종료되면 핸들 제거
     if (editMode === 'none') {
@@ -180,5 +198,5 @@ export function useEditHandlesManager({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editMode, pixiReady])
+  }, [editMode, pixiReady, useFabricEditing])
 }
