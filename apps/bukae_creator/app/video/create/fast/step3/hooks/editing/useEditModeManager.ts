@@ -183,60 +183,217 @@ export function useEditModeManager({
     }
   }, [containerRef, appRef, useFabricEditing, pixiReady, currentSceneIndexRef, spritesRef, textsRef, editHandlesRef, textEditHandlesRef, clickedOnPixiElementRef, editMode, setSelectedElementIndex, setSelectedElementType, setEditMode])
 
-  // Pixi 캔버스 포인터 이벤트 제어 및 Fabric 편집 시 숨김
-  // 재생 중 또는 전환 효과 미리보기 중일 때는 PixiJS를 보여서 전환 효과가 보이도록 함
+  // Pixi 캔버스는 항상 보이고, 편집 중에는 포인터만 Fabric에 위임
   useEffect(() => {
     if (!pixiContainerRef.current) return
     const pixiCanvas = pixiContainerRef.current.querySelector('canvas:not([data-fabric])') as HTMLCanvasElement
     if (!pixiCanvas) return
-    
-    // 재생 중이거나 전환 효과 미리보기 중이면 항상 PixiJS 보이기
-    // 재생 중에는 isPreviewingTransition이 false여도 PixiJS를 보여야 함
-    // 재생 중일 때는 다른 상태 변경에 영향받지 않도록 먼저 체크
+
+    pixiCanvas.style.opacity = '1'
+    pixiCanvas.style.zIndex = '10'
+
     if (isPlaying || isPreviewingTransition) {
-      pixiCanvas.style.opacity = '1'
       pixiCanvas.style.pointerEvents = 'none'
-      pixiCanvas.style.zIndex = '10'
-      return // 재생 중이면 여기서 종료하여 다른 조건에 영향받지 않도록 함
+      return
     }
-    
-    // 재생 중이 아닐 때만 편집 모드에 따라 canvas 표시/숨김 처리
-    if (useFabricEditing && fabricReady) {
-      // Fabric.js 편집 활성화 시 PixiJS 캔버스 숨김
-      pixiCanvas.style.opacity = '0'
-      pixiCanvas.style.pointerEvents = 'none'
-      pixiCanvas.style.zIndex = '1'
-    } else {
-      // PixiJS 편집 모드: editMode가 'none'이 아니어도 보임 (편집 중에도 보여야 함)
-      pixiCanvas.style.opacity = '1'
-      pixiCanvas.style.pointerEvents = 'auto'
-      pixiCanvas.style.zIndex = '10'
-    }
+
+    pixiCanvas.style.pointerEvents = useFabricEditing ? 'none' : 'auto'
     // ref는 변경되어도 리렌더링을 트리거하지 않으므로 dependency에 포함할 필요 없음
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useFabricEditing, fabricReady, pixiReady, isPlaying, isPreviewingTransition, editMode])
 
-  // 재생 중 또는 전환 효과 미리보기 중일 때 Fabric.js 캔버스 숨기기
+  // Fabric 캔버스는 투명 오버레이로만 사용 (핸들/선택 hit-test 전용)
   useEffect(() => {
     if (!fabricCanvasRef.current) return
     const fabricCanvas = fabricCanvasRef.current
-    
-    if (isPlaying || isPreviewingTransition) {
-      // 재생 중 또는 전환 효과 미리보기 중일 때 Fabric 캔버스 숨기기
+
+    const hideFabricOverlay = () => {
       if (fabricCanvas.wrapperEl) {
         fabricCanvas.wrapperEl.style.opacity = '0'
         fabricCanvas.wrapperEl.style.pointerEvents = 'none'
       }
-    } else {
-      // 재생 중이 아닐 때 Fabric 캔버스 보이기
-      if (fabricCanvas.wrapperEl) {
-        fabricCanvas.wrapperEl.style.opacity = '1'
-        fabricCanvas.wrapperEl.style.pointerEvents = 'auto'
+      if (fabricCanvas.upperCanvasEl) {
+        fabricCanvas.upperCanvasEl.style.opacity = '0'
+        fabricCanvas.upperCanvasEl.style.pointerEvents = 'none'
       }
+      if (fabricCanvas.lowerCanvasEl) {
+        fabricCanvas.lowerCanvasEl.style.opacity = '0'
+        fabricCanvas.lowerCanvasEl.style.pointerEvents = 'none'
+      }
+    }
+
+    if (isPlaying || isPreviewingTransition || !useFabricEditing || !fabricReady) {
+      hideFabricOverlay()
+      return
+    }
+
+    if (fabricCanvas.wrapperEl) {
+      fabricCanvas.wrapperEl.style.opacity = '1'
+      fabricCanvas.wrapperEl.style.pointerEvents = 'auto'
+    }
+    if (fabricCanvas.upperCanvasEl) {
+      fabricCanvas.upperCanvasEl.style.opacity = '1'
+      fabricCanvas.upperCanvasEl.style.pointerEvents = 'auto'
+    }
+    if (fabricCanvas.lowerCanvasEl) {
+      fabricCanvas.lowerCanvasEl.style.opacity = '1'
+      fabricCanvas.lowerCanvasEl.style.pointerEvents = 'none'
     }
     // ref는 변경되어도 리렌더링을 트리거하지 않으므로 dependency에 포함할 필요 없음
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, isPreviewingTransition, fabricReady, useFabricEditing])
+
+  // Fabric 활성 객체를 편집 모드 타입에 맞게 맞춘다 (Pro와 동일한 핸들 선택 UX)
+  useEffect(() => {
+    if (!fabricReady || !useFabricEditing || isPlaying || isPreviewingTransition) {
+      return
+    }
+    if (editMode !== 'image' && editMode !== 'text') {
+      return
+    }
+
+    const fabricCanvas = fabricCanvasRef.current
+    if (!fabricCanvas) {
+      return
+    }
+
+    const objects = fabricCanvas.getObjects() as Array<fabric.Object & { dataType?: 'image' | 'text' }>
+    const target = objects.find((obj) => obj.dataType === editMode)
+    if (!target) {
+      return
+    }
+
+    target.set({
+      hasControls: true,
+      hasBorders: false,
+      selectable: true,
+      evented: true,
+    })
+    target.setCoords()
+    fabricCanvas.setActiveObject(target)
+    fabricCanvas.requestRenderAll()
+  }, [fabricReady, useFabricEditing, isPlaying, isPreviewingTransition, editMode, fabricCanvasRef])
+
+  // Fabric 선택 이벤트로 editMode/선택 상태를 동기화 (Pro 핸들러 정책)
+  useEffect(() => {
+    const fabricCanvas = fabricCanvasRef.current
+    if (!fabricCanvas || isPlaying || !pixiReady || !useFabricEditing) {
+      return
+    }
+
+    const resolveTargetType = (
+      target: fabric.Object | null | undefined
+    ): 'image' | 'text' | null => {
+      const typedTarget = target as fabric.Object & { dataType?: 'image' | 'text' }
+      if (!typedTarget?.dataType) {
+        return null
+      }
+      return typedTarget.dataType
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleMouseDown = (e: any) => {
+      const selectedType = resolveTargetType(e.target as fabric.Object | null)
+      if (!selectedType) {
+        const activeObject = fabricCanvas.getActiveObject() as fabric.Object & { dataType?: 'image' | 'text' } | null
+        if (activeObject?.dataType) {
+          return
+        }
+        setSelectedElementIndex(null)
+        setSelectedElementType(null)
+        setEditMode('none')
+        fabricCanvas.discardActiveObject()
+        fabricCanvas.requestRenderAll()
+        return
+      }
+
+      setSelectedElementIndex(currentSceneIndexRef.current)
+      setSelectedElementType(selectedType)
+      setEditMode(selectedType)
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleSelectionCreated = (e: any) => {
+      const selected = (e.selected as fabric.Object[] | undefined)?.[0]
+      const selectedType = resolveTargetType(selected)
+      if (!selectedType) {
+        return
+      }
+      setSelectedElementIndex(currentSceneIndexRef.current)
+      setSelectedElementType(selectedType)
+      setEditMode(selectedType)
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleSelectionUpdated = (e: any) => {
+      const selected = (e.selected as fabric.Object[] | undefined)?.[0]
+      const selectedType = resolveTargetType(selected)
+      if (!selectedType) {
+        return
+      }
+      setSelectedElementIndex(currentSceneIndexRef.current)
+      setSelectedElementType(selectedType)
+      setEditMode(selectedType)
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('mouse:down', handleMouseDown as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('selection:created', handleSelectionCreated as any)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    fabricCanvas.on('selection:updated', handleSelectionUpdated as any)
+
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('mouse:down', handleMouseDown as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('selection:created', handleSelectionCreated as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      fabricCanvas.off('selection:updated', handleSelectionUpdated as any)
+    }
+  }, [
+    fabricCanvasRef,
+    isPlaying,
+    pixiReady,
+    useFabricEditing,
+    setEditMode,
+    setSelectedElementIndex,
+    setSelectedElementType,
+    currentSceneIndexRef,
+  ])
+
+  useEffect(() => {
+    if (editMode !== 'none') {
+      return
+    }
+    const fabricCanvas = fabricCanvasRef.current
+    if (!fabricCanvas) {
+      return
+    }
+    fabricCanvas.discardActiveObject()
+    fabricCanvas.requestRenderAll()
+  }, [editMode, fabricCanvasRef])
+
+  // Fabric 편집 진입 시 Pixi 핸들을 정리해 이중 핸들 노출을 방지
+  useEffect(() => {
+    if (!useFabricEditing) {
+      return
+    }
+
+    editHandlesRef.current.forEach((handles) => {
+      if (handles.parent) {
+        handles.parent.removeChild(handles)
+      }
+    })
+    editHandlesRef.current.clear()
+
+    textEditHandlesRef.current.forEach((handles) => {
+      if (handles.parent) {
+        handles.parent.removeChild(handles)
+      }
+    })
+    textEditHandlesRef.current.clear()
+  }, [useFabricEditing, editHandlesRef, textEditHandlesRef])
 
   // 선택된 요소에 따라 편집 모드 자동 설정
   useEffect(() => {

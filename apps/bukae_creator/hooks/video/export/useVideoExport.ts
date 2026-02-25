@@ -7,7 +7,7 @@ import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
 import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
 import { getSoundEffectStorageUrl } from '@/lib/utils/supabase-storage'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
-import { getSubtitlePosition } from '../renderer/utils/getSubtitlePosition'
+import { serializeSubtitleForEncoding } from './utils/serializeSubtitleForEncoding'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { SceneScript } from '@/lib/types/domain/script'
 import * as PIXI from 'pixi.js'
@@ -33,7 +33,6 @@ interface UseVideoExportParams {
     }>
   }>
   spritesRef: React.MutableRefObject<Map<number, PIXI.Sprite>>
-  textsRef: React.MutableRefObject<Map<number, PIXI.Text>>
 }
 
 /**
@@ -52,7 +51,6 @@ export function useVideoExport({
   ttsCacheRef,
   ensureSceneTts,
   spritesRef,
-  textsRef,
 }: UseVideoExportParams) {
   const router = useRouter()
   const pathname = usePathname()
@@ -68,26 +66,24 @@ export function useVideoExport({
 
   /**
    * 모든 씬의 캔버스 상태를 읽어서 transform 정보를 반환합니다.
-   * PixiJS의 실제 객체 상태를 읽어서 최신 위치/크기/회전 정보를 가져옵니다.
+   * PixiJS의 실제 이미지 객체 상태를 읽어서 최신 위치/크기/회전 정보를 가져옵니다.
+   * 자막은 timeline transform을 단일 진실원으로 사용합니다.
    */
-  const getAllCanvasTransforms = useCallback((): Map<number, { imageTransform?: { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }; textTransform?: { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number } }> => {
-    const transforms = new Map<number, { imageTransform?: { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }; textTransform?: { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number } }>()
+  const getAllCanvasTransforms = useCallback((): Map<number, { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }> => {
+    const transforms = new Map<number, { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }>()
     
     if (!timeline) {
       return transforms
     }
 
     // 모든 씬의 상태를 병렬로 읽기
-    timeline.scenes.forEach((scene, sceneIndex) => {
+    timeline.scenes.forEach((_scene, sceneIndex) => {
       const sprite = spritesRef.current.get(sceneIndex)
-      const text = textsRef.current.get(sceneIndex)
-      
-      const sceneTransforms: { imageTransform?: { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number }; textTransform?: { x: number; y: number; width: number; height: number; scaleX: number; scaleY: number; rotation: number } } = {}
       
       // 이미지 transform 읽기
       if (sprite && sprite.parent) {
         const bounds = sprite.getBounds()
-        sceneTransforms.imageTransform = {
+        transforms.set(sceneIndex, {
           x: sprite.x,
           y: sprite.y,
           width: bounds.width,
@@ -95,31 +91,12 @@ export function useVideoExport({
           scaleX: sprite.scale.x,
           scaleY: sprite.scale.y,
           rotation: sprite.rotation,
-        }
-      }
-      
-      // 텍스트 transform 읽기
-      if (text && text.parent) {
-        const bounds = text.getBounds()
-        // 중요: PIXI.Text의 anchor가 (0,0)으로 설정되어 있으므로
-        sceneTransforms.textTransform = {
-          x: text.x,
-          y: text.y,
-          width: bounds.width,
-          height: bounds.height,
-          scaleX: text.scale.x,
-          scaleY: text.scale.y,
-          rotation: text.rotation,
-        }
-      }
-      
-      if (sceneTransforms.imageTransform || sceneTransforms.textTransform) {
-        transforms.set(sceneIndex, sceneTransforms)
+        })
       }
     })
     
     return transforms
-  }, [timeline, spritesRef, textsRef])
+  }, [timeline, spritesRef])
 
   const handleExport = useCallback(async () => {
     // 이미 진행 중이면 중복 실행 방지
@@ -550,8 +527,8 @@ export function useVideoExport({
               throw new Error(`씬 ${sceneIndex + 1}에 보이스가 없습니다.`)
             }
             
-            // 캔버스에서 읽은 transform 사용 (없으면 timeline의 transform 사용)
-            const sceneCanvasTransform = canvasTransforms.get(sceneIndex)
+            // 이미지는 캔버스 실측 transform을 사용 (자막은 timeline transform 기준으로 직렬화)
+            const sceneCanvasImageTransform = canvasTransforms.get(sceneIndex)
             
             // 해당 구간의 TTS URL 및 duration 가져오기
             const partTtsUrls = ttsUrlsByPart.get(sceneIndex)
@@ -587,7 +564,7 @@ export function useVideoExport({
             }
 
             // 이미지 transform: 캔버스 상태 우선, 없으면 timeline의 transform 사용
-            const imageTransform = sceneCanvasTransform?.imageTransform || scene.imageTransform || {
+            const imageTransform = sceneCanvasImageTransform || scene.imageTransform || {
               x: width / 2,
               y: height / 2,
               width: width,
@@ -596,6 +573,11 @@ export function useVideoExport({
               scaleY: 1,
               rotation: 0,
             }
+            const serializedSubtitle = serializeSubtitleForEncoding(
+              scene,
+              { width, height },
+              'fast'
+            )
 
             encodingScenes.push({
               sceneId: globalSceneId++, // 순차적인 sceneId 할당
@@ -623,11 +605,7 @@ export function useVideoExport({
                   style: scene.text.style?.italic ? 'italic' : 'normal',
                 },
                 color: scene.text.color || '#FFFFFF',
-                stroke: {
-                  enabled: true,
-                  color: scene.text.stroke?.color || '#000000',
-                  width: scene.text.stroke?.width ?? 10,
-                },
+                stroke: serializedSubtitle.stroke,
                 shadow: {
                   enabled: false,
                   color: '#000000',
@@ -639,38 +617,8 @@ export function useVideoExport({
                   underline: scene.text.style?.underline || false,
                   italic: scene.text.style?.italic || false,
                 },
-                alignment: scene.text.position || 'center',
-                transform: (() => {
-                  // 캔버스 상태 우선, 없으면 timeline의 transform 사용
-                  const textTransform = sceneCanvasTransform?.textTransform || scene.text.transform
-                  
-                  if (textTransform) {
-                    // 인코딩 시: anchor를 항상 (0.5, 0.5)로 고정하고 x, y값을 그대로 전송
-                    // 프론트엔드 렌더링에서 이미 anchor (0.5, 0.5) 기준으로 x, y를 설정했으므로
-                    // 그 값을 그대로 사용하면 됨
-                    return {
-                      ...textTransform,
-                      anchor: {
-                        x: 0.5,
-                        y: 0.5,
-                      },
-                    }
-                  }
-                  
-                  // transform이 없을 때: getSubtitlePosition 사용하고 anchor (0.5, 0.5)로 고정
-                  const subtitlePosition = getSubtitlePosition(scene, { width, height })
-                  
-                  return {
-                    x: subtitlePosition.x,
-                    y: subtitlePosition.y,
-                    width: width * 0.75, // 기본 너비 (실제 텍스트 크기는 백엔드에서 계산)
-                    height: height * 0.07, // 기본 높이 (실제 텍스트 크기는 백엔드에서 계산)
-                    scaleX: subtitlePosition.scaleX ?? 1,
-                    scaleY: subtitlePosition.scaleY ?? 1,
-                    rotation: subtitlePosition.rotation ?? 0,
-                    anchor: { x: 0.5, y: 0.5 }, // 항상 (0.5, 0.5)로 고정
-                  }
-                })(),
+                alignment: serializedSubtitle.alignment,
+                transform: serializedSubtitle.transform,
               },
               voice: {
                 enabled: !!partTtsUrl,

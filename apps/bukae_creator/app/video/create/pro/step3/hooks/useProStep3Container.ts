@@ -19,6 +19,8 @@ import { calculateAspectFittedSize } from '../utils/proPreviewLayout'
 import { videoSpriteAdapter } from './playback/media/videoSpriteAdapter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { calculateSpriteParams } from '@/utils/pixi/sprite'
+import { getSubtitlePosition } from '@/hooks/video/renderer/utils/getSubtitlePosition'
+import { getPreviewStrokeWidth } from '@/hooks/video/renderer/subtitle/previewStroke'
 import type { ProStep3Scene } from '../model/types'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 
@@ -764,18 +766,21 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
         wordWrapWidth = textSettings.transform.width
       }
     } else {
-      const position = textSettings?.position || 'bottom'
-      if (position === 'top') {
-        textY = 200
-      } else if (position === 'center') {
-        textY = stageHeight / 2
-      } else {
-        textY = stageHeight - 200
-      }
+      const subtitlePosition = timelineScene
+        ? getSubtitlePosition(timelineScene, { width: stageWidth, height: stageHeight }, { track: 'pro' })
+        : {
+            x: stageWidth / 2,
+            y: stageHeight - 200,
+            scaleX: 1,
+            scaleY: 1,
+            rotation: 0,
+          }
+      textX = subtitlePosition.x
+      textY = subtitlePosition.y
     }
 
     const strokeColor = textSettings?.stroke?.color || '#000000'
-    const strokeWidth = textSettings?.stroke?.width ?? 10
+    const strokeWidth = getPreviewStrokeWidth(textSettings?.stroke?.width)
 
     // 기존 stroke 전용 텍스트 제거(테두리는 이제 글자 하나의 stroke 스타일로 처리)
     const existingStroke = textStrokesRef.current.get(sceneIndex)

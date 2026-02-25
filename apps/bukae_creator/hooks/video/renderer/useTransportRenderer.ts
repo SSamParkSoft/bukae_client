@@ -20,6 +20,7 @@ import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import { TransitionShaderManager } from '../effects/transitions/shader/TransitionShaderManager'
 import { useContainerManager } from './containers/useContainerManager'
 import { useSubtitleRenderer, normalizeAnchorToTopLeft as _normalizeAnchorToTopLeft, calculateTextPositionInBox as _calculateTextPositionInBox } from './subtitle/useSubtitleRenderer'
+import { getPreviewStrokeWidth } from './subtitle/previewStroke'
 import { useTransitionEffects } from './transitions/useTransitionEffects'
 import { useTransportState } from './transport/useTransportState'
 import { useRenderLoop } from './playback/useRenderLoop'
@@ -338,7 +339,7 @@ export function useTransportRenderer({
         const displayText = textContent.length > 0 ? textContent[0] : scene.text.content
 
         const strokeColor = scene.text.stroke?.color || '#000000'
-        const strokeWidth = scene.text.stroke?.width ?? 10
+        const strokeWidth = getPreviewStrokeWidth(scene.text.stroke?.width)
 
         const styleConfig: Partial<PIXI.TextStyle> = {
           fontFamily,
@@ -837,7 +838,7 @@ export function useTransportRenderer({
         }
 
         const strokeColor = scene.text.stroke?.color || '#000000'
-        const strokeWidth = scene.text.stroke?.width ?? 10
+        const strokeWidth = getPreviewStrokeWidth(scene.text.stroke?.width)
 
         const styleConfig: Partial<PIXI.TextStyle> = {
           fontFamily,
@@ -867,10 +868,9 @@ export function useTransportRenderer({
           const scaleY = transform.scaleY ?? 1
           
           // Anchor 및 정렬 기본값 설정
-          // 중요: 저장 시점에 anchor 정보가 없으면 (0, 0)으로 가정 (PIXI.Text의 기본 anchor)
-          // 렌더링 시점에는 항상 anchor를 (0, 0)으로 설정하므로, 저장된 좌표가 이미 Top-Left 기준이면 anchor는 (0, 0)이어야 함
-          const anchorX = transform.anchor?.x ?? 0
-          const anchorY = transform.anchor?.y ?? 0
+          // 구 데이터(앵커 누락)는 center-origin으로 저장된 경우가 많아 (0.5, 0.5)를 기본값으로 사용
+          const anchorX = transform.anchor?.x ?? 0.5
+          const anchorY = transform.anchor?.y ?? 0.5
           const hAlign = transform.hAlign ?? 'center'
           // vAlign은 middle 고정 (ANIMATION.md 6.3)
           

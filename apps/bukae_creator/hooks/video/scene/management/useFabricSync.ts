@@ -97,6 +97,7 @@ export function useFabricSync({
             centeredScaling: true,
             centeredRotation: true,
             lockScalingFlip: true,
+            opacity: 0, // Pixi만 보이도록 이미지 프록시는 투명 유지
           })
           ;(customImageObject as fabric.Object & { dataType?: 'image' | 'text' }).dataType ??= 'image'
           fabricCanvas.add(customImageObject)
@@ -151,6 +152,7 @@ export function useFabricSync({
             centeredScaling: true, // 리사이즈 시 중심점 유지
             centeredRotation: true, // 회전 시 중심점 유지
             lockScalingFlip: true,
+            opacity: 0, // Pixi만 보이도록 이미지 프록시는 투명 유지
           })
           ;(img as fabric.Image & { dataType?: 'image' | 'text' }).dataType = 'image'
           fabricCanvas.add(img)
@@ -181,7 +183,7 @@ export function useFabricSync({
       const centerY = (transform?.y ?? height * 0.9) * scale
       
       const strokeColor = scene.text?.stroke?.color || '#000000'
-      const strokeWidth = scene.text?.stroke?.width ?? 10
+      const strokeWidth = scene.text?.stroke?.width ?? 5
       const fillColor = scene.text?.color || '#ffffff'
       
       // stroke가 있으면 두 레이어를 Group으로 묶어서 하나처럼 동작하도록 함
