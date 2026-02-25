@@ -224,10 +224,12 @@ export function useTransformManager({
         ? existingTransform.baseHeight
         : bounds.height
 
-      // Pixi 텍스트 좌표(text.x, text.y)는 top-left 기준이므로
-      // Timeline transform(앵커 중심점)으로 역변환해서 저장한다.
-      const textX = text.x
-      const textY = text.y
+      // text.x/text.y는 anchor 기준 좌표이므로, 현재 anchor를 반영해
+      // Top-Left 기준 좌표로 정규화한 뒤 transform 중심점을 계산한다.
+      const anchorXOnText = Number.isFinite(text.anchor?.x) ? text.anchor.x : 0
+      const anchorYOnText = Number.isFinite(text.anchor?.y) ? text.anchor.y : 0
+      const textX = text.x - width * anchorXOnText
+      const textY = text.y - height * anchorYOnText
       const centerX =
         hAlign === 'left'
           ? textX + boxWidth / 2
