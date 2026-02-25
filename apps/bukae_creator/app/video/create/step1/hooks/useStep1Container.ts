@@ -44,6 +44,9 @@ export function useStep1Container() {
     setSelectedImages,
     setTimeline,
     setScenes,
+    step1SearchCache,
+    setStep1SearchCache,
+    clearStep1SearchCache,
     autoSaveEnabled,
     hasUnsavedChanges
   } = useVideoCreateStore()
@@ -51,23 +54,55 @@ export function useStep1Container() {
   const { getPlatformTrackingId } = useUserStore()
 
   // 상태 관리
-  const [selectedPlatform, setSelectedPlatform] = useState<TargetMall | 'all'>('all')
-  const [prompt, setPrompt] = useState('')
+  const [selectedPlatform, setSelectedPlatform] = useState<TargetMall | 'all'>(
+    step1SearchCache?.selectedPlatform ?? 'all'
+  )
+  const [prompt, setPrompt] = useState(step1SearchCache?.prompt ?? '')
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
-  const [currentProducts, setCurrentProducts] = useState<Product[]>([])
-  const [currentProductResponses, setCurrentProductResponses] = useState<ProductResponse[]>([])
+  const [currentProducts, setCurrentProducts] = useState<Product[]>(
+    step1SearchCache?.currentProducts ?? []
+  )
+  const [currentProductResponses, setCurrentProductResponses] = useState<ProductResponse[]>(
+    step1SearchCache?.currentProductResponses ?? []
+  )
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const prevPlatformRef = useRef<TargetMall | 'all'>('all')
+  const prevPlatformRef = useRef<TargetMall | 'all'>(step1SearchCache?.selectedPlatform ?? 'all')
   
   // 페이지네이션 상태
-  const [visibleProductCount, setVisibleProductCount] = useState(6) // 초기 표시 개수
+  const [visibleProductCount, setVisibleProductCount] = useState(
+    step1SearchCache?.visibleProductCount ?? 6
+  ) // 초기 표시 개수
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const ITEMS_PER_PAGE = 6 // 한 번에 추가로 표시할 아이템 수
 
   // 토큰 검증
   const { isValidatingToken } = useVideoCreateAuth()
+
+  // Step1 검색 상태는 같은 작업 세션에서만 유지 (persist 제외)
+  useEffect(() => {
+    if (currentProducts.length === 0 && prompt.trim().length === 0 && selectedPlatform === 'all') {
+      clearStep1SearchCache()
+      return
+    }
+
+    setStep1SearchCache({
+      selectedPlatform,
+      prompt,
+      currentProducts,
+      currentProductResponses,
+      visibleProductCount,
+    })
+  }, [
+    selectedPlatform,
+    prompt,
+    currentProducts,
+    currentProductResponses,
+    visibleProductCount,
+    setStep1SearchCache,
+    clearStep1SearchCache,
+  ])
 
   // 메시지 스크롤
   useEffect(() => {
@@ -259,7 +294,8 @@ export function useStep1Container() {
     setChatMessages([])
     // 페이지네이션 초기화
     setVisibleProductCount(6)
-  }, [])
+    clearStep1SearchCache()
+  }, [clearStep1SearchCache])
   
   // 더 많은 상품 로드
   const loadMoreProducts = useCallback(() => {
