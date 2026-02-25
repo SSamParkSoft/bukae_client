@@ -613,6 +613,27 @@ export function useEditModeManager({
     const currentTimeline = timelineRef.current
     if (!containerRef.current || !currentTimeline || !pixiReady) return
 
+    const currentSceneIndexValue = currentSceneIndexRef.current
+
+    const removeHandlesForOtherScenes = () => {
+      editHandlesRef.current.forEach((handles, sceneIndex) => {
+        if (sceneIndex !== currentSceneIndexValue) {
+          if (handles.parent) {
+            handles.parent.removeChild(handles)
+          }
+          editHandlesRef.current.delete(sceneIndex)
+        }
+      })
+      textEditHandlesRef.current.forEach((handles, sceneIndex) => {
+        if (sceneIndex !== currentSceneIndexValue) {
+          if (handles.parent) {
+            handles.parent.removeChild(handles)
+          }
+          textEditHandlesRef.current.delete(sceneIndex)
+        }
+      })
+    }
+
     // Fabric 편집 중에는 Pixi 핸들을 절대 그리지 않는다.
     if (useFabricEditing) {
       editHandlesRef.current.forEach((handles) => {
@@ -629,6 +650,9 @@ export function useEditModeManager({
       textEditHandlesRef.current.clear()
       return
     }
+
+    // 씬 전환 시 현재 씬 외 핸들이 남지 않도록 정리
+    removeHandlesForOtherScenes()
 
     // 편집 모드가 종료되면 핸들 제거
     if (editMode === 'none') {
@@ -749,7 +773,7 @@ export function useEditModeManager({
       // 렌더링은 PixiJS ticker가 처리
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editMode, pixiReady, useFabricEditing])
+  }, [editMode, pixiReady, useFabricEditing, currentSceneIndex])
 
   // 재생 시작 시 편집 모드 해제
   useEffect(() => {
