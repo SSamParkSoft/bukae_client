@@ -124,6 +124,8 @@ export function useSceneHandlers({
             ...scene,
             transition: value,
             transitionDuration: nextDuration,
+            // MVP 정책: Fast에서는 전환/움직임을 동시에 쓰지 않는다.
+            motion: value === 'none' ? scene.motion : undefined,
           }
         }),
       }
@@ -318,9 +320,13 @@ export function useSceneHandlers({
         ...timeline,
         scenes: timeline.scenes.map((scene, i) => {
           if (i !== index) return scene
+          const hasMotion = motion != null
           return {
             ...scene,
             motion: motion || undefined,
+            // MVP 정책: Fast에서는 전환/움직임을 동시에 쓰지 않는다.
+            transition: hasMotion ? 'none' : scene.transition,
+            transitionDuration: hasMotion ? 0 : scene.transitionDuration,
           }
         }),
       }
@@ -338,4 +344,3 @@ export function useSceneHandlers({
     handleSceneMotionChange,
   }
 }
-
