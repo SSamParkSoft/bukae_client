@@ -138,8 +138,9 @@ export function useStep3Container() {
     setSelectedPart,
   } = step3State
 
-  // 편집 모드(image/text)에서는 Fabric 투명 오버레이를 사용하고 Pixi를 항상 노출
-  const useFabricEditing = editMode !== 'none'
+  // Fast는 Pixi 핸들러를 기준으로 편집한다.
+  // Fabric 편집 오버레이를 끄고 Pixi 원래 핸들러/드래그 로직을 사용.
+  const useFabricEditing = false
 
   useVideoCreateAuth()
 
