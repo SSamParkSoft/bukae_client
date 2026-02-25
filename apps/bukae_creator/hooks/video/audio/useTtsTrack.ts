@@ -13,13 +13,25 @@ import { TtsTrack } from './TtsTrack'
 import type { TtsSegment, TtsTrackState } from './types'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 
+interface TtsCacheValue {
+  blob: Blob
+  durationSec: number
+  markup?: string
+  url?: string | null
+}
+
+interface BlobUrlCacheEntry {
+  blob: Blob
+  url: string
+}
+
 interface UseTtsTrackParams {
   /** 타임라인 데이터 */
   timeline: TimelineData | null
   /** @deprecated 전역 voiceTemplate은 더 이상 사용하지 않습니다. 각 씬의 scene.voiceTemplate만 사용합니다. */
   voiceTemplate: string | null
   /** TTS 캐시 ref */
-  ttsCacheRef: React.MutableRefObject<Map<string, { blob: Blob; durationSec: number; markup?: string; url?: string | null }>>
+  ttsCacheRef: React.MutableRefObject<Map<string, TtsCacheValue>>
   /** AudioContext (Transport에서 가져옴) */
   audioContext: AudioContext | undefined
   /** Transport의 현재 시간 (초) */
@@ -41,15 +53,16 @@ function buildSegmentsFromTimeline(
   timeline: TimelineData,
   /** @deprecated 전역 voiceTemplate은 더 이상 사용하지 않습니다. 각 씬의 scene.voiceTemplate만 사용합니다. */
   voiceTemplate: string | null,
-  ttsCacheRef: React.MutableRefObject<Map<string, { blob: Blob; durationSec: number; markup?: string; url?: string | null }>>,
+  ttsCacheRef: React.MutableRefObject<Map<string, TtsCacheValue>>,
   buildSceneMarkup: (timeline: TimelineData, sceneIndex: number) => string[],
-  makeTtsKey: (voiceName: string, markup: string) => string
+  makeTtsKey: (voiceName: string, markup: string) => string,
+  blobUrlCache: Map<string, BlobUrlCacheEntry>
 ): TtsSegment[] {
   const segments: TtsSegment[] = []
   let accumulatedTime = 0
-  
+  const usedBlobUrlKeys = new Set<string>()
 
-for (let sceneIndex = 0; sceneIndex < timeline.scenes.length; sceneIndex++) {
+  for (let sceneIndex = 0; sceneIndex < timeline.scenes.length; sceneIndex++) {
     const scene = timeline.scenes[sceneIndex]
     // 씬별 voiceTemplate만 사용 (전역 voiceTemplate fallback 제거)
     const sceneVoiceTemplate = scene.voiceTemplate
@@ -97,39 +110,38 @@ for (let sceneIndex = 0; sceneIndex < timeline.scenes.length; sceneIndex++) {
         continue
       }
 
-      // 캐시가 있으면 정상 세그먼트 생성
-      // Supabase URL을 직접 사용하여 네트워크 요청이 발생하도록 함
-      // cached.url이 없으면 에러 (서버 액션에서 항상 URL을 반환해야 함)
-      if (!cached.url) {
-        // URL이 없으면 빈 문자열로 설정하여 preload에서 건너뛰도록 함
-        const segment: TtsSegment = {
-          id: segmentId,
-          url: '',
-          startSec: accumulatedTime,
-          durationSec: cached.durationSec || 0,
-          sceneId: scene.sceneId,
-          sceneIndex,
-          partIndex: finalPartIndex,
-          markup: cached.markup || markup,
-        }
-        segments.push(segment)
-        accumulatedTime += cached.durationSec || 0
-        continue
-      }
-      // blob이 있으면 blob URL을 사용하여 네트워크 요청 스킵
+      // blob URL을 키별로 재사용해서 스타일 변경 등으로 timeline이 갱신되어도
+      // URL이 매번 바뀌지 않도록 고정한다.
       let segmentUrl = cached.url || ''
       if (cached.blob) {
-        // blob이 있으면 blob URL 생성 (네트워크 요청 없음)
-        try {
-          segmentUrl = URL.createObjectURL(cached.blob)
-        } catch (error) {
-          console.error('[buildSegmentsFromTimeline] blob URL 생성 실패:', error, {
-            segmentId,
-            hasBlob: !!cached.blob,
-            blobSize: cached.blob?.size,
-          })
-          // blob URL 생성 실패 시 Supabase URL 사용
-          segmentUrl = cached.url || ''
+        usedBlobUrlKeys.add(key)
+        const cachedBlobUrl = blobUrlCache.get(key)
+
+        if (cachedBlobUrl && cachedBlobUrl.blob === cached.blob) {
+          segmentUrl = cachedBlobUrl.url
+        } else {
+          if (cachedBlobUrl) {
+            URL.revokeObjectURL(cachedBlobUrl.url)
+          }
+
+          try {
+            const objectUrl = URL.createObjectURL(cached.blob)
+            blobUrlCache.set(key, { blob: cached.blob, url: objectUrl })
+            segmentUrl = objectUrl
+          } catch (error) {
+            console.error('[buildSegmentsFromTimeline] blob URL 생성 실패:', error, {
+              segmentId,
+              hasBlob: !!cached.blob,
+              blobSize: cached.blob?.size,
+            })
+            segmentUrl = cached.url || ''
+          }
+        }
+      } else {
+        const cachedBlobUrl = blobUrlCache.get(key)
+        if (cachedBlobUrl) {
+          URL.revokeObjectURL(cachedBlobUrl.url)
+          blobUrlCache.delete(key)
         }
       }
       
@@ -146,6 +158,13 @@ for (let sceneIndex = 0; sceneIndex < timeline.scenes.length; sceneIndex++) {
 
       segments.push(segment)
       accumulatedTime += cached.durationSec
+    }
+  }
+
+  for (const [cacheKey, cacheEntry] of blobUrlCache.entries()) {
+    if (!usedBlobUrlKeys.has(cacheKey)) {
+      URL.revokeObjectURL(cacheEntry.url)
+      blobUrlCache.delete(cacheKey)
     }
   }
 
@@ -167,6 +186,7 @@ export function useTtsTrack({
   onSegmentStart,
 }: UseTtsTrackParams) {
   const ttsTrackRef = useRef<TtsTrack | null>(null)
+  const blobUrlCacheRef = useRef<Map<string, BlobUrlCacheEntry>>(new Map())
   // 클라이언트 마운트 확인 (useState 초기값으로 처리)
   const [isClient] = useState(() => typeof window !== 'undefined')
   
@@ -226,7 +246,14 @@ export function useTtsTrack({
     // voiceTemplate은 더 이상 사용하지 않지만 하위 호환성을 위해 전달
     const newSegments = (!timeline || !isClient)
       ? []
-      : buildSegmentsFromTimeline(timeline, voiceTemplate || '', ttsCacheRef, buildSceneMarkup, makeTtsKey)
+      : buildSegmentsFromTimeline(
+        timeline,
+        voiceTemplate || '',
+        ttsCacheRef,
+        buildSceneMarkup,
+        makeTtsKey,
+        blobUrlCacheRef.current
+      )
     
     setSegments(newSegments)
   // ttsCacheRef는 ref이므로 dependency에 포함하지 않음 (변경되어도 re-render 트리거 안 함)
@@ -308,11 +335,14 @@ export function useTtsTrack({
 
   // 컴포넌트 언마운트 시 정리 (항상 호출되어야 함)
   useEffect(() => {
-    const currentTtsTrack = ttsTrackRef.current
+    const blobUrlCache = blobUrlCacheRef.current
     return () => {
-      if (currentTtsTrack) {
-        currentTtsTrack.dispose()
+      ttsTrackRef.current?.dispose()
+
+      for (const cacheEntry of blobUrlCache.values()) {
+        URL.revokeObjectURL(cacheEntry.url)
       }
+      blobUrlCache.clear()
     }
   }, [])
 
