@@ -41,7 +41,7 @@ export function useTransformManager({
         return
       }
 
-      const _isResizing = isResizingRef.current
+      if (isResizingRef.current) return
 
       let bounds: PIXI.Bounds
       try {
@@ -152,7 +152,7 @@ export function useTransformManager({
         return
       }
 
-      const _isResizing = isResizingTextRef.current
+      if (isResizingTextRef.current) return
 
       if (text.destroyed) {
         return
