@@ -19,7 +19,6 @@ export function showScene(
 ): void {
   if (!appRef.current || !containerRef.current) {
     if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
       console.warn('[scene-renderer] appRef 또는 containerRef가 없습니다', { index })
     }
     return
@@ -60,4 +59,3 @@ export function showScene(
   }
   // 렌더링은 PixiJS ticker가 처리
 }
-

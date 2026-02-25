@@ -11,11 +11,11 @@
  */
 export function createPlayButtonHandler({
   videoPlayback,
-  isTtsBootstrapping,
-  isBgmBootstrapping,
-  isPreparing,
-  selectSceneRef,
-  sceneNavigation,
+  isTtsBootstrapping: _isTtsBootstrapping,
+  isBgmBootstrapping: _isBgmBootstrapping,
+  isPreparing: _isPreparing,
+  selectSceneRef: _selectSceneRef,
+  sceneNavigation: _sceneNavigation,
 }: {
   videoPlayback: {
     toggle?: () => void
@@ -40,4 +40,3 @@ export function createPlayButtonHandler({
     }
   }
 }
-
