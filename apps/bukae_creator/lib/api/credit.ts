@@ -55,6 +55,7 @@ export interface VideoCreditRefundResult {
   transactionId: string | null
   refundedCredits: number
   remainingCredits: number | null
+  permissionDenied: boolean
   error?: string
 }
 
@@ -639,14 +640,20 @@ export async function chargeVideoExportCredits(params: {
       error: '크레딧 차감 결과를 해석하지 못했습니다.',
     }
   } catch (error) {
-    console.error('[Credit] chargeVideoExportCredits error:', error)
+    console.error('[Credit] chargeVideoExportCredits error:', {
+      userId,
+      clientRequestId,
+      creditsToDeduct,
+      error,
+    })
     return {
-      success: true,
+      success: false,
       charged: false,
       alreadyProcessed: false,
       transactionId: null,
       creditsUsed: creditsToDeduct,
       remainingCredits: null,
+      error: error instanceof Error ? error.message : '크레딧 차감 처리 중 오류가 발생했습니다.',
     }
   }
 }
@@ -707,6 +714,7 @@ export async function refundVideoExportCredits(params: {
       transactionId: null,
       refundedCredits: 0,
       remainingCredits: null,
+      permissionDenied: false,
     }
   }
 
@@ -723,6 +731,7 @@ export async function refundVideoExportCredits(params: {
         transactionId: null,
         refundedCredits: 0,
         remainingCredits: await getUserCredits(userId),
+        permissionDenied: false,
       }
     }
 
@@ -749,6 +758,7 @@ export async function refundVideoExportCredits(params: {
         transactionId: targetTransactionId,
         refundedCredits: 0,
         remainingCredits: await getUserCredits(userId),
+        permissionDenied: false,
       }
     }
 
@@ -760,6 +770,7 @@ export async function refundVideoExportCredits(params: {
         transactionId: targetTransactionId,
         refundedCredits: 0,
         remainingCredits: null,
+        permissionDenied: true,
         error: '환불 권한이 없습니다.',
       }
     }
@@ -779,6 +790,7 @@ export async function refundVideoExportCredits(params: {
         transactionId,
         refundedCredits: 0,
         remainingCredits,
+        permissionDenied: false,
       }
     }
 
@@ -789,6 +801,7 @@ export async function refundVideoExportCredits(params: {
         transactionId,
         refundedCredits: credits,
         remainingCredits,
+        permissionDenied: false,
       }
     }
 
@@ -798,6 +811,7 @@ export async function refundVideoExportCredits(params: {
       transactionId,
       refundedCredits: 0,
       remainingCredits: null,
+      permissionDenied: false,
       error: '환불 결과를 해석하지 못했습니다.',
     }
   } catch (error) {
@@ -808,6 +822,7 @@ export async function refundVideoExportCredits(params: {
       transactionId: params.transactionId ?? null,
       refundedCredits: 0,
       remainingCredits: null,
+      permissionDenied: false,
       error: error instanceof Error ? error.message : '영상 내보내기 환불 중 오류가 발생했습니다.',
     }
   }

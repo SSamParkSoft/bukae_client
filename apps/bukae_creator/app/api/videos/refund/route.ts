@@ -46,7 +46,6 @@ export async function POST(request: Request) {
     })
 
     if (!refundResult.success) {
-      const isForbidden = refundResult.error === '환불 권한이 없습니다.'
       return NextResponse.json(
         {
           error: refundResult.error || '환불 처리에 실패했습니다.',
@@ -56,7 +55,7 @@ export async function POST(request: Request) {
           remainingCredits: refundResult.remainingCredits,
         },
         {
-          status: isForbidden ? 403 : 500,
+          status: refundResult.permissionDenied ? 403 : 500,
           headers: {
             ...(rl.headers ?? {}),
             'Content-Type': 'application/json',
@@ -85,7 +84,7 @@ export async function POST(request: Request) {
     console.error('[videos/refund] API error:', error)
     return NextResponse.json(
       {
-        error: error instanceof Error ? error.message : '영상 환불 처리 중 오류가 발생했어요.',
+        error: '영상 환불 처리 중 오류가 발생했어요.',
       },
       { status: 500 }
     )

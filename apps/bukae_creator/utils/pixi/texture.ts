@@ -84,7 +84,10 @@ export const loadPixiTexture = (
             const errorText = response.statusText || `HTTP ${response.status}`
             throw new Error(`Proxy API returned ${response.status}: ${errorText}`)
           }
-          const _contentType = response.headers.get('content-type')
+          const contentType = response.headers.get('content-type') || ''
+          if (!contentType.toLowerCase().startsWith('image/')) {
+            throw new Error(`Proxy API returned non-image content-type: ${contentType || 'unknown'}`)
+          }
           return response.blob()
         })
         .then((blob) => {

@@ -15,7 +15,7 @@ interface UseCanvasSizeParams {
 export function useCanvasSize({
   appRef,
   pixiContainerRef,
-  stageDimensions: _stageDimensions,
+  stageDimensions,
 }: UseCanvasSizeParams) {
   const [canvasSize, setCanvasSize] = useState<{ width: string; height: string }>({ 
     width: '100%', 
@@ -26,13 +26,16 @@ export function useCanvasSize({
   const recalculateCanvasSize = useCallback(() => {
     if (!appRef.current || !pixiContainerRef.current) return
 
+    const { width: stageWidth, height: stageHeight } = stageDimensions
+    if (stageHeight <= 0) return
+
     const container = pixiContainerRef.current
     const containerRect = container.getBoundingClientRect()
     const containerWidth = containerRect.width
     const containerHeight = containerRect.height
 
-    // 9:16 비율 유지
-    const aspectRatio = 9 / 16
+    // 스테이지 비율 유지
+    const aspectRatio = stageWidth / stageHeight
     let displayWidth = containerWidth
     let displayHeight = containerWidth / aspectRatio
 
@@ -43,7 +46,7 @@ export function useCanvasSize({
     }
 
     setCanvasSize({ width: `${displayWidth}px`, height: `${displayHeight}px` })
-  }, [appRef, pixiContainerRef])
+  }, [appRef, pixiContainerRef, stageDimensions])
 
   return {
     canvasSize,
