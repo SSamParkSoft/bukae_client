@@ -119,16 +119,7 @@ async function checkAndRefreshToken(): Promise<void> {
   }
 
   const age = authStorage.getTokenAge()
-  const expiresIn = authStorage.getTokenExpiresIn()
-  
-  // 디버그: 체크 상태 로그
-  if (age !== null) {
-    const _ageSeconds = Math.floor(age / 1000)
-    const _expiresInSeconds = expiresIn || 1800
-    const _shouldRefresh = authStorage.shouldRefreshToken()
-    const _isExpired = authStorage.isTokenExpired()
-  }
-  
+
   // 토큰이 이미 만료된 경우 즉시 리프레시 시도
   if (age !== null && authStorage.isTokenExpired()) {
     const result = await refreshAccessToken()
