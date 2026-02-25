@@ -745,6 +745,9 @@ export function useVideoExport({
         encodingRequest,
       }
 
+      // 내보내기 전송 JSON 원문 (디버깅용)
+      console.log('[Export] 전송 JSON 원문:', JSON.stringify(exportData, null, 2))
+
       // 7. 최종 인코딩 요청 전송
       const response = await fetch('/api/videos/generate', {
         method: 'POST',

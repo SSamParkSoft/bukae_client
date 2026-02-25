@@ -118,13 +118,30 @@ export function useProVideoExport({
       const bgmTemplateObj = bgmTemplate ? bgmTemplates.find((t) => t.id === bgmTemplate) : null
       const bgmUrl = bgmTemplateObj ? getBgmTemplateUrlSync(bgmTemplateObj) : null
 
-      // 3. Fast와 동일한 encodingScenes 구조로 생성 (씬당 1개, 비디오 URL을 image.url로 전달)
+      // 3. Pro 전용: video 레이어 형식으로 encodingScenes 생성 (백엔드는 image가 아닌 video 필드 사용)
       const encodingScenes: Array<{
         sceneId: number
         order: number
         duration: number
         transition: Record<string, unknown>
-        image: unknown
+        video: {
+          url: string
+          fit: string
+          loop: boolean
+          mute: boolean
+          trimStart: number
+          trimEnd: number
+          transform: {
+            x: number
+            y: number
+            width: number
+            height: number
+            scaleX: number
+            scaleY: number
+            rotation: number
+            anchor: { x: number; y: number }
+          }
+        }
         text: unknown
         voice: unknown
         soundEffect: unknown
@@ -164,9 +181,13 @@ export function useProVideoExport({
           order: index,
           duration: Math.max(0.1, duration),
           transition,
-          image: {
+          video: {
             url: scene.videoUrl!,
             fit: tlScene?.imageFit ?? 'contain',
+            loop: true,
+            mute: true,
+            trimStart: scene.selectionStartSeconds ?? 0,
+            trimEnd: scene.selectionEndSeconds ?? duration,
             transform: {
               x: width / 2,
               y: height / 2,
@@ -177,13 +198,6 @@ export function useProVideoExport({
               rotation: 0,
               anchor: { x: 0.5, y: 0.5 },
             },
-            // Pro: 비디오 구간 트림 정보 (백엔드가 지원할 경우 사용)
-            ...(scene.selectionStartSeconds != null && scene.selectionEndSeconds != null && {
-              videoTrim: {
-                startTime: scene.selectionStartSeconds,
-                endTime: scene.selectionEndSeconds,
-              },
-            }),
           },
           text: {
             content: (scene.script || tlScene?.text?.content || ' ').trim() || ' ',
@@ -276,13 +290,18 @@ export function useProVideoExport({
             },
       }
 
+      const exportPayload = {
+        jobType: 'AUTO_CREATE_VIDEO_FROM_DATA',
+        encodingRequest,
+      }
+
+      // 내보내기 전송 JSON 원문 (디버깅용)
+      console.log('[Export] 전송 JSON 원문:', JSON.stringify(exportPayload, null, 2))
+
       const response = await fetch('/api/videos/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({
-          jobType: 'AUTO_CREATE_VIDEO_FROM_DATA',
-          encodingRequest,
-        }),
+        body: JSON.stringify(exportPayload),
       })
 
       if (!response.ok) {
