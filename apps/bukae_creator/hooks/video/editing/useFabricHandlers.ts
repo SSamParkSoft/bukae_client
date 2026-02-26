@@ -12,7 +12,7 @@ const DEFAULT_TEXT_ALIGN = 'center' // 기본 텍스트 정렬
 
 function toCenteredCoordinate(
   position: number,
-  origin: string | undefined,
+  origin: fabric.TOriginX | fabric.TOriginY | undefined,
   scaledSize: number
 ): number {
   if (origin === 'left' || origin === 'top') {
@@ -216,11 +216,13 @@ export function useFabricHandlers({
         normalizedExistingColor === 'rgba(255,255,255,0.001)'
       const nextColor = isExistingColorTransparent ? DEFAULT_TEXT_COLOR : existingColor
       const existingHAlign = existingSceneText?.transform?.hAlign
-      const alignFromStyle = existingSceneText?.style?.align ?? DEFAULT_TEXT_ALIGN
-      const align = (existingHAlign === 'left' || existingHAlign === 'right' || existingHAlign === 'center')
-        ? existingHAlign
-        : alignFromStyle
-      const hAlign = align === 'left' || align === 'right' ? align : 'center'
+      type HorizontalAlign = 'left' | 'center' | 'right'
+      const alignFromStyle = (existingSceneText?.style?.align ?? DEFAULT_TEXT_ALIGN) as HorizontalAlign
+      const align: HorizontalAlign =
+        existingHAlign === 'left' || existingHAlign === 'right' || existingHAlign === 'center'
+          ? existingHAlign
+          : alignFromStyle
+      const hAlign: HorizontalAlign = align === 'left' || align === 'right' ? align : 'center'
 
       const left = target.left ?? 0
       const top = target.top ?? 0
