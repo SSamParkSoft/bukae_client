@@ -176,12 +176,14 @@ export function useProVideoExport({
         const soundEffectUrl = soundEffectPath
           ? getSoundEffectStorageUrl(soundEffectPath) ?? `/sound-effects/${soundEffectPath}`
           : null
+        const transitionDuration =
+          typeof tlScene?.transitionDuration === 'number' ? tlScene.transitionDuration : 0.5
 
         const fallbackTimelineScene: TimelineData['scenes'][number] = tlScene ?? {
           sceneId: index + 1,
           duration,
           transition: transitionType,
-          transitionDuration: tlScene?.transitionDuration ?? 0.5,
+          transitionDuration,
           image: scene.videoUrl!,
           imageFit: 'contain',
           text: {
