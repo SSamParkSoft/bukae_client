@@ -78,6 +78,8 @@ test('transform이 없으면 track별 fallback 위치를 사용한다', () => {
   const fast = serializeSubtitleForEncoding(scene, stage, 'fast')
   const pro = serializeSubtitleForEncoding(scene, stage, 'pro')
 
+  assert.equal(fast.transform.width, stage.width)
+  assert.equal(pro.transform.width, stage.width * 0.75)
   assert.equal(fast.transform.y, stage.height * 0.75)
   assert.equal(pro.transform.y, stage.height - 200)
 })
