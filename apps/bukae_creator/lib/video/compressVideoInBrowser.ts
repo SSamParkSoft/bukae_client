@@ -12,13 +12,6 @@ const OUTPUT_NAME = 'output.mp4'
 /** 압축 후에도 원본보다 크면 원본을 반환하기 위한 최소 비율 (예: 0.95 = 95% 이하만 사용) */
 const MAX_SIZE_RATIO = 1.0
 
-export class CompressVideoError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'CompressVideoError'
-  }
-}
-
 /**
  * 파일 확장자에 맞는 입력 파일명 반환 (FFmpeg가 인식하도록)
  */
