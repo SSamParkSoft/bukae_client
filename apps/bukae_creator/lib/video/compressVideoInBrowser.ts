@@ -3,6 +3,8 @@
  * 서버에서는 실행되지 않으며, 업로드 전 큰 파일을 줄일 때만 사용합니다.
  */
 
+import type { FFmpeg as FFmpegClass } from '@ffmpeg/ffmpeg'
+
 const CORE_BASE = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd'
 const INPUT_NAME = 'input'
 const OUTPUT_NAME = 'output.mp4'
@@ -39,11 +41,13 @@ export async function compressVideoInBrowser(file: File): Promise<File> {
     return file
   }
 
+  let ffmpeg: InstanceType<typeof FFmpegClass> | null = null
+
   try {
     const { FFmpeg } = await import('@ffmpeg/ffmpeg')
     const { fetchFile, toBlobURL } = await import('@ffmpeg/util')
 
-    const ffmpeg = new FFmpeg()
+    ffmpeg = new FFmpeg()
 
     await ffmpeg.load({
       coreURL: await toBlobURL(`${CORE_BASE}/ffmpeg-core.js`, 'text/javascript'),
@@ -82,6 +86,14 @@ export async function compressVideoInBrowser(file: File): Promise<File> {
   } catch (err) {
     console.warn('[compressVideoInBrowser] 압축 실패, 원본으로 업로드:', err)
     return file
+  } finally {
+    if (ffmpeg != null) {
+      try {
+        ffmpeg.terminate()
+      } catch (e) {
+        console.warn('[compressVideoInBrowser] ffmpeg.terminate 실패:', e)
+      }
+    }
   }
 }
 
