@@ -18,7 +18,12 @@ const supabaseHostname = getSupabaseHostname();
 const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
-  // 기존 video/create step URL 리다이렉트 (step1은 공용, fast/step1은 공용 step1으로)
+  // Pro 영상 업로드(최대 500MB) 대비. 로컬/자체 호스팅 시 적용. Vercel 등은 플랫폼별 본문 한도 따름.
+  experimental: {
+    proxyClientMaxBodySize: '500mb',
+    serverActions: { bodySizeLimit: '500mb' },
+  },
+  // 기존 video/create step URL 리다이렉트
   async redirects() {
     return [
       { source: '/video/create/fast/step1', destination: '/video/create/step1?track=fast', permanent: true },
