@@ -368,6 +368,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                         defaultValue={currentScene.text?.stroke?.width ?? DEFAULT_STROKE_WIDTH}
                         min={MIN_STROKE_WIDTH}
                         max={MAX_STROKE_WIDTH}
+                        aria-label="테두리 두께 (px)"
                         onFocus={() => {
                           isStrokeWidthInputFocusedRef.current = true
                         }}
@@ -442,6 +443,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                           }))
                         }}
                         className="w-6 h-6 flex items-center justify-center"
+                        aria-label="테두리 두께 줄이기"
                       >
                         <span className="text-black font-medium" style={{ fontSize: '16px' }}>&lt;</span>
                       </button>
@@ -465,6 +467,7 @@ export function SubtitleSettings({ timeline, currentSceneIndex, theme, setTimeli
                           }))
                         }}
                         className="w-6 h-6 flex items-center justify-center"
+                        aria-label="테두리 두께 늘리기"
                       >
                         <span className="text-black font-medium" style={{ fontSize: '16px' }}>&gt;</span>
                       </button>
