@@ -68,7 +68,9 @@ export async function compressVideoInBrowser(file: File): Promise<File> {
     ])
 
     const data = await ffmpeg.readFile(OUTPUT_NAME)
-    const blob = new Blob([data], { type: 'video/mp4' })
+    // FileData(Uint8Array<ArrayBufferLike>)를 BlobPart 호환으로 복사 (빌드 타입 호환)
+    const bytes = new Uint8Array(data as Uint8Array)
+    const blob = new Blob([bytes], { type: 'video/mp4' })
 
     // 압축 결과가 원본보다 크면 원본 사용
     if (blob.size > file.size * MAX_SIZE_RATIO) {
