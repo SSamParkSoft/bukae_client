@@ -1,4 +1,3 @@
-import { NextResponse } from 'next/server'
 import { handleStorageBucketCleanup } from '@/app/api/_utils/storageBucketCleanup'
 
 export const runtime = 'nodejs'
@@ -20,4 +19,3 @@ export async function POST(request: Request) {
     logPrefix: 'pro_upload cleanup',
   })
 }
-
