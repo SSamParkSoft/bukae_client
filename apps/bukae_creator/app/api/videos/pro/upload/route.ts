@@ -6,7 +6,7 @@ import { getSupabaseServiceClient } from '@/lib/api/supabase-server'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const MAX_FILE_SIZE_MB = 500 // 영상은 500MB까지
+const MAX_FILE_SIZE_MB = 100 // 영상은 100MB까지
 const ALLOWED_MIME_TYPES = [
   'video/mp4',
   'video/mov',
