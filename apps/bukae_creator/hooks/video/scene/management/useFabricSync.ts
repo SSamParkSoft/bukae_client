@@ -8,25 +8,10 @@ import * as fabric from 'fabric'
 import { TimelineData } from '@/store/useVideoCreateStore'
 import { calculateSpriteParams } from '@/utils/pixi'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
+import { applyFastLikeControlPolicy } from '@/hooks/video/pixi/fabricObjectDefaults'
 import type { StageDimensions } from '../../types/common'
 
 const INVISIBLE_HIT_FILL = 'rgba(0,0,0,0)'
-
-function applyFastLikeControlPolicy(target: fabric.Object) {
-  if (typeof (target as { setControlsVisibility?: (options: Record<string, boolean>) => void }).setControlsVisibility === 'function') {
-    ;(target as { setControlsVisibility: (options: Record<string, boolean>) => void }).setControlsVisibility({
-      mtr: false,
-      tl: true,
-      tr: true,
-      bl: true,
-      br: true,
-      ml: false,
-      mt: false,
-      mr: false,
-      mb: false,
-    })
-  }
-}
 
 interface UseFabricSyncParams {
   useFabricEditing: boolean

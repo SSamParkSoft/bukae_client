@@ -5,7 +5,7 @@ import * as PIXI from 'pixi.js'
 import * as fabric from 'fabric'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 import { useFabricHandlers } from '@/hooks/video/editing/useFabricHandlers'
-import { applyFabricObjectDefaults, FABRIC_HANDLE_STYLE } from '@/hooks/video/pixi/fabricObjectDefaults'
+import { applyFabricObjectDefaults, FABRIC_HANDLE_STYLE, applyFastLikeControlPolicy } from '@/hooks/video/pixi/fabricObjectDefaults'
 import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import { calculateAspectFittedSize } from '../../utils/proPreviewLayout'
 import { useProSubtitleTextBounds } from './useProSubtitleTextBounds'
@@ -63,18 +63,6 @@ interface UseProFabricResizeDragParams {
 
 interface FabricDataObject {
   dataType?: 'image' | 'text'
-}
-
-function applyFastLikeControlPolicy(target: fabric.Object) {
-  if (typeof (target as { setControlsVisibility?: (options: Record<string, boolean>) => void }).setControlsVisibility === 'function') {
-    ;(target as { setControlsVisibility: (options: Record<string, boolean>) => void }).setControlsVisibility({
-      mtr: false,
-      tl: true,
-      tr: true,
-      bl: true,
-      br: true,
-    })
-  }
 }
 
 function normalizeNumber(value: unknown, fallback: number) {
