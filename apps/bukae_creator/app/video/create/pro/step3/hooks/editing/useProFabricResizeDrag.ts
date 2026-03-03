@@ -5,7 +5,7 @@ import * as PIXI from 'pixi.js'
 import * as fabric from 'fabric'
 import type { TimelineData } from '@/lib/types/domain/timeline'
 import { useFabricHandlers } from '@/hooks/video/editing/useFabricHandlers'
-import { applyFabricObjectDefaults, FABRIC_HANDLE_STYLE, applyFastLikeControlPolicy } from '@/hooks/video/pixi/fabricObjectDefaults'
+import { applyFabricObjectDefaults, FABRIC_HANDLE_STYLE } from '@/hooks/video/pixi/fabricObjectDefaults'
 import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import { calculateAspectFittedSize } from '../../utils/proPreviewLayout'
 import { useProSubtitleTextBounds } from './useProSubtitleTextBounds'
@@ -63,6 +63,22 @@ interface UseProFabricResizeDragParams {
 
 interface FabricDataObject {
   dataType?: 'image' | 'text'
+}
+
+// Pro 트랙 전용 컨트롤 정책:
+// - 회전 핸들(mtr)은 숨기고
+// - 네 모서리(tl, tr, bl, br)만 보이게 하여
+// - 기본값으로 남아 있는 중간 핸들(ml, mt, mr, mb)을 통해 단일 축 방향 리사이즈가 가능하도록 유지한다.
+function applyFastLikeControlPolicy(target: fabric.Object) {
+  if (typeof (target as { setControlsVisibility?: (options: Record<string, boolean>) => void }).setControlsVisibility === 'function') {
+    ;(target as { setControlsVisibility: (options: Record<string, boolean>) => void }).setControlsVisibility({
+      mtr: false,
+      tl: true,
+      tr: true,
+      bl: true,
+      br: true,
+    })
+  }
 }
 
 function normalizeNumber(value: unknown, fallback: number) {
