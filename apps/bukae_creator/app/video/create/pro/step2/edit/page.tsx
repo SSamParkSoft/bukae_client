@@ -18,6 +18,7 @@ import {
   type ProScene,
 } from '../utils/types'
 import { getEffectiveSourceDuration, normalizeSelectionRange } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
+import { compressVideoIfNeeded } from '@/lib/video/compressVideoInBrowser'
 import type { StudioScriptUserEditGuideResponseItem } from '@/lib/types/api/studio-script'
 
 const DEFAULT_SCENE_COUNT = 6
@@ -158,8 +159,11 @@ export default function ProStep2EditPage() {
     setUploadingSceneIndex(index)
 
     try {
+      // 큰 파일은 업로드 전 브라우저에서 압축 (4MB 초과 시)
+      const fileToUpload = await compressVideoIfNeeded(file)
+
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', fileToUpload)
       formData.append('sceneId', scenes[index]?.id || String(index + 1))
 
       const response = await fetch('/api/videos/pro/upload', {
@@ -171,8 +175,20 @@ export default function ProStep2EditPage() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: '영상 업로드 실패' }))
-        throw new Error(errorData.error || '영상 업로드 실패')
+        const responseText = await response.text()
+        let errorMessage = '영상 업로드 실패'
+        if (response.status === 413) {
+          errorMessage =
+            '영상 파일이 서버 허용 크기를 초과했습니다. 더 작은 파일(권장: 100MB 이하)을 사용해 주세요.'
+        } else {
+          try {
+            const errorData = JSON.parse(responseText) as { error?: string }
+            if (errorData?.error) errorMessage = errorData.error
+          } catch {
+            console.error('[Pro 영상 업로드] 비정상 응답:', response.status, response.statusText, responseText.slice(0, 500))
+          }
+        }
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()

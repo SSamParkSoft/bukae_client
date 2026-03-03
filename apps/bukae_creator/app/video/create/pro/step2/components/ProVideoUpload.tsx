@@ -250,6 +250,8 @@ export const ProVideoUpload = memo(function ProVideoUpload({
                 lineHeight: '16.8px',
               }}
             >
+              압축 후
+              <br />
               업로드 중...
             </span>
           </>

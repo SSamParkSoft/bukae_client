@@ -19,3 +19,20 @@ export function applyFabricObjectDefaults() {
     fabric.Object.prototype.controls.mtr.offsetY = -30
   }
 }
+
+// Fast 트랙과 Pro 트랙에서 공통으로 사용하는 Fabric 컨트롤 가시성 정책
+export function applyFastLikeControlPolicy(target: fabric.Object) {
+  if (typeof (target as { setControlsVisibility?: (options: Record<string, boolean>) => void }).setControlsVisibility === 'function') {
+    ;(target as { setControlsVisibility: (options: Record<string, boolean>) => void }).setControlsVisibility({
+      mtr: false,
+      tl: true,
+      tr: true,
+      bl: true,
+      br: true,
+      ml: false,
+      mt: false,
+      mr: false,
+      mb: false,
+    })
+  }
+}

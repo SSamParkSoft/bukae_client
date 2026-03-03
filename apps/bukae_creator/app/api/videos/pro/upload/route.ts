@@ -6,7 +6,7 @@ import { getSupabaseServiceClient } from '@/lib/api/supabase-server'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const MAX_FILE_SIZE_MB = 500 // 영상은 500MB까지
+const MAX_FILE_SIZE_MB = 100 // 영상은 100MB까지
 const ALLOWED_MIME_TYPES = [
   'video/mp4',
   'video/mov',
@@ -14,6 +14,18 @@ const ALLOWED_MIME_TYPES = [
   'video/quicktime',
   'video/webm',
 ]
+
+/** Safari(iOS 포함)는 갤러리 선택 시 file.type이 빈 문자열일 수 있음. 확장자로 허용 여부 판단 */
+const ALLOWED_EXTENSIONS = ['mp4', 'mov', 'avi', 'webm']
+
+function isAllowedVideoFile(file: File): boolean {
+  if (ALLOWED_MIME_TYPES.includes(file.type)) return true
+  if (!file.type && file.name) {
+    const ext = file.name.split('.').pop()?.toLowerCase()
+    return ext ? ALLOWED_EXTENSIONS.includes(ext) : false
+  }
+  return false
+}
 
 export async function POST(request: Request) {
   try {
@@ -34,9 +46,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '파일이 필요합니다.' }, { status: 400 })
     }
 
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      return NextResponse.json({ 
-        error: `지원하지 않는 파일 형식입니다: ${file.type}. 지원 형식: ${ALLOWED_MIME_TYPES.join(', ')}` 
+    if (!isAllowedVideoFile(file)) {
+      return NextResponse.json({
+        error: `지원하지 않는 파일 형식입니다${file.type ? `: ${file.type}` : ''}. 지원 형식: MP4, MOV, AVI, WebM`,
       }, { status: 400 })
     }
 
