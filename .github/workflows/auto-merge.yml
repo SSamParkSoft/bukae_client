@@ -173,7 +173,7 @@ jobs:
             core.setOutput('has_issues', block.toString());
             console.log(block ? '🚫 Critical/Major found - merge blocked' : '✅ No Critical/Major - merge allowed');
 
-      - name: Auto merge (wait mergeable, then rebase)
+      - name: Auto merge (wait mergeable, try rebase/squash/merge)
         if: |
           steps.check_coderabbit_status.outputs.is_completed == 'true' &&
           steps.check_coderabbit_status.outputs.has_error == 'false' &&
@@ -211,19 +211,33 @@ jobs:
               console.log(`Wait mergeable (${i+1}/${POLL_MAX}) mergeable=${pr.mergeable} state=${pr.mergeable_state}`);
               await sleep(POLL_MS);
             }
-            try {
-              const res = await github.rest.pulls.merge({
-                ...opts,
-                merge_method: 'rebase',
-                commit_title: `Merge PR #${prNumber}: ${pr.title}`,
-                sha: validatedSha
-              });
-              console.log(res.data.merged ? `✅ PR #${prNumber} merged` : `⚠️ Merge returned: ${res.data.message || 'unknown'}`);
-            } catch (e) {
-              console.log('Merge failed:', e.message, e.response?.data ? JSON.stringify(e.response.data) : '');
-              if (e.status === 405) console.log('Hint: Branch protection or required checks.');
-              if (e.status === 409) console.log('Hint: Merge conflict.');
-              core.setFailed(`Auto-merge failed: ${e.message}`);
+            const methods = ['rebase', 'squash', 'merge'];
+            let merged = false;
+            let lastError = null;
+            for (const method of methods) {
+              try {
+                const res = await github.rest.pulls.merge({
+                  ...opts,
+                  merge_method: method,
+                  commit_title: `Merge PR #${prNumber}: ${pr.title}`,
+                  sha: validatedSha
+                });
+                if (res.data.merged) {
+                  console.log(`✅ PR #${prNumber} merged via ${method}`);
+                  merged = true;
+                  break;
+                }
+                console.log(`⚠️ Merge returned via ${method}: ${res.data.message || 'unknown'}`);
+              } catch (e) {
+                lastError = e;
+                console.log(`Merge failed via ${method}:`, e.message, e.response?.data ? JSON.stringify(e.response.data) : '');
+                if (e.status === 405) console.log('Hint: Method blocked by branch/repo settings or current PR history.');
+                if (e.status === 409) console.log('Hint: Merge conflict.');
+                if (e.status === 422) console.log('Hint: Head SHA changed or checks/mergeability state changed.');
+              }
+            }
+            if (!merged) {
+              core.setFailed(`Auto-merge failed for all methods: ${lastError?.message || 'unknown error'}`);
             }
 
       - name: Fail if CodeRabbit not done or error
