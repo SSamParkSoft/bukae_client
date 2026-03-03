@@ -218,7 +218,7 @@ export function useTransformManager({
         : (finalWordWrapWidth > 0 ? finalWordWrapWidth : (existingWidth || width))
       const boxHeight = preserveSize && existingHeight
         ? existingHeight
-        : (existingHeight || height)
+        : height
       const baseWidth = boxWidth
       const baseHeight = preserveSize && existingTransform?.baseHeight && existingTransform.baseHeight > 0
         ? existingTransform.baseHeight
