@@ -905,6 +905,26 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     setTotalDuration,
   })
 
+  const handleTimelineSeek = useCallback(
+    (ratio: number) => {
+      const duration = totalDurationValue > 0 ? totalDurationValue : totalDuration
+      if (duration <= 0) return
+      const time = Math.max(0, Math.min(duration, ratio * duration))
+      transportHook.seek(time)
+      setCurrentTime(time)
+      if (renderAtRef.current) {
+        renderAtRef.current(time, { forceRender: true })
+      }
+    },
+    [
+      totalDurationValue,
+      totalDuration,
+      transportHook,
+      setCurrentTime,
+      renderAtRef,
+    ]
+  )
+
   const {
     confirmedBgmTemplate: resolvedBgmTemplate,
     bgmAudioRef,
@@ -1944,6 +1964,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     
     // Handlers
     handlePlayPause,
+    handleTimelineSeek,
     handleSceneImageFitChange,
     
     // Fabric

@@ -7,6 +7,8 @@ import Image from 'next/image'
 export interface ProVideoUploadProps {
   onUpload?: (file: File) => Promise<void>
   isLoading?: boolean
+  /** 4MB 초과 등으로 실제로 압축 후 업로드 중일 때 true */
+  isCompressing?: boolean
   videoUrl?: string | null
   /** 격자 선택 영역 시작 시간 (초) */
   selectionStartSeconds?: number
@@ -17,6 +19,7 @@ export interface ProVideoUploadProps {
 export const ProVideoUpload = memo(function ProVideoUpload({
   onUpload,
   isLoading = false,
+  isCompressing = false,
   videoUrl,
   selectionStartSeconds = 0,
   selectionEndSeconds = 0,
@@ -250,9 +253,15 @@ export const ProVideoUpload = memo(function ProVideoUpload({
                 lineHeight: '16.8px',
               }}
             >
-              압축 후
-              <br />
-              업로드 중...
+              {isCompressing ? (
+                <>
+                  압축 후
+                  <br />
+                  업로드 중...
+                </>
+              ) : (
+                '업로드 중...'
+              )}
             </span>
           </>
         ) : videoUrl ? (

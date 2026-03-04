@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { authStorage } from '@/lib/api/auth-storage'
-import { createTransitionMap } from '@/lib/utils/video-export'
+import { createTransitionMap, resolveSceneEffect } from '@/lib/utils/video-export'
 import { getFontFileName, SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
 import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
 import { getSoundEffectStorageUrl } from '@/lib/utils/supabase-storage'
@@ -164,8 +164,8 @@ export function useProVideoExport({
         const tlScene = timeline.scenes[index]
         const selectionDuration = scene.selectionEndSeconds - scene.selectionStartSeconds
         const duration = scene.ttsDuration ?? (selectionDuration > 0 ? selectionDuration : 2.5)
-        const transitionType = tlScene?.transition ?? 'none'
-        const transition = createTransitionMap(transitionType, tlScene?.transitionDuration ?? 0.5)
+        const { effectType, effectDuration } = resolveSceneEffect(tlScene)
+        const transition = createTransitionMap(effectType, effectDuration)
 
         const sceneFontId = tlScene?.text?.font ?? subtitleFont ?? SUBTITLE_DEFAULT_FONT_ID
         const sceneFontWeight = tlScene?.text?.fontWeight ?? 700
@@ -177,12 +177,14 @@ export function useProVideoExport({
           ? getSoundEffectStorageUrl(soundEffectPath) ?? `/sound-effects/${soundEffectPath}`
           : null
         const transitionDuration =
-          typeof tlScene?.transitionDuration === 'number' ? tlScene.transitionDuration : 0.5
+          typeof tlScene?.transitionDuration === 'number' && tlScene.transitionDuration > 0
+            ? tlScene.transitionDuration
+            : effectDuration
 
         const fallbackTimelineScene: TimelineData['scenes'][number] = tlScene ?? {
           sceneId: index + 1,
           duration,
-          transition: transitionType,
+          transition: effectType,
           transitionDuration,
           image: scene.videoUrl!,
           imageFit: 'contain',

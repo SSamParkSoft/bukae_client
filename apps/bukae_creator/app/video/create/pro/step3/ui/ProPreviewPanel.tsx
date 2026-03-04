@@ -1,6 +1,6 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useCallback, useRef } from 'react'
 import { TimelineBar, SpeedSelector, ExportButton } from '@/app/video/create/step3/shared/ui'
 import { useProStep3Container } from '../hooks/useProStep3Container'
 import type { ProStep3Scene } from '../model/types'
@@ -56,9 +56,39 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     setPlaybackSpeed,
     canvasDisplaySize,
     handlePlayPause,
+    handleTimelineSeek,
     handleSceneImageFitChange,
     timeline,
   } = container
+
+  const isDraggingTimelineRef = useRef(false)
+
+  const handleTimelineMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const el = timelineBarRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+      handleTimelineSeek(ratio)
+      isDraggingTimelineRef.current = true
+
+      const onMove = (moveEvent: MouseEvent) => {
+        const bar = timelineBarRef.current
+        if (!bar) return
+        const rct = bar.getBoundingClientRect()
+        const r = Math.max(0, Math.min(1, (moveEvent.clientX - rct.left) / rct.width))
+        handleTimelineSeek(r)
+      }
+      const onUp = () => {
+        isDraggingTimelineRef.current = false
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+    },
+    [timelineBarRef, handleTimelineSeek]
+  )
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
@@ -91,9 +121,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           progressRatio={totalDuration > 0 ? currentTime / totalDuration : 0}
           playbackSpeed={playbackSpeed}
           isPlaying={isPlaying}
-          onTimelineMouseDown={() => {
-            // Pro step3에서는 수동 seek 미지원
-          }}
+          onTimelineMouseDown={handleTimelineMouseDown}
           timeline={null}
           bgmTemplate={confirmedBgmTemplate ?? bgmTemplate}
           showGrid={false}

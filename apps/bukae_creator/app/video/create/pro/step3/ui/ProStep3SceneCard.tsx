@@ -30,6 +30,10 @@ export interface ProStep3SceneCardProps {
   selectionStartSeconds: number
   /** 격자 선택 영역 끝 시간 (초) */
   selectionEndSeconds: number
+  /** 전체 타임라인 기준 시작 시간 (초) */
+  globalStartSeconds?: number
+  /** 전체 타임라인 기준 종료 시간 (초) */
+  globalEndSeconds?: number
   /** 원본 영상 길이(초). 원본<TTS일 때 확장 타임라인 계산에 사용 */
   originalVideoDurationSeconds?: number
   /** TTS duration (초) - 타임라인 표시용 */
@@ -72,6 +76,8 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   videoUrl,
   selectionStartSeconds: initialSelectionStartSeconds,
   selectionEndSeconds: initialSelectionEndSeconds,
+  globalStartSeconds,
+  globalEndSeconds,
   originalVideoDurationSeconds,
   ttsDuration = 0,
   voiceLabel,
@@ -297,6 +303,10 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   const finalClampedSelectionStartSeconds = Math.max(0, Math.min(displaySelectionStartSeconds, maxSelectionStartSeconds))
   // selectionEndSeconds를 실제 영상 길이 내로 클램핑 (타임라인 마커가 아닌 실제 영상 길이 기준)
   const finalClampedSelectionEndSeconds = Math.min(Math.max(displaySelectionEndSeconds, finalClampedSelectionStartSeconds), actualVideoEndSeconds)
+  const displayStartSeconds =
+    typeof globalStartSeconds === 'number' ? globalStartSeconds : finalClampedSelectionStartSeconds
+  const displayEndSeconds =
+    typeof globalEndSeconds === 'number' ? globalEndSeconds : finalClampedSelectionEndSeconds
   
   // 선택 영역의 픽셀 단위 위치
   const selectionLeftPx = finalClampedSelectionStartSeconds * FRAME_WIDTH
@@ -1035,7 +1045,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                 className="text-[#5D5D5D] font-medium tabular-nums shrink-0"
                 style={{ fontSize: 'var(--font-size-14)', lineHeight: 'var(--line-height-12-140)' }}
               >
-                {formatTime(finalClampedSelectionStartSeconds, false)} ~ {formatTime(finalClampedSelectionEndSeconds, false)}
+                {formatTime(displayStartSeconds, false)} ~ {formatTime(displayEndSeconds, false)}
               </span>
               <div
                 className="relative shrink-0"

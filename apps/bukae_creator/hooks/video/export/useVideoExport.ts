@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { authStorage } from '@/lib/api/auth-storage'
-import { groupScenesForExport, createTransitionMap } from '@/lib/utils/video-export'
+import { groupScenesForExport, createTransitionMap, resolveSceneEffect } from '@/lib/utils/video-export'
 import { getFontFileName, SUBTITLE_DEFAULT_FONT_ID } from '@/lib/subtitle-fonts'
 import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
 import { bgmTemplates, getBgmTemplateUrlSync } from '@/lib/data/templates'
@@ -539,9 +539,9 @@ export function useVideoExport({
             const partInfo = partsInfo?.find(p => p.partIndex === partIndex)
             const partDuration = partInfo?.durationSec || (scene.duration || 2.5) / textParts.length
 
-            // transition 파싱
-            const transitionType = scene.transition || 'none'
-            const transition = createTransitionMap(transitionType, scene.transitionDuration || 0.5)
+            // 효과(전환/움직임) 단일 필드 파싱
+            const { effectType, effectDuration } = resolveSceneEffect(scene)
+            const transition = createTransitionMap(effectType, effectDuration)
 
             // 폰트 정보
             const sceneFontId = scene.text.font || subtitleFont || SUBTITLE_DEFAULT_FONT_ID

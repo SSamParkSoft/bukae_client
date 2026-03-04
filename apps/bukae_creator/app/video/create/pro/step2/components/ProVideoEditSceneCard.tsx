@@ -30,6 +30,8 @@ export interface ProVideoEditSceneCardProps {
   videoUrl?: string | null
   /** 업로드 중 여부 */
   isUploading?: boolean
+  /** 4MB 초과로 압축 후 업로드 중일 때 true */
+  isCompressing?: boolean
   /** 격자 선택 영역 시작 시간 (초) - 초기값 */
   initialSelectionStartSeconds?: number
   /** 격자 선택 영역 끝 시간 (초) - 초기값 (store 저장값 유지용) */
@@ -60,6 +62,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   voiceLabel,
   videoUrl,
   isUploading = false,
+  isCompressing = false,
   initialSelectionStartSeconds = 0,
   initialSelectionEndSeconds,
   originalVideoDurationSeconds,
@@ -617,6 +620,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
             <ProVideoUpload 
               onUpload={onVideoUpload} 
               isLoading={isUploading}
+              isCompressing={isCompressing}
               videoUrl={videoUrl}
               selectionStartSeconds={clampedSelectionStartSeconds}
               selectionEndSeconds={clampedSelectionEndSeconds}
