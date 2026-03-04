@@ -77,9 +77,11 @@ export const createTransitionMap = (
   transitionType: string,
   transitionDuration: number = 0.5
 ): Record<string, any> => {
+  const normalizedType = (transitionType || 'none').trim().toLowerCase()
+
   // slide-left, slide-right, slide-up, slide-down 처리
-  if (transitionType.startsWith('slide-')) {
-    const direction = transitionType.replace('slide-', '')
+  if (normalizedType.startsWith('slide-')) {
+    const direction = normalizedType.replace('slide-', '')
     return {
       type: 'slide',
       duration: transitionDuration,
@@ -89,8 +91,8 @@ export const createTransitionMap = (
   }
   
   // zoom-in, zoom-out 처리
-  if (transitionType.startsWith('zoom-')) {
-    const zoomType = transitionType.replace('zoom-', '')
+  if (normalizedType.startsWith('zoom-')) {
+    const zoomType = normalizedType.replace('zoom-', '')
     return {
       type: 'zoom',
       duration: transitionDuration,
@@ -112,6 +114,47 @@ export const createTransitionMap = (
     none: { type: 'none', duration: 0 },
   }
   
-  return transitionMap[transitionType] || transitionMap.none
+  return transitionMap[normalizedType] || transitionMap.none
 }
 
+/**
+ * 전환/움직임 중 실제로 내보낼 효과 타입과 지속 시간을 계산합니다.
+ * 정책상 한 씬에는 둘 중 하나만 활성화되지만, 안전하게 transition -> motion 순으로 fallback 합니다.
+ */
+export const resolveSceneEffect = (
+  scene: Pick<TimelineScene, 'transition' | 'transitionDuration' | 'motion'> | null | undefined
+): { effectType: string; effectDuration: number } => {
+  const rawTransitionType =
+    typeof scene?.transition === 'string' ? scene.transition.trim().toLowerCase() : ''
+  const transitionType = rawTransitionType.length > 0 ? rawTransitionType : 'none'
+  const transitionDuration =
+    typeof scene?.transitionDuration === 'number' && scene.transitionDuration > 0
+      ? scene.transitionDuration
+      : 0.5
+
+  if (transitionType !== 'none') {
+    return {
+      effectType: transitionType,
+      effectDuration: transitionDuration,
+    }
+  }
+
+  const motion = scene?.motion
+  const motionType = motion?.type
+  if (!motionType) {
+    return {
+      effectType: 'none',
+      effectDuration: 0,
+    }
+  }
+
+  const motionDuration =
+    typeof motion.durationSec === 'number' && motion.durationSec > 0
+      ? motion.durationSec
+      : 0.5
+
+  return {
+    effectType: motionType,
+    effectDuration: motionDuration,
+  }
+}

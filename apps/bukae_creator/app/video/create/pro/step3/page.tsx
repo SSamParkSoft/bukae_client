@@ -158,9 +158,16 @@ export default function ProStep3Page() {
         return scene
       }
       const hasTransitionEffect = value !== 'none'
+      const nextTransitionDuration =
+        value === 'none'
+          ? 0
+          : scene.transitionDuration && scene.transitionDuration > 0
+            ? scene.transitionDuration
+            : 0.5
       return {
         ...scene,
         transition: value,
+        transitionDuration: nextTransitionDuration,
         // 정책: Pro에서도 전환/움직임 동시 사용 금지
         motion: hasTransitionEffect ? undefined : scene.motion,
       }
