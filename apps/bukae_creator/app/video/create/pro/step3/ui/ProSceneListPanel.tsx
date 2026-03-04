@@ -168,7 +168,10 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
                     // 에러 무시
                   }
                 }}
-                onOpenEffectPanel={onOpenEffectPanel}
+                onOpenEffectPanel={onOpenEffectPanel ? (tab) => {
+                  onSelect(index)
+                  onOpenEffectPanel(tab)
+                } : undefined}
                 onSelectionChange={onSelectionChange ? (startSeconds, endSeconds) => {
                   onSelectionChange(index, startSeconds, endSeconds)
                 } : undefined}

@@ -8,6 +8,8 @@ import { useRenderLoop } from '@/hooks/video/renderer/playback/useRenderLoop'
 import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { ProStep3Scene } from '@/app/video/create/pro/step3/model/types'
+import { MotionEvaluator } from '@/hooks/video/effects/motion/MotionEvaluator'
+import type { MotionConfig } from '@/hooks/video/effects/motion/types'
 import { getPlayableScenes, getVideoTimeInSelectionWithLoop, resolveProSceneAtTime } from '../../utils/proPlaybackUtils'
 
 interface UseProTransportRendererParams {
@@ -54,7 +56,8 @@ function applySceneBaseTransform(
   sprite: PIXI.Sprite,
   scene: TimelineData['scenes'][number] | null | undefined,
   stageWidth: number,
-  stageHeight: number
+  stageHeight: number,
+  sourceDimensions?: { width: number; height: number } | null
 ) {
   if (sprite.destroyed) {
     return
@@ -69,8 +72,16 @@ function applySceneBaseTransform(
     return
   }
 
-  const textureWidth = sprite.texture?.width
-  const textureHeight = sprite.texture?.height
+  const rawWidth = sourceDimensions?.width ?? sprite.texture?.width
+  const rawHeight = sourceDimensions?.height ?? sprite.texture?.height
+  const textureWidth =
+    Number.isFinite(rawWidth) && (rawWidth as number) > 0
+      ? (rawWidth as number)
+      : 0
+  const textureHeight =
+    Number.isFinite(rawHeight) && (rawHeight as number) > 0
+      ? (rawHeight as number)
+      : 0
   if (!textureWidth || !textureHeight || textureWidth <= 0 || textureHeight <= 0) {
     return
   }
@@ -87,6 +98,73 @@ function applySceneBaseTransform(
   sprite.x = fitted.x + fitted.width / 2
   sprite.y = fitted.y + fitted.height / 2
   sprite.rotation = 0
+}
+
+function applySceneMotion({
+  sprite,
+  motion,
+  sceneTimeInSegment,
+  sceneDuration,
+}: {
+  sprite: PIXI.Sprite
+  motion: MotionConfig
+  sceneTimeInSegment: number
+  sceneDuration: number
+}) {
+  if (sprite.destroyed) {
+    return
+  }
+
+  const safeSceneDuration =
+    Number.isFinite(sceneDuration) && sceneDuration > 0
+      ? sceneDuration
+      : motion.durationSec > 0
+        ? motion.durationSec
+        : 1
+
+  const isZoomMotion = motion.type === 'zoom-in' || motion.type === 'zoom-out'
+  const baseDuration =
+    isZoomMotion
+      ? safeSceneDuration
+      : Number.isFinite(motion.durationSec) && motion.durationSec > 0
+        ? Math.min(motion.durationSec, safeSceneDuration)
+        : safeSceneDuration
+
+  const runtimeMotion: MotionConfig = {
+    ...motion,
+    // 움직임은 씬 시작 프레임부터 즉시 적용
+    startSecInScene: 0,
+    durationSec: Math.max(0.001, baseDuration),
+  }
+
+  const baseState = {
+    x: sprite.x,
+    y: sprite.y,
+    scaleX: sprite.scale.x,
+    scaleY: sprite.scale.y,
+    rotation: sprite.rotation,
+    alpha: sprite.alpha,
+  }
+
+  const result = MotionEvaluator.evaluate(sceneTimeInSegment, runtimeMotion, baseState)
+  if (typeof result.x === 'number' && Number.isFinite(result.x)) {
+    sprite.x = result.x
+  }
+  if (typeof result.y === 'number' && Number.isFinite(result.y)) {
+    sprite.y = result.y
+  }
+  if (typeof result.scaleX === 'number' && Number.isFinite(result.scaleX)) {
+    sprite.scale.x = result.scaleX
+  }
+  if (typeof result.scaleY === 'number' && Number.isFinite(result.scaleY)) {
+    sprite.scale.y = result.scaleY
+  }
+  if (typeof result.rotation === 'number' && Number.isFinite(result.rotation)) {
+    sprite.rotation = result.rotation
+  }
+  if (typeof result.alpha === 'number' && Number.isFinite(result.alpha)) {
+    sprite.alpha = Math.max(0, Math.min(1, result.alpha))
+  }
 }
 
 function syncVideoToFrame(video: HTMLVideoElement, expectedVideoTime: number) {
@@ -478,13 +556,14 @@ export function useProTransportRenderer({
       )
       const timelineScene = timeline.scenes?.[targetSceneIndex]
       const sceneTransition = (timelineScene?.transition ?? 'none').toLowerCase()
+      const hasTransitionEffect = sceneTransition !== 'none'
       const transitionDuration = Math.max(0, timelineScene?.transitionDuration ?? 0.5)
       const previousPlayable = resolved.playableIndex > 0 ? playableScenes[resolved.playableIndex - 1] : null
       const previousSceneIndex = previousPlayable?.originalIndex ?? null
       const previousScene = previousSceneIndex !== null ? scenes[previousSceneIndex] : null
       const transitionProgress = transitionDuration > 0 ? resolved.sceneTimeInSegment / transitionDuration : 1
       const shouldTransition =
-        sceneTransition !== 'none' &&
+        hasTransitionEffect &&
         transitionDuration > 0 &&
         transitionProgress < 1
 
@@ -524,7 +603,18 @@ export function useProTransportRenderer({
         }
 
         const timelineScene = timeline.scenes?.[targetSceneIndex]
-        applySceneBaseTransform(sprite, timelineScene, app.screen.width, app.screen.height)
+        const targetVideo = videoElementsRef.current.get(targetSceneIndex)
+        const targetSourceDimensions =
+          targetVideo && targetVideo.videoWidth > 0 && targetVideo.videoHeight > 0
+            ? { width: targetVideo.videoWidth, height: targetVideo.videoHeight }
+            : null
+        applySceneBaseTransform(
+          sprite,
+          timelineScene,
+          app.screen.width,
+          app.screen.height,
+          targetSourceDimensions
+        )
         sprite.visible = true
         sprite.alpha = 1
 
@@ -533,11 +623,17 @@ export function useProTransportRenderer({
 
         if (canRenderCrossTransition && activePreviousSprite && !activePreviousSprite.destroyed && previousScene) {
           const previousTimelineScene = timeline.scenes?.[previousSceneIndex]
+          const previousVideo = videoElementsRef.current.get(previousSceneIndex)
+          const previousSourceDimensions =
+            previousVideo && previousVideo.videoWidth > 0 && previousVideo.videoHeight > 0
+              ? { width: previousVideo.videoWidth, height: previousVideo.videoHeight }
+              : null
           applySceneBaseTransform(
             activePreviousSprite,
             previousTimelineScene ?? null,
             app.screen.width,
-            app.screen.height
+            app.screen.height,
+            previousSourceDimensions
           )
 
           const targetContainer = (sprite.parent ?? activePreviousSprite.parent) as PIXI.Container | null
@@ -583,6 +679,15 @@ export function useProTransportRenderer({
             fromSprite: canRenderCrossTransition ? activePreviousSprite ?? null : null,
             stageWidth: app.screen.width,
             stageHeight: app.screen.height,
+          })
+        }
+
+        if (!options?.skipAnimation && !hasTransitionEffect && timelineScene?.motion) {
+          applySceneMotion({
+            sprite,
+            motion: timelineScene.motion,
+            sceneTimeInSegment: resolved.sceneTimeInSegment,
+            sceneDuration: resolved.duration,
           })
         }
 

@@ -4,7 +4,7 @@ import { SoundEffectSelector } from '@/components/video-editor/SoundEffectSelect
 import { SubtitleSettings } from '@/components/video-editor/SubtitleSettings'
 import { cn } from '@/lib/utils'
 import type { TimelineData } from '@/store/useVideoCreateStore'
-import type { MotionConfig } from '@/hooks/video/effects/motion/types'
+import type { MotionConfig, MotionType } from '@/hooks/video/effects/motion/types'
 
 type EffectsTabId = 'animation' | 'bgm' | 'subtitle' | 'template' | 'sound'
 
@@ -56,6 +56,53 @@ const EFFECTS_TABS: EffectsTabConfig[] = [
   { id: 'template', label: '템플릿', Icon: TemplateIcon },
 ]
 
+const FALLBACK_MOVEMENT_OPTIONS: Array<{ value: MotionType; label: string }> = [
+  { value: 'slide-left', label: '슬라이드 좌' },
+  { value: 'slide-right', label: '슬라이드 우' },
+  { value: 'slide-up', label: '슬라이드 상' },
+  { value: 'slide-down', label: '슬라이드 하' },
+  { value: 'zoom-in', label: '확대' },
+  { value: 'zoom-out', label: '축소' },
+]
+
+const MOTION_TYPES: MotionType[] = [
+  'slide-left',
+  'slide-right',
+  'slide-up',
+  'slide-down',
+  'zoom-in',
+  'zoom-out',
+  'rotate',
+  'fade',
+]
+
+function isMotionType(value: string): value is MotionType {
+  return MOTION_TYPES.includes(value as MotionType)
+}
+
+function createDefaultMotionConfig(type: MotionType): MotionConfig {
+  switch (type) {
+    case 'slide-left':
+      return { type, startSecInScene: 0, durationSec: 2, easing: 'ease-out', params: { distance: 200 } }
+    case 'slide-right':
+      return { type, startSecInScene: 0, durationSec: 2, easing: 'ease-out', params: { distance: 200 } }
+    case 'slide-up':
+      return { type, startSecInScene: 0, durationSec: 2, easing: 'ease-out', params: { distance: 200 } }
+    case 'slide-down':
+      return { type, startSecInScene: 0, durationSec: 2, easing: 'ease-out', params: { distance: 200 } }
+    case 'zoom-in':
+      return { type, startSecInScene: 0, durationSec: 2, easing: 'ease-out', params: { scaleFrom: 1, scaleTo: 1.2 } }
+    case 'zoom-out':
+      return { type, startSecInScene: 0, durationSec: 2, easing: 'ease-out', params: { scaleFrom: 1.2, scaleTo: 1 } }
+    case 'rotate':
+      return { type, startSecInScene: 0, durationSec: 2, easing: 'ease-out', params: { rotationFrom: 0, rotationTo: 360 } }
+    case 'fade':
+      return { type, startSecInScene: 0, durationSec: 2, easing: 'ease-out', params: { alphaFrom: 0, alphaTo: 1 } }
+    default:
+      return { type: 'slide-left', startSecInScene: 0, durationSec: 2, easing: 'ease-out', params: { distance: 200 } }
+  }
+}
+
 interface ProEffectsPanelProps {
   theme: string | undefined
   rightPanelTab: string
@@ -86,6 +133,7 @@ export function ProEffectsPanel({
   currentSceneIndex,
   allTransitions,
   transitions,
+  movements,
   onTransitionChange,
   bgmTemplate,
   setBgmTemplate,
@@ -95,10 +143,15 @@ export function ProEffectsPanel({
   setSoundEffect,
   onSoundEffectConfirm,
   setTimeline,
+  onMotionChange,
 }: ProEffectsPanelProps) {
   // transitions와 movements가 제공되면 사용, 아니면 allTransitions 사용 (하위 호환성)
   const displayTransitions = transitions || allTransitions
   const transitionsWithoutNone = displayTransitions.filter((t) => t.value !== 'none')
+  const displayMovements = movements && movements.length > 0 ? movements : FALLBACK_MOVEMENT_OPTIONS
+  const movementOptions = displayMovements.filter((movement): movement is { value: MotionType; label: string } =>
+    isMotionType(movement.value)
+  )
   
   return (
     <div className="w-full flex flex-col h-full overflow-hidden">
@@ -256,6 +309,86 @@ export function ProEffectsPanel({
                           )}
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* 움직임 (Motion) 섹션 */}
+                  {onMotionChange && (
+                    <div className="space-y-4 mt-6">
+                      <div className="flex items-center gap-2">
+                        <h3
+                          className="font-bold text-text-dark tracking-[-0.4px]"
+                          style={{
+                            fontSize: 'var(--font-size-20)',
+                            lineHeight: '28px'
+                          }}
+                        >
+                          움직임
+                        </h3>
+                        <span
+                          className="text-[#5d5d5d] tracking-[-0.14px] mt-2"
+                          style={{
+                            fontSize: 'var(--font-size-12)',
+                            lineHeight: '19.2px'
+                          }}
+                        >
+                          씬 안에서 움직임을 적용해요!
+                        </span>
+                      </div>
+                      <div className="h-0.5 bg-[#bbc9c9]" />
+
+                      {/* Motion 없음 옵션 */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        <button
+                          onClick={() => {
+                            if (timeline && currentSceneIndex >= 0) {
+                              onMotionChange(currentSceneIndex, null)
+                            }
+                          }}
+                          className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
+                            !timeline?.scenes[currentSceneIndex]?.motion
+                              ? 'bg-[#5e8790] text-white border-[#5e8790]'
+                              : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
+                          }`}
+                          style={{
+                            fontSize: 'var(--font-size-14)',
+                            lineHeight: '22.4px'
+                          }}
+                        >
+                          없음
+                        </button>
+                      </div>
+
+                      {/* Motion 타입 옵션 */}
+                      {movementOptions.length > 0 && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {movementOptions.map((movementOption) => {
+                            const currentMotion = timeline?.scenes[currentSceneIndex]?.motion
+                            const isSelected = currentMotion?.type === movementOption.value
+                            return (
+                              <button
+                                key={movementOption.value}
+                                onClick={() => {
+                                  if (timeline && currentSceneIndex >= 0) {
+                                    onMotionChange(currentSceneIndex, createDefaultMotionConfig(movementOption.value))
+                                  }
+                                }}
+                                className={`h-[38px] rounded-lg border transition-all font-bold tracking-[-0.14px] ${
+                                  isSelected
+                                    ? 'bg-[#5e8790] border-[#5e8790] text-white'
+                                    : 'bg-white text-[#2c2c2c] border-[#88a9ac] hover:bg-gray-50'
+                                }`}
+                                style={{
+                                  fontSize: 'var(--font-size-14)',
+                                  lineHeight: '22.4px'
+                                }}
+                              >
+                                {movementOption.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
 

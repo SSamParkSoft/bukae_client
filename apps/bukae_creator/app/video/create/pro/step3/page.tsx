@@ -157,9 +157,12 @@ export default function ProStep3Page() {
       if (index !== sceneIndex) {
         return scene
       }
+      const hasTransitionEffect = value !== 'none'
       return {
         ...scene,
         transition: value,
+        // 정책: Pro에서도 전환/움직임 동시 사용 금지
+        motion: hasTransitionEffect ? undefined : scene.motion,
       }
     })
 
@@ -179,9 +182,13 @@ export default function ProStep3Page() {
       if (index !== sceneIndex) {
         return scene
       }
+      const hasMotion = motion != null
       return {
         ...scene,
         motion: motion ?? undefined,
+        // 정책: Pro에서도 전환/움직임 동시 사용 금지
+        transition: hasMotion ? 'none' : scene.transition,
+        transitionDuration: hasMotion ? 0 : scene.transitionDuration,
       }
     })
 
@@ -240,8 +247,8 @@ export default function ProStep3Page() {
               onSelect={handleSceneSelect}
               onReorder={handleSceneReorder}
               onPlayScene={handleScenePlay}
-              onOpenEffectPanel={() => {
-                // 효과 패널은 나중에 구현
+              onOpenEffectPanel={(tab) => {
+                setRightPanelTab(tab)
               }}
               onSelectionChange={handleSelectionChange}
               onOriginalVideoDurationLoaded={handleOriginalVideoDurationLoaded}
