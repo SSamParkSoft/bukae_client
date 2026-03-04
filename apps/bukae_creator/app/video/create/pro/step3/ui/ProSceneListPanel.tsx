@@ -6,6 +6,7 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { TimelineScene } from '@/lib/types/domain/timeline'
 import { useScrollableGutter } from '@/app/video/create/step3/shared/hooks'
 import type { ProStep3Scene } from '../model/types'
+import { getDurationBeforeSceneIndex, getPlayableScenes } from '../utils/proPlaybackUtils'
 
 interface ProSceneListPanelProps {
   theme: string | undefined
@@ -41,6 +42,13 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
   const dropOccurredRef = useRef(false)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState<{ index: number; position: 'before' | 'after' } | null>(null)
+  const playableDurationsByOriginalIndex = React.useMemo(() => {
+    const map = new Map<number, number>()
+    for (const playable of getPlayableScenes(scenes)) {
+      map.set(playable.originalIndex, playable.duration)
+    }
+    return map
+  }, [scenes])
 
   const handleDragStart = (index: number) => (e: React.DragEvent<HTMLDivElement>) => {
     dropOccurredRef.current = false
@@ -124,6 +132,8 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
             const timelineScene = timeline?.scenes[index] as TimelineScene | undefined
             const isPlaying = playingSceneIndex === index
             const isSelected = currentSceneIndex === index
+            const globalStartSeconds = getDurationBeforeSceneIndex(scenes, index)
+            const globalEndSeconds = globalStartSeconds + (playableDurationsByOriginalIndex.get(index) ?? 0)
 
             return (
               <ProStep3SceneCard
@@ -134,6 +144,8 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
                 videoUrl={scene.videoUrl}
                 selectionStartSeconds={scene.selectionStartSeconds}
                 selectionEndSeconds={scene.selectionEndSeconds}
+                globalStartSeconds={globalStartSeconds}
+                globalEndSeconds={globalEndSeconds}
                 originalVideoDurationSeconds={scene.originalVideoDurationSeconds}
                 ttsDuration={scene.ttsDuration}
                 voiceLabel={scene.voiceLabel}
