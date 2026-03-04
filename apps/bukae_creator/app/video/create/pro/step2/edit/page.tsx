@@ -18,7 +18,7 @@ import {
   type ProScene,
 } from '../utils/types'
 import { getEffectiveSourceDuration, normalizeSelectionRange } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
-import { compressVideoIfNeeded } from '@/lib/video/compressVideoInBrowser'
+import { compressVideoIfNeeded, COMPRESS_THRESHOLD_BYTES } from '@/lib/video/compressVideoInBrowser'
 import type { StudioScriptUserEditGuideResponseItem } from '@/lib/types/api/studio-script'
 
 const DEFAULT_SCENE_COUNT = 6
@@ -148,6 +148,7 @@ export default function ProStep2EditPage() {
   }, [updateScenes])
 
   const [uploadingSceneIndex, setUploadingSceneIndex] = useState<number | null>(null)
+  const [compressingSceneIndex, setCompressingSceneIndex] = useState<number | null>(null)
 
   const handleVideoUpload = useCallback(async (index: number, file: File) => {
     const accessToken = authStorage.getAccessToken()
@@ -157,6 +158,7 @@ export default function ProStep2EditPage() {
     }
 
     setUploadingSceneIndex(index)
+    setCompressingSceneIndex(file.size > COMPRESS_THRESHOLD_BYTES ? index : null)
 
     try {
       // 큰 파일은 업로드 전 브라우저에서 압축 (4MB 초과 시)
@@ -233,6 +235,7 @@ export default function ProStep2EditPage() {
       alert(error instanceof Error ? error.message : '영상 업로드 중 오류가 발생했습니다.')
     } finally {
       setUploadingSceneIndex(null)
+      setCompressingSceneIndex(null)
     }
   }, [scenes, updateScenes])
 
@@ -524,6 +527,7 @@ export default function ProStep2EditPage() {
                     draggedIndex={draggedIndex}
                     dragOver={dragOver}
                     uploadingSceneIndex={uploadingSceneIndex}
+                    compressingSceneIndex={compressingSceneIndex}
                   />
                 </div>
 

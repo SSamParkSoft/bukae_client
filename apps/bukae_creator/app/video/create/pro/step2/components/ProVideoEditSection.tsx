@@ -33,6 +33,8 @@ export interface ProVideoEditSectionProps {
   draggedIndex?: number | null
   dragOver?: { index: number; position: 'before' | 'after' } | null
   uploadingSceneIndex?: number | null
+  /** 4MB 초과로 압축 중인 씬 인덱스 (업로드 중일 때만 유효) */
+  compressingSceneIndex?: number | null
 }
 
 export const ProVideoEditSection = memo(function ProVideoEditSection({
@@ -52,6 +54,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
   draggedIndex = null,
   dragOver: dragOverProp = null,
   uploadingSceneIndex = null,
+  compressingSceneIndex = null,
 }: ProVideoEditSectionProps) {
   return (
     <section className="space-y-6">
@@ -93,6 +96,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
             ttsDuration={scene.ttsDuration}
             videoUrl={scene.videoUrl}
             isUploading={uploadingSceneIndex === index}
+            isCompressing={compressingSceneIndex === index}
             initialSelectionStartSeconds={scene.selectionStartSeconds}
             initialSelectionEndSeconds={scene.selectionEndSeconds}
             originalVideoDurationSeconds={scene.originalVideoDurationSeconds}
