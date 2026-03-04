@@ -27,6 +27,16 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const isCodeRabbit = (value) => {
+              if (!value || typeof value !== 'string') return false;
+              const v = value.toLowerCase();
+              return (
+                v === 'coderabbitai' ||
+                v === 'coderabbit[bot]' ||
+                v.includes('coderabbit')
+              );
+            };
+
             let prNumber = null;
 
             if (context.eventName === 'pull_request') {
@@ -40,6 +50,13 @@ jobs:
             } else if (context.eventName === 'pull_request_review_comment') {
               prNumber = context.payload.pull_request?.number ?? null;
             } else if (context.eventName === 'check_run') {
+              const checkName = context.payload.check_run?.name ?? '';
+              const appName = context.payload.check_run?.app?.name ?? '';
+              if (!isCodeRabbit(checkName) && !isCodeRabbit(appName)) {
+                core.info('Skip: check_run event is not from CodeRabbit.');
+                core.setOutput('should_check', 'false');
+                return;
+              }
               const prs = context.payload.check_run?.pull_requests ?? [];
               if (prs.length > 0) {
                 prNumber = prs[0].number;
@@ -74,6 +91,7 @@ jobs:
                 l.includes('coderabbit')
               );
             };
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
             const majorPatterns = [
               /Potential issue\s*\|\s*Critical/i,
@@ -96,6 +114,59 @@ jobs:
             }
 
             const reasons = [];
+
+            const loadCodeRabbitCheckRun = async () => {
+              const checkRuns = await github.paginate(
+                github.rest.checks.listForRef,
+                {
+                  ...opts,
+                  ref: pr.head.sha,
+                  per_page: 100,
+                  filter: 'all',
+                },
+                (res) => res.data.check_runs || []
+              );
+
+              const matches = checkRuns.filter((c) => {
+                const n = (c.name || '').toLowerCase();
+                const a = (c.app?.name || '').toLowerCase();
+                return n.includes('coderabbit') || a.includes('coderabbit');
+              });
+
+              if (matches.length === 0) return null;
+
+              matches.sort((a, b) => {
+                const ta = new Date(a.completed_at || a.started_at || a.created_at || 0).getTime();
+                const tb = new Date(b.completed_at || b.started_at || b.created_at || 0).getTime();
+                return tb - ta;
+              });
+              return matches[0];
+            };
+
+            // Guard must not succeed before CodeRabbit has finished.
+            const maxWaitMs = 10 * 60 * 1000;
+            const pollIntervalMs = 15000;
+            const waitStartedAt = Date.now();
+            let codeRabbitCheck = await loadCodeRabbitCheckRun();
+
+            while (
+              (!codeRabbitCheck || codeRabbitCheck.status !== 'completed') &&
+              Date.now() - waitStartedAt < maxWaitMs
+            ) {
+              const status = codeRabbitCheck?.status ?? 'not_found';
+              core.info(`Waiting for CodeRabbit check run to complete. current_status=${status}`);
+              await sleep(pollIntervalMs);
+              codeRabbitCheck = await loadCodeRabbitCheckRun();
+            }
+
+            if (!codeRabbitCheck) {
+              core.setFailed('CodeRabbit check run is still pending (not found yet). Re-run after CodeRabbit finishes.');
+              return;
+            }
+            if (codeRabbitCheck.status !== 'completed') {
+              core.setFailed(`CodeRabbit check run is still pending (status=${codeRabbitCheck.status}).`);
+              return;
+            }
 
             // 1) PR conversation comments (issue comments)
             const issueComments = await github.paginate(github.rest.issues.listComments, {
@@ -143,17 +214,6 @@ jobs:
             }
 
             // 4) CodeRabbit check run conclusion
-            const checkRuns = await github.paginate(github.rest.checks.listForRef, {
-              ...opts,
-              ref: pr.head.sha,
-              per_page: 100,
-              filter: 'all',
-            }, (res) => res.data.check_runs || []);
-            const codeRabbitCheck = checkRuns.find((c) => {
-              const n = (c.name || '').toLowerCase();
-              const a = (c.app?.name || '').toLowerCase();
-              return n.includes('coderabbit') || a.includes('coderabbit');
-            });
             if (
               codeRabbitCheck &&
               codeRabbitCheck.status === 'completed' &&
