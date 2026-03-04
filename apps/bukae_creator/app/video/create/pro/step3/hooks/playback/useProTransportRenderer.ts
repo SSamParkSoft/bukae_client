@@ -130,11 +130,17 @@ function applySceneMotion({
         ? Math.min(motion.durationSec, safeSceneDuration)
         : safeSceneDuration
 
+  const hasValidStart =
+    Number.isFinite(motion.startSecInScene) && motion.startSecInScene >= 0
+  const hasValidDuration =
+    Number.isFinite(motion.durationSec) && motion.durationSec > 0
+
   const runtimeMotion: MotionConfig = {
     ...motion,
-    // 움직임은 씬 시작 프레임부터 즉시 적용
-    startSecInScene: 0,
-    durationSec: Math.max(0.001, baseDuration),
+    startSecInScene: hasValidStart ? motion.startSecInScene : 0,
+    durationSec: hasValidDuration
+      ? motion.durationSec
+      : Math.max(0.001, baseDuration),
   }
 
   const baseState = {
