@@ -688,6 +688,15 @@ export function useProTransportRenderer({
           })
         }
 
+        // Cleanup transition artifacts when transition is complete (progress >= 1),
+        // so cleanup runs even if frames skipped past the internal progress >= 0.999 check.
+        if (hasTransitionEffect && transitionProgress >= 1) {
+          clearTransitionArtifacts(sprite)
+          if (activePreviousSprite && !activePreviousSprite.destroyed) {
+            hideSprite(activePreviousSprite)
+          }
+        }
+
         if (!options?.skipAnimation && !hasTransitionEffect && timelineScene?.motion) {
           applySceneMotion({
             sprite,

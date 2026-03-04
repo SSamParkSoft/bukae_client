@@ -133,9 +133,12 @@ export const resolveSceneEffect = (
       : 0.5
 
   if (transitionType !== 'none') {
-    return {
-      effectType: transitionType,
-      effectDuration: transitionDuration,
+    const parsed = createTransitionMap(transitionType, transitionDuration)
+    if (parsed.type !== 'none') {
+      return {
+        effectType: transitionType,
+        effectDuration: transitionDuration,
+      }
     }
   }
 
