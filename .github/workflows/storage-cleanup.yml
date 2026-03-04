@@ -1,0 +1,55 @@
+name: Supabase Storage Cleanup
+
+on:
+  schedule:
+    - cron: '0 * * * *' # 매 정시 실행 (cron 모드)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'cron = 1회 실행 / marathon = 24시간 루프 (Pro/Team/Enterprise 또는 self-hosted 필요)'
+        required: false
+        default: 'cron'
+        type: choice
+        options:
+          - cron
+          - marathon
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1500 # marathon 모드용 (25시간, GitHub Free 플랜은 6시간 제한)
+    steps:
+      - name: Run storage cleanup
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          PRO_SECRET: ${{ secrets.ADMIN_PRO_UPLOAD_CLEANUP_SECRET }}
+          MEDIA_SECRET: ${{ secrets.ADMIN_MEDIA_CLEANUP_SECRET }}
+          MODE: ${{ github.event.inputs.mode || 'cron' }}
+        run: |
+          ITERATIONS=1
+          if [ "$MODE" = "marathon" ]; then
+            ITERATIONS=24
+          fi
+
+          for i in $(seq 1 $ITERATIONS); do
+            echo "=== Run $i / $ITERATIONS ($(date -u '+%Y-%m-%d %H:%M:%S UTC')) ==="
+
+            echo "→ pro_upload cleanup"
+            curl -f -s -X POST \
+              -H "x-admin-secret: $PRO_SECRET" \
+              "$APP_URL/api/videos/pro/cleanup"
+            echo ""
+
+            echo "→ media cleanup"
+            curl -f -s -X POST \
+              -H "x-admin-secret: $MEDIA_SECRET" \
+              "$APP_URL/api/media/cleanup"
+            echo ""
+
+            if [ $i -lt $ITERATIONS ]; then
+              echo "Sleeping 1 hour until next run..."
+              sleep 3600
+            fi
+          done
+
+          echo "=== All runs complete ==="
