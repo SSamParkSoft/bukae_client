@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useEffect } from 'react'
+import { useCallback, useRef, useEffect, useMemo } from 'react'
 import * as PIXI from 'pixi.js'
 import { useTransport } from '@/hooks/video/transport/useTransport'
 import { useTransportState } from '@/hooks/video/renderer/transport/useTransportState'
@@ -8,7 +8,7 @@ import { useRenderLoop } from '@/hooks/video/renderer/playback/useRenderLoop'
 import { calculateSpriteParams } from '@/utils/pixi/sprite'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { ProStep3Scene } from '@/app/video/create/pro/step3/model/types'
-import { getVideoTimeInSelectionWithLoop, resolveProSceneAtTime } from '../../utils/proPlaybackUtils'
+import { getPlayableScenes, getVideoTimeInSelectionWithLoop, resolveProSceneAtTime } from '../../utils/proPlaybackUtils'
 
 interface UseProTransportRendererParams {
   timeline: TimelineData | null
@@ -31,6 +31,11 @@ interface RenderAtOptions {
 
 const VIDEO_SYNC_SEEK_EPSILON_SEC = 0.08
 const VIDEO_SEGMENT_END_EPSILON_SEC = 0.02
+
+type RuntimeTransitionSprite = PIXI.Sprite & {
+  __proCircleMask?: PIXI.Graphics | null
+  __proBlurFilter?: PIXI.BlurFilter | null
+}
 
 function hideSprite(sprite: PIXI.Sprite) {
   if (!sprite.destroyed) {
@@ -84,6 +89,245 @@ function applySceneBaseTransform(
   sprite.rotation = 0
 }
 
+function syncVideoToFrame(video: HTMLVideoElement, expectedVideoTime: number) {
+  if (video.readyState < 2) {
+    return
+  }
+
+  if (!video.paused) {
+    video.pause()
+  }
+
+  if (Math.abs(video.currentTime - expectedVideoTime) > 0.01) {
+    video.currentTime = expectedVideoTime
+  }
+}
+
+function clearTransitionArtifacts(
+  sprite: PIXI.Sprite | null | undefined,
+  options?: { keepCircleMask?: boolean; keepBlurFilter?: boolean }
+) {
+  if (!sprite || sprite.destroyed) {
+    return
+  }
+
+  const runtime = sprite as RuntimeTransitionSprite
+
+  if (!options?.keepCircleMask) {
+    const mask = runtime.__proCircleMask
+    if (mask) {
+      if (sprite.mask === mask) {
+        sprite.mask = null
+      }
+      if (mask.parent) {
+        mask.parent.removeChild(mask)
+      }
+      if (!mask.destroyed) {
+        mask.destroy()
+      }
+      runtime.__proCircleMask = null
+    }
+  }
+
+  if (!options?.keepBlurFilter) {
+    const blur = runtime.__proBlurFilter
+    if (blur) {
+      const currentFilters = sprite.filters ?? []
+      const nextFilters = currentFilters.filter((filter) => filter !== blur)
+      sprite.filters = nextFilters.length > 0 ? nextFilters : null
+      blur.destroy()
+      runtime.__proBlurFilter = null
+    }
+  }
+}
+
+function applySceneStartTransition({
+  transitionType,
+  progress,
+  toSprite,
+  fromSprite,
+  stageWidth,
+  stageHeight,
+}: {
+  transitionType: string
+  progress: number
+  toSprite: PIXI.Sprite
+  fromSprite: PIXI.Sprite | null
+  stageWidth: number
+  stageHeight: number
+}) {
+  const clampedProgress = Math.max(0, Math.min(1, progress))
+  const eased = 1 - Math.pow(1 - clampedProgress, 3)
+  const normalized = transitionType.toLowerCase()
+
+  clearTransitionArtifacts(toSprite, {
+    keepCircleMask: normalized === 'circle',
+    keepBlurFilter: normalized === 'blur',
+  })
+  clearTransitionArtifacts(fromSprite)
+
+  const toBaseX = toSprite.x
+  const toBaseY = toSprite.y
+  const toBaseWidth = toSprite.width
+  const toBaseHeight = toSprite.height
+  const toBaseRotation = toSprite.rotation
+  const fromBaseX = fromSprite?.x ?? 0
+  const fromBaseY = fromSprite?.y ?? 0
+  const fromBaseRotation = fromSprite?.rotation ?? 0
+  const fromBaseWidth = fromSprite?.width ?? 0
+  const fromBaseHeight = fromSprite?.height ?? 0
+
+  toSprite.visible = true
+  toSprite.alpha = 1
+
+  if (fromSprite && !fromSprite.destroyed) {
+    fromSprite.visible = true
+    fromSprite.alpha = 1
+    fromSprite.width = fromBaseWidth
+    fromSprite.height = fromBaseHeight
+  }
+
+  switch (normalized) {
+    case 'fade':
+      toSprite.alpha = eased
+      if (fromSprite && !fromSprite.destroyed) {
+        fromSprite.alpha = 1 - eased
+      }
+      break
+    case 'slide-left': {
+      const offset = Math.max(stageWidth, stageHeight) * 0.1
+      toSprite.x = toBaseX + offset * (1 - eased)
+      if (fromSprite && !fromSprite.destroyed) {
+        fromSprite.x = fromBaseX - offset * eased
+      }
+      break
+    }
+    case 'slide-right': {
+      const offset = Math.max(stageWidth, stageHeight) * 0.1
+      toSprite.x = toBaseX - offset * (1 - eased)
+      if (fromSprite && !fromSprite.destroyed) {
+        fromSprite.x = fromBaseX + offset * eased
+      }
+      break
+    }
+    case 'slide-up': {
+      const offset = Math.max(stageWidth, stageHeight) * 0.1
+      toSprite.y = toBaseY + offset * (1 - eased)
+      if (fromSprite && !fromSprite.destroyed) {
+        fromSprite.y = fromBaseY - offset * eased
+      }
+      break
+    }
+    case 'slide-down': {
+      const offset = Math.max(stageWidth, stageHeight) * 0.1
+      toSprite.y = toBaseY - offset * (1 - eased)
+      if (fromSprite && !fromSprite.destroyed) {
+        fromSprite.y = fromBaseY + offset * eased
+      }
+      break
+    }
+    case 'zoom-in':
+      toSprite.width = toBaseWidth * (0.5 + 0.5 * eased)
+      toSprite.height = toBaseHeight * (0.5 + 0.5 * eased)
+      toSprite.alpha = eased
+      if (fromSprite && !fromSprite.destroyed) {
+        fromSprite.alpha = 1 - eased
+      }
+      break
+    case 'zoom-out':
+      toSprite.width = toBaseWidth * (1.5 - 0.5 * eased)
+      toSprite.height = toBaseHeight * (1.5 - 0.5 * eased)
+      toSprite.alpha = eased
+      if (fromSprite && !fromSprite.destroyed) {
+        fromSprite.alpha = 1 - eased
+      }
+      break
+    case 'rotate':
+      // 공용 전환 로직과 동일하게 한 바퀴 회전하며 진입
+      toSprite.rotation = toBaseRotation - Math.PI * 2 * (1 - eased)
+      toSprite.alpha = eased
+      if (fromSprite && !fromSprite.destroyed) {
+        fromSprite.rotation = fromBaseRotation + Math.PI * 2 * eased
+        fromSprite.alpha = 1 - eased
+      }
+      break
+    case 'blur':
+      toSprite.alpha = 1
+      {
+        const runtime = toSprite as RuntimeTransitionSprite
+        if (!runtime.__proBlurFilter) {
+          runtime.__proBlurFilter = new PIXI.BlurFilter()
+        }
+        const blurFilter = runtime.__proBlurFilter
+        const filters = toSprite.filters ?? []
+        if (!filters.includes(blurFilter)) {
+          toSprite.filters = [...filters, blurFilter]
+        }
+        // 시작은 강한 블러, 끝으로 갈수록 선명
+        blurFilter.blur = 30 * (1 - eased)
+      }
+      if (fromSprite && !fromSprite.destroyed) {
+        fromSprite.alpha = 1 - eased
+      }
+      break
+    case 'glitch': {
+      const jitter = (1 - eased) * 8 * Math.sin(clampedProgress * 40)
+      toSprite.x = toBaseX + jitter
+      toSprite.alpha = eased
+      if (fromSprite && !fromSprite.destroyed) {
+        fromSprite.x = fromBaseX - jitter
+        fromSprite.alpha = 1 - eased
+      }
+      break
+    }
+    case 'circle':
+      toSprite.alpha = 1
+      {
+        const runtime = toSprite as RuntimeTransitionSprite
+        let mask = runtime.__proCircleMask
+        if (!mask || mask.destroyed) {
+          mask = new PIXI.Graphics()
+          runtime.__proCircleMask = mask
+        }
+        const parent = toSprite.parent
+        if (parent && mask.parent !== parent) {
+          if (mask.parent) {
+            mask.parent.removeChild(mask)
+          }
+          parent.addChild(mask)
+          const spriteIndex = parent.getChildIndex(toSprite)
+          parent.setChildIndex(mask, Math.max(0, spriteIndex))
+        }
+        const maxRadius = Math.sqrt(toBaseWidth * toBaseWidth + toBaseHeight * toBaseHeight) * 0.6
+        const currentRadius = Math.max(0.001, maxRadius * eased)
+        mask.clear()
+        mask.beginFill(0xffffff, 1)
+        mask.drawCircle(toBaseX, toBaseY, currentRadius)
+        mask.endFill()
+        toSprite.mask = mask
+      }
+      if (fromSprite && !fromSprite.destroyed) {
+        fromSprite.alpha = 1 - eased
+      }
+      break
+    case 'none':
+    default:
+      toSprite.alpha = 1
+      if (fromSprite && !fromSprite.destroyed) {
+        fromSprite.alpha = 0
+      }
+      break
+  }
+
+  if (fromSprite && !fromSprite.destroyed && clampedProgress >= 0.999) {
+    hideSprite(fromSprite)
+  }
+
+  if (clampedProgress >= 0.999) {
+    clearTransitionArtifacts(toSprite)
+  }
+}
+
 /**
  * Pro 트랙용 Transport 기반 렌더러
  * 역할: 타임라인 시간 t를 씬/세그먼트 시간으로 해석해 프레임을 렌더링
@@ -106,6 +350,7 @@ export function useProTransportRenderer({
   const lastRenderedSceneIndexRef = useRef<number>(-1)
   const renderRequestIdRef = useRef(0)
   const pendingSceneLoadRef = useRef<Map<number, Promise<void>>>(new Map())
+  const playableScenes = useMemo(() => getPlayableScenes(scenes), [scenes])
 
   const syncVideoPlaybackToTimeline = useCallback(
     (video: HTMLVideoElement, scene: ProStep3Scene, expectedVideoTime: number) => {
@@ -231,6 +476,40 @@ export function useProTransportRenderer({
         resolved.sceneTimeInSegment,
         targetScene.originalVideoDurationSeconds
       )
+      const timelineScene = timeline.scenes?.[targetSceneIndex]
+      const sceneTransition = (timelineScene?.transition ?? 'none').toLowerCase()
+      const transitionDuration = Math.max(0, timelineScene?.transitionDuration ?? 0.5)
+      const previousPlayable = resolved.playableIndex > 0 ? playableScenes[resolved.playableIndex - 1] : null
+      const previousSceneIndex = previousPlayable?.originalIndex ?? null
+      const previousScene = previousSceneIndex !== null ? scenes[previousSceneIndex] : null
+      const transitionProgress = transitionDuration > 0 ? resolved.sceneTimeInSegment / transitionDuration : 1
+      const shouldTransition =
+        sceneTransition !== 'none' &&
+        transitionDuration > 0 &&
+        transitionProgress < 1
+
+      const previousSprite = previousSceneIndex !== null ? spritesRef.current.get(previousSceneIndex) : null
+      const canRenderCrossTransition =
+        shouldTransition &&
+        previousSceneIndex !== null &&
+        !!previousSprite &&
+        !previousSprite.destroyed
+
+      const transitionStartVideoTime = getVideoTimeInSelectionWithLoop(
+        targetScene,
+        0,
+        targetScene.originalVideoDurationSeconds
+      )
+      const targetVideoTimeForRender = shouldTransition ? transitionStartVideoTime : videoTime
+
+      const previousSceneEndVideoTime =
+        previousScene && previousPlayable
+          ? getVideoTimeInSelectionWithLoop(
+              previousScene,
+              Math.max(0, previousPlayable.duration - VIDEO_SEGMENT_END_EPSILON_SEC),
+              previousScene.originalVideoDurationSeconds
+            )
+          : null
       const sceneChanged = lastRenderedSceneIndexRef.current !== targetSceneIndex
 
       const applyVisualState = () => {
@@ -249,14 +528,67 @@ export function useProTransportRenderer({
         sprite.visible = true
         sprite.alpha = 1
 
-        spritesRef.current.forEach((s, index) => {
-          if (index !== targetSceneIndex) {
-            hideSprite(s)
+        const activePreviousSprite =
+          previousSceneIndex !== null ? spritesRef.current.get(previousSceneIndex) : null
+
+        if (canRenderCrossTransition && activePreviousSprite && !activePreviousSprite.destroyed && previousScene) {
+          const previousTimelineScene = timeline.scenes?.[previousSceneIndex]
+          applySceneBaseTransform(
+            activePreviousSprite,
+            previousTimelineScene ?? null,
+            app.screen.width,
+            app.screen.height
+          )
+
+          const targetContainer = (sprite.parent ?? activePreviousSprite.parent) as PIXI.Container | null
+          if (!targetContainer) {
+            return false
           }
-        })
+
+          if (activePreviousSprite.parent !== targetContainer) {
+            if (activePreviousSprite.parent) {
+              activePreviousSprite.parent.removeChild(activePreviousSprite)
+            }
+            targetContainer.addChild(activePreviousSprite)
+          }
+          if (sprite.parent !== targetContainer) {
+            if (sprite.parent) {
+              sprite.parent.removeChild(sprite)
+            }
+            targetContainer.addChild(sprite)
+          }
+
+          targetContainer.setChildIndex(activePreviousSprite, 0)
+          targetContainer.setChildIndex(sprite, targetContainer.children.length - 1)
+
+          spritesRef.current.forEach((s, index) => {
+            if (index !== targetSceneIndex && index !== previousSceneIndex) {
+              hideSprite(s)
+            }
+          })
+
+        } else {
+          spritesRef.current.forEach((s, index) => {
+            if (index !== targetSceneIndex) {
+              hideSprite(s)
+            }
+          })
+        }
+
+        if (shouldTransition) {
+          applySceneStartTransition({
+            transitionType: sceneTransition,
+            progress: transitionProgress,
+            toSprite: sprite,
+            fromSprite: canRenderCrossTransition ? activePreviousSprite ?? null : null,
+            stageWidth: app.screen.width,
+            stageHeight: app.screen.height,
+          })
+        }
 
         videoElementsRef.current.forEach((video, index) => {
-          if (index !== targetSceneIndex && !video.paused) {
+          const keepPreviousVideo = canRenderCrossTransition && previousSceneIndex !== null && index === previousSceneIndex
+          if (index !== targetSceneIndex && !keepPreviousVideo && !video.paused) {
             video.pause()
           }
         })
@@ -271,7 +603,17 @@ export function useProTransportRenderer({
         currentSceneIndexRef.current = targetSceneIndex
         const immediateVideo = videoElementsRef.current.get(targetSceneIndex)
         if (immediateVideo) {
-          syncVideoPlaybackToTimeline(immediateVideo, targetScene, videoTime)
+          if (shouldTransition) {
+            syncVideoToFrame(immediateVideo, targetVideoTimeForRender)
+          } else {
+            syncVideoPlaybackToTimeline(immediateVideo, targetScene, targetVideoTimeForRender)
+          }
+        }
+        if (canRenderCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
+          const immediatePreviousVideo = videoElementsRef.current.get(previousSceneIndex)
+          if (immediatePreviousVideo) {
+            syncVideoToFrame(immediatePreviousVideo, previousSceneEndVideoTime)
+          }
         }
         const appliedImmediately = applyVisualState()
         if (!appliedImmediately) {
@@ -288,9 +630,22 @@ export function useProTransportRenderer({
           if (requestId !== renderRequestIdRef.current) {
             return
           }
+          if (canRenderCrossTransition && previousSceneIndex !== null && previousScene && previousSceneEndVideoTime !== null) {
+            void ensureSceneLoaded(previousSceneIndex, previousScene, previousSceneEndVideoTime)
+          }
           const loadedVideo = videoElementsRef.current.get(targetSceneIndex)
           if (loadedVideo) {
-            syncVideoPlaybackToTimeline(loadedVideo, targetScene, videoTime)
+            if (shouldTransition) {
+              syncVideoToFrame(loadedVideo, targetVideoTimeForRender)
+            } else {
+              syncVideoPlaybackToTimeline(loadedVideo, targetScene, targetVideoTimeForRender)
+            }
+          }
+          if (canRenderCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
+            const loadedPreviousVideo = videoElementsRef.current.get(previousSceneIndex)
+            if (loadedPreviousVideo) {
+              syncVideoToFrame(loadedPreviousVideo, previousSceneEndVideoTime)
+            }
           }
           
           // 스프라이트가 준비될 때까지 약간의 지연 후 applyVisualState 호출
@@ -322,7 +677,17 @@ export function useProTransportRenderer({
         }
 
         if (currentVideo) {
-          syncVideoPlaybackToTimeline(currentVideo, targetScene, videoTime)
+          if (shouldTransition) {
+            syncVideoToFrame(currentVideo, targetVideoTimeForRender)
+          } else {
+            syncVideoPlaybackToTimeline(currentVideo, targetScene, targetVideoTimeForRender)
+          }
+        }
+        if (canRenderCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
+          const previousVideo = videoElementsRef.current.get(previousSceneIndex)
+          if (previousVideo) {
+            syncVideoToFrame(previousVideo, previousSceneEndVideoTime)
+          }
         }
         // 동일 씬 내 시작 프레임에서도 자막이 누락되지 않도록 매 tick에서 자막 동기화
         renderSubtitle(targetSceneIndex, targetScene.script ?? '')
@@ -342,6 +707,7 @@ export function useProTransportRenderer({
       renderSubtitle,
       syncVideoPlaybackToTimeline,
       scenes,
+      playableScenes,
       spritesRef,
       timeline,
       videoElementsRef,
