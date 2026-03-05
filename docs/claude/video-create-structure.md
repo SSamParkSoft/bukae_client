@@ -1,7 +1,7 @@
 # app/video/create/ 폴더 구조
 
 > 정리 기준일: 2026-03-05
-> Fast 트랙 삭제 + `?track=pro` URL 파라미터 제거 + 폴더 통합 후 최종 구조
+> `?track=pro` URL 파라미터 제거 + 폴더 통합 후 최종 구조
 
 ---
 
@@ -174,7 +174,7 @@ app/video/create/
 | 공유 step3 코드 | `step3/shared/` (루트 레벨) | `pro/step3/shared/` (pro 내부) |
 | 대본 컴포넌트 | `_components/` | `pro/step2/components/script/` |
 | 레거시 브릿지 | `_hooks/step3/`, `_step3-components/`, `_utils/step3/` | 삭제 |
-| ESLint | fast/pro/shared 트랙 경계 규칙 다수 | 삭제 (단일 트랙) |
+| ESLint | 트랙 경계 규칙 다수 | 삭제 (단일 트랙) |
 
 ---
 

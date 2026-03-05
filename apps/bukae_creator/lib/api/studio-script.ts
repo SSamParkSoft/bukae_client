@@ -12,7 +12,7 @@ import type {
 
 export const studioScriptApi = {
   /**
-   * [Fast] AI 기반 쇼츠 대본 생성 (Stateless)
+   * AI 기반 쇼츠 대본 생성 (Stateless)
    * POST /api/v1/studio/scripts/auto-create
    * - 사용자가 선택한 이미지(URL)와 프롬프트를 기반으로 19가지 스크립트 페르소나 지원
    * - 15초 내외, 1씬 1문장 규칙
@@ -55,5 +55,4 @@ export const studioScriptApi = {
     )
   },
 }
-
 

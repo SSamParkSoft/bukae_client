@@ -8,7 +8,7 @@ import * as fabric from 'fabric'
 import { TimelineData } from '@/store/useVideoCreateStore'
 import { calculateSpriteParams } from '@/utils/pixi'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
-import { applyFastLikeControlPolicy } from '@/hooks/video/pixi/fabricObjectDefaults'
+import { applyCornerControlPolicy } from '@/hooks/video/pixi/fabricObjectDefaults'
 import type { StageDimensions } from '../../types/common'
 
 const INVISIBLE_HIT_FILL = 'rgba(0,0,0,0)'
@@ -102,7 +102,7 @@ export function useFabricSync({
             lockScalingFlip: true,
             opacity: 0.001, // hit-test 안정성을 위해 완전 0 대신 거의 투명값 사용
           })
-          applyFastLikeControlPolicy(customImageObject)
+          applyCornerControlPolicy(customImageObject)
           ;(customImageObject as fabric.Object & { dataType?: 'image' | 'text' }).dataType ??= 'image'
           fabricCanvas.add(customImageObject)
         }
@@ -158,7 +158,7 @@ export function useFabricSync({
             lockScalingFlip: true,
             opacity: 0.001, // hit-test 안정성을 위해 완전 0 대신 거의 투명값 사용
           })
-          applyFastLikeControlPolicy(img)
+          applyCornerControlPolicy(img)
           ;(img as fabric.Image & { dataType?: 'image' | 'text' }).dataType = 'image'
           fabricCanvas.add(img)
         }
@@ -250,7 +250,7 @@ export function useFabricSync({
           evented: true,
           opacity: 1,
         })
-        applyFastLikeControlPolicy(textGroup)
+        applyCornerControlPolicy(textGroup)
         
         // Group 내부 객체들이 캔버스에 직접 추가되지 않도록 보장
         textGroup._objects.forEach((obj) => {
@@ -303,7 +303,7 @@ export function useFabricSync({
           angle: angleDeg,
           opacity: 1,
         })
-        applyFastLikeControlPolicy(textObj)
+        applyCornerControlPolicy(textObj)
         
         if (transform) {
           if (transform.width) {

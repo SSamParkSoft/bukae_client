@@ -12,7 +12,7 @@ import { useProSubtitleTextBounds } from './useProSubtitleTextBounds'
 
 const INVISIBLE_HIT_FILL = 'rgba(0,0,0,0)'
 
-function getFastImageHandleStyle(scaleRatio: number) {
+function getImageHandleStyle(scaleRatio: number) {
   void scaleRatio
   return {
     ...FABRIC_HANDLE_STYLE,
@@ -22,7 +22,7 @@ function getFastImageHandleStyle(scaleRatio: number) {
   }
 }
 
-function getFastTextHandleStyle(scaleRatio: number) {
+function getTextHandleStyle(scaleRatio: number) {
   void scaleRatio
   return {
     ...FABRIC_HANDLE_STYLE,
@@ -32,7 +32,7 @@ function getFastTextHandleStyle(scaleRatio: number) {
   }
 }
 
-const FAST_LOCKED_TRANSFORM_STYLE = {
+const LOCKED_TRANSFORM_STYLE = {
   lockScalingX: false,
   lockScalingY: false,
   lockRotation: true,
@@ -65,11 +65,11 @@ interface FabricDataObject {
   dataType?: 'image' | 'text'
 }
 
-// Pro 트랙 전용 컨트롤 정책:
+// Pro step3 컨트롤 정책:
 // - 회전 핸들(mtr)은 숨기고
 // - 네 모서리(tl, tr, bl, br)만 보이게 하여
 // - 기본값으로 남아 있는 중간 핸들(ml, mt, mr, mb)을 통해 단일 축 방향 리사이즈가 가능하도록 유지한다.
-function applyFastLikeControlPolicy(target: fabric.Object) {
+function applyControlPolicy(target: fabric.Object) {
   if (typeof (target as { setControlsVisibility?: (options: Record<string, boolean>) => void }).setControlsVisibility === 'function') {
     ;(target as { setControlsVisibility: (options: Record<string, boolean>) => void }).setControlsVisibility({
       mtr: false,
@@ -200,9 +200,9 @@ export function useProFabricResizeDrag({
       const objects = canvas.getObjects() as Array<fabric.Object & FabricDataObject>
       objects.forEach((obj) => {
         if (obj.dataType === 'image') {
-          obj.set(getFastImageHandleStyle(ratio))
+          obj.set(getImageHandleStyle(ratio))
         } else if (obj.dataType === 'text') {
-          obj.set(getFastTextHandleStyle(ratio))
+          obj.set(getTextHandleStyle(ratio))
         }
       })
       canvas.requestRenderAll()
@@ -355,10 +355,10 @@ export function useProFabricResizeDrag({
       hoverCursor: 'move',
       centeredScaling: true,
       centeredRotation: true,
-      ...FAST_LOCKED_TRANSFORM_STYLE,
-      ...getFastImageHandleStyle(ratio),
+      ...LOCKED_TRANSFORM_STYLE,
+      ...getImageHandleStyle(ratio),
     })
-    applyFastLikeControlPolicy(imageProxy)
+    applyControlPolicy(imageProxy)
     imageProxy.setCoords()
     ;(imageProxy as fabric.Rect & FabricDataObject).dataType = 'image'
     fabricCanvas.add(imageProxy)
@@ -417,9 +417,9 @@ export function useProFabricResizeDrag({
         hoverCursor: 'move',
         editable: false,
         ...TEXT_LOCKED_SCALE_STYLE,
-        ...getFastTextHandleStyle(ratio),
+        ...getTextHandleStyle(ratio),
       })
-      applyFastLikeControlPolicy(textProxy)
+      applyControlPolicy(textProxy)
       textProxy.setCoords()
       ;(textProxy as fabric.Textbox & FabricDataObject).dataType = 'text'
       fabricCanvas.add(textProxy)

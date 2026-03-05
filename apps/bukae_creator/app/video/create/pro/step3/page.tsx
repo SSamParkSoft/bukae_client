@@ -96,7 +96,7 @@ export default function ProStep3Page() {
     handleSoundEffectConfirm,
   } = useProStep3State()
 
-  // Pro 인코딩 내보내기 (fast와 동일 API → step4 이동)
+  // Pro 인코딩 내보내기 (공통 API → step4 이동)
   const { isExporting, handleExport } = useProVideoExport({
     proStep3Scenes,
     timeline,

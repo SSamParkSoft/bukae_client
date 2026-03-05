@@ -5,7 +5,7 @@
 ## 사용처
 
 ### `page.tsx`
-- 트랙(Fast/Pro) 선택 시 `hasVideoCreateDraft()` 확인
+- 시작 버튼 클릭 시 `hasVideoCreateDraft()` 확인
 - 드래프트가 있으면 다이얼로그 노출:
   - `새로 시작`: `clearVideoCreateDraft()` 후 Step1 이동
   - `이어서 작업`: 기존 상태 유지

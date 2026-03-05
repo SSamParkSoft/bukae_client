@@ -48,7 +48,7 @@ test('transform이 있으면 timeline transform을 우선 사용한다', () => {
     },
   })
 
-  const result = serializeSubtitleForEncoding(scene, stage, 'fast')
+  const result = serializeSubtitleForEncoding(scene, stage)
 
   assert.deepEqual(result.transform, {
     x: 320,
@@ -63,7 +63,7 @@ test('transform이 있으면 timeline transform을 우선 사용한다', () => {
   assert.equal(result.alignment, 'right')
 })
 
-test('transform이 없으면 track별 fallback 위치를 사용한다', () => {
+test('transform이 없으면 pro 기준 fallback 위치를 사용한다', () => {
   const scene = createScene({
     text: {
       content: '자막',
@@ -75,13 +75,10 @@ test('transform이 없으면 track별 fallback 위치를 사용한다', () => {
     },
   })
 
-  const fast = serializeSubtitleForEncoding(scene, stage, 'fast')
-  const pro = serializeSubtitleForEncoding(scene, stage, 'pro')
+  const result = serializeSubtitleForEncoding(scene, stage)
 
-  assert.equal(fast.transform.width, stage.width)
-  assert.equal(pro.transform.width, stage.width * 0.75)
-  assert.equal(fast.transform.y, stage.height * 0.75)
-  assert.equal(pro.transform.y, stage.height - 200)
+  assert.equal(result.transform.width, stage.width * 0.75)
+  assert.equal(result.transform.y, stage.height - 200)
 })
 
 test('stroke width가 0이면 enabled=false로 직렬화한다', () => {
@@ -95,7 +92,7 @@ test('stroke width가 0이면 enabled=false로 직렬화한다', () => {
     },
   })
 
-  const result = serializeSubtitleForEncoding(scene, stage, 'fast')
+  const result = serializeSubtitleForEncoding(scene, stage)
 
   assert.equal(result.stroke.enabled, false)
   assert.equal(result.stroke.width, 0)
@@ -134,8 +131,8 @@ test('alignment는 text.position이 아니라 hAlign/style.align을 사용하고
     },
   })
 
-  const fromStyle = serializeSubtitleForEncoding(withStyleJustify, stage, 'fast')
-  const fromTransform = serializeSubtitleForEncoding(withTransformHAlign, stage, 'fast')
+  const fromStyle = serializeSubtitleForEncoding(withStyleJustify, stage)
+  const fromTransform = serializeSubtitleForEncoding(withTransformHAlign, stage)
 
   assert.equal(fromStyle.alignment, 'center')
   assert.equal(fromTransform.alignment, 'right')
@@ -162,7 +159,7 @@ test('||| 분할 파트별로 content가 달라도 transform은 동일하게 유
     },
   })
 
-  const partA = serializeSubtitleForEncoding(baseScene, stage, 'fast')
+  const partA = serializeSubtitleForEncoding(baseScene, stage)
   const partB = serializeSubtitleForEncoding(
     createScene({
       ...baseScene,
@@ -171,8 +168,7 @@ test('||| 분할 파트별로 content가 달라도 transform은 동일하게 유
         content: '두 번째 문장',
       },
     }),
-    stage,
-    'fast'
+    stage
   )
 
   assert.deepEqual(partA.transform, partB.transform)

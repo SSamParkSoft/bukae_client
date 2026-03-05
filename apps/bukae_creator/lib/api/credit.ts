@@ -8,15 +8,13 @@ let redisSingleton: Redis | null = null
 const CREDIT_RECORD_TTL_SECONDS = 60 * 60 * 24 * 30 // 30 days
 const DEFAULT_VIDEO_EXPORT_CREDIT_COST = 100
 const DEFAULT_INITIAL_CREDITS = 10000
-const FAST_PLAN_CREDITS = 10000
 const PREMIUM_PLAN_CREDITS = 10000
 
-type CreditPlanTier = 'admin' | 'free' | 'fast' | 'premium'
+type CreditPlanTier = 'admin' | 'free' | 'premium'
 
 export const CREDIT_POLICY_BY_PLAN: Record<Uppercase<CreditPlanTier>, number | null> = {
   ADMIN: null,
   FREE: null,
-  FAST: FAST_PLAN_CREDITS,
   PREMIUM: PREMIUM_PLAN_CREDITS,
 }
 
@@ -370,10 +368,6 @@ function normalizePlanTier(plan?: string): Exclude<CreditPlanTier, 'admin'> | nu
     return 'premium'
   }
 
-  if (['fast', 'fast_track', 'fasttrack'].includes(normalized)) {
-    return 'fast'
-  }
-
   if (
     ['free', 'none', 'basic', 'default', 'starter', 'trial'].includes(normalized)
   ) {
@@ -385,7 +379,6 @@ function normalizePlanTier(plan?: string): Exclude<CreditPlanTier, 'admin'> | nu
 
 function getInitialCreditsByTier(tier: CreditPlanTier): number | null {
   if (tier === 'premium') return PREMIUM_PLAN_CREDITS
-  if (tier === 'fast') return FAST_PLAN_CREDITS
   return null
 }
 

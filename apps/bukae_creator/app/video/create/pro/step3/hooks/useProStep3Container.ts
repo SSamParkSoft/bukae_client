@@ -78,7 +78,7 @@ function getAppCanvas(app: PIXI.Application | null | undefined): HTMLCanvasEleme
 }
 
 /**
- * Pro step3 오케스트레이션 훅 (Fast useStep3Container와 동일한 패턴)
+ * Pro step3 오케스트레이션 훅
  * 모든 비즈니스 로직을 포함하고 UI는 순수하게 렌더링만 담당하도록 함
  */
 export function useProStep3Container(params: UseProStep3ContainerParams) {
@@ -767,7 +767,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
       }
     } else {
       const subtitlePosition = timelineScene
-        ? getSubtitlePosition(timelineScene, { width: stageWidth, height: stageHeight }, { track: 'pro' })
+        ? getSubtitlePosition(timelineScene, { width: stageWidth, height: stageHeight })
         : {
             x: stageWidth / 2,
             y: stageHeight - 200,

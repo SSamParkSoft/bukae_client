@@ -56,15 +56,11 @@ Step4 → Effect/template application
 Export → FFmpeg encoding + YouTube upload
 ```
 
-**Two tracks (Fast vs Pro)** with separate Step3 implementations:
-- `fast/step3/` — simplified track
-- `pro/step3/` — full-featured track
-- `step3/shared/` — track-agnostic shared components/hooks/utils
+**Step3 structure**:
+- `pro/step3/` — active Step3 implementation
+- `pro/step3/shared/` — Step3 shared components/hooks/model
 
-**ESLint enforces strict module boundaries:**
-- Fast Step3 cannot import Pro Step3, and vice versa
-- Shared Step3 cannot import either track's specific modules
-- Legacy bridge files (`_step3-components/`, `_hooks/step3/`, `_utils/step3/`) are being migrated; do not use them in new code — use the new paths (`step3/shared/ui`, `step3/shared/hooks`, `step3/shared/model`)
+Legacy bridge files (`_step3-components/`, `_hooks/step3/`, `_utils/step3/`) are deprecated; use `pro/step3/shared/*` paths for shared Step3 code.
 
 ## Key Architectural Patterns
 

@@ -566,8 +566,7 @@ export function useVideoExport({
             }
             const serializedSubtitle = serializeSubtitleForEncoding(
               scene,
-              { width, height },
-              'pro'
+              { width, height }
             )
 
             encodingScenes.push({

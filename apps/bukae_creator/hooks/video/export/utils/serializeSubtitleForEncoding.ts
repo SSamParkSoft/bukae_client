@@ -1,8 +1,6 @@
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { getSubtitlePosition } from '../../renderer/utils/getSubtitlePosition'
 
-export type SubtitleEncodingTrack = 'fast' | 'pro'
-
 export interface SubtitleStageSize {
   width: number
   height: number
@@ -40,19 +38,13 @@ function normalizeAlignment(value?: string): SubtitleAlignment {
   return 'center'
 }
 
-function getFallbackBoxWidth(stage: SubtitleStageSize, track: SubtitleEncodingTrack): number {
-  // Fast 프리뷰의 transform 미보유 자막은 stage 폭 기준으로 줄바꿈이 시작된다.
-  // 미편집 상태 export에서도 동일 의미를 유지하기 위해 fast만 stage.width를 기본값으로 사용한다.
-  if (track === 'fast') {
-    return stage.width
-  }
+function getFallbackBoxWidth(stage: SubtitleStageSize): number {
   return stage.width * 0.75
 }
 
 export function serializeSubtitleForEncoding(
   scene: TimelineData['scenes'][number],
-  stage: SubtitleStageSize,
-  track: SubtitleEncodingTrack
+  stage: SubtitleStageSize
 ): SerializedSubtitleForEncoding {
   const sceneText = scene.text ?? {
     content: ' ',
@@ -66,7 +58,7 @@ export function serializeSubtitleForEncoding(
   const alignment = normalizeAlignment(
     transform?.hAlign ?? sceneText.style?.align ?? 'center'
   )
-  const fallbackWidth = getFallbackBoxWidth(stage, track)
+  const fallbackWidth = getFallbackBoxWidth(stage)
 
   if (transform) {
     return {
@@ -92,7 +84,7 @@ export function serializeSubtitleForEncoding(
     }
   }
 
-  const subtitlePosition = getSubtitlePosition(scene, stage, { track })
+  const subtitlePosition = getSubtitlePosition(scene, stage)
 
   return {
     transform: {

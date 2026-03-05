@@ -28,7 +28,7 @@ interface UseProEditModeManagerParams {
 }
 
 /**
- * Pro step3 캔버스 표시 제어 (Fast useEditModeManager와 동일한 visibility 패턴)
+ * Pro step3 캔버스 표시 제어
  * - 편집 모드(useFabricEditing)일 때만 Fabric 표시, 그 외에는 Pixi 표시
  * - 재생 중에는 항상 Pixi 표시, Fabric 숨김
  */
