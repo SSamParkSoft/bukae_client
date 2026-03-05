@@ -34,6 +34,12 @@ interface RenderAtOptions {
 
 const VIDEO_SYNC_SEEK_EPSILON_SEC = 0.08
 const VIDEO_SEGMENT_END_EPSILON_SEC = 0.02
+const SLIDE_TRANSITIONS = new Set([
+  'slide-left',
+  'slide-right',
+  'slide-up',
+  'slide-down',
+])
 const MOVEMENT_TRANSITIONS = new Set([
   'slide-left',
   'slide-right',
@@ -46,6 +52,14 @@ const MOVEMENT_TRANSITIONS = new Set([
 type RuntimeTransitionSprite = PIXI.Sprite & {
   __proCircleMask?: PIXI.Graphics | null
   __proBlurFilter?: PIXI.BlurFilter | null
+}
+
+type SpriteBaseState = {
+  x: number
+  y: number
+  width: number
+  height: number
+  rotation: number
 }
 
 function hideSprite(sprite: PIXI.Sprite) {
@@ -233,6 +247,7 @@ function applySceneStartTransition({
   progress,
   toSprite,
   fromSprite,
+  fromBaseState,
   stageWidth,
   stageHeight,
 }: {
@@ -240,6 +255,7 @@ function applySceneStartTransition({
   progress: number
   toSprite: PIXI.Sprite
   fromSprite: PIXI.Sprite | null
+  fromBaseState?: SpriteBaseState | null
   stageWidth: number
   stageHeight: number
 }) {
@@ -258,11 +274,18 @@ function applySceneStartTransition({
   const toBaseWidth = toSprite.width
   const toBaseHeight = toSprite.height
   const toBaseRotation = toSprite.rotation
-  const fromBaseX = fromSprite?.x ?? 0
-  const fromBaseY = fromSprite?.y ?? 0
-  const fromBaseRotation = fromSprite?.rotation ?? 0
-  const fromBaseWidth = fromSprite?.width ?? 0
-  const fromBaseHeight = fromSprite?.height ?? 0
+  const fromBaseX = fromBaseState?.x ?? fromSprite?.x ?? 0
+  const fromBaseY = fromBaseState?.y ?? fromSprite?.y ?? 0
+  const fromBaseRotation = fromBaseState?.rotation ?? fromSprite?.rotation ?? 0
+  const fromBaseWidth = fromBaseState?.width ?? fromSprite?.width ?? 0
+  const fromBaseHeight = fromBaseState?.height ?? fromSprite?.height ?? 0
+  const hasFromSprite = !!fromSprite && !fromSprite.destroyed
+  const pushOffsetX = hasFromSprite
+    ? Math.max(1, (toBaseWidth + fromBaseWidth) / 2)
+    : Math.max(1, stageWidth)
+  const pushOffsetY = hasFromSprite
+    ? Math.max(1, (toBaseHeight + fromBaseHeight) / 2)
+    : Math.max(1, stageHeight)
 
   toSprite.visible = true
   toSprite.alpha = 1
@@ -282,34 +305,30 @@ function applySceneStartTransition({
       }
       break
     case 'slide-left': {
-      const offset = Math.max(stageWidth, stageHeight) * 0.1
-      toSprite.x = toBaseX + offset * (1 - eased)
+      toSprite.x = toBaseX + pushOffsetX * (1 - eased)
       if (fromSprite && !fromSprite.destroyed) {
-        fromSprite.x = fromBaseX - offset * eased
+        fromSprite.x = fromBaseX - pushOffsetX * eased
       }
       break
     }
     case 'slide-right': {
-      const offset = Math.max(stageWidth, stageHeight) * 0.1
-      toSprite.x = toBaseX - offset * (1 - eased)
+      toSprite.x = toBaseX - pushOffsetX * (1 - eased)
       if (fromSprite && !fromSprite.destroyed) {
-        fromSprite.x = fromBaseX + offset * eased
+        fromSprite.x = fromBaseX + pushOffsetX * eased
       }
       break
     }
     case 'slide-up': {
-      const offset = Math.max(stageWidth, stageHeight) * 0.1
-      toSprite.y = toBaseY + offset * (1 - eased)
+      toSprite.y = toBaseY + pushOffsetY * (1 - eased)
       if (fromSprite && !fromSprite.destroyed) {
-        fromSprite.y = fromBaseY - offset * eased
+        fromSprite.y = fromBaseY - pushOffsetY * eased
       }
       break
     }
     case 'slide-down': {
-      const offset = Math.max(stageWidth, stageHeight) * 0.1
-      toSprite.y = toBaseY - offset * (1 - eased)
+      toSprite.y = toBaseY - pushOffsetY * (1 - eased)
       if (fromSprite && !fromSprite.destroyed) {
-        fromSprite.y = fromBaseY + offset * eased
+        fromSprite.y = fromBaseY + pushOffsetY * eased
       }
       break
     }
@@ -438,6 +457,8 @@ export function useProTransportRenderer({
   const renderRequestIdRef = useRef(0)
   const pendingSceneLoadRef = useRef<Map<number, Promise<void>>>(new Map())
   const activeMovementTransitionKeyRef = useRef<string | null>(null)
+  const movementTransitionFromBaseStateRef = useRef<{ key: string; state: SpriteBaseState } | null>(null)
+  const transitionDebugPairRef = useRef<string | null>(null)
   const playableScenes = useMemo(() => getPlayableScenes(scenes), [scenes])
 
   const syncVideoPlaybackToTimeline = useCallback(
@@ -565,9 +586,20 @@ export function useProTransportRenderer({
         targetScene.originalVideoDurationSeconds
       )
       const timelineScene = timeline.scenes?.[targetSceneIndex]
-      const sceneTransition = (timelineScene?.transition ?? 'none').toLowerCase()
-      const hasTransitionEffect = sceneTransition !== 'none'
-      const transitionDuration = Math.max(0, timelineScene?.transitionDuration ?? 0.5)
+      const configuredTransition = (timelineScene?.transition ?? 'none').toLowerCase()
+      const motionType = timelineScene?.motion?.type?.toLowerCase()
+      const transitionFromMotion =
+        configuredTransition === 'none' &&
+        !!motionType &&
+        SLIDE_TRANSITIONS.has(motionType)
+      const effectiveTransition = transitionFromMotion ? motionType : configuredTransition
+      const hasTransitionEffect = effectiveTransition !== 'none'
+      const configuredDuration = Math.max(0, timelineScene?.transitionDuration ?? 0.5)
+      const transitionDuration = transitionFromMotion
+        ? configuredDuration > 0
+          ? configuredDuration
+          : 0.5
+        : configuredDuration
       const previousPlayable = resolved.playableIndex > 0 ? playableScenes[resolved.playableIndex - 1] : null
       const previousSceneIndex = previousPlayable?.originalIndex ?? null
       const previousScene = previousSceneIndex !== null ? scenes[previousSceneIndex] : null
@@ -583,14 +615,14 @@ export function useProTransportRenderer({
       const transitionProgress = transitionState.progress
       const shouldTransition = transitionState.shouldTransition
 
-      const previousSprite = previousSceneIndex !== null ? spritesRef.current.get(previousSceneIndex) : null
-      const canRenderCrossTransition =
+      const needsCrossTransition =
         shouldTransition &&
         previousSceneIndex !== null &&
-        !!previousSprite &&
-        !previousSprite.destroyed
+        !!previousScene
       if (!shouldTransition) {
         activeMovementTransitionKeyRef.current = null
+        movementTransitionFromBaseStateRef.current = null
+        transitionDebugPairRef.current = null
       }
 
       const transitionStartVideoTime = getVideoTimeInSelectionWithLoop(
@@ -609,6 +641,26 @@ export function useProTransportRenderer({
             )
           : null
       const sceneChanged = lastRenderedSceneIndexRef.current !== targetSceneIndex
+      if (sceneChanged) {
+        console.warn('[ProTransitionDebug] scene change', {
+          fromSceneIndex: lastRenderedSceneIndexRef.current,
+          toSceneIndex: targetSceneIndex,
+          toPlayableIndex: resolved.playableIndex,
+          previousSceneIndex,
+          configuredTransition,
+          motionType: motionType ?? 'none',
+          transitionType: effectiveTransition,
+          transitionSource: transitionFromMotion ? 'motion-slide-fallback' : 'transition',
+          hasTransitionEffect,
+          shouldTransition,
+          transitionDuration,
+          transitionRelativeTime,
+          transitionProgress,
+          sceneTimeInSegment: resolved.sceneTimeInSegment,
+          sceneStartTime: resolved.sceneStartTime,
+          tSec,
+        })
+      }
 
       const applyVisualState = () => {
         const sprite = spritesRef.current.get(targetSceneIndex)
@@ -639,10 +691,47 @@ export function useProTransportRenderer({
 
         const activePreviousSprite =
           previousSceneIndex !== null ? spritesRef.current.get(previousSceneIndex) : null
+        const canRenderCrossTransitionNow =
+          needsCrossTransition &&
+          !!activePreviousSprite &&
+          !activePreviousSprite.destroyed
+        const transitionPairKey =
+          previousSceneIndex !== null ? `${previousSceneIndex}->${targetSceneIndex}` : null
 
-        if (canRenderCrossTransition && activePreviousSprite && !activePreviousSprite.destroyed && previousScene) {
-          const isMovementTransition = MOVEMENT_TRANSITIONS.has(sceneTransition)
-          const transitionPairKey = `${previousSceneIndex}->${targetSceneIndex}`
+        if (
+          needsCrossTransition &&
+          !canRenderCrossTransitionNow &&
+          previousSceneIndex !== null &&
+          previousScene &&
+          previousSceneEndVideoTime !== null
+        ) {
+          void ensureSceneLoaded(previousSceneIndex, previousScene, previousSceneEndVideoTime)
+        }
+
+        const transitionDebugToken = transitionPairKey ?? `none->${targetSceneIndex}`
+        if (shouldTransition && transitionDebugPairRef.current !== transitionDebugToken) {
+          transitionDebugPairRef.current = transitionDebugToken
+          console.warn('[ProTransitionDebug] cross-transition readiness', {
+            transitionDebugToken,
+            transitionPairKey,
+            configuredTransition,
+            motionType: motionType ?? 'none',
+            transitionType: effectiveTransition,
+            transitionSource: transitionFromMotion ? 'motion-slide-fallback' : 'transition',
+            needsCrossTransition,
+            canRenderCrossTransitionNow,
+            previousSceneIndex,
+            previousSceneExists: !!previousScene,
+            previousSpriteExists: !!activePreviousSprite,
+            previousSpriteDestroyed: activePreviousSprite?.destroyed ?? null,
+            transitionDuration,
+            transitionRelativeTime,
+            transitionProgress,
+          })
+        }
+
+        if (canRenderCrossTransitionNow && activePreviousSprite && previousScene) {
+          const isMovementTransition = MOVEMENT_TRANSITIONS.has(effectiveTransition)
           if (!isMovementTransition) {
             const previousTimelineScene = timeline.scenes?.[previousSceneIndex]
             const previousVideo = videoElementsRef.current.get(previousSceneIndex)
@@ -658,9 +747,22 @@ export function useProTransportRenderer({
               previousSourceDimensions
             )
             activeMovementTransitionKeyRef.current = null
-          } else if (activeMovementTransitionKeyRef.current !== transitionPairKey) {
-            // Movement transition은 이전 씬의 직전 상태를 유지해 "한 프레임 되돌아감"을 방지한다.
-            activeMovementTransitionKeyRef.current = transitionPairKey
+            movementTransitionFromBaseStateRef.current = null
+          } else if (transitionPairKey) {
+            if (activeMovementTransitionKeyRef.current !== transitionPairKey) {
+              // Movement transition은 이전 씬의 직전 상태를 고정해 "한 프레임 되돌아감"을 방지한다.
+              activeMovementTransitionKeyRef.current = transitionPairKey
+              movementTransitionFromBaseStateRef.current = {
+                key: transitionPairKey,
+                state: {
+                  x: activePreviousSprite.x,
+                  y: activePreviousSprite.y,
+                  width: activePreviousSprite.width,
+                  height: activePreviousSprite.height,
+                  rotation: activePreviousSprite.rotation,
+                },
+              }
+            }
           }
 
           const targetContainer = (sprite.parent ?? activePreviousSprite.parent) as PIXI.Container | null
@@ -700,10 +802,15 @@ export function useProTransportRenderer({
 
         if (shouldTransition) {
           applySceneStartTransition({
-            transitionType: sceneTransition,
+            transitionType: effectiveTransition,
             progress: transitionProgress,
             toSprite: sprite,
-            fromSprite: canRenderCrossTransition ? activePreviousSprite ?? null : null,
+            fromSprite: canRenderCrossTransitionNow ? activePreviousSprite ?? null : null,
+            fromBaseState:
+              transitionPairKey &&
+              movementTransitionFromBaseStateRef.current?.key === transitionPairKey
+                ? movementTransitionFromBaseStateRef.current.state
+                : null,
             stageWidth: app.screen.width,
             stageHeight: app.screen.height,
           })
@@ -713,7 +820,7 @@ export function useProTransportRenderer({
         // so cleanup runs even if frames skipped past the internal progress >= 0.999 check.
         if (hasTransitionEffect && transitionProgress >= 1) {
           clearTransitionArtifacts(sprite)
-          if (activePreviousSprite && !activePreviousSprite.destroyed) {
+          if (canRenderCrossTransitionNow && activePreviousSprite && !activePreviousSprite.destroyed) {
             hideSprite(activePreviousSprite)
           }
         }
@@ -727,7 +834,7 @@ export function useProTransportRenderer({
         }
 
         videoElementsRef.current.forEach((video, index) => {
-          const keepPreviousVideo = canRenderCrossTransition && previousSceneIndex !== null && index === previousSceneIndex
+          const keepPreviousVideo = needsCrossTransition && previousSceneIndex !== null && index === previousSceneIndex
           if (index !== targetSceneIndex && !keepPreviousVideo && !video.paused) {
             video.pause()
           }
@@ -749,7 +856,7 @@ export function useProTransportRenderer({
             syncVideoPlaybackToTimeline(immediateVideo, targetScene, targetVideoTimeForRender)
           }
         }
-        if (canRenderCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
+        if (needsCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
           const immediatePreviousVideo = videoElementsRef.current.get(previousSceneIndex)
           if (immediatePreviousVideo) {
             syncVideoToFrame(immediatePreviousVideo, previousSceneEndVideoTime)
@@ -770,7 +877,7 @@ export function useProTransportRenderer({
           if (requestId !== renderRequestIdRef.current) {
             return
           }
-          if (canRenderCrossTransition && previousSceneIndex !== null && previousScene && previousSceneEndVideoTime !== null) {
+          if (needsCrossTransition && previousSceneIndex !== null && previousScene && previousSceneEndVideoTime !== null) {
             void ensureSceneLoaded(previousSceneIndex, previousScene, previousSceneEndVideoTime)
           }
           const loadedVideo = videoElementsRef.current.get(targetSceneIndex)
@@ -781,7 +888,7 @@ export function useProTransportRenderer({
               syncVideoPlaybackToTimeline(loadedVideo, targetScene, targetVideoTimeForRender)
             }
           }
-          if (canRenderCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
+          if (needsCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
             const loadedPreviousVideo = videoElementsRef.current.get(previousSceneIndex)
             if (loadedPreviousVideo) {
               syncVideoToFrame(loadedPreviousVideo, previousSceneEndVideoTime)
@@ -823,7 +930,7 @@ export function useProTransportRenderer({
             syncVideoPlaybackToTimeline(currentVideo, targetScene, targetVideoTimeForRender)
           }
         }
-        if (canRenderCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
+        if (needsCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
           const previousVideo = videoElementsRef.current.get(previousSceneIndex)
           if (previousVideo) {
             syncVideoToFrame(previousVideo, previousSceneEndVideoTime)
