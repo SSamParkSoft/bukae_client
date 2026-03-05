@@ -3,7 +3,7 @@
  * 시간 `t`에서 씬 인덱스와 파트 인덱스 계산
  */
 
-import { resolvePlayableSegmentAtTime } from '@/app/video/create/step3/shared/model'
+import { resolvePlayableSegmentAtTime } from '@/app/video/create/pro/step3/shared/model'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { getSceneStartTime } from '@/utils/timeline'
 import { calculateSceneFromTime, getSceneStartTimeFromTts } from '@/utils/timeline-render'

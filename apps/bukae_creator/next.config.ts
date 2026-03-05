@@ -26,7 +26,6 @@ const nextConfig: NextConfig = {
   // 기존 video/create step URL 리다이렉트
   async redirects() {
     return [
-      { source: '/video/create/pro/step1', destination: '/video/create/step1?track=pro', permanent: true },
       { source: '/video/create/step3', destination: '/video/create/pro/step3', permanent: true },
       { source: '/video/create/step4', destination: '/video/create/pro/step4', permanent: true },
     ];

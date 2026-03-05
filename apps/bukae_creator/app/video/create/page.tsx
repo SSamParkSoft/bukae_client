@@ -11,7 +11,7 @@ export default function VideoCreatePage() {
   const [isResumeDialogOpen, setIsResumeDialogOpen] = useState(false)
 
   const navigateToStep1 = useCallback(() => {
-    router.push('/video/create/step1?track=pro')
+    router.push('/video/create/step1')
   }, [router])
 
   const handleStart = useCallback(() => {

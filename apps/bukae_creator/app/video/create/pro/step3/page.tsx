@@ -8,7 +8,7 @@ import { useVideoCreateStore, type TimelineData } from '@/store/useVideoCreateSt
 import { useCallback, useState } from 'react'
 import { allTransitions, transitions, movements } from '@/lib/data/transitions'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
-import { getPlayableSegments, reorderByIndexOrder } from '@/app/video/create/step3/shared/model'
+import { getPlayableSegments, reorderByIndexOrder } from './shared/model'
 import type { MotionConfig } from '@/hooks/video/effects/motion/types'
 import {
   useProStep3Scenes,

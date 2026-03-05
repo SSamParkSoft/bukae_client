@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { ProVideoEditSceneCard } from './ProVideoEditSceneCard'
-import { AiScriptGenerateButton } from '@/app/video/create/_components'
+import { AiScriptGenerateButton } from './script'
 
 export interface ProVideoEditSectionProps {
   scenes: Array<{

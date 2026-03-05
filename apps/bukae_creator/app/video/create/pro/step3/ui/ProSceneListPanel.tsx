@@ -4,7 +4,7 @@ import React, { memo, useRef, useState } from 'react'
 import { ProStep3SceneCard } from './ProStep3SceneCard'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { TimelineScene } from '@/lib/types/domain/timeline'
-import { useScrollableGutter } from '@/app/video/create/step3/shared/hooks'
+import { useScrollableGutter } from '../shared/hooks'
 import type { ProStep3Scene } from '../model/types'
 import { getDurationBeforeSceneIndex, getPlayableScenes } from '../utils/proPlaybackUtils'
 

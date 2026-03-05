@@ -8,7 +8,7 @@ import {
   getSegmentDuration,
   isPlayableSegment,
   resolvePlayableSegmentAtTime as resolvePlayableSegmentAtTimeShared,
-} from '@/app/video/create/step3/shared/model'
+} from '../shared/model'
 
 export interface PlayableScene {
   scene: ProStep3Scene
