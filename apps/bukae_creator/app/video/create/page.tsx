@@ -6,58 +6,32 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button'
 import { clearVideoCreateDraft, hasVideoCreateDraft } from './_utils/draft-storage'
 
-type Track = 'fast' | 'pro'
-
 export default function VideoCreatePage() {
   const router = useRouter()
   const [isResumeDialogOpen, setIsResumeDialogOpen] = useState(false)
-  const [pendingTrack, setPendingTrack] = useState<Track | null>(null)
 
-  const navigateToTrackStep1 = useCallback((track: Track) => {
-    router.push(`/video/create/step1?track=${track}`)
+  const navigateToStep1 = useCallback(() => {
+    router.push('/video/create/step1?track=pro')
   }, [router])
 
-  const handleTrackSelect = useCallback((track: Track) => {
+  const handleStart = useCallback(() => {
     if (hasVideoCreateDraft()) {
-      setPendingTrack(track)
       setIsResumeDialogOpen(true)
       return
     }
-
-    navigateToTrackStep1(track)
-  }, [navigateToTrackStep1])
-
-  const handleFastTrackSelect = useCallback(() => {
-    handleTrackSelect('fast')
-  }, [handleTrackSelect])
-
-  const handleProTrackSelect = useCallback(() => {
-    handleTrackSelect('pro')
-  }, [handleTrackSelect])
+    navigateToStep1()
+  }, [navigateToStep1])
 
   const handleStartNew = useCallback(() => {
-    if (!pendingTrack) return
-
     clearVideoCreateDraft()
     setIsResumeDialogOpen(false)
-    navigateToTrackStep1(pendingTrack)
-    setPendingTrack(null)
-  }, [navigateToTrackStep1, pendingTrack])
+    navigateToStep1()
+  }, [navigateToStep1])
 
   const handleResume = useCallback(() => {
-    if (!pendingTrack) return
-
     setIsResumeDialogOpen(false)
-    navigateToTrackStep1(pendingTrack)
-    setPendingTrack(null)
-  }, [navigateToTrackStep1, pendingTrack])
-
-  const handleDialogOpenChange = useCallback((open: boolean) => {
-    setIsResumeDialogOpen(open)
-    if (!open) {
-      setPendingTrack(null)
-    }
-  }, [])
+    navigateToStep1()
+  }, [navigateToStep1])
 
   return (
     <>
@@ -74,7 +48,7 @@ export default function VideoCreatePage() {
             className="mb-2 font-bold leading-(--line-height-32-140) bg-gradient-to-r from-text-dark to-brand-teal-dark bg-clip-text text-transparent tracking-(--letter-spacing-4xl)"
             style={{ fontSize: 'var(--font-size-32)' }}
           >
-            나에게 맞는 제작 방식을 선택하세요
+            AI 영상 제작을 시작하세요
           </h2>
           <p
             className="font-semibold leading-(--line-height-18-140) text-brand-teal-dark tracking-(--letter-spacing-lg)"
@@ -84,55 +58,32 @@ export default function VideoCreatePage() {
           </p>
         </div>
 
-        {/* 트랙 선택 카드 */}
+        {/* 시작 버튼 */}
         <div className="flex justify-center">
           <div className="rounded-(--size-track-container-radius) p-(--spacing-card-padding) bg-white/20 border border-white/10 backdrop-blur-[10px] shadow-(--shadow-container)">
-            <div className="flex gap-(--spacing-card-gap)">
-              {/* Fast Track */}
-              <button
-                onClick={handleFastTrackSelect}
-                className="w-(--size-track-card-width) h-(--size-track-card-height) rounded-(--size-track-card-radius) bg-white text-center transition-all cursor-pointer flex flex-col justify-center shadow-(--shadow-card-default) hover:shadow-(--shadow-card-hover) focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2"
-                aria-label="Fast Track 선택 - 실속 N잡러를 위한 빠른 AI 영상 제작"
+            <button
+              onClick={handleStart}
+              className="w-(--size-track-card-width) h-(--size-track-card-height) rounded-(--size-track-card-radius) bg-brand-teal text-white text-center transition-all cursor-pointer flex flex-col justify-center shadow-(--shadow-card-teal) hover:shadow-(--shadow-card-teal-hover) focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-brand-teal"
+              aria-label="영상 제작 시작"
+            >
+              <h3
+                className="font-bold leading-(--line-height-32-140) text-white mb-2 tracking-(--letter-spacing-4xl)"
+                style={{ fontSize: 'var(--font-size-32)' }}
               >
-                <h3
-                  className="font-bold leading-(--line-height-32-140) text-brand-teal-dark mb-2 tracking-(--letter-spacing-4xl)"
-                  style={{ fontSize: 'var(--font-size-32)' }}
-                >
-                  Fast Track
-                </h3>
-                <p
-                  className="font-bold leading-(--line-height-16-140) text-text-muted tracking-(--letter-spacing-base)"
-                  style={{ fontSize: 'var(--font-size-16)' }}
-                >
-                  실속 N잡러를 위한 빠른 AI 영상 제작
-                </p>
-              </button>
-
-              {/* Pro Track */}
-              <button
-                onClick={handleProTrackSelect}
-                className="w-(--size-track-card-width) h-(--size-track-card-height) rounded-(--size-track-card-radius) bg-brand-teal text-white text-center transition-all cursor-pointer flex flex-col justify-center shadow-(--shadow-card-teal) hover:shadow-(--shadow-card-teal-hover) focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-brand-teal"
-                aria-label="Pro Track 선택 - 예비창업가를 위한 전문적인 AI 영상 제작"
+                영상 제작 시작
+              </h3>
+              <p
+                className="font-bold leading-(--line-height-16-140) text-white tracking-(--letter-spacing-base)"
+                style={{ fontSize: 'var(--font-size-16)' }}
               >
-                <h3
-                  className="font-bold leading-(--line-height-32-140) text-white mb-2 tracking-(--letter-spacing-4xl)"
-                  style={{ fontSize: 'var(--font-size-32)' }}
-                >
-                  Pro Track
-                </h3>
-                <p
-                  className="font-bold leading-(--line-height-16-140) text-white tracking-(--letter-spacing-base)"
-                  style={{ fontSize: 'var(--font-size-16)' }}
-                >
-                  예비창업가를 위한 전문적인 AI 영상 제작
-                </p>
-              </button>
-            </div>
+                전문적인 AI 영상 제작
+              </p>
+            </button>
           </div>
         </div>
       </div>
 
-      <Dialog open={isResumeDialogOpen} onOpenChange={handleDialogOpenChange}>
+      <Dialog open={isResumeDialogOpen} onOpenChange={setIsResumeDialogOpen}>
         <DialogContent style={{ width: '100%', maxWidth: '448px' }}>
           <DialogHeader className="text-left" style={{ width: '100%' }}>
             <DialogTitle

@@ -1,1 +1,0 @@
-export { useSceneLoader } from './useSceneLoader'

@@ -1,8 +1,0 @@
-export { HeaderSection } from './HeaderSection'
-export { LoadingIndicator } from './LoadingIndicator'
-export { ImageSelector } from './ImageSelector'
-export { ImageUploadButton } from './ImageUploadButton'
-export { SelectedImageList } from './SelectedImageList'
-export { SceneItem } from './SceneItem'
-export { ImageSelectionSection } from './ImageSelectionSection'
-export { NextStepButton } from './NextStepButton'
