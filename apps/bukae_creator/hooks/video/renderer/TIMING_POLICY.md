@@ -1,57 +1,49 @@
 # 렌더링 타이밍 정책 (단일 기준)
 
-**"뭐가 맞는지"** 에 대한 답: 아래 한 가지 기준만 맞추면 됩니다.
+Step3(Pro) 미리보기는 아래 기준 하나로 맞춘다.
 
 ---
 
 ## 1. 기준: "오디오(세그먼트) = tSec = 씬 경계 = 전환 시작"
 
-- **tSec(transport)** 과 **오디오 세그먼트** 는 **TTS duration만** 이어 붙인 타임라인을 씁니다. (transition/gap 없음)
-- **렌더용 씬 경계** 도 같은 타임라인: **이전 씬들 TTS 합** = 다음 씬 시작.
-- **전환(transition) 시작 시점** 도 동일: **이전 씬들 TTS 합** = 전환 시작. (gap 없음)
+- transport 시간 `tSec`, 오디오 세그먼트, 씬 시작 시점, 전환 시작 시점은 모두 **TTS duration 합산 타임라인**을 사용한다.
+- transition 길이/scene gap은 씬 시작 시점 계산에 더하지 않는다.
 
-그래서:
+즉:
 
-- 씬 i 시작 = `sum(TTS(0) .. TTS(i-1))`
-- 전환( i-1 → i ) 시작 = `sum(TTS(0) .. TTS(i-1))` (위와 동일)
-- 세그먼트의 씬 i `startSec` = `sum(TTS(0) .. TTS(i-1))` (useTtsTrack과 동일)
-
-**한 줄**: 모든 "시작 시점"은 **TTS duration만** 합산한 값 하나로 통일.
+- 씬 i 시작 = `sum(TTS[0] .. TTS[i-1])`
+- 전환(i-1 -> i) 시작 = `sum(TTS[0] .. TTS[i-1])`
 
 ---
 
-## 2. 구현 위치 (이걸로 맞춤)
+## 2. 구현 위치
 
 | 용도 | 파일 | 내용 |
 |------|------|------|
-| 씬 경계(렌더) | `utils/timeline-render.ts` | `getSceneStartTimeFromTts`, `calculateSceneFromTime` → TTS 합만, transition/gap 없음 |
-| 전환 시작 시점 | `utils/calculateTransitionTiming.ts` | `calculateTransitionStartTime` → TTS 합만, gap 없음 |
-| 오디오 세그먼트 | `hooks/video/audio/useTtsTrack.ts` | `buildSegmentsFromTimeline` → `accumulatedTime += durationSec` 만 (이미 TTS만 사용) |
+| 씬 경계 계산 | `app/video/create/pro/step3/utils/segmentDuration.ts` | `resolvePlayableSegmentAtTime`의 `sceneStartTime`이 TTS 기준 시작 시점 |
+| Pro 씬 해석 | `app/video/create/pro/step3/utils/proPlaybackUtils.ts` | `resolveProSceneAtTime`가 `sceneStartTime`, `sceneTimeInSegment` 반환 |
+| 전환 활성/진행률 계산 | `app/video/create/pro/step3/utils/transitionFrameState.ts` | 시작 버퍼 포함 전환 활성 여부와 progress 계산 |
+| 실제 전환 적용 | `app/video/create/pro/step3/hooks/playback/useProTransportRenderer.ts` | `applySceneStartTransition`에서 스프라이트 전환 적용 |
+| 오디오 세그먼트 | `hooks/video/audio/useTtsTrack.ts` | `buildSegmentsFromTimeline`이 TTS duration 누적으로 세그먼트 생성 |
 
 ---
 
-## 3. 타이밍 이슈 대응 (한 프레임 밀림 방지)
+## 3. 한 프레임 밀림 방지
 
-- **원인**: tSec이 경계를 넘는 그 한 프레임에 `relativeTime` 이 부동소수/지연으로 잠깐 음수가 되면, 전환 블록을 타지 않아 "돌아가는" 것처럼 보일 수 있음.
-- **대응**: 전환을 **조금 일찍** 인식하도록 **시작 쪽 백버퍼** 사용.
-  - `step6-applyTransition.ts`: `isTransitionActive` 시 `relativeTime >= -0.02` (약 1~2프레임)
-  - `calculateTransitionTiming.ts`: `isTransitionInProgress` 도 동일하게 `relativeTime >= -0.02`
-  - `progress` 는 `Math.max(0, relativeTime / transitionDuration)` 로 0 미만이면 0으로 유지.
+- 전환 시작 경계에서 부동소수점/프레임 지연으로 `relativeTime`이 잠깐 음수가 될 수 있다.
+- 이를 위해 시작 버퍼 `0.02s`(약 1~2프레임)를 사용한다.
+- 진행률 계산은 `Math.max(0, relative / duration)`로 음수 진행률을 0으로 고정한다.
 
 ---
 
-## 4. 움직임 효과 시 "리셋" 하지 않기
+## 4. 움직임 전환에서 이전 씬 리셋 금지
 
-- **step6**: 전환 시작 직후(progress < 0.01)에 **이전 씬 스프라이트**를 base로 리셋하는데, **움직임 효과(slide/zoom)** 일 때는 리셋하지 않음. (MOVEMENT_EFFECTS면 `resetBaseStateCallback` 호출 스킵)
-- **step4**: 매 프레임 **현재 씬** base 리셋을 하는데, **전환 직전**(다음 씬 시작 − 0.05초 이내)이고 **다음 전환이 움직임 효과**일 때는 **현재 씬 스프라이트** 리셋만 스킵. (텍스트는 그대로 리셋)
-- 그래서 현재 씬이 **움직임 끝난 위치**에서 그대로 다음 전환으로 넘어가고, step6에서도 이전 씬을 리셋하지 않아 슬라이드 아웃이 자연스럽게 이어짐.
-
----
-
-## 5. UI/시크용은 예외
-
-- **getSceneStartTime** (timeline.ts): 시크, 재생 구간, UI 표시용. `actualPlaybackDuration ?? scene.duration` + transition + gap 사용. **렌더 경계와는 별도**로 두고, 렌더 파이프라인에서는 사용하지 않음 (step1 → sceneStartTime 전달로 대체).
+- 움직임 전환(`slide-*`, `zoom-*`)에서는 이전 씬 스프라이트를 base transform으로 매 프레임 리셋하지 않는다.
+- 이렇게 해야 이전 씬의 마지막 움직임 상태가 유지되어 전환 시작 시 "한 프레임 되돌아감"이 발생하지 않는다.
 
 ---
 
-정리하면: **렌더/전환/오디오는 전부 "TTS 합만" 한 타임라인**이고, **그걸 쓰는 쪽이 맞는 것**입니다.
+## 5. UI 시크 타임라인은 별도
+
+- UI 표시용 `timeline.ts`의 `getSceneStartTime`은 렌더 경계 계산의 source of truth가 아니다.
+- 렌더/전환 계산은 항상 Pro Step3 세그먼트 기반(`segmentDuration`/`proPlaybackUtils`)을 사용한다.

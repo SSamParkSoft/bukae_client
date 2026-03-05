@@ -16,19 +16,20 @@ app/video/create/pro/step3/hooks/playback/useProTransportRenderer.ts
 
 This file owns the full render loop, transition logic (`applySceneStartTransition`), video sync, and motion. It is orchestrated by `useProStep3Container.ts`.
 
-**Dead code — do not modify:**
-- `hooks/video/renderer/useTransportRenderer.ts` — 8-step pipeline renderer, Fast-track remnant, nothing imports it
-- `hooks/video/renderer/transitions/useTransitionEffects.ts` — only used by the above; also dead
-- `hooks/video/renderer/pipeline/` — all pipeline steps (step1~step8); dead
+Legacy dead renderer files were removed. Do not re-introduce:
+- `hooks/video/renderer/useTransportRenderer.ts`
+- `hooks/video/renderer/transitions/useTransitionEffects.ts`
+- `hooks/video/renderer/pipeline/`
 
 Active imports from `hooks/video/renderer/` are limited to: `transport/`, `playback/`, `subtitle/`, `utils/`.
 
 **Timing policy** (source of truth: `hooks/video/renderer/TIMING_POLICY.md`):
 - Transport time (`tSec`), audio segments, scene boundaries, and transition start points all use the same timeline: **TTS durations summed only** — no transition gaps, no padding.
 - Scene i starts at `sum(TTS[0]..TTS[i-1])`. Transition i-1→i also starts at that exact same point.
-- Render-boundary utils: `hooks/video/renderer/utils/timeline-render.ts`
+- Pro scene resolver: `app/video/create/pro/step3/utils/segmentDuration.ts` and `proPlaybackUtils.ts`
+- Transition frame logic: `app/video/create/pro/step3/utils/transitionFrameState.ts`
 - Audio segments: `hooks/video/audio/useTtsTrack.ts` → `buildSegmentsFromTimeline`
-- UI/seek timeline (includes transition duration + gap): `hooks/video/renderer/utils/timeline.ts → getSceneStartTime` — **do not use this inside the render pipeline**.
+- UI/seek timeline (includes transition duration + gap): `utils/timeline.ts → getSceneStartTime` — **do not use this inside the render pipeline**.
 
 ---
 

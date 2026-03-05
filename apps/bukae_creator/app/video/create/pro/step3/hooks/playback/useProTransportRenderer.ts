@@ -11,6 +11,7 @@ import type { ProStep3Scene } from '@/app/video/create/pro/step3/model/types'
 import { MotionEvaluator } from '@/hooks/video/effects/motion/MotionEvaluator'
 import type { MotionConfig } from '@/hooks/video/effects/motion/types'
 import { getPlayableScenes, getVideoTimeInSelectionWithLoop, resolveProSceneAtTime } from '../../utils/proPlaybackUtils'
+import { getTransitionFrameState } from '../../utils/transitionFrameState'
 
 interface UseProTransportRendererParams {
   timeline: TimelineData | null
@@ -33,6 +34,14 @@ interface RenderAtOptions {
 
 const VIDEO_SYNC_SEEK_EPSILON_SEC = 0.08
 const VIDEO_SEGMENT_END_EPSILON_SEC = 0.02
+const MOVEMENT_TRANSITIONS = new Set([
+  'slide-left',
+  'slide-right',
+  'slide-up',
+  'slide-down',
+  'zoom-in',
+  'zoom-out',
+])
 
 type RuntimeTransitionSprite = PIXI.Sprite & {
   __proCircleMask?: PIXI.Graphics | null
@@ -428,6 +437,7 @@ export function useProTransportRenderer({
   const lastRenderedSceneIndexRef = useRef<number>(-1)
   const renderRequestIdRef = useRef(0)
   const pendingSceneLoadRef = useRef<Map<number, Promise<void>>>(new Map())
+  const activeMovementTransitionKeyRef = useRef<string | null>(null)
   const playableScenes = useMemo(() => getPlayableScenes(scenes), [scenes])
 
   const syncVideoPlaybackToTimeline = useCallback(
@@ -561,11 +571,17 @@ export function useProTransportRenderer({
       const previousPlayable = resolved.playableIndex > 0 ? playableScenes[resolved.playableIndex - 1] : null
       const previousSceneIndex = previousPlayable?.originalIndex ?? null
       const previousScene = previousSceneIndex !== null ? scenes[previousSceneIndex] : null
-      const transitionProgress = transitionDuration > 0 ? resolved.sceneTimeInSegment / transitionDuration : 1
-      const shouldTransition =
-        hasTransitionEffect &&
-        transitionDuration > 0 &&
-        transitionProgress < 1
+      const transitionRelativeTime =
+        options?.forceSceneIndex !== undefined
+          ? resolved.sceneTimeInSegment
+          : tSec - resolved.sceneStartTime
+      const transitionState = getTransitionFrameState({
+        hasTransitionEffect,
+        transitionDurationSec: transitionDuration,
+        relativeTimeSec: transitionRelativeTime,
+      })
+      const transitionProgress = transitionState.progress
+      const shouldTransition = transitionState.shouldTransition
 
       const previousSprite = previousSceneIndex !== null ? spritesRef.current.get(previousSceneIndex) : null
       const canRenderCrossTransition =
@@ -573,6 +589,9 @@ export function useProTransportRenderer({
         previousSceneIndex !== null &&
         !!previousSprite &&
         !previousSprite.destroyed
+      if (!shouldTransition) {
+        activeMovementTransitionKeyRef.current = null
+      }
 
       const transitionStartVideoTime = getVideoTimeInSelectionWithLoop(
         targetScene,
@@ -622,19 +641,27 @@ export function useProTransportRenderer({
           previousSceneIndex !== null ? spritesRef.current.get(previousSceneIndex) : null
 
         if (canRenderCrossTransition && activePreviousSprite && !activePreviousSprite.destroyed && previousScene) {
-          const previousTimelineScene = timeline.scenes?.[previousSceneIndex]
-          const previousVideo = videoElementsRef.current.get(previousSceneIndex)
-          const previousSourceDimensions =
-            previousVideo && previousVideo.videoWidth > 0 && previousVideo.videoHeight > 0
-              ? { width: previousVideo.videoWidth, height: previousVideo.videoHeight }
-              : null
-          applySceneBaseTransform(
-            activePreviousSprite,
-            previousTimelineScene ?? null,
-            app.screen.width,
-            app.screen.height,
-            previousSourceDimensions
-          )
+          const isMovementTransition = MOVEMENT_TRANSITIONS.has(sceneTransition)
+          const transitionPairKey = `${previousSceneIndex}->${targetSceneIndex}`
+          if (!isMovementTransition) {
+            const previousTimelineScene = timeline.scenes?.[previousSceneIndex]
+            const previousVideo = videoElementsRef.current.get(previousSceneIndex)
+            const previousSourceDimensions =
+              previousVideo && previousVideo.videoWidth > 0 && previousVideo.videoHeight > 0
+                ? { width: previousVideo.videoWidth, height: previousVideo.videoHeight }
+                : null
+            applySceneBaseTransform(
+              activePreviousSprite,
+              previousTimelineScene ?? null,
+              app.screen.width,
+              app.screen.height,
+              previousSourceDimensions
+            )
+            activeMovementTransitionKeyRef.current = null
+          } else if (activeMovementTransitionKeyRef.current !== transitionPairKey) {
+            // Movement transition은 이전 씬의 직전 상태를 유지해 "한 프레임 되돌아감"을 방지한다.
+            activeMovementTransitionKeyRef.current = transitionPairKey
+          }
 
           const targetContainer = (sprite.parent ?? activePreviousSprite.parent) as PIXI.Container | null
           if (!targetContainer) {
