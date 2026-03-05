@@ -26,11 +26,14 @@ import { useTransportState } from './transport/useTransportState'
 import { useRenderLoop } from './playback/useRenderLoop'
 import { resetBaseState } from './utils/resetBaseState'
 import { getSubtitlePosition } from './utils/getSubtitlePosition'
+import { detectMediaType } from './utils/detectMediaType'
+import { videoSpriteAdapter } from './utils/videoSpriteAdapter'
 import {
   step1CalculateScenePart,
   step2PrepareResources,
   step3SetupContainers,
   step4ResetBaseState,
+  step4_5SyncVideo,
   step5ApplyMotion,
   step6ApplyTransition,
   step7ApplySubtitle,
@@ -74,6 +77,9 @@ export function useTransportRenderer({
   // 씬 로딩 상태 관리
   const [sceneLoadingStates, setSceneLoadingStates] = useState<SceneLoadingStateMap>(new Map())
   const loadingScenesRef = useRef<Set<number>>(new Set())
+
+  // 영상 씬 HTMLVideoElement 맵
+  const videoElementsRef = useRef<Map<number, HTMLVideoElement>>(new Map())
 
   // 렌더링 최적화를 위한 ref
   const lastRenderedTRef = useRef<number>(-1)
@@ -180,7 +186,83 @@ export function useTransportRenderer({
     }
 
     const scene = timeline.scenes[sceneIndex]
-    if (!scene || !scene.image) {
+    if (!scene) {
+      return
+    }
+
+    // ── 영상 씬 처리 ─────────────────────────────────────────────
+    if (detectMediaType(scene) === 'video' && scene.videoUrl) {
+      // 이미 로딩 중이거나 로드된 씬은 건너뛰기
+      if (loadingScenesRef.current.has(sceneIndex)) return
+      const currentState = sceneLoadingStates.get(sceneIndex)
+      if (currentState === 'loaded') return
+
+      loadingScenesRef.current.add(sceneIndex)
+      setSceneLoadingStates((prev) => {
+        const next = new Map(prev)
+        next.set(sceneIndex, 'loading')
+        return next
+      })
+
+      try {
+        const video = videoSpriteAdapter.createElement(scene.videoUrl)
+        document.body.appendChild(video)
+
+        await videoSpriteAdapter.waitForMetadata(video, 10000)
+
+        // 선택 구간 시작 지점으로 seek
+        const selStart = Number.isFinite(scene.selectionStartSeconds) && (scene.selectionStartSeconds as number) >= 0
+          ? scene.selectionStartSeconds as number
+          : 0
+        await videoSpriteAdapter.seekFrame(video, selStart, 5000)
+
+        videoElementsRef.current.set(sceneIndex, video)
+
+        // PixiJS VideoTexture 생성
+        const texture = PIXI.Texture.from(video)
+        const sprite = new PIXI.Sprite(texture)
+        sprite.anchor.set(0.5, 0.5)
+        sprite.visible = false
+        sprite.alpha = 0
+
+        const { width, height } = stageDimensions
+        if (scene.imageTransform) {
+          sprite.x = scene.imageTransform.x
+          sprite.y = scene.imageTransform.y
+          sprite.width = scene.imageTransform.width
+          sprite.height = scene.imageTransform.height
+          sprite.rotation = scene.imageTransform.rotation ?? 0
+        } else {
+          const vw = video.videoWidth || width
+          const vh = video.videoHeight || height
+          const params = calculateSpriteParams(vw, vh, width, height, scene.imageFit || 'contain')
+          sprite.x = params.x + params.width / 2
+          sprite.y = params.y + params.height / 2
+          sprite.width = params.width
+          sprite.height = params.height
+        }
+
+        spritesRef.current.set(sceneIndex, sprite)
+        setSceneLoadingStates((prev) => {
+          const next = new Map(prev)
+          next.set(sceneIndex, 'loaded')
+          return next
+        })
+        loadingScenesRef.current.delete(sceneIndex)
+        if (onSceneLoadComplete) onSceneLoadComplete(sceneIndex)
+      } catch {
+        setSceneLoadingStates((prev) => {
+          const next = new Map(prev)
+          next.set(sceneIndex, 'error')
+          return next
+        })
+        loadingScenesRef.current.delete(sceneIndex)
+      }
+      return
+    }
+
+    // ── 이미지 씬 처리 ───────────────────────────────────────────
+    if (!scene.image) {
       return
     }
 
@@ -561,6 +643,7 @@ export function useTransportRenderer({
     sceneLoadingStates,
     onSceneLoadComplete,
     getOrCreateSceneContainer,
+    videoElementsRef,
   ])
 
   /**
@@ -1075,6 +1158,7 @@ export function useTransportRenderer({
         makeTtsKey,
         stageDimensions,
         TIME_EPSILON,
+        videoElementsRef,
       }
 
       // ============================================================
@@ -1156,6 +1240,15 @@ export function useTransportRenderer({
       step4ResetBaseState(pipelineContext, sprite || null, sceneText || null, sceneIndex, scene)
 
       // ============================================================
+      // 4.5단계: 영상 씬 동기화 (이미지 씬이면 no-op)
+      // ============================================================
+      {
+        const sceneStartTime = step8Result.sceneStartTime
+        const sceneLocalT = Math.max(0, tSec - sceneStartTime)
+        step4_5SyncVideo(pipelineContext, sceneIndex, scene, sceneLocalT)
+      }
+
+      // ============================================================
       // 5단계: Motion 적용
       // ============================================================
       let step5Result
@@ -1190,7 +1283,8 @@ export function useTransportRenderer({
           scene,
           sprite || null,
           step5Result.spriteAfterMotion,
-          step5Result.sceneLocalT
+          step5Result.sceneLocalT,
+          step8Result
         )
       }
        

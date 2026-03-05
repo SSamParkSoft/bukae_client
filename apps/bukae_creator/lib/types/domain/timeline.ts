@@ -156,6 +156,18 @@ export interface TimelineScene {
   soundEffect?: string | null
   voiceTemplate?: string | null // 씬별 TTS 목소리 템플릿 (없으면 전역 voiceTemplate 사용)
   motion?: MotionConfig // Motion(이미지 움직임) 설정 (ANIMATION.md 표준)
+
+  // ── 영상 미디어 필드 (Pro / 통합 편집기용) ──────────────────────
+  /** 영상 URL (null이면 이미지 씬) */
+  videoUrl?: string | null
+  /** 영상 선택 구간 시작 (초) */
+  selectionStartSeconds?: number
+  /** 영상 선택 구간 끝 (초) */
+  selectionEndSeconds?: number
+  /** 원본 영상 전체 길이 (초) — 루프 계산용 */
+  originalVideoDurationSeconds?: number
+  /** 명시적 미디어 타입. 없으면 URL 확장자로 추론 */
+  mediaType?: 'image' | 'video'
 }
 
 /**

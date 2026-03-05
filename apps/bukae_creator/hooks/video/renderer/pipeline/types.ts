@@ -45,6 +45,8 @@ export interface PipelineContext {
   transitionShaderManagerRef: React.MutableRefObject<any | null>
   fabricCanvasRef?: React.RefObject<any>
   fabricScaleRatioRef?: React.MutableRefObject<number>
+  /** 씬별 HTMLVideoElement 맵 (영상 씬 전용) */
+  videoElementsRef?: React.MutableRefObject<Map<number, HTMLVideoElement>>
   
   // 상태
   sceneLoadingStates: Map<number, 'idle' | 'loading' | 'loaded' | 'error'>
@@ -69,7 +71,9 @@ export interface PipelineContext {
     previousSprite: PIXI.Sprite | null,
     transitionType: string,
     progress: number,
-    sceneIndex: number
+    sceneIndex: number,
+    containerB?: PIXI.Container | null,
+    containerA?: PIXI.Container | null
   ) => void
   renderSubtitlePart: (
     sceneIndex: number,

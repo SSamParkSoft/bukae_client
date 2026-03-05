@@ -219,11 +219,15 @@ export function step6ApplyTransition(
             ? spritesRef.current.get(previousSceneIndex)
             : null
 
-          // Transition 진행 중일 때만 이전 스프라이트를 보이게 함
-          // step3에서 숨긴 것을 여기서 다시 보이게 함 (Transition에 필요)
-          if (previousSprite && !previousSprite.destroyed && containerRef.current && previousSceneIndex !== null && previousSceneIndex >= 0) {
-            // 움직임 효과(slide/zoom)일 때는 이전 씬을 리셋하지 않음: 움직임 끝난 위치에서 슬라이드 아웃되도록
-            // 비-움직임 효과(fade 등)일 때만 이전 씬을 원래 위치로 리셋 (한 번만)
+          // 컨테이너 기반 Transition: sceneContainersRef에서 A/B 컨테이너 조회
+          const containerB = context.sceneContainersRef.current.get(sceneIndex) ?? null
+          const containerA = previousSceneIndex !== null
+            ? (context.sceneContainersRef.current.get(previousSceneIndex) ?? null)
+            : null
+
+          // Transition 진행 중일 때만 이전 씬을 보이게 함
+          if (previousSprite && !previousSprite.destroyed && previousSceneIndex !== null && previousSceneIndex >= 0) {
+            // 비-움직임 효과일 때만 이전 씬을 원래 위치로 리셋 (한 번만, progress 초기)
             const isMovementEffect = MOVEMENT_EFFECTS.includes(currentTransition as (typeof MOVEMENT_EFFECTS)[number])
             if (progress < 0.01 && !isMovementEffect) {
               const previousScene = timeline.scenes[previousSceneIndex]
@@ -232,30 +236,34 @@ export function step6ApplyTransition(
                 resetBaseStateCallback(previousSprite, null, previousSceneIndex, previousScene)
               }
             }
-            
-            // 이전 스프라이트를 컨테이너에 추가하고 보이게 함
-            if (previousSprite.parent !== containerRef.current) {
-              if (previousSprite.parent) {
-                previousSprite.parent.removeChild(previousSprite)
+
+            // 컨테이너가 있으면 containerA 안에 이전 sprite를 위치시킴
+            // 컨테이너가 없으면 기존 방식(mainContainer)으로 fallback
+            if (containerA) {
+              if (previousSprite.parent !== containerA) {
+                if (previousSprite.parent) previousSprite.parent.removeChild(previousSprite)
+                containerA.addChild(previousSprite)
               }
-              containerRef.current.addChild(previousSprite)
-              containerRef.current.setChildIndex(previousSprite, 0)
+              containerA.visible = true
+            } else if (containerRef.current) {
+              if (previousSprite.parent !== containerRef.current) {
+                if (previousSprite.parent) previousSprite.parent.removeChild(previousSprite)
+                containerRef.current.addChild(previousSprite)
+                containerRef.current.setChildIndex(previousSprite, 0)
+              }
             }
-            // Transition 진행 중이므로 이전 스프라이트를 보이게 함
-            // applyDirectTransition이 alpha를 설정하므로 여기서는 visible만 설정
             previousSprite.visible = true
-            // alpha는 applyDirectTransition에서 설정하므로 여기서는 설정하지 않음
           }
 
           // applyDirectTransition으로 Transition 적용 (ANIMATION.md 표준)
-          // Transition 진행 중에는 매 프레임마다 호출되어야 함
-          // applyDirectTransition이 toSprite와 fromSprite의 alpha를 설정함
           applyDirectTransition(
             currentSprite,
             previousSprite && !previousSprite.destroyed ? previousSprite : null,
             currentTransition,
             progress,
-            sceneIndex
+            sceneIndex,
+            containerB,
+            containerA
           )
 
           // Transition 적용 후 Motion을 다시 적용 (Transition이 적용한 위치를 기준으로 Motion 추가 적용)
