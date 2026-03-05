@@ -8,7 +8,7 @@ import {
   getSegmentDuration,
   isPlayableSegment,
   resolvePlayableSegmentAtTime as resolvePlayableSegmentAtTimeShared,
-} from '../shared/model'
+} from './segmentDuration'
 
 export interface PlayableScene {
   scene: ProStep3Scene

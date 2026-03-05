@@ -84,59 +84,21 @@ app/video/create/
     │   │       ├── useProTransportTtsSync.ts
     │   │       └── media/
     │   │           └── videoSpriteAdapter.ts
-    │   ├── shared/                   # step3 내부 공용 코드 (구 step3/shared/)
-    │   │   ├── hooks/
-    │   │   │   ├── index.ts
-    │   │   │   ├── types.ts
-    │   │   │   ├── useSceneSelectionUpdater.ts
-    │   │   │   ├── useSceneSelectionUpdater.test.ts
-    │   │   │   ├── useScrollableGutter.ts
-    │   │   │   ├── useStep3EffectState.ts
-    │   │   │   ├── audio/
-    │   │   │   │   ├── index.ts
-    │   │   │   │   ├── useBgmIntegration.ts
-    │   │   │   │   ├── useBgmPlayback.ts
-    │   │   │   │   └── useTtsDurationSync.ts
-    │   │   │   ├── playback/
-    │   │   │   │   ├── index.ts
-    │   │   │   │   ├── stopPlayback.ts
-    │   │   │   │   ├── usePlaybackDurationTracker.ts
-    │   │   │   │   ├── usePlaybackHandlers.ts
-    │   │   │   │   ├── usePlaybackState.ts
-    │   │   │   │   └── usePlaybackStop.ts
-    │   │   │   ├── scene/
-    │   │   │   │   ├── index.ts
-    │   │   │   │   ├── useSceneIndexManager.ts
-    │   │   │   │   ├── useSceneStructureSync.ts
-    │   │   │   │   └── useSceneThumbnails.ts
-    │   │   │   ├── timeline/
-    │   │   │   │   ├── index.ts
-    │   │   │   │   └── useTimelineChangeHandler.ts
-    │   │   │   ├── transport/
-    │   │   │   │   ├── index.ts
-    │   │   │   │   ├── useTransportSeek.ts
-    │   │   │   │   ├── useTransportTtsIntegration.ts
-    │   │   │   │   └── useTransportTtsSync.ts
-    │   │   │   └── tts/
-    │   │   │       ├── index.ts
-    │   │   │       └── useTtsManager.ts
-    │   │   ├── model/
-    │   │   │   ├── index.ts
-    │   │   │   ├── reorderScenes.ts
-    │   │   │   ├── reorderScenes.test.ts
-    │   │   │   ├── segmentDuration.ts
-    │   │   │   └── segmentDuration.test.ts
-    │   │   └── ui/
-    │   │       ├── index.ts
-    │   │       ├── ExportButton.tsx
-    │   │       ├── SpeedSelector.tsx
-    │   │       └── TimelineBar.tsx
     │   ├── ui/
+    │   │   ├── index.ts
+    │   │   ├── ExportButton.tsx
+    │   │   ├── SpeedSelector.tsx
+    │   │   ├── TimelineBar.tsx
     │   │   ├── ProEffectsPanel.tsx
     │   │   ├── ProPreviewPanel.tsx
     │   │   ├── ProSceneListPanel.tsx
     │   │   └── ProStep3SceneCard.tsx
     │   └── utils/
+    │       ├── index.ts
+    │       ├── reorderScenes.ts
+    │       ├── reorderScenes.test.ts
+    │       ├── segmentDuration.ts
+    │       ├── segmentDuration.test.ts
     │       ├── proPlaybackUtils.ts
     │       ├── proPlaybackUtils.test.ts
     │       ├── proPreviewLayout.ts
@@ -171,7 +133,7 @@ app/video/create/
 |------|------|------|
 | URL | `/video/create/step1?track=pro` | `/video/create/step1` |
 | step1 리다이렉트 | `pro/step1/page.tsx` (router.replace) | 삭제 |
-| 공유 step3 코드 | `step3/shared/` (루트 레벨) | `pro/step3/shared/` (pro 내부) |
+| 공유 step3 코드 | 루트 레벨 공유 디렉터리 | `pro/step3/hooks`, `pro/step3/ui`, `pro/step3/utils`로 통합 |
 | 대본 컴포넌트 | `_components/` | `pro/step2/components/script/` |
 | 레거시 브릿지 | `_hooks/step3/`, `_step3-components/`, `_utils/step3/` | 삭제 |
 | ESLint | 트랙 경계 규칙 다수 | 삭제 (단일 트랙) |
@@ -180,6 +142,6 @@ app/video/create/
 
 ## import 경로 규칙
 
-- `pro/step3/` 내부에서 shared 접근: **상대 경로** (`./shared/…`, `../shared/…`)
-- `pro/step3/` 외부에서 shared 접근: **경로 별칭** (`@/app/video/create/pro/step3/shared/…`)
+- `pro/step3/` 내부 import: **상대 경로** (`./hooks/…`, `./ui/…`, `./utils/…`, `../hooks/…`)
+- `pro/step3/` 외부 import: **경로 별칭** (`@/app/video/create/pro/step3/hooks/…`, `.../ui/…`, `.../utils/…`)
 - `_utils/` (draft-storage, scene-array): **경로 별칭** (`@/app/video/create/_utils/…`)

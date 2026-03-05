@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useRef } from 'react'
-import { TimelineBar, SpeedSelector, ExportButton } from '../shared/ui'
+import { TimelineBar, SpeedSelector, ExportButton } from './index'
 import { useProStep3Container } from '../hooks/useProStep3Container'
 import type { ProStep3Scene } from '../model/types'
 

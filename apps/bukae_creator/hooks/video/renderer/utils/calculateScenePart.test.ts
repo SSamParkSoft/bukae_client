@@ -36,7 +36,7 @@ function makeTimeline(): TimelineData {
   }
 }
 
-test('calculateScenePartFromTime uses shared playable resolver on TTS boundaries', () => {
+test('calculateScenePartFromTime uses playable resolver on TTS boundaries', () => {
   const timeline = makeTimeline()
   const makeTtsKey = (voiceName: string, markup: string) => `${voiceName}::${markup}`
   const ttsCacheRef = {

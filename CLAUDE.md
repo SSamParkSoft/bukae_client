@@ -49,18 +49,24 @@ The `pnpm build` script (`scripts/auto-build-fix.sh`) attempts build, auto-fixes
 The core feature is a multi-step video creation pipeline in `apps/bukae_creator/app/video/create/`:
 
 ```
-Step1 → Product selection & image collection
-Step2 → Script generation (manual or AI)
-Step3 → Scene composition & timeline editing  ← most complex
-Step4 → Effect/template application
-Export → FFmpeg encoding + YouTube upload
+/video/create           → start page
+/video/create/step1     → product selection & image collection
+/video/create/pro/step2 → script generation (manual or AI)
+/video/create/pro/step3 → scene composition & timeline editing  ← most complex
+/video/create/pro/step4 → effect/template application
+Export                  → FFmpeg encoding + YouTube upload
 ```
 
-**Step3 structure**:
-- `pro/step3/` — active Step3 implementation
-- `pro/step3/shared/` — Step3 shared components/hooks/model
+Only a single **Pro track** exists. No `?track=` query params.
 
-Legacy bridge files (`_step3-components/`, `_hooks/step3/`, `_utils/step3/`) are deprecated; use `pro/step3/shared/*` paths for shared Step3 code.
+**Step3 directory layout** (`app/video/create/pro/step3/`):
+- `page.tsx` + `hooks/useProStep3Container.ts` — orchestration layer
+- `hooks/playback/useProTransportRenderer.ts` — **the only active renderer**; owns transition logic via `applySceneStartTransition()`
+- `hooks/`, `ui/`, `utils/` — step3 utilities unified under the Pro track
+- `ui/` — Pro-specific panel components
+- `hooks/editing/` — Fabric.js editing mode hooks
+
+**Dead code warning**: `hooks/video/renderer/useTransportRenderer.ts` and its `pipeline/` and `transitions/useTransitionEffects.ts` are legacy remnants — nothing imports them. Active renderer imports are limited to `hooks/video/renderer/{transport,playback,subtitle,utils}/`.
 
 ## Key Architectural Patterns
 
