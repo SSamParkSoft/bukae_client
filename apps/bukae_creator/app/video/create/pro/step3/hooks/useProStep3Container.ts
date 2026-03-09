@@ -582,6 +582,29 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
         return
       }
 
+      // 로딩이 끝난 시점에 현재 타임라인의 이미지/비디오가 여전히 동일한지 확인
+      const currentTimelineState = useVideoCreateStore.getState().timeline
+      const currentTimelineScene = currentTimelineState?.scenes?.[sceneIndex]
+      if (currentTimelineScene) {
+        const currentImageUrl = currentTimelineScene.image
+        const currentVideoUrl = currentTimelineScene.videoUrl
+        const mediaType = currentTimelineScene.mediaType
+
+        const isStillImageScene =
+          mediaType === 'image' ||
+          (!!currentImageUrl && (!currentVideoUrl || currentVideoUrl.trim().length === 0))
+
+        const isUrlMismatched = !!currentImageUrl && currentImageUrl !== imageUrl
+
+        // 씬이 더 이상 이미지 씬이 아니거나, 다른 이미지로 교체된 경우 이 로딩 결과는 폐기
+        if (!isStillImageScene || isUrlMismatched) {
+          texture.destroy(true)
+          cleanupSceneResources(sceneIndex)
+          updateLoadingState({ status: 'failed' })
+          return
+        }
+      }
+
       videoTexturesRef.current.set(sceneIndex, texture)
 
       const sprite = new PIXI.Sprite(texture)

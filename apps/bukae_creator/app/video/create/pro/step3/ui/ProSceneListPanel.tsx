@@ -19,6 +19,9 @@ interface ProSceneListPanelProps {
   onSelect: (index: number) => void
   onReorder: (newOrder: number[]) => void
   onPlayScene: (sceneIndex: number) => Promise<void>
+  onVideoUpload?: (sceneIndex: number, file: File) => Promise<void>
+  uploadingSceneIndex?: number | null
+  compressingSceneIndex?: number | null
   onOpenEffectPanel?: (tab: 'animation' | 'subtitle' | 'sound') => void
   onSelectionChange?: (sceneIndex: number, startSeconds: number, endSeconds: number) => void
   onOriginalVideoDurationLoaded?: (sceneIndex: number, seconds: number) => void
@@ -34,6 +37,9 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
   onSelect,
   onReorder,
   onPlayScene,
+  onVideoUpload,
+  uploadingSceneIndex = null,
+  compressingSceneIndex = null,
   onOpenEffectPanel,
   onSelectionChange,
   onOriginalVideoDurationLoaded,
@@ -169,6 +175,9 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
                     // 에러 무시
                   }
                 }}
+                onVideoUpload={onVideoUpload ? (file) => onVideoUpload(index, file) : undefined}
+                isUploading={uploadingSceneIndex === index}
+                isCompressing={compressingSceneIndex === index}
                 onOpenEffectPanel={onOpenEffectPanel ? (tab) => {
                   onSelect(index)
                   onOpenEffectPanel(tab)

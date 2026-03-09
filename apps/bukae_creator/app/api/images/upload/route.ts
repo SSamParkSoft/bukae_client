@@ -49,11 +49,12 @@ export async function POST(request: Request) {
 
     const supabase = getSupabaseServiceClient()
 
-    // 이미지 파일 이름 생성: {timestamp}_scene_{sceneId}_image.{ext} (영상과 동일한 패턴)
+    // 이미지 파일 이름 생성: {timestamp}_scene_{sceneId}_image_{uuid}.{ext} (충돌 방지용 UUID 포함)
     const timestamp = Date.now()
     const sceneIdValue = sceneId || 'unknown'
-    const fileExt = file.name.split('.').pop() || 'jpg'
-    const fileName = `${timestamp}_scene_${sceneIdValue}_image.${fileExt}`
+    const uniqueId = crypto.randomUUID()
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    const fileName = `${timestamp}_scene_${sceneIdValue}_image_${uniqueId}.${fileExt}`
 
     // 경로 구성: {userId}/{fileName} (영상과 동일한 구조)
     const filePath = `${auth.userId}/${fileName}`
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
       .from('pro_upload')
       .upload(filePath, file, {
         cacheControl: '3600',
-        upsert: true,
+        upsert: false, // 고유 파일명 사용으로 덮어쓰기 방지
       })
 
     if (uploadError) {

@@ -65,6 +65,12 @@ export interface ProStep3SceneCardProps {
   dragOver?: { index: number; position: 'before' | 'after' } | null
   /** 재생 핸들러 */
   onPlayScene?: () => void
+  /** 미디어 업로드 핸들러 (이미지/영상 교체) */
+  onVideoUpload?: (file: File) => Promise<void>
+  /** 업로드 중 여부 */
+  isUploading?: boolean
+  /** 4MB 초과로 압축 후 업로드 중일 때 true */
+  isCompressing?: boolean
   /** 카드 클릭 시 씬 선택 (현재 씬로 설정) */
   onSelect?: () => void
   /** 효과 패널 열기 핸들러 */
@@ -99,6 +105,9 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   draggedIndex = null,
   dragOver: dragOverProp = null,
   onPlayScene,
+  onVideoUpload,
+  isUploading = false,
+  isCompressing = false,
   onSelect,
   onOpenEffectPanel,
 }: ProStep3SceneCardProps) {
@@ -783,6 +792,9 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
           {/* 좌측: 영상 업로드 영역 */}
           <div className="shrink-0">
             <ProVideoUpload
+              onUpload={onVideoUpload}
+              isLoading={isUploading}
+              isCompressing={isCompressing}
               videoUrl={videoUrl}
               imageUrl={imageUrl}
               selectionStartSeconds={finalClampedSelectionStartSeconds}

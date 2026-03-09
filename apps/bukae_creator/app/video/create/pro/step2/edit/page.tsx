@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { ProVideoEditSection } from '../components'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { useVideoCreateStoreHydration } from '@/store/useVideoCreateStoreHydration'
+import { api, ApiError } from '@/lib/api/client'
 import { authStorage } from '@/lib/api/auth-storage'
 import { studioScriptApi } from '@/lib/api/studio-script'
 import { convertProductToProductResponse } from '@/lib/utils/converters/product-to-response'
@@ -174,27 +175,10 @@ export default function ProStep2EditPage() {
         formData.append('file', file)
         formData.append('sceneId', scenes[index]?.id || String(index + 1))
 
-        const response = await fetch('/api/images/upload', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: formData,
-        })
-
-        if (!response.ok) {
-          const responseText = await response.text()
-          let errorMessage = '이미지 업로드 실패'
-          try {
-            const errorData = JSON.parse(responseText) as { error?: string }
-            if (errorData?.error) errorMessage = errorData.error
-          } catch {
-            console.error('[Pro 이미지 업로드] 비정상 응답:', response.status, response.statusText, responseText.slice(0, 500))
-          }
-          throw new Error(errorMessage)
-        }
-
-        const result = await response.json()
+        const result = await api.postForm<{ success?: boolean; url?: string }>(
+          '/api/images/upload',
+          formData
+        )
         if (!result.success || !result.url) {
           throw new Error('업로드된 이미지 URL을 가져올 수 없습니다.')
         }
@@ -227,32 +211,10 @@ export default function ProStep2EditPage() {
         formData.append('file', fileToUpload)
         formData.append('sceneId', scenes[index]?.id || String(index + 1))
 
-        const response = await fetch('/api/videos/pro/upload', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: formData,
-        })
-
-        if (!response.ok) {
-          const responseText = await response.text()
-          let errorMessage = '영상 업로드 실패'
-          if (response.status === 413) {
-            errorMessage =
-              '영상 파일이 서버 허용 크기를 초과했습니다. 더 작은 파일(권장: 100MB 이하)을 사용해 주세요.'
-          } else {
-            try {
-              const errorData = JSON.parse(responseText) as { error?: string }
-              if (errorData?.error) errorMessage = errorData.error
-            } catch {
-              console.error('[Pro 영상 업로드] 비정상 응답:', response.status, response.statusText, responseText.slice(0, 500))
-            }
-          }
-          throw new Error(errorMessage)
-        }
-
-        const result = await response.json()
+        const result = await api.postForm<{ success?: boolean; url?: string }>(
+          '/api/videos/pro/upload',
+          formData
+        )
         if (!result.success || !result.url) {
           throw new Error('업로드된 영상 URL을 가져올 수 없습니다.')
         }
@@ -294,8 +256,17 @@ export default function ProStep2EditPage() {
       }
 
     } catch (error) {
-      console.error('영상 업로드 오류:', error)
-      alert(error instanceof Error ? error.message : '영상 업로드 중 오류가 발생했습니다.')
+      console.error('미디어 업로드 오류:', error)
+      let message = '미디어 업로드 중 오류가 발생했습니다.'
+      if (error instanceof ApiError) {
+        message =
+          error.status === 413
+            ? '영상 파일이 서버 허용 크기를 초과했습니다. 더 작은 파일(권장: 100MB 이하)을 사용해 주세요.'
+            : error.message
+      } else if (error instanceof Error) {
+        message = error.message
+      }
+      alert(message)
     } finally {
       setUploadingSceneIndex(null)
       setCompressingSceneIndex(null)

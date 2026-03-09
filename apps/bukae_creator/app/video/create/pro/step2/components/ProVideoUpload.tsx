@@ -61,8 +61,8 @@ export const ProVideoUpload = memo(function ProVideoUpload({
 
   // 이미지 또는 영상에서 썸네일 생성
   useEffect(() => {
-    // 이미지가 있는 경우 이미지를 썸네일로 사용
-    if (imageUrl) {
+    // 이미지 전용 씬(imageUrl 있고 videoUrl 없음)인 경우만 이미지를 썸네일로 사용
+    if (imageUrl && !videoUrl) {
       setThumbnailUrl(imageUrl)
       return
     }
@@ -139,11 +139,11 @@ export const ProVideoUpload = memo(function ProVideoUpload({
     }
   }, [imageUrl, videoUrl, selectionStartSeconds])
 
-  // 호버 시 선택 영역만 재생 (이미지인 경우 처리하지 않음)
+  // 호버 시 선택 영역만 재생 (이미지 전용 씬인 경우 처리하지 않음)
   useEffect(() => {
     const hoverVideo = hoverVideoRef.current
-    // 이미지가 있거나 영상이 없으면 처리하지 않음
-    if (imageUrl || !hoverVideo || !videoUrl) return
+    // 영상이 없으면 처리하지 않음 (이미지 전용 씬 포함)
+    if (!videoUrl || !hoverVideo) return
 
     const startTime = selectionStartSeconds || 0
     const endTime = selectionEndSeconds || 0
@@ -283,7 +283,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
               {thumbnailUrl && (
                 <Image
                   src={thumbnailUrl}
-                  alt={imageUrl ? '이미지 썸네일' : '영상 썸네일'}
+                  alt={imageUrl && !videoUrl ? '이미지 썸네일' : '영상 썸네일'}
                   fill
                   className={`object-cover transition-opacity ${
                     isHovered ? 'opacity-0' : 'opacity-100'
@@ -291,8 +291,8 @@ export const ProVideoUpload = memo(function ProVideoUpload({
                   unoptimized
                 />
               )}
-              {/* 호버 시 영상 표시 (썸네일 위에 오버레이) - 이미지는 영상 표시하지 않음 */}
-              {!imageUrl && (
+              {/* 호버 시 영상 표시 (썸네일 위에 오버레이) - 이미지 전용 씬이 아닐 때만 */}
+              {videoUrl && (
                 <video
                   ref={hoverVideoRef}
                   src={videoUrl ?? undefined}

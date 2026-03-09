@@ -18,6 +18,32 @@ import {
 import type { SceneScript } from '@/lib/types/domain/script'
 import { useTimelineInitializer } from '@/hooks/video/timeline/useTimelineInitializer'
 import { useProVideoExport } from '@/hooks/video/export/useProVideoExport'
+import { api, ApiError } from '@/lib/api/client'
+import { authStorage } from '@/lib/api/auth-storage'
+import { compressVideoIfNeeded, COMPRESS_THRESHOLD_BYTES } from '@/lib/video/compressVideoInBrowser'
+
+/** 비디오 URL에서 메타데이터만 로드해 duration(초)을 반환. 실패 시 null */
+function getVideoDurationFromUrl(url: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.crossOrigin = 'anonymous'
+    const onDone = (sec: number | null) => {
+      video.removeEventListener('loadedmetadata', onMeta)
+      video.removeEventListener('error', onErr)
+      video.src = ''
+      resolve(sec)
+    }
+    const onMeta = () => {
+      const d = video.duration
+      onDone(Number.isFinite(d) && d > 0 ? d : null)
+    }
+    const onErr = () => onDone(null)
+    video.addEventListener('loadedmetadata', onMeta, { once: true })
+    video.addEventListener('error', onErr, { once: true })
+    video.src = url
+  })
+}
 
 export default function ProStep3Page() {
   const { 
@@ -40,6 +66,8 @@ export default function ProStep3Page() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [playingSceneIndex, setPlayingSceneIndex] = useState<number | null>(null)
   const [scenePlaybackRequest, setScenePlaybackRequest] = useState<{ sceneIndex: number; requestId: number } | null>(null)
+  const [uploadingSceneIndex, setUploadingSceneIndex] = useState<number | null>(null)
+  const [compressingSceneIndex, setCompressingSceneIndex] = useState<number | null>(null)
 
   // Pro step3 씬 데이터 변환 훅
   const { proStep3Scenes } = useProStep3Scenes()
@@ -84,6 +112,113 @@ export default function ProStep3Page() {
     setPlayingSceneIndex(null)
   }, [])
 
+  const handleVideoUpload = useCallback(
+    async (sceneIndex: number, file: File) => {
+      const accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        alert('로그인이 필요합니다.')
+        return
+      }
+
+      const isImage = file.type.startsWith('image/')
+      const isVideo = file.type.startsWith('video/')
+      if (!isImage && !isVideo) {
+        throw new Error(`지원하지 않는 파일 형식입니다: ${file.type}`)
+      }
+
+      setUploadingSceneIndex(sceneIndex)
+
+      try {
+        const scenes = useVideoCreateStore.getState().scenes
+        const sceneId = (scenes[sceneIndex] as SceneScript & { id?: string })?.id ?? String(sceneIndex + 1)
+
+        if (isImage) {
+          const formData = new FormData()
+          formData.append('file', file)
+          formData.append('sceneId', sceneId)
+
+          const result = await api.postForm<{ success?: boolean; url?: string }>(
+            '/api/images/upload',
+            formData
+          )
+          if (!result?.success || !result?.url) {
+            throw new Error('업로드된 이미지 URL을 가져올 수 없습니다.')
+          }
+
+          const next = [...scenes]
+          const current = next[sceneIndex] as SceneScript & { videoUrl?: string; imageUrl?: string; originalVideoDurationSeconds?: number; selectionStartSeconds?: number; selectionEndSeconds?: number }
+          next[sceneIndex] = {
+            ...current,
+            imageUrl: result.url,
+            videoUrl: null,
+            originalVideoDurationSeconds: undefined,
+            selectionStartSeconds: undefined,
+            selectionEndSeconds: undefined,
+          }
+          setScenes(next)
+        } else {
+          setCompressingSceneIndex(file.size > COMPRESS_THRESHOLD_BYTES ? sceneIndex : null)
+          const fileToUpload = await compressVideoIfNeeded(file)
+
+          const formData = new FormData()
+          formData.append('file', fileToUpload)
+          formData.append('sceneId', sceneId)
+
+          const result = await api.postForm<{ success?: boolean; url?: string }>(
+            '/api/videos/pro/upload',
+            formData
+          )
+          if (!result?.success || !result?.url) {
+            throw new Error('업로드된 영상 URL을 가져올 수 없습니다.')
+          }
+
+          const next = [...scenes]
+          const current = next[sceneIndex] as SceneScript & { videoUrl?: string; imageUrl?: string; ttsDuration?: number; originalVideoDurationSeconds?: number; selectionStartSeconds?: number; selectionEndSeconds?: number }
+          next[sceneIndex] = {
+            ...current,
+            videoUrl: result.url,
+            imageUrl: null,
+          }
+          setScenes(next)
+
+          const ttsDuration = current.ttsDuration
+          const durationSec = await getVideoDurationFromUrl(result.url)
+          if (durationSec != null && Number.isFinite(durationSec)) {
+            const scenesAfter = useVideoCreateStore.getState().scenes
+            const nextAfter = [...scenesAfter]
+            const scene = nextAfter[sceneIndex] as SceneScript & { originalVideoDurationSeconds?: number; selectionStartSeconds?: number; selectionEndSeconds?: number; ttsDuration?: number }
+            nextAfter[sceneIndex] = {
+              ...scene,
+              originalVideoDurationSeconds: durationSec,
+              ...(typeof ttsDuration === 'number' &&
+              ttsDuration > 0 &&
+              durationSec < ttsDuration
+                ? { selectionStartSeconds: 0, selectionEndSeconds: durationSec }
+                : {}),
+            }
+            setScenes(nextAfter)
+          }
+        }
+      } catch (error) {
+        console.error('미디어 업로드 오류:', error)
+        let message = '미디어 업로드 중 오류가 발생했습니다.'
+        if (error instanceof ApiError) {
+          message =
+            error.status === 413
+              ? '영상 파일이 서버 허용 크기를 초과했습니다. 더 작은 파일(권장: 100MB 이하)을 사용해 주세요.'
+              : error.message
+        } else if (error instanceof Error) {
+          message = error.message
+        }
+        alert(message)
+      } finally {
+        setUploadingSceneIndex(null)
+        setCompressingSceneIndex(null)
+      }
+    },
+    [setScenes]
+  )
+
   // 효과 패널 및 사운드 상태 관리 훅
   const {
     rightPanelTab,
@@ -120,8 +255,12 @@ export default function ProStep3Page() {
 
   const handleScenePlay = useCallback(async (sceneIndex: number) => {
     const targetScene = proStep3Scenes[sceneIndex]
-    if (!targetScene?.videoUrl) {
-      alert('재생할 영상이 없습니다.')
+    const videoUrl = targetScene?.videoUrl?.trim() || ''
+    const imageUrl = targetScene?.imageUrl?.trim() || ''
+
+    // 영상도 이미지도 없는 씬은 재생 불가
+    if (!videoUrl && !imageUrl) {
+      alert('재생할 영상/이미지가 없습니다.')
       return
     }
 
@@ -256,6 +395,9 @@ export default function ProStep3Page() {
               onSelect={handleSceneSelect}
               onReorder={handleSceneReorder}
               onPlayScene={handleScenePlay}
+              onVideoUpload={handleVideoUpload}
+              uploadingSceneIndex={uploadingSceneIndex}
+              compressingSceneIndex={compressingSceneIndex}
               onOpenEffectPanel={(tab) => {
                 setRightPanelTab(tab)
               }}

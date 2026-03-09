@@ -749,8 +749,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
               </div>
             </div>
 
-            {/* 하단: 타임라인 비주얼 - 이미지인 경우 숨김 */}
-            {!imageUrl && (
+            {/* 하단: 타임라인 비주얼 - 이미지 전용 씬(imageUrl 있고 videoUrl 없음)인 경우만 숨김 */}
+            {!(imageUrl && !videoUrl) && (
               <div
                 ref={timelineContainerRef}
                 className="relative overflow-x-auto w-full"
