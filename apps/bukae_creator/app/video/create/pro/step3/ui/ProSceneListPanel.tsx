@@ -142,6 +142,7 @@ export const ProSceneListPanel = memo(function ProSceneListPanel({
                 sceneOrderNumber={index + 1}
                 scriptText={scene.script}
                 videoUrl={scene.videoUrl}
+                imageUrl={scene.imageUrl}
                 selectionStartSeconds={scene.selectionStartSeconds}
                 selectionEndSeconds={scene.selectionEndSeconds}
                 globalStartSeconds={globalStartSeconds}

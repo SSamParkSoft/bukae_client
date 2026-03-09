@@ -26,6 +26,8 @@ export interface ProStep3SceneCardProps {
   scriptText: string
   /** 업로드된 영상 URL */
   videoUrl?: string | null
+  /** 업로드된 이미지 URL */
+  imageUrl?: string | null
   /** 격자 선택 영역 시작 시간 (초) - 초기값 */
   selectionStartSeconds: number
   /** 격자 선택 영역 끝 시간 (초) */
@@ -74,6 +76,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   sceneOrderNumber,
   scriptText,
   videoUrl,
+  imageUrl,
   selectionStartSeconds: initialSelectionStartSeconds,
   selectionEndSeconds: initialSelectionEndSeconds,
   globalStartSeconds,
@@ -777,8 +780,9 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
         <div className="flex-1 min-w-0 flex gap-4 items-start">
           {/* 좌측: 영상 업로드 영역 */}
           <div className="shrink-0">
-            <ProVideoUpload 
+            <ProVideoUpload
               videoUrl={videoUrl}
+              imageUrl={imageUrl}
               selectionStartSeconds={finalClampedSelectionStartSeconds}
               selectionEndSeconds={finalClampedSelectionEndSeconds}
             />

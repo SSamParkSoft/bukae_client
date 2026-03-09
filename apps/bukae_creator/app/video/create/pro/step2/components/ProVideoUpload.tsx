@@ -10,6 +10,8 @@ export interface ProVideoUploadProps {
   /** 4MB 초과 등으로 실제로 압축 후 업로드 중일 때 true */
   isCompressing?: boolean
   videoUrl?: string | null
+  /** 이미지 URL (이미지 업로드 시 사용) */
+  imageUrl?: string | null
   /** 격자 선택 영역 시작 시간 (초) */
   selectionStartSeconds?: number
   /** 격자 선택 영역 끝 시간 (초) */
@@ -21,6 +23,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
   isLoading = false,
   isCompressing = false,
   videoUrl,
+  imageUrl,
   selectionStartSeconds = 0,
   selectionEndSeconds = 0,
 }: ProVideoUploadProps) {
@@ -56,8 +59,15 @@ export const ProVideoUpload = memo(function ProVideoUpload({
     }
   }, [])
 
-  // 영상에서 썸네일 생성 (격자 시작 지점의 프레임)
+  // 이미지 또는 영상에서 썸네일 생성
   useEffect(() => {
+    // 이미지가 있는 경우 이미지를 썸네일로 사용
+    if (imageUrl) {
+      setThumbnailUrl(imageUrl)
+      return
+    }
+
+    // 영상이 없는 경우 처리 중지
     if (!videoUrl || !videoRef.current || !canvasRef.current) {
       setThumbnailUrl(null)
       return
@@ -127,12 +137,13 @@ export const ProVideoUpload = memo(function ProVideoUpload({
       video.removeEventListener('loadeddata', handleLoadedData)
       video.removeEventListener('seeked', handleSeeked)
     }
-  }, [videoUrl, selectionStartSeconds])
+  }, [imageUrl, videoUrl, selectionStartSeconds])
 
-  // 호버 시 선택 영역만 재생
+  // 호버 시 선택 영역만 재생 (이미지인 경우 처리하지 않음)
   useEffect(() => {
     const hoverVideo = hoverVideoRef.current
-    if (!hoverVideo || !videoUrl) return
+    // 이미지가 있거나 영상이 없으면 처리하지 않음
+    if (imageUrl || !hoverVideo || !videoUrl) return
 
     const startTime = selectionStartSeconds || 0
     const endTime = selectionEndSeconds || 0
@@ -182,7 +193,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
       hoverVideo.pause()
       hoverVideo.currentTime = startTime
     }
-  }, [isHovered, videoUrl, selectionStartSeconds, selectionEndSeconds, hasUserActivation])
+  }, [imageUrl, isHovered, videoUrl, selectionStartSeconds, selectionEndSeconds, hasUserActivation])
 
   const handleClick = () => {
     fileInputRef.current?.click()
@@ -209,7 +220,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
       <input
         ref={fileInputRef}
         type="file"
-        accept="video/mp4,video/mov,video/avi,video/quicktime,video/webm"
+        accept="video/mp4,video/mov,video/avi,video/quicktime,video/webm,image/jpeg,image/png,image/gif,image/webp"
         onChange={handleFileChange}
         className="hidden"
         disabled={isLoading}
@@ -334,7 +345,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
                   lineHeight: '16.8px',
                 }}
               >
-                영상 업로드
+                미디어 업로드
               </span>
             </div>
           </>
