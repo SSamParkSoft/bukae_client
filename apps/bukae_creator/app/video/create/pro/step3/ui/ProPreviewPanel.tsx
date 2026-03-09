@@ -7,6 +7,7 @@ import type { ProStep3Scene } from '../model/types'
 
 interface ProPreviewPanelProps {
   currentVideoUrl?: string | null
+  currentImageUrl?: string | null
   currentSelectionStartSeconds?: number
   currentSceneIndex?: number
   scenes: ProStep3Scene[]
@@ -23,6 +24,7 @@ interface ProPreviewPanelProps {
 
 export const ProPreviewPanel = memo(function ProPreviewPanel({
   currentVideoUrl,
+  currentImageUrl,
   currentSceneIndex = 0,
   scenes,
   scenePlaybackRequest,
@@ -105,9 +107,9 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           }}
         >
           <div ref={pixiContainerRef} className="absolute inset-0 z-10" />
-          {!currentVideoUrl && (
+          {!currentVideoUrl && !currentImageUrl && (
             <div className="absolute inset-0 flex items-center justify-center text-white/50 z-20 pointer-events-none">
-              비디오 없음
+              미디어 없음
             </div>
           )}
         </div>

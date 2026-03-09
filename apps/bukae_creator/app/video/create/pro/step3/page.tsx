@@ -107,9 +107,10 @@ export default function ProStep3Page() {
     selectedProducts: selectedProducts ?? [],
   })
 
-  // 현재 선택된 씬의 비디오 URL과 선택 영역
+  // 현재 선택된 씬의 비디오 URL, 이미지 URL, 선택 영역
   const currentScene = proStep3Scenes[currentSceneIndex]
   const currentVideoUrl = currentScene?.videoUrl || null
+  const currentImageUrl = currentScene?.imageUrl || null
   const currentSelectionStartSeconds = currentScene?.selectionStartSeconds || 0
 
   // 씬 선택 핸들러
@@ -226,6 +227,7 @@ export default function ProStep3Page() {
           <div className="w-full lg:w-[25%] min-w-[250px] flex flex-col overflow-hidden lg:h-full">
             <ProPreviewPanel
               currentVideoUrl={currentVideoUrl}
+              currentImageUrl={currentImageUrl}
               currentSelectionStartSeconds={currentSelectionStartSeconds}
               currentSceneIndex={currentSceneIndex}
               scenes={proStep3Scenes}

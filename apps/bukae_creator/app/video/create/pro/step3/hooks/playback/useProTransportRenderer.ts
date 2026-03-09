@@ -569,7 +569,8 @@ export function useProTransportRenderer({
   loadImageAsSprite,
   renderSubtitle,
   sceneLoadingStateRef,
-}: UseProTransportRendererParams) {
+  cleanupSceneResources,
+}: UseProTransportRendererParams & { cleanupSceneResources: (sceneIndex: number) => void }) {
   const transportHook = useTransport()
   const { transportState } = useTransportState({ transport: transportHook.transport })
   const renderAtRef = useRef<((tSec: number, options?: RenderAtOptions) => void) | undefined>(undefined)
@@ -775,6 +776,13 @@ export function useProTransportRenderer({
         }
 
         hideAllSprites(spritesRef.current)
+
+        // 이전 씬의 리소스 정리 (씬 전환 시)
+        if (lastRenderedSceneIndexRef.current !== null && lastRenderedSceneIndexRef.current !== targetSceneIndex) {
+          if (typeof cleanupSceneResources === 'function') {
+            cleanupSceneResources(lastRenderedSceneIndexRef.current)
+          }
+        }
         videoElementsRef.current.forEach((video) => {
           if (!video.paused) {
             video.pause()
@@ -791,8 +799,8 @@ export function useProTransportRenderer({
         return
       }
 
-      // 비디오도 없는 경우 처리
-      if (!targetScene.videoUrl) {
+      // 비디오도 없고 이미지도 없는 경우 처리 (아무것도 업로드되지 않은 씬)
+      if (!targetScene.videoUrl && !targetScene.imageUrl) {
         hideAllSprites(spritesRef.current)
         videoElementsRef.current.forEach((video) => {
           if (!video.paused) {
@@ -1266,6 +1274,7 @@ export function useProTransportRenderer({
     },
     [
       appRef,
+      cleanupSceneResources,
       currentSceneIndexRef,
       ensureSceneLoaded,
       loadImageAsSprite,
