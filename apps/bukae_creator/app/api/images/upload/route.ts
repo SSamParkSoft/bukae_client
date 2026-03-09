@@ -29,15 +29,10 @@ export async function POST(request: Request) {
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-    const sceneIndex = formData.get('sceneIndex') as string | null
-    const jobId = formData.get('jobId') as string | null
+    const sceneId = formData.get('sceneId') as string | null
 
     if (!file) {
       return NextResponse.json({ error: '파일이 필요합니다.' }, { status: 400 })
-    }
-
-    if (!jobId || jobId.trim() === '') {
-      return NextResponse.json({ error: 'jobId가 필요합니다.' }, { status: 400 })
     }
 
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
@@ -54,15 +49,14 @@ export async function POST(request: Request) {
 
     const supabase = getSupabaseServiceClient()
 
-    // 이미지 파일 이름 생성: {timestamp}_scene_{sceneIndex}_image.{ext}
+    // 이미지 파일 이름 생성: {timestamp}_scene_{sceneId}_image.{ext} (영상과 동일한 패턴)
     const timestamp = Date.now()
-    const sceneIndexValue = sceneIndex || 'unknown'
+    const sceneIdValue = sceneId || 'unknown'
     const fileExt = file.name.split('.').pop() || 'jpg'
-    const fileName = `${timestamp}_scene_${sceneIndexValue}_image.${fileExt}`
-    
-    // 경로 구성: pro_upload_images/{userId}/{jobId}/{fileName}
-    // jobId로 구분하여 같은 영상 작업의 이미지들을 한 폴더에 정리
-    const filePath = `pro_upload_images/${auth.userId}/${jobId}/${fileName}`
+    const fileName = `${timestamp}_scene_${sceneIdValue}_image.${fileExt}`
+
+    // 경로 구성: {userId}/{fileName} (영상과 동일한 구조)
+    const filePath = `${auth.userId}/${fileName}`
     
     // 이미지 크기 읽기 (업로드 전에)
     let imageWidth = 0

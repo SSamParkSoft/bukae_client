@@ -172,8 +172,7 @@ export default function ProStep2EditPage() {
         // 이미지 업로드
         const formData = new FormData()
         formData.append('file', file)
-        formData.append('sceneIndex', String(index))
-        formData.append('jobId', 'pro-edit') // 임시 jobId
+        formData.append('sceneId', scenes[index]?.id || String(index + 1))
 
         const response = await fetch('/api/images/upload', {
           method: 'POST',
