@@ -24,6 +24,11 @@ import type { StudioScriptUserEditGuideResponseItem } from '@/lib/types/api/stud
 
 const DEFAULT_SCENE_COUNT = 6
 
+function getLocalApiUrl(path: string): string {
+  if (typeof window === 'undefined') return path
+  return `${window.location.origin}${path}`
+}
+
 /** 비디오 URL에서 메타데이터만 로드해 duration(초)을 반환. 실패 시 null */
 function getVideoDurationFromUrl(url: string): Promise<number | null> {
   return new Promise((resolve) => {
@@ -176,7 +181,7 @@ export default function ProStep2EditPage() {
         formData.append('sceneId', scenes[index]?.id || String(index + 1))
 
         const result = await api.postForm<{ success?: boolean; url?: string }>(
-          '/api/images/upload',
+          getLocalApiUrl('/api/images/upload'),
           formData
         )
         if (!result.success || !result.url) {
@@ -212,7 +217,7 @@ export default function ProStep2EditPage() {
         formData.append('sceneId', scenes[index]?.id || String(index + 1))
 
         const result = await api.postForm<{ success?: boolean; url?: string }>(
-          '/api/videos/pro/upload',
+          getLocalApiUrl('/api/videos/pro/upload'),
           formData
         )
         if (!result.success || !result.url) {
