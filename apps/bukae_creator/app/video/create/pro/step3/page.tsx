@@ -45,6 +45,16 @@ function getVideoDurationFromUrl(url: string): Promise<number | null> {
   })
 }
 
+type StoreSceneExtended = SceneScript & {
+  id?: string
+  videoUrl?: string | null
+  imageUrl?: string
+  ttsDuration?: number
+  originalVideoDurationSeconds?: number
+  selectionStartSeconds?: number
+  selectionEndSeconds?: number
+}
+
 export default function ProStep3Page() {
   const { 
     scenes: storeScenes, 
@@ -141,13 +151,13 @@ export default function ProStep3Page() {
             '/api/images/upload',
             formData
           )
-          if (!result?.success || !result?.url) {
+        if (!result?.success || !result?.url) {
             throw new Error('업로드된 이미지 URL을 가져올 수 없습니다.')
           }
 
           const next = [...scenes]
-          const current = next[sceneIndex] as SceneScript & { videoUrl?: string; imageUrl?: string; originalVideoDurationSeconds?: number; selectionStartSeconds?: number; selectionEndSeconds?: number }
-          next[sceneIndex] = {
+        const current = next[sceneIndex] as StoreSceneExtended
+        const updated: StoreSceneExtended = {
             ...current,
             imageUrl: result.url,
             videoUrl: null,
@@ -155,6 +165,7 @@ export default function ProStep3Page() {
             selectionStartSeconds: undefined,
             selectionEndSeconds: undefined,
           }
+        next[sceneIndex] = updated
           setScenes(next)
         } else {
           setCompressingSceneIndex(file.size > COMPRESS_THRESHOLD_BYTES ? sceneIndex : null)
@@ -173,12 +184,13 @@ export default function ProStep3Page() {
           }
 
           const next = [...scenes]
-          const current = next[sceneIndex] as SceneScript & { videoUrl?: string; imageUrl?: string; ttsDuration?: number; originalVideoDurationSeconds?: number; selectionStartSeconds?: number; selectionEndSeconds?: number }
-          next[sceneIndex] = {
+          const current = next[sceneIndex] as StoreSceneExtended
+          const updated: StoreSceneExtended = {
             ...current,
             videoUrl: result.url,
-            imageUrl: null,
+            imageUrl: undefined,
           }
+          next[sceneIndex] = updated
           setScenes(next)
 
           const ttsDuration = current.ttsDuration
@@ -186,8 +198,8 @@ export default function ProStep3Page() {
           if (durationSec != null && Number.isFinite(durationSec)) {
             const scenesAfter = useVideoCreateStore.getState().scenes
             const nextAfter = [...scenesAfter]
-            const scene = nextAfter[sceneIndex] as SceneScript & { originalVideoDurationSeconds?: number; selectionStartSeconds?: number; selectionEndSeconds?: number; ttsDuration?: number }
-            nextAfter[sceneIndex] = {
+            const scene = nextAfter[sceneIndex] as StoreSceneExtended
+            const updatedAfter: StoreSceneExtended = {
               ...scene,
               originalVideoDurationSeconds: durationSec,
               ...(typeof ttsDuration === 'number' &&
@@ -196,6 +208,7 @@ export default function ProStep3Page() {
                 ? { selectionStartSeconds: 0, selectionEndSeconds: durationSec }
                 : {}),
             }
+            nextAfter[sceneIndex] = updatedAfter
             setScenes(nextAfter)
           }
         }
