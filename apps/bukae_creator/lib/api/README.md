@@ -40,7 +40,6 @@
 - `CREDIT_POLICY_BY_PLAN`
   - `ADMIN: null` (무제한)
   - `FREE: null` (무제한)
-  - `FAST: 10000`
   - `PREMIUM: 10000`
 
 `null`은 잔액 제한 없음 의미입니다.

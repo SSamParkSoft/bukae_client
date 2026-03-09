@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
-import { ScriptStyleSection, AiScriptGenerateButton } from '@/app/video/create/_components'
+import { ScriptStyleSection, AiScriptGenerateButton } from './components/script'
 import { ProSceneCard } from './components/ProSceneCard'
 import { conceptOptions } from '@/lib/data/templates'
 import type { ConceptType } from '@/lib/data/templates'
@@ -528,7 +528,7 @@ export default function ProStep2Page() {
 
                   <div className="flex flex-col sm:flex-row gap-4 mt-12">
                     <Link
-                      href="/video/create/step1?track=pro"
+                      href="/video/create/step1"
                       className="flex-1 h-14 rounded-2xl border-2 border-[#5e8790] text-[#5e8790] hover:bg-[#5e8790]/10 transition-all flex items-center justify-center gap-2 font-bold tracking-[-0.48px] shadow-(--shadow-card-default)"
                       style={{
                         fontSize: 'var(--font-size-24)',

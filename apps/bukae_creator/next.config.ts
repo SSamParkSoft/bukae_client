@@ -26,12 +26,8 @@ const nextConfig: NextConfig = {
   // 기존 video/create step URL 리다이렉트
   async redirects() {
     return [
-      { source: '/video/create/fast/step1', destination: '/video/create/step1?track=fast', permanent: true },
-      { source: '/video/create/pro/step1', destination: '/video/create/step1?track=pro', permanent: true },
-      { source: '/video/create/step2', destination: '/video/create/fast/step2', permanent: true },
-      { source: '/video/create/step3', destination: '/video/create/fast/step3', permanent: true },
-      { source: '/video/create/step4', destination: '/video/create/fast/step4', permanent: true },
-      { source: '/video/create/script-method', destination: '/video/create/fast/script-method', permanent: true },
+      { source: '/video/create/step3', destination: '/video/create/pro/step3', permanent: true },
+      { source: '/video/create/step4', destination: '/video/create/pro/step4', permanent: true },
     ];
   },
   images: {

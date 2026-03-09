@@ -11,7 +11,7 @@ export const FABRIC_HANDLE_STYLE = {
   padding: 8,
 }
 
-// Fast/Pro 공통 Fabric 핸들 스타일
+// Step3 공통 Fabric 핸들 스타일
 export function applyFabricObjectDefaults() {
   fabric.Object.prototype.set(FABRIC_HANDLE_STYLE)
 
@@ -20,8 +20,8 @@ export function applyFabricObjectDefaults() {
   }
 }
 
-// Fast 트랙과 Pro 트랙에서 공통으로 사용하는 Fabric 컨트롤 가시성 정책
-export function applyFastLikeControlPolicy(target: fabric.Object) {
+// 공통 Fabric 컨트롤 가시성 정책
+export function applyCornerControlPolicy(target: fabric.Object) {
   if (typeof (target as { setControlsVisibility?: (options: Record<string, boolean>) => void }).setControlsVisibility === 'function') {
     ;(target as { setControlsVisibility: (options: Record<string, boolean>) => void }).setControlsVisibility({
       mtr: false,

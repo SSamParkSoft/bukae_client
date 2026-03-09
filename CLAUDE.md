@@ -15,7 +15,7 @@ Run from the workspace root:
 
 ```bash
 # Development
-pnpm dev              # Start creator app (default)
+pnpm dev              # Start creator app (default, auto-opens Chrome on ready)
 pnpm dev:viewer       # Start viewer app
 pnpm dev:all          # Start all apps in parallel
 
@@ -30,6 +30,9 @@ pnpm lint
 # Seed demo data
 pnpm seed-demo
 ```
+
+The `pnpm dev` command runs `scripts/dev-with-browser.sh` which automatically opens Chrome at `http://localhost:3000` once the server is ready.
+
 
 The `pnpm build` script (`scripts/auto-build-fix.sh`) attempts build, auto-fixes lint errors on failure, installs missing `@types` packages, then retries.
 
@@ -49,22 +52,24 @@ The `pnpm build` script (`scripts/auto-build-fix.sh`) attempts build, auto-fixes
 The core feature is a multi-step video creation pipeline in `apps/bukae_creator/app/video/create/`:
 
 ```
-Step1 → Product selection & image collection
-Step2 → Script generation (manual or AI)
-Step3 → Scene composition & timeline editing  ← most complex
-Step4 → Effect/template application
-Export → FFmpeg encoding + YouTube upload
+/video/create           → start page
+/video/create/step1     → product selection & image collection
+/video/create/pro/step2 → script generation (manual or AI)
+/video/create/pro/step3 → scene composition & timeline editing  ← most complex
+/video/create/pro/step4 → effect/template application
+Export                  → FFmpeg encoding + YouTube upload
 ```
 
-**Two tracks (Fast vs Pro)** with separate Step3 implementations:
-- `fast/step3/` — simplified track
-- `pro/step3/` — full-featured track
-- `step3/shared/` — track-agnostic shared components/hooks/utils
+Only a single **Pro track** exists. No `?track=` query params.
 
-**ESLint enforces strict module boundaries:**
-- Fast Step3 cannot import Pro Step3, and vice versa
-- Shared Step3 cannot import either track's specific modules
-- Legacy bridge files (`_step3-components/`, `_hooks/step3/`, `_utils/step3/`) are being migrated; do not use them in new code — use the new paths (`step3/shared/ui`, `step3/shared/hooks`, `step3/shared/model`)
+**Step3 directory layout** (`app/video/create/pro/step3/`):
+- `page.tsx` + `hooks/useProStep3Container.ts` — orchestration layer
+- `hooks/playback/useProTransportRenderer.ts` — **the only active renderer**; owns transition logic via `applySceneStartTransition()`
+- `hooks/`, `ui/`, `utils/` — step3 utilities unified under the Pro track
+- `ui/` — Pro-specific panel components
+- `hooks/editing/` — Fabric.js editing mode hooks
+
+**Dead code warning**: `hooks/video/renderer/useTransportRenderer.ts` and its `pipeline/` and `transitions/useTransitionEffects.ts` are legacy remnants — nothing imports them. Active renderer imports are limited to `hooks/video/renderer/{transport,playback,subtitle,utils}/`.
 
 ## Key Architectural Patterns
 
@@ -91,6 +96,10 @@ From ESLint config and Cursor rules:
 
 ## CI/CD
 
-- `lint.yml`: Runs ESLint on PRs and pushes to `develop`/`main`
+- `lint.yml`: Runs ESLint on PRs and pushes to `develop`/`main`. Uses Node.js 20 and pnpm 10.7.0.
 - `coderabbit-guard.yml`: Blocks merge if CodeRabbit finds major/critical issues. Reviews are in Korean (`ko-KR`). Wait for CodeRabbit to complete before assuming a PR is ready.
 - Main branch for PRs: `main`. Development branch: `develop`.
+
+## App-Specific Documentation
+
+For detailed architecture of `apps/bukae_creator/` (Step3 rendering, store persistence, hooks organization, API routes, type locations), see `apps/bukae_creator/CLAUDE.md`.

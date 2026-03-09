@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Suspense } from 'react'
 import { User } from 'lucide-react'
 import TopNavigation, { TopNavTab } from './TopNavigation'
@@ -19,12 +19,12 @@ interface BukaeTopProps {
   className?: string
 }
 
-function getSteps(track: 'fast' | 'pro'): Step[] {
+function getSteps(): Step[] {
   return [
-    { number: 1, label: '상품 선택', path: `/video/create/step1?track=${track}` },
-    { number: 2, label: '대본 및 이미지', path: `/video/create/${track}/step2` },
-    { number: 3, label: '미리보기 및 편집', path: `/video/create/${track}/step3` },
-    { number: 4, label: '영상 생성', path: `/video/create/${track}/step4` },
+    { number: 1, label: '상품 선택', path: '/video/create/step1' },
+    { number: 2, label: '대본 및 이미지', path: '/video/create/pro/step2' },
+    { number: 3, label: '미리보기 및 편집', path: '/video/create/pro/step3' },
+    { number: 4, label: '영상 생성', path: '/video/create/pro/step4' },
   ]
 }
 
@@ -37,16 +37,9 @@ function BukaeTopContent({
 }: BukaeTopProps) {
   const pathname = usePathname()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { user, isAuthenticated } = useUserStore()
 
-  // track: pathname이 fast/pro 포함 시 해당 값, step1일 때만 searchParams 사용 (기본 fast)
-  const detectedTrack: 'fast' | 'pro' =
-    pathname?.includes('/fast') ? 'fast'
-    : pathname?.includes('/pro') ? 'pro'
-    : searchParams?.get('track') === 'pro' ? 'pro'
-    : 'fast'
-  const defaultSteps = getSteps(detectedTrack)
+  const defaultSteps = getSteps()
 
   // variant가 제공되지 않으면 pathname 기반으로 자동 감지
   const getVariant = (): 'login' | 'make' | 'mypage' | 'data' => {

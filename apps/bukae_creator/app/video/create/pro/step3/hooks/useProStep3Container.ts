@@ -9,8 +9,8 @@ import { useProTransportTtsSync } from './playback/useProTransportTtsSync'
 import { useProTransportPlayback } from './playback/useProTransportPlayback'
 import { useProFabricResizeDrag } from './editing/useProFabricResizeDrag'
 import { useProEditModeManager } from './editing/useProEditModeManager'
-import { useTimelineChangeHandler } from '@/app/video/create/step3/shared/hooks/timeline'
-import { useBgmPlayback } from '@/app/video/create/step3/shared/hooks/audio'
+import { useTimelineChangeHandler } from './timeline'
+import { useBgmPlayback } from './audio'
 import { useBgmManager } from '@/hooks/video/audio/useBgmManager'
 import { useSoundEffectManager } from '@/hooks/video/audio/useSoundEffectManager'
 import { buildSceneMarkup, makeTtsKey } from '@/lib/utils/tts'
@@ -78,7 +78,7 @@ function getAppCanvas(app: PIXI.Application | null | undefined): HTMLCanvasEleme
 }
 
 /**
- * Pro step3 오케스트레이션 훅 (Fast useStep3Container와 동일한 패턴)
+ * Pro step3 오케스트레이션 훅
  * 모든 비즈니스 로직을 포함하고 UI는 순수하게 렌더링만 담당하도록 함
  */
 export function useProStep3Container(params: UseProStep3ContainerParams) {
@@ -115,6 +115,14 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
   const setupSpriteClickEventRef = useRef<(sceneIndex: number, sprite: PIXI.Sprite) => boolean>(() => false)
   const prevSceneIndexRef = useRef(currentSceneIndex)
   const prevFabricSceneIndexRef = useRef(currentSceneIndex)
+
+  // 스프라이트 로딩 상태 추적 (useProTransportRenderer와 공유)
+  const sceneLoadingStateRef = useRef<Map<number, {
+    status: 'not-loaded' | 'loading' | 'ready' | 'failed'
+    timestamp: number
+    videoReady: boolean
+    spriteReady: boolean
+  }>>(new Map())
 
   const ttsAudioRefsRef = useRef<Map<number, HTMLAudioElement>>(new Map())
   const ttsCacheRef = useRef<Map<string, { blob: Blob; durationSec: number; url?: string | null }>>(new Map())
@@ -532,11 +540,32 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
   }, [cleanupAllMediaResources])
 
   // ===== 비디오 로딩 =====
-  const loadVideoAsSprite = useCallback(async (sceneIndex: number, videoUrl: string, selectionStartSeconds?: number): Promise<void> => {
+  const loadVideoAsSprite = useCallback(async (sceneIndex: number, videoUrl: string, selectionStartSeconds?: number, onLoadingStateChange?: (sceneIndex: number, updates: { status: 'loading' | 'ready' | 'failed', videoReady?: boolean, spriteReady?: boolean }) => void): Promise<void> => {
     if (!pixiReady) {
       console.warn('[loadVideoAsSprite] pixiReady가 false입니다', { sceneIndex, videoUrl })
       return
     }
+
+    // 로딩 시작 상태 업데이트
+    const updateLoadingState = (updates: { status: 'loading' | 'ready' | 'failed', videoReady?: boolean, spriteReady?: boolean }) => {
+      const current = sceneLoadingStateRef.current.get(sceneIndex) ?? {
+        status: 'not-loaded' as const,
+        timestamp: Date.now(),
+        videoReady: false,
+        spriteReady: false,
+      }
+
+      sceneLoadingStateRef.current.set(sceneIndex, {
+        ...current,
+        ...updates,
+        timestamp: Date.now(),
+      })
+
+      // 외부 콜백도 호출
+      onLoadingStateChange?.(sceneIndex, updates)
+    }
+
+    updateLoadingState({ status: 'loading' })
 
     cleanupSceneResources(sceneIndex)
 
@@ -702,7 +731,10 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
 
       finalVideoContainer.addChild(sprite)
       spritesRef.current.set(sceneIndex, sprite)
-      
+
+      // 스프라이트 생성 완료 상태 업데이트
+      updateLoadingState({ status: 'ready', videoReady: true, spriteReady: true })
+
       if (finalApp && finalApp.renderer) {
         try {
           finalApp.renderer.render(finalApp.stage)
@@ -710,12 +742,15 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
           console.warn('[loadVideoAsSprite] 초기 렌더링 실패:', error)
         }
       }
-      
+
       requestAnimationFrame(() => {
         setupSpriteClickEventRef.current(sceneIndex, sprite)
       })
-    } catch {
+    } catch (error) {
+      // 로딩 실패 상태 업데이트
+      updateLoadingState({ status: 'failed' })
       cleanupSceneResources(sceneIndex)
+      console.warn('[loadVideoAsSprite] 로딩 실패:', error)
     }
   }, [cleanupSceneResources, pixiReady])
 
@@ -767,7 +802,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
       }
     } else {
       const subtitlePosition = timelineScene
-        ? getSubtitlePosition(timelineScene, { width: stageWidth, height: stageHeight }, { track: 'pro' })
+        ? getSubtitlePosition(timelineScene, { width: stageWidth, height: stageHeight })
         : {
             x: stageWidth / 2,
             y: stageHeight - 200,
@@ -877,6 +912,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     currentSceneIndexRef,
     loadVideoAsSprite,
     renderSubtitle,
+    sceneLoadingStateRef,
   })
 
   useProTransportTtsSync({

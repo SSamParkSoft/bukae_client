@@ -25,7 +25,7 @@ interface UseProVideoExportParams {
 
 /**
  * Pro 트랙 전용 비디오 내보내기 hook.
- * Fast와 동일한 API(/api/videos/generate)를 사용하며, 씬별 비디오 URL + TTS 업로드 후 인코딩 요청을 보내고 step4로 이동합니다.
+ * /api/videos/generate API를 사용하며, 씬별 비디오 URL + TTS 업로드 후 인코딩 요청을 보내고 step4로 이동합니다.
  */
 export function useProVideoExport({
   proStep3Scenes,
@@ -201,8 +201,7 @@ export function useProVideoExport({
         }
         const serializedSubtitle = serializeSubtitleForEncoding(
           fallbackTimelineScene,
-          { width, height },
-          'pro'
+          { width, height }
         )
 
         encodingScenes.push({

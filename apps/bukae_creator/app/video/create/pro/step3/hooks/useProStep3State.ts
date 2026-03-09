@@ -1,6 +1,6 @@
 'use client'
 
-import { useStep3EffectState } from '@/app/video/create/step3/shared/hooks'
+import { useStep3EffectState } from './useStep3EffectState'
 
 /**
  * Pro step3 효과 패널 및 사운드 상태 관리 훅
