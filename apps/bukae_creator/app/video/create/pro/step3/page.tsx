@@ -22,6 +22,11 @@ import { api, ApiError } from '@/lib/api/client'
 import { authStorage } from '@/lib/api/auth-storage'
 import { compressVideoIfNeeded, COMPRESS_THRESHOLD_BYTES } from '@/lib/video/compressVideoInBrowser'
 
+function getLocalApiUrl(path: string): string {
+  if (typeof window === 'undefined') return path
+  return `${window.location.origin}${path}`
+}
+
 /** 비디오 URL에서 메타데이터만 로드해 duration(초)을 반환. 실패 시 null */
 function getVideoDurationFromUrl(url: string): Promise<number | null> {
   return new Promise((resolve) => {
@@ -148,7 +153,7 @@ export default function ProStep3Page() {
           formData.append('sceneId', sceneId)
 
           const result = await api.postForm<{ success?: boolean; url?: string }>(
-            '/api/images/upload',
+            getLocalApiUrl('/api/images/upload'),
             formData
           )
         if (!result?.success || !result?.url) {
@@ -176,7 +181,7 @@ export default function ProStep3Page() {
           formData.append('sceneId', sceneId)
 
           const result = await api.postForm<{ success?: boolean; url?: string }>(
-            '/api/videos/pro/upload',
+            getLocalApiUrl('/api/videos/pro/upload'),
             formData
           )
           if (!result?.success || !result?.url) {
