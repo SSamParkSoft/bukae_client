@@ -23,6 +23,7 @@ interface UseProTransportRendererParams {
   currentSceneIndexRef: React.MutableRefObject<number>
   loadVideoAsSprite: (sceneIndex: number, videoUrl: string, selectionStartSeconds?: number) => Promise<void>
   renderSubtitle: (sceneIndex: number, script: string) => void
+  sceneLoadingStateRef: React.MutableRefObject<Map<number, LoadingState>>
 }
 
 interface RenderAtOptions {
@@ -49,6 +50,21 @@ const MOVEMENT_TRANSITIONS = new Set([
   'zoom-out',
 ])
 
+// 스프라이트 로딩 상태 타입
+type LoadingStateStatus = 'not-loaded' | 'loading' | 'ready' | 'failed'
+
+interface LoadingState {
+  status: LoadingStateStatus
+  timestamp: number
+  videoReady: boolean
+  spriteReady: boolean
+}
+
+// 사전 로딩 버퍼 시간 (전환 시작 N초 전부터 로드 시작)
+const PRELOAD_BUFFER_TIME_SEC = 2.5 // 더 많은 버퍼 시간으로 증가
+// 사전 로딩 체크 간격 (ms)
+const PRELOAD_CHECK_INTERVAL_MS = 200
+
 type RuntimeTransitionSprite = PIXI.Sprite & {
   __proCircleMask?: PIXI.Graphics | null
   __proBlurFilter?: PIXI.BlurFilter | null
@@ -73,6 +89,78 @@ function hideAllSprites(spritesMap: Map<number, PIXI.Sprite>) {
   spritesMap.forEach((sprite) => {
     hideSprite(sprite)
   })
+}
+
+// 스프라이트 로딩 상태 확인 유틸리티
+function isSpriteReady(
+  loadingState: LoadingState | undefined,
+  sprite: PIXI.Sprite | undefined
+): boolean {
+  if (!sprite || sprite.destroyed) {
+    return false
+  }
+
+  // 로딩 상태가 정의되지 않았거나 'ready'가 아닌 경우 false 반환
+  if (!loadingState || loadingState.status !== 'ready') {
+    return false
+  }
+
+  // 비디오와 스프라이트 모두 준비되었는지 확인
+  return loadingState.videoReady && loadingState.spriteReady
+}
+
+// 로딩 상태 초기화/업데이트 유틸리티
+function updateLoadingState(
+  sceneIndex: number,
+  loadingStateRef: React.MutableRefObject<Map<number, LoadingState>>,
+  updates: Partial<LoadingState>
+): void {
+  const current = loadingStateRef.current.get(sceneIndex) ?? {
+    status: 'not-loaded',
+    timestamp: Date.now(),
+    videoReady: false,
+    spriteReady: false,
+  }
+
+  loadingStateRef.current.set(sceneIndex, {
+    ...current,
+    ...updates,
+    timestamp: Date.now(),
+  })
+}
+
+// 현재 시점에서 전환 예상되는 씬들 식별
+function getUpcomingScenes(
+  currentSceneIndex: number,
+  scenes: ProStep3Scene[],
+  _currentTimeSec: number,
+  _bufferTimeSec: number,
+  sceneLoadingStateRef: React.MutableRefObject<Map<number, LoadingState>>
+): number[] {
+  const upcomingScenes: number[] = []
+
+  // 현재 씬의 다음 씬들 확인 (최대 3개)
+  for (let i = 1; i <= 3; i++) {
+    const nextSceneIndex = currentSceneIndex + i
+    if (nextSceneIndex >= scenes.length) {
+      break
+    }
+
+    const nextScene = scenes[nextSceneIndex]
+    if (!nextScene || !nextScene.videoUrl) {
+      continue
+    }
+
+    // 이미 로드된 씬은 제외
+    const loadState = sceneLoadingStateRef.current?.get(nextSceneIndex)
+    if (loadState?.status === 'ready') {
+      continue
+    }
+
+    upcomingScenes.push(nextSceneIndex)
+  }
+
+  return upcomingScenes
 }
 
 function applySceneBaseTransform(
@@ -254,7 +342,7 @@ function applySceneStartTransition({
   transitionType: string
   progress: number
   toSprite: PIXI.Sprite
-  fromSprite: PIXI.Sprite | null
+  fromSprite: PIXI.Sprite | null | undefined
   fromBaseState?: SpriteBaseState | null
   stageWidth: number
   stageHeight: number
@@ -448,6 +536,7 @@ export function useProTransportRenderer({
   currentSceneIndexRef,
   loadVideoAsSprite,
   renderSubtitle,
+  sceneLoadingStateRef,
 }: UseProTransportRendererParams) {
   const transportHook = useTransport()
   const { transportState } = useTransportState({ transport: transportHook.transport })
@@ -497,6 +586,87 @@ export function useProTransportRenderer({
       }
     },
     [transportState.isPlaying, transportState.playbackRate]
+  )
+
+  // 사전 로딩 로직: 전환 예상 시점 이전에 관련 씬들 미리 로드
+  const preloadScenesForTransition = useCallback(
+    (currentTimeSec: number, currentSceneIndex: number) => {
+      if (!pixiReady) {
+        return
+      }
+
+      const upcomingScenes = getUpcomingScenes(
+        currentSceneIndex,
+        scenes,
+        currentTimeSec,
+        PRELOAD_BUFFER_TIME_SEC,
+        sceneLoadingStateRef
+      )
+
+      // 전환을 위한 이전 씬 확인
+      const previousPlayable = currentSceneIndex > 0 ? playableScenes[currentSceneIndex - 1] : null
+      const previousSceneIndex = previousPlayable?.originalIndex ?? null
+
+      if (previousSceneIndex !== null) {
+        const previousScene = scenes[previousSceneIndex]
+        if (previousScene?.videoUrl) {
+          const loadState = sceneLoadingStateRef.current.get(previousSceneIndex)
+          if (!loadState || loadState.status !== 'ready') {
+            // 이전 씬도 미리 로드
+            updateLoadingState(previousSceneIndex, sceneLoadingStateRef, {
+              status: 'loading',
+            })
+            const selectionStartSeconds = previousScene.selectionStartSeconds ?? 0
+            void loadVideoAsSprite(previousSceneIndex, previousScene.videoUrl, selectionStartSeconds)
+              .then(() => {
+                updateLoadingState(previousSceneIndex, sceneLoadingStateRef, {
+                  status: 'ready',
+                  videoReady: true,
+                  spriteReady: true,
+                })
+              })
+              .catch(() => {
+                updateLoadingState(previousSceneIndex, sceneLoadingStateRef, {
+                  status: 'failed',
+                })
+              })
+          }
+        }
+      }
+
+      // 다음 씬들 미리 로드
+      upcomingScenes.forEach((sceneIndex) => {
+        const scene = scenes[sceneIndex]
+        if (!scene?.videoUrl) {
+          return
+        }
+
+        const loadState = sceneLoadingStateRef.current.get(sceneIndex)
+        if (loadState?.status === 'loading' || loadState?.status === 'ready') {
+          return
+        }
+
+        updateLoadingState(sceneIndex, sceneLoadingStateRef, {
+          status: 'loading',
+        })
+
+        const selectionStartSeconds = scene.selectionStartSeconds ?? 0
+        void loadVideoAsSprite(sceneIndex, scene.videoUrl, selectionStartSeconds)
+          .then(() => {
+            updateLoadingState(sceneIndex, sceneLoadingStateRef, {
+              status: 'ready',
+              videoReady: true,
+              spriteReady: true,
+            })
+          })
+          .catch(() => {
+            updateLoadingState(sceneIndex, sceneLoadingStateRef, {
+              status: 'failed',
+            })
+          })
+      })
+    },
+    [pixiReady, scenes, playableScenes, loadVideoAsSprite, sceneLoadingStateRef]
   )
 
   const ensureSceneLoaded = useCallback(
@@ -642,6 +812,16 @@ export function useProTransportRenderer({
           : null
       const sceneChanged = lastRenderedSceneIndexRef.current !== targetSceneIndex
       if (sceneChanged) {
+        // 씬 전환 시 로딩 상태 초기화 (이전 씬에 대한 로딩 정보는 유지)
+        const currentLoadingState = sceneLoadingStateRef.current.get(targetSceneIndex)
+        if (!currentLoadingState || currentLoadingState.status !== 'ready') {
+          updateLoadingState(targetSceneIndex, sceneLoadingStateRef, {
+            status: 'not-loaded',
+            videoReady: false,
+            spriteReady: false,
+          })
+        }
+
         console.warn('[ProTransitionDebug] scene change', {
           fromSceneIndex: lastRenderedSceneIndexRef.current,
           toSceneIndex: targetSceneIndex,
@@ -690,9 +870,16 @@ export function useProTransportRenderer({
         sprite.alpha = 1
 
         const activePreviousSprite =
-          previousSceneIndex !== null ? spritesRef.current.get(previousSceneIndex) : null
+          previousSceneIndex !== null ? spritesRef.current.get(previousSceneIndex) : undefined
+
+        // 이전 스프라이트의 로딩 상태 확인
+        const previousLoadingState =
+          previousSceneIndex !== null ? sceneLoadingStateRef.current.get(previousSceneIndex) : undefined
+        const isPreviousSpriteReady = isSpriteReady(previousLoadingState, activePreviousSprite)
+
         const canRenderCrossTransitionNow =
           needsCrossTransition &&
+          isPreviousSpriteReady &&
           !!activePreviousSprite &&
           !activePreviousSprite.destroyed
         const transitionPairKey =
@@ -801,19 +988,32 @@ export function useProTransportRenderer({
         }
 
         if (shouldTransition) {
-          applySceneStartTransition({
-            transitionType: effectiveTransition,
-            progress: transitionProgress,
-            toSprite: sprite,
-            fromSprite: canRenderCrossTransitionNow ? activePreviousSprite ?? null : null,
-            fromBaseState:
-              transitionPairKey &&
-              movementTransitionFromBaseStateRef.current?.key === transitionPairKey
-                ? movementTransitionFromBaseStateRef.current.state
-                : null,
-            stageWidth: app.screen.width,
-            stageHeight: app.screen.height,
-          })
+          // fromSprite가 준비되지 않았으면 전환을 지연 (깜빡거림 방지)
+          const fromSpriteToUse = canRenderCrossTransitionNow ? activePreviousSprite ?? null : null
+
+          // 크로스 전환이 필요하지만 스프라이트가 준비되지 않았으면 전환을 건너뜀
+          if (needsCrossTransition && !canRenderCrossTransitionNow) {
+            console.warn('[ProTransitionDebug] 스프라이트가 준비되지 않아 전환 지연', {
+              targetSceneIndex,
+              previousSceneIndex,
+              canRenderCrossTransitionNow,
+              isPreviousSpriteReady,
+            })
+          } else {
+            applySceneStartTransition({
+              transitionType: effectiveTransition,
+              progress: transitionProgress,
+              toSprite: sprite,
+              fromSprite: fromSpriteToUse,
+              fromBaseState:
+                transitionPairKey &&
+                movementTransitionFromBaseStateRef.current?.key === transitionPairKey
+                  ? movementTransitionFromBaseStateRef.current.state
+                  : null,
+              stageWidth: app.screen.width,
+              stageHeight: app.screen.height,
+            })
+          }
         }
 
         // Cleanup transition artifacts when transition is complete (progress >= 1),
@@ -911,6 +1111,22 @@ export function useProTransportRenderer({
             }
             // 로드가 실패했거나 스프라이트가 아직 없으면 다음 tick에서 재시도될 수 있게 유지
             lastRenderedSceneIndexRef.current = applied ? targetSceneIndex : -1
+
+            // Play 모드에서 로딩 완료 후 즉시 전환 적용을 위해 한 번 더 렌더링
+            if (applied && transportState.isPlaying) {
+              requestAnimationFrame(() => {
+                if (requestId !== renderRequestIdRef.current) {
+                  return
+                }
+                const currentT = transportHook.transport?.getTime() ?? 0
+                const currentResolved = resolveProSceneAtTime(scenes, currentT, {
+                  forceSceneIndex: targetSceneIndex,
+                })
+                if (currentResolved && currentResolved.sceneIndex === targetSceneIndex) {
+                  applyVisualState()
+                }
+              })
+            }
           })
         })
       } else {
@@ -958,12 +1174,46 @@ export function useProTransportRenderer({
       spritesRef,
       timeline,
       videoElementsRef,
+      sceneLoadingStateRef,
+      transportState.isPlaying,
+      transportHook.transport,
     ]
   )
 
   useEffect(() => {
     renderAtRef.current = renderAt
   }, [renderAt])
+
+  // 사전 로딩 체크: 200ms마다 현재 시점에서 전환 예상되는 씬들을 미리 로드
+  useEffect(() => {
+    if (!pixiReady || !transportState.isPlaying) {
+      return
+    }
+
+    const checkInterval = setInterval(() => {
+      if (!transportHook.transport) {
+        return
+      }
+      const currentTime = transportHook.transport.getTime()
+      const resolved = resolveProSceneAtTime(scenes, currentTime, {})
+      if (!resolved) {
+        return
+      }
+
+      const currentSceneIndex = resolved.sceneIndex
+      preloadScenesForTransition(currentTime, currentSceneIndex)
+    }, PRELOAD_CHECK_INTERVAL_MS)
+
+    return () => {
+      clearInterval(checkInterval)
+    }
+  }, [
+    pixiReady,
+    transportState.isPlaying,
+    transportHook.transport,
+    scenes,
+    preloadScenesForTransition,
+  ])
 
   useRenderLoop({
     transport: transportHook.transport,
