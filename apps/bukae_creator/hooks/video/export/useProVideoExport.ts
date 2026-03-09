@@ -97,11 +97,11 @@ export function useProVideoExport({
         }
       }
 
-      // 2. 씬별 보이스/비디오 URL 검증
+      // 2. 씬별 보이스/비디오/이미지 URL 검증
       for (let i = 0; i < proStep3Scenes.length; i++) {
         const scene = proStep3Scenes[i]
-        if (!scene.videoUrl?.trim()) {
-          throw new Error(`씬 ${i + 1}에 영상이 없습니다.`)
+        if (!scene.videoUrl?.trim() && !scene.imageUrl?.trim()) {
+          throw new Error(`씬 ${i + 1}에 영상 또는 이미지가 없습니다.`)
         }
       }
       const scenesWithoutVoice: number[] = []
@@ -130,29 +130,35 @@ export function useProVideoExport({
       const bgmTemplateObj = bgmTemplate ? bgmTemplates.find((t) => t.id === bgmTemplate) : null
       const bgmUrl = bgmTemplateObj ? getBgmTemplateUrlSync(bgmTemplateObj) : null
 
-      // 3. Pro 전용: video 레이어 형식으로 encodingScenes 생성 (백엔드는 image가 아닌 video 필드 사용)
+      // 3. Pro 전용: video 또는 image 레이어 형식으로 encodingScenes 생성
+      type SceneTransform = {
+        x: number
+        y: number
+        width: number
+        height: number
+        scaleX: number
+        scaleY: number
+        rotation: number
+        anchor: { x: number; y: number }
+      }
       const encodingScenes: Array<{
         sceneId: number
         order: number
         duration: number
         transition: Record<string, unknown>
-        video: {
+        image?: {
+          url: string
+          fit: string
+          transform: SceneTransform
+        }
+        video?: {
           url: string
           fit: string
           loop: boolean
           mute: boolean
           trimStart: number
           trimEnd: number
-          transform: {
-            x: number
-            y: number
-            width: number
-            height: number
-            scaleX: number
-            scaleY: number
-            rotation: number
-            anchor: { x: number; y: number }
-          }
+          transform: SceneTransform
         }
         text: unknown
         voice: unknown
@@ -181,12 +187,15 @@ export function useProVideoExport({
             ? tlScene.transitionDuration
             : effectDuration
 
+        const isImageOnlyScene = !scene.videoUrl?.trim() && !!scene.imageUrl?.trim()
+        const mediaUrl = isImageOnlyScene ? scene.imageUrl! : scene.videoUrl!
+
         const fallbackTimelineScene: TimelineData['scenes'][number] = tlScene ?? {
           sceneId: index + 1,
           duration,
           transition: effectType,
           transitionDuration,
-          image: scene.videoUrl!,
+          image: mediaUrl,
           imageFit: 'contain',
           text: {
             content: (scene.script || ' ').trim() || ' ',
@@ -204,29 +213,41 @@ export function useProVideoExport({
           { width, height }
         )
 
+        const sceneTransform: SceneTransform = {
+          x: width / 2,
+          y: height / 2,
+          width,
+          height,
+          scaleX: 1,
+          scaleY: 1,
+          rotation: 0,
+          anchor: { x: 0.5, y: 0.5 },
+        }
+
         encodingScenes.push({
           sceneId: index + 1,
           order: index,
           duration: Math.max(0.1, duration),
           transition,
-          video: {
-            url: scene.videoUrl!,
-            fit: tlScene?.imageFit ?? 'contain',
-            loop: true,
-            mute: true,
-            trimStart: scene.selectionStartSeconds ?? 0,
-            trimEnd: scene.selectionEndSeconds ?? duration,
-            transform: {
-              x: width / 2,
-              y: height / 2,
-              width,
-              height,
-              scaleX: 1,
-              scaleY: 1,
-              rotation: 0,
-              anchor: { x: 0.5, y: 0.5 },
-            },
-          },
+          ...(isImageOnlyScene
+            ? {
+                image: {
+                  url: scene.imageUrl!,
+                  fit: tlScene?.imageFit ?? 'contain',
+                  transform: sceneTransform,
+                },
+              }
+            : {
+                video: {
+                  url: scene.videoUrl!,
+                  fit: tlScene?.imageFit ?? 'contain',
+                  loop: true,
+                  mute: true,
+                  trimStart: scene.selectionStartSeconds ?? 0,
+                  trimEnd: scene.selectionEndSeconds ?? duration,
+                  transform: sceneTransform,
+                },
+              }),
           text: {
             content: (scene.script || tlScene?.text?.content || ' ').trim() || ' ',
             visible: true,
@@ -316,6 +337,8 @@ export function useProVideoExport({
         clientRequestId,
         encodingRequest,
       }
+
+      console.warn('[Export] exportPayload:', JSON.stringify(exportPayload, null, 2))
 
       const response = await fetch('/api/videos/generate', {
         method: 'POST',

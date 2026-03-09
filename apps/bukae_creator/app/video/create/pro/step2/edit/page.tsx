@@ -199,10 +199,18 @@ export default function ProStep2EditPage() {
           throw new Error('업로드된 이미지 URL을 가져올 수 없습니다.')
         }
 
-        // 업로드된 이미지 URL을 store에 저장
+        // 업로드된 이미지 URL을 store에 저장하고, 이전 비디오 관련 필드를 초기화
         updateScenes((prev) => {
           const next = [...prev]
-          next[index] = { ...next[index], imageUrl: result.url, durationSeconds: 0 }
+          next[index] = {
+            ...next[index],
+            imageUrl: result.url,
+            // 이미지로 전환 시 비디오 관련 필드 초기화
+            videoUrl: null,
+            originalVideoDurationSeconds: undefined,
+            selectionStartSeconds: undefined,
+            selectionEndSeconds: undefined,
+          }
           return next
         })
 
@@ -249,10 +257,15 @@ export default function ProStep2EditPage() {
           throw new Error('업로드된 영상 URL을 가져올 수 없습니다.')
         }
 
-        // 업로드된 영상 URL을 store에 저장
+        // 업로드된 영상 URL을 store에 저장하고, 이전 이미지 관련 필드를 초기화
         updateScenes((prev) => {
           const next = [...prev]
-          next[index] = { ...next[index], videoUrl: result.url }
+          next[index] = {
+            ...next[index],
+            videoUrl: result.url,
+            // 비디오로 전환 시 이미지 필드 초기화
+            imageUrl: null,
+          }
           return next
         })
 

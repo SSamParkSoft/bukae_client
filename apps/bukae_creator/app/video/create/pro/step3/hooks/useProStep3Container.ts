@@ -1994,6 +1994,38 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     renderAtRef.current(t, { skipAnimation: false, forceRender: true })
   }, [timelineScenesKey, pixiReady, transportState.isPlaying, transportHook, renderAtRef, editMode])
 
+  // 씬별 미디어 URL(videoUrl/imageUrl) 변경 감지 → 이전 스프라이트 정리 + 강제 리렌더
+  const sceneMediaUrlsKey = useMemo(
+    () =>
+      scenes
+        .map((s, i) => `${i}:${s.videoUrl ?? ''}|${s.imageUrl ?? ''}`)
+        .join(','),
+    [scenes]
+  )
+  const prevSceneMediaUrlsKeyRef = useRef<string>('')
+  useEffect(() => {
+    if (!pixiReady) return
+    const prev = prevSceneMediaUrlsKeyRef.current
+    const curr = sceneMediaUrlsKey
+    if (prev === curr) return
+    prevSceneMediaUrlsKeyRef.current = curr
+
+    if (prev === '') return // 최초 마운트는 건너뜀
+
+    // 변경된 씬 인덱스 찾아서 스프라이트 정리
+    const prevParts = prev.split(',')
+    const currParts = curr.split(',')
+    currParts.forEach((part, i) => {
+      if (prevParts[i] !== part) {
+        cleanupSceneResources(i)
+      }
+    })
+
+    if (!renderAtRef.current || transportState.isPlaying) return
+    const t = transportHook.getTime()
+    renderAtRef.current(t, { forceRender: true })
+  }, [sceneMediaUrlsKey, pixiReady, cleanupSceneResources, renderAtRef, transportState.isPlaying, transportHook])
+
   const applySceneImageFitToSprite = useCallback(
     (sceneIndex: number, fit: 'cover' | 'contain' | 'fill') => {
       const sprite = spritesRef.current.get(sceneIndex)

@@ -384,25 +384,6 @@ function applySceneStartTransition({
     fromSprite.alpha = 1
     fromSprite.width = fromBaseWidth
     fromSprite.height = fromBaseHeight
-
-    // 전환 효과 중 깜빡거림 방지: 정적 텍스처로 캡쳐
-    const texture = fromSprite.texture
-    if (texture) {
-      try {
-        // 현재 텍스처를 정적 텍스처로 캡쳐 (VideoTexture 업데이트 방지)
-        const staticTexture = PIXI.Texture.from({
-          source: texture.baseTexture.source,
-          resolution: texture.baseTexture.resolution,
-        })
-
-        // 원래 텍스처 저장 및 정적 텍스처로 교체
-        ;(fromSprite as { __proOriginalTexture?: PIXI.Texture, __proStaticTexture?: PIXI.Texture }).__proOriginalTexture = texture
-        fromSprite.texture = staticTexture
-        ;(fromSprite as { __proStaticTexture?: PIXI.Texture }).__proStaticTexture = staticTexture
-      } catch (error) {
-        console.warn('[applySceneStartTransition] 정적 텍스처 캡쳐 실패:', error)
-      }
-    }
   }
 
   switch (normalized) {
@@ -534,17 +515,6 @@ function applySceneStartTransition({
   }
 
   if (fromSprite && !fromSprite.destroyed && clampedProgress >= 0.999) {
-    // 전환 완료 시 원래 텍스처로 복원
-    const originalTexture = (fromSprite as { __proOriginalTexture?: PIXI.Texture }).__proOriginalTexture
-    const staticTexture = (fromSprite as { __proStaticTexture?: PIXI.Texture }).__proStaticTexture
-
-    if (originalTexture && staticTexture) {
-      fromSprite.texture = originalTexture
-      staticTexture.destroy(true) // 정적 텍스처 정리 (base는 유지)
-      ;(fromSprite as { __proOriginalTexture?: PIXI.Texture, __proStaticTexture?: PIXI.Texture }).__proOriginalTexture = undefined
-      ;(fromSprite as { __proStaticTexture?: PIXI.Texture }).__proStaticTexture = undefined
-    }
-
     hideSprite(fromSprite)
   }
 
