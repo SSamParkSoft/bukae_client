@@ -22,6 +22,7 @@ interface UseProTransportRendererParams {
   videoElementsRef: React.MutableRefObject<Map<number, HTMLVideoElement>>
   currentSceneIndexRef: React.MutableRefObject<number>
   loadVideoAsSprite: (sceneIndex: number, videoUrl: string, selectionStartSeconds?: number) => Promise<void>
+  loadImageAsSprite?: (sceneIndex: number, imageUrl: string) => Promise<void>
   renderSubtitle: (sceneIndex: number, script: string) => void
   sceneLoadingStateRef: React.MutableRefObject<Map<number, LoadingState>>
 }
@@ -383,25 +384,6 @@ function applySceneStartTransition({
     fromSprite.alpha = 1
     fromSprite.width = fromBaseWidth
     fromSprite.height = fromBaseHeight
-
-    // 전환 효과 중 깜빡거림 방지: 정적 텍스처로 캡쳐
-    const texture = fromSprite.texture
-    if (texture) {
-      try {
-        // 현재 텍스처를 정적 텍스처로 캡쳐 (VideoTexture 업데이트 방지)
-        const staticTexture = PIXI.Texture.from({
-          source: texture.baseTexture.source,
-          resolution: texture.baseTexture.resolution,
-        })
-
-        // 원래 텍스처 저장 및 정적 텍스처로 교체
-        ;(fromSprite as { __proOriginalTexture?: PIXI.Texture, __proStaticTexture?: PIXI.Texture }).__proOriginalTexture = texture
-        fromSprite.texture = staticTexture
-        ;(fromSprite as { __proStaticTexture?: PIXI.Texture }).__proStaticTexture = staticTexture
-      } catch (error) {
-        console.warn('[applySceneStartTransition] 정적 텍스처 캡쳐 실패:', error)
-      }
-    }
   }
 
   switch (normalized) {
@@ -533,17 +515,6 @@ function applySceneStartTransition({
   }
 
   if (fromSprite && !fromSprite.destroyed && clampedProgress >= 0.999) {
-    // 전환 완료 시 원래 텍스처로 복원
-    const originalTexture = (fromSprite as { __proOriginalTexture?: PIXI.Texture }).__proOriginalTexture
-    const staticTexture = (fromSprite as { __proStaticTexture?: PIXI.Texture }).__proStaticTexture
-
-    if (originalTexture && staticTexture) {
-      fromSprite.texture = originalTexture
-      staticTexture.destroy(true) // 정적 텍스처 정리 (base는 유지)
-      ;(fromSprite as { __proOriginalTexture?: PIXI.Texture, __proStaticTexture?: PIXI.Texture }).__proOriginalTexture = undefined
-      ;(fromSprite as { __proStaticTexture?: PIXI.Texture }).__proStaticTexture = undefined
-    }
-
     hideSprite(fromSprite)
   }
 
@@ -565,9 +536,11 @@ export function useProTransportRenderer({
   videoElementsRef,
   currentSceneIndexRef,
   loadVideoAsSprite,
+  loadImageAsSprite,
   renderSubtitle,
   sceneLoadingStateRef,
-}: UseProTransportRendererParams) {
+  cleanupSceneResources,
+}: UseProTransportRendererParams & { cleanupSceneResources: (sceneIndex: number) => void }) {
   const transportHook = useTransport()
   const { transportState } = useTransportState({ transport: transportHook.transport })
   const renderAtRef = useRef<((tSec: number, options?: RenderAtOptions) => void) | undefined>(undefined)
@@ -766,7 +739,104 @@ export function useProTransportRenderer({
         return
       }
 
-      if (!targetScene.videoUrl) {
+      // 이미지인 경우 이미지 로드
+      if (targetScene.imageUrl && !targetScene.videoUrl) {
+        if (!loadImageAsSprite) {
+          return
+        }
+
+        const imageTimelineScene = timeline.scenes?.[targetSceneIndex]
+        const imageConfiguredTransition = (imageTimelineScene?.transition ?? 'none').toLowerCase()
+        const imageMotionType = imageTimelineScene?.motion?.type?.toLowerCase()
+        const imageTransitionFromMotion =
+          imageConfiguredTransition === 'none' && !!imageMotionType && SLIDE_TRANSITIONS.has(imageMotionType)
+        const imageEffectiveTransition = imageTransitionFromMotion ? imageMotionType : imageConfiguredTransition
+        const imageHasTransitionEffect = imageEffectiveTransition !== 'none'
+        const imageConfiguredDuration = Math.max(0, imageTimelineScene?.transitionDuration ?? 0.5)
+        const imageTransitionDuration = imageTransitionFromMotion
+          ? imageConfiguredDuration > 0 ? imageConfiguredDuration : 0.5
+          : imageConfiguredDuration
+        const imagePreviousPlayable = resolved.playableIndex > 0 ? playableScenes[resolved.playableIndex - 1] : null
+        const imagePreviousSceneIndex = imagePreviousPlayable?.originalIndex ?? null
+        const imageTransitionRelativeTime =
+          options?.forceSceneIndex !== undefined ? resolved.sceneTimeInSegment : tSec - resolved.sceneStartTime
+        const imageTransitionState = getTransitionFrameState({
+          hasTransitionEffect: imageHasTransitionEffect,
+          transitionDurationSec: imageTransitionDuration,
+          relativeTimeSec: imageTransitionRelativeTime,
+        })
+        const imageTransitionProgress = imageTransitionState.progress
+        const imageShouldTransition = imageTransitionState.shouldTransition
+
+        // 이전 씬의 리소스 정리 (씬 전환 중이 아닐 때만)
+        if (!imageShouldTransition && lastRenderedSceneIndexRef.current !== null && lastRenderedSceneIndexRef.current !== targetSceneIndex) {
+          if (typeof cleanupSceneResources === 'function') {
+            cleanupSceneResources(lastRenderedSceneIndexRef.current)
+          }
+        }
+        videoElementsRef.current.forEach((video) => {
+          if (!video.paused) {
+            video.pause()
+          }
+        })
+        renderSubtitle(targetSceneIndex, targetScene.script ?? '')
+        currentSceneIndexRef.current = targetSceneIndex
+        lastRenderedSceneIndexRef.current = targetSceneIndex
+        lastRenderedTimeRef.current = tSec
+
+        const existingImageSprite = spritesRef.current.get(targetSceneIndex)
+        const imageLoadState = sceneLoadingStateRef.current.get(targetSceneIndex)
+        const isImageAlreadyLoaded =
+          !!existingImageSprite && !existingImageSprite.destroyed && imageLoadState?.status === 'ready'
+
+        if (isImageAlreadyLoaded) {
+          const app = appRef.current
+          if (!app || !app.screen) return
+
+          applySceneBaseTransform(existingImageSprite, imageTimelineScene, app.screen.width, app.screen.height)
+
+          if (imageShouldTransition) {
+            const activePreviousSprite =
+              imagePreviousSceneIndex !== null ? spritesRef.current.get(imagePreviousSceneIndex) : undefined
+
+            spritesRef.current.forEach((s, index) => {
+              if (index !== targetSceneIndex && index !== imagePreviousSceneIndex) {
+                hideSprite(s)
+              }
+            })
+
+            applySceneStartTransition({
+              transitionType: imageEffectiveTransition,
+              progress: imageTransitionProgress,
+              toSprite: existingImageSprite,
+              fromSprite: activePreviousSprite ?? null,
+              stageWidth: app.screen.width,
+              stageHeight: app.screen.height,
+            })
+
+            if (imageTransitionProgress >= 1 && activePreviousSprite && !activePreviousSprite.destroyed) {
+              hideSprite(activePreviousSprite)
+              clearTransitionArtifacts(existingImageSprite)
+            }
+          } else {
+            hideAllSprites(spritesRef.current)
+            existingImageSprite.visible = true
+            existingImageSprite.alpha = 1
+          }
+
+          app.renderer.render(app.stage)
+        } else if (!imageLoadState || (imageLoadState.status !== 'loading' && imageLoadState.status !== 'ready')) {
+          // 로딩 중이 아닐 때만 로드 시작 (중복 로드 방지)
+          hideAllSprites(spritesRef.current)
+          void loadImageAsSprite(targetSceneIndex, targetScene.imageUrl).catch(() => {
+            // 로딩 실패 시에도 다음 프레임에서 재시도됨
+          })
+        }
+        return
+      }
+
+      // 비디오도 없고 이미지도 없는 경우 처리 (아무것도 업로드되지 않은 씬)
+      if (!targetScene.videoUrl && !targetScene.imageUrl) {
         hideAllSprites(spritesRef.current)
         videoElementsRef.current.forEach((video) => {
           if (!video.paused) {
@@ -1030,10 +1100,7 @@ export function useProTransportRenderer({
               isPreviousSpriteReady,
             })
           } else {
-            // 전환 시작 시 현재 재생 상태 저장
-            const wasPlaying = transportState.isPlaying
-
-            // 전환 중에는 비디오 재생 일시정지
+            // 전환 중에는 현재 씬 비디오 일시정지
             const currentVideo = videoElementsRef.current.get(targetSceneIndex)
             if (currentVideo && !currentVideo.paused) {
               syncVideoToFrame(currentVideo, targetVideoTimeForRender)
@@ -1052,52 +1119,19 @@ export function useProTransportRenderer({
               stageWidth: app.screen.width,
               stageHeight: app.screen.height,
             })
-
-            // 재생 상태 저장
-            ;(sprite as { __proWasPlaying?: boolean }).__proWasPlaying = wasPlaying
-            if (fromSpriteToUse && previousSceneIndex !== null) {
-              const previousVideo = videoElementsRef.current.get(previousSceneIndex)
-              if (previousVideo) {
-                ;(fromSpriteToUse as { __proWasPlaying?: boolean }).__proWasPlaying = wasPlaying
-              }
-            }
           }
         }
 
         // Cleanup transition artifacts when transition is complete (progress >= 1),
         // so cleanup runs even if frames skipped past the internal progress >= 0.999 check.
         if (hasTransitionEffect && transitionProgress >= 1) {
-          // 전환 완료 후 재생 상태 복구
-          const wasPlaying = (sprite as { __proWasPlaying?: boolean }).__proWasPlaying ?? false
-
           clearTransitionArtifacts(sprite)
-          if (canRenderCrossTransitionNow && activePreviousSprite && !activePreviousSprite.destroyed && previousSceneIndex !== null) {
+          if (canRenderCrossTransitionNow && activePreviousSprite && !activePreviousSprite.destroyed) {
             hideSprite(activePreviousSprite)
-
-            // 전환 중에 일시정지했던 이전 스프라이트의 비디오 재생 복구
-            const previousVideo = videoElementsRef.current.get(previousSceneIndex)
-            if (previousVideo && wasPlaying) {
-              const videoElement = previousVideo as HTMLVideoElement
-              const previousVideoTime = videoElement.currentTime ?? 0
-              void syncVideoPlaybackToTimeline(
-                videoElement,
-                scenes[previousSceneIndex]!,
-                previousVideoTime
-              )
-            }
           }
-
-          // 현재 스프라이트의 비디오 재생 복구
-          const currentVideo = videoElementsRef.current.get(targetSceneIndex)
-          if (currentVideo && wasPlaying) {
-            void syncVideoPlaybackToTimeline(currentVideo, targetScene, targetVideoTimeForRender)
-          }
-
-          // 재생 상태 플래그 정리
-          delete (sprite as { __proWasPlaying?: boolean }).__proWasPlaying
-          if (activePreviousSprite) {
-            delete (activePreviousSprite as { __proWasPlaying?: boolean }).__proWasPlaying
-          }
+          // 이전/현재 비디오 재생 복구는 렌더 루프(shouldTransition=false 프레임)가 처리:
+          // - 이전 씬 비디오: 복구 불필요 (숨김 처리)
+          // - 현재 씬 비디오: 다음 renderAt 호출에서 올바른 videoTime으로 syncVideoPlaybackToTimeline
         }
         if (!options?.skipAnimation && !hasTransitionEffect && timelineScene?.motion) {
           applySceneMotion({
@@ -1109,8 +1143,7 @@ export function useProTransportRenderer({
         }
 
         videoElementsRef.current.forEach((video, index) => {
-          const keepPreviousVideo = needsCrossTransition && previousSceneIndex !== null && index === previousSceneIndex
-          if (index !== targetSceneIndex && !keepPreviousVideo && !video.paused) {
+          if (index !== targetSceneIndex && !video.paused) {
             video.pause()
           }
         })
@@ -1240,8 +1273,10 @@ export function useProTransportRenderer({
     },
     [
       appRef,
+      cleanupSceneResources,
       currentSceneIndexRef,
       ensureSceneLoaded,
+      loadImageAsSprite,
       pixiReady,
       renderSubtitle,
       syncVideoPlaybackToTimeline,

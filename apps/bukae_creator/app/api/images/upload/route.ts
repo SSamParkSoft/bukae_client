@@ -29,15 +29,10 @@ export async function POST(request: Request) {
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null
-    const sceneIndex = formData.get('sceneIndex') as string | null
-    const jobId = formData.get('jobId') as string | null
+    const sceneId = formData.get('sceneId') as string | null
 
     if (!file) {
       return NextResponse.json({ error: '파일이 필요합니다.' }, { status: 400 })
-    }
-
-    if (!jobId || jobId.trim() === '') {
-      return NextResponse.json({ error: 'jobId가 필요합니다.' }, { status: 400 })
     }
 
     if (!ALLOWED_MIME_TYPES.includes(file.type)) {
@@ -54,15 +49,15 @@ export async function POST(request: Request) {
 
     const supabase = getSupabaseServiceClient()
 
-    // 이미지 파일 이름 생성: {timestamp}_scene_{sceneIndex}_image.{ext}
+    // 이미지 파일 이름 생성: {timestamp}_scene_{sceneId}_image_{uuid}.{ext} (충돌 방지용 UUID 포함)
     const timestamp = Date.now()
-    const sceneIndexValue = sceneIndex || 'unknown'
-    const fileExt = file.name.split('.').pop() || 'jpg'
-    const fileName = `${timestamp}_scene_${sceneIndexValue}_image.${fileExt}`
-    
-    // 경로 구성: images/{userId}/{jobId}/{fileName}
-    // jobId로 구분하여 같은 영상 작업의 이미지들을 한 폴더에 정리
-    const filePath = `images/${auth.userId}/${jobId}/${fileName}`
+    const sceneIdValue = sceneId || 'unknown'
+    const uniqueId = crypto.randomUUID()
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    const fileName = `${timestamp}_scene_${sceneIdValue}_image_${uniqueId}.${fileExt}`
+
+    // 경로 구성: {userId}/{fileName} (영상과 동일한 구조)
+    const filePath = `${auth.userId}/${fileName}`
     
     // 이미지 크기 읽기 (업로드 전에)
     let imageWidth = 0
@@ -79,10 +74,10 @@ export async function POST(request: Request) {
     }
 
     const { error: uploadError } = await supabase.storage
-      .from('images')
+      .from('pro_upload')
       .upload(filePath, file, {
         cacheControl: '3600',
-        upsert: true,
+        upsert: false, // 고유 파일명 사용으로 덮어쓰기 방지
       })
 
     if (uploadError) {
@@ -93,7 +88,7 @@ export async function POST(request: Request) {
     }
 
     const { data: publicUrlData } = supabase.storage
-      .from('images')
+      .from('pro_upload')
       .getPublicUrl(filePath)
 
     if (!publicUrlData.publicUrl) {
@@ -103,12 +98,13 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { 
-        success: true, 
-        message: '이미지 업로드 성공', 
+      {
+        success: true,
+        message: '이미지 업로드 성공',
         url: publicUrlData.publicUrl,
         width: imageWidth,
-        height: imageHeight
+        height: imageHeight,
+        durationSeconds: 0, // 이미지 duration은 0초로 설정
       },
       { headers: { ...(rl.headers ?? {}) } }
     )

@@ -10,6 +10,8 @@ export interface ProVideoUploadProps {
   /** 4MB 초과 등으로 실제로 압축 후 업로드 중일 때 true */
   isCompressing?: boolean
   videoUrl?: string | null
+  /** 이미지 URL (이미지 업로드 시 사용) */
+  imageUrl?: string | null
   /** 격자 선택 영역 시작 시간 (초) */
   selectionStartSeconds?: number
   /** 격자 선택 영역 끝 시간 (초) */
@@ -21,6 +23,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
   isLoading = false,
   isCompressing = false,
   videoUrl,
+  imageUrl,
   selectionStartSeconds = 0,
   selectionEndSeconds = 0,
 }: ProVideoUploadProps) {
@@ -56,8 +59,15 @@ export const ProVideoUpload = memo(function ProVideoUpload({
     }
   }, [])
 
-  // 영상에서 썸네일 생성 (격자 시작 지점의 프레임)
+  // 이미지 또는 영상에서 썸네일 생성
   useEffect(() => {
+    // 이미지 전용 씬(imageUrl 있고 videoUrl 없음)인 경우만 이미지를 썸네일로 사용
+    if (imageUrl && !videoUrl) {
+      setThumbnailUrl(imageUrl)
+      return
+    }
+
+    // 영상이 없는 경우 처리 중지
     if (!videoUrl || !videoRef.current || !canvasRef.current) {
       setThumbnailUrl(null)
       return
@@ -127,12 +137,13 @@ export const ProVideoUpload = memo(function ProVideoUpload({
       video.removeEventListener('loadeddata', handleLoadedData)
       video.removeEventListener('seeked', handleSeeked)
     }
-  }, [videoUrl, selectionStartSeconds])
+  }, [imageUrl, videoUrl, selectionStartSeconds])
 
-  // 호버 시 선택 영역만 재생
+  // 호버 시 선택 영역만 재생 (이미지 전용 씬인 경우 처리하지 않음)
   useEffect(() => {
     const hoverVideo = hoverVideoRef.current
-    if (!hoverVideo || !videoUrl) return
+    // 영상이 없으면 처리하지 않음 (이미지 전용 씬 포함)
+    if (!videoUrl || !hoverVideo) return
 
     const startTime = selectionStartSeconds || 0
     const endTime = selectionEndSeconds || 0
@@ -182,7 +193,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
       hoverVideo.pause()
       hoverVideo.currentTime = startTime
     }
-  }, [isHovered, videoUrl, selectionStartSeconds, selectionEndSeconds, hasUserActivation])
+  }, [imageUrl, isHovered, videoUrl, selectionStartSeconds, selectionEndSeconds, hasUserActivation])
 
   const handleClick = () => {
     fileInputRef.current?.click()
@@ -209,7 +220,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
       <input
         ref={fileInputRef}
         type="file"
-        accept="video/mp4,video/mov,video/avi,video/quicktime,video/webm"
+        accept="video/mp4,video/mov,video/avi,video/quicktime,video/webm,image/jpeg,image/png,image/gif,image/webp"
         onChange={handleFileChange}
         className="hidden"
         disabled={isLoading}
@@ -264,7 +275,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
               )}
             </span>
           </>
-        ) : videoUrl ? (
+        ) : videoUrl || imageUrl ? (
           <>
             {/* 썸네일 또는 영상 표시 영역 */}
             <div className="absolute inset-0 flex items-center justify-center">
@@ -272,7 +283,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
               {thumbnailUrl && (
                 <Image
                   src={thumbnailUrl}
-                  alt="영상 썸네일"
+                  alt={imageUrl && !videoUrl ? '이미지 썸네일' : '영상 썸네일'}
                   fill
                   className={`object-cover transition-opacity ${
                     isHovered ? 'opacity-0' : 'opacity-100'
@@ -280,21 +291,23 @@ export const ProVideoUpload = memo(function ProVideoUpload({
                   unoptimized
                 />
               )}
-              {/* 호버 시 영상 표시 (썸네일 위에 오버레이) */}
-              <video
-                ref={hoverVideoRef}
-                src={videoUrl}
-                className={`w-full h-full object-cover transition-opacity ${
-                  isHovered ? 'opacity-100' : 'opacity-0'
-                }`}
-                muted
-                playsInline
-                preload="none"
-                crossOrigin="anonymous"
-              />
+              {/* 호버 시 영상 표시 (썸네일 위에 오버레이) - 이미지 전용 씬이 아닐 때만 */}
+              {videoUrl && (
+                <video
+                  ref={hoverVideoRef}
+                  src={videoUrl ?? undefined}
+                  className={`w-full h-full object-cover transition-opacity ${
+                    isHovered ? 'opacity-100' : 'opacity-0'
+                  }`}
+                  muted
+                  playsInline
+                  preload="none"
+                  crossOrigin="anonymous"
+                />
+              )}
             </div>
             {/* 오버레이 - 호버 시에만 표시 */}
-            <div 
+            <div
               className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${
                 isHovered ? 'opacity-100' : 'opacity-0'
               }`}
@@ -334,7 +347,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
                   lineHeight: '16.8px',
                 }}
               >
-                영상 업로드
+                미디어 업로드
               </span>
             </div>
           </>

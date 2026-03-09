@@ -14,6 +14,7 @@ export type ProScene = {
   ttsDuration?: number // TTS duration (초)
   ttsAudioBase64?: string // TTS 오디오 데이터 (base64 인코딩된 문자열) - Step2에서 합성된 오디오를 Step3에서 사용하기 위해 저장
   videoUrl?: string | null // 업로드된 영상 URL
+  imageUrl?: string | null // 업로드된 이미지 URL
   selectionStartSeconds?: number // 격자 선택 영역 시작 시간 (초)
   selectionEndSeconds?: number // 격자 선택 영역 끝 시간 (초)
   /** 업로드된 원본 영상 길이(초). TTS보다 짧을 때 이어붙여 격자 배경 길이 계산용 (Step3) */
@@ -31,6 +32,7 @@ export type ExtendedSceneScript = SceneScript & {
   ttsDuration?: number // TTS duration (초)
   ttsAudioBase64?: string // TTS 오디오 데이터 (base64 인코딩된 문자열) - Step2에서 합성된 오디오를 Step3에서 사용하기 위해 저장
   videoUrl?: string | null // 업로드된 영상 URL
+  imageUrl?: string | null // 업로드된 이미지 URL
   selectionStartSeconds?: number // 격자 선택 영역 시작 시간 (초)
   selectionEndSeconds?: number // 격자 선택 영역 끝 시간 (초)
   originalVideoDurationSeconds?: number
@@ -57,6 +59,7 @@ export function sceneScriptToProScene(s: SceneScript, _index: number): ProScene 
     ttsDuration: extended.ttsDuration,
     ttsAudioBase64: extended.ttsAudioBase64,
     videoUrl: extended.videoUrl,
+    imageUrl: extended.imageUrl,
     selectionStartSeconds: extended.selectionStartSeconds,
     selectionEndSeconds: extended.selectionEndSeconds,
     originalVideoDurationSeconds: extended.originalVideoDurationSeconds,
@@ -77,6 +80,7 @@ export function proSceneToSceneScript(s: ProScene, index: number): ExtendedScene
     ttsDuration: s.ttsDuration,
     ttsAudioBase64: s.ttsAudioBase64,
     videoUrl: s.videoUrl,
+    imageUrl: s.imageUrl ?? undefined,
     selectionStartSeconds: s.selectionStartSeconds,
     selectionEndSeconds: s.selectionEndSeconds,
     originalVideoDurationSeconds: s.originalVideoDurationSeconds,

@@ -26,6 +26,8 @@ export interface ProStep3SceneCardProps {
   scriptText: string
   /** 업로드된 영상 URL */
   videoUrl?: string | null
+  /** 업로드된 이미지 URL */
+  imageUrl?: string | null
   /** 격자 선택 영역 시작 시간 (초) - 초기값 */
   selectionStartSeconds: number
   /** 격자 선택 영역 끝 시간 (초) */
@@ -63,6 +65,12 @@ export interface ProStep3SceneCardProps {
   dragOver?: { index: number; position: 'before' | 'after' } | null
   /** 재생 핸들러 */
   onPlayScene?: () => void
+  /** 미디어 업로드 핸들러 (이미지/영상 교체) */
+  onVideoUpload?: (file: File) => Promise<void>
+  /** 업로드 중 여부 */
+  isUploading?: boolean
+  /** 4MB 초과로 압축 후 업로드 중일 때 true */
+  isCompressing?: boolean
   /** 카드 클릭 시 씬 선택 (현재 씬로 설정) */
   onSelect?: () => void
   /** 효과 패널 열기 핸들러 */
@@ -74,6 +82,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   sceneOrderNumber,
   scriptText,
   videoUrl,
+  imageUrl,
   selectionStartSeconds: initialSelectionStartSeconds,
   selectionEndSeconds: initialSelectionEndSeconds,
   globalStartSeconds,
@@ -96,11 +105,16 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   draggedIndex = null,
   dragOver: dragOverProp = null,
   onPlayScene,
+  onVideoUpload,
+  isUploading = false,
+  isCompressing = false,
   onSelect,
   onOpenEffectPanel,
 }: ProStep3SceneCardProps) {
   const isDropTargetBefore = dragOverProp?.index === sceneIndex && dragOverProp?.position === 'before'
   const isDropTargetAfter = dragOverProp?.index === sceneIndex && dragOverProp?.position === 'after'
+  // 이미지 전용 씬 여부 (videoUrl 없이 imageUrl만 있는 경우)
+  const isImageScene = !!imageUrl && !videoUrl
 
   // 프레임 썸네일 관련 상태
   const [frameThumbnails, setFrameThumbnails] = useState<string[]>([])
@@ -777,8 +791,12 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
         <div className="flex-1 min-w-0 flex gap-4 items-start">
           {/* 좌측: 영상 업로드 영역 */}
           <div className="shrink-0">
-            <ProVideoUpload 
+            <ProVideoUpload
+              onUpload={onVideoUpload}
+              isLoading={isUploading}
+              isCompressing={isCompressing}
               videoUrl={videoUrl}
+              imageUrl={imageUrl}
               selectionStartSeconds={finalClampedSelectionStartSeconds}
               selectionEndSeconds={finalClampedSelectionEndSeconds}
             />
@@ -870,10 +888,10 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
             </div>
 
             {/* 하단: 타임라인 비주얼 */}
-            <div 
+            <div
               ref={timelineContainerRef}
               className="relative overflow-x-auto w-full"
-              style={{ 
+              style={{
                 WebkitOverflowScrolling: 'touch',
               }}
               onDragStart={(e) => {
@@ -882,7 +900,8 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                 e.preventDefault()
               }}
             >
-              {/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
+            {!isImageScene && (
+              <>{/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
               {/* 실제 영상 길이만큼 표시 영역 확장 (예: 6.5초면 6.5 * FRAME_WIDTH) */}
               <div className="relative shrink-0" style={{ width: `${actualVideoEndPx + FRAME_WIDTH / 2}px`, paddingTop: `${TIMELINE_PADDING}px`, paddingBottom: `${TIMELINE_PADDING}px`, paddingLeft: `${FRAME_WIDTH / 2}px` }}>
                 {/* 실제 영상 프레임 박스 (클리핑 영역) */}
@@ -1037,6 +1056,7 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
                   )
                 })}
               </div>
+            </>)}
             </div>
 
             {/* 재생시간과 효과 아이콘 */}

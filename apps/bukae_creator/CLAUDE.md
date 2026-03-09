@@ -33,6 +33,16 @@ Active imports from `hooks/video/renderer/` are limited to: `transport/`, `playb
 
 ---
 
+## Step3 Sprite Lifecycle Rules
+
+**Sprites start hidden.** `loadVideoAsSprite` and `loadImageAsSprite` both set `sprite.visible = false; sprite.alpha = 0` on creation. `applyVisualState()` inside `renderAt` is responsible for the first visible render frame — this prevents a full-opacity flash of the incoming sprite before transition animations begin.
+
+**`isSpriteReady` contract**: Requires `videoReady && spriteReady` from `sceneLoadingStateRef`. Image sprites have no `<video>` element but **must** set `videoReady: true` so `canRenderCrossTransitionNow` evaluates correctly for cross-scene transitions. If `videoReady` is left `false` for an image scene, all push/slide transitions from that image scene to the next will be silently skipped.
+
+**`useProStep3Scenes` hook** (`app/video/create/pro/step3/hooks/useProStep3Scenes.ts`): The single data bridge from `useVideoCreateStore` to step3. Converts store `SceneScript[]` → `ProScene[]` → `ProStep3Scene[]` via `normalizeSelectionRange` (which clamps `selectionStart/EndSeconds` to valid ranges relative to `originalVideoDurationSeconds`).
+
+---
+
 ## Zustand Store Persistence
 
 Three persisted stores (localStorage):

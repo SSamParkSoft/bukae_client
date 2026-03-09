@@ -15,6 +15,8 @@ export type ProScene = {
   ttsDuration?: number
   ttsAudioBase64?: string // TTS 오디오 데이터 (base64 인코딩된 문자열)
   videoUrl?: string | null
+  /** 업로드된 이미지 URL */
+  imageUrl?: string | null
   selectionStartSeconds?: number
   selectionEndSeconds?: number
   originalVideoDurationSeconds?: number
@@ -28,6 +30,8 @@ type StoreSceneExtended = SceneScript & {
   ttsDuration?: number
   ttsAudioBase64?: string
   videoUrl?: string | null
+  /** 업로드된 이미지 URL */
+  imageUrl?: string | null
   selectionStartSeconds?: number
   selectionEndSeconds?: number
   originalVideoDurationSeconds?: number
@@ -52,6 +56,7 @@ function sceneScriptToProScene(s: SceneScript, index: number): ProScene {
     ttsDuration: ext.ttsDuration,
     ttsAudioBase64: ext.ttsAudioBase64,
     videoUrl: ext.videoUrl,
+    imageUrl: ext.imageUrl,
     selectionStartSeconds: start,
     selectionEndSeconds: end,
     originalVideoDurationSeconds: ext.originalVideoDurationSeconds,
@@ -101,6 +106,7 @@ export function useProStep3Scenes() {
         id: scene.id,
         script: scene.script,
         videoUrl: scene.videoUrl,
+        imageUrl: scene.imageUrl,
         selectionStartSeconds: normalized.startSeconds,
         selectionEndSeconds: normalized.endSeconds,
         originalVideoDurationSeconds: scene.originalVideoDurationSeconds,

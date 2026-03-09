@@ -539,6 +539,145 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     }
   }, [cleanupAllMediaResources])
 
+  // ===== 이미지 로딩 =====
+  const loadImageAsSprite = useCallback(async (sceneIndex: number, imageUrl: string): Promise<void> => {
+    if (!pixiReady) {
+      console.warn('[loadImageAsSprite] pixiReady가 false입니다', { sceneIndex, imageUrl })
+      return
+    }
+
+    // 로딩 시작 상태 업데이트
+    const updateLoadingState = (updates: { status: 'loading' | 'ready' | 'failed', videoReady?: boolean, spriteReady?: boolean }) => {
+      const current = sceneLoadingStateRef.current.get(sceneIndex) ?? {
+        status: 'not-loaded' as const,
+        timestamp: Date.now(),
+        videoReady: false,
+        spriteReady: false,
+      }
+
+      sceneLoadingStateRef.current.set(sceneIndex, {
+        ...current,
+        ...updates,
+        timestamp: Date.now(),
+      })
+    }
+
+    updateLoadingState({ status: 'loading' })
+
+    cleanupSceneResources(sceneIndex)
+
+    try {
+      const app = appRef.current
+      const videoContainer = videoContainerRef.current
+      if (!app || !videoContainer || !app.screen) {
+        cleanupSceneResources(sceneIndex)
+        return
+      }
+
+      // 이미지 텍스처 로드
+      const texture = await PIXI.Assets.load(imageUrl)
+      if (!texture || texture.destroyed) {
+        cleanupSceneResources(sceneIndex)
+        updateLoadingState({ status: 'failed' })
+        return
+      }
+
+      // 로딩이 끝난 시점에 현재 타임라인의 이미지/비디오가 여전히 동일한지 확인
+      const currentTimelineState = useVideoCreateStore.getState().timeline
+      const currentTimelineScene = currentTimelineState?.scenes?.[sceneIndex]
+      if (currentTimelineScene) {
+        const currentImageUrl = currentTimelineScene.image
+        const currentVideoUrl = currentTimelineScene.videoUrl
+        const mediaType = currentTimelineScene.mediaType
+
+        const isStillImageScene =
+          mediaType === 'image' ||
+          (!!currentImageUrl && (!currentVideoUrl || currentVideoUrl.trim().length === 0))
+
+        const isUrlMismatched = !!currentImageUrl && currentImageUrl !== imageUrl
+
+        // 씬이 더 이상 이미지 씬이 아니거나, 다른 이미지로 교체된 경우 이 로딩 결과는 폐기
+        if (!isStillImageScene || isUrlMismatched) {
+          texture.destroy(true)
+          cleanupSceneResources(sceneIndex)
+          updateLoadingState({ status: 'failed' })
+          return
+        }
+      }
+
+      videoTexturesRef.current.set(sceneIndex, texture)
+
+      const sprite = new PIXI.Sprite(texture)
+      sprite.anchor.set(0.5, 0.5)
+
+      const stageWidth = app.screen.width
+      const stageHeight = app.screen.height
+
+      const sourceWidth = texture.width || stageWidth
+      const sourceHeight = texture.height || stageHeight
+
+      if (!sourceWidth || !sourceHeight || sourceWidth <= 0 || sourceHeight <= 0) {
+        sprite.destroy()
+        cleanupSceneResources(sceneIndex)
+        updateLoadingState({ status: 'failed' })
+        return
+      }
+
+      const currentTimeline = useVideoCreateStore.getState().timeline
+      const timelineScene = currentTimeline?.scenes?.[sceneIndex]
+      const imageTransform = timelineScene?.imageTransform
+      const imageFit = timelineScene?.imageFit ?? 'contain'
+
+      if (imageTransform) {
+        sprite.x = imageTransform.x
+        sprite.y = imageTransform.y
+        sprite.width = imageTransform.width
+        sprite.height = imageTransform.height
+        sprite.rotation = imageTransform.rotation ?? 0
+      } else {
+        const fitted = calculateSpriteParams(
+          sourceWidth,
+          sourceHeight,
+          stageWidth,
+          stageHeight,
+          imageFit
+        )
+        sprite.width = fitted.width
+        sprite.height = fitted.height
+        sprite.x = fitted.x + fitted.width / 2
+        sprite.y = fitted.y + fitted.height / 2
+        sprite.rotation = 0
+      }
+
+      // 초기 상태는 숨김 — 전환 효과가 있는 경우 applyVisualState가 올바른 alpha로 렌더링
+      sprite.visible = false
+      sprite.alpha = 0
+
+      const finalApp = appRef.current
+      const finalVideoContainer = videoContainerRef.current
+      if (!finalApp || !finalVideoContainer || !finalApp.screen) {
+        sprite.destroy()
+        cleanupSceneResources(sceneIndex)
+        return
+      }
+
+      finalVideoContainer.addChild(sprite)
+      spritesRef.current.set(sceneIndex, sprite)
+
+      // 스프라이트 생성 완료 상태 업데이트 (videoReady=true: 이미지는 비디오 요소 불필요하므로 준비 완료로 간주)
+      updateLoadingState({ status: 'ready', videoReady: true, spriteReady: true })
+
+      requestAnimationFrame(() => {
+        setupSpriteClickEventRef.current(sceneIndex, sprite)
+      })
+    } catch (error) {
+      // 로딩 실패 상태 업데이트
+      updateLoadingState({ status: 'failed' })
+      cleanupSceneResources(sceneIndex)
+      console.warn('[loadImageAsSprite] 로딩 실패:', error)
+    }
+  }, [cleanupSceneResources, pixiReady, sceneLoadingStateRef])
+
   // ===== 비디오 로딩 =====
   const loadVideoAsSprite = useCallback(async (sceneIndex: number, videoUrl: string, selectionStartSeconds?: number, onLoadingStateChange?: (sceneIndex: number, updates: { status: 'loading' | 'ready' | 'failed', videoReady?: boolean, spriteReady?: boolean }) => void): Promise<void> => {
     if (!pixiReady) {
@@ -718,8 +857,9 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
         sprite.rotation = 0
       }
 
-      sprite.visible = true
-      sprite.alpha = 1
+      // 초기 상태는 숨김 — 전환 효과가 있는 경우 applyVisualState가 올바른 alpha로 렌더링
+      sprite.visible = false
+      sprite.alpha = 0
 
       const finalApp = appRef.current
       const finalVideoContainer = videoContainerRef.current
@@ -734,14 +874,6 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
 
       // 스프라이트 생성 완료 상태 업데이트
       updateLoadingState({ status: 'ready', videoReady: true, spriteReady: true })
-
-      if (finalApp && finalApp.renderer) {
-        try {
-          finalApp.renderer.render(finalApp.stage)
-        } catch (error) {
-          console.warn('[loadVideoAsSprite] 초기 렌더링 실패:', error)
-        }
-      }
 
       requestAnimationFrame(() => {
         setupSpriteClickEventRef.current(sceneIndex, sprite)
@@ -911,8 +1043,10 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     videoElementsRef,
     currentSceneIndexRef,
     loadVideoAsSprite,
+    loadImageAsSprite,
     renderSubtitle,
     sceneLoadingStateRef,
+    cleanupSceneResources,
   })
 
   useProTransportTtsSync({
@@ -1882,6 +2016,38 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     const t = transportHook.getTime()
     renderAtRef.current(t, { skipAnimation: false, forceRender: true })
   }, [timelineScenesKey, pixiReady, transportState.isPlaying, transportHook, renderAtRef, editMode])
+
+  // 씬별 미디어 URL(videoUrl/imageUrl) 변경 감지 → 이전 스프라이트 정리 + 강제 리렌더
+  const sceneMediaUrlsKey = useMemo(
+    () =>
+      scenes
+        .map((s, i) => `${i}:${s.videoUrl ?? ''}|${s.imageUrl ?? ''}`)
+        .join(','),
+    [scenes]
+  )
+  const prevSceneMediaUrlsKeyRef = useRef<string>('')
+  useEffect(() => {
+    if (!pixiReady) return
+    const prev = prevSceneMediaUrlsKeyRef.current
+    const curr = sceneMediaUrlsKey
+    if (prev === curr) return
+    prevSceneMediaUrlsKeyRef.current = curr
+
+    if (prev === '') return // 최초 마운트는 건너뜀
+
+    // 변경된 씬 인덱스 찾아서 스프라이트 정리
+    const prevParts = prev.split(',')
+    const currParts = curr.split(',')
+    currParts.forEach((part, i) => {
+      if (prevParts[i] !== part) {
+        cleanupSceneResources(i)
+      }
+    })
+
+    if (!renderAtRef.current || transportState.isPlaying) return
+    const t = transportHook.getTime()
+    renderAtRef.current(t, { forceRender: true })
+  }, [sceneMediaUrlsKey, pixiReady, cleanupSceneResources, renderAtRef, transportState.isPlaying, transportHook])
 
   const applySceneImageFitToSprite = useCallback(
     (sceneIndex: number, fit: 'cover' | 'contain' | 'fill') => {

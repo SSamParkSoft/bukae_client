@@ -298,14 +298,16 @@ export async function apiRequest<T>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { skipAuth = false, autoRefresh = true, timeout = 60000, headers: initHeaders, ...fetchOptions } = options
+  const { skipAuth = false, autoRefresh = true, timeout = 60000, headers: initHeaders, body, ...fetchOptions } = options
 
   const API_BASE_URL = getApiBaseUrl()
   const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`
 
-  const headers = new Headers({
-    'Content-Type': 'application/json',
-  })
+  // FormData인 경우 Content-Type을 설정하지 않음 (브라우저가 boundary 포함해 자동 설정)
+  const isFormData = body instanceof FormData
+  const headers = new Headers(
+    isFormData ? {} : { 'Content-Type': 'application/json' }
+  )
 
   if (initHeaders) {
     new Headers(initHeaders).forEach((value, key) => {
@@ -328,6 +330,7 @@ export async function apiRequest<T>(
   try {
     const response = await fetch(url, {
       ...fetchOptions,
+      body,
       headers,
       signal: controller.signal,
       credentials: 'include', // 쿠키 포함 (refreshToken 등)
@@ -348,6 +351,7 @@ export async function apiRequest<T>(
         try {
           const retryResponse = await fetch(url, {
             ...fetchOptions,
+            body,
             headers,
             signal: retryController.signal,
             credentials: 'include', // 쿠키 포함 (refreshToken 등)
@@ -449,6 +453,14 @@ export const api = {
       ...options,
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
+    }),
+
+  /** FormData 업로드 (토큰 리프레시, 타임아웃, ApiError 적용) */
+  postForm: <T>(endpoint: string, formData: FormData, options?: RequestOptions) =>
+    apiRequest<T>(endpoint, {
+      ...options,
+      method: 'POST',
+      body: formData,
     }),
 
   put: <T>(endpoint: string, data?: unknown, options?: RequestOptions) =>
