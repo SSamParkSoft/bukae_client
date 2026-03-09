@@ -15,7 +15,7 @@ Run from the workspace root:
 
 ```bash
 # Development
-pnpm dev              # Start creator app (default)
+pnpm dev              # Start creator app (default, auto-opens Chrome on ready)
 pnpm dev:viewer       # Start viewer app
 pnpm dev:all          # Start all apps in parallel
 
@@ -30,6 +30,8 @@ pnpm lint
 # Seed demo data
 pnpm seed-demo
 ```
+
+The `pnpm dev` command runs `scripts/dev-with-browser.sh` which automatically opens Chrome at `http://localhost:3000` once the server is ready.
 
 The `pnpm build` script (`scripts/auto-build-fix.sh`) attempts build, auto-fixes lint errors on failure, installs missing `@types` packages, then retries.
 
@@ -93,6 +95,10 @@ From ESLint config and Cursor rules:
 
 ## CI/CD
 
-- `lint.yml`: Runs ESLint on PRs and pushes to `develop`/`main`
+- `lint.yml`: Runs ESLint on PRs and pushes to `develop`/`main`. Uses Node.js 20 and pnpm 10.7.0.
 - `coderabbit-guard.yml`: Blocks merge if CodeRabbit finds major/critical issues. Reviews are in Korean (`ko-KR`). Wait for CodeRabbit to complete before assuming a PR is ready.
 - Main branch for PRs: `main`. Development branch: `develop`.
+
+## App-Specific Documentation
+
+For detailed architecture of `apps/bukae_creator/` (Step3 rendering, store persistence, hooks organization, API routes, type locations), see `apps/bukae_creator/CLAUDE.md`.
