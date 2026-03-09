@@ -295,7 +295,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
               {!imageUrl && (
                 <video
                   ref={hoverVideoRef}
-                  src={videoUrl}
+                  src={videoUrl ?? undefined}
                   className={`w-full h-full object-cover transition-opacity ${
                     isHovered ? 'opacity-100' : 'opacity-0'
                   }`}

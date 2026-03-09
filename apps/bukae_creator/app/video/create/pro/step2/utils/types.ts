@@ -80,7 +80,7 @@ export function proSceneToSceneScript(s: ProScene, index: number): ExtendedScene
     ttsDuration: s.ttsDuration,
     ttsAudioBase64: s.ttsAudioBase64,
     videoUrl: s.videoUrl,
-    imageUrl: s.imageUrl,
+    imageUrl: s.imageUrl ?? undefined,
     selectionStartSeconds: s.selectionStartSeconds,
     selectionEndSeconds: s.selectionEndSeconds,
     originalVideoDurationSeconds: s.originalVideoDurationSeconds,
