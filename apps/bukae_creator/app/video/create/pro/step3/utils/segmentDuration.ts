@@ -4,6 +4,7 @@ export interface SegmentDurationSceneLike {
   selectionEndSeconds?: number
   mediaUrl?: string | null
   videoUrl?: string | null
+  imageUrl?: string | null
 }
 
 export interface PlayableSegment<T extends SegmentDurationSceneLike> {
@@ -36,6 +37,9 @@ function hasPlayableMedia(scene: SegmentDurationSceneLike): boolean {
     return true
   }
   if (scene.videoUrl) {
+    return true
+  }
+  if (scene.imageUrl) {
     return true
   }
   return false

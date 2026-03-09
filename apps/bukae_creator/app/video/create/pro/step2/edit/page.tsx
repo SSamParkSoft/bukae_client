@@ -202,7 +202,7 @@ export default function ProStep2EditPage() {
         // 업로드된 이미지 URL을 store에 저장
         updateScenes((prev) => {
           const next = [...prev]
-          next[index] = { ...next[index], imageUrl: result.url }
+          next[index] = { ...next[index], imageUrl: result.url, durationSeconds: 0 }
           return next
         })
 

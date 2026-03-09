@@ -17,5 +17,7 @@ export interface SceneScript {
   splitIndex?: number
   /** TTS 오디오 데이터 (base64 인코딩된 문자열) - Step2에서 합성된 오디오를 Step3에서 사용하기 위해 저장 */
   ttsAudioBase64?: string
+  /** 이미지 또는 비디오의 duration (초) - Step3에서 렌더링 및 타임라인 표시용 */
+  durationSeconds?: number
 }
 

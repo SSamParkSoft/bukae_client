@@ -775,10 +775,31 @@ export function useProTransportRenderer({
           return
         }
 
-        hideAllSprites(spritesRef.current)
+        const imageTimelineScene = timeline.scenes?.[targetSceneIndex]
+        const imageConfiguredTransition = (imageTimelineScene?.transition ?? 'none').toLowerCase()
+        const imageMotionType = imageTimelineScene?.motion?.type?.toLowerCase()
+        const imageTransitionFromMotion =
+          imageConfiguredTransition === 'none' && !!imageMotionType && SLIDE_TRANSITIONS.has(imageMotionType)
+        const imageEffectiveTransition = imageTransitionFromMotion ? imageMotionType : imageConfiguredTransition
+        const imageHasTransitionEffect = imageEffectiveTransition !== 'none'
+        const imageConfiguredDuration = Math.max(0, imageTimelineScene?.transitionDuration ?? 0.5)
+        const imageTransitionDuration = imageTransitionFromMotion
+          ? imageConfiguredDuration > 0 ? imageConfiguredDuration : 0.5
+          : imageConfiguredDuration
+        const imagePreviousPlayable = resolved.playableIndex > 0 ? playableScenes[resolved.playableIndex - 1] : null
+        const imagePreviousSceneIndex = imagePreviousPlayable?.originalIndex ?? null
+        const imageTransitionRelativeTime =
+          options?.forceSceneIndex !== undefined ? resolved.sceneTimeInSegment : tSec - resolved.sceneStartTime
+        const imageTransitionState = getTransitionFrameState({
+          hasTransitionEffect: imageHasTransitionEffect,
+          transitionDurationSec: imageTransitionDuration,
+          relativeTimeSec: imageTransitionRelativeTime,
+        })
+        const imageTransitionProgress = imageTransitionState.progress
+        const imageShouldTransition = imageTransitionState.shouldTransition
 
-        // 이전 씬의 리소스 정리 (씬 전환 시)
-        if (lastRenderedSceneIndexRef.current !== null && lastRenderedSceneIndexRef.current !== targetSceneIndex) {
+        // 이전 씬의 리소스 정리 (씬 전환 중이 아닐 때만)
+        if (!imageShouldTransition && lastRenderedSceneIndexRef.current !== null && lastRenderedSceneIndexRef.current !== targetSceneIndex) {
           if (typeof cleanupSceneResources === 'function') {
             cleanupSceneResources(lastRenderedSceneIndexRef.current)
           }
@@ -793,9 +814,54 @@ export function useProTransportRenderer({
         lastRenderedSceneIndexRef.current = targetSceneIndex
         lastRenderedTimeRef.current = tSec
 
-        void loadImageAsSprite(targetSceneIndex, targetScene.imageUrl).catch(() => {
-          // 로딩 실패 시에도 다음 프레임에서 재시도됨
-        })
+        const existingImageSprite = spritesRef.current.get(targetSceneIndex)
+        const imageLoadState = sceneLoadingStateRef.current.get(targetSceneIndex)
+        const isImageAlreadyLoaded =
+          !!existingImageSprite && !existingImageSprite.destroyed && imageLoadState?.status === 'ready'
+
+        if (isImageAlreadyLoaded) {
+          const app = appRef.current
+          if (!app || !app.screen) return
+
+          applySceneBaseTransform(existingImageSprite, imageTimelineScene, app.screen.width, app.screen.height)
+
+          if (imageShouldTransition) {
+            const activePreviousSprite =
+              imagePreviousSceneIndex !== null ? spritesRef.current.get(imagePreviousSceneIndex) : undefined
+
+            spritesRef.current.forEach((s, index) => {
+              if (index !== targetSceneIndex && index !== imagePreviousSceneIndex) {
+                hideSprite(s)
+              }
+            })
+
+            applySceneStartTransition({
+              transitionType: imageEffectiveTransition,
+              progress: imageTransitionProgress,
+              toSprite: existingImageSprite,
+              fromSprite: activePreviousSprite ?? null,
+              stageWidth: app.screen.width,
+              stageHeight: app.screen.height,
+            })
+
+            if (imageTransitionProgress >= 1 && activePreviousSprite && !activePreviousSprite.destroyed) {
+              hideSprite(activePreviousSprite)
+              clearTransitionArtifacts(existingImageSprite)
+            }
+          } else {
+            hideAllSprites(spritesRef.current)
+            existingImageSprite.visible = true
+            existingImageSprite.alpha = 1
+          }
+
+          app.renderer.render(app.stage)
+        } else if (!imageLoadState || (imageLoadState.status !== 'loading' && imageLoadState.status !== 'ready')) {
+          // 로딩 중이 아닐 때만 로드 시작 (중복 로드 방지)
+          hideAllSprites(spritesRef.current)
+          void loadImageAsSprite(targetSceneIndex, targetScene.imageUrl).catch(() => {
+            // 로딩 실패 시에도 다음 프레임에서 재시도됨
+          })
+        }
         return
       }
 

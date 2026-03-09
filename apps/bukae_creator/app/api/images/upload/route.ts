@@ -97,12 +97,13 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { 
-        success: true, 
-        message: '이미지 업로드 성공', 
+      {
+        success: true,
+        message: '이미지 업로드 성공',
         url: publicUrlData.publicUrl,
         width: imageWidth,
-        height: imageHeight
+        height: imageHeight,
+        durationSeconds: 0, // 이미지 duration은 0초로 설정
       },
       { headers: { ...(rl.headers ?? {}) } }
     )
