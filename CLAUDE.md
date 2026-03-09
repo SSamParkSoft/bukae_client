@@ -33,6 +33,7 @@ pnpm seed-demo
 
 The `pnpm dev` command runs `scripts/dev-with-browser.sh` which automatically opens Chrome at `http://localhost:3000` once the server is ready.
 
+
 The `pnpm build` script (`scripts/auto-build-fix.sh`) attempts build, auto-fixes lint errors on failure, installs missing `@types` packages, then retries.
 
 ## Tech Stack
