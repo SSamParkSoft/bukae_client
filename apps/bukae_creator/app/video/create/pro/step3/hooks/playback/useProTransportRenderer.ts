@@ -1130,10 +1130,7 @@ export function useProTransportRenderer({
               isPreviousSpriteReady,
             })
           } else {
-            // 전환 시작 시 현재 재생 상태 저장
-            const wasPlaying = transportState.isPlaying
-
-            // 전환 중에는 비디오 재생 일시정지
+            // 전환 중에는 현재 씬 비디오 일시정지
             const currentVideo = videoElementsRef.current.get(targetSceneIndex)
             if (currentVideo && !currentVideo.paused) {
               syncVideoToFrame(currentVideo, targetVideoTimeForRender)
@@ -1152,52 +1149,19 @@ export function useProTransportRenderer({
               stageWidth: app.screen.width,
               stageHeight: app.screen.height,
             })
-
-            // 재생 상태 저장
-            ;(sprite as { __proWasPlaying?: boolean }).__proWasPlaying = wasPlaying
-            if (fromSpriteToUse && previousSceneIndex !== null) {
-              const previousVideo = videoElementsRef.current.get(previousSceneIndex)
-              if (previousVideo) {
-                ;(fromSpriteToUse as { __proWasPlaying?: boolean }).__proWasPlaying = wasPlaying
-              }
-            }
           }
         }
 
         // Cleanup transition artifacts when transition is complete (progress >= 1),
         // so cleanup runs even if frames skipped past the internal progress >= 0.999 check.
         if (hasTransitionEffect && transitionProgress >= 1) {
-          // 전환 완료 후 재생 상태 복구
-          const wasPlaying = (sprite as { __proWasPlaying?: boolean }).__proWasPlaying ?? false
-
           clearTransitionArtifacts(sprite)
-          if (canRenderCrossTransitionNow && activePreviousSprite && !activePreviousSprite.destroyed && previousSceneIndex !== null) {
+          if (canRenderCrossTransitionNow && activePreviousSprite && !activePreviousSprite.destroyed) {
             hideSprite(activePreviousSprite)
-
-            // 전환 중에 일시정지했던 이전 스프라이트의 비디오 재생 복구
-            const previousVideo = videoElementsRef.current.get(previousSceneIndex)
-            if (previousVideo && wasPlaying) {
-              const videoElement = previousVideo as HTMLVideoElement
-              const previousVideoTime = videoElement.currentTime ?? 0
-              void syncVideoPlaybackToTimeline(
-                videoElement,
-                scenes[previousSceneIndex]!,
-                previousVideoTime
-              )
-            }
           }
-
-          // 현재 스프라이트의 비디오 재생 복구
-          const currentVideo = videoElementsRef.current.get(targetSceneIndex)
-          if (currentVideo && wasPlaying) {
-            void syncVideoPlaybackToTimeline(currentVideo, targetScene, targetVideoTimeForRender)
-          }
-
-          // 재생 상태 플래그 정리
-          delete (sprite as { __proWasPlaying?: boolean }).__proWasPlaying
-          if (activePreviousSprite) {
-            delete (activePreviousSprite as { __proWasPlaying?: boolean }).__proWasPlaying
-          }
+          // 이전/현재 비디오 재생 복구는 렌더 루프(shouldTransition=false 프레임)가 처리:
+          // - 이전 씬 비디오: 복구 불필요 (숨김 처리)
+          // - 현재 씬 비디오: 다음 renderAt 호출에서 올바른 videoTime으로 syncVideoPlaybackToTimeline
         }
         if (!options?.skipAnimation && !hasTransitionEffect && timelineScene?.motion) {
           applySceneMotion({
@@ -1209,8 +1173,7 @@ export function useProTransportRenderer({
         }
 
         videoElementsRef.current.forEach((video, index) => {
-          const keepPreviousVideo = needsCrossTransition && previousSceneIndex !== null && index === previousSceneIndex
-          if (index !== targetSceneIndex && !keepPreviousVideo && !video.paused) {
+          if (index !== targetSceneIndex && !video.paused) {
             video.pause()
           }
         })

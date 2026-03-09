@@ -626,8 +626,9 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
         sprite.rotation = 0
       }
 
-      sprite.visible = true
-      sprite.alpha = 1
+      // 초기 상태는 숨김 — 전환 효과가 있는 경우 applyVisualState가 올바른 alpha로 렌더링
+      sprite.visible = false
+      sprite.alpha = 0
 
       const finalApp = appRef.current
       const finalVideoContainer = videoContainerRef.current
@@ -640,16 +641,8 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
       finalVideoContainer.addChild(sprite)
       spritesRef.current.set(sceneIndex, sprite)
 
-      // 스프라이트 생성 완료 상태 업데이트
-      updateLoadingState({ status: 'ready', spriteReady: true })
-
-      if (finalApp && finalApp.renderer) {
-        try {
-          finalApp.renderer.render(finalApp.stage)
-        } catch (error) {
-          console.warn('[loadImageAsSprite] 초기 렌더링 실패:', error)
-        }
-      }
+      // 스프라이트 생성 완료 상태 업데이트 (videoReady=true: 이미지는 비디오 요소 불필요하므로 준비 완료로 간주)
+      updateLoadingState({ status: 'ready', videoReady: true, spriteReady: true })
 
       requestAnimationFrame(() => {
         setupSpriteClickEventRef.current(sceneIndex, sprite)
@@ -841,8 +834,9 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
         sprite.rotation = 0
       }
 
-      sprite.visible = true
-      sprite.alpha = 1
+      // 초기 상태는 숨김 — 전환 효과가 있는 경우 applyVisualState가 올바른 alpha로 렌더링
+      sprite.visible = false
+      sprite.alpha = 0
 
       const finalApp = appRef.current
       const finalVideoContainer = videoContainerRef.current
@@ -857,14 +851,6 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
 
       // 스프라이트 생성 완료 상태 업데이트
       updateLoadingState({ status: 'ready', videoReady: true, spriteReady: true })
-
-      if (finalApp && finalApp.renderer) {
-        try {
-          finalApp.renderer.render(finalApp.stage)
-        } catch (error) {
-          console.warn('[loadVideoAsSprite] 초기 렌더링 실패:', error)
-        }
-      }
 
       requestAnimationFrame(() => {
         setupSpriteClickEventRef.current(sceneIndex, sprite)
