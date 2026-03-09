@@ -22,6 +22,7 @@ interface UseProTransportRendererParams {
   videoElementsRef: React.MutableRefObject<Map<number, HTMLVideoElement>>
   currentSceneIndexRef: React.MutableRefObject<number>
   loadVideoAsSprite: (sceneIndex: number, videoUrl: string, selectionStartSeconds?: number) => Promise<void>
+  loadImageAsSprite?: (sceneIndex: number, imageUrl: string) => Promise<void>
   renderSubtitle: (sceneIndex: number, script: string) => void
   sceneLoadingStateRef: React.MutableRefObject<Map<number, LoadingState>>
 }
@@ -565,6 +566,7 @@ export function useProTransportRenderer({
   videoElementsRef,
   currentSceneIndexRef,
   loadVideoAsSprite,
+  loadImageAsSprite,
   renderSubtitle,
   sceneLoadingStateRef,
 }: UseProTransportRendererParams) {
@@ -766,6 +768,30 @@ export function useProTransportRenderer({
         return
       }
 
+      // 이미지인 경우 이미지 로드
+      if (targetScene.imageUrl && !targetScene.videoUrl) {
+        if (!loadImageAsSprite) {
+          return
+        }
+
+        hideAllSprites(spritesRef.current)
+        videoElementsRef.current.forEach((video) => {
+          if (!video.paused) {
+            video.pause()
+          }
+        })
+        renderSubtitle(targetSceneIndex, targetScene.script ?? '')
+        currentSceneIndexRef.current = targetSceneIndex
+        lastRenderedSceneIndexRef.current = targetSceneIndex
+        lastRenderedTimeRef.current = tSec
+
+        void loadImageAsSprite(targetSceneIndex, targetScene.imageUrl).catch(() => {
+          // 로딩 실패 시에도 다음 프레임에서 재시도됨
+        })
+        return
+      }
+
+      // 비디오도 없는 경우 처리
       if (!targetScene.videoUrl) {
         hideAllSprites(spritesRef.current)
         videoElementsRef.current.forEach((video) => {
@@ -1242,6 +1268,7 @@ export function useProTransportRenderer({
       appRef,
       currentSceneIndexRef,
       ensureSceneLoaded,
+      loadImageAsSprite,
       pixiReady,
       renderSubtitle,
       syncVideoPlaybackToTimeline,

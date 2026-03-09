@@ -539,6 +539,129 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     }
   }, [cleanupAllMediaResources])
 
+  // ===== 이미지 로딩 =====
+  const loadImageAsSprite = useCallback(async (sceneIndex: number, imageUrl: string): Promise<void> => {
+    if (!pixiReady) {
+      console.warn('[loadImageAsSprite] pixiReady가 false입니다', { sceneIndex, imageUrl })
+      return
+    }
+
+    // 로딩 시작 상태 업데이트
+    const updateLoadingState = (updates: { status: 'loading' | 'ready' | 'failed', videoReady?: boolean, spriteReady?: boolean }) => {
+      const current = sceneLoadingStateRef.current.get(sceneIndex) ?? {
+        status: 'not-loaded' as const,
+        timestamp: Date.now(),
+        videoReady: false,
+        spriteReady: false,
+      }
+
+      sceneLoadingStateRef.current.set(sceneIndex, {
+        ...current,
+        ...updates,
+        timestamp: Date.now(),
+      })
+    }
+
+    updateLoadingState({ status: 'loading' })
+
+    cleanupSceneResources(sceneIndex)
+
+    try {
+      const app = appRef.current
+      const videoContainer = videoContainerRef.current
+      if (!app || !videoContainer || !app.screen) {
+        cleanupSceneResources(sceneIndex)
+        return
+      }
+
+      // 이미지 텍스처 로드
+      const texture = await PIXI.Assets.load(imageUrl)
+      if (!texture || texture.destroyed) {
+        cleanupSceneResources(sceneIndex)
+        updateLoadingState({ status: 'failed' })
+        return
+      }
+
+      videoTexturesRef.current.set(sceneIndex, texture)
+
+      const sprite = new PIXI.Sprite(texture)
+      sprite.anchor.set(0.5, 0.5)
+
+      const stageWidth = app.screen.width
+      const stageHeight = app.screen.height
+
+      const sourceWidth = texture.width || stageWidth
+      const sourceHeight = texture.height || stageHeight
+
+      if (!sourceWidth || !sourceHeight || sourceWidth <= 0 || sourceHeight <= 0) {
+        sprite.destroy()
+        cleanupSceneResources(sceneIndex)
+        updateLoadingState({ status: 'failed' })
+        return
+      }
+
+      const currentTimeline = useVideoCreateStore.getState().timeline
+      const timelineScene = currentTimeline?.scenes?.[sceneIndex]
+      const imageTransform = timelineScene?.imageTransform
+      const imageFit = timelineScene?.imageFit ?? 'contain'
+
+      if (imageTransform) {
+        sprite.x = imageTransform.x
+        sprite.y = imageTransform.y
+        sprite.width = imageTransform.width
+        sprite.height = imageTransform.height
+        sprite.rotation = imageTransform.rotation ?? 0
+      } else {
+        const fitted = calculateSpriteParams(
+          sourceWidth,
+          sourceHeight,
+          stageWidth,
+          stageHeight,
+          imageFit
+        )
+        sprite.width = fitted.width
+        sprite.height = fitted.height
+        sprite.x = fitted.x + fitted.width / 2
+        sprite.y = fitted.y + fitted.height / 2
+        sprite.rotation = 0
+      }
+
+      sprite.visible = true
+      sprite.alpha = 1
+
+      const finalApp = appRef.current
+      const finalVideoContainer = videoContainerRef.current
+      if (!finalApp || !finalVideoContainer || !finalApp.screen) {
+        sprite.destroy()
+        cleanupSceneResources(sceneIndex)
+        return
+      }
+
+      finalVideoContainer.addChild(sprite)
+      spritesRef.current.set(sceneIndex, sprite)
+
+      // 스프라이트 생성 완료 상태 업데이트
+      updateLoadingState({ status: 'ready', spriteReady: true })
+
+      if (finalApp && finalApp.renderer) {
+        try {
+          finalApp.renderer.render(finalApp.stage)
+        } catch (error) {
+          console.warn('[loadImageAsSprite] 초기 렌더링 실패:', error)
+        }
+      }
+
+      requestAnimationFrame(() => {
+        setupSpriteClickEventRef.current(sceneIndex, sprite)
+      })
+    } catch (error) {
+      // 로딩 실패 상태 업데이트
+      updateLoadingState({ status: 'failed' })
+      cleanupSceneResources(sceneIndex)
+      console.warn('[loadImageAsSprite] 로딩 실패:', error)
+    }
+  }, [cleanupSceneResources, pixiReady, sceneLoadingStateRef])
+
   // ===== 비디오 로딩 =====
   const loadVideoAsSprite = useCallback(async (sceneIndex: number, videoUrl: string, selectionStartSeconds?: number, onLoadingStateChange?: (sceneIndex: number, updates: { status: 'loading' | 'ready' | 'failed', videoReady?: boolean, spriteReady?: boolean }) => void): Promise<void> => {
     if (!pixiReady) {
@@ -911,6 +1034,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     videoElementsRef,
     currentSceneIndexRef,
     loadVideoAsSprite,
+    loadImageAsSprite,
     renderSubtitle,
     sceneLoadingStateRef,
   })

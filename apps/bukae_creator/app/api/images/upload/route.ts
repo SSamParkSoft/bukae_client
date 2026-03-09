@@ -60,9 +60,9 @@ export async function POST(request: Request) {
     const fileExt = file.name.split('.').pop() || 'jpg'
     const fileName = `${timestamp}_scene_${sceneIndexValue}_image.${fileExt}`
     
-    // 경로 구성: images/{userId}/{jobId}/{fileName}
+    // 경로 구성: pro_upload_images/{userId}/{jobId}/{fileName}
     // jobId로 구분하여 같은 영상 작업의 이미지들을 한 폴더에 정리
-    const filePath = `images/${auth.userId}/${jobId}/${fileName}`
+    const filePath = `pro_upload_images/${auth.userId}/${jobId}/${fileName}`
     
     // 이미지 크기 읽기 (업로드 전에)
     let imageWidth = 0
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     }
 
     const { error: uploadError } = await supabase.storage
-      .from('images')
+      .from('pro_upload')
       .upload(filePath, file, {
         cacheControl: '3600',
         upsert: true,
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
     }
 
     const { data: publicUrlData } = supabase.storage
-      .from('images')
+      .from('pro_upload')
       .getPublicUrl(filePath)
 
     if (!publicUrlData.publicUrl) {

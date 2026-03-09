@@ -28,6 +28,8 @@ export interface ProVideoEditSceneCardProps {
   voiceLabel?: string
   /** 업로드된 영상 URL */
   videoUrl?: string | null
+  /** 업로드된 이미지 URL */
+  imageUrl?: string | null
   /** 업로드 중 여부 */
   isUploading?: boolean
   /** 4MB 초과로 압축 후 업로드 중일 때 true */
@@ -61,6 +63,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   onGuideChange,
   voiceLabel,
   videoUrl,
+  imageUrl,
   isUploading = false,
   isCompressing = false,
   initialSelectionStartSeconds = 0,
@@ -617,11 +620,12 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
         <div className="flex-1 min-w-0 flex gap-4 items-start">
           {/* 좌측: 영상 업로드 영역 */}
           <div className="shrink-0">
-            <ProVideoUpload 
-              onUpload={onVideoUpload} 
+            <ProVideoUpload
+              onUpload={onVideoUpload}
               isLoading={isUploading}
               isCompressing={isCompressing}
               videoUrl={videoUrl}
+              imageUrl={imageUrl}
               selectionStartSeconds={clampedSelectionStartSeconds}
               selectionEndSeconds={clampedSelectionEndSeconds}
             />
@@ -745,19 +749,20 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
               </div>
             </div>
 
-            {/* 하단: 타임라인 비주얼 */}
-            <div 
-              ref={timelineContainerRef}
-              className="relative overflow-x-auto w-full"
-              style={{ 
-                WebkitOverflowScrolling: 'touch',
-              }}
-              onDragStart={(e) => {
-                // 타임라인 영역에서는 씬 카드 드래그 방지
-                e.stopPropagation()
-                e.preventDefault()
-              }}
-            >
+            {/* 하단: 타임라인 비주얼 - 이미지인 경우 숨김 */}
+            {!imageUrl && (
+              <div
+                ref={timelineContainerRef}
+                className="relative overflow-x-auto w-full"
+                style={{
+                  WebkitOverflowScrolling: 'touch',
+                }}
+                onDragStart={(e) => {
+                  // 타임라인 영역에서는 씬 카드 드래그 방지
+                  e.stopPropagation()
+                  e.preventDefault()
+                }}
+              >
               {/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
               <div
                 className="relative shrink-0"
@@ -927,7 +932,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                   )
                 })}
               </div>
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

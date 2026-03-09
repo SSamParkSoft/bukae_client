@@ -12,6 +12,8 @@ export interface ProVideoEditSectionProps {
     guideText?: string
     voiceLabel?: string
     videoUrl?: string | null
+    /** 업로드된 이미지 URL */
+    imageUrl?: string | null
     selectionStartSeconds?: number
     selectionEndSeconds?: number
     /** 업로드된 원본 영상 길이(초). TTS보다 짧을 때 타임라인을 이어붙인 길이로 표시 */
@@ -95,6 +97,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
             onAiGuideClick={onAiGuideClick ? () => onAiGuideClick(index) : undefined}
             ttsDuration={scene.ttsDuration}
             videoUrl={scene.videoUrl}
+            imageUrl={scene.imageUrl}
             isUploading={uploadingSceneIndex === index}
             isCompressing={compressingSceneIndex === index}
             initialSelectionStartSeconds={scene.selectionStartSeconds}

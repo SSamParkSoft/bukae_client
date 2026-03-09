@@ -275,7 +275,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
               )}
             </span>
           </>
-        ) : videoUrl ? (
+        ) : videoUrl || imageUrl ? (
           <>
             {/* 썸네일 또는 영상 표시 영역 */}
             <div className="absolute inset-0 flex items-center justify-center">
@@ -283,7 +283,7 @@ export const ProVideoUpload = memo(function ProVideoUpload({
               {thumbnailUrl && (
                 <Image
                   src={thumbnailUrl}
-                  alt="영상 썸네일"
+                  alt={imageUrl ? '이미지 썸네일' : '영상 썸네일'}
                   fill
                   className={`object-cover transition-opacity ${
                     isHovered ? 'opacity-0' : 'opacity-100'
@@ -291,21 +291,23 @@ export const ProVideoUpload = memo(function ProVideoUpload({
                   unoptimized
                 />
               )}
-              {/* 호버 시 영상 표시 (썸네일 위에 오버레이) */}
-              <video
-                ref={hoverVideoRef}
-                src={videoUrl}
-                className={`w-full h-full object-cover transition-opacity ${
-                  isHovered ? 'opacity-100' : 'opacity-0'
-                }`}
-                muted
-                playsInline
-                preload="none"
-                crossOrigin="anonymous"
-              />
+              {/* 호버 시 영상 표시 (썸네일 위에 오버레이) - 이미지는 영상 표시하지 않음 */}
+              {!imageUrl && (
+                <video
+                  ref={hoverVideoRef}
+                  src={videoUrl}
+                  className={`w-full h-full object-cover transition-opacity ${
+                    isHovered ? 'opacity-100' : 'opacity-0'
+                  }`}
+                  muted
+                  playsInline
+                  preload="none"
+                  crossOrigin="anonymous"
+                />
+              )}
             </div>
             {/* 오버레이 - 호버 시에만 표시 */}
-            <div 
+            <div
               className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity ${
                 isHovered ? 'opacity-100' : 'opacity-0'
               }`}

@@ -17,7 +17,7 @@ import {
   sceneScriptToProScene,
   type ProScene,
 } from '../utils/types'
-import { getEffectiveSourceDuration, normalizeSelectionRange } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
+import { normalizeSelectionRange } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
 import { compressVideoIfNeeded, COMPRESS_THRESHOLD_BYTES } from '@/lib/video/compressVideoInBrowser'
 import type { StudioScriptUserEditGuideResponseItem } from '@/lib/types/api/studio-script'
 
@@ -157,79 +157,130 @@ export default function ProStep2EditPage() {
       return
     }
 
+    // 파일 타입 확인 (이미지 vs 영상)
+    const isImage = file.type.startsWith('image/')
+    const isVideo = file.type.startsWith('video/')
+
+    if (!isImage && !isVideo) {
+      throw new Error(`지원하지 않는 파일 형식입니다: ${file.type}`)
+    }
+
     setUploadingSceneIndex(index)
-    setCompressingSceneIndex(file.size > COMPRESS_THRESHOLD_BYTES ? index : null)
 
     try {
-      // 큰 파일은 업로드 전 브라우저에서 압축 (4MB 초과 시)
-      const fileToUpload = await compressVideoIfNeeded(file)
+      if (isImage) {
+        // 이미지 업로드
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('sceneIndex', String(index))
+        formData.append('jobId', 'pro-edit') // 임시 jobId
 
-      const formData = new FormData()
-      formData.append('file', fileToUpload)
-      formData.append('sceneId', scenes[index]?.id || String(index + 1))
+        const response = await fetch('/api/images/upload', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+        })
 
-      const response = await fetch('/api/videos/pro/upload', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const responseText = await response.text()
-        let errorMessage = '영상 업로드 실패'
-        if (response.status === 413) {
-          errorMessage =
-            '영상 파일이 서버 허용 크기를 초과했습니다. 더 작은 파일(권장: 100MB 이하)을 사용해 주세요.'
-        } else {
+        if (!response.ok) {
+          const responseText = await response.text()
+          let errorMessage = '이미지 업로드 실패'
           try {
             const errorData = JSON.parse(responseText) as { error?: string }
             if (errorData?.error) errorMessage = errorData.error
           } catch {
-            console.error('[Pro 영상 업로드] 비정상 응답:', response.status, response.statusText, responseText.slice(0, 500))
+            console.error('[Pro 이미지 업로드] 비정상 응답:', response.status, response.statusText, responseText.slice(0, 500))
           }
+          throw new Error(errorMessage)
         }
-        throw new Error(errorMessage)
-      }
 
-      const result = await response.json()
-      if (!result.success || !result.url) {
-        throw new Error('업로드된 영상 URL을 가져올 수 없습니다.')
-      }
+        const result = await response.json()
+        if (!result.success || !result.url) {
+          throw new Error('업로드된 이미지 URL을 가져올 수 없습니다.')
+        }
 
-      // 업로드된 영상 URL을 store에 저장
-      updateScenes((prev) => {
-        const next = [...prev]
-        next[index] = { ...next[index], videoUrl: result.url }
-        return next
-      })
-
-      // 원본 영상 길이를 로드해, 씬 duration(TTS)보다 짧으면 이어붙인 구간으로 선택 자동 설정
-      const ttsDuration = scenes[index]?.ttsDuration
-      const durationSec = await getVideoDurationFromUrl(result.url)
-      if (durationSec != null && Number.isFinite(durationSec)) {
+        // 업로드된 이미지 URL을 store에 저장
         updateScenes((prev) => {
           const next = [...prev]
-          const scene = next[index]
-          next[index] = {
-            ...scene,
-            originalVideoDurationSeconds: durationSec,
-            ...(typeof ttsDuration === 'number' &&
-            ttsDuration > 0 &&
-            durationSec < ttsDuration
-              ? {
-                  selectionStartSeconds: 0,
-                  selectionEndSeconds: Math.min(
-                    ttsDuration,
-                    getEffectiveSourceDuration(ttsDuration, durationSec)
-                  ),
-                }
-              : {}),
-          }
+          next[index] = { ...next[index], imageUrl: result.url }
           return next
         })
+
+        // 이미지 처리 완료 - 영상 관련 로직은 건너뜀
+        return
+      } else {
+        // 영상 업로드 로직 (기존 로직)
+        setCompressingSceneIndex(file.size > COMPRESS_THRESHOLD_BYTES ? index : null)
+
+        // 큰 파일은 업로드 전 브라우저에서 압축 (4MB 초과 시)
+        const fileToUpload = await compressVideoIfNeeded(file)
+
+        const formData = new FormData()
+        formData.append('file', fileToUpload)
+        formData.append('sceneId', scenes[index]?.id || String(index + 1))
+
+        const response = await fetch('/api/videos/pro/upload', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+        })
+
+        if (!response.ok) {
+          const responseText = await response.text()
+          let errorMessage = '영상 업로드 실패'
+          if (response.status === 413) {
+            errorMessage =
+              '영상 파일이 서버 허용 크기를 초과했습니다. 더 작은 파일(권장: 100MB 이하)을 사용해 주세요.'
+          } else {
+            try {
+              const errorData = JSON.parse(responseText) as { error?: string }
+              if (errorData?.error) errorMessage = errorData.error
+            } catch {
+              console.error('[Pro 영상 업로드] 비정상 응답:', response.status, response.statusText, responseText.slice(0, 500))
+            }
+          }
+          throw new Error(errorMessage)
+        }
+
+        const result = await response.json()
+        if (!result.success || !result.url) {
+          throw new Error('업로드된 영상 URL을 가져올 수 없습니다.')
+        }
+
+        // 업로드된 영상 URL을 store에 저장
+        updateScenes((prev) => {
+          const next = [...prev]
+          next[index] = { ...next[index], videoUrl: result.url }
+          return next
+        })
+
+        // 원본 영상 길이를 로드해, 씬 duration(TTS)보다 짧으면 이어붙인 구간으로 선택 자동 설정
+        const ttsDuration = scenes[index]?.ttsDuration
+        const durationSec = await getVideoDurationFromUrl(result.url)
+        if (durationSec != null && Number.isFinite(durationSec)) {
+          updateScenes((prev) => {
+            const next = [...prev]
+            const scene = next[index]
+            next[index] = {
+              ...scene,
+              originalVideoDurationSeconds: durationSec,
+              ...(typeof ttsDuration === 'number' &&
+              ttsDuration > 0 &&
+              durationSec < ttsDuration
+                ? {
+                    selectionStartSeconds: 0,
+                    selectionEndSeconds: durationSec,
+                  }
+                : {}),
+            }
+            return next
+          })
+        }
       }
+
     } catch (error) {
       console.error('영상 업로드 오류:', error)
       alert(error instanceof Error ? error.message : '영상 업로드 중 오류가 발생했습니다.')
@@ -237,7 +288,7 @@ export default function ProStep2EditPage() {
       setUploadingSceneIndex(null)
       setCompressingSceneIndex(null)
     }
-  }, [scenes, updateScenes])
+  }, [updateScenes, scenes])
 
   const handleAiGuideGenerateAll = useCallback(async () => {
     const product = selectedProducts?.[0]
@@ -432,6 +483,7 @@ export default function ProStep2EditPage() {
     guideText: scene.actionGuide ?? '', // 촬영가이드(액션 가이드) - store에 저장
     voiceLabel: scene.voiceLabel, // 적용된 보이스 라벨
     videoUrl: scene.videoUrl, // 업로드된 영상 URL
+    imageUrl: scene.imageUrl, // 업로드된 이미지 URL
     selectionStartSeconds: scene.selectionStartSeconds, // 격자 선택 영역 시작 시간
     selectionEndSeconds: scene.selectionEndSeconds, // 격자 선택 영역 끝 시간
     originalVideoDurationSeconds: scene.originalVideoDurationSeconds,
@@ -454,7 +506,7 @@ export default function ProStep2EditPage() {
               <div className="mb-20 mt-[72px]">
                 <div className="flex items-center justify-center mb-4">
                   <span
-                    className="font-bold bg-gradient-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.56px]"
+                    className="font-bold bg-linear-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.56px]"
                     style={{
                       fontSize: 'var(--font-size-28)',
                       lineHeight: 'var(--line-height-28-140)',
@@ -464,7 +516,7 @@ export default function ProStep2EditPage() {
                   </span>
                 </div>
                 <h1
-                  className="text-center font-bold mb-2 bg-gradient-to-r from-text-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.64px]"
+                  className="text-center font-bold mb-2 bg-linear-to-r from-text-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.64px]"
                   style={{
                     fontSize: 'var(--font-size-32)',
                     lineHeight: 'var(--line-height-32-140)',
