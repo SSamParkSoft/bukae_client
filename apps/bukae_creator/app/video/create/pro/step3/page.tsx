@@ -279,10 +279,14 @@ export default function ProStep3Page() {
       return
     }
 
-    // 1. 전환 효과 완료 상태로 즉시 렌더링
+    // 1. 전환 효과/seek과 무관하게, 선택한 씬을 즉시 강제 렌더링
     const renderAt = renderAtRefRef.current?.current
     if (renderAt) {
-      renderAt(0, { forceSceneIndex: index, forceTransitionComplete: true })
+      renderAt(0, {
+        forceSceneIndex: index,
+        forceRender: true,
+        forceTransitionComplete: true,
+      })
     }
 
     // 2. 씬 인덱스 설정 (transport seek 포함)
