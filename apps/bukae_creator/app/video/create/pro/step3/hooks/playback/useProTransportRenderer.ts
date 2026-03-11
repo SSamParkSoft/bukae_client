@@ -835,9 +835,36 @@ export function useProTransportRenderer({
         } else if (!imageLoadState || (imageLoadState.status !== 'loading' && imageLoadState.status !== 'ready')) {
           // 로딩 중이 아닐 때만 로드 시작 (중복 로드 방지)
           hideAllSprites(spritesRef.current)
-          void loadImageAsSprite(targetSceneIndex, targetScene.imageUrl).catch(() => {
-            // 로딩 실패 시에도 다음 프레임에서 재시도됨
-          })
+
+          const requestId = ++renderRequestIdRef.current
+          const initialTime = tSec
+
+          void loadImageAsSprite(targetSceneIndex, targetScene.imageUrl)
+            .then(() => {
+              // 이 사이에 다른 renderAt 호출이 들어왔으면 무시
+              if (requestId !== renderRequestIdRef.current) {
+                return
+              }
+
+              const rerender = renderAtRef.current
+              if (!rerender) {
+                return
+              }
+
+              // 현재 타임라인 시간 기준으로 다시 렌더링
+              const currentT =
+                transportHook.transport?.getTime() ?? initialTime
+
+              rerender(currentT, {
+                forceSceneIndex: targetSceneIndex,
+                forceRender: true,
+                // 씬 카드 클릭에서 들어온 경우에는 이미 forceTransitionComplete 옵션이 전달됨
+                forceTransitionComplete: options?.forceTransitionComplete,
+              })
+            })
+            .catch(() => {
+              // 로딩 실패 시에도 다음 프레임에서 재시도됨
+            })
         }
         return
       }
