@@ -5,7 +5,8 @@ import { ProPreviewPanel } from './ui/ProPreviewPanel'
 import { ProSceneListPanel } from './ui/ProSceneListPanel'
 import { ProEffectsPanel } from './ui/ProEffectsPanel'
 import { useVideoCreateStore, type TimelineData } from '@/store/useVideoCreateStore'
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useRef } from 'react'
+import type { RenderAtOptions } from './hooks/playback/useProTransportRenderer'
 import { allTransitions, transitions, movements } from '@/lib/data/transitions'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
 import { getPlayableSegments, reorderByIndexOrder } from './utils'
@@ -266,10 +267,34 @@ export default function ProStep3Page() {
   const currentImageUrl = currentScene?.imageUrl || null
   const currentSelectionStartSeconds = currentScene?.selectionStartSeconds || 0
 
+  // renderAtRef, enterEditMode ref 상태
+  const renderAtRefRef = useRef<React.MutableRefObject<((tSec: number, options?: RenderAtOptions) => void) | null> | null>(null)
+  const enterEditModeRef = useRef<((mode: 'image' | 'text') => void) | null>(null)
+
   // 씬 선택 핸들러
   const handleSceneSelect = useCallback((index: number) => {
+    const targetScene = proStep3Scenes[index]
+    if (!targetScene) {
+      setCurrentSceneIndex(index)
+      return
+    }
+
+    // 1. 전환 효과 완료 상태로 즉시 렌더링
+    const renderAt = renderAtRefRef.current?.current
+    if (renderAt) {
+      renderAt(0, { forceSceneIndex: index, forceTransitionComplete: true })
+    }
+
+    // 2. 씬 인덱스 설정 (transport seek 포함)
     setCurrentSceneIndex(index)
-  }, [])
+
+    // 3. edit 모드 진입
+    const enterEditMode = enterEditModeRef.current
+    if (enterEditMode) {
+      const mode = targetScene.imageUrl || targetScene.videoUrl ? 'image' : 'text'
+      setTimeout(() => enterEditMode(mode), 50)
+    }
+  }, [proStep3Scenes])
 
   const handleScenePlay = useCallback(async (sceneIndex: number) => {
     const targetScene = proStep3Scenes[sceneIndex]
@@ -397,6 +422,12 @@ export default function ProStep3Page() {
               confirmedBgmTemplate={confirmedBgmTemplate}
               onExport={handleExport}
               isExporting={isExporting}
+              onRenderReady={(renderAtRef) => {
+                renderAtRefRef.current = renderAtRef
+              }}
+              onEditModeReady={(enterEditMode) => {
+                enterEditModeRef.current = enterEditMode
+              }}
             />
           </div>
 

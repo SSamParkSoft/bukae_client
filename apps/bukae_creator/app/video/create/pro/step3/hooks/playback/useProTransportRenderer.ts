@@ -27,11 +27,13 @@ interface UseProTransportRendererParams {
   sceneLoadingStateRef: React.MutableRefObject<Map<number, LoadingState>>
 }
 
-interface RenderAtOptions {
+export interface RenderAtOptions {
   skipAnimation?: boolean
   forceSceneIndex?: number
   /** 타임라인 내용만 바뀐 경우에도 같은 t에서 다시 그리기 위해 사용 */
   forceRender?: boolean
+  /** 전환 효과를 강제로 완료 상태로 렌더링 (씬 카드 클릭 시 사용) */
+  forceTransitionComplete?: boolean
 }
 
 const VIDEO_SYNC_SEEK_EPSILON_SEC = 0.08
@@ -339,6 +341,7 @@ function applySceneStartTransition({
   fromBaseState,
   stageWidth,
   stageHeight,
+  forceComplete = false,
 }: {
   transitionType: string
   progress: number
@@ -347,9 +350,11 @@ function applySceneStartTransition({
   fromBaseState?: SpriteBaseState | null
   stageWidth: number
   stageHeight: number
+  forceComplete?: boolean
 }) {
-  const clampedProgress = Math.max(0, Math.min(1, progress))
-  const eased = 1 - Math.pow(1 - clampedProgress, 3)
+  const effectiveProgress = forceComplete ? 1 : Math.max(0, Math.min(1, progress))
+  const eased = 1 - Math.pow(1 - effectiveProgress, 3)
+  const clampedProgress = effectiveProgress
   const normalized = transitionType.toLowerCase()
 
   clearTransitionArtifacts(toSprite, {
@@ -543,7 +548,7 @@ export function useProTransportRenderer({
 }: UseProTransportRendererParams & { cleanupSceneResources: (sceneIndex: number) => void }) {
   const transportHook = useTransport()
   const { transportState } = useTransportState({ transport: transportHook.transport })
-  const renderAtRef = useRef<((tSec: number, options?: RenderAtOptions) => void) | undefined>(undefined)
+  const renderAtRef = useRef<((tSec: number, options?: RenderAtOptions) => void) | null>(null)
   const lastRenderedTimeRef = useRef<number>(-1)
   const lastRenderedSceneIndexRef = useRef<number>(-1)
   const renderRequestIdRef = useRef(0)
@@ -796,6 +801,7 @@ export function useProTransportRenderer({
           applySceneBaseTransform(existingImageSprite, imageTimelineScene, app.screen.width, app.screen.height)
 
           if (imageShouldTransition) {
+            const effectiveProgress = options?.forceTransitionComplete ? 1 : imageTransitionProgress
             const activePreviousSprite =
               imagePreviousSceneIndex !== null ? spritesRef.current.get(imagePreviousSceneIndex) : undefined
 
@@ -807,14 +813,15 @@ export function useProTransportRenderer({
 
             applySceneStartTransition({
               transitionType: imageEffectiveTransition,
-              progress: imageTransitionProgress,
+              progress: effectiveProgress,
               toSprite: existingImageSprite,
               fromSprite: activePreviousSprite ?? null,
               stageWidth: app.screen.width,
               stageHeight: app.screen.height,
+              forceComplete: options?.forceTransitionComplete,
             })
 
-            if (imageTransitionProgress >= 1 && activePreviousSprite && !activePreviousSprite.destroyed) {
+            if (effectiveProgress >= 1 && activePreviousSprite && !activePreviousSprite.destroyed) {
               hideSprite(activePreviousSprite)
               clearTransitionArtifacts(existingImageSprite)
             }
@@ -1090,6 +1097,7 @@ export function useProTransportRenderer({
         if (shouldTransition) {
           // fromSprite가 준비되지 않았으면 전환을 지연 (깜빡거림 방지)
           const fromSpriteToUse = canRenderCrossTransitionNow ? activePreviousSprite ?? null : null
+          const effectiveProgress = options?.forceTransitionComplete ? 1 : transitionProgress
 
           // 크로스 전환이 필요하지만 스프라이트가 준비되지 않았으면 전환을 건너뜀
           if (needsCrossTransition && !canRenderCrossTransitionNow) {
@@ -1108,7 +1116,7 @@ export function useProTransportRenderer({
 
             applySceneStartTransition({
               transitionType: effectiveTransition,
-              progress: transitionProgress,
+              progress: effectiveProgress,
               toSprite: sprite,
               fromSprite: fromSpriteToUse,
               fromBaseState:
@@ -1118,13 +1126,15 @@ export function useProTransportRenderer({
                   : null,
               stageWidth: app.screen.width,
               stageHeight: app.screen.height,
+              forceComplete: options?.forceTransitionComplete,
             })
           }
         }
 
         // Cleanup transition artifacts when transition is complete (progress >= 1),
         // so cleanup runs even if frames skipped past the internal progress >= 0.999 check.
-        if (hasTransitionEffect && transitionProgress >= 1) {
+        const effectiveProgress = options?.forceTransitionComplete ? 1 : transitionProgress
+        if (hasTransitionEffect && effectiveProgress >= 1) {
           clearTransitionArtifacts(sprite)
           if (canRenderCrossTransitionNow && activePreviousSprite && !activePreviousSprite.destroyed) {
             hideSprite(activePreviousSprite)

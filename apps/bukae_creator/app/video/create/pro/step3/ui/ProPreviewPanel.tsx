@@ -1,9 +1,10 @@
 'use client'
 
-import { memo, useCallback, useRef } from 'react'
+import { memo, useCallback, useRef, useEffect } from 'react'
 import { TimelineBar, SpeedSelector, ExportButton } from './index'
 import { useProStep3Container } from '../hooks/useProStep3Container'
 import type { ProStep3Scene } from '../model/types'
+import type { RenderAtOptions } from '../hooks/playback/useProTransportRenderer'
 
 interface ProPreviewPanelProps {
   currentVideoUrl?: string | null
@@ -20,6 +21,8 @@ interface ProPreviewPanelProps {
   confirmedBgmTemplate?: string | null
   onExport?: () => void
   isExporting?: boolean
+  onRenderReady?: (renderAtRef: React.MutableRefObject<((tSec: number, options?: RenderAtOptions) => void) | null>) => void
+  onEditModeReady?: (enterEditMode: (mode: 'image' | 'text') => void) => void
 }
 
 export const ProPreviewPanel = memo(function ProPreviewPanel({
@@ -36,6 +39,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   confirmedBgmTemplate,
   onExport,
   isExporting = false,
+  onRenderReady,
+  onEditModeReady,
 }: ProPreviewPanelProps) {
   const container = useProStep3Container({
     scenes,
@@ -61,7 +66,22 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
     handleTimelineSeek,
     handleSceneImageFitChange,
     timeline,
+    renderAtRef,
+    enterEditMode,
   } = container
+
+  // 콜백으로 ref 제공
+  useEffect(() => {
+    if (onRenderReady) {
+      onRenderReady(renderAtRef)
+    }
+  }, [renderAtRef, onRenderReady])
+
+  useEffect(() => {
+    if (onEditModeReady) {
+      onEditModeReady(enterEditMode)
+    }
+  }, [enterEditMode, onEditModeReady])
 
   const isDraggingTimelineRef = useRef(false)
 

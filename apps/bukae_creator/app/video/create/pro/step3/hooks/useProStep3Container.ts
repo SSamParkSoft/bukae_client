@@ -2183,5 +2183,6 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     transportHook,
     transportState,
     renderAtRef,
+    enterEditMode,
   }
 }
