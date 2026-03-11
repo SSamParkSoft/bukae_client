@@ -28,7 +28,7 @@ interface UseProTransportPlaybackParams {
   scenes: ProStep3Scene[]
   pixiReady: boolean
   renderAtRef: React.MutableRefObject<
-    ((tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number; forceRender?: boolean }) => void) | undefined
+    ((tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number; forceRender?: boolean }) => void) | null
   >
   onBeforePlay?: () => boolean
   onPlayingChange?: (isPlaying: boolean) => void

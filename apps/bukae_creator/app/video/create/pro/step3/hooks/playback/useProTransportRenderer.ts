@@ -548,7 +548,7 @@ export function useProTransportRenderer({
 }: UseProTransportRendererParams & { cleanupSceneResources: (sceneIndex: number) => void }) {
   const transportHook = useTransport()
   const { transportState } = useTransportState({ transport: transportHook.transport })
-  const renderAtRef = useRef<((tSec: number, options?: RenderAtOptions) => void) | undefined>(undefined)
+  const renderAtRef = useRef<((tSec: number, options?: RenderAtOptions) => void) | null>(null)
   const lastRenderedTimeRef = useRef<number>(-1)
   const lastRenderedSceneIndexRef = useRef<number>(-1)
   const renderRequestIdRef = useRef(0)
