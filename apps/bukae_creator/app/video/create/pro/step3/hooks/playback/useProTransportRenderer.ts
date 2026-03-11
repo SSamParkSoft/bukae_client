@@ -928,25 +928,6 @@ export function useProTransportRenderer({
             spriteReady: false,
           })
         }
-
-        console.warn('[ProTransitionDebug] scene change', {
-          fromSceneIndex: lastRenderedSceneIndexRef.current,
-          toSceneIndex: targetSceneIndex,
-          toPlayableIndex: resolved.playableIndex,
-          previousSceneIndex,
-          configuredTransition,
-          motionType: motionType ?? 'none',
-          transitionType: effectiveTransition,
-          transitionSource: transitionFromMotion ? 'motion-slide-fallback' : 'transition',
-          hasTransitionEffect,
-          shouldTransition,
-          transitionDuration,
-          transitionRelativeTime,
-          transitionProgress,
-          sceneTimeInSegment: resolved.sceneTimeInSegment,
-          sceneStartTime: resolved.sceneStartTime,
-          tSec,
-        })
       }
 
       const applyVisualState = () => {
@@ -1005,23 +986,6 @@ export function useProTransportRenderer({
         const transitionDebugToken = transitionPairKey ?? `none->${targetSceneIndex}`
         if (shouldTransition && transitionDebugPairRef.current !== transitionDebugToken) {
           transitionDebugPairRef.current = transitionDebugToken
-          console.warn('[ProTransitionDebug] cross-transition readiness', {
-            transitionDebugToken,
-            transitionPairKey,
-            configuredTransition,
-            motionType: motionType ?? 'none',
-            transitionType: effectiveTransition,
-            transitionSource: transitionFromMotion ? 'motion-slide-fallback' : 'transition',
-            needsCrossTransition,
-            canRenderCrossTransitionNow,
-            previousSceneIndex,
-            previousSceneExists: !!previousScene,
-            previousSpriteExists: !!activePreviousSprite,
-            previousSpriteDestroyed: activePreviousSprite?.destroyed ?? null,
-            transitionDuration,
-            transitionRelativeTime,
-            transitionProgress,
-          })
         }
 
         if (canRenderCrossTransitionNow && activePreviousSprite && previousScene) {
@@ -1100,14 +1064,7 @@ export function useProTransportRenderer({
           const effectiveProgress = options?.forceTransitionComplete ? 1 : transitionProgress
 
           // 크로스 전환이 필요하지만 스프라이트가 준비되지 않았으면 전환을 건너뜀
-          if (needsCrossTransition && !canRenderCrossTransitionNow) {
-            console.warn('[ProTransitionDebug] 스프라이트가 준비되지 않아 전환 지연', {
-              targetSceneIndex,
-              previousSceneIndex,
-              canRenderCrossTransitionNow,
-              isPreviousSpriteReady,
-            })
-          } else {
+          if (!(needsCrossTransition && !canRenderCrossTransitionNow)) {
             // 전환 중에는 현재 씬 비디오 일시정지
             const currentVideo = videoElementsRef.current.get(targetSceneIndex)
             if (currentVideo && !currentVideo.paused) {
