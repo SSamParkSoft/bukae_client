@@ -8,6 +8,7 @@ import * as PIXI from 'pixi.js'
 import * as _fabric from 'fabric'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
+import { createTextStyle, createGraphics } from '@/utils/pixi/factory'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { getSubtitlePosition } from '../utils/getSubtitlePosition'
 import { getPreviewLetterSpacing, getPreviewStrokeWidth } from './previewStroke'
@@ -291,26 +292,20 @@ export function useSubtitleRenderer({
         const letterSpacing = getPreviewLetterSpacing(strokeWidth, {
           fontSize: scene.text.fontSize,
         })
-        
-        const styleConfig: Partial<PIXI.TextStyle> = {
+
+        const textStyle = createTextStyle({
           fontFamily,
           fontSize: scene.text.fontSize || 80,
           fill: scene.text.color || '#ffffff',
-          align: scene.text.style?.align || 'center',
+          align: (scene.text.style?.align as 'left' | 'center' | 'right') || 'center',
           fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
           fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
           letterSpacing,
           wordWrap: true,
           wordWrapWidth: textWidth,
           breakWords: true,
-        }
-        
-        // stroke는 strokeWidth가 0보다 클 때만 설정
-        if (strokeWidth > 0) {
-          styleConfig.stroke = { color: strokeColor, width: strokeWidth }
-        }
-
-        const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
+          stroke: strokeWidth > 0 ? { color: strokeColor, width: strokeWidth } : undefined,
+        })
         textObj.style = textStyle
         
         // 중요: PIXI.js에서 style을 변경한 후에는 text를 다시 설정해야 스타일이 적용됨
@@ -434,7 +429,7 @@ export function useSubtitleRenderer({
             const bounds = textObj.getLocalBounds()
             const underlineWidth = bounds.width || textWidth
 
-            const underline = new PIXI.Graphics()
+            const underline = createGraphics()
             ;(underline as PIXI.Graphics & { __isUnderline?: boolean }).__isUnderline = true
 
             const halfWidth = underlineWidth / 2
