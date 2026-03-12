@@ -500,16 +500,15 @@ export function useProFabricEditLayer({
       }
     }
 
-    requestAnimationFrame(() => {
-      requestAnimationFrame(syncNow)
-    })
-
     const runSyncWhenVideoReady = () => {
       if (cancelled) {
         return
       }
 
       if (!currentSceneVideoUrl) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(syncNow)
+        })
         return
       }
 

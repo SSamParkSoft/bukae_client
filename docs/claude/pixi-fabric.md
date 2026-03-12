@@ -229,14 +229,24 @@ subtitleSprite.parentRenderLayer = subtitleRenderLayer;
 
 | 라이브러리 | 역할 | 담당 |
 | --- | --- | --- |
-| **Fabric.js** | 유저 인터랙션 (드래그, 선택, 핸들) | 입력 |
-| **PixiJS** | GPU 기반 실제 렌더링 | 출력 |
+| **Fabric.js** | **편집 모드에서만** 유저 인터랙션 (드래그, 선택, 핸들) | 입력 |
+| **PixiJS** | GPU 기반 실제 렌더링 (편집/재생 공통) | 출력 |
 | **GSAP** | 타임라인 / 애니메이션 타이밍 | 제어 |
+
+> Step3 기준:  
+> - **Playback 모드**: PixiJS **단독** 사용 (씬 재생 + 트랜지션), Fabric 비활성  
+> - **Editing 모드**: Fabric 캔버스를 켜고(Fabric overlay), Fabric → Pixi 동기화로 드래그/리사이즈/회전 반영
 
 ## 레이어 구조
 
 ```text
-┌─────────────────────────┐  ← Fabric canvas (위, 인터랙션)
+[Playback 모드]
+┌─────────────────────────┐
+│  PixiJS canvas          │  ← 영상 + 트랜지션 실제 렌더링
+└─────────────────────────┘
+
+[Editing 모드]
+┌─────────────────────────┐  ← Fabric canvas (위, 인터랙션 ON)
 │  [선택핸들] [자막박스]   │     position: absolute; top: 0;
 ├─────────────────────────┤
 │  PixiJS canvas (아래)   │  ← 영상 + 필터 실제 렌더링
@@ -246,9 +256,17 @@ subtitleSprite.parentRenderLayer = subtitleRenderLayer;
 ## 데이터 흐름
 
 ```text
+Playback 모드 (재생 전용)
+Transport 시간(t) / 씬 정보
+      ↓
+ PixiJS 렌더러
+      ↓
+ GPU로 실제 렌더링
+
+Editing 모드 (편집 전용)
 유저 마우스 조작
       ↓
- Fabric.js (투명 레이어)
+ Fabric.js (투명 레이어, editingMode=true 일 때만 활성)
  좌표 / 크기 / 회전 계산
       ↓
  PixiJS Sprite 동기화
@@ -263,29 +281,40 @@ subtitleSprite.parentRenderLayer = subtitleRenderLayer;
 ## 초기 셋업
 
 ```jsx
-// 1. PixiJS 앱 생성 (아래 레이어)
+// 1. PixiJS 앱 생성 (공통: 재생/편집 모두 사용)
 const pixiApp = new PIXI.Application();
 await pixiApp.init({ width: 1280, height: 720 });
 document.getElementById('container').appendChild(pixiApp.canvas);
 
-// 2. Fabric 캔버스 생성 (위 레이어)
+// 2. Fabric 캔버스 생성 (편집 모드 전용 오버레이)
 const fabricCanvas = new fabric.Canvas('fabricCanvas', {
   width: 1280,
   height: 720,
 });
 // CSS: position: absolute; top: 0; left: 0;
+// Playback 모드에서는 fabricCanvas를 숨기거나 이벤트를 비활성화해서
+// PixiJS만 렌더링에 참여하도록 한다.
+
+let editingMode = false;
+
+function setEditingMode(nextEditing) {
+  editingMode = nextEditing;
+  // 편집 모드일 때만 Fabric 캔버스 표시 / 이벤트 활성화
+  fabricCanvas.upperCanvasEl.style.pointerEvents = editingMode ? 'auto' : 'none';
+  fabricCanvas.upperCanvasEl.style.opacity = editingMode ? '1' : '0';
+}
 ```
 
 ## 오브젝트 추가
 
 ```jsx
 function addVideoClip(videoElement) {
-  // PixiJS 스프라이트 생성
+  // PixiJS 스프라이트 생성 (항상 존재, 재생/편집 공통)
   const videoTexture = PIXI.Texture.from(videoElement);
   const videoSprite = new PIXI.Sprite(videoTexture);
   pixiApp.stage.addChild(videoSprite);
 
-  // Fabric 오브젝트 생성 (투명한 조작용 박스)
+  // Fabric 오브젝트는 "편집 모드"일 때만 사용
   const fabricObj = new fabric.Rect({
     left: 0, top: 0,
     width: 640, height: 360,
@@ -303,6 +332,9 @@ function addVideoClip(videoElement) {
 
 ```jsx
 function syncToPixi(e) {
+  // 편집 모드가 아닐 때는 Fabric → Pixi 동기화를 건너뛴다
+  if (!editingMode) return;
+
   const obj = e.target;
   const sprite = obj.pixiSprite;
   if (!sprite) return;
@@ -314,6 +346,7 @@ function syncToPixi(e) {
   sprite.rotation = (obj.angle * Math.PI) / 180; // 도 → 라디안
 }
 
+// Fabric 이벤트 핸들러는 편집 모드에서만 의미가 있다.
 fabricCanvas.on('object:moving',   syncToPixi);
 fabricCanvas.on('object:scaling',  syncToPixi);
 fabricCanvas.on('object:rotating', syncToPixi);

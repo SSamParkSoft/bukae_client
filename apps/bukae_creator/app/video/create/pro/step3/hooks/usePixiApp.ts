@@ -123,6 +123,9 @@ export function usePixiApp({ ttsCacheRef, ttsAudioRefsRef }: UsePixiAppParams) {
       }
       textStrokesRef.current.delete(sceneIndex)
     }
+
+    // 로딩 상태도 함께 정리하여 stale ready/videoReady 상태를 방지
+    sceneLoadingStateRef.current.delete(sceneIndex)
   }, [])
 
   const cleanupAllMediaResources = useCallback(() => {
@@ -137,6 +140,9 @@ export function usePixiApp({ ttsCacheRef, ttsAudioRefsRef }: UsePixiAppParams) {
     sceneIndices.forEach((sceneIndex) => {
       cleanupSceneResources(sceneIndex)
     })
+
+    // 전체 씬 로딩 상태 초기화
+    sceneLoadingStateRef.current.clear()
 
     ttsAudioRefsRef.current.forEach((audio) => {
       audio.pause()
