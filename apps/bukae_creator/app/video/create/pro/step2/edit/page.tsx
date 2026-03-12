@@ -568,6 +568,10 @@ export default function ProStep2EditPage() {
     setSelectedSceneIndex(null)
   }, [])
 
+  const handleDeleteScene = useCallback((index: number) => {
+    updateScenes((prev) => prev.filter((_, i) => i !== index))
+  }, [updateScenes])
+
   // 다음 단계(step3) 이동 전:
   // 1) 누락된 원본 길이 메타데이터를 보강하고
   // 2) 씬별 selection range를 확장 소스 기준으로 정규화해서
@@ -791,6 +795,7 @@ export default function ProStep2EditPage() {
                     onDrop={handleDrop}
                     onDragEnd={handleDragEnd}
                     onVoiceClick={handleVoiceButtonClick}
+                    onDeleteScene={handleDeleteScene}
                     draggedIndex={draggedIndex}
                     dragOver={dragOver}
                     uploadingSceneIndex={uploadingSceneIndex}

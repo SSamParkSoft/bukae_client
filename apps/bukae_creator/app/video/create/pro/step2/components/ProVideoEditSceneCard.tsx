@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useState, useEffect, useRef } from 'react'
-import { GripVertical } from 'lucide-react'
+import { GripVertical, X } from 'lucide-react'
 import Image from 'next/image'
 import { ProVideoUpload } from './ProVideoUpload'
 import { ProVideoTimelineGrid } from './ProVideoTimelineGrid'
@@ -27,6 +27,7 @@ export interface ProVideoEditSceneCardProps {
   /** 적용된 보이스 라벨 */
   voiceLabel?: string
   onVoiceClick?: () => void
+  onDelete?: () => void
   /** 업로드된 영상 URL */
   videoUrl?: string | null
   /** 업로드된 이미지 URL */
@@ -64,6 +65,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   onGuideChange,
   voiceLabel,
   onVoiceClick,
+  onDelete,
   videoUrl,
   imageUrl,
   isUploading = false,
@@ -600,17 +602,31 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       )}
 
       <div className="flex gap-4 items-stretch">
-        {/* 좌측: 드래그 핸들 - 중앙 정렬 (여기서만 씬 카드 드래그 시작) */}
+        {/* 좌측: 드래그 핸들 - 중앙 정렬 (여기서만 씬 카드 드래그 시작) + 상단 X 삭제 버튼 */}
         {onDragStart && (
-          <div className="flex items-center shrink-0 self-stretch">
-            <div
-              className="cursor-move text-text-tertiary shrink-0 touch-none"
-              aria-hidden
-              draggable
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-            >
-              <GripVertical className="w-6 h-6" />
+          <div className="flex flex-col items-center shrink-0 self-stretch">
+            {/* 상단 X 삭제 버튼 */}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#d3dbdc] bg-white text-text-tertiary hover:bg-[#ffecec] hover:text-[#c0392b]"
+                aria-label="장면 삭제"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+            {/* 가운데 정렬된 드래그 핸들 */}
+            <div className="flex-1 flex items-center">
+              <div
+                className="cursor-move text-text-tertiary shrink-0 touch-none"
+                aria-hidden
+                draggable
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+              >
+                <GripVertical className="w-6 h-6" />
+              </div>
             </div>
           </div>
         )}
@@ -636,17 +652,19 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
             <div className="flex flex-col">
               {/* SCENE 라벨 + 적용된 보이스 */}
               <div className="flex items-center justify-between mb-4">
-                <p
-                  className="text-brand-teal tracking-[-0.36px]"
-                  style={{
-                    fontSize: 'var(--font-size-18)',
-                    lineHeight: '25.2px',
-                    fontFamily: '"Zeroes Two", sans-serif',
-                    fontWeight: 400,
-                  }}
-                >
-                  SCENE {sceneIndex}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p
+                    className="text-brand-teal tracking-[-0.36px]"
+                    style={{
+                      fontSize: 'var(--font-size-18)',
+                      lineHeight: '25.2px',
+                      fontFamily: '"Zeroes Two", sans-serif',
+                      fontWeight: 400,
+                    }}
+                  >
+                    SCENE {sceneIndex}
+                  </p>
+                </div>
                 <div
                   className="flex items-center gap-2 text-text-tertiary"
                   style={{

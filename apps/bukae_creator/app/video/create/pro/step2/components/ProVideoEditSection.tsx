@@ -36,6 +36,7 @@ export interface ProVideoEditSectionProps {
   onDrop?: (e?: React.DragEvent<HTMLDivElement>) => void
   onDragEnd?: () => void
   onVoiceClick?: (index: number) => void
+  onDeleteScene?: (index: number) => void
   draggedIndex?: number | null
   dragOver?: { index: number; position: 'before' | 'after' } | null
   uploadingSceneIndex?: number | null
@@ -60,6 +61,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
   onDrop,
   onDragEnd,
   onVoiceClick,
+  onDeleteScene,
   draggedIndex = null,
   dragOver: dragOverProp = null,
   uploadingSceneIndex = null,
@@ -116,6 +118,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
             onGuideChange={onGuideChange ? (value) => onGuideChange(index, value) : undefined}
             voiceLabel={scene.voiceLabel}
             onVoiceClick={onVoiceClick ? () => onVoiceClick(index) : undefined}
+            onDelete={onDeleteScene ? () => onDeleteScene(index) : undefined}
             onVideoUpload={onVideoUpload ? (file) => onVideoUpload(index, file) : undefined}
             onAiScriptClick={onAiScriptClick ? () => onAiScriptClick(index) : undefined}
             onAiGuideClick={onAiGuideClick ? () => onAiGuideClick(index) : undefined}
