@@ -238,7 +238,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     selectionStartSecondsRef.current = selectionStartSeconds
   }, [selectionStartSeconds])
 
-  // initialSelectionStartSeconds가 외부에서 변경될 때만 동기화 (드래그 중이 아닐 때만)
+  // initialSelectionStartSeconds가 외부에서 변경될 때만 동기화 (드래그 중이 아닐 때만) - 즉시 반영
   useEffect(() => {
     if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
     
@@ -260,18 +260,14 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     const currentDiff = Math.abs(selectionStartSeconds - currentValue)
     if (currentDiff > 0.01) {
       prevInitialSelectionRef.current = currentValue
-      // 외부 prop 변경 시 내부 상태 동기화는 필요하므로 비동기로 처리
-      const timeoutId = setTimeout(() => {
-        setSelectionStartSeconds(currentValue)
-      }, 0)
-      return () => clearTimeout(timeoutId)
+      setSelectionStartSeconds(currentValue)
     } else {
       // 값이 이미 동일하면 ref만 업데이트
       prevInitialSelectionRef.current = currentValue
     }
   }, [initialSelectionStartSeconds, selectionStartSeconds, isDraggingSelection])
 
-  // TTS duration이 변경되면 격자 위치 조정 (확장 소스일 때는 이어붙인 길이 기준)
+  // TTS duration이 변경되면 격자 위치 조정 (확장 소스일 때는 이어붙인 길이 기준) - 즉시 동기화
   useEffect(() => {
     if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
     
@@ -285,13 +281,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     const maxSelectionStartPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
     const maxStart = maxSelectionStartPx / FRAME_WIDTH_PX
     
-    // selectionStartSeconds가 범위를 벗어나면 조정 (비동기로 처리)
     if (selectionStartSeconds > maxStart) {
-      // setTimeout을 사용하여 비동기적으로 처리
-      const timeoutId = setTimeout(() => {
-        setSelectionStartSeconds(maxStart)
-      }, 0)
-      return () => clearTimeout(timeoutId)
+      setSelectionStartSeconds(maxStart)
     }
   }, [ttsDuration, videoDuration, originalVideoDurationSeconds, selectionStartSeconds, isDraggingSelection])
 
