@@ -19,6 +19,10 @@ export interface ProVideoEditSceneCardProps {
   onVideoUpload?: (file: File) => Promise<void>
   onAiScriptClick?: () => void
   onAiGuideClick?: () => void
+  /** AI 스크립트 생성으로 생성된 경우에만 teal 뱃지 표시 */
+  scriptGeneratedByAi?: boolean
+  /** AI 촬영가이드 생성으로 생성된 경우에만 teal 뱃지 표시 */
+  guideGeneratedByAi?: boolean
   /** TTS duration (초) - 타임라인 표시용 */
   ttsDuration?: number
   /** 촬영가이드 텍스트 */
@@ -58,8 +62,10 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   scriptText,
   onScriptChange,
   onVideoUpload,
-  onAiScriptClick,
-  onAiGuideClick,
+  onAiScriptClick: _onAiScriptClick,
+  onAiGuideClick: _onAiGuideClick,
+  scriptGeneratedByAi = false,
+  guideGeneratedByAi = false,
   ttsDuration = 0,
   guideText = '',
   onGuideChange,
@@ -707,8 +713,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                 <div className="flex-1 min-w-0 flex flex-col">
                   {/* 스크립트 텍스트 영역 - 버튼이 textarea 내부에 위치 */}
                   <div className="relative rounded-lg bg-white shadow-(--shadow-card-default) overflow-hidden border-2 border-transparent" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
-                    {/* AI 스크립트 표시 - textarea 내부 왼쪽 상단 */}
-                    {onAiScriptClick && (
+                    {/* AI 스크립트 표시 - 생성 버튼으로 생성된 경우에만 teal 뱃지 표시 */}
+                    {scriptGeneratedByAi && (
                       <div
                         className="absolute left-3 top-3 z-10 h-[25px] px-3 bg-brand-teal text-white rounded-2xl font-bold flex items-center gap-4 pointer-events-none"
                         style={{
@@ -725,15 +731,14 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                       onChange={(e) => onScriptChange(e.target.value)}
                       placeholder="스크립트를 입력하세요."
                       rows={2}
-                      readOnly
-                      className="w-full p-3 rounded-lg bg-transparent text-text-tertiary placeholder:text-text-tertiary focus:outline-none focus:ring-0 resize-none border-0 cursor-default"
+                      className="w-full p-3 rounded-lg bg-transparent text-text-tertiary placeholder:text-text-tertiary focus:outline-none focus:ring-0 resize-none border-0"
                       style={{
                         fontSize: 'var(--font-size-14)',
                         lineHeight: '25.2px',
                         fontWeight: 500,
                         letterSpacing: '-0.14px',
-                        paddingLeft: onAiScriptClick ? 'calc(12px + 73px + 16px)' : '12px', // left-3(12px) + 버튼너비(73px) + 간격(16px)
-                        paddingTop: onAiScriptClick ? '12px' : '12px', // 버튼과 같은 높이에서 시작
+                        paddingLeft: scriptGeneratedByAi ? 'calc(12px + 73px + 16px)' : '12px', // left-3(12px) + 버튼너비(73px) + 간격(16px)
+                        paddingTop: scriptGeneratedByAi ? '12px' : '12px', // 버튼과 같은 높이에서 시작
                         minHeight: '74px',
                       }}
                     />
@@ -744,8 +749,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                 <div className="flex-1 min-w-0 flex flex-col">
                   {/* 촬영가이드 텍스트 영역 - 버튼이 textarea 내부에 위치 */}
                   <div className="relative rounded-lg bg-white/30 shadow-(--shadow-card-default) overflow-hidden border-2 border-white backdrop-blur-sm" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
-                    {/* AI 촬영가이드 표시 - textarea 내부 왼쪽 상단 */}
-                    {onAiGuideClick && (
+                    {/* AI 촬영가이드 표시 - 생성 버튼으로 생성된 경우에만 teal 뱃지 표시 */}
+                    {guideGeneratedByAi && (
                       <div
                         className="absolute left-3 top-3 z-10 h-[25px] px-3 bg-brand-teal text-white rounded-2xl font-bold flex items-center gap-4 pointer-events-none"
                         style={{
@@ -769,8 +774,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                         lineHeight: '25.2px',
                         fontWeight: 500,
                         letterSpacing: '-0.14px',
-                        paddingLeft: onAiGuideClick ? 'calc(12px + 83px + 16px)' : '12px', // left-3(12px) + 버튼너비(83px) + 간격(16px)
-                        paddingTop: onAiGuideClick ? '12px' : '12px', // 버튼과 같은 높이에서 시작
+                        paddingLeft: guideGeneratedByAi ? 'calc(12px + 83px + 16px)' : '12px', // left-3(12px) + 버튼너비(83px) + 간격(16px)
+                        paddingTop: guideGeneratedByAi ? '12px' : '12px', // 버튼과 같은 높이에서 시작
                         minHeight: '74px',
                       }}
                     />

@@ -13,6 +13,8 @@ export interface SceneScript {
   imageUrl?: string
   /** 이 스크립트가 마지막으로 AI에 의해 생성/갱신되었는지 여부 */
   isAiGenerated?: boolean
+  /** 이 씬의 촬영가이드가 AI 촬영가이드 생성 버튼으로 생성되었는지 여부 */
+  guideGeneratedByAi?: boolean
   /** 씬 분할 시 하위 번호 (1, 2, 3...) */
   splitIndex?: number
   /** TTS 오디오 데이터 (base64 인코딩된 문자열) - Step2에서 합성된 오디오를 Step3에서 사용하기 위해 저장 */

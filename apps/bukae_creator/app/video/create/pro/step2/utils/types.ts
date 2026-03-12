@@ -19,6 +19,10 @@ export type ProScene = {
   selectionEndSeconds?: number // 격자 선택 영역 끝 시간 (초)
   /** 업로드된 원본 영상 길이(초). TTS보다 짧을 때 이어붙여 격자 배경 길이 계산용 (Step3) */
   originalVideoDurationSeconds?: number
+  /** AI 스크립트 생성 버튼으로 생성된 경우 true (teal 뱃지 표시용) */
+  scriptGeneratedByAi?: boolean
+  /** AI 촬영가이드 생성 버튼으로 생성된 경우 true (teal 뱃지 표시용) */
+  guideGeneratedByAi?: boolean
 }
 
 /**
@@ -63,6 +67,8 @@ export function sceneScriptToProScene(s: SceneScript, _index: number): ProScene 
     selectionStartSeconds: extended.selectionStartSeconds,
     selectionEndSeconds: extended.selectionEndSeconds,
     originalVideoDurationSeconds: extended.originalVideoDurationSeconds,
+    scriptGeneratedByAi: s.isAiGenerated === true,
+    guideGeneratedByAi: s.guideGeneratedByAi === true,
   }
 }
 
@@ -84,5 +90,7 @@ export function proSceneToSceneScript(s: ProScene, index: number): ExtendedScene
     selectionStartSeconds: s.selectionStartSeconds,
     selectionEndSeconds: s.selectionEndSeconds,
     originalVideoDurationSeconds: s.originalVideoDurationSeconds,
+    isAiGenerated: s.scriptGeneratedByAi === true,
+    guideGeneratedByAi: s.guideGeneratedByAi === true,
   }
 }

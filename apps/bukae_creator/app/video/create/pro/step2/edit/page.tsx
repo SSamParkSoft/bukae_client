@@ -377,6 +377,7 @@ export default function ProStep2EditPage() {
               ...existing,
               script: item.script,
               ttsDuration: typeof item.duration === 'number' ? item.duration : existing?.ttsDuration,
+              scriptGeneratedByAi: true,
             }
           })
         } else {
@@ -388,6 +389,7 @@ export default function ProStep2EditPage() {
               ...existing,
               script: item.script,
               ttsDuration: typeof item.duration === 'number' ? item.duration : existing?.ttsDuration,
+              scriptGeneratedByAi: true,
             }
           }
         }
@@ -455,6 +457,7 @@ export default function ProStep2EditPage() {
             script: item.script?.trim() ?? existing?.script ?? '',
             actionGuide: item.actionGuide?.trim() ?? existing?.actionGuide ?? '',
             ttsDuration: typeof item.duration === 'number' ? item.duration : existing?.ttsDuration,
+            guideGeneratedByAi: true,
           }
         })
       })
@@ -712,6 +715,8 @@ export default function ProStep2EditPage() {
     selectionStartSeconds: scene.selectionStartSeconds, // 격자 선택 영역 시작 시간
     selectionEndSeconds: scene.selectionEndSeconds, // 격자 선택 영역 끝 시간
     originalVideoDurationSeconds: scene.originalVideoDurationSeconds,
+    scriptGeneratedByAi: scene.scriptGeneratedByAi === true,
+    guideGeneratedByAi: scene.guideGeneratedByAi === true,
   }))
 
 

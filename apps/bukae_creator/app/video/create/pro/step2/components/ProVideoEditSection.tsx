@@ -19,6 +19,10 @@ export interface ProVideoEditSectionProps {
     selectionEndSeconds?: number
     /** 업로드된 원본 영상 길이(초). TTS보다 짧을 때 타임라인을 이어붙인 길이로 표시 */
     originalVideoDurationSeconds?: number
+    /** AI 스크립트 생성 버튼으로 생성된 경우에만 teal 뱃지 표시 */
+    scriptGeneratedByAi?: boolean
+    /** AI 촬영가이드 생성 버튼으로 생성된 경우에만 teal 뱃지 표시 */
+    guideGeneratedByAi?: boolean
   }>
   onScriptChange: (index: number, value: string) => void
   onGuideChange?: (index: number, value: string) => void
@@ -125,6 +129,8 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
             ttsDuration={scene.ttsDuration}
             videoUrl={scene.videoUrl}
             imageUrl={scene.imageUrl}
+            scriptGeneratedByAi={scene.scriptGeneratedByAi}
+            guideGeneratedByAi={scene.guideGeneratedByAi}
             isUploading={uploadingSceneIndex === index}
             isCompressing={compressingSceneIndex === index}
             initialSelectionStartSeconds={scene.selectionStartSeconds}
