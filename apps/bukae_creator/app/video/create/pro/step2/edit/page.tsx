@@ -579,6 +579,7 @@ export default function ProStep2EditPage() {
   // 1) 누락된 원본 길이 메타데이터를 보강하고
   // 2) 씬별 selection range를 확장 소스 기준으로 정규화해서
   // 3) 어떤 상황에서도 같은 지점을 복원 가능하게 저장한다.
+  //    (이미 TTS 캐시가 있는 경우에는 재합성 없이 바로 Step3로 이동)
   const handleGoToStep3 = useCallback(async () => {
     const currentStoreScenes = useVideoCreateStore.getState().scenes
     const currentScenes: ProScene[] = currentStoreScenes?.length
@@ -604,39 +605,10 @@ export default function ProStep2EditPage() {
       return
     }
 
-    setIsSynthesizingTts(true)
-    setTtsProgress({ completed: 0, total: currentScenes.length })
-
-    try {
-      const sceneData = currentScenes.map((scene): { script: string; voiceTemplate: string | null } => ({
-        script: scene.script,
-        voiceTemplate: scene.voiceTemplate ?? null,
-      }))
-
-      const result = await synthesizeAllScenes(sceneData, (completed, total) => {
-        setTtsProgress({ completed, total })
-      })
-
-      if (!result.success) {
-        alert(result.error || 'TTS 합성 중 오류가 발생했습니다.')
-        setIsSynthesizingTts(false)
-        return
-      }
-
-      const scenesWithTts: ProScene[] = currentScenes.map((scene, index) => {
-        const ttsResult = result.results[index]
-        if (!ttsResult?.success) {
-          return scene
-        }
-        return {
-          ...scene,
-          ttsDuration: ttsResult.duration ?? scene.ttsDuration,
-          ttsAudioBase64: ttsResult.audioBase64 ?? scene.ttsAudioBase64,
-        }
-      })
-
+    // 공통 후처리: 원본 영상 duration 해석 + selection 정규화 + store 저장 + Step3 이동
+    const finalizeAndGo = async (scenesForStep3: ProScene[]) => {
       const scenesWithResolvedOriginalDuration = await Promise.all(
-        scenesWithTts.map(async (scene) => {
+        scenesForStep3.map(async (scene) => {
           if (!scene.videoUrl) {
             return scene
           }
@@ -695,6 +667,67 @@ export default function ProStep2EditPage() {
       requestAnimationFrame(() => {
         router.push('/video/create/pro/step3')
       })
+    }
+
+    // 모든 씬에 TTS 캐시가 이미 있는 경우: 재합성 없이 바로 Step3로 이동
+    const allScenesHaveTtsCache = currentScenes.every(
+      (scene) =>
+        typeof scene.ttsDuration === 'number' &&
+        Number.isFinite(scene.ttsDuration) &&
+        scene.ttsDuration > 0 &&
+        typeof scene.ttsAudioBase64 === 'string' &&
+        scene.ttsAudioBase64.length > 0
+    )
+
+    if (allScenesHaveTtsCache) {
+      try {
+        await finalizeAndGo(currentScenes)
+      } catch (error) {
+        console.error('TTS 캐시 기반 Step3 이동 오류:', error)
+        alert(
+          error instanceof Error
+            ? error.message
+            : '저장된 TTS 정보를 사용하는 중 오류가 발생했습니다.'
+        )
+      }
+      return
+    }
+
+    // TTS 캐시가 없거나 일부만 있는 경우: 일괄 합성 후 Step3로 이동
+    setIsSynthesizingTts(true)
+    setTtsProgress({ completed: 0, total: currentScenes.length })
+
+    try {
+      const sceneData = currentScenes.map(
+        (scene): { script: string; voiceTemplate: string | null } => ({
+          script: scene.script,
+          voiceTemplate: scene.voiceTemplate ?? null,
+        })
+      )
+
+      const result = await synthesizeAllScenes(sceneData, (completed, total) => {
+        setTtsProgress({ completed, total })
+      })
+
+      if (!result.success) {
+        alert(result.error || 'TTS 합성 중 오류가 발생했습니다.')
+        setIsSynthesizingTts(false)
+        return
+      }
+
+      const scenesWithTts: ProScene[] = currentScenes.map((scene, index) => {
+        const ttsResult = result.results[index]
+        if (!ttsResult?.success) {
+          return scene
+        }
+        return {
+          ...scene,
+          ttsDuration: ttsResult.duration ?? scene.ttsDuration,
+          ttsAudioBase64: ttsResult.audioBase64 ?? scene.ttsAudioBase64,
+        }
+      })
+
+      await finalizeAndGo(scenesWithTts)
     } catch (error) {
       console.error('TTS 합성 오류:', error)
       alert(error instanceof Error ? error.message : 'TTS 합성 중 오류가 발생했습니다.')
