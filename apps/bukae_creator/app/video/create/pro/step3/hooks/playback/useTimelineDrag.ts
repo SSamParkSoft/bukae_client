@@ -1,11 +1,9 @@
-import { useRef, useCallback } from 'react'
+import { useCallback } from 'react'
 
 export function useTimelineDrag(
   timelineBarRef: React.RefObject<HTMLDivElement | null>,
   onSeek: (ratio: number) => void
 ) {
-  const isDraggingRef = useRef(false)
-
   const handleTimelineMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const el = timelineBarRef.current
@@ -13,7 +11,6 @@ export function useTimelineDrag(
       const rect = el.getBoundingClientRect()
       const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
       onSeek(ratio)
-      isDraggingRef.current = true
 
       const onMove = (moveEvent: MouseEvent) => {
         const bar = timelineBarRef.current
@@ -23,7 +20,6 @@ export function useTimelineDrag(
         onSeek(r)
       }
       const onUp = () => {
-        isDraggingRef.current = false
         window.removeEventListener('mousemove', onMove)
         window.removeEventListener('mouseup', onUp)
       }

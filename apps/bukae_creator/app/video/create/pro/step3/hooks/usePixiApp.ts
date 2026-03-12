@@ -8,6 +8,8 @@ export const STAGE_WIDTH = 1080
 export const STAGE_HEIGHT = 1920
 export const STAGE_ASPECT_RATIO = STAGE_WIDTH / STAGE_HEIGHT
 
+const CANVAS_Z_INDEX = 30
+
 export function hideText(textObj: PIXI.Text) {
   if (!textObj.destroyed) {
     textObj.visible = false
@@ -269,7 +271,7 @@ export function usePixiApp({ ttsCacheRef, ttsAudioRefsRef }: UsePixiAppParams) {
           return
         }
 
-        appCanvas.style.zIndex = '30'
+        appCanvas.style.zIndex = String(CANVAS_Z_INDEX)
 
         host.appendChild(appCanvas)
 
@@ -284,8 +286,8 @@ export function usePixiApp({ ttsCacheRef, ttsAudioRefsRef }: UsePixiAppParams) {
         }
 
         setPixiReady(true)
-      } catch {
-        // Pixi 초기화 실패
+      } catch (err) {
+        console.error('Pixi initialization failed in usePixiApp', err)
       }
     }
 

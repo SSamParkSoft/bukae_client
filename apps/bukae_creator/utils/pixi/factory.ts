@@ -233,9 +233,12 @@ export const createContainer = (config: Partial<ContainerConfig> = {}): PIXI.Con
 
 /**
  * Graphics 생성 설정
+ * _fill / _stroke 는 향후 확장을 위해 예약됨 — createGraphics 에서 현재 미적용
  */
 interface GraphicsConfig {
+  /** 예약됨 — createGraphics 내에서 현재 적용되지 않음. 향후 fill 지원 시 사용 예정 */
   _fill?: { color: number | string; alpha: number }
+  /** 예약됨 — createGraphics 내에서 현재 적용되지 않음. 향후 stroke 지원 시 사용 예정 */
   _stroke?: { color: number | string; width: number; alpha: number }
   interactive?: boolean
   cursor?: string

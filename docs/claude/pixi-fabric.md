@@ -15,6 +15,7 @@
 | --- | --- | --- |
 | **Texture** | GPU 메모리에 올라간 순수한 픽셀 데이터 | 인쇄소의 원본 필름 |
 | **Sprite** | 텍스처를 화면의 특정 위치/크기/각도로 그려주는 오브젝트 | 필름으로 뽑은 출력물 |
+
 - 텍스처 = **"무엇을"** (이미지 데이터, GPU에 1개만 존재)
 - 스프라이트 = **"어디에, 어떻게"** (위치, 크기, 회전, 투명도)
 - 같은 텍스처로 스프라이트 여러 개 생성 가능 → 메모리는 1개 분량만 사용
@@ -234,7 +235,7 @@ subtitleSprite.parentRenderLayer = subtitleRenderLayer;
 
 ## 레이어 구조
 
-```
+```text
 ┌─────────────────────────┐  ← Fabric canvas (위, 인터랙션)
 │  [선택핸들] [자막박스]   │     position: absolute; top: 0;
 ├─────────────────────────┤
@@ -244,7 +245,7 @@ subtitleSprite.parentRenderLayer = subtitleRenderLayer;
 
 ## 데이터 흐름
 
-```
+```text
 유저 마우스 조작
       ↓
  Fabric.js (투명 레이어)

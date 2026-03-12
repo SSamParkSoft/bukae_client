@@ -360,8 +360,7 @@ export function useProFabricEditLayer({
       return typedTarget.dataType
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handleMouseDown = (e: any) => {
+    const handleMouseDown = (e: fabric.TPointerEventInfo) => {
       const selectedType = resolveTargetType(e.target as fabric.Object | null)
       if (!selectedType) {
         const activeObject = fabricCanvas.getActiveObject() as (fabric.Object & { dataType?: 'image' | 'text' }) | null

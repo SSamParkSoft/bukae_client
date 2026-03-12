@@ -458,7 +458,7 @@ export function useSceneLoader({
               const halfWidth = underlineWidth / 2
               const yPos = bounds.height / 2 + underlineHeight * 0.25 // 텍스트 하단 근처
 
-              underline.lineStyle(underlineHeight, colorValue, 1)
+              underline.setStrokeStyle({ width: underlineHeight, color: colorValue, alpha: 1 })
               underline.moveTo(-halfWidth, yPos)
               underline.lineTo(halfWidth, yPos)
               underline.stroke()

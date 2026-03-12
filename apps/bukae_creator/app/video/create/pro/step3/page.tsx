@@ -5,7 +5,7 @@ import { ProPreviewPanel } from './ui/ProPreviewPanel'
 import { ProSceneListPanel } from './ui/ProSceneListPanel'
 import { ProEffectsPanel } from './ui/ProEffectsPanel'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { allTransitions, transitions, movements } from '@/lib/data/transitions'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
 import { getPlayableSegments, reorderByIndexOrder } from './utils'
@@ -121,6 +121,16 @@ export default function ProStep3Page() {
   const currentVideoUrl = currentScene?.videoUrl || null
   const currentImageUrl = currentScene?.imageUrl || null
 
+  const editModeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (editModeTimerRef.current !== null) {
+        clearTimeout(editModeTimerRef.current)
+      }
+    }
+  }, [])
+
   const handleSceneSelect = useCallback((index: number) => {
     const targetScene = proStep3Scenes[index]
     if (!targetScene) {
@@ -140,7 +150,10 @@ export default function ProStep3Page() {
 
     // 3. edit 모드 진입
     const mode = targetScene.imageUrl || targetScene.videoUrl ? 'image' : 'text'
-    setTimeout(() => enterEditMode(mode), 50)
+    if (editModeTimerRef.current !== null) {
+      clearTimeout(editModeTimerRef.current)
+    }
+    editModeTimerRef.current = setTimeout(() => enterEditMode(mode), 50)
   }, [proStep3Scenes, renderAtRef, enterEditMode])
 
   const handleScenePlay = useCallback(async (sceneIndex: number) => {
