@@ -75,8 +75,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   originalVideoDurationSeconds,
   onSelectionChange,
   onDragStart,
-  onDragOver: _onDragOver,
-  onDrop: _onDrop,
+  onDragOver,
+  onDrop,
   onDragEnd,
   draggedIndex = null,
   dragOver: dragOverProp = null,
@@ -593,6 +593,9 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
 
   return (
     <div
+      // 카드 자체는 드래그 시작 지점이 아니고, 드래그 핸들만 드래그 가능
+      onDragOver={onDragOver}
+      onDrop={onDrop}
       className={`rounded-2xl border border-white/10 p-6 shadow-(--shadow-card-default) transition-all ${
         isDragging ? 'opacity-50' : 'bg-white/80'
       }`}
