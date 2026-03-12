@@ -121,6 +121,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
             guideText={scene.guideText}
             onGuideChange={onGuideChange ? (value) => onGuideChange(index, value) : undefined}
             voiceLabel={scene.voiceLabel}
+            voiceTemplate={scene.voiceTemplate}
             onVoiceClick={onVoiceClick ? () => onVoiceClick(index) : undefined}
             onDelete={onDeleteScene ? () => onDeleteScene(index) : undefined}
             onVideoUpload={onVideoUpload ? (file) => onVideoUpload(index, file) : undefined}

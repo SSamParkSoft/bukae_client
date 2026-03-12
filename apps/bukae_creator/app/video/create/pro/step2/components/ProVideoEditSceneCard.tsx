@@ -1,11 +1,12 @@
 'use client'
 
-import { memo, useState, useEffect, useRef } from 'react'
-import { GripVertical, X } from 'lucide-react'
+import { memo, useState, useEffect, useRef, useCallback } from 'react'
+import { GripVertical, X, Play, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import { ProVideoUpload } from './ProVideoUpload'
 import { ProVideoTimelineGrid } from './ProVideoTimelineGrid'
 import { getEffectiveSourceDuration } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
+import { authStorage } from '@/lib/api/auth-storage'
 
 const FRAME_WIDTH_PX = 74
 const TIMELINE_FRAME_HEIGHT_PX = 84
@@ -30,6 +31,8 @@ export interface ProVideoEditSceneCardProps {
   onGuideChange?: (value: string) => void
   /** 적용된 보이스 라벨 */
   voiceLabel?: string
+  /** TTS 미리듣기용 보이스 템플릿 */
+  voiceTemplate?: string | null
   onVoiceClick?: () => void
   onDelete?: () => void
   /** 업로드된 영상 URL */
@@ -70,6 +73,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   guideText = '',
   onGuideChange,
   voiceLabel,
+  voiceTemplate,
   onVoiceClick,
   onDelete,
   videoUrl,
@@ -106,6 +110,128 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   const [dragStartSelectionLeft, setDragStartSelectionLeft] = useState(0)
   const timelineContainerRef = useRef<HTMLDivElement | null>(null)
   const prevInitialSelectionRef = useRef<number | undefined>(initialSelectionStartSeconds)
+
+  // 스크립트 TTS 미리듣기
+  const [isSynthesizingTts, setIsSynthesizingTts] = useState(false)
+  const [isPlayingTts, setIsPlayingTts] = useState(false)
+  const scriptTtsAudioRef = useRef<HTMLAudioElement | null>(null)
+  const scriptTtsUrlRef = useRef<string | null>(null)
+  const scriptTtsAbortRef = useRef<AbortController | null>(null)
+
+  const handlePlayScriptTts = useCallback(async () => {
+    if (!scriptText.trim()) {
+      alert('스크립트를 입력해주세요.')
+      return
+    }
+    if (!voiceTemplate) {
+      alert('보이스를 먼저 선택해주세요.')
+      return
+    }
+    if (isPlayingTts && scriptTtsAudioRef.current) {
+      scriptTtsAudioRef.current.pause()
+      scriptTtsAudioRef.current.currentTime = 0
+      setIsPlayingTts(false)
+      return
+    }
+    if (scriptTtsAudioRef.current && scriptTtsUrlRef.current) {
+      scriptTtsAudioRef.current.play()
+      setIsPlayingTts(true)
+      return
+    }
+    scriptTtsAbortRef.current?.abort()
+    scriptTtsAbortRef.current = null
+    const controller = new AbortController()
+    scriptTtsAbortRef.current = controller
+    setIsSynthesizingTts(true)
+    try {
+      const accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        alert('로그인이 필요합니다.')
+        return
+      }
+      const response = await fetch('/api/tts/synthesize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          voiceTemplate,
+          mode: 'text',
+          text: scriptText,
+        }),
+        signal: controller.signal,
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'TTS 합성 실패' }))
+        throw new Error(errorData.error || 'TTS 합성 실패')
+      }
+      const blob = await response.blob()
+      if (controller.signal.aborted) return
+      const url = URL.createObjectURL(blob)
+      if (controller.signal.aborted) {
+        URL.revokeObjectURL(url)
+        return
+      }
+      if (scriptTtsUrlRef.current) URL.revokeObjectURL(scriptTtsUrlRef.current)
+      if (scriptTtsAudioRef.current) {
+        scriptTtsAudioRef.current.pause()
+        scriptTtsAudioRef.current = null
+      }
+      scriptTtsUrlRef.current = url
+      const audio = new Audio(url)
+      scriptTtsAudioRef.current = audio
+      audio.addEventListener('ended', () => setIsPlayingTts(false))
+      audio.addEventListener('error', () => {
+        setIsPlayingTts(false)
+        alert('오디오 재생 중 오류가 발생했습니다.')
+      })
+      await audio.play()
+      if (controller.signal.aborted) return
+      setIsPlayingTts(true)
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      console.error('TTS 합성/재생 오류:', error)
+      alert(error instanceof Error ? error.message : 'TTS 합성 중 오류가 발생했습니다.')
+    } finally {
+      setIsSynthesizingTts(false)
+    }
+  }, [scriptText, voiceTemplate, isPlayingTts])
+
+  useEffect(() => {
+    const cleanup = () => {
+      scriptTtsAbortRef.current?.abort()
+      scriptTtsAbortRef.current = null
+      if (scriptTtsAudioRef.current) {
+        scriptTtsAudioRef.current.pause()
+        scriptTtsAudioRef.current = null
+      }
+      if (scriptTtsUrlRef.current) {
+        URL.revokeObjectURL(scriptTtsUrlRef.current)
+        scriptTtsUrlRef.current = null
+      }
+      setIsPlayingTts(false)
+    }
+    return cleanup
+  }, [])
+
+  const prevScriptTtsRef = useRef({ scriptText, voiceTemplate })
+  useEffect(() => {
+    if (prevScriptTtsRef.current.scriptText !== scriptText || prevScriptTtsRef.current.voiceTemplate !== voiceTemplate) {
+      prevScriptTtsRef.current = { scriptText, voiceTemplate }
+      scriptTtsAbortRef.current?.abort()
+      scriptTtsAbortRef.current = null
+      if (scriptTtsAudioRef.current) {
+        scriptTtsAudioRef.current.pause()
+        scriptTtsAudioRef.current = null
+      }
+      if (scriptTtsUrlRef.current) {
+        URL.revokeObjectURL(scriptTtsUrlRef.current)
+        scriptTtsUrlRef.current = null
+      }
+      setIsPlayingTts(false)
+    }
+  }, [scriptText, voiceTemplate])
   
   // selectionStartSeconds를 ref에도 동기화
   useEffect(() => {
@@ -173,7 +299,6 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   useEffect(() => {
     if (!videoUrl) {
       // prop이 없을 때 파생 state를 즉시 초기화 (stale UI 방지)
-      // eslint-disable-next-line -- intentional: sync derived state from prop
       setVideoDuration(null)
     }
   }, [videoUrl])
@@ -211,7 +336,6 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   useEffect(() => {
     if (!videoUrl || !ttsDuration) {
       // prop이 없을 때 파생 state를 즉시 초기화 (stale UI 방지)
-      // eslint-disable-next-line -- intentional: sync derived state from prop
       setFrameThumbnails([])
     }
   }, [videoUrl, ttsDuration])
@@ -710,7 +834,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
               {/* 스크립트 영역 */}
               <div className="flex gap-4 mb-6">
                 {/* 중앙: 스크립트 영역 */}
-                <div className="flex-1 min-w-0 flex flex-col">
+                <div className="flex-1 min-w-0 flex flex-col group">
                   {/* 스크립트 텍스트 영역 - 버튼이 textarea 내부에 위치 */}
                   <div className="relative rounded-lg bg-white shadow-(--shadow-card-default) overflow-hidden border-2 border-transparent" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
                     {/* AI 스크립트 표시 - 생성 버튼으로 생성된 경우에만 teal 뱃지 표시 */}
@@ -725,6 +849,27 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                         AI 스크립트
                       </div>
                     )}
+                    {/* 스크립트 TTS 재생 버튼 - 호버 시에만 표시 */}
+                    <div
+                      className="absolute right-3 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto"
+                      style={{ marginTop: scriptGeneratedByAi ? '-6px' : 0 }}
+                    >
+                      <button
+                        type="button"
+                        onClick={handlePlayScriptTts}
+                        disabled={!scriptText.trim() || !voiceTemplate || isSynthesizingTts}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-teal text-white hover:bg-brand-teal-dark disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                        aria-label="스크립트 TTS 미리듣기"
+                      >
+                        {isSynthesizingTts ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : isPlayingTts ? (
+                          <span className="text-xs font-bold">■</span>
+                        ) : (
+                          <Play className="h-4 w-4 ml-0.5" fill="currentColor" />
+                        )}
+                      </button>
+                    </div>
                     {/* 스크립트 텍스트 영역 */}
                     <textarea
                       value={scriptText}
@@ -739,6 +884,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                         letterSpacing: '-0.14px',
                         paddingLeft: scriptGeneratedByAi ? 'calc(12px + 73px + 16px)' : '12px', // left-3(12px) + 버튼너비(73px) + 간격(16px)
                         paddingTop: scriptGeneratedByAi ? '12px' : '12px', // 버튼과 같은 높이에서 시작
+                        paddingRight: '48px', // 재생 버튼 공간
                         minHeight: '74px',
                       }}
                     />
