@@ -26,6 +26,7 @@ export interface ProVideoEditSceneCardProps {
   onGuideChange?: (value: string) => void
   /** 적용된 보이스 라벨 */
   voiceLabel?: string
+  onVoiceClick?: () => void
   /** 업로드된 영상 URL */
   videoUrl?: string | null
   /** 업로드된 이미지 URL */
@@ -62,6 +63,7 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   guideText = '',
   onGuideChange,
   voiceLabel,
+  onVoiceClick,
   videoUrl,
   imageUrl,
   isUploading = false,
@@ -71,8 +73,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   originalVideoDurationSeconds,
   onSelectionChange,
   onDragStart,
-  onDragOver,
-  onDrop,
+  onDragOver: _onDragOver,
+  onDrop: _onDrop,
   onDragEnd,
   draggedIndex = null,
   dragOver: dragOverProp = null,
@@ -589,9 +591,6 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
 
   return (
     <div
-      // 카드 자체는 드래그 시작 지점이 아니고, 드래그 핸들만 드래그 가능
-      onDragOver={onDragOver}
-      onDrop={onDrop}
       className={`rounded-2xl border border-white/10 p-6 shadow-(--shadow-card-default) transition-all ${
         isDragging ? 'opacity-50' : 'bg-white/80'
       }`}
@@ -648,16 +647,16 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                 >
                   SCENE {sceneIndex}
                 </p>
-                {voiceLabel && (
-                  <div
-                    className="flex items-center gap-1 text-text-tertiary"
-                    style={{
-                      fontSize: 'var(--font-size-14)',
-                      lineHeight: 'var(--line-height-14-140)',
-                      fontWeight: 'var(--font-weight-medium)',
-                    }}
-                  >
-                    <span>적용된 보이스 | &nbsp;</span>
+                <div
+                  className="flex items-center gap-2 text-text-tertiary"
+                  style={{
+                    fontSize: 'var(--font-size-14)',
+                    lineHeight: 'var(--line-height-14-140)',
+                    fontWeight: 'var(--font-weight-medium)',
+                  }}
+                >
+                  <span>적용된 보이스 |&nbsp;</span>
+                  {voiceLabel ? (
                     <span
                       style={{
                         fontSize: 'var(--font-size-16)',
@@ -667,8 +666,18 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                     >
                       {voiceLabel}
                     </span>
-                  </div>
-                )}
+                  ) : (
+                    <span className="text-text-tertiary/70">선택되지 않음</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={onVoiceClick}
+                    disabled={!onVoiceClick}
+                    className="ml-2 inline-flex items-center rounded-full border border-[#bbc9c9] px-2 py-0.5 text-[12px] leading-[16px] font-medium text-text-tertiary disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#e4eeed]"
+                  >
+                    보이스 선택
+                  </button>
+                </div>
               </div>
 
               {/* 스크립트 영역 */}
@@ -749,8 +758,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
               </div>
             </div>
 
-            {/* 하단: 타임라인 비주얼 - 이미지 전용 씬(imageUrl 있고 videoUrl 없음)인 경우만 숨김 */}
-            {!(imageUrl && !videoUrl) && (
+            {/* 하단: 타임라인 비주얼 - 이미지 전용 씬(imageUrl 있고 videoUrl 없음)인 경우 또는 TTS 미합성 상태일 때 숨김 */}
+            {ttsDuration && !(imageUrl && !videoUrl) && (
               <div
                 ref={timelineContainerRef}
                 className="relative overflow-x-auto w-full"

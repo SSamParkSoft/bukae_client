@@ -11,6 +11,7 @@ export interface ProVideoEditSectionProps {
     ttsDuration?: number
     guideText?: string
     voiceLabel?: string
+    voiceTemplate?: string | null
     videoUrl?: string | null
     /** 업로드된 이미지 URL */
     imageUrl?: string | null
@@ -24,7 +25,9 @@ export interface ProVideoEditSectionProps {
   onVideoUpload?: (index: number, file: File) => Promise<void>
   onAiScriptClick?: (index: number) => void
   onAiGuideClick?: (index: number) => void
+  onAiScriptGenerateAll?: () => void
   onAiGuideGenerateAll?: () => void
+  isGeneratingScript?: boolean
   isGeneratingGuide?: boolean
   onSelectionChange?: (index: number, startSeconds: number, endSeconds: number) => void
   /** 드래그 앤 드롭 관련 */
@@ -32,6 +35,7 @@ export interface ProVideoEditSectionProps {
   onDragOver?: (e: React.DragEvent<HTMLDivElement>, index: number) => void
   onDrop?: (e?: React.DragEvent<HTMLDivElement>) => void
   onDragEnd?: () => void
+  onVoiceClick?: (index: number) => void
   draggedIndex?: number | null
   dragOver?: { index: number; position: 'before' | 'after' } | null
   uploadingSceneIndex?: number | null
@@ -46,13 +50,16 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
   onVideoUpload,
   onAiScriptClick,
   onAiGuideClick,
+  onAiScriptGenerateAll,
   onAiGuideGenerateAll,
+  isGeneratingScript = false,
   isGeneratingGuide = false,
   onSelectionChange,
   onDragStart,
   onDragOver,
   onDrop,
   onDragEnd,
+  onVoiceClick,
   draggedIndex = null,
   dragOver: dragOverProp = null,
   uploadingSceneIndex = null,
@@ -60,14 +67,30 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
 }: ProVideoEditSectionProps) {
   return (
     <section className="space-y-6">
-      {/* 상단: AI 촬영가이드 생성 버튼 */}
-      {onAiGuideGenerateAll && (
-        <AiScriptGenerateButton
-          onClick={onAiGuideGenerateAll}
-          loading={isGeneratingGuide}
-          labelIdle="AI 촬영가이드 생성"
-          labelLoading="AI 촬영가이드 생성 중..."
-        />
+      {/* 상단: AI 스크립트 생성 / AI 촬영가이드 생성 버튼 */}
+      {(onAiScriptGenerateAll || onAiGuideGenerateAll) && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+          {onAiScriptGenerateAll && (
+            <div className="flex-1">
+              <AiScriptGenerateButton
+                onClick={onAiScriptGenerateAll}
+                loading={isGeneratingScript}
+                labelIdle="AI 스크립트 생성"
+                labelLoading="AI 스크립트 생성 중..."
+              />
+            </div>
+          )}
+          {onAiGuideGenerateAll && (
+            <div className="flex-1">
+              <AiScriptGenerateButton
+                onClick={onAiGuideGenerateAll}
+                loading={isGeneratingGuide}
+                labelIdle="AI 촬영가이드 생성"
+                labelLoading="AI 촬영가이드 생성 중..."
+              />
+            </div>
+          )}
+        </div>
       )}
 
       {/* 씬 카드 목록 */}
@@ -92,6 +115,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
             guideText={scene.guideText}
             onGuideChange={onGuideChange ? (value) => onGuideChange(index, value) : undefined}
             voiceLabel={scene.voiceLabel}
+            onVoiceClick={onVoiceClick ? () => onVoiceClick(index) : undefined}
             onVideoUpload={onVideoUpload ? (file) => onVideoUpload(index, file) : undefined}
             onAiScriptClick={onAiScriptClick ? () => onAiScriptClick(index) : undefined}
             onAiGuideClick={onAiGuideClick ? () => onAiGuideClick(index) : undefined}

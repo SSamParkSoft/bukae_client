@@ -55,7 +55,7 @@ export default function ProStep2Page() {
               <div className="mb-20 mt-[72px]">
                 <div className="flex items-center justify-center mb-4">
                   <span
-                    className="font-bold bg-gradient-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.56px]"
+                    className="font-bold bg-linear-to-r from-text-dark via-brand-teal-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.56px]"
                     style={{
                       fontSize: 'var(--font-size-28)',
                       lineHeight: 'var(--line-height-28-140)',
@@ -65,7 +65,7 @@ export default function ProStep2Page() {
                   </span>
                 </div>
                 <h1
-                  className="text-center font-bold mb-2 bg-gradient-to-r from-text-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.64px]"
+                  className="text-center font-bold mb-2 bg-linear-to-r from-text-dark to-brand-teal-dark bg-clip-text text-transparent tracking-[-0.64px]"
                   style={{
                     fontSize: 'var(--font-size-32)',
                     lineHeight: 'var(--line-height-32-140)',
