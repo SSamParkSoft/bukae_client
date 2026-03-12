@@ -340,7 +340,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
       cleanupSceneResources(sceneIndex)
       console.warn('[loadImageAsSprite] 로딩 실패:', error)
     }
-  }, [cleanupSceneResources, pixiReady, sceneLoadingStateRef])
+  }, [cleanupSceneResources, pixiReady, sceneLoadingStateRef, appRef, videoContainerRef, videoTexturesRef, spritesRef, setupSpriteClickEventRef])
 
   // ===== 비디오 로딩 =====
   const loadVideoAsSprite = useCallback(async (sceneIndex: number, videoUrl: string, selectionStartSeconds?: number, onLoadingStateChange?: (sceneIndex: number, updates: { status: 'loading' | 'ready' | 'failed', videoReady?: boolean, spriteReady?: boolean }) => void): Promise<void> => {
@@ -548,7 +548,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
       cleanupSceneResources(sceneIndex)
       console.warn('[loadVideoAsSprite] 로딩 실패:', error)
     }
-  }, [cleanupSceneResources, pixiReady])
+  }, [cleanupSceneResources, pixiReady, sceneLoadingStateRef, appRef, videoContainerRef, videoTexturesRef, videoElementsRef, scenesRef, spritesRef, setupSpriteClickEventRef])
 
   // ===== 자막 렌더링 =====
   const renderSubtitle = useCallback((sceneIndex: number, script: string) => {
@@ -658,7 +658,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     textObj.y = textY
     textObj.visible = true
     textObj.alpha = 1
-  }, [pixiReady])
+  }, [pixiReady, appRef, subtitleContainerRef, textsRef, textStrokesRef, timelineRef])
 
   // ===== Timeline 및 상태 관리 =====
   const timeline = useVideoCreateStore((state) => state.timeline)
@@ -674,12 +674,6 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
 
   const totalDurationValue = computedTotalDuration > 0 ? computedTotalDuration : totalDuration
 
-  useEffect(() => {
-    if (computedTotalDuration > 0) {
-      setTotalDuration(computedTotalDuration)
-    }
-  }, [computedTotalDuration, setTotalDuration])
-
   // 씬 선택 시 타임라인 위치 업데이트
   const previousSceneIndexForTimelineRef = useRef(currentSceneIndex)
   useEffect(() => {
@@ -691,7 +685,8 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
         return
       }
       const previousDuration = getDurationBeforeSceneIndex(scenes, currentSceneIndex)
-      setCurrentTime(previousDuration)
+      const id = setTimeout(() => { setCurrentTime(previousDuration) }, 0)
+      return () => clearTimeout(id)
     }
   }, [currentSceneIndex, scenes, isPlaying, pixiReady, setCurrentTime])
 
@@ -899,7 +894,9 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
       return
     }
     lastHandledScenePlaybackRequestIdRef.current = scenePlaybackRequest.requestId
-    handleScenePlaybackRequest(scenePlaybackRequest.sceneIndex)
+    const sceneIndex = scenePlaybackRequest.sceneIndex
+    const id = setTimeout(() => { handleScenePlaybackRequest(sceneIndex) }, 0)
+    return () => clearTimeout(id)
   }, [handleScenePlaybackRequest, scenePlaybackRequest, scenePlaybackRequestId])
 
   useEffect(() => {
@@ -1035,7 +1032,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     }
     
     transportHook.seek(0)
-    setCurrentTime(0)
+    const id = setTimeout(() => { setCurrentTime(0) }, 0)
     
     if (currentSceneIndex >= 0) {
       renderAtRef.current(0, { forceSceneIndex: currentSceneIndex, forceRender: true })
@@ -1044,6 +1041,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     }
     
     hasInitializedRef.current = true
+    return () => clearTimeout(id)
   }, [pixiReady, transportState.isPlaying, transportHook, renderAtRef, scenes, currentSceneIndex, setCurrentTime])
 
   useEffect(() => {
@@ -1132,7 +1130,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
 
       return true
     },
-    []
+    [spritesRef, appRef, videoElementsRef]
   )
 
   const handleSceneImageFitChange = useCallback(
