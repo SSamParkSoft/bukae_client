@@ -4,9 +4,8 @@ import { motion } from 'framer-motion'
 import { ProPreviewPanel } from './ui/ProPreviewPanel'
 import { ProSceneListPanel } from './ui/ProSceneListPanel'
 import { ProEffectsPanel } from './ui/ProEffectsPanel'
-import { useVideoCreateStore, type TimelineData } from '@/store/useVideoCreateStore'
-import { useCallback, useState, useRef } from 'react'
-import type { RenderAtOptions } from './hooks/playback/useProTransportRenderer'
+import { useVideoCreateStore } from '@/store/useVideoCreateStore'
+import { useCallback, useState } from 'react'
 import { allTransitions, transitions, movements } from '@/lib/data/transitions'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
 import { getPlayableSegments, reorderByIndexOrder } from './utils'
@@ -19,53 +18,14 @@ import {
 import type { SceneScript } from '@/lib/types/domain/script'
 import { useTimelineInitializer } from '@/hooks/video/timeline/useTimelineInitializer'
 import { useProVideoExport } from '@/hooks/video/export/useProVideoExport'
-import { api, ApiError } from '@/lib/api/client'
-import { authStorage } from '@/lib/api/auth-storage'
-import { compressVideoIfNeeded, COMPRESS_THRESHOLD_BYTES } from '@/lib/video/compressVideoInBrowser'
-
-function getLocalApiUrl(path: string): string {
-  if (typeof window === 'undefined') return path
-  return `${window.location.origin}${path}`
-}
-
-/** 비디오 URL에서 메타데이터만 로드해 duration(초)을 반환. 실패 시 null */
-function getVideoDurationFromUrl(url: string): Promise<number | null> {
-  return new Promise((resolve) => {
-    const video = document.createElement('video')
-    video.preload = 'metadata'
-    video.crossOrigin = 'anonymous'
-    const onDone = (sec: number | null) => {
-      video.removeEventListener('loadedmetadata', onMeta)
-      video.removeEventListener('error', onErr)
-      video.src = ''
-      resolve(sec)
-    }
-    const onMeta = () => {
-      const d = video.duration
-      onDone(Number.isFinite(d) && d > 0 ? d : null)
-    }
-    const onErr = () => onDone(null)
-    video.addEventListener('loadedmetadata', onMeta, { once: true })
-    video.addEventListener('error', onErr, { once: true })
-    video.src = url
-  })
-}
-
-type StoreSceneExtended = SceneScript & {
-  id?: string
-  videoUrl?: string | null
-  imageUrl?: string
-  ttsDuration?: number
-  originalVideoDurationSeconds?: number
-  selectionStartSeconds?: number
-  selectionEndSeconds?: number
-}
+import { useSceneMediaUpload } from './hooks/useSceneMediaUpload'
+import { useProStep3Container } from './hooks/useProStep3Container'
 
 export default function ProStep3Page() {
-  const { 
-    scenes: storeScenes, 
-    setScenes, 
-    bgmTemplate, 
+  const {
+    scenes: storeScenes,
+    setScenes,
+    bgmTemplate,
     setBgmTemplate,
     timeline,
     setTimeline,
@@ -76,19 +36,14 @@ export default function ProStep3Page() {
     videoDescription,
     selectedProducts,
   } = useVideoCreateStore()
-  
-  // 현재 선택된 씬 인덱스
+
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [playingSceneIndex, setPlayingSceneIndex] = useState<number | null>(null)
   const [scenePlaybackRequest, setScenePlaybackRequest] = useState<{ sceneIndex: number; requestId: number } | null>(null)
-  const [uploadingSceneIndex, setUploadingSceneIndex] = useState<number | null>(null)
-  const [compressingSceneIndex, setCompressingSceneIndex] = useState<number | null>(null)
 
-  // Pro step3 씬 데이터 변환 훅
   const { proStep3Scenes } = useProStep3Scenes()
 
-  // Timeline 초기화 (씬에서 timeline 생성)
   useTimelineInitializer({
     scenes: storeScenes,
     selectedImages: [],
@@ -99,7 +54,6 @@ export default function ProStep3Page() {
     setTimeline,
   })
 
-  // 격자 선택 영역 변경 훅
   const { handleSelectionChange, handleOriginalVideoDurationLoaded } = useProStep3SelectionChange()
 
   const canStartPlayback = useCallback(() => {
@@ -109,7 +63,6 @@ export default function ProStep3Page() {
         mediaUrl: scene.videoUrl,
       }))
     )
-
     if (playableScenes.length === 0) {
       alert('재생할 영상이 없습니다.')
       return false
@@ -128,117 +81,6 @@ export default function ProStep3Page() {
     setPlayingSceneIndex(null)
   }, [])
 
-  const handleVideoUpload = useCallback(
-    async (sceneIndex: number, file: File) => {
-      const accessToken = authStorage.getAccessToken()
-      if (!accessToken) {
-        alert('로그인이 필요합니다.')
-        return
-      }
-
-      const isImage = file.type.startsWith('image/')
-      const isVideo = file.type.startsWith('video/')
-      if (!isImage && !isVideo) {
-        throw new Error(`지원하지 않는 파일 형식입니다: ${file.type}`)
-      }
-
-      setUploadingSceneIndex(sceneIndex)
-
-      try {
-        const scenes = useVideoCreateStore.getState().scenes
-        const sceneId = (scenes[sceneIndex] as SceneScript & { id?: string })?.id ?? String(sceneIndex + 1)
-
-        if (isImage) {
-          const formData = new FormData()
-          formData.append('file', file)
-          formData.append('sceneId', sceneId)
-
-          const result = await api.postForm<{ success?: boolean; url?: string }>(
-            getLocalApiUrl('/api/images/upload'),
-            formData
-          )
-        if (!result?.success || !result?.url) {
-            throw new Error('업로드된 이미지 URL을 가져올 수 없습니다.')
-          }
-
-          const next = [...scenes]
-        const current = next[sceneIndex] as StoreSceneExtended
-        const updated: StoreSceneExtended = {
-            ...current,
-            imageUrl: result.url,
-            videoUrl: null,
-            originalVideoDurationSeconds: undefined,
-            selectionStartSeconds: undefined,
-            selectionEndSeconds: undefined,
-          }
-        next[sceneIndex] = updated
-          setScenes(next)
-        } else {
-          setCompressingSceneIndex(file.size > COMPRESS_THRESHOLD_BYTES ? sceneIndex : null)
-          const fileToUpload = await compressVideoIfNeeded(file)
-
-          const formData = new FormData()
-          formData.append('file', fileToUpload)
-          formData.append('sceneId', sceneId)
-
-          const result = await api.postForm<{ success?: boolean; url?: string }>(
-            getLocalApiUrl('/api/videos/pro/upload'),
-            formData
-          )
-          if (!result?.success || !result?.url) {
-            throw new Error('업로드된 영상 URL을 가져올 수 없습니다.')
-          }
-
-          const next = [...scenes]
-          const current = next[sceneIndex] as StoreSceneExtended
-          const updated: StoreSceneExtended = {
-            ...current,
-            videoUrl: result.url,
-            imageUrl: undefined,
-          }
-          next[sceneIndex] = updated
-          setScenes(next)
-
-          const ttsDuration = current.ttsDuration
-          const durationSec = await getVideoDurationFromUrl(result.url)
-          if (durationSec != null && Number.isFinite(durationSec)) {
-            const scenesAfter = useVideoCreateStore.getState().scenes
-            const nextAfter = [...scenesAfter]
-            const scene = nextAfter[sceneIndex] as StoreSceneExtended
-            const updatedAfter: StoreSceneExtended = {
-              ...scene,
-              originalVideoDurationSeconds: durationSec,
-              ...(typeof ttsDuration === 'number' &&
-              ttsDuration > 0 &&
-              durationSec < ttsDuration
-                ? { selectionStartSeconds: 0, selectionEndSeconds: durationSec }
-                : {}),
-            }
-            nextAfter[sceneIndex] = updatedAfter
-            setScenes(nextAfter)
-          }
-        }
-      } catch (error) {
-        console.error('미디어 업로드 오류:', error)
-        let message = '미디어 업로드 중 오류가 발생했습니다.'
-        if (error instanceof ApiError) {
-          message =
-            error.status === 413
-              ? '영상 파일이 서버 허용 크기를 초과했습니다. 더 작은 파일(권장: 100MB 이하)을 사용해 주세요.'
-              : error.message
-        } else if (error instanceof Error) {
-          message = error.message
-        }
-        alert(message)
-      } finally {
-        setUploadingSceneIndex(null)
-        setCompressingSceneIndex(null)
-      }
-    },
-    [setScenes]
-  )
-
-  // 효과 패널 및 사운드 상태 관리 훅
   const {
     rightPanelTab,
     setRightPanelTab,
@@ -250,7 +92,6 @@ export default function ProStep3Page() {
     handleSoundEffectConfirm,
   } = useProStep3State()
 
-  // Pro 인코딩 내보내기 (공통 API → step4 이동)
   const { isExporting, handleExport } = useProVideoExport({
     proStep3Scenes,
     timeline,
@@ -261,17 +102,25 @@ export default function ProStep3Page() {
     selectedProducts: selectedProducts ?? [],
   })
 
-  // 현재 선택된 씬의 비디오 URL, 이미지 URL, 선택 영역
+  const { uploadingSceneIndex, compressingSceneIndex, handleVideoUpload } = useSceneMediaUpload()
+
+  const container = useProStep3Container({
+    scenes: proStep3Scenes,
+    currentSceneIndex,
+    isPlaying,
+    scenePlaybackRequest,
+    confirmedBgmTemplate,
+    onBeforePlay: canStartPlayback,
+    onPlayingChange: handlePlayingChange,
+    onScenePlaybackComplete: handleScenePlaybackComplete,
+  })
+
+  const { renderAtRef, enterEditMode } = container
+
   const currentScene = proStep3Scenes[currentSceneIndex]
   const currentVideoUrl = currentScene?.videoUrl || null
   const currentImageUrl = currentScene?.imageUrl || null
-  const currentSelectionStartSeconds = currentScene?.selectionStartSeconds || 0
 
-  // renderAtRef, enterEditMode ref 상태
-  const renderAtRefRef = useRef<React.MutableRefObject<((tSec: number, options?: RenderAtOptions) => void) | null> | null>(null)
-  const enterEditModeRef = useRef<((mode: 'image' | 'text') => void) | null>(null)
-
-  // 씬 선택 핸들러
   const handleSceneSelect = useCallback((index: number) => {
     const targetScene = proStep3Scenes[index]
     if (!targetScene) {
@@ -279,33 +128,26 @@ export default function ProStep3Page() {
       return
     }
 
-    // 1. 전환 효과/seek과 무관하게, 선택한 씬을 즉시 강제 렌더링
-    const renderAt = renderAtRefRef.current?.current
-    if (renderAt) {
-      renderAt(0, {
-        forceSceneIndex: index,
-        forceRender: true,
-        forceTransitionComplete: true,
-      })
-    }
+    // 1. 선택한 씬을 즉시 강제 렌더링
+    renderAtRef.current?.(0, {
+      forceSceneIndex: index,
+      forceRender: true,
+      forceTransitionComplete: true,
+    })
 
-    // 2. 씬 인덱스 설정 (transport seek 포함)
+    // 2. 씬 인덱스 설정
     setCurrentSceneIndex(index)
 
     // 3. edit 모드 진입
-    const enterEditMode = enterEditModeRef.current
-    if (enterEditMode) {
-      const mode = targetScene.imageUrl || targetScene.videoUrl ? 'image' : 'text'
-      setTimeout(() => enterEditMode(mode), 50)
-    }
-  }, [proStep3Scenes])
+    const mode = targetScene.imageUrl || targetScene.videoUrl ? 'image' : 'text'
+    setTimeout(() => enterEditMode(mode), 50)
+  }, [proStep3Scenes, renderAtRef, enterEditMode])
 
   const handleScenePlay = useCallback(async (sceneIndex: number) => {
     const targetScene = proStep3Scenes[sceneIndex]
     const videoUrl = targetScene?.videoUrl?.trim() || ''
     const imageUrl = targetScene?.imageUrl?.trim() || ''
 
-    // 영상도 이미지도 없는 씬은 재생 불가
     if (!videoUrl && !imageUrl) {
       alert('재생할 영상/이미지가 없습니다.')
       return
@@ -321,7 +163,6 @@ export default function ProStep3Page() {
     }))
   }, [isPlaying, playingSceneIndex, proStep3Scenes])
 
-  // 씬 재정렬 핸들러
   const handleSceneReorder = useCallback(
     (newOrder: number[]) => {
       const safeScenes = ensureSceneArray<SceneScript>(storeScenes)
@@ -334,12 +175,10 @@ export default function ProStep3Page() {
     [setScenes, storeScenes]
   )
 
-  // 전환 효과 변경 핸들러
   const handleTransitionChange = useCallback((sceneIndex: number, value: string) => {
     if (!timeline?.scenes?.[sceneIndex]) {
       return
     }
-
     const nextScenes = timeline.scenes.map((scene, index) => {
       if (index !== sceneIndex) {
         return scene
@@ -355,23 +194,16 @@ export default function ProStep3Page() {
         ...scene,
         transition: value,
         transitionDuration: nextTransitionDuration,
-        // 정책: Pro에서도 전환/움직임 동시 사용 금지
         motion: hasTransitionEffect ? undefined : scene.motion,
       }
     })
-
-    setTimeline({
-      ...timeline,
-      scenes: nextScenes,
-    })
+    setTimeline({ ...timeline, scenes: nextScenes })
   }, [setTimeline, timeline])
 
-  // 모션 변경 핸들러
   const handleMotionChange = useCallback((sceneIndex: number, motion: MotionConfig | null) => {
     if (!timeline?.scenes?.[sceneIndex]) {
       return
     }
-
     const nextScenes = timeline.scenes.map((scene, index) => {
       if (index !== sceneIndex) {
         return scene
@@ -380,26 +212,15 @@ export default function ProStep3Page() {
       return {
         ...scene,
         motion: motion ?? undefined,
-        // 정책: Pro에서도 전환/움직임 동시 사용 금지
         transition: hasMotion ? 'none' : scene.transition,
         transitionDuration: hasMotion ? 0 : scene.transitionDuration,
       }
     })
-
-    setTimeline({
-      ...timeline,
-      scenes: nextScenes,
-    })
+    setTimeline({ ...timeline, scenes: nextScenes })
   }, [setTimeline, timeline])
-
-  // Timeline 설정 핸들러 (store의 setTimeline 사용)
-  const handleSetTimeline = useCallback((newTimeline: TimelineData) => {
-    setTimeline(newTimeline)
-  }, [setTimeline])
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* 고정 80px 양옆 마진 + 최대 1760px 컨테이너 */}
       <div
         className="w-full h-full mx-auto"
         style={{ maxWidth: '1760px', paddingLeft: '80px', paddingRight: '80px' }}
@@ -409,29 +230,29 @@ export default function ProStep3Page() {
           animate={{ opacity: 1 }}
           className="flex flex-col lg:flex-row h-full overflow-hidden w-full gap-4 lg:gap-3 xl:gap-4 2xl:gap-5"
         >
-          {/* 왼쪽 패널: 미리보기 (Pro 전용 - 썸네일만 표시) */}
+          {/* 왼쪽 패널: 미리보기 */}
           <div className="w-full lg:w-[25%] min-w-[250px] flex flex-col overflow-hidden lg:h-full">
             <ProPreviewPanel
-              currentVideoUrl={currentVideoUrl}
-              currentImageUrl={currentImageUrl}
-              currentSelectionStartSeconds={currentSelectionStartSeconds}
-              currentSceneIndex={currentSceneIndex}
-              scenes={proStep3Scenes}
-              scenePlaybackRequest={scenePlaybackRequest}
+              playbackContainerRef={container.playbackContainerRef}
+              pixiContainerRef={container.pixiContainerRef}
+              timelineBarRef={container.timelineBarRef}
+              currentTime={container.currentTime}
+              totalDuration={container.totalDuration}
+              playbackSpeed={container.playbackSpeed}
+              setPlaybackSpeed={container.setPlaybackSpeed}
+              canvasDisplaySize={container.canvasDisplaySize}
+              handlePlayPause={container.handlePlayPause}
+              handleTimelineSeek={container.handleTimelineSeek}
+              handleSceneImageFitChange={container.handleSceneImageFitChange}
+              timeline={container.timeline}
               isPlaying={isPlaying}
-              onBeforePlay={canStartPlayback}
-              onPlayingChange={handlePlayingChange}
-              onScenePlaybackComplete={handleScenePlaybackComplete}
               bgmTemplate={bgmTemplate}
               confirmedBgmTemplate={confirmedBgmTemplate}
+              currentVideoUrl={currentVideoUrl}
+              currentImageUrl={currentImageUrl}
+              currentSceneIndex={currentSceneIndex}
               onExport={handleExport}
               isExporting={isExporting}
-              onRenderReady={(renderAtRef) => {
-                renderAtRefRef.current = renderAtRef
-              }}
-              onEditModeReady={(enterEditMode) => {
-                enterEditModeRef.current = enterEditMode
-              }}
             />
           </div>
 
@@ -479,7 +300,7 @@ export default function ProStep3Page() {
               setSoundEffect={setSoundEffect}
               confirmedSoundEffect={confirmedSoundEffect}
               onSoundEffectConfirm={handleSoundEffectConfirm}
-              setTimeline={handleSetTimeline}
+              setTimeline={setTimeline}
               onMotionChange={handleMotionChange}
             />
           </div>

@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { ProVideoEditSection } from '../components'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { useVideoCreateStoreHydration } from '@/store/useVideoCreateStoreHydration'
-import { api, ApiError } from '@/lib/api/client'
+import { api, ApiError, getLocalApiUrl } from '@/lib/api/client'
 import { authStorage } from '@/lib/api/auth-storage'
 import { studioScriptApi } from '@/lib/api/studio-script'
 import { convertProductToProductResponse } from '@/lib/utils/converters/product-to-response'
@@ -20,37 +20,10 @@ import {
 } from '../utils/types'
 import { normalizeSelectionRange } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
 import { compressVideoIfNeeded, COMPRESS_THRESHOLD_BYTES } from '@/lib/video/compressVideoInBrowser'
+import { getVideoDurationFromUrl } from '@/lib/video/videoDurationUtils'
 import type { StudioScriptUserEditGuideResponseItem } from '@/lib/types/api/studio-script'
 
 const DEFAULT_SCENE_COUNT = 6
-
-function getLocalApiUrl(path: string): string {
-  if (typeof window === 'undefined') return path
-  return `${window.location.origin}${path}`
-}
-
-/** 비디오 URL에서 메타데이터만 로드해 duration(초)을 반환. 실패 시 null */
-function getVideoDurationFromUrl(url: string): Promise<number | null> {
-  return new Promise((resolve) => {
-    const video = document.createElement('video')
-    video.preload = 'metadata'
-    video.crossOrigin = 'anonymous'
-    const onDone = (sec: number | null) => {
-      video.removeEventListener('loadedmetadata', onMeta)
-      video.removeEventListener('error', onErr)
-      video.src = ''
-      resolve(sec)
-    }
-    const onMeta = () => {
-      const d = video.duration
-      onDone(Number.isFinite(d) && d > 0 ? d : null)
-    }
-    const onErr = () => onDone(null)
-    video.addEventListener('loadedmetadata', onMeta, { once: true })
-    video.addEventListener('error', onErr, { once: true })
-    video.src = url
-  })
-}
 
 export default function ProStep2EditPage() {
   const router = useRouter()

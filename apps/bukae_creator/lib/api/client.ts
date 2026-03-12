@@ -480,3 +480,9 @@ export const api = {
   delete: <T>(endpoint: string, options?: RequestOptions) =>
     apiRequest<T>(endpoint, { ...options, method: 'DELETE' }),
 }
+
+/** Next.js API route 경로를 절대 URL로 변환 (클라이언트 사이드 전용) */
+export function getLocalApiUrl(path: string): string {
+  if (typeof window === 'undefined') return path
+  return `${window.location.origin}${path}`
+}
