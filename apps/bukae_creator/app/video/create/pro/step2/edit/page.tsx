@@ -254,7 +254,7 @@ export default function ProStep2EditPage() {
               durationSec < ttsDuration
                 ? {
                     selectionStartSeconds: 0,
-                    selectionEndSeconds: durationSec,
+                    selectionEndSeconds: ttsDuration,
                   }
                 : {}),
             }
@@ -669,17 +669,24 @@ export default function ProStep2EditPage() {
       })
     }
 
-    // 모든 씬에 TTS 캐시가 이미 있는 경우: 재합성 없이 바로 Step3로 이동
-    const allScenesHaveTtsCache = currentScenes.every(
-      (scene) =>
-        typeof scene.ttsDuration === 'number' &&
-        Number.isFinite(scene.ttsDuration) &&
-        scene.ttsDuration > 0 &&
-        typeof scene.ttsAudioBase64 === 'string' &&
-        scene.ttsAudioBase64.length > 0
-    )
+    // 씬별로 TTS 캐시 유효성 판단
+    // 캐시가 있어도 script나 voiceTemplate이 바뀐 씬은 재합성 대상
+    const isCacheFresh = (scene: ProScene): boolean =>
+      typeof scene.ttsDuration === 'number' &&
+      Number.isFinite(scene.ttsDuration) &&
+      scene.ttsDuration > 0 &&
+      typeof scene.ttsAudioBase64 === 'string' &&
+      scene.ttsAudioBase64.length > 0 &&
+      scene.ttsGeneratedFromScript === scene.script &&
+      scene.ttsGeneratedFromVoiceTemplate === scene.voiceTemplate
 
-    if (allScenesHaveTtsCache) {
+    const staleIndices = currentScenes
+      .map((scene, index) => ({ scene, index }))
+      .filter(({ scene }) => !isCacheFresh(scene))
+      .map(({ index }) => index)
+
+    // 모든 씬 캐시가 유효하면 바로 Step3로 이동
+    if (staleIndices.length === 0) {
       try {
         await finalizeAndGo(currentScenes)
       } catch (error) {
@@ -693,17 +700,15 @@ export default function ProStep2EditPage() {
       return
     }
 
-    // TTS 캐시가 없거나 일부만 있는 경우: 일괄 합성 후 Step3로 이동
+    // 변경된 씬만 선택적으로 재합성
     setIsSynthesizingTts(true)
-    setTtsProgress({ completed: 0, total: currentScenes.length })
+    setTtsProgress({ completed: 0, total: staleIndices.length })
 
     try {
-      const sceneData = currentScenes.map(
-        (scene): { script: string; voiceTemplate: string | null } => ({
-          script: scene.script,
-          voiceTemplate: scene.voiceTemplate ?? null,
-        })
-      )
+      const sceneData = staleIndices.map((index) => ({
+        script: currentScenes[index].script,
+        voiceTemplate: currentScenes[index].voiceTemplate ?? null,
+      }))
 
       const result = await synthesizeAllScenes(sceneData, (completed, total) => {
         setTtsProgress({ completed, total })
@@ -716,14 +721,18 @@ export default function ProStep2EditPage() {
       }
 
       const scenesWithTts: ProScene[] = currentScenes.map((scene, index) => {
-        const ttsResult = result.results[index]
-        if (!ttsResult?.success) {
-          return scene
-        }
+        const stalePosition = staleIndices.indexOf(index)
+        if (stalePosition === -1) return scene // 캐시 유효 → 그대로 사용
+
+        const ttsResult = result.results[stalePosition]
+        if (!ttsResult?.success) return scene // 합성 실패 → 기존 캐시 유지
+
         return {
           ...scene,
           ttsDuration: ttsResult.duration ?? scene.ttsDuration,
           ttsAudioBase64: ttsResult.audioBase64 ?? scene.ttsAudioBase64,
+          ttsGeneratedFromScript: scene.script,
+          ttsGeneratedFromVoiceTemplate: scene.voiceTemplate,
         }
       })
 
