@@ -758,190 +758,205 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
               </div>
             </div>
 
-            {/* 하단: 타임라인 비주얼 - 이미지 전용 씬(imageUrl 있고 videoUrl 없음)인 경우 또는 TTS 미합성 상태일 때 숨김 */}
-            {ttsDuration && !(imageUrl && !videoUrl) && (
-              <div
-                ref={timelineContainerRef}
-                className="relative overflow-x-auto w-full"
-                style={{
-                  WebkitOverflowScrolling: 'touch',
-                }}
-                onDragStart={(e) => {
-                  // 타임라인 영역에서는 씬 카드 드래그 방지
-                  e.stopPropagation()
-                  e.preventDefault()
-                }}
-              >
-              {/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
-              <div
-                className="relative shrink-0"
-                style={{
-                  width: `${actualVideoEndPx}px`,
-                  paddingTop: `${TIMELINE_GRID_EXTEND_PX}px`,
-                  paddingBottom: `${TIMELINE_GRID_EXTEND_PX}px`,
-                  paddingLeft: `${TIMELINE_LEFT_OFFSET_PX}px`,
-                }}
-              >
-                {/* 실제 영상 프레임 박스 (클리핑 영역) */}
+            {/* 하단: 타임라인 비주얼/프리뷰 */}
+            {!(imageUrl && !videoUrl) && (
+              ttsDuration ? (
                 <div
-                  className="relative bg-white rounded-2xl border border-gray-300 overflow-hidden"
+                  ref={timelineContainerRef}
+                  className="relative overflow-x-auto w-full"
                   style={{
-                    height: `${TIMELINE_FRAME_HEIGHT_PX}px`,
-                    width: `${actualVideoEndPx}px`,
+                    WebkitOverflowScrolling: 'touch',
+                  }}
+                  onDragStart={(e) => {
+                    // 타임라인 영역에서는 씬 카드 드래그 방지
+                    e.stopPropagation()
+                    e.preventDefault()
                   }}
                 >
-                  {/* 격자 패턴 - 각 74px 너비의 프레임들 */}
-                  <div className="absolute inset-0 flex" style={{ left: '0px' }}>
-                    {Array.from({ length: frameSegmentCount }).map((_, idx) => (
-                      <div
-                        key={idx}
-                        className="shrink-0 relative border-r border-[#a6a6a6] overflow-hidden"
-                        style={{ width: `${FRAME_WIDTH_PX}px`, height: '100%' }}
-                      >
-                        {/* 비디오 프레임 썸네일 또는 배경 */}
-                        {frameThumbnails[idx] ? (
-                          <Image
-                            src={frameThumbnails[idx]}
-                            alt={`${idx}초 프레임`}
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
-                        ) : (
-                          <div className="absolute inset-0 bg-[#111111] opacity-40" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* 격자 기준 왼쪽 어두운 오버레이 */}
-                  {selectionLeftPx > 0 && (
+                  {/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
+                  <div
+                    className="relative shrink-0"
+                    style={{
+                      width: `${actualVideoEndPx}px`,
+                      paddingTop: `${TIMELINE_GRID_EXTEND_PX}px`,
+                      paddingBottom: `${TIMELINE_GRID_EXTEND_PX}px`,
+                      paddingLeft: `${TIMELINE_LEFT_OFFSET_PX}px`,
+                    }}
+                  >
+                    {/* 실제 영상 프레임 박스 (클리핑 영역) */}
                     <div
-                      className="absolute top-0 left-0 bg-black/50"
+                      className="relative bg-white rounded-2xl border border-gray-300 overflow-hidden"
                       style={{
-                        width: `${selectionLeftPx}px`,
-                        height: '100%',
+                        height: `${TIMELINE_FRAME_HEIGHT_PX}px`,
+                        width: `${actualVideoEndPx}px`,
                       }}
-                    />
-                  )}
-                  
-                  {/* 격자 기준 오른쪽 어두운 오버레이 */}
-                  {selectionLeftPx + selectionWidthPx < actualVideoEndPx && (
-                    <div
-                      className="absolute top-0 right-0 bg-black/50"
-                      style={{
-                        width: `${actualVideoEndPx - (selectionLeftPx + selectionWidthPx)}px`,
-                        height: '100%',
-                      }}
-                    />
-                  )}
-                  
-                  {/* 숨겨진 비디오와 캔버스 - 프레임 썸네일 생성용 */}
-                  {videoUrl && (
-                    <>
-                      <video
-                        ref={videoRef}
-                        src={videoUrl}
-                        className="hidden"
-                        muted
-                        playsInline
-                        preload="metadata"
-                        crossOrigin="anonymous"
-                      />
-                      <canvas ref={canvasRef} className="hidden" />
-                    </>
-                  )}
-                </div>
-
-                {/* 격자(선택 강조선) - 프레임 박스 밖에 배치하여 위아래로 튀어나오게 */}
-                {/* 격자 내부 전체를 드래그 가능하게 하기 위해 컨테이너 div를 확장 */}
-                <div
-                  onMouseDown={handleSelectionMouseDown}
-                  onMouseMove={handleSelectionMouseMove}
-                  onMouseUp={handleSelectionMouseUp}
-                  className="cursor-move"
-                  style={{
-                    position: 'absolute',
-                    left: `${TIMELINE_LEFT_OFFSET_PX + selectionLeftPx}px`,
-                    width: `${selectionWidthPx}px`,
-                    top: `${TIMELINE_GRID_EXTEND_PX}px`, // 프레임 박스와 같은 위치 (paddingTop 아래)
-                    height: `calc(100% - ${TIMELINE_GRID_EXTEND_PX}px)`, // paddingTop을 제외한 높이
-                    zIndex: 10,
-                    pointerEvents: 'auto', // 격자 내부 전체가 클릭 가능하도록
-                  }}
-                >
-                  <ProVideoTimelineGrid
-                    frameHeight={TIMELINE_FRAME_HEIGHT_PX}
-                    selectionLeft={0}
-                    selectionWidth={selectionWidthPx}
-                    extendY={TIMELINE_GRID_EXTEND_PX}
-                  />
-                </div>
-              </div>
-
-              {/* 시간 마커 */}
-              <div 
-                className="relative flex shrink-0"
-                style={{ width: `${timeMarkers.length * FRAME_WIDTH_PX}px` }}
-                onDragStart={(e) => {
-                  // 시간 마커 영역에서도 씬 카드 드래그 방지
-                  e.stopPropagation()
-                  e.preventDefault()
-                }}
-              >
-                {/* 가로 라인 - 영상 프레임 전체 길이만큼 */}
-                <div 
-                  className="absolute top-0 left-0 h-px bg-[#a6a6a6]"
-                  style={{ width: `${timeMarkers.length * FRAME_WIDTH_PX}px` }}
-                />
-                
-                {timeMarkers.map((marker, idx) => {
-                  const isInSelection = getIsInSelection(idx)
-                  const isMajorTick = getIsMajorTick(idx)
-                  
-                  return (
-                    <div
-                      key={idx}
-                      className="shrink-0 flex flex-col items-center relative"
-                      style={{ width: `${FRAME_WIDTH_PX}px` }}
                     >
-                      {/* 세로 틱 */}
-                      {isMajorTick ? (
-                        <>
-                          {/* 큰 틱 - 위로 */}
-                          <div 
-                            className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[6px] w-px -translate-y-full"
-                          />
-                          {/* 큰 틱 - 아래로 */}
-                          <div 
-                            className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[10px] w-px"
-                          />
-                        </>
-                      ) : (
-                        /* 작은 틱 - 모든 마커에 고정으로 표시 */
-                        <div 
-                          className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[6px] w-px"
+                      {/* 격자 패턴 - 각 74px 너비의 프레임들 */}
+                      <div className="absolute inset-0 flex" style={{ left: '0px' }}>
+                        {Array.from({ length: frameSegmentCount }).map((_, idx) => (
+                          <div
+                            key={idx}
+                            className="shrink-0 relative border-r border-[#a6a6a6] overflow-hidden"
+                            style={{ width: `${FRAME_WIDTH_PX}px`, height: '100%' }}
+                          >
+                            {/* 비디오 프레임 썸네일 또는 배경 */}
+                            {frameThumbnails[idx] ? (
+                              <Image
+                                src={frameThumbnails[idx]}
+                                alt={`${idx}초 프레임`}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-[#111111] opacity-40" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* 격자 기준 왼쪽 어두운 오버레이 */}
+                      {selectionLeftPx > 0 && (
+                        <div
+                          className="absolute top-0 left-0 bg-black/50"
+                          style={{
+                            width: `${selectionLeftPx}px`,
+                            height: '100%',
+                          }}
                         />
                       )}
                       
-                      {/* 시간 텍스트 */}
-                      <span
-                        className={`font-medium mt-2 ${
-                          isInSelection ? 'text-text-dark' : 'text-text-tertiary'
-                        }`}
-                        style={{
-                          fontSize: '16px',
-                          lineHeight: '22.4px',
-                          letterSpacing: '-0.32px',
-                        }}
-                      >
-                        {marker}
-                      </span>
+                      {/* 격자 기준 오른쪽 어두운 오버레이 */}
+                      {selectionLeftPx + selectionWidthPx < actualVideoEndPx && (
+                        <div
+                          className="absolute top-0 right-0 bg-black/50"
+                          style={{
+                            width: `${actualVideoEndPx - (selectionLeftPx + selectionWidthPx)}px`,
+                            height: '100%',
+                          }}
+                        />
+                      )}
+                      
+                      {/* 숨겨진 비디오와 캔버스 - 프레임 썸네일 생성용 */}
+                      {videoUrl && (
+                        <>
+                          <video
+                            ref={videoRef}
+                            src={videoUrl}
+                            className="hidden"
+                            muted
+                            playsInline
+                            preload="metadata"
+                            crossOrigin="anonymous"
+                          />
+                          <canvas ref={canvasRef} className="hidden" />
+                        </>
+                      )}
                     </div>
-                  )
-                })}
-              </div>
-              </div>
+
+                    {/* 격자(선택 강조선) - 프레임 박스 밖에 배치하여 위아래로 튀어나오게 */}
+                    {/* 격자 내부 전체를 드래그 가능하게 하기 위해 컨테이너 div를 확장 */}
+                    <div
+                      onMouseDown={handleSelectionMouseDown}
+                      onMouseMove={handleSelectionMouseMove}
+                      onMouseUp={handleSelectionMouseUp}
+                      className="cursor-move"
+                      style={{
+                        position: 'absolute',
+                        left: `${TIMELINE_LEFT_OFFSET_PX + selectionLeftPx}px`,
+                        width: `${selectionWidthPx}px`,
+                        top: `${TIMELINE_GRID_EXTEND_PX}px`, // 프레임 박스와 같은 위치 (paddingTop 아래)
+                        height: `calc(100% - ${TIMELINE_GRID_EXTEND_PX}px)`, // paddingTop을 제외한 높이
+                        zIndex: 10,
+                        pointerEvents: 'auto', // 격자 내부 전체가 클릭 가능하도록
+                      }}
+                    >
+                      <ProVideoTimelineGrid
+                        frameHeight={TIMELINE_FRAME_HEIGHT_PX}
+                        selectionLeft={0}
+                        selectionWidth={selectionWidthPx}
+                        extendY={TIMELINE_GRID_EXTEND_PX}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 시간 마커 */}
+                  <div 
+                    className="relative flex shrink-0"
+                    style={{ width: `${timeMarkers.length * FRAME_WIDTH_PX}px` }}
+                    onDragStart={(e) => {
+                      // 시간 마커 영역에서도 씬 카드 드래그 방지
+                      e.stopPropagation()
+                      e.preventDefault()
+                    }}
+                  >
+                    {/* 가로 라인 - 영상 프레임 전체 길이만큼 */}
+                    <div 
+                      className="absolute top-0 left-0 h-px bg-[#a6a6a6]"
+                      style={{ width: `${timeMarkers.length * FRAME_WIDTH_PX}px` }}
+                    />
+                    
+                    {timeMarkers.map((marker, idx) => {
+                      const isInSelection = getIsInSelection(idx)
+                      const isMajorTick = getIsMajorTick(idx)
+                      
+                      return (
+                        <div
+                          key={idx}
+                          className="shrink-0 flex flex-col items-center relative"
+                          style={{ width: `${FRAME_WIDTH_PX}px` }}
+                        >
+                          {/* 세로 틱 */}
+                          {isMajorTick ? (
+                            <>
+                              {/* 큰 틱 - 위로 */}
+                              <div 
+                                className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[6px] w-px -translate-y-full"
+                              />
+                              {/* 큰 틱 - 아래로 */}
+                              <div 
+                                className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[10px] w-px"
+                              />
+                            </>
+                          ) : (
+                            /* 작은 틱 - 모든 마커에 고정으로 표시 */
+                            <div 
+                              className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[6px] w-px"
+                            />
+                          )}
+                          
+                          {/* 시간 텍스트 */}
+                          <span
+                            className={`font-medium mt-2 ${
+                              isInSelection ? 'text-text-dark' : 'text-text-tertiary'
+                            }`}
+                            style={{
+                              fontSize: '16px',
+                              lineHeight: '22.4px',
+                              letterSpacing: '-0.32px',
+                            }}
+                          >
+                            {marker}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-dashed border-[#d3dbdc] bg-white/60 px-4 py-6 text-center text-text-tertiary">
+                  <p
+                    className="font-medium tracking-[-0.28px]"
+                    style={{
+                      fontSize: 'var(--font-size-12)',
+                      lineHeight: 'var(--line-height-12-140)',
+                    }}
+                  >
+                    보이스 선택 및 TTS 합성 후<br />
+                    이 장면의 타임라인을 설정할 수 있어요.
+                  </p>
+                </div>
+              )
             )}
           </div>
         </div>
