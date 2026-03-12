@@ -27,11 +27,13 @@ interface UseProTransportRendererParams {
   sceneLoadingStateRef: React.MutableRefObject<Map<number, LoadingState>>
 }
 
-interface RenderAtOptions {
+export interface RenderAtOptions {
   skipAnimation?: boolean
   forceSceneIndex?: number
   /** 타임라인 내용만 바뀐 경우에도 같은 t에서 다시 그리기 위해 사용 */
   forceRender?: boolean
+  /** 전환 효과를 강제로 완료 상태로 렌더링 (씬 카드 클릭 시 사용) */
+  forceTransitionComplete?: boolean
 }
 
 const VIDEO_SYNC_SEEK_EPSILON_SEC = 0.08
@@ -339,6 +341,7 @@ function applySceneStartTransition({
   fromBaseState,
   stageWidth,
   stageHeight,
+  forceComplete = false,
 }: {
   transitionType: string
   progress: number
@@ -347,9 +350,11 @@ function applySceneStartTransition({
   fromBaseState?: SpriteBaseState | null
   stageWidth: number
   stageHeight: number
+  forceComplete?: boolean
 }) {
-  const clampedProgress = Math.max(0, Math.min(1, progress))
-  const eased = 1 - Math.pow(1 - clampedProgress, 3)
+  const effectiveProgress = forceComplete ? 1 : Math.max(0, Math.min(1, progress))
+  const eased = 1 - Math.pow(1 - effectiveProgress, 3)
+  const clampedProgress = effectiveProgress
   const normalized = transitionType.toLowerCase()
 
   clearTransitionArtifacts(toSprite, {
@@ -543,7 +548,7 @@ export function useProTransportRenderer({
 }: UseProTransportRendererParams & { cleanupSceneResources: (sceneIndex: number) => void }) {
   const transportHook = useTransport()
   const { transportState } = useTransportState({ transport: transportHook.transport })
-  const renderAtRef = useRef<((tSec: number, options?: RenderAtOptions) => void) | undefined>(undefined)
+  const renderAtRef = useRef<((tSec: number, options?: RenderAtOptions) => void) | null>(null)
   const lastRenderedTimeRef = useRef<number>(-1)
   const lastRenderedSceneIndexRef = useRef<number>(-1)
   const renderRequestIdRef = useRef(0)
@@ -796,6 +801,7 @@ export function useProTransportRenderer({
           applySceneBaseTransform(existingImageSprite, imageTimelineScene, app.screen.width, app.screen.height)
 
           if (imageShouldTransition) {
+            const effectiveProgress = options?.forceTransitionComplete ? 1 : imageTransitionProgress
             const activePreviousSprite =
               imagePreviousSceneIndex !== null ? spritesRef.current.get(imagePreviousSceneIndex) : undefined
 
@@ -807,14 +813,15 @@ export function useProTransportRenderer({
 
             applySceneStartTransition({
               transitionType: imageEffectiveTransition,
-              progress: imageTransitionProgress,
+              progress: effectiveProgress,
               toSprite: existingImageSprite,
               fromSprite: activePreviousSprite ?? null,
               stageWidth: app.screen.width,
               stageHeight: app.screen.height,
+              forceComplete: options?.forceTransitionComplete,
             })
 
-            if (imageTransitionProgress >= 1 && activePreviousSprite && !activePreviousSprite.destroyed) {
+            if (effectiveProgress >= 1 && activePreviousSprite && !activePreviousSprite.destroyed) {
               hideSprite(activePreviousSprite)
               clearTransitionArtifacts(existingImageSprite)
             }
@@ -828,9 +835,36 @@ export function useProTransportRenderer({
         } else if (!imageLoadState || (imageLoadState.status !== 'loading' && imageLoadState.status !== 'ready')) {
           // 로딩 중이 아닐 때만 로드 시작 (중복 로드 방지)
           hideAllSprites(spritesRef.current)
-          void loadImageAsSprite(targetSceneIndex, targetScene.imageUrl).catch(() => {
-            // 로딩 실패 시에도 다음 프레임에서 재시도됨
-          })
+
+          const requestId = ++renderRequestIdRef.current
+          const initialTime = tSec
+
+          void loadImageAsSprite(targetSceneIndex, targetScene.imageUrl)
+            .then(() => {
+              // 이 사이에 다른 renderAt 호출이 들어왔으면 무시
+              if (requestId !== renderRequestIdRef.current) {
+                return
+              }
+
+              const rerender = renderAtRef.current
+              if (!rerender) {
+                return
+              }
+
+              // 현재 타임라인 시간 기준으로 다시 렌더링
+              const currentT =
+                transportHook.transport?.getTime() ?? initialTime
+
+              rerender(currentT, {
+                forceSceneIndex: targetSceneIndex,
+                forceRender: true,
+                // 씬 카드 클릭에서 들어온 경우에는 이미 forceTransitionComplete 옵션이 전달됨
+                forceTransitionComplete: options?.forceTransitionComplete,
+              })
+            })
+            .catch(() => {
+              // 로딩 실패 시에도 다음 프레임에서 재시도됨
+            })
         }
         return
       }
@@ -900,7 +934,9 @@ export function useProTransportRenderer({
         0,
         targetScene.originalVideoDurationSeconds
       )
-      const targetVideoTimeForRender = shouldTransition ? transitionStartVideoTime : videoTime
+      // 재생 중 전환은 비디오를 살려두어 seek 플리커 방지, 정지 상태에선 첫 프레임 고정
+      const targetVideoTimeForRender =
+        shouldTransition && !transportState.isPlaying ? transitionStartVideoTime : videoTime
 
       const previousSceneEndVideoTime =
         previousScene && previousPlayable
@@ -921,25 +957,6 @@ export function useProTransportRenderer({
             spriteReady: false,
           })
         }
-
-        console.warn('[ProTransitionDebug] scene change', {
-          fromSceneIndex: lastRenderedSceneIndexRef.current,
-          toSceneIndex: targetSceneIndex,
-          toPlayableIndex: resolved.playableIndex,
-          previousSceneIndex,
-          configuredTransition,
-          motionType: motionType ?? 'none',
-          transitionType: effectiveTransition,
-          transitionSource: transitionFromMotion ? 'motion-slide-fallback' : 'transition',
-          hasTransitionEffect,
-          shouldTransition,
-          transitionDuration,
-          transitionRelativeTime,
-          transitionProgress,
-          sceneTimeInSegment: resolved.sceneTimeInSegment,
-          sceneStartTime: resolved.sceneStartTime,
-          tSec,
-        })
       }
 
       const applyVisualState = () => {
@@ -998,23 +1015,6 @@ export function useProTransportRenderer({
         const transitionDebugToken = transitionPairKey ?? `none->${targetSceneIndex}`
         if (shouldTransition && transitionDebugPairRef.current !== transitionDebugToken) {
           transitionDebugPairRef.current = transitionDebugToken
-          console.warn('[ProTransitionDebug] cross-transition readiness', {
-            transitionDebugToken,
-            transitionPairKey,
-            configuredTransition,
-            motionType: motionType ?? 'none',
-            transitionType: effectiveTransition,
-            transitionSource: transitionFromMotion ? 'motion-slide-fallback' : 'transition',
-            needsCrossTransition,
-            canRenderCrossTransitionNow,
-            previousSceneIndex,
-            previousSceneExists: !!previousScene,
-            previousSpriteExists: !!activePreviousSprite,
-            previousSpriteDestroyed: activePreviousSprite?.destroyed ?? null,
-            transitionDuration,
-            transitionRelativeTime,
-            transitionProgress,
-          })
         }
 
         if (canRenderCrossTransitionNow && activePreviousSprite && previousScene) {
@@ -1090,25 +1090,24 @@ export function useProTransportRenderer({
         if (shouldTransition) {
           // fromSprite가 준비되지 않았으면 전환을 지연 (깜빡거림 방지)
           const fromSpriteToUse = canRenderCrossTransitionNow ? activePreviousSprite ?? null : null
+          const effectiveProgress = options?.forceTransitionComplete ? 1 : transitionProgress
 
           // 크로스 전환이 필요하지만 스프라이트가 준비되지 않았으면 전환을 건너뜀
-          if (needsCrossTransition && !canRenderCrossTransitionNow) {
-            console.warn('[ProTransitionDebug] 스프라이트가 준비되지 않아 전환 지연', {
-              targetSceneIndex,
-              previousSceneIndex,
-              canRenderCrossTransitionNow,
-              isPreviousSpriteReady,
-            })
-          } else {
-            // 전환 중에는 현재 씬 비디오 일시정지
+          if (!(needsCrossTransition && !canRenderCrossTransitionNow)) {
             const currentVideo = videoElementsRef.current.get(targetSceneIndex)
-            if (currentVideo && !currentVideo.paused) {
-              syncVideoToFrame(currentVideo, targetVideoTimeForRender)
+            if (currentVideo) {
+              if (transportState.isPlaying) {
+                // 재생 중 전환: 비디오를 계속 재생하여 seek 플리커 방지
+                syncVideoPlaybackToTimeline(currentVideo, targetScene, videoTime)
+              } else if (!currentVideo.paused) {
+                // 정지 상태 전환: 첫 프레임에 고정
+                syncVideoToFrame(currentVideo, targetVideoTimeForRender)
+              }
             }
 
             applySceneStartTransition({
               transitionType: effectiveTransition,
-              progress: transitionProgress,
+              progress: effectiveProgress,
               toSprite: sprite,
               fromSprite: fromSpriteToUse,
               fromBaseState:
@@ -1118,13 +1117,15 @@ export function useProTransportRenderer({
                   : null,
               stageWidth: app.screen.width,
               stageHeight: app.screen.height,
+              forceComplete: options?.forceTransitionComplete,
             })
           }
         }
 
         // Cleanup transition artifacts when transition is complete (progress >= 1),
         // so cleanup runs even if frames skipped past the internal progress >= 0.999 check.
-        if (hasTransitionEffect && transitionProgress >= 1) {
+        const effectiveProgress = options?.forceTransitionComplete ? 1 : transitionProgress
+        if (hasTransitionEffect && effectiveProgress >= 1) {
           clearTransitionArtifacts(sprite)
           if (canRenderCrossTransitionNow && activePreviousSprite && !activePreviousSprite.destroyed) {
             hideSprite(activePreviousSprite)
@@ -1158,7 +1159,10 @@ export function useProTransportRenderer({
         currentSceneIndexRef.current = targetSceneIndex
         const immediateVideo = videoElementsRef.current.get(targetSceneIndex)
         if (immediateVideo) {
-          if (shouldTransition) {
+          if (shouldTransition && transportState.isPlaying) {
+            // 재생 중 전환: 비디오를 계속 재생하여 seek 플리커 방지
+            syncVideoPlaybackToTimeline(immediateVideo, targetScene, videoTime)
+          } else if (shouldTransition) {
             syncVideoToFrame(immediateVideo, targetVideoTimeForRender)
           } else {
             syncVideoPlaybackToTimeline(immediateVideo, targetScene, targetVideoTimeForRender)
@@ -1167,7 +1171,12 @@ export function useProTransportRenderer({
         if (needsCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
           const immediatePreviousVideo = videoElementsRef.current.get(previousSceneIndex)
           if (immediatePreviousVideo) {
-            syncVideoToFrame(immediatePreviousVideo, previousSceneEndVideoTime)
+            if (transportState.isPlaying) {
+              // 재생 중 전환: 이전 씬 비디오도 계속 재생 (fade-out 중이므로 selection end 초과 허용)
+              if (immediatePreviousVideo.paused) void immediatePreviousVideo.play().catch(() => undefined)
+            } else {
+              syncVideoToFrame(immediatePreviousVideo, previousSceneEndVideoTime)
+            }
           }
         }
         const appliedImmediately = applyVisualState()
@@ -1190,7 +1199,9 @@ export function useProTransportRenderer({
           }
           const loadedVideo = videoElementsRef.current.get(targetSceneIndex)
           if (loadedVideo) {
-            if (shouldTransition) {
+            if (shouldTransition && transportState.isPlaying) {
+              syncVideoPlaybackToTimeline(loadedVideo, targetScene, videoTime)
+            } else if (shouldTransition) {
               syncVideoToFrame(loadedVideo, targetVideoTimeForRender)
             } else {
               syncVideoPlaybackToTimeline(loadedVideo, targetScene, targetVideoTimeForRender)
@@ -1199,7 +1210,11 @@ export function useProTransportRenderer({
           if (needsCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
             const loadedPreviousVideo = videoElementsRef.current.get(previousSceneIndex)
             if (loadedPreviousVideo) {
-              syncVideoToFrame(loadedPreviousVideo, previousSceneEndVideoTime)
+              if (transportState.isPlaying) {
+                if (loadedPreviousVideo.paused) void loadedPreviousVideo.play().catch(() => undefined)
+              } else {
+                syncVideoToFrame(loadedPreviousVideo, previousSceneEndVideoTime)
+              }
             }
           }
           
@@ -1248,8 +1263,10 @@ export function useProTransportRenderer({
         }
 
         if (currentVideo) {
-          if (shouldTransition) {
-            // 전환 중에는 비디오를 항상 일시정지 상태로 유지
+          if (shouldTransition && transportState.isPlaying) {
+            // 재생 중 전환: 비디오를 계속 재생하여 seek 플리커 방지
+            syncVideoPlaybackToTimeline(currentVideo, targetScene, videoTime)
+          } else if (shouldTransition) {
             syncVideoToFrame(currentVideo, targetVideoTimeForRender)
           } else {
             syncVideoPlaybackToTimeline(currentVideo, targetScene, targetVideoTimeForRender)
@@ -1258,7 +1275,12 @@ export function useProTransportRenderer({
         if (needsCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
           const previousVideo = videoElementsRef.current.get(previousSceneIndex)
           if (previousVideo) {
-            syncVideoToFrame(previousVideo, previousSceneEndVideoTime)
+            if (transportState.isPlaying) {
+              // 재생 중 전환: 이전 씬 비디오도 계속 재생
+              if (previousVideo.paused) void previousVideo.play().catch(() => undefined)
+            } else {
+              syncVideoToFrame(previousVideo, previousSceneEndVideoTime)
+            }
           }
         }
         // 동일 씬 내 시작 프레임에서도 자막이 누락되지 않도록 매 tick에서 자막 동기화

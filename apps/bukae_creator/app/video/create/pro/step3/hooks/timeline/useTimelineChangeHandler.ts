@@ -8,7 +8,9 @@ type UseTransportReturnType = ReturnType<typeof useTransport>
 
 interface UseTimelineChangeHandlerParams {
   timeline: TimelineData | null
-  renderAtRef: React.MutableRefObject<((tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number; forceRender?: boolean }) => void) | undefined>
+  renderAtRef: React.MutableRefObject<
+    ((tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number; forceRender?: boolean }) => void) | null
+  >
   pixiReady: boolean
   isPlaying: boolean
   transport: UseTransportReturnType

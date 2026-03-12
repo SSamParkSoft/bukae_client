@@ -9,6 +9,7 @@ import { TimelineData } from '@/store/useVideoCreateStore'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
 import { splitSubtitleByDelimiter } from '@/lib/utils/subtitle-splitter'
 import { calculateSpriteParams } from '@/utils/pixi/sprite'
+import { createSprite, createText, createTextStyle, createGraphics } from '@/utils/pixi/factory'
 import { getSubtitlePosition } from '../../renderer/utils/getSubtitlePosition'
 import { normalizeAnchorToTopLeft, calculateTextPositionInBox } from '../../renderer/subtitle/useSubtitleRenderer'
 import { getPreviewLetterSpacing, getPreviewStrokeWidth } from '../../renderer/subtitle/previewStroke'
@@ -209,12 +210,12 @@ export function useSceneLoader({
           texture = PIXI.Texture.EMPTY
         }
 
-        const sprite = new PIXI.Sprite(texture)
-
-        // 회전 피벗을 이미지 중앙으로 설정
-        sprite.anchor.set(0.5, 0.5)
-        sprite.visible = false
-        sprite.alpha = 0
+        const sprite = createSprite({
+          texture,
+          anchor: { x: 0.5, y: 0.5 },
+          visible: false,
+          alpha: 0,
+        })
 
         // Transform 데이터 적용 (첫 번째 씬의 transform 사용)
         if (baseScene.imageTransform) {
@@ -274,36 +275,28 @@ export function useSceneLoader({
           const letterSpacing = getPreviewLetterSpacing(strokeWidth, {
             fontSize: scene.text.fontSize,
           })
-          
-          const styleConfig: Partial<PIXI.TextStyle> = {
+
+          const textStyle = createTextStyle({
             fontFamily,
             fontSize: scene.text.fontSize || 80,
             fill: scene.text.color || '#ffffff',
-            align: scene.text.style?.align || 'center',
+            align: (scene.text.style?.align as 'left' | 'center' | 'right') || 'center',
             fontWeight: String(fontWeight) as PIXI.TextStyleFontWeight,
             fontStyle: scene.text.style?.italic ? 'italic' : 'normal',
             letterSpacing,
             wordWrap: true,
             wordWrapWidth: textWidth,
             breakWords: true,
-          }
-          
-          // stroke는 strokeWidth가 0보다 클 때만 설정
-          if (strokeWidth > 0) {
-            styleConfig.stroke = { color: strokeColor, width: strokeWidth }
-          }
-          const textStyle = new PIXI.TextStyle(styleConfig as Partial<PIXI.TextStyle>)
-
-          const text = new PIXI.Text({
-            text: displayText,
-            style: textStyle,
+            stroke: strokeWidth > 0 ? { color: strokeColor, width: strokeWidth } : undefined,
           })
 
-          // 중요: anchor를 (0, 0)으로 설정하여 Top-Left 기준으로 일관성 유지
-          // 렌더링 시에도 항상 anchor를 (0, 0)으로 설정하므로, 저장된 좌표가 Top-Left 기준이어야 함
-          text.anchor.set(0, 0)
-          text.visible = false
-          text.alpha = 0
+          const text = createText({
+            text: displayText,
+            style: textStyle,
+            anchor: { x: 0, y: 0 }, // 중요: Top-Left 기준으로 일관성 유지
+            visible: false,
+            alpha: 0,
+          })
 
           // 텍스트를 컨테이너에 먼저 추가하여 렌더러가 텍스트를 렌더링할 수 있도록 함
           // 이렇게 하면 requestAnimationFrame 내부에서 getLocalBounds()가 정확한 값을 반환할 수 있음
@@ -459,13 +452,13 @@ export function useSceneLoader({
               const bounds = text.getLocalBounds()
               const underlineWidth = bounds.width || textWidth
 
-              const underline = new PIXI.Graphics()
+              const underline = createGraphics()
               ;(underline as PIXI.Graphics & { __isUnderline?: boolean }).__isUnderline = true
 
               const halfWidth = underlineWidth / 2
               const yPos = bounds.height / 2 + underlineHeight * 0.25 // 텍스트 하단 근처
 
-              underline.lineStyle(underlineHeight, colorValue, 1)
+              underline.setStrokeStyle({ width: underlineHeight, color: colorValue, alpha: 1 })
               underline.moveTo(-halfWidth, yPos)
               underline.lineTo(halfWidth, yPos)
               underline.stroke()

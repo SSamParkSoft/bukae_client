@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useRef } from 'react'
 import * as PIXI from 'pixi.js'
+import { createContainer, createEditHandle } from '@/utils/pixi/factory'
 import { useTransformManager } from './useTransformManager'
 import { useResizeHandler } from './useResizeHandler'
 import { getPixiCoordinates, isOutsideCanvas, resetToCenter } from './utils'
@@ -160,8 +161,7 @@ export const usePixiEditor = ({
         existingHandles.parent.removeChild(existingHandles)
       }
 
-      const handlesContainer = new PIXI.Container()
-      handlesContainer.interactive = true
+      const handlesContainer = createContainer({ interactive: true })
 
       if (sprite.destroyed) {
         return
@@ -206,18 +206,14 @@ export const usePixiEditor = ({
       ]
 
       handles.forEach((handle) => {
-        const handleGraphics = new PIXI.Graphics()
-        handleGraphics.clear()
-        handleGraphics.rect(-handleSize / 2, -handleSize / 2, handleSize, handleSize)
-        handleGraphics.fill({ color: handleColor, alpha: 1 })
-        handleGraphics.setStrokeStyle({ color: handleBorderColor, width: 2, alpha: 1 })
-        handleGraphics.stroke()
-        handleGraphics.x = handle.x
-        handleGraphics.y = handle.y
-        handleGraphics.visible = true
-        handleGraphics.alpha = 1
-        handleGraphics.interactive = true
-        handleGraphics.cursor = 'pointer'
+        const handleGraphics = createEditHandle({
+          size: handleSize,
+          color: handleColor,
+          borderColor: handleBorderColor,
+          borderWidth: 2,
+          position: { x: handle.x, y: handle.y },
+          cursor: 'pointer',
+        })
         handleGraphics.label = handle.type
 
         handleGraphics.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
@@ -433,8 +429,7 @@ export const usePixiEditor = ({
         existingHandles.parent.removeChild(existingHandles)
       }
 
-      const handlesContainer = new PIXI.Container()
-      handlesContainer.interactive = true
+      const handlesContainer = createContainer({ interactive: true })
 
       const wasVisible = text.visible
       const wasAlpha = text.alpha
@@ -479,18 +474,14 @@ export const usePixiEditor = ({
       ]
 
       handles.forEach((handle) => {
-        const handleGraphics = new PIXI.Graphics()
-        handleGraphics.clear()
-        handleGraphics.rect(-handleSize / 2, -handleSize / 2, handleSize, handleSize)
-        handleGraphics.fill({ color: handleColor, alpha: 1 })
-        handleGraphics.setStrokeStyle({ color: handleBorderColor, width: 2, alpha: 1 })
-        handleGraphics.stroke()
-        handleGraphics.x = handle.x
-        handleGraphics.y = handle.y
-        handleGraphics.visible = true
-        handleGraphics.alpha = 1
-        handleGraphics.interactive = true
-        handleGraphics.cursor = 'pointer'
+        const handleGraphics = createEditHandle({
+          size: handleSize,
+          color: handleColor,
+          borderColor: handleBorderColor,
+          borderWidth: 2,
+          position: { x: handle.x, y: handle.y },
+          cursor: 'pointer',
+        })
         handleGraphics.label = handle.type
 
         handleGraphics.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {

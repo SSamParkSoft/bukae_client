@@ -1,96 +1,56 @@
 'use client'
 
-import { memo, useCallback, useRef } from 'react'
+import { memo } from 'react'
 import { TimelineBar, SpeedSelector, ExportButton } from './index'
-import { useProStep3Container } from '../hooks/useProStep3Container'
-import type { ProStep3Scene } from '../model/types'
+import { useTimelineDrag } from '../hooks/playback/useTimelineDrag'
+import type { TimelineData } from '@/store/useVideoCreateStore'
 
 interface ProPreviewPanelProps {
-  currentVideoUrl?: string | null
-  currentImageUrl?: string | null
-  currentSelectionStartSeconds?: number
-  currentSceneIndex?: number
-  scenes: ProStep3Scene[]
-  scenePlaybackRequest?: { sceneIndex: number; requestId: number } | null
+  playbackContainerRef: React.RefObject<HTMLDivElement | null>
+  pixiContainerRef: React.RefObject<HTMLDivElement | null>
+  timelineBarRef: React.RefObject<HTMLDivElement | null>
+  currentTime: number
+  totalDuration: number
+  playbackSpeed: number
+  setPlaybackSpeed: (speed: number) => void
+  canvasDisplaySize: { width: number; height: number } | null
+  handlePlayPause: () => void
+  handleTimelineSeek: (ratio: number) => void
+  handleSceneImageFitChange: (index: number, fit: 'cover' | 'contain' | 'fill') => void
+  timeline: TimelineData | null
   isPlaying: boolean
-  onBeforePlay?: () => boolean
-  onPlayingChange?: (isPlaying: boolean) => void
-  onScenePlaybackComplete?: () => void
   bgmTemplate?: string | null
   confirmedBgmTemplate?: string | null
+  currentVideoUrl?: string | null
+  currentImageUrl?: string | null
+  currentSceneIndex: number
   onExport?: () => void
   isExporting?: boolean
 }
 
 export const ProPreviewPanel = memo(function ProPreviewPanel({
-  currentVideoUrl,
-  currentImageUrl,
-  currentSceneIndex = 0,
-  scenes,
-  scenePlaybackRequest,
+  playbackContainerRef,
+  pixiContainerRef,
+  timelineBarRef,
+  currentTime,
+  totalDuration,
+  playbackSpeed,
+  setPlaybackSpeed,
+  canvasDisplaySize,
+  handlePlayPause,
+  handleTimelineSeek,
+  handleSceneImageFitChange,
+  timeline,
   isPlaying,
-  onBeforePlay,
-  onPlayingChange,
-  onScenePlaybackComplete,
   bgmTemplate,
   confirmedBgmTemplate,
+  currentVideoUrl,
+  currentImageUrl,
+  currentSceneIndex,
   onExport,
   isExporting = false,
 }: ProPreviewPanelProps) {
-  const container = useProStep3Container({
-    scenes,
-    currentSceneIndex,
-    isPlaying,
-    scenePlaybackRequest,
-    confirmedBgmTemplate,
-    onBeforePlay,
-    onPlayingChange,
-    onScenePlaybackComplete,
-  })
-
-  const {
-    playbackContainerRef,
-    pixiContainerRef,
-    timelineBarRef,
-    currentTime,
-    totalDuration,
-    playbackSpeed,
-    setPlaybackSpeed,
-    canvasDisplaySize,
-    handlePlayPause,
-    handleTimelineSeek,
-    handleSceneImageFitChange,
-    timeline,
-  } = container
-
-  const isDraggingTimelineRef = useRef(false)
-
-  const handleTimelineMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      const el = timelineBarRef.current
-      if (!el) return
-      const rect = el.getBoundingClientRect()
-      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-      handleTimelineSeek(ratio)
-      isDraggingTimelineRef.current = true
-
-      const onMove = (moveEvent: MouseEvent) => {
-        const bar = timelineBarRef.current
-        if (!bar) return
-        const rct = bar.getBoundingClientRect()
-        const r = Math.max(0, Math.min(1, (moveEvent.clientX - rct.left) / rct.width))
-        handleTimelineSeek(r)
-      }
-      const onUp = () => {
-        isDraggingTimelineRef.current = false
-        window.removeEventListener('mousemove', onMove)
-        window.removeEventListener('mouseup', onUp)
-      }
-      window.addEventListener('mousemove', onMove)
-      window.addEventListener('mouseup', onUp)
-    },
-    [timelineBarRef, handleTimelineSeek]
-  )
+  const { handleTimelineMouseDown } = useTimelineDrag(timelineBarRef, handleTimelineSeek)
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden min-h-0">
@@ -124,13 +84,8 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           playbackSpeed={playbackSpeed}
           isPlaying={isPlaying}
           onTimelineMouseDown={handleTimelineMouseDown}
-          timeline={null}
           bgmTemplate={confirmedBgmTemplate ?? bgmTemplate}
-          showGrid={false}
           onPlayPause={handlePlayPause}
-          isTtsBootstrapping={false}
-          isBgmBootstrapping={false}
-          isPreparing={false}
         />
 
         <SpeedSelector

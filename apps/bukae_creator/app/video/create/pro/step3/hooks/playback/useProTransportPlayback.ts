@@ -28,7 +28,7 @@ interface UseProTransportPlaybackParams {
   scenes: ProStep3Scene[]
   pixiReady: boolean
   renderAtRef: React.MutableRefObject<
-    ((tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number; forceRender?: boolean }) => void) | undefined
+    ((tSec: number, options?: { skipAnimation?: boolean; forceSceneIndex?: number; forceRender?: boolean; forceTransitionComplete?: boolean }) => void) | null
   >
   onBeforePlay?: () => boolean
   onPlayingChange?: (isPlaying: boolean) => void
@@ -133,7 +133,7 @@ export function useProTransportPlayback({
     transportHook.seek(targetTime)
     setCurrentTime(targetTime)
     if (renderAtRef.current) {
-      renderAtRef.current(targetTime, { forceSceneIndex: currentSceneIndex })
+      renderAtRef.current(targetTime, { forceSceneIndex: currentSceneIndex, forceTransitionComplete: true })
     }
     lastAutoSeekSceneIndexRef.current = currentSceneIndex
   }, [transportHook, currentSceneIndex, scenes, transportState.isPlaying, pixiReady, renderAtRef, setCurrentTime])

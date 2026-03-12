@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MutableRefObject } from 'react'
 import * as PIXI from 'pixi.js'
+import { createGraphics } from '@/utils/pixi/factory'
 
 interface UseGridManagerParams {
   showGrid: boolean
@@ -41,7 +42,7 @@ export function useGridManager({
     if (!showGrid) return
 
     const { width, height } = stageDimensions
-    const gridGraphics = new PIXI.Graphics()
+    const gridGraphics = createGraphics()
     
     // 격자 색상 설정
     const lineColor = 0xffffff
