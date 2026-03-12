@@ -934,7 +934,9 @@ export function useProTransportRenderer({
         0,
         targetScene.originalVideoDurationSeconds
       )
-      const targetVideoTimeForRender = shouldTransition ? transitionStartVideoTime : videoTime
+      // 재생 중 전환은 비디오를 살려두어 seek 플리커 방지, 정지 상태에선 첫 프레임 고정
+      const targetVideoTimeForRender =
+        shouldTransition && !transportState.isPlaying ? transitionStartVideoTime : videoTime
 
       const previousSceneEndVideoTime =
         previousScene && previousPlayable
@@ -1092,10 +1094,15 @@ export function useProTransportRenderer({
 
           // 크로스 전환이 필요하지만 스프라이트가 준비되지 않았으면 전환을 건너뜀
           if (!(needsCrossTransition && !canRenderCrossTransitionNow)) {
-            // 전환 중에는 현재 씬 비디오 일시정지
             const currentVideo = videoElementsRef.current.get(targetSceneIndex)
-            if (currentVideo && !currentVideo.paused) {
-              syncVideoToFrame(currentVideo, targetVideoTimeForRender)
+            if (currentVideo) {
+              if (transportState.isPlaying) {
+                // 재생 중 전환: 비디오를 계속 재생하여 seek 플리커 방지
+                syncVideoPlaybackToTimeline(currentVideo, targetScene, videoTime)
+              } else if (!currentVideo.paused) {
+                // 정지 상태 전환: 첫 프레임에 고정
+                syncVideoToFrame(currentVideo, targetVideoTimeForRender)
+              }
             }
 
             applySceneStartTransition({
@@ -1152,7 +1159,10 @@ export function useProTransportRenderer({
         currentSceneIndexRef.current = targetSceneIndex
         const immediateVideo = videoElementsRef.current.get(targetSceneIndex)
         if (immediateVideo) {
-          if (shouldTransition) {
+          if (shouldTransition && transportState.isPlaying) {
+            // 재생 중 전환: 비디오를 계속 재생하여 seek 플리커 방지
+            syncVideoPlaybackToTimeline(immediateVideo, targetScene, videoTime)
+          } else if (shouldTransition) {
             syncVideoToFrame(immediateVideo, targetVideoTimeForRender)
           } else {
             syncVideoPlaybackToTimeline(immediateVideo, targetScene, targetVideoTimeForRender)
@@ -1161,7 +1171,12 @@ export function useProTransportRenderer({
         if (needsCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
           const immediatePreviousVideo = videoElementsRef.current.get(previousSceneIndex)
           if (immediatePreviousVideo) {
-            syncVideoToFrame(immediatePreviousVideo, previousSceneEndVideoTime)
+            if (transportState.isPlaying) {
+              // 재생 중 전환: 이전 씬 비디오도 계속 재생 (fade-out 중이므로 selection end 초과 허용)
+              if (immediatePreviousVideo.paused) void immediatePreviousVideo.play().catch(() => undefined)
+            } else {
+              syncVideoToFrame(immediatePreviousVideo, previousSceneEndVideoTime)
+            }
           }
         }
         const appliedImmediately = applyVisualState()
@@ -1184,7 +1199,9 @@ export function useProTransportRenderer({
           }
           const loadedVideo = videoElementsRef.current.get(targetSceneIndex)
           if (loadedVideo) {
-            if (shouldTransition) {
+            if (shouldTransition && transportState.isPlaying) {
+              syncVideoPlaybackToTimeline(loadedVideo, targetScene, videoTime)
+            } else if (shouldTransition) {
               syncVideoToFrame(loadedVideo, targetVideoTimeForRender)
             } else {
               syncVideoPlaybackToTimeline(loadedVideo, targetScene, targetVideoTimeForRender)
@@ -1193,7 +1210,11 @@ export function useProTransportRenderer({
           if (needsCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
             const loadedPreviousVideo = videoElementsRef.current.get(previousSceneIndex)
             if (loadedPreviousVideo) {
-              syncVideoToFrame(loadedPreviousVideo, previousSceneEndVideoTime)
+              if (transportState.isPlaying) {
+                if (loadedPreviousVideo.paused) void loadedPreviousVideo.play().catch(() => undefined)
+              } else {
+                syncVideoToFrame(loadedPreviousVideo, previousSceneEndVideoTime)
+              }
             }
           }
           
@@ -1242,8 +1263,10 @@ export function useProTransportRenderer({
         }
 
         if (currentVideo) {
-          if (shouldTransition) {
-            // 전환 중에는 비디오를 항상 일시정지 상태로 유지
+          if (shouldTransition && transportState.isPlaying) {
+            // 재생 중 전환: 비디오를 계속 재생하여 seek 플리커 방지
+            syncVideoPlaybackToTimeline(currentVideo, targetScene, videoTime)
+          } else if (shouldTransition) {
             syncVideoToFrame(currentVideo, targetVideoTimeForRender)
           } else {
             syncVideoPlaybackToTimeline(currentVideo, targetScene, targetVideoTimeForRender)
@@ -1252,7 +1275,12 @@ export function useProTransportRenderer({
         if (needsCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
           const previousVideo = videoElementsRef.current.get(previousSceneIndex)
           if (previousVideo) {
-            syncVideoToFrame(previousVideo, previousSceneEndVideoTime)
+            if (transportState.isPlaying) {
+              // 재생 중 전환: 이전 씬 비디오도 계속 재생
+              if (previousVideo.paused) void previousVideo.play().catch(() => undefined)
+            } else {
+              syncVideoToFrame(previousVideo, previousSceneEndVideoTime)
+            }
           }
         }
         // 동일 씬 내 시작 프레임에서도 자막이 누락되지 않도록 매 tick에서 자막 동기화
