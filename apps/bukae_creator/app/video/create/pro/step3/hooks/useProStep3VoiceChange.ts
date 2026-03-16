@@ -57,6 +57,7 @@ export function useProStep3VoiceChange({
         return {
           ...s,
           voiceTemplate: newVoiceTemplate,
+          ttsAudioBase64: null,
           ...(newVoiceLabel !== undefined ? { voiceLabel: newVoiceLabel } : {}),
         } as typeof s
       })
@@ -148,6 +149,33 @@ export function useProStep3VoiceChange({
               })
             })
 
+            // storeScenes.ttsDuration + ttsAudioBase64 업데이트
+            // ttsAudioBase64를 저장해야 새로고침 후에도 새 보이스 음성이 복원됨
+            const newTtsDuration = result.parts.reduce((sum, p) => sum + p.durationSec, 0)
+            let newTtsAudioBase64: string | undefined
+            try {
+              const arrayBuffer = await firstPart.blob.arrayBuffer()
+              const uint8Array = new Uint8Array(arrayBuffer)
+              let binary = ''
+              for (let i = 0; i < uint8Array.length; i++) {
+                binary += String.fromCharCode(uint8Array[i])
+              }
+              newTtsAudioBase64 = btoa(binary)
+            } catch {
+              // base64 변환 실패 시 기존 값 유지
+            }
+            const latestScenes = useVideoCreateStore.getState().scenes
+            const updatedScenes = latestScenes.map((s, i) =>
+              i === idx
+                ? {
+                    ...s,
+                    ttsDuration: newTtsDuration,
+                    ...(newTtsAudioBase64 !== undefined ? { ttsAudioBase64: newTtsAudioBase64 } : {}),
+                  }
+                : s
+            )
+            setScenes(updatedScenes)
+
             changedScenesRef.current.delete(idx)
           }
         } catch {
@@ -170,7 +198,7 @@ export function useProStep3VoiceChange({
       setSynthesizingScenes(new Set())
       return true
     },
-    [setTimeline, containerTtsCacheRef]
+    [setTimeline, setScenes, containerTtsCacheRef]
   )
 
   return {
