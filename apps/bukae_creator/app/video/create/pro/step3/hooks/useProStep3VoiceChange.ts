@@ -57,7 +57,7 @@ export function useProStep3VoiceChange({
         return {
           ...s,
           voiceTemplate: newVoiceTemplate,
-          ttsAudioBase64: null,
+          ttsAudioBase64: undefined,
           ...(newVoiceLabel !== undefined ? { voiceLabel: newVoiceLabel } : {}),
         } as typeof s
       })
