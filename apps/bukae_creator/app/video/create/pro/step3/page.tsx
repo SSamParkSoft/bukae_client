@@ -15,6 +15,7 @@ import {
   useProStep3SelectionChange,
   useProStep3State,
 } from './hooks'
+import { useProStep3VoiceChange } from './hooks/useProStep3VoiceChange'
 import type { SceneScript } from '@/lib/types/domain/script'
 import { useTimelineInitializer } from '@/hooks/video/timeline/useTimelineInitializer'
 import { useProVideoExport } from '@/hooks/video/export/useProVideoExport'
@@ -116,6 +117,31 @@ export default function ProStep3Page() {
   })
 
   const { renderAtRef, enterEditMode } = container
+
+  const { handleVoiceChange, synthesizingScenes } = useProStep3VoiceChange({
+    isPlaying,
+    onPausePlayback: () => {
+      setIsPlaying(false)
+      setPlayingSceneIndex(null)
+    },
+    containerTtsCacheRef: container.ttsCacheRef,
+  })
+
+  const handleVoiceSelect = useCallback(
+    (voiceTemplate: string | null, _voiceLabel: string) => {
+      handleVoiceChange([currentSceneIndex], voiceTemplate)
+    },
+    [currentSceneIndex, handleVoiceChange]
+  )
+
+  const handleVoiceSelectForAll = useCallback(
+    (voiceTemplate: string | null, _voiceLabel: string) => {
+      if (!timeline) return
+      const allIndices = timeline.scenes.map((_, i) => i)
+      handleVoiceChange(allIndices, voiceTemplate)
+    },
+    [timeline, handleVoiceChange]
+  )
 
   const currentScene = proStep3Scenes[currentSceneIndex]
   const currentVideoUrl = currentScene?.videoUrl || null
@@ -315,6 +341,10 @@ export default function ProStep3Page() {
               onSoundEffectConfirm={handleSoundEffectConfirm}
               setTimeline={setTimeline}
               onMotionChange={handleMotionChange}
+              currentVoiceTemplate={timeline?.scenes[currentSceneIndex]?.voiceTemplate}
+              synthesizingScenes={synthesizingScenes}
+              onVoiceSelect={handleVoiceSelect}
+              onVoiceSelectForAll={handleVoiceSelectForAll}
             />
           </div>
         </motion.div>

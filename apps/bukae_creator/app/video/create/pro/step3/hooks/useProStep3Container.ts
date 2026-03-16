@@ -1185,7 +1185,8 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     rootContainerRef,
     videoContainerRef,
     subtitleContainerRef,
-    
+    ttsCacheRef,
+
     // State
     currentTime,
     setCurrentTime,
