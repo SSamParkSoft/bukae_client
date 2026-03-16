@@ -441,7 +441,7 @@ export function ProStep3VoicePanel({
   const isSynthesizing = synthesizingScenes && synthesizingScenes.size > 0
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-6">
       <div className="flex items-center gap-2">
         <h3
           className="font-bold text-text-dark tracking-[-0.4px]"
