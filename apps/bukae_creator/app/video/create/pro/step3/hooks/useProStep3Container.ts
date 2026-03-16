@@ -138,40 +138,40 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
 
         try {
           const base64Data = extended.ttsAudioBase64
-          const byteCharacters = atob(base64Data)
-          const byteNumbers = new Array(byteCharacters.length)
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i)
+          const binaryString = atob(base64Data)
+          const byteArray = new Uint8Array(binaryString.length)
+          for (let i = 0; i < binaryString.length; i++) {
+            byteArray[i] = binaryString.charCodeAt(i)
           }
-          const byteArray = new Uint8Array(byteNumbers)
           const blob = new Blob([byteArray], { type: 'audio/mpeg' })
 
-          const audio = new Audio(URL.createObjectURL(blob))
-          
+          const cacheUrl = URL.createObjectURL(blob)
+          const audio = new Audio(cacheUrl)
+
           const cleanup = () => {
             audio.removeEventListener('loadedmetadata', onLoadedMetadata)
             audio.removeEventListener('error', onError)
-            URL.revokeObjectURL(audio.src)
           }
 
           const onLoadedMetadata = () => {
             if (cancelled) {
+              URL.revokeObjectURL(cacheUrl)
               cleanup()
               resolve()
               return
             }
 
             const duration = audio.duration
-            const url = URL.createObjectURL(blob)
+            audio.src = ''
 
             if (!ttsCacheRef.current.has(ttsKey)) {
               ttsCacheRef.current.set(ttsKey, {
                 blob,
                 durationSec: duration,
-                url,
+                url: cacheUrl,
               })
             } else {
-              URL.revokeObjectURL(url)
+              URL.revokeObjectURL(cacheUrl)
             }
 
             cleanup()
@@ -179,6 +179,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
           }
 
           const onError = () => {
+            URL.revokeObjectURL(cacheUrl)
             cleanup()
             resolve()
           }
@@ -711,7 +712,6 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     isPlaying: transportState.isPlaying,
     pixiReady,
     playbackSpeed,
-    currentTime,
     scenes,
     ttsCacheRef,
     ttsAudioRefsRef,

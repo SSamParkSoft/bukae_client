@@ -140,15 +140,6 @@ export function useProStep3VoiceChange({
               })
             }
 
-            // markup 기반 키도 동기화
-            ttsCacheRef.current.forEach((entry, key) => {
-              containerTtsCacheRef.current.set(key, {
-                blob: entry.blob,
-                durationSec: entry.durationSec,
-                url: entry.url,
-              })
-            })
-
             // storeScenes.ttsDuration + ttsAudioBase64 업데이트
             // ttsAudioBase64를 저장해야 새로고침 후에도 새 보이스 음성이 복원됨
             const newTtsDuration = result.parts.reduce((sum, p) => sum + p.durationSec, 0)

@@ -5,6 +5,7 @@ import { ProPreviewPanel } from './ui/ProPreviewPanel'
 import { ProSceneListPanel } from './ui/ProSceneListPanel'
 import { ProEffectsPanel } from './ui/ProEffectsPanel'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
+import { useShallow } from 'zustand/shallow'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { allTransitions, transitions, movements } from '@/lib/data/transitions'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
@@ -36,7 +37,22 @@ export default function ProStep3Page() {
     videoTitle,
     videoDescription,
     selectedProducts,
-  } = useVideoCreateStore()
+  } = useVideoCreateStore(
+    useShallow((s) => ({
+      scenes: s.scenes,
+      setScenes: s.setScenes,
+      bgmTemplate: s.bgmTemplate,
+      setBgmTemplate: s.setBgmTemplate,
+      timeline: s.timeline,
+      setTimeline: s.setTimeline,
+      subtitleFont: s.subtitleFont,
+      subtitleColor: s.subtitleColor,
+      subtitlePosition: s.subtitlePosition,
+      videoTitle: s.videoTitle,
+      videoDescription: s.videoDescription,
+      selectedProducts: s.selectedProducts,
+    }))
+  )
 
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -127,20 +143,31 @@ export default function ProStep3Page() {
     containerTtsCacheRef: container.ttsCacheRef,
   })
 
+  const currentSceneIndexRef = useRef(currentSceneIndex)
+  useEffect(() => {
+    currentSceneIndexRef.current = currentSceneIndex
+  }, [currentSceneIndex])
+
+  const timelineForVoiceRef = useRef(timeline)
+  useEffect(() => {
+    timelineForVoiceRef.current = timeline
+  }, [timeline])
+
   const handleVoiceSelect = useCallback(
     (voiceTemplate: string | null, voiceLabel: string) => {
-      handleVoiceChange([currentSceneIndex], voiceTemplate, voiceLabel)
+      handleVoiceChange([currentSceneIndexRef.current], voiceTemplate, voiceLabel)
     },
-    [currentSceneIndex, handleVoiceChange]
+    [handleVoiceChange]
   )
 
   const handleVoiceSelectForAll = useCallback(
     (voiceTemplate: string | null, voiceLabel: string) => {
-      if (!timeline) return
-      const allIndices = timeline.scenes.map((_, i) => i)
+      const t = timelineForVoiceRef.current
+      if (!t) return
+      const allIndices = t.scenes.map((_, i) => i)
       handleVoiceChange(allIndices, voiceTemplate, voiceLabel)
     },
-    [timeline, handleVoiceChange]
+    [handleVoiceChange]
   )
 
   const currentScene = proStep3Scenes[currentSceneIndex]
