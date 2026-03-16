@@ -3,7 +3,6 @@
 import { useMemo } from 'react'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
-import { normalizeSelectionRange } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
 import type { ProStep3Scene } from '@/app/video/create/pro/step3/model/types'
 
 // Pro step2에서 사용하는 확장된 Scene 타입
