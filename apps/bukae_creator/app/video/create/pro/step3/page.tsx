@@ -118,7 +118,7 @@ export default function ProStep3Page() {
 
   const { renderAtRef, enterEditMode } = container
 
-  const { handleVoiceChange, synthesizingScenes } = useProStep3VoiceChange({
+  const { handleVoiceChange, synthesizingScenes, isPreparing, preparePlayback } = useProStep3VoiceChange({
     isPlaying,
     onPausePlayback: () => {
       setIsPlaying(false)
@@ -128,17 +128,17 @@ export default function ProStep3Page() {
   })
 
   const handleVoiceSelect = useCallback(
-    (voiceTemplate: string | null, _voiceLabel: string) => {
-      handleVoiceChange([currentSceneIndex], voiceTemplate)
+    (voiceTemplate: string | null, voiceLabel: string) => {
+      handleVoiceChange([currentSceneIndex], voiceTemplate, voiceLabel)
     },
     [currentSceneIndex, handleVoiceChange]
   )
 
   const handleVoiceSelectForAll = useCallback(
-    (voiceTemplate: string | null, _voiceLabel: string) => {
+    (voiceTemplate: string | null, voiceLabel: string) => {
       if (!timeline) return
       const allIndices = timeline.scenes.map((_, i) => i)
-      handleVoiceChange(allIndices, voiceTemplate)
+      handleVoiceChange(allIndices, voiceTemplate, voiceLabel)
     },
     [timeline, handleVoiceChange]
   )
@@ -201,6 +201,21 @@ export default function ProStep3Page() {
       requestId: (prev?.requestId ?? 0) + 1,
     }))
   }, [isPlaying, playingSceneIndex, proStep3Scenes])
+
+  const handlePlayPauseWithPrep = useCallback(async () => {
+    if (isPlaying) {
+      container.handlePlayPause()
+      return
+    }
+    if (!canStartPlayback()) return
+    const ok = await preparePlayback()
+    if (ok) container.handlePlayPause()
+  }, [isPlaying, canStartPlayback, preparePlayback, container])
+
+  const handleScenePlayWithPrep = useCallback(async (sceneIndex: number) => {
+    const ok = await preparePlayback([sceneIndex])
+    if (ok) handleScenePlay(sceneIndex)
+  }, [preparePlayback, handleScenePlay])
 
   const handleSceneReorder = useCallback(
     (newOrder: number[]) => {
@@ -280,11 +295,12 @@ export default function ProStep3Page() {
               playbackSpeed={container.playbackSpeed}
               setPlaybackSpeed={container.setPlaybackSpeed}
               canvasDisplaySize={container.canvasDisplaySize}
-              handlePlayPause={container.handlePlayPause}
+              handlePlayPause={handlePlayPauseWithPrep}
               handleTimelineSeek={container.handleTimelineSeek}
               handleSceneImageFitChange={container.handleSceneImageFitChange}
               timeline={container.timeline}
               isPlaying={isPlaying}
+              isPreparing={isPreparing}
               bgmTemplate={bgmTemplate}
               confirmedBgmTemplate={confirmedBgmTemplate}
               currentVideoUrl={currentVideoUrl}
@@ -307,7 +323,7 @@ export default function ProStep3Page() {
               isTtsBootstrapping={false}
               onSelect={handleSceneSelect}
               onReorder={handleSceneReorder}
-              onPlayScene={handleScenePlay}
+              onPlayScene={handleScenePlayWithPrep}
               onVideoUpload={handleVideoUpload}
               uploadingSceneIndex={uploadingSceneIndex}
               compressingSceneIndex={compressingSceneIndex}

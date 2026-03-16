@@ -14,11 +14,12 @@ interface ProPreviewPanelProps {
   playbackSpeed: number
   setPlaybackSpeed: (speed: number) => void
   canvasDisplaySize: { width: number; height: number } | null
-  handlePlayPause: () => void
+  handlePlayPause: () => void | Promise<void>
   handleTimelineSeek: (ratio: number) => void
   handleSceneImageFitChange: (index: number, fit: 'cover' | 'contain' | 'fill') => void
   timeline: TimelineData | null
   isPlaying: boolean
+  isPreparing?: boolean
   bgmTemplate?: string | null
   confirmedBgmTemplate?: string | null
   currentVideoUrl?: string | null
@@ -42,6 +43,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
   handleSceneImageFitChange,
   timeline,
   isPlaying,
+  isPreparing = false,
   bgmTemplate,
   confirmedBgmTemplate,
   currentVideoUrl,
@@ -83,6 +85,7 @@ export const ProPreviewPanel = memo(function ProPreviewPanel({
           progressRatio={totalDuration > 0 ? currentTime / totalDuration : 0}
           playbackSpeed={playbackSpeed}
           isPlaying={isPlaying}
+          isPreparing={isPreparing}
           onTimelineMouseDown={handleTimelineMouseDown}
           bgmTemplate={confirmedBgmTemplate ?? bgmTemplate}
           onPlayPause={handlePlayPause}
