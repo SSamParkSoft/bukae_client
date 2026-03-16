@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { PlusCircle } from 'lucide-react'
 import { ProVideoEditSceneCard } from './ProVideoEditSceneCard'
 import { AiScriptGenerateButton } from './script'
 
@@ -41,6 +42,7 @@ export interface ProVideoEditSectionProps {
   onDragEnd?: () => void
   onVoiceClick?: (index: number) => void
   onDeleteScene?: (index: number) => void
+  onAddScene?: () => void
   draggedIndex?: number | null
   dragOver?: { index: number; position: 'before' | 'after' } | null
   uploadingSceneIndex?: number | null
@@ -66,6 +68,7 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
   onDragEnd,
   onVoiceClick,
   onDeleteScene,
+  onAddScene,
   draggedIndex = null,
   dragOver: dragOverProp = null,
   uploadingSceneIndex = null,
@@ -147,6 +150,20 @@ export const ProVideoEditSection = memo(function ProVideoEditSection({
           />
         ))}
       </div>
+
+      {onAddScene && (
+        <div className="flex justify-center pt-2">
+          <button
+            type="button"
+            onClick={onAddScene}
+            className="flex flex-col items-center gap-1.5 text-[#5e8790] hover:text-[#5e8790]/70 transition-colors"
+            aria-label="씬 추가"
+          >
+            <PlusCircle className="w-10 h-10" strokeWidth={1.5} />
+            <span className="text-sm font-medium">씬 추가</span>
+          </button>
+        </div>
+      )}
     </section>
   )
 })
