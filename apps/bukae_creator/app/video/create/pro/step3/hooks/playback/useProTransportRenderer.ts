@@ -558,6 +558,23 @@ export function useProTransportRenderer({
   const transitionDebugPairRef = useRef<string | null>(null)
   const playableScenes = useMemo(() => getPlayableScenes(scenes), [scenes])
 
+  // C1: 자주 바뀌는 값을 ref로 관리하여 renderAt useCallback deps에서 제거
+  const scenesRef = useRef(scenes)
+  const timelineRef = useRef(timeline)
+  const playableScenesRef = useRef(playableScenes)
+  const isPlayingRef = useRef(transportState.isPlaying)
+  const playbackRateRef = useRef(transportState.playbackRate)
+  const transportRefInner = useRef(transportHook.transport)
+  // m1: 마지막으로 렌더된 자막 추적 (중복 호출 방지)
+  const lastSubtitleRef = useRef<{ sceneIndex: number; script: string } | null>(null)
+
+  useEffect(() => { scenesRef.current = scenes }, [scenes])
+  useEffect(() => { timelineRef.current = timeline }, [timeline])
+  useEffect(() => { playableScenesRef.current = playableScenes }, [playableScenes])
+  useEffect(() => { isPlayingRef.current = transportState.isPlaying }, [transportState.isPlaying])
+  useEffect(() => { playbackRateRef.current = transportState.playbackRate }, [transportState.playbackRate])
+  useEffect(() => { transportRefInner.current = transportHook.transport }, [transportHook.transport])
+
   const syncVideoPlaybackToTimeline = useCallback(
     (video: HTMLVideoElement, scene: ProStep3Scene, expectedVideoTime: number) => {
       if (video.readyState < 2) {
@@ -575,7 +592,7 @@ export function useProTransportRenderer({
         video.currentTime = expectedVideoTime
       }
 
-      if (!transportState.isPlaying || reachedSegmentEnd) {
+      if (!isPlayingRef.current || reachedSegmentEnd) {
         if (!video.paused) {
           video.pause()
         }
@@ -585,15 +602,15 @@ export function useProTransportRenderer({
         return
       }
 
-      if (video.playbackRate !== transportState.playbackRate) {
-        video.playbackRate = transportState.playbackRate
+      if (video.playbackRate !== playbackRateRef.current) {
+        video.playbackRate = playbackRateRef.current
       }
 
       if (video.paused) {
         void video.play().catch(() => undefined)
       }
     },
-    [transportState.isPlaying, transportState.playbackRate]
+    []
   )
 
   // 사전 로딩 로직: 전환 예상 시점 이전에 관련 씬들 미리 로드
@@ -713,6 +730,11 @@ export function useProTransportRenderer({
 
   const renderAt = useCallback(
     (tSec: number, options?: RenderAtOptions) => {
+      // C1: ref에서 최신 값을 읽어 deps 불필요하게 만듦
+      const scenes = scenesRef.current
+      const timeline = timelineRef.current
+      const playableScenes = playableScenesRef.current
+
       if (!pixiReady || !timeline || !appRef.current) {
         return
       }
@@ -853,7 +875,7 @@ export function useProTransportRenderer({
 
               // 현재 타임라인 시간 기준으로 다시 렌더링
               const currentT =
-                transportHook.transport?.getTime() ?? initialTime
+                transportRefInner.current?.getTime() ?? initialTime
 
               rerender(currentT, {
                 forceSceneIndex: targetSceneIndex,
@@ -936,7 +958,7 @@ export function useProTransportRenderer({
       )
       // 재생 중 전환은 비디오를 살려두어 seek 플리커 방지, 정지 상태에선 첫 프레임 고정
       const targetVideoTimeForRender =
-        shouldTransition && !transportState.isPlaying ? transitionStartVideoTime : videoTime
+        shouldTransition && !isPlayingRef.current ? transitionStartVideoTime : videoTime
 
       const previousSceneEndVideoTime =
         previousScene && previousPlayable
@@ -1096,7 +1118,7 @@ export function useProTransportRenderer({
           if (!(needsCrossTransition && !canRenderCrossTransitionNow)) {
             const currentVideo = videoElementsRef.current.get(targetSceneIndex)
             if (currentVideo) {
-              if (transportState.isPlaying) {
+              if (isPlayingRef.current) {
                 // 재생 중 전환: 비디오를 계속 재생하여 seek 플리커 방지
                 syncVideoPlaybackToTimeline(currentVideo, targetScene, videoTime)
               } else if (!currentVideo.paused) {
@@ -1156,10 +1178,11 @@ export function useProTransportRenderer({
       if (sceneChanged || options?.forceSceneIndex !== undefined) {
         // 씬 전환 순간에도 자막이 즉시 보이도록 비디오 로드 전 먼저 렌더링
         renderSubtitle(targetSceneIndex, targetScene.script ?? '')
+        lastSubtitleRef.current = { sceneIndex: targetSceneIndex, script: targetScene.script ?? '' }
         currentSceneIndexRef.current = targetSceneIndex
         const immediateVideo = videoElementsRef.current.get(targetSceneIndex)
         if (immediateVideo) {
-          if (shouldTransition && transportState.isPlaying) {
+          if (shouldTransition && isPlayingRef.current) {
             // 재생 중 전환: 비디오를 계속 재생하여 seek 플리커 방지
             syncVideoPlaybackToTimeline(immediateVideo, targetScene, videoTime)
           } else if (shouldTransition) {
@@ -1171,7 +1194,7 @@ export function useProTransportRenderer({
         if (needsCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
           const immediatePreviousVideo = videoElementsRef.current.get(previousSceneIndex)
           if (immediatePreviousVideo) {
-            if (transportState.isPlaying) {
+            if (isPlayingRef.current) {
               // 재생 중 전환: 이전 씬 비디오도 계속 재생 (fade-out 중이므로 selection end 초과 허용)
               if (immediatePreviousVideo.paused) void immediatePreviousVideo.play().catch(() => undefined)
             } else {
@@ -1199,7 +1222,7 @@ export function useProTransportRenderer({
           }
           const loadedVideo = videoElementsRef.current.get(targetSceneIndex)
           if (loadedVideo) {
-            if (shouldTransition && transportState.isPlaying) {
+            if (shouldTransition && isPlayingRef.current) {
               syncVideoPlaybackToTimeline(loadedVideo, targetScene, videoTime)
             } else if (shouldTransition) {
               syncVideoToFrame(loadedVideo, targetVideoTimeForRender)
@@ -1210,7 +1233,7 @@ export function useProTransportRenderer({
           if (needsCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
             const loadedPreviousVideo = videoElementsRef.current.get(previousSceneIndex)
             if (loadedPreviousVideo) {
-              if (transportState.isPlaying) {
+              if (isPlayingRef.current) {
                 if (loadedPreviousVideo.paused) void loadedPreviousVideo.play().catch(() => undefined)
               } else {
                 syncVideoToFrame(loadedPreviousVideo, previousSceneEndVideoTime)
@@ -1236,13 +1259,13 @@ export function useProTransportRenderer({
             lastRenderedSceneIndexRef.current = applied ? targetSceneIndex : -1
 
             // Play 모드에서 로딩 완료 후 즉시 전환 적용을 위해 한 번 더 렌더링
-            if (applied && transportState.isPlaying) {
+            if (applied && isPlayingRef.current) {
               requestAnimationFrame(() => {
                 if (requestId !== renderRequestIdRef.current) {
                   return
                 }
-                const currentT = transportHook.transport?.getTime() ?? 0
-                const currentResolved = resolveProSceneAtTime(scenes, currentT, {
+                const currentT = transportRefInner.current?.getTime() ?? 0
+                const currentResolved = resolveProSceneAtTime(scenesRef.current, currentT, {
                   forceSceneIndex: targetSceneIndex,
                 })
                 if (currentResolved && currentResolved.sceneIndex === targetSceneIndex) {
@@ -1258,12 +1281,16 @@ export function useProTransportRenderer({
         if (!currentSprite || currentSprite.destroyed || !currentVideo) {
           // 동일 씬에서 자원이 빠진 상태면 sceneChanged 경로로 다시 진입해 재로딩
           lastRenderedSceneIndexRef.current = -1
-          renderSubtitle(targetSceneIndex, targetScene.script ?? '')
+          const fallbackScript = targetScene.script ?? ''
+          if (lastSubtitleRef.current?.sceneIndex !== targetSceneIndex || lastSubtitleRef.current?.script !== fallbackScript) {
+            renderSubtitle(targetSceneIndex, fallbackScript)
+            lastSubtitleRef.current = { sceneIndex: targetSceneIndex, script: fallbackScript }
+          }
           return
         }
 
         if (currentVideo) {
-          if (shouldTransition && transportState.isPlaying) {
+          if (shouldTransition && isPlayingRef.current) {
             // 재생 중 전환: 비디오를 계속 재생하여 seek 플리커 방지
             syncVideoPlaybackToTimeline(currentVideo, targetScene, videoTime)
           } else if (shouldTransition) {
@@ -1275,7 +1302,7 @@ export function useProTransportRenderer({
         if (needsCrossTransition && previousSceneIndex !== null && previousSceneEndVideoTime !== null) {
           const previousVideo = videoElementsRef.current.get(previousSceneIndex)
           if (previousVideo) {
-            if (transportState.isPlaying) {
+            if (isPlayingRef.current) {
               // 재생 중 전환: 이전 씬 비디오도 계속 재생
               if (previousVideo.paused) void previousVideo.play().catch(() => undefined)
             } else {
@@ -1283,8 +1310,12 @@ export function useProTransportRenderer({
             }
           }
         }
-        // 동일 씬 내 시작 프레임에서도 자막이 누락되지 않도록 매 tick에서 자막 동기화
-        renderSubtitle(targetSceneIndex, targetScene.script ?? '')
+        // 동일 씬 내 시작 프레임에서도 자막이 누락되지 않도록 매 tick에서 자막 동기화 (중복 방지)
+        const subtitleScript = targetScene.script ?? ''
+        if (lastSubtitleRef.current?.sceneIndex !== targetSceneIndex || lastSubtitleRef.current?.script !== subtitleScript) {
+          renderSubtitle(targetSceneIndex, subtitleScript)
+          lastSubtitleRef.current = { sceneIndex: targetSceneIndex, script: subtitleScript }
+        }
         const applied = applyVisualState()
         if (!applied) {
           lastRenderedSceneIndexRef.current = -1
@@ -1302,14 +1333,11 @@ export function useProTransportRenderer({
       pixiReady,
       renderSubtitle,
       syncVideoPlaybackToTimeline,
-      scenes,
-      playableScenes,
       spritesRef,
-      timeline,
       videoElementsRef,
       sceneLoadingStateRef,
-      transportState.isPlaying,
-      transportHook.transport,
+      // C1: scenes, timeline, playableScenes, transportState.isPlaying, transportHook.transport은
+      // ref로 관리하므로 deps에서 제거 → renderAt 재생성 횟수 최소화
     ]
   )
 

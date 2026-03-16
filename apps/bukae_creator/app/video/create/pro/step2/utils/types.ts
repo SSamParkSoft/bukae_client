@@ -13,12 +13,20 @@ export type ProScene = {
   voiceTemplate?: string | null
   ttsDuration?: number // TTS duration (초)
   ttsAudioBase64?: string // TTS 오디오 데이터 (base64 인코딩된 문자열) - Step2에서 합성된 오디오를 Step3에서 사용하기 위해 저장
+  /** ttsAudioBase64가 생성될 당시의 스크립트 (캐시 유효성 검사용) */
+  ttsGeneratedFromScript?: string
+  /** ttsAudioBase64가 생성될 당시의 보이스 템플릿 (캐시 유효성 검사용) */
+  ttsGeneratedFromVoiceTemplate?: string | null
   videoUrl?: string | null // 업로드된 영상 URL
   imageUrl?: string | null // 업로드된 이미지 URL
   selectionStartSeconds?: number // 격자 선택 영역 시작 시간 (초)
   selectionEndSeconds?: number // 격자 선택 영역 끝 시간 (초)
   /** 업로드된 원본 영상 길이(초). TTS보다 짧을 때 이어붙여 격자 배경 길이 계산용 (Step3) */
   originalVideoDurationSeconds?: number
+  /** AI 스크립트 생성 버튼으로 생성된 경우 true (teal 뱃지 표시용) */
+  scriptGeneratedByAi?: boolean
+  /** AI 촬영가이드 생성 버튼으로 생성된 경우 true (teal 뱃지 표시용) */
+  guideGeneratedByAi?: boolean
 }
 
 /**
@@ -31,6 +39,8 @@ export type ExtendedSceneScript = SceneScript & {
   voiceTemplate?: string | null
   ttsDuration?: number // TTS duration (초)
   ttsAudioBase64?: string // TTS 오디오 데이터 (base64 인코딩된 문자열) - Step2에서 합성된 오디오를 Step3에서 사용하기 위해 저장
+  ttsGeneratedFromScript?: string
+  ttsGeneratedFromVoiceTemplate?: string | null
   videoUrl?: string | null // 업로드된 영상 URL
   imageUrl?: string | null // 업로드된 이미지 URL
   selectionStartSeconds?: number // 격자 선택 영역 시작 시간 (초)
@@ -42,7 +52,7 @@ export type ExtendedSceneScript = SceneScript & {
  * 고유 ID 생성 헬퍼 함수
  */
 export function generateSceneId(): string {
-  return `scene-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  return `scene-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
 }
 
 /**
@@ -58,11 +68,15 @@ export function sceneScriptToProScene(s: SceneScript, _index: number): ProScene 
     voiceTemplate: extended.voiceTemplate,
     ttsDuration: extended.ttsDuration,
     ttsAudioBase64: extended.ttsAudioBase64,
+    ttsGeneratedFromScript: extended.ttsGeneratedFromScript,
+    ttsGeneratedFromVoiceTemplate: extended.ttsGeneratedFromVoiceTemplate,
     videoUrl: extended.videoUrl,
     imageUrl: extended.imageUrl,
     selectionStartSeconds: extended.selectionStartSeconds,
     selectionEndSeconds: extended.selectionEndSeconds,
     originalVideoDurationSeconds: extended.originalVideoDurationSeconds,
+    scriptGeneratedByAi: s.isAiGenerated === true,
+    guideGeneratedByAi: s.guideGeneratedByAi === true,
   }
 }
 
@@ -79,10 +93,14 @@ export function proSceneToSceneScript(s: ProScene, index: number): ExtendedScene
     voiceTemplate: s.voiceTemplate,
     ttsDuration: s.ttsDuration,
     ttsAudioBase64: s.ttsAudioBase64,
+    ttsGeneratedFromScript: s.ttsGeneratedFromScript,
+    ttsGeneratedFromVoiceTemplate: s.ttsGeneratedFromVoiceTemplate,
     videoUrl: s.videoUrl,
     imageUrl: s.imageUrl ?? undefined,
     selectionStartSeconds: s.selectionStartSeconds,
     selectionEndSeconds: s.selectionEndSeconds,
     originalVideoDurationSeconds: s.originalVideoDurationSeconds,
+    isAiGenerated: s.scriptGeneratedByAi === true,
+    guideGeneratedByAi: s.guideGeneratedByAi === true,
   }
 }

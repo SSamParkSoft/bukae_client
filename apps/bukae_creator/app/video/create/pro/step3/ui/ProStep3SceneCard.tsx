@@ -140,8 +140,9 @@ export const ProStep3SceneCard = memo(function ProStep3SceneCard({
   const [openEffectId, setOpenEffectId] = useState<'animation' | 'subtitle' | 'sound' | null>(null)
   const leaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 타임라인/프레임바 스케일 (1보다 작으면 전체적으로 축소)
-  const TIMELINE_SCALE = 0.85
+  // 타임라인/프레임바 스케일
+  // Step2의 ProVideoEditSceneCard와 동일한 격자 크기를 맞추기 위해 1로 고정
+  const TIMELINE_SCALE = 1
   const FRAME_WIDTH = Math.round(74 * TIMELINE_SCALE)
   const FRAME_HEIGHT = Math.round(84 * TIMELINE_SCALE)
   const TIMELINE_PADDING = Math.round(18 * TIMELINE_SCALE)

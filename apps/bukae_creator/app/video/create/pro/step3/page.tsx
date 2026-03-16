@@ -5,6 +5,7 @@ import { ProPreviewPanel } from './ui/ProPreviewPanel'
 import { ProSceneListPanel } from './ui/ProSceneListPanel'
 import { ProEffectsPanel } from './ui/ProEffectsPanel'
 import { useVideoCreateStore } from '@/store/useVideoCreateStore'
+import { useShallow } from 'zustand/shallow'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { allTransitions, transitions, movements } from '@/lib/data/transitions'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
@@ -15,6 +16,7 @@ import {
   useProStep3SelectionChange,
   useProStep3State,
 } from './hooks'
+import { useProStep3VoiceChange } from './hooks/useProStep3VoiceChange'
 import type { SceneScript } from '@/lib/types/domain/script'
 import { useTimelineInitializer } from '@/hooks/video/timeline/useTimelineInitializer'
 import { useProVideoExport } from '@/hooks/video/export/useProVideoExport'
@@ -35,7 +37,22 @@ export default function ProStep3Page() {
     videoTitle,
     videoDescription,
     selectedProducts,
-  } = useVideoCreateStore()
+  } = useVideoCreateStore(
+    useShallow((s) => ({
+      scenes: s.scenes,
+      setScenes: s.setScenes,
+      bgmTemplate: s.bgmTemplate,
+      setBgmTemplate: s.setBgmTemplate,
+      timeline: s.timeline,
+      setTimeline: s.setTimeline,
+      subtitleFont: s.subtitleFont,
+      subtitleColor: s.subtitleColor,
+      subtitlePosition: s.subtitlePosition,
+      videoTitle: s.videoTitle,
+      videoDescription: s.videoDescription,
+      selectedProducts: s.selectedProducts,
+    }))
+  )
 
   const [currentSceneIndex, setCurrentSceneIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -117,6 +134,42 @@ export default function ProStep3Page() {
 
   const { renderAtRef, enterEditMode } = container
 
+  const { handleVoiceChange, synthesizingScenes, isPreparing, preparePlayback } = useProStep3VoiceChange({
+    isPlaying,
+    onPausePlayback: () => {
+      setIsPlaying(false)
+      setPlayingSceneIndex(null)
+    },
+    containerTtsCacheRef: container.ttsCacheRef,
+  })
+
+  const currentSceneIndexRef = useRef(currentSceneIndex)
+  useEffect(() => {
+    currentSceneIndexRef.current = currentSceneIndex
+  }, [currentSceneIndex])
+
+  const timelineForVoiceRef = useRef(timeline)
+  useEffect(() => {
+    timelineForVoiceRef.current = timeline
+  }, [timeline])
+
+  const handleVoiceSelect = useCallback(
+    (voiceTemplate: string | null, voiceLabel: string) => {
+      handleVoiceChange([currentSceneIndexRef.current], voiceTemplate, voiceLabel)
+    },
+    [handleVoiceChange]
+  )
+
+  const handleVoiceSelectForAll = useCallback(
+    (voiceTemplate: string | null, voiceLabel: string) => {
+      const t = timelineForVoiceRef.current
+      if (!t) return
+      const allIndices = t.scenes.map((_, i) => i)
+      handleVoiceChange(allIndices, voiceTemplate, voiceLabel)
+    },
+    [handleVoiceChange]
+  )
+
   const currentScene = proStep3Scenes[currentSceneIndex]
   const currentVideoUrl = currentScene?.videoUrl || null
   const currentImageUrl = currentScene?.imageUrl || null
@@ -175,6 +228,21 @@ export default function ProStep3Page() {
       requestId: (prev?.requestId ?? 0) + 1,
     }))
   }, [isPlaying, playingSceneIndex, proStep3Scenes])
+
+  const handlePlayPauseWithPrep = useCallback(async () => {
+    if (isPlaying) {
+      container.handlePlayPause()
+      return
+    }
+    if (!canStartPlayback()) return
+    const ok = await preparePlayback()
+    if (ok) container.handlePlayPause()
+  }, [isPlaying, canStartPlayback, preparePlayback, container])
+
+  const handleScenePlayWithPrep = useCallback(async (sceneIndex: number) => {
+    const ok = await preparePlayback([sceneIndex])
+    if (ok) handleScenePlay(sceneIndex)
+  }, [preparePlayback, handleScenePlay])
 
   const handleSceneReorder = useCallback(
     (newOrder: number[]) => {
@@ -254,11 +322,12 @@ export default function ProStep3Page() {
               playbackSpeed={container.playbackSpeed}
               setPlaybackSpeed={container.setPlaybackSpeed}
               canvasDisplaySize={container.canvasDisplaySize}
-              handlePlayPause={container.handlePlayPause}
+              handlePlayPause={handlePlayPauseWithPrep}
               handleTimelineSeek={container.handleTimelineSeek}
               handleSceneImageFitChange={container.handleSceneImageFitChange}
               timeline={container.timeline}
               isPlaying={isPlaying}
+              isPreparing={isPreparing}
               bgmTemplate={bgmTemplate}
               confirmedBgmTemplate={confirmedBgmTemplate}
               currentVideoUrl={currentVideoUrl}
@@ -281,7 +350,7 @@ export default function ProStep3Page() {
               isTtsBootstrapping={false}
               onSelect={handleSceneSelect}
               onReorder={handleSceneReorder}
-              onPlayScene={handleScenePlay}
+              onPlayScene={handleScenePlayWithPrep}
               onVideoUpload={handleVideoUpload}
               uploadingSceneIndex={uploadingSceneIndex}
               compressingSceneIndex={compressingSceneIndex}
@@ -315,6 +384,10 @@ export default function ProStep3Page() {
               onSoundEffectConfirm={handleSoundEffectConfirm}
               setTimeline={setTimeline}
               onMotionChange={handleMotionChange}
+              currentVoiceTemplate={timeline?.scenes[currentSceneIndex]?.voiceTemplate}
+              synthesizingScenes={synthesizingScenes}
+              onVoiceSelect={handleVoiceSelect}
+              onVoiceSelectForAll={handleVoiceSelectForAll}
             />
           </div>
         </motion.div>

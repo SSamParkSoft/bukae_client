@@ -120,25 +120,17 @@ export function useStep4Container() {
   }, [])
 
   // 다운로드 함수
-  const handleDownload = useCallback(async () => {
-    if (!resultVideoUrl || !currentJobId) return
-    
-    try {
-      const response = await fetch(resultVideoUrl)
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `video-${currentJobId}.mp4`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-    } catch (error) {
-      console.error('다운로드 실패:', error)
-      alert('다운로드 중 오류가 발생했어요.')
-    }
-  }, [resultVideoUrl, currentJobId])
+  const handleDownload = useCallback(() => {
+    if (!resultVideoUrl) return
+
+    const proxyUrl = `/api/videos/download?url=${encodeURIComponent(resultVideoUrl)}&filename=result.mp4`
+    const a = document.createElement('a')
+    a.href = proxyUrl
+    a.download = 'result.mp4'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }, [resultVideoUrl])
 
   const requestRefundForFailedJob = useCallback(async (failedJobId: string, reason: string) => {
     const normalizedJobId = failedJobId.trim()

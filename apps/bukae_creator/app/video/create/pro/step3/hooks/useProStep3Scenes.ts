@@ -3,7 +3,6 @@
 import { useMemo } from 'react'
 import { useVideoCreateStore, type SceneScript } from '@/store/useVideoCreateStore'
 import { ensureSceneArray, isValidSceneArray } from '@/app/video/create/_utils/scene-array'
-import { normalizeSelectionRange } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
 import type { ProStep3Scene } from '@/app/video/create/pro/step3/model/types'
 
 // Pro step2에서 사용하는 확장된 Scene 타입
@@ -88,31 +87,28 @@ export function useProStep3Scenes() {
     return safeScenes.map((s, index) => sceneScriptToProScene(s, index))
   }, [storeScenes])
 
-  // ProStep3Scene으로 변환 (Step2에서 설정한 selectionStartSeconds, selectionEndSeconds 사용)
+  // ProStep3Scene으로 변환
+  // Step2에서 이미 normalizeSelectionRange로 정규화된
+  // ttsDuration / selectionStartSeconds / selectionEndSeconds를 그대로 사용한다.
   const proStep3Scenes: ProStep3Scene[] = useMemo(() => {
     // proScenes가 배열이 아니거나 빈 배열이면 빈 배열 반환
     if (!isValidSceneArray(proScenes)) {
       return []
     }
     return proScenes.map((scene) => {
-      const normalized = normalizeSelectionRange({
-        ttsDuration: scene.ttsDuration,
-        originalVideoDurationSeconds: scene.originalVideoDurationSeconds,
-        selectionStartSeconds: scene.selectionStartSeconds,
-        selectionEndSeconds: scene.selectionEndSeconds,
-      })
-
       return {
         id: scene.id,
         script: scene.script,
         videoUrl: scene.videoUrl,
         imageUrl: scene.imageUrl,
-        selectionStartSeconds: normalized.startSeconds,
-        selectionEndSeconds: normalized.endSeconds,
+        selectionStartSeconds: scene.selectionStartSeconds ?? 0,
+        selectionEndSeconds:
+          scene.selectionEndSeconds ??
+          ((scene.selectionStartSeconds ?? 0) + (scene.ttsDuration ?? 0)),
         originalVideoDurationSeconds: scene.originalVideoDurationSeconds,
         voiceLabel: scene.voiceLabel,
         voiceTemplate: scene.voiceTemplate,
-        ttsDuration: normalized.ttsDurationSeconds,
+        ttsDuration: scene.ttsDuration,
         ttsAudioBase64: scene.ttsAudioBase64,
       }
     })

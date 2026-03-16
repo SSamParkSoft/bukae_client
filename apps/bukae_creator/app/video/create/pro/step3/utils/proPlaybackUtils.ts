@@ -244,9 +244,11 @@ export function normalizeSelectionRange({
     ? (selectionEndSeconds as number) - rawStart
     : defaultSpan
 
+  // span은 defaultSpan(= ttsDuration) 이상이어야 함.
+  // 업로드 직후 selectionEndSeconds가 원본 영상 길이로 잘못 저장된 경우 복구.
   const spanSeconds = Math.max(
     MIN_SELECTION_SPAN_SEC,
-    Math.min(rawSpan, effectiveSourceDurationSeconds)
+    Math.min(Math.max(rawSpan, defaultSpan), effectiveSourceDurationSeconds)
   )
 
   const maxStartSeconds = Math.max(0, effectiveSourceDurationSeconds - spanSeconds)

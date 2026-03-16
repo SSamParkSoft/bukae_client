@@ -1,11 +1,12 @@
 'use client'
 
-import { memo, useState, useEffect, useRef } from 'react'
-import { GripVertical } from 'lucide-react'
+import { memo, useState, useEffect, useRef, useCallback } from 'react'
+import { GripVertical, X, Play, Loader2 } from 'lucide-react'
 import Image from 'next/image'
 import { ProVideoUpload } from './ProVideoUpload'
 import { ProVideoTimelineGrid } from './ProVideoTimelineGrid'
 import { getEffectiveSourceDuration } from '@/app/video/create/pro/step3/utils/proPlaybackUtils'
+import { authStorage } from '@/lib/api/auth-storage'
 
 const FRAME_WIDTH_PX = 74
 const TIMELINE_FRAME_HEIGHT_PX = 84
@@ -19,6 +20,10 @@ export interface ProVideoEditSceneCardProps {
   onVideoUpload?: (file: File) => Promise<void>
   onAiScriptClick?: () => void
   onAiGuideClick?: () => void
+  /** AI 스크립트 생성으로 생성된 경우에만 teal 뱃지 표시 */
+  scriptGeneratedByAi?: boolean
+  /** AI 촬영가이드 생성으로 생성된 경우에만 teal 뱃지 표시 */
+  guideGeneratedByAi?: boolean
   /** TTS duration (초) - 타임라인 표시용 */
   ttsDuration?: number
   /** 촬영가이드 텍스트 */
@@ -26,6 +31,10 @@ export interface ProVideoEditSceneCardProps {
   onGuideChange?: (value: string) => void
   /** 적용된 보이스 라벨 */
   voiceLabel?: string
+  /** TTS 미리듣기용 보이스 템플릿 */
+  voiceTemplate?: string | null
+  onVoiceClick?: () => void
+  onDelete?: () => void
   /** 업로드된 영상 URL */
   videoUrl?: string | null
   /** 업로드된 이미지 URL */
@@ -56,12 +65,17 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   scriptText,
   onScriptChange,
   onVideoUpload,
-  onAiScriptClick,
-  onAiGuideClick,
+  onAiScriptClick: _onAiScriptClick,
+  onAiGuideClick: _onAiGuideClick,
+  scriptGeneratedByAi = false,
+  guideGeneratedByAi = false,
   ttsDuration = 0,
   guideText = '',
   onGuideChange,
   voiceLabel,
+  voiceTemplate,
+  onVoiceClick,
+  onDelete,
   videoUrl,
   imageUrl,
   isUploading = false,
@@ -96,13 +110,135 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   const [dragStartSelectionLeft, setDragStartSelectionLeft] = useState(0)
   const timelineContainerRef = useRef<HTMLDivElement | null>(null)
   const prevInitialSelectionRef = useRef<number | undefined>(initialSelectionStartSeconds)
+
+  // 스크립트 TTS 미리듣기
+  const [isSynthesizingTts, setIsSynthesizingTts] = useState(false)
+  const [isPlayingTts, setIsPlayingTts] = useState(false)
+  const scriptTtsAudioRef = useRef<HTMLAudioElement | null>(null)
+  const scriptTtsUrlRef = useRef<string | null>(null)
+  const scriptTtsAbortRef = useRef<AbortController | null>(null)
+
+  const handlePlayScriptTts = useCallback(async () => {
+    if (!scriptText.trim()) {
+      alert('스크립트를 입력해주세요.')
+      return
+    }
+    if (!voiceTemplate) {
+      alert('보이스를 먼저 선택해주세요.')
+      return
+    }
+    if (isPlayingTts && scriptTtsAudioRef.current) {
+      scriptTtsAudioRef.current.pause()
+      scriptTtsAudioRef.current.currentTime = 0
+      setIsPlayingTts(false)
+      return
+    }
+    if (scriptTtsAudioRef.current && scriptTtsUrlRef.current) {
+      scriptTtsAudioRef.current.play()
+      setIsPlayingTts(true)
+      return
+    }
+    scriptTtsAbortRef.current?.abort()
+    scriptTtsAbortRef.current = null
+    const controller = new AbortController()
+    scriptTtsAbortRef.current = controller
+    setIsSynthesizingTts(true)
+    try {
+      const accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        alert('로그인이 필요합니다.')
+        return
+      }
+      const response = await fetch('/api/tts/synthesize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          voiceTemplate,
+          mode: 'text',
+          text: scriptText,
+        }),
+        signal: controller.signal,
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'TTS 합성 실패' }))
+        throw new Error(errorData.error || 'TTS 합성 실패')
+      }
+      const blob = await response.blob()
+      if (controller.signal.aborted) return
+      const url = URL.createObjectURL(blob)
+      if (controller.signal.aborted) {
+        URL.revokeObjectURL(url)
+        return
+      }
+      if (scriptTtsUrlRef.current) URL.revokeObjectURL(scriptTtsUrlRef.current)
+      if (scriptTtsAudioRef.current) {
+        scriptTtsAudioRef.current.pause()
+        scriptTtsAudioRef.current = null
+      }
+      scriptTtsUrlRef.current = url
+      const audio = new Audio(url)
+      scriptTtsAudioRef.current = audio
+      audio.addEventListener('ended', () => setIsPlayingTts(false))
+      audio.addEventListener('error', () => {
+        setIsPlayingTts(false)
+        alert('오디오 재생 중 오류가 발생했습니다.')
+      })
+      await audio.play()
+      if (controller.signal.aborted) return
+      setIsPlayingTts(true)
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+      console.error('TTS 합성/재생 오류:', error)
+      alert(error instanceof Error ? error.message : 'TTS 합성 중 오류가 발생했습니다.')
+    } finally {
+      setIsSynthesizingTts(false)
+    }
+  }, [scriptText, voiceTemplate, isPlayingTts])
+
+  useEffect(() => {
+    const cleanup = () => {
+      scriptTtsAbortRef.current?.abort()
+      scriptTtsAbortRef.current = null
+      if (scriptTtsAudioRef.current) {
+        scriptTtsAudioRef.current.pause()
+        scriptTtsAudioRef.current = null
+      }
+      if (scriptTtsUrlRef.current) {
+        URL.revokeObjectURL(scriptTtsUrlRef.current)
+        scriptTtsUrlRef.current = null
+      }
+      setIsPlayingTts(false)
+    }
+    return cleanup
+  }, [])
+
+  const prevScriptTtsRef = useRef({ scriptText, voiceTemplate })
+  useEffect(() => {
+    if (prevScriptTtsRef.current.scriptText !== scriptText || prevScriptTtsRef.current.voiceTemplate !== voiceTemplate) {
+      prevScriptTtsRef.current = { scriptText, voiceTemplate }
+      scriptTtsAbortRef.current?.abort()
+      scriptTtsAbortRef.current = null
+      if (scriptTtsAudioRef.current) {
+        scriptTtsAudioRef.current.pause()
+        scriptTtsAudioRef.current = null
+      }
+      if (scriptTtsUrlRef.current) {
+        URL.revokeObjectURL(scriptTtsUrlRef.current)
+        scriptTtsUrlRef.current = null
+      }
+      setIsPlayingTts(false)
+    }
+  }, [scriptText, voiceTemplate])
   
   // selectionStartSeconds를 ref에도 동기화
   useEffect(() => {
     selectionStartSecondsRef.current = selectionStartSeconds
   }, [selectionStartSeconds])
 
-  // initialSelectionStartSeconds가 외부에서 변경될 때만 동기화 (드래그 중이 아닐 때만)
+  // initialSelectionStartSeconds가 외부에서 변경될 때만 동기화 (드래그 중이 아닐 때만) - 즉시 반영
   useEffect(() => {
     if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
     
@@ -124,18 +260,14 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     const currentDiff = Math.abs(selectionStartSeconds - currentValue)
     if (currentDiff > 0.01) {
       prevInitialSelectionRef.current = currentValue
-      // 외부 prop 변경 시 내부 상태 동기화는 필요하므로 비동기로 처리
-      const timeoutId = setTimeout(() => {
-        setSelectionStartSeconds(currentValue)
-      }, 0)
-      return () => clearTimeout(timeoutId)
+      setSelectionStartSeconds(currentValue)
     } else {
       // 값이 이미 동일하면 ref만 업데이트
       prevInitialSelectionRef.current = currentValue
     }
   }, [initialSelectionStartSeconds, selectionStartSeconds, isDraggingSelection])
 
-  // TTS duration이 변경되면 격자 위치 조정 (확장 소스일 때는 이어붙인 길이 기준)
+  // TTS duration이 변경되면 격자 위치 조정 (확장 소스일 때는 이어붙인 길이 기준) - 즉시 동기화
   useEffect(() => {
     if (isDraggingSelection) return // 드래그 중이면 업데이트하지 않음
     
@@ -149,13 +281,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
     const maxSelectionStartPx = Math.max(0, actualVideoEndPx - selectionWidthPx)
     const maxStart = maxSelectionStartPx / FRAME_WIDTH_PX
     
-    // selectionStartSeconds가 범위를 벗어나면 조정 (비동기로 처리)
     if (selectionStartSeconds > maxStart) {
-      // setTimeout을 사용하여 비동기적으로 처리
-      const timeoutId = setTimeout(() => {
-        setSelectionStartSeconds(maxStart)
-      }, 0)
-      return () => clearTimeout(timeoutId)
+      setSelectionStartSeconds(maxStart)
     }
   }, [ttsDuration, videoDuration, originalVideoDurationSeconds, selectionStartSeconds, isDraggingSelection])
 
@@ -163,7 +290,6 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   useEffect(() => {
     if (!videoUrl) {
       // prop이 없을 때 파생 state를 즉시 초기화 (stale UI 방지)
-      // eslint-disable-next-line -- intentional: sync derived state from prop
       setVideoDuration(null)
     }
   }, [videoUrl])
@@ -201,7 +327,6 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
   useEffect(() => {
     if (!videoUrl || !ttsDuration) {
       // prop이 없을 때 파생 state를 즉시 초기화 (stale UI 방지)
-      // eslint-disable-next-line -- intentional: sync derived state from prop
       setFrameThumbnails([])
     }
   }, [videoUrl, ttsDuration])
@@ -601,17 +726,31 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
       )}
 
       <div className="flex gap-4 items-stretch">
-        {/* 좌측: 드래그 핸들 - 중앙 정렬 (여기서만 씬 카드 드래그 시작) */}
+        {/* 좌측: 드래그 핸들 - 중앙 정렬 (여기서만 씬 카드 드래그 시작) + 상단 X 삭제 버튼 */}
         {onDragStart && (
-          <div className="flex items-center shrink-0 self-stretch">
-            <div
-              className="cursor-move text-text-tertiary shrink-0 touch-none"
-              aria-hidden
-              draggable
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-            >
-              <GripVertical className="w-6 h-6" />
+          <div className="flex flex-col items-center shrink-0 self-stretch">
+            {/* 상단 X 삭제 버튼 */}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#d3dbdc] bg-white text-text-tertiary hover:bg-[#ffecec] hover:text-[#c0392b]"
+                aria-label="장면 삭제"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+            {/* 가운데 정렬된 드래그 핸들 */}
+            <div className="flex-1 flex items-center">
+              <div
+                className="cursor-move text-text-tertiary shrink-0 touch-none"
+                aria-hidden
+                draggable
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+              >
+                <GripVertical className="w-6 h-6" />
+              </div>
             </div>
           </div>
         )}
@@ -637,27 +776,29 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
             <div className="flex flex-col">
               {/* SCENE 라벨 + 적용된 보이스 */}
               <div className="flex items-center justify-between mb-4">
-                <p
-                  className="text-brand-teal tracking-[-0.36px]"
-                  style={{
-                    fontSize: 'var(--font-size-18)',
-                    lineHeight: '25.2px',
-                    fontFamily: '"Zeroes Two", sans-serif',
-                    fontWeight: 400,
-                  }}
-                >
-                  SCENE {sceneIndex}
-                </p>
-                {voiceLabel && (
-                  <div
-                    className="flex items-center gap-1 text-text-tertiary"
+                <div className="flex items-center gap-2">
+                  <p
+                    className="text-brand-teal tracking-[-0.36px]"
                     style={{
-                      fontSize: 'var(--font-size-14)',
-                      lineHeight: 'var(--line-height-14-140)',
-                      fontWeight: 'var(--font-weight-medium)',
+                      fontSize: 'var(--font-size-18)',
+                      lineHeight: '25.2px',
+                      fontFamily: '"Zeroes Two", sans-serif',
+                      fontWeight: 400,
                     }}
                   >
-                    <span>적용된 보이스 | &nbsp;</span>
+                    SCENE {sceneIndex}
+                  </p>
+                </div>
+                <div
+                  className="flex items-center gap-2 text-text-tertiary"
+                  style={{
+                    fontSize: 'var(--font-size-14)',
+                    lineHeight: 'var(--line-height-14-140)',
+                    fontWeight: 'var(--font-weight-medium)',
+                  }}
+                >
+                  <span>적용된 보이스 |&nbsp;</span>
+                  {voiceLabel ? (
                     <span
                       style={{
                         fontSize: 'var(--font-size-16)',
@@ -667,18 +808,28 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                     >
                       {voiceLabel}
                     </span>
-                  </div>
-                )}
+                  ) : (
+                    <span className="text-text-tertiary/70">선택되지 않음</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={onVoiceClick}
+                    disabled={!onVoiceClick}
+                    className="ml-2 inline-flex items-center rounded-full border border-[#bbc9c9] px-2 py-0.5 text-[12px] leading-[16px] font-medium text-text-tertiary disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#e4eeed]"
+                  >
+                    보이스 선택
+                  </button>
+                </div>
               </div>
 
               {/* 스크립트 영역 */}
               <div className="flex gap-4 mb-6">
                 {/* 중앙: 스크립트 영역 */}
-                <div className="flex-1 min-w-0 flex flex-col">
+                <div className="flex-1 min-w-0 flex flex-col group">
                   {/* 스크립트 텍스트 영역 - 버튼이 textarea 내부에 위치 */}
                   <div className="relative rounded-lg bg-white shadow-(--shadow-card-default) overflow-hidden border-2 border-transparent" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
-                    {/* AI 스크립트 표시 - textarea 내부 왼쪽 상단 */}
-                    {onAiScriptClick && (
+                    {/* AI 스크립트 표시 - 생성 버튼으로 생성된 경우에만 teal 뱃지 표시 */}
+                    {scriptGeneratedByAi && (
                       <div
                         className="absolute left-3 top-3 z-10 h-[25px] px-3 bg-brand-teal text-white rounded-2xl font-bold flex items-center gap-4 pointer-events-none"
                         style={{
@@ -689,21 +840,42 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                         AI 스크립트
                       </div>
                     )}
+                    {/* 스크립트 TTS 재생 버튼 - 호버 시에만 표시 */}
+                    <div
+                      className="absolute right-3 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto"
+                      style={{ marginTop: scriptGeneratedByAi ? '-6px' : 0 }}
+                    >
+                      <button
+                        type="button"
+                        onClick={handlePlayScriptTts}
+                        disabled={!scriptText.trim() || !voiceTemplate || isSynthesizingTts}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-teal text-white hover:bg-brand-teal-dark disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                        aria-label="스크립트 TTS 미리듣기"
+                      >
+                        {isSynthesizingTts ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : isPlayingTts ? (
+                          <span className="text-xs font-bold">■</span>
+                        ) : (
+                          <Play className="h-4 w-4 ml-0.5" fill="currentColor" />
+                        )}
+                      </button>
+                    </div>
                     {/* 스크립트 텍스트 영역 */}
                     <textarea
                       value={scriptText}
                       onChange={(e) => onScriptChange(e.target.value)}
                       placeholder="스크립트를 입력하세요."
                       rows={2}
-                      readOnly
-                      className="w-full p-3 rounded-lg bg-transparent text-text-tertiary placeholder:text-text-tertiary focus:outline-none focus:ring-0 resize-none border-0 cursor-default"
+                      className="w-full p-3 rounded-lg bg-transparent text-text-tertiary placeholder:text-text-tertiary focus:outline-none focus:ring-0 resize-none border-0"
                       style={{
                         fontSize: 'var(--font-size-14)',
                         lineHeight: '25.2px',
                         fontWeight: 500,
                         letterSpacing: '-0.14px',
-                        paddingLeft: onAiScriptClick ? 'calc(12px + 73px + 16px)' : '12px', // left-3(12px) + 버튼너비(73px) + 간격(16px)
-                        paddingTop: onAiScriptClick ? '12px' : '12px', // 버튼과 같은 높이에서 시작
+                        paddingLeft: scriptGeneratedByAi ? 'calc(12px + 73px + 16px)' : '12px', // left-3(12px) + 버튼너비(73px) + 간격(16px)
+                        paddingTop: scriptGeneratedByAi ? '12px' : '12px', // 버튼과 같은 높이에서 시작
+                        paddingRight: '48px', // 재생 버튼 공간
                         minHeight: '74px',
                       }}
                     />
@@ -714,8 +886,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                 <div className="flex-1 min-w-0 flex flex-col">
                   {/* 촬영가이드 텍스트 영역 - 버튼이 textarea 내부에 위치 */}
                   <div className="relative rounded-lg bg-white/30 shadow-(--shadow-card-default) overflow-hidden border-2 border-white backdrop-blur-sm" style={{ minHeight: '74px', boxSizing: 'border-box' }}>
-                    {/* AI 촬영가이드 표시 - textarea 내부 왼쪽 상단 */}
-                    {onAiGuideClick && (
+                    {/* AI 촬영가이드 표시 - 생성 버튼으로 생성된 경우에만 teal 뱃지 표시 */}
+                    {guideGeneratedByAi && (
                       <div
                         className="absolute left-3 top-3 z-10 h-[25px] px-3 bg-brand-teal text-white rounded-2xl font-bold flex items-center gap-4 pointer-events-none"
                         style={{
@@ -739,8 +911,8 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
                         lineHeight: '25.2px',
                         fontWeight: 500,
                         letterSpacing: '-0.14px',
-                        paddingLeft: onAiGuideClick ? 'calc(12px + 83px + 16px)' : '12px', // left-3(12px) + 버튼너비(83px) + 간격(16px)
-                        paddingTop: onAiGuideClick ? '12px' : '12px', // 버튼과 같은 높이에서 시작
+                        paddingLeft: guideGeneratedByAi ? 'calc(12px + 83px + 16px)' : '12px', // left-3(12px) + 버튼너비(83px) + 간격(16px)
+                        paddingTop: guideGeneratedByAi ? '12px' : '12px', // 버튼과 같은 높이에서 시작
                         minHeight: '74px',
                       }}
                     />
@@ -749,190 +921,205 @@ export const ProVideoEditSceneCard = memo(function ProVideoEditSceneCard({
               </div>
             </div>
 
-            {/* 하단: 타임라인 비주얼 - 이미지 전용 씬(imageUrl 있고 videoUrl 없음)인 경우만 숨김 */}
+            {/* 하단: 타임라인 비주얼/프리뷰 */}
             {!(imageUrl && !videoUrl) && (
-              <div
-                ref={timelineContainerRef}
-                className="relative overflow-x-auto w-full"
-                style={{
-                  WebkitOverflowScrolling: 'touch',
-                }}
-                onDragStart={(e) => {
-                  // 타임라인 영역에서는 씬 카드 드래그 방지
-                  e.stopPropagation()
-                  e.preventDefault()
-                }}
-              >
-              {/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
-              <div
-                className="relative shrink-0"
-                style={{
-                  width: `${actualVideoEndPx}px`,
-                  paddingTop: `${TIMELINE_GRID_EXTEND_PX}px`,
-                  paddingBottom: `${TIMELINE_GRID_EXTEND_PX}px`,
-                  paddingLeft: `${TIMELINE_LEFT_OFFSET_PX}px`,
-                }}
-              >
-                {/* 실제 영상 프레임 박스 (클리핑 영역) */}
+              ttsDuration ? (
                 <div
-                  className="relative bg-white rounded-2xl border border-gray-300 overflow-hidden"
+                  ref={timelineContainerRef}
+                  className="relative overflow-x-auto w-full"
                   style={{
-                    height: `${TIMELINE_FRAME_HEIGHT_PX}px`,
-                    width: `${actualVideoEndPx}px`,
+                    WebkitOverflowScrolling: 'touch',
+                  }}
+                  onDragStart={(e) => {
+                    // 타임라인 영역에서는 씬 카드 드래그 방지
+                    e.stopPropagation()
+                    e.preventDefault()
                   }}
                 >
-                  {/* 격자 패턴 - 각 74px 너비의 프레임들 */}
-                  <div className="absolute inset-0 flex" style={{ left: '0px' }}>
-                    {Array.from({ length: frameSegmentCount }).map((_, idx) => (
-                      <div
-                        key={idx}
-                        className="shrink-0 relative border-r border-[#a6a6a6] overflow-hidden"
-                        style={{ width: `${FRAME_WIDTH_PX}px`, height: '100%' }}
-                      >
-                        {/* 비디오 프레임 썸네일 또는 배경 */}
-                        {frameThumbnails[idx] ? (
-                          <Image
-                            src={frameThumbnails[idx]}
-                            alt={`${idx}초 프레임`}
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
-                        ) : (
-                          <div className="absolute inset-0 bg-[#111111] opacity-40" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {/* 격자 기준 왼쪽 어두운 오버레이 */}
-                  {selectionLeftPx > 0 && (
+                  {/* 격자 편집 타임라인 - padding으로 격자가 튀어나올 공간 확보 */}
+                  <div
+                    className="relative shrink-0"
+                    style={{
+                      width: `${actualVideoEndPx}px`,
+                      paddingTop: `${TIMELINE_GRID_EXTEND_PX}px`,
+                      paddingBottom: `${TIMELINE_GRID_EXTEND_PX}px`,
+                      paddingLeft: `${TIMELINE_LEFT_OFFSET_PX}px`,
+                    }}
+                  >
+                    {/* 실제 영상 프레임 박스 (클리핑 영역) */}
                     <div
-                      className="absolute top-0 left-0 bg-black/50"
+                      className="relative bg-white rounded-2xl border border-gray-300 overflow-hidden"
                       style={{
-                        width: `${selectionLeftPx}px`,
-                        height: '100%',
+                        height: `${TIMELINE_FRAME_HEIGHT_PX}px`,
+                        width: `${actualVideoEndPx}px`,
                       }}
-                    />
-                  )}
-                  
-                  {/* 격자 기준 오른쪽 어두운 오버레이 */}
-                  {selectionLeftPx + selectionWidthPx < actualVideoEndPx && (
-                    <div
-                      className="absolute top-0 right-0 bg-black/50"
-                      style={{
-                        width: `${actualVideoEndPx - (selectionLeftPx + selectionWidthPx)}px`,
-                        height: '100%',
-                      }}
-                    />
-                  )}
-                  
-                  {/* 숨겨진 비디오와 캔버스 - 프레임 썸네일 생성용 */}
-                  {videoUrl && (
-                    <>
-                      <video
-                        ref={videoRef}
-                        src={videoUrl}
-                        className="hidden"
-                        muted
-                        playsInline
-                        preload="metadata"
-                        crossOrigin="anonymous"
-                      />
-                      <canvas ref={canvasRef} className="hidden" />
-                    </>
-                  )}
-                </div>
-
-                {/* 격자(선택 강조선) - 프레임 박스 밖에 배치하여 위아래로 튀어나오게 */}
-                {/* 격자 내부 전체를 드래그 가능하게 하기 위해 컨테이너 div를 확장 */}
-                <div
-                  onMouseDown={handleSelectionMouseDown}
-                  onMouseMove={handleSelectionMouseMove}
-                  onMouseUp={handleSelectionMouseUp}
-                  className="cursor-move"
-                  style={{
-                    position: 'absolute',
-                    left: `${TIMELINE_LEFT_OFFSET_PX + selectionLeftPx}px`,
-                    width: `${selectionWidthPx}px`,
-                    top: `${TIMELINE_GRID_EXTEND_PX}px`, // 프레임 박스와 같은 위치 (paddingTop 아래)
-                    height: `calc(100% - ${TIMELINE_GRID_EXTEND_PX}px)`, // paddingTop을 제외한 높이
-                    zIndex: 10,
-                    pointerEvents: 'auto', // 격자 내부 전체가 클릭 가능하도록
-                  }}
-                >
-                  <ProVideoTimelineGrid
-                    frameHeight={TIMELINE_FRAME_HEIGHT_PX}
-                    selectionLeft={0}
-                    selectionWidth={selectionWidthPx}
-                    extendY={TIMELINE_GRID_EXTEND_PX}
-                  />
-                </div>
-              </div>
-
-              {/* 시간 마커 */}
-              <div 
-                className="relative flex shrink-0"
-                style={{ width: `${timeMarkers.length * FRAME_WIDTH_PX}px` }}
-                onDragStart={(e) => {
-                  // 시간 마커 영역에서도 씬 카드 드래그 방지
-                  e.stopPropagation()
-                  e.preventDefault()
-                }}
-              >
-                {/* 가로 라인 - 영상 프레임 전체 길이만큼 */}
-                <div 
-                  className="absolute top-0 left-0 h-px bg-[#a6a6a6]"
-                  style={{ width: `${timeMarkers.length * FRAME_WIDTH_PX}px` }}
-                />
-                
-                {timeMarkers.map((marker, idx) => {
-                  const isInSelection = getIsInSelection(idx)
-                  const isMajorTick = getIsMajorTick(idx)
-                  
-                  return (
-                    <div
-                      key={idx}
-                      className="shrink-0 flex flex-col items-center relative"
-                      style={{ width: `${FRAME_WIDTH_PX}px` }}
                     >
-                      {/* 세로 틱 */}
-                      {isMajorTick ? (
-                        <>
-                          {/* 큰 틱 - 위로 */}
-                          <div 
-                            className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[6px] w-px -translate-y-full"
-                          />
-                          {/* 큰 틱 - 아래로 */}
-                          <div 
-                            className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[10px] w-px"
-                          />
-                        </>
-                      ) : (
-                        /* 작은 틱 - 모든 마커에 고정으로 표시 */
-                        <div 
-                          className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[6px] w-px"
+                      {/* 격자 패턴 - 각 74px 너비의 프레임들 */}
+                      <div className="absolute inset-0 flex" style={{ left: '0px' }}>
+                        {Array.from({ length: frameSegmentCount }).map((_, idx) => (
+                          <div
+                            key={idx}
+                            className="shrink-0 relative border-r border-[#a6a6a6] overflow-hidden"
+                            style={{ width: `${FRAME_WIDTH_PX}px`, height: '100%' }}
+                          >
+                            {/* 비디오 프레임 썸네일 또는 배경 */}
+                            {frameThumbnails[idx] ? (
+                              <Image
+                                src={frameThumbnails[idx]}
+                                alt={`${idx}초 프레임`}
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                            ) : (
+                              <div className="absolute inset-0 bg-[#111111] opacity-40" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* 격자 기준 왼쪽 어두운 오버레이 */}
+                      {selectionLeftPx > 0 && (
+                        <div
+                          className="absolute top-0 left-0 bg-black/50"
+                          style={{
+                            width: `${selectionLeftPx}px`,
+                            height: '100%',
+                          }}
                         />
                       )}
                       
-                      {/* 시간 텍스트 */}
-                      <span
-                        className={`font-medium mt-2 ${
-                          isInSelection ? 'text-text-dark' : 'text-text-tertiary'
-                        }`}
-                        style={{
-                          fontSize: '16px',
-                          lineHeight: '22.4px',
-                          letterSpacing: '-0.32px',
-                        }}
-                      >
-                        {marker}
-                      </span>
+                      {/* 격자 기준 오른쪽 어두운 오버레이 */}
+                      {selectionLeftPx + selectionWidthPx < actualVideoEndPx && (
+                        <div
+                          className="absolute top-0 right-0 bg-black/50"
+                          style={{
+                            width: `${actualVideoEndPx - (selectionLeftPx + selectionWidthPx)}px`,
+                            height: '100%',
+                          }}
+                        />
+                      )}
+                      
+                      {/* 숨겨진 비디오와 캔버스 - 프레임 썸네일 생성용 */}
+                      {videoUrl && (
+                        <>
+                          <video
+                            ref={videoRef}
+                            src={videoUrl}
+                            className="hidden"
+                            muted
+                            playsInline
+                            preload="metadata"
+                            crossOrigin="anonymous"
+                          />
+                          <canvas ref={canvasRef} className="hidden" />
+                        </>
+                      )}
                     </div>
-                  )
-                })}
-              </div>
-              </div>
+
+                    {/* 격자(선택 강조선) - 프레임 박스 밖에 배치하여 위아래로 튀어나오게 */}
+                    {/* 격자 내부 전체를 드래그 가능하게 하기 위해 컨테이너 div를 확장 */}
+                    <div
+                      onMouseDown={handleSelectionMouseDown}
+                      onMouseMove={handleSelectionMouseMove}
+                      onMouseUp={handleSelectionMouseUp}
+                      className="cursor-move"
+                      style={{
+                        position: 'absolute',
+                        left: `${TIMELINE_LEFT_OFFSET_PX + selectionLeftPx}px`,
+                        width: `${selectionWidthPx}px`,
+                        top: `${TIMELINE_GRID_EXTEND_PX}px`, // 프레임 박스와 같은 위치 (paddingTop 아래)
+                        height: `calc(100% - ${TIMELINE_GRID_EXTEND_PX}px)`, // paddingTop을 제외한 높이
+                        zIndex: 10,
+                        pointerEvents: 'auto', // 격자 내부 전체가 클릭 가능하도록
+                      }}
+                    >
+                      <ProVideoTimelineGrid
+                        frameHeight={TIMELINE_FRAME_HEIGHT_PX}
+                        selectionLeft={0}
+                        selectionWidth={selectionWidthPx}
+                        extendY={TIMELINE_GRID_EXTEND_PX}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 시간 마커 */}
+                  <div 
+                    className="relative flex shrink-0"
+                    style={{ width: `${timeMarkers.length * FRAME_WIDTH_PX}px` }}
+                    onDragStart={(e) => {
+                      // 시간 마커 영역에서도 씬 카드 드래그 방지
+                      e.stopPropagation()
+                      e.preventDefault()
+                    }}
+                  >
+                    {/* 가로 라인 - 영상 프레임 전체 길이만큼 */}
+                    <div 
+                      className="absolute top-0 left-0 h-px bg-[#a6a6a6]"
+                      style={{ width: `${timeMarkers.length * FRAME_WIDTH_PX}px` }}
+                    />
+                    
+                    {timeMarkers.map((marker, idx) => {
+                      const isInSelection = getIsInSelection(idx)
+                      const isMajorTick = getIsMajorTick(idx)
+                      
+                      return (
+                        <div
+                          key={idx}
+                          className="shrink-0 flex flex-col items-center relative"
+                          style={{ width: `${FRAME_WIDTH_PX}px` }}
+                        >
+                          {/* 세로 틱 */}
+                          {isMajorTick ? (
+                            <>
+                              {/* 큰 틱 - 위로 */}
+                              <div 
+                                className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[6px] w-px -translate-y-full"
+                              />
+                              {/* 큰 틱 - 아래로 */}
+                              <div 
+                                className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[10px] w-px"
+                              />
+                            </>
+                          ) : (
+                            /* 작은 틱 - 모든 마커에 고정으로 표시 */
+                            <div 
+                              className="absolute top-0 left-1/2 -translate-x-1/2 bg-[#a6a6a6] h-[6px] w-px"
+                            />
+                          )}
+                          
+                          {/* 시간 텍스트 */}
+                          <span
+                            className={`font-medium mt-2 ${
+                              isInSelection ? 'text-text-dark' : 'text-text-tertiary'
+                            }`}
+                            style={{
+                              fontSize: '16px',
+                              lineHeight: '22.4px',
+                              letterSpacing: '-0.32px',
+                            }}
+                          >
+                            {marker}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-dashed border-[#d3dbdc] bg-white/60 px-4 py-6 text-center text-text-tertiary">
+                  <p
+                    className="font-medium tracking-[-0.28px]"
+                    style={{
+                      fontSize: 'var(--font-size-12)',
+                      lineHeight: 'var(--line-height-12-140)',
+                    }}
+                  >
+                    보이스 선택 및 TTS 합성 후<br />
+                    이 장면의 타임라인을 설정할 수 있어요.
+                  </p>
+                </div>
+              )
             )}
           </div>
         </div>

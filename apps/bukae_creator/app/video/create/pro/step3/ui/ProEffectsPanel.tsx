@@ -2,11 +2,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BgmSelector } from '@/components/video-editor/BgmSelector'
 import { SoundEffectSelector } from '@/components/video-editor/SoundEffectSelector'
 import { SubtitleSettings } from '@/components/video-editor/SubtitleSettings'
+import { ProStep3VoicePanel } from './ProStep3VoicePanel'
 import { cn } from '@/lib/utils'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import type { MotionConfig, MotionType } from '@/hooks/video/effects/motion/types'
 
-type EffectsTabId = 'animation' | 'bgm' | 'subtitle' | 'template' | 'sound'
+type EffectsTabId = 'animation' | 'bgm' | 'voice' | 'subtitle' | 'template' | 'sound'
 
 interface EffectsTabConfig {
   id: EffectsTabId
@@ -47,10 +48,18 @@ const TemplateIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
-// Voice 탭 제거
+const VoiceIcon = ({ className }: { className?: string }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <rect x="9" y="2" width="6" height="11" rx="3" stroke="currentColor" strokeWidth="2"/>
+    <path d="M5 11C5 14.866 8.13401 18 12 18C15.866 18 19 14.866 19 11" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+    <path d="M12 18V22M9 22H15" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+)
+
 const EFFECTS_TABS: EffectsTabConfig[] = [
   { id: 'animation', label: '전환', Icon: AnimationIcon },
   { id: 'bgm', label: 'BGM', Icon: BgmIcon },
+  { id: 'voice', label: '보이스', Icon: VoiceIcon },
   { id: 'subtitle', label: '자막', Icon: SubtitleIcon },
   { id: 'sound', label: '사운드', Icon: SoundIcon },
   { id: 'template', label: '템플릿', Icon: TemplateIcon },
@@ -123,6 +132,11 @@ interface ProEffectsPanelProps {
   onSoundEffectConfirm: (effectId: string | null) => void
   setTimeline: (value: TimelineData) => void
   onMotionChange?: (sceneIndex: number, motion: MotionConfig | null) => void
+  // 보이스
+  currentVoiceTemplate?: string | null
+  synthesizingScenes?: Set<number>
+  onVoiceSelect?: (voiceTemplate: string | null, voiceLabel: string) => void
+  onVoiceSelectForAll?: (voiceTemplate: string | null, voiceLabel: string) => void
 }
 
 export function ProEffectsPanel({
@@ -144,6 +158,10 @@ export function ProEffectsPanel({
   onSoundEffectConfirm,
   setTimeline,
   onMotionChange,
+  currentVoiceTemplate,
+  synthesizingScenes,
+  onVoiceSelect,
+  onVoiceSelectForAll,
 }: ProEffectsPanelProps) {
   // transitions와 movements가 제공되면 사용, 아니면 allTransitions 사용 (하위 호환성)
   const displayTransitions = transitions || allTransitions
@@ -396,13 +414,28 @@ export function ProEffectsPanel({
 
                 <TabsContent value="bgm" className="px-6 pt-6 w-full max-w-full overflow-x-hidden">
                   <div className="w-full max-w-full overflow-x-hidden box-border">
-                    <BgmSelector 
-                      bgmTemplate={bgmTemplate} 
-                      theme={theme ?? 'light'} 
+                    <BgmSelector
+                      bgmTemplate={bgmTemplate}
+                      theme={theme ?? 'light'}
                       setBgmTemplate={setBgmTemplate}
                       confirmedBgmTemplate={confirmedBgmTemplate}
                       onBgmConfirm={onBgmConfirm}
                     />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="voice" className="px-6 pt-6 w-full max-w-full overflow-x-hidden">
+                  <div className="w-full max-w-full overflow-x-hidden box-border">
+                    {onVoiceSelect ? (
+                      <ProStep3VoicePanel
+                        currentVoiceTemplate={currentVoiceTemplate}
+                        synthesizingScenes={synthesizingScenes}
+                        onVoiceSelect={onVoiceSelect}
+                        onVoiceSelectForAll={onVoiceSelectForAll}
+                      />
+                    ) : (
+                      <div className="text-sm text-[#5d5d5d] py-4">보이스 기능을 사용할 수 없습니다.</div>
+                    )}
                   </div>
                 </TabsContent>
 
