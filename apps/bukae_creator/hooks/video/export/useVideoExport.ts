@@ -686,17 +686,16 @@ export function useVideoExport({
       }
 
       if (process.env.NODE_ENV === 'development') {
-        // 개발 환경에서는 실제로 전송될 요청 전문(헤더 + JSON 문자열)을 그대로 로그로 출력
-        const requestBody = JSON.stringify(exportData)
-        console.warn('[Export] /api/videos/generate REQUEST:', {
-          url: '/api/videos/generate',
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: requestBody,
-        })
+        // 개발 환경에서는 헤더/토큰 없이, 실제 전송되는 JSON 바디만 예쁘게 출력
+        const bodyForLog = {
+          jobType: exportData.jobType,
+          encodingRequest: exportData.encodingRequest,
+        }
+        // 예시처럼 pretty-printed JSON 문자열로 로그
+        console.warn(
+          '[Export] /api/videos/generate JSON BODY:\n',
+          JSON.stringify(bodyForLog, null, 2),
+        )
       }
 
       // 7. 최종 인코딩 요청 전송

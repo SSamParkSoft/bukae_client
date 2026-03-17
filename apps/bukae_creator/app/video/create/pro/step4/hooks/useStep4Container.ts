@@ -171,6 +171,47 @@ export function useStep4Container() {
     }
   }, [])
 
+  const cancelStudioJob = useCallback(async (targetJobId: string) => {
+    const jobIdToCancel = targetJobId.trim()
+    if (!jobIdToCancel) return
+
+    try {
+      let accessToken = authStorage.getAccessToken()
+      if (!accessToken) {
+        const supabase = getSupabaseClient()
+        const { data } = await supabase.auth.getSession()
+        accessToken = data.session?.access_token ?? null
+      }
+
+      if (!accessToken) {
+        console.warn('[Step4] 작업 취소 실패: 액세스 토큰이 없습니다.')
+        return
+      }
+
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+      if (!API_BASE_URL) {
+        console.error('[Step4] NEXT_PUBLIC_API_BASE_URL이 설정되지 않았습니다.')
+        return
+      }
+
+      const cancelUrl = `${API_BASE_URL}/api/v1/studio/jobs/${jobIdToCancel}/cancel`
+      const response = await fetch(cancelUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '')
+        console.warn('[Step4] 작업 취소 API 호출 실패:', response.status, errorText)
+      }
+    } catch (error) {
+      console.error('[Step4] 작업 취소 API 호출 중 오류:', error)
+    }
+  }, [])
+
   // 상태 업데이트 처리 함수
   const handleStatusUpdate = useCallback((statusData: ExtendedStudioJobUpdate) => {
     
@@ -982,17 +1023,33 @@ export function useStep4Container() {
   }, [isCompleting, reset, router, urlJobId, currentJobId, videoTitle, videoTitleCandidates, videoDescription, videoHashtags])
 
   // 중단하기 핸들러
-  const handleCancel = useCallback(() => {
-    if (confirm('영상 생성을 중단하시겠습니까? 나중에 다시 확인할 수 있습니다.')) {
-      if (jobStatusCheckTimeoutRef.current) {
-        clearTimeout(jobStatusCheckTimeoutRef.current)
-        jobStatusCheckTimeoutRef.current = null
-      }
-      setJobStatus(null)
-      setJobProgress('')
-      router.push('/')
+  const handleCancel = useCallback(async () => {
+    if (!confirm('영상 생성을 중단하시겠습니까?')) {
+      return
     }
-  }, [router])
+
+    const targetJobId = urlJobId || currentJobId
+    if (targetJobId) {
+      void cancelStudioJob(targetJobId)
+    }
+
+    if (jobStatusCheckTimeoutRef.current) {
+      clearTimeout(jobStatusCheckTimeoutRef.current)
+      jobStatusCheckTimeoutRef.current = null
+    }
+
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('currentVideoJobId')
+    }
+
+    setCurrentJobId(null)
+    setJobStatus(null)
+    setJobProgress('')
+    setEncodingSceneIndex(null)
+    setResultVideoUrl(null)
+
+    router.push('/')
+  }, [router, urlJobId, currentJobId, cancelStudioJob])
 
   return {
     // State

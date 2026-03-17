@@ -339,17 +339,15 @@ export function useProVideoExport({
       }
 
       if (process.env.NODE_ENV === 'development') {
-        // 개발 환경에서는 실제로 전송될 요청 전문(헤더 + JSON 문자열)을 그대로 로그로 출력
-        const requestBody = JSON.stringify(exportPayload)
-        console.warn('[Export] /api/videos/generate REQUEST (PRO):', {
-          url: '/api/videos/generate',
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: requestBody,
-        })
+        // 개발 환경에서는 헤더/토큰 없이, 실제 전송되는 JSON 바디만 예쁘게 출력
+        const bodyForLog = {
+          jobType: exportPayload.jobType,
+          encodingRequest: exportPayload.encodingRequest,
+        }
+        console.warn(
+          '[Export] /api/videos/generate JSON BODY (PRO):\n',
+          JSON.stringify(bodyForLog, null, 2),
+        )
       }
 
       const response = await fetch('/api/videos/generate', {
