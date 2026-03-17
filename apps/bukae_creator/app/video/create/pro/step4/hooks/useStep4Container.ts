@@ -750,12 +750,11 @@ export function useStep4Container() {
 
   // 공통 유효성 검사 함수
   const getProductAndScript = useCallback(() => {
-    if (!selectedProducts[0] || scenes.length === 0) {
-      alert('상품과 대본 정보가 필요합니다.')
+    if (scenes.length === 0) {
+      alert('대본 정보가 필요합니다.')
       return null
     }
 
-    const product = selectedProducts[0]
     const fullScript = scenes.map((scene) => scene.script).join('\n')
 
     // 유효성 검사: script가 비어있으면 에러
@@ -764,14 +763,10 @@ export function useStep4Container() {
       return null
     }
 
-    // productDescription이 없으면 product.name 사용
-    const productDescription = product.description?.trim() || product.name || ''
-
-    // productDescription도 비어있으면 에러
-    if (!productDescription) {
-      alert('상품 정보가 없습니다.')
-      return null
-    }
+    // 상품이 없으면 빈 문자열로 처리 (스크립트만으로 AI 생성)
+    const productDescription = selectedProducts[0]
+      ? (selectedProducts[0].description?.trim() || selectedProducts[0].name || '')
+      : ''
 
     return { productDescription, script: fullScript }
   }, [selectedProducts, scenes])
