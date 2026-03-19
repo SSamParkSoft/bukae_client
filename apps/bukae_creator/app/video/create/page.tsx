@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { clearVideoCreateDraft, hasVideoCreateDraft } from './_utils/draft-storage'
+import { useVideoCreateStore } from '@/store/useVideoCreateStore'
 
 export default function VideoCreatePage() {
   const router = useRouter()
+  const { setVideoMode } = useVideoCreateStore()
   const [isResumeDialogOpen, setIsResumeDialogOpen] = useState(false)
 
   const navigateToStep1 = useCallback(() => {
@@ -32,6 +34,12 @@ export default function VideoCreatePage() {
     setIsResumeDialogOpen(false)
     navigateToStep1()
   }, [navigateToStep1])
+
+  const handleStartGeneral = useCallback(() => {
+    clearVideoCreateDraft()
+    setVideoMode('general')
+    router.push('/video/create/pro/step2/edit')
+  }, [router, setVideoMode])
 
   return (
     <>
@@ -60,23 +68,41 @@ export default function VideoCreatePage() {
 
         {/* 시작 버튼 */}
         <div className="flex justify-center">
-          <div className="rounded-(--size-track-container-radius) p-(--spacing-card-padding) bg-white/20 border border-white/10 backdrop-blur-[10px] shadow-(--shadow-container)">
+          <div className="rounded-(--size-track-container-radius) p-(--spacing-card-padding) bg-white/20 border border-white/10 backdrop-blur-[10px] shadow-(--shadow-container) flex flex-col gap-4 sm:flex-row">
             <button
               onClick={handleStart}
               className="w-(--size-track-card-width) h-(--size-track-card-height) rounded-(--size-track-card-radius) bg-brand-teal text-white text-center transition-all cursor-pointer flex flex-col justify-center shadow-(--shadow-card-teal) hover:shadow-(--shadow-card-teal-hover) focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-brand-teal"
-              aria-label="영상 제작 시작"
+              aria-label="상품 마케팅 영상 제작 시작"
             >
               <h3
                 className="font-bold leading-(--line-height-32-140) text-white mb-2 tracking-(--letter-spacing-4xl)"
                 style={{ fontSize: 'var(--font-size-32)' }}
               >
-                영상 제작 시작
+                상품 마케팅 영상
               </h3>
               <p
                 className="font-bold leading-(--line-height-16-140) text-white tracking-(--letter-spacing-base)"
                 style={{ fontSize: 'var(--font-size-16)' }}
               >
-                전문적인 AI 영상 제작
+                상품 선택 후 AI 영상 제작
+              </p>
+            </button>
+            <button
+              onClick={handleStartGeneral}
+              className="w-(--size-track-card-width) h-(--size-track-card-height) rounded-(--size-track-card-radius) bg-white/30 border-2 border-brand-teal text-brand-teal-dark text-center transition-all cursor-pointer flex flex-col justify-center shadow-(--shadow-card-default) hover:bg-brand-teal/10 focus:outline-none focus:ring-2 focus:ring-brand-teal focus:ring-offset-2"
+              aria-label="일반 영상 제작 시작"
+            >
+              <h3
+                className="font-bold leading-(--line-height-32-140) mb-2 tracking-(--letter-spacing-4xl)"
+                style={{ fontSize: 'var(--font-size-32)' }}
+              >
+                일반 영상 만들기
+              </h3>
+              <p
+                className="font-bold leading-(--line-height-16-140) tracking-(--letter-spacing-base)"
+                style={{ fontSize: 'var(--font-size-16)' }}
+              >
+                대본 직접 작성으로 시작
               </p>
             </button>
           </div>

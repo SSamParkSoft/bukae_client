@@ -52,6 +52,7 @@ export default function ProStep2EditPage() {
     setScenes: setStoreScenes,
     selectedProducts,
     scriptStyle,
+    videoMode,
   } = useVideoCreateStore()
   const isStoreHydrated = useVideoCreateStoreHydration()
   const storeScenesLength = storeScenes?.length ?? 0
@@ -839,8 +840,8 @@ export default function ProStep2EditPage() {
                     onVideoUpload={handleVideoUpload}
                     onAiScriptClick={handleAiScriptClick}
                     onAiGuideClick={handleAiGuideClick}
-                    onAiScriptGenerateAll={handleAiScriptGenerateAll}
-                    onAiGuideGenerateAll={handleAiGuideGenerateAll}
+                    onAiScriptGenerateAll={videoMode === 'product' ? handleAiScriptGenerateAll : undefined}
+                    onAiGuideGenerateAll={videoMode === 'product' ? handleAiGuideGenerateAll : undefined}
                     isGeneratingScript={isGeneratingScript}
                     isGeneratingGuide={isGeneratingGuide}
                     onSelectionChange={handleSelectionChange}

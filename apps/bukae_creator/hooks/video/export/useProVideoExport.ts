@@ -339,13 +339,15 @@ export function useProVideoExport({
       }
 
       if (process.env.NODE_ENV === 'development') {
-        // 개발 환경에서만 최소 정보만 로깅 (민감한 필드는 출력하지 않음)
-        console.warn('[Export] exportPayload summary:', {
+        // 개발 환경에서는 헤더/토큰 없이, 실제 전송되는 JSON 바디만 예쁘게 출력
+        const bodyForLog = {
           jobType: exportPayload.jobType,
-          sceneCount: exportPayload.encodingRequest.scenes?.length ?? 0,
-          resolution: exportPayload.encodingRequest.renderSettings?.resolution,
-          hasBgm: !!exportPayload.encodingRequest.audio?.bgm?.enabled,
-        })
+          encodingRequest: exportPayload.encodingRequest,
+        }
+        console.warn(
+          '[Export] /api/videos/generate JSON BODY (PRO):\n',
+          JSON.stringify(bodyForLog, null, 2),
+        )
       }
 
       const response = await fetch('/api/videos/generate', {

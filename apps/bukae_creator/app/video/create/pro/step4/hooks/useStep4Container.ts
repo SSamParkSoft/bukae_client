@@ -8,6 +8,7 @@ import { studioMetaApi } from '@/lib/api/studio-meta'
 import { type StudioJobUpdate } from '@/lib/api/websocket'
 import { useVideoCreateAuth } from '@/hooks/auth/useVideoCreateAuth'
 import { authStorage } from '@/lib/api/auth-storage'
+import { api, ApiError } from '@/lib/api/client'
 import { getSupabaseClient } from '@/lib/supabase/client'
 
 type RichProgressDetail = {
@@ -108,6 +109,8 @@ export function useStep4Container() {
   const [isGeneratingHashtags, setIsGeneratingHashtags] = useState(false)
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [cancelError, setCancelError] = useState<string | null>(null)
   const product = selectedProducts[0]
   const descriptionInitialized = useRef(false)
   const hashtagsInitialized = useRef(false)
@@ -170,6 +173,45 @@ export function useStep4Container() {
       console.warn('[Step4] 크레딧 환불 요청 에러:', error)
     }
   }, [])
+
+  // 작업 취소 실행 (confirm 없이 직접 호출 — handleCancel 및 retryCancel 공용)
+  const doCancelJob = useCallback(async (targetJobId: string) => {
+    const jobIdToCancel = targetJobId.trim()
+    if (!jobIdToCancel) return
+
+    setIsCancelling(true)
+    setCancelError(null)
+
+    try {
+      await api.post(`/api/v1/studio/jobs/${jobIdToCancel}/cancel`)
+
+      // 성공: 타임아웃·로컬스토리지·잡 상태 정리 후 이동
+      if (jobStatusCheckTimeoutRef.current) {
+        clearTimeout(jobStatusCheckTimeoutRef.current)
+        jobStatusCheckTimeoutRef.current = null
+      }
+
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('currentVideoJobId')
+      }
+
+      setCurrentJobId(null)
+      setJobStatus(null)
+      setJobProgress('')
+      setEncodingSceneIndex(null)
+      setResultVideoUrl(null)
+
+      router.push('/')
+    } catch (error) {
+      // 실패: 잡 상태 유지, 타임아웃 유지, 오류 메시지만 노출
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : '작업 취소 중 오류가 발생했어요. 다시 시도해주세요.'
+      setCancelError(message)
+      setIsCancelling(false)
+    }
+  }, [router])
 
   // 상태 업데이트 처리 함수
   const handleStatusUpdate = useCallback((statusData: ExtendedStudioJobUpdate) => {
@@ -750,12 +792,11 @@ export function useStep4Container() {
 
   // 공통 유효성 검사 함수
   const getProductAndScript = useCallback(() => {
-    if (!selectedProducts[0] || scenes.length === 0) {
-      alert('상품과 대본 정보가 필요합니다.')
+    if (scenes.length === 0) {
+      alert('대본 정보가 필요합니다.')
       return null
     }
 
-    const product = selectedProducts[0]
     const fullScript = scenes.map((scene) => scene.script).join('\n')
 
     // 유효성 검사: script가 비어있으면 에러
@@ -764,14 +805,10 @@ export function useStep4Container() {
       return null
     }
 
-    // productDescription이 없으면 product.name 사용
-    const productDescription = product.description?.trim() || product.name || ''
-
-    // productDescription도 비어있으면 에러
-    if (!productDescription) {
-      alert('상품 정보가 없습니다.')
-      return null
-    }
+    // 상품이 없으면 빈 문자열로 처리 (스크립트만으로 AI 생성)
+    const productDescription = selectedProducts[0]
+      ? (selectedProducts[0].description?.trim() || selectedProducts[0].name || '')
+      : ''
 
     return { productDescription, script: fullScript }
   }, [selectedProducts, scenes])
@@ -986,18 +1023,28 @@ export function useStep4Container() {
     router.push('/')
   }, [isCompleting, reset, router, urlJobId, currentJobId, videoTitle, videoTitleCandidates, videoDescription, videoHashtags])
 
-  // 중단하기 핸들러
-  const handleCancel = useCallback(() => {
-    if (confirm('영상 생성을 중단하시겠습니까? 나중에 다시 확인할 수 있습니다.')) {
-      if (jobStatusCheckTimeoutRef.current) {
-        clearTimeout(jobStatusCheckTimeoutRef.current)
-        jobStatusCheckTimeoutRef.current = null
-      }
-      setJobStatus(null)
-      setJobProgress('')
+  // 중단하기 핸들러 (confirm → doCancelJob)
+  const handleCancel = useCallback(async () => {
+    if (!confirm('영상 생성을 중단하시겠습니까?')) {
+      return
+    }
+
+    const targetJobId = urlJobId || currentJobId
+    if (targetJobId) {
+      await doCancelJob(targetJobId)
+    } else {
+      // jobId가 없는 경우 바로 홈으로
       router.push('/')
     }
-  }, [router])
+  }, [router, urlJobId, currentJobId, doCancelJob])
+
+  // 취소 실패 후 재시도 (confirm 없이 재호출)
+  const retryCancel = useCallback(async () => {
+    const targetJobId = urlJobId || currentJobId
+    if (targetJobId) {
+      await doCancelJob(targetJobId)
+    }
+  }, [urlJobId, currentJobId, doCancelJob])
 
   return {
     // State
@@ -1015,6 +1062,9 @@ export function useStep4Container() {
     formatElapsed,
     handleDownload,
     handleCancel,
+    isCancelling,
+    cancelError,
+    retryCancel,
     
     // Video Metadata
     videoTitle,

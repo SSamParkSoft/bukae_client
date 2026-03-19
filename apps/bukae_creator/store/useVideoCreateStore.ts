@@ -12,6 +12,7 @@ import type { VideoEditData, Step2Result, ScriptMethod, CreationMode } from '@/l
 // 타입들은 domain에서 import하므로 여기서는 제거
 
 interface VideoCreateState {
+  videoMode: 'product' | 'general'
   currentStep: number
   selectedProducts: Product[]
   videoEditData: VideoEditData | null
@@ -61,6 +62,7 @@ interface VideoCreateState {
   // 저장 제어
   autoSaveEnabled: boolean // 자동 저장 활성화 여부
   hasUnsavedChanges: boolean // 저장되지 않은 변경사항이 있는지
+  setVideoMode: (mode: 'product' | 'general') => void
   setAutoSaveEnabled: (enabled: boolean) => void
   setHasUnsavedChanges: (hasChanges: boolean) => void
   setCurrentStep: (step: number) => void
@@ -113,6 +115,7 @@ interface VideoCreateState {
 }
 
 const initialState = {
+  videoMode: 'product' as 'product' | 'general',
   currentStep: 1,
   selectedProducts: [],
   selectedProductResponses: [],
@@ -159,6 +162,7 @@ export const useVideoCreateStore = create<VideoCreateState>()(
   persist(
     (set) => ({
       ...initialState,
+      setVideoMode: (mode) => set({ videoMode: mode }),
       setCurrentStep: (step) => set({ currentStep: step }),
       addProduct: (product) =>
         set((state) => {
