@@ -18,21 +18,22 @@ export function getSupabaseStorageUrl(bucketName: string, filePath: string): str
 }
 
 /**
- * BGM 파일의 Supabase Storage URL을 가져옵니다.
- * @param fileName - BGM 파일 이름 (예: 'bgm1.mp3' 또는 'bgm1/bgm1.mp3')
- * @returns 공개 URL 또는 null
+ * BGM 파일의 로컬 public URL을 가져옵니다.
+ * @param fileName - BGM 파일 이름 (예: 'bgm1/bgm1.mp3')
+ * @returns public URL (인코딩 서버가 fetch할 수 있도록 클라이언트에서는 절대 URL 반환)
  */
-export function getBgmStorageUrl(fileName: string): string | null {
-  return getSupabaseStorageUrl('bgms', fileName)
+export function getBgmStorageUrl(fileName: string): string {
+  const base = typeof window !== 'undefined' ? window.location.origin : ''
+  return `${base}/bgms/${fileName}`
 }
 
 /**
- * 폰트 파일의 Supabase Storage URL을 가져옵니다.
+ * 폰트 파일의 로컬 public URL을 가져옵니다.
  * @param filePath - 폰트 파일 경로 (예: 'pretendard/PretendardVariable.woff2')
- * @returns 공개 URL 또는 null
+ * @returns 로컬 경로
  */
-export function getFontStorageUrl(filePath: string): string | null {
-  return getSupabaseStorageUrl('fonts', filePath)
+export function getFontStorageUrl(filePath: string): string {
+  return `/fonts/${filePath}`
 }
 
 /**
@@ -45,12 +46,13 @@ export function getImageStorageUrl(fileName: string): string | null {
 }
 
 /**
- * 효과음 파일의 Supabase Storage URL을 가져옵니다.
- * @param fileName - 효과음 파일 이름 (예: 'pop.mp3')
- * @returns 공개 URL 또는 null
+ * 효과음 파일의 로컬 public URL을 가져옵니다.
+ * @param fileName - 효과음 파일 경로 (예: 'game/ddiring.mp3')
+ * @returns public URL (인코딩 서버가 fetch할 수 있도록 클라이언트에서는 절대 URL 반환)
  */
-export function getSoundEffectStorageUrl(fileName: string): string | null {
-  return getSupabaseStorageUrl('soundeffect', fileName)
+export function getSoundEffectStorageUrl(fileName: string): string {
+  const base = typeof window !== 'undefined' ? window.location.origin : ''
+  return `${base}/soundeffects/${fileName}`
 }
 
 /**
