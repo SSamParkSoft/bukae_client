@@ -347,17 +347,15 @@ export function getBgmTemplateUrlSync(template: BgmTemplate): string {
     } catch (_error) {
       // 모듈이 아직 로드되지 않았거나 에러 발생 시 기본 경로 반환
     }
-    // Storage URL을 가져오지 못한 경우, 기본 경로 반환
-    return `/bgm/${template.preview}`
+    // URL을 가져오지 못한 경우, 기본 경로 반환
+    return `/bgms/${template.preview}`
   }
   // 서버 사이드이거나 Supabase Storage를 사용하지 않는 경우
-  return template.preview.startsWith('/') ? template.preview : `/bgm/${template.preview}`
+  return template.preview.startsWith('/') ? template.preview : `/bgms/${template.preview}`
 }
 
 /**
  * BGM 템플릿의 실제 URL을 가져옵니다 (비동기 버전).
- * Supabase Storage를 사용하는 경우 Storage URL을 반환하고,
- * 그렇지 않은 경우 로컬 경로를 반환합니다.
  */
 export async function getBgmTemplateUrl(template: BgmTemplate): Promise<string> {
   if (template.useSupabaseStorage && typeof window !== 'undefined') {
@@ -368,13 +366,11 @@ export async function getBgmTemplateUrl(template: BgmTemplate): Promise<string> 
         return storageUrl
       }
     } catch (error) {
-      console.error('BGM Storage URL 가져오기 실패:', error)
+      console.error('BGM URL 가져오기 실패:', error)
     }
-    // Storage URL을 가져오지 못한 경우, 기본 경로 반환
-    return `/bgm/${template.preview}`
+    return `/bgms/${template.preview}`
   }
-  // 서버 사이드이거나 Supabase Storage를 사용하지 않는 경우
-  return template.preview.startsWith('/') ? template.preview : `/bgm/${template.preview}`
+  return template.preview.startsWith('/') ? template.preview : `/bgms/${template.preview}`
 }
 
 // 전환효과 템플릿
