@@ -345,6 +345,9 @@ export default function ProfilePage() {
     setEditingTrackingId(platform)
   }
 
+  // 프로필 이미지 로드 실패 시, 깨진 썸네일 대신 아이콘으로 폴백
+  const [profileImageError, setProfileImageError] = useState(false)
+
   const handleSaveTrackingId = async (platform: TargetMall) => {
     const trackingId = trackingIdForm[platform].trim() || ''
     setIsSavingTrackingId(true)
@@ -402,8 +405,14 @@ export default function ProfilePage() {
   const profileDisplayName = mergedProfile?.name || '사용자'
   const profileEmail = mergedProfile?.email || 'user@example.com'
   const profileImage = mergedProfile?.profileImage
+  const avatarProxySrc = profileImage ? `/api/avatar-proxy?url=${encodeURIComponent(profileImage)}` : null
   const profileLoading = isAuthenticated && userLoading && !user
   const shouldRenderProfileCard = Boolean(mergedProfile)
+
+  useEffect(() => {
+    // 프로필 이미지 URL이 바뀌면 에러 상태를 초기화
+    setProfileImageError(false)
+  }, [profileImage])
 
   return (
     <motion.div
@@ -517,13 +526,15 @@ export default function ProfilePage() {
                       <div className={`relative w-24 h-24 rounded-full flex items-center justify-center ${
                         theme === 'dark' ? 'bg-purple-900/40' : 'bg-purple-100'
                       }`}>
-                        {profileImage ? (
+                        {profileImage && !profileImageError ? (
                           <Image
-                            src={profileImage}
+                            src={avatarProxySrc ?? profileImage}
                             alt={profileDisplayName}
                             fill
                             className="rounded-full object-cover"
                             sizes="96px"
+                            unoptimized
+                            onError={() => setProfileImageError(true)}
                           />
                         ) : (
                           <User className={`w-12 h-12 ${

@@ -17,6 +17,8 @@ export default function HomeShortcut() {
 
   const isLoggedIn = isAuthenticated && user
   const showProfileImage = isLoggedIn && user?.profileImage && !imageError
+  const avatarProxySrc =
+    isLoggedIn && user?.profileImage ? `/api/avatar-proxy?url=${encodeURIComponent(user.profileImage)}` : null
 
   return (
     <Link
@@ -40,11 +42,12 @@ export default function HomeShortcut() {
             {showProfileImage && user.profileImage ? (
               <Image
                 key={user.profileImage}
-                src={user.profileImage}
+                src={avatarProxySrc ?? user.profileImage}
                 alt={user.name || '프로필'}
                 fill
                 sizes="72px"
                 className="rounded-full object-cover"
+                unoptimized
                 onError={() => setImageError(true)}
                 onLoad={() => setImageError(false)}
               />
