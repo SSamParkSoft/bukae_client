@@ -1,6 +1,5 @@
-import test from 'node:test'
-import assert from 'node:assert/strict'
-import { resolveSceneEffect } from './video-export'
+import { test, expect } from 'vitest'
+import { resolveSceneEffect } from '../video-export'
 
 test('resolveSceneEffect prioritizes transition over motion', () => {
   const resolved = resolveSceneEffect({
@@ -15,7 +14,7 @@ test('resolveSceneEffect prioritizes transition over motion', () => {
     },
   })
 
-  assert.deepEqual(resolved, {
+  expect(resolved).toEqual({
     effectType: 'fade',
     effectDuration: 0.7,
   })
@@ -34,7 +33,7 @@ test('resolveSceneEffect falls back to motion when transition is none', () => {
     },
   })
 
-  assert.deepEqual(resolved, {
+  expect(resolved).toEqual({
     effectType: 'slide-left',
     effectDuration: 1.8,
   })
@@ -45,7 +44,7 @@ test('resolveSceneEffect returns none when both transition and motion are absent
     transition: 'none',
   })
 
-  assert.deepEqual(resolved, {
+  expect(resolved).toEqual({
     effectType: 'none',
     effectDuration: 0,
   })
@@ -56,7 +55,7 @@ test('resolveSceneEffect uses safe default durations for invalid values', () => 
     transition: 'blur',
     transitionDuration: 0,
   })
-  assert.deepEqual(transitionResolved, {
+  expect(transitionResolved).toEqual({
     effectType: 'blur',
     effectDuration: 0.5,
   })
@@ -71,7 +70,7 @@ test('resolveSceneEffect uses safe default durations for invalid values', () => 
       params: { scaleFrom: 1.2, scaleTo: 1 },
     },
   })
-  assert.deepEqual(motionResolved, {
+  expect(motionResolved).toEqual({
     effectType: 'zoom-out',
     effectDuration: 0.5,
   })
@@ -89,7 +88,7 @@ test('resolveSceneEffect treats empty transition as none and falls back to motio
     },
   })
 
-  assert.deepEqual(resolved, {
+  expect(resolved).toEqual({
     effectType: 'slide-right',
     effectDuration: 1.2,
   })

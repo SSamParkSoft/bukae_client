@@ -27,6 +27,13 @@ pnpm build:all        # Build all apps
 # Lint (runs across all apps)
 pnpm lint
 
+# Typecheck (runs across all apps)
+pnpm typecheck
+
+# Test (creator app)
+pnpm test           # 1회 실행 후 종료 (CI용)
+pnpm test:watch     # watch 모드 — 파일 저장 시 자동 재실행 (개발 중 사용)
+
 # Seed demo data
 pnpm seed-demo
 ```
@@ -94,11 +101,39 @@ From ESLint config and Cursor rules:
 - **No unused variables** — prefix intentionally unused vars/args/destructured with `_`
 - Unused ESLint disable directives are errors
 
+## Testing
+
+Vitest 기반. 설정 파일: `apps/bukae_creator/vitest.config.ts` (`@/*` alias 포함).
+
+테스트 대상은 **순수 유틸리티 함수**만 — React hook, Pixi/Fabric 등 외부 의존성이 있는 코드는 제외.
+
+현재 커버리지 (13개 파일, 79개 테스트):
+
+| 영역 | 파일 |
+|------|------|
+| Step3 타이밍/재생 | `segmentDuration`, `proPlaybackUtils`, `transitionFrameState` |
+| Step3 유틸 | `reorderScenes`, `proPreviewLayout` |
+| Step3 편집 | `proFabricTransformUtils`, `useSceneSelectionUpdater` |
+| 자막 렌더링 | `useSubtitleRenderer` (anchor/position 계산), `previewStroke`, `getSubtitlePosition`, `serializeSubtitleForEncoding` |
+| 모션 타이밍 | `calculateMotionTiming` |
+| 익스포트 | `video-export` |
+
+새 유틸 함수 추가 시 같은 위치에 `.test.ts` 파일을 함께 작성할 것.
+
 ## CI/CD
 
-- `lint.yml`: Runs ESLint on PRs and pushes to `develop`/`main`. Uses Node.js 20 and pnpm 10.7.0.
-- `coderabbit-guard.yml`: Blocks merge if CodeRabbit finds major/critical issues. Reviews are in Korean (`ko-KR`). Wait for CodeRabbit to complete before assuming a PR is ready.
+- `lint.yml`: Runs ESLint + TypeScript typecheck on pushes to `develop`. Uses Node version from `.nvmrc` and pnpm version from `package.json`. Path-filtered: only runs for the app that changed.
+- `build-check.yml`: Build validation workflow.
 - Main branch for PRs: `main`. Development branch: `develop`.
+
+## Version Update Locations
+
+| 항목 | 수정 파일 |
+|------|-----------|
+| 앱 버전 | `apps/bukae_creator/package.json`, `apps/bukae_viewer/package.json`, 루트 `package.json` → `"version"` |
+| Node.js | `.nvmrc` + 루트 `package.json` → `"engines".node` |
+| pnpm | 루트 `package.json` → `"packageManager"` + `"engines".pnpm` |
+| Next.js / 패키지 | 루트 및 각 앱 `package.json` → `dependencies` / `devDependencies` (`pnpm update` 후 `pnpm-lock.yaml` 자동 갱신) |
 
 ## App-Specific Documentation
 

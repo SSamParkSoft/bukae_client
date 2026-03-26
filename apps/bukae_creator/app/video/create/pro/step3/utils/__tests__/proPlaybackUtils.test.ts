@@ -1,5 +1,4 @@
-import test from 'node:test'
-import assert from 'node:assert/strict'
+import { test, expect } from 'vitest'
 import {
   clampPlaybackTime,
   clampVideoTimeToSelection,
@@ -14,8 +13,8 @@ import {
   hasRecentGesture,
   isPlayableScene,
   resolveProSceneAtTime,
-} from './proPlaybackUtils'
-import type { ProStep3Scene } from '../model/types'
+} from '../proPlaybackUtils'
+import type { ProStep3Scene } from '../../model/types'
 
 function makeScene(overrides: Partial<ProStep3Scene> = {}): ProStep3Scene {
   return {
@@ -31,20 +30,18 @@ function makeScene(overrides: Partial<ProStep3Scene> = {}): ProStep3Scene {
 }
 
 test('getSceneSegmentDuration returns positive segment length only', () => {
-  assert.equal(getSceneSegmentDuration(makeScene({ selectionStartSeconds: 1, selectionEndSeconds: 4 })), 3)
-  assert.equal(getSceneSegmentDuration(makeScene({ selectionStartSeconds: 4, selectionEndSeconds: 1 })), 0)
+  expect(getSceneSegmentDuration(makeScene({ selectionStartSeconds: 1, selectionEndSeconds: 4 }))).toBe(3)
+  expect(getSceneSegmentDuration(makeScene({ selectionStartSeconds: 4, selectionEndSeconds: 1 }))).toBe(0)
 })
 
 test('isPlayableScene requires videoUrl and positive duration', () => {
-  assert.equal(isPlayableScene(makeScene({ videoUrl: null })), false)
-  assert.equal(
-    isPlayableScene(makeScene({ selectionStartSeconds: 3, selectionEndSeconds: 3 })),
-    false
-  )
-  assert.equal(
-    isPlayableScene(makeScene({ videoUrl: 'https://example.com/a.mp4', selectionStartSeconds: 0, selectionEndSeconds: 1 })),
-    true
-  )
+  expect(isPlayableScene(makeScene({ videoUrl: null }))).toBe(false)
+  expect(
+    isPlayableScene(makeScene({ selectionStartSeconds: 3, selectionEndSeconds: 3 }))
+  ).toBe(false)
+  expect(
+    isPlayableScene(makeScene({ videoUrl: 'https://example.com/a.mp4', selectionStartSeconds: 0, selectionEndSeconds: 1 }))
+  ).toBe(true)
 })
 
 test('getPlayableScenes keeps original index order and duration', () => {
@@ -55,11 +52,11 @@ test('getPlayableScenes keeps original index order and duration', () => {
   ]
 
   const playable = getPlayableScenes(scenes)
-  assert.equal(playable.length, 2)
-  assert.equal(playable[0]?.originalIndex, 0)
-  assert.equal(playable[0]?.duration, 1)
-  assert.equal(playable[1]?.originalIndex, 2)
-  assert.equal(playable[1]?.duration, 3)
+  expect(playable.length).toBe(2)
+  expect(playable[0]?.originalIndex).toBe(0)
+  expect(playable[0]?.duration).toBe(1)
+  expect(playable[1]?.originalIndex).toBe(2)
+  expect(playable[1]?.duration).toBe(3)
 })
 
 test('getPreviousPlayableDuration sums durations up to current segment', () => {
@@ -70,9 +67,9 @@ test('getPreviousPlayableDuration sums durations up to current segment', () => {
   ]
 
   const playable = getPlayableScenes(scenes)
-  assert.equal(getPreviousPlayableDuration(playable, 0), 0)
-  assert.equal(getPreviousPlayableDuration(playable, 1), 2)
-  assert.equal(getPreviousPlayableDuration(playable, 2), 4)
+  expect(getPreviousPlayableDuration(playable, 0)).toBe(0)
+  expect(getPreviousPlayableDuration(playable, 1)).toBe(2)
+  expect(getPreviousPlayableDuration(playable, 2)).toBe(4)
 })
 
 test('getDurationBeforeSceneIndex returns previous playable sum for any scene index', () => {
@@ -82,10 +79,10 @@ test('getDurationBeforeSceneIndex returns previous playable sum for any scene in
     makeScene({ id: 's3', selectionStartSeconds: 4, selectionEndSeconds: 8 }),
   ]
 
-  assert.equal(getDurationBeforeSceneIndex(scenes, 0), 0)
-  assert.equal(getDurationBeforeSceneIndex(scenes, 1), 2)
-  assert.equal(getDurationBeforeSceneIndex(scenes, 2), 2)
-  assert.equal(getDurationBeforeSceneIndex(scenes, 3), 6)
+  expect(getDurationBeforeSceneIndex(scenes, 0)).toBe(0)
+  expect(getDurationBeforeSceneIndex(scenes, 1)).toBe(2)
+  expect(getDurationBeforeSceneIndex(scenes, 2)).toBe(2)
+  expect(getDurationBeforeSceneIndex(scenes, 3)).toBe(6)
 })
 
 test('getPlayableSceneStartTime returns start only when target is playable', () => {
@@ -95,9 +92,9 @@ test('getPlayableSceneStartTime returns start only when target is playable', () 
     makeScene({ id: 's3', selectionStartSeconds: 4, selectionEndSeconds: 8 }),
   ]
 
-  assert.equal(getPlayableSceneStartTime(scenes, 0), 0)
-  assert.equal(getPlayableSceneStartTime(scenes, 1), null)
-  assert.equal(getPlayableSceneStartTime(scenes, 2), 2)
+  expect(getPlayableSceneStartTime(scenes, 0)).toBe(0)
+  expect(getPlayableSceneStartTime(scenes, 1)).toBeNull()
+  expect(getPlayableSceneStartTime(scenes, 2)).toBe(2)
 })
 
 test('resolveProSceneAtTime resolves current playable scene by timeline time', () => {
@@ -108,25 +105,25 @@ test('resolveProSceneAtTime resolves current playable scene by timeline time', (
   ]
 
   const first = resolveProSceneAtTime(scenes, 1.2)
-  assert.equal(first?.sceneIndex, 0)
-  assert.equal(first?.sceneTimeInSegment, 1.2)
+  expect(first?.sceneIndex).toBe(0)
+  expect(first?.sceneTimeInSegment).toBe(1.2)
 
   const second = resolveProSceneAtTime(scenes, 3.5)
-  assert.equal(second?.sceneIndex, 2)
-  assert.equal(second?.sceneTimeInSegment, 1.5)
+  expect(second?.sceneIndex).toBe(2)
+  expect(second?.sceneTimeInSegment).toBe(1.5)
 
   const forced = resolveProSceneAtTime(scenes, 0, { forceSceneIndex: 2 })
-  assert.equal(forced?.sceneIndex, 2)
-  assert.equal(forced?.sceneStartTime, 2)
-  assert.equal(forced?.sceneTimeInSegment, 0)
+  expect(forced?.sceneIndex).toBe(2)
+  expect(forced?.sceneStartTime).toBe(2)
+  expect(forced?.sceneTimeInSegment).toBe(0)
 })
 
 test('clampPlaybackTime keeps value within 0..totalDuration', () => {
-  assert.equal(clampPlaybackTime(-1, 10), 0)
-  assert.equal(clampPlaybackTime(4, 10), 4)
-  assert.equal(clampPlaybackTime(12, 10), 10)
-  assert.equal(clampPlaybackTime(2, 0), 0)
-  assert.equal(clampPlaybackTime(Number.NaN, 10), 0)
+  expect(clampPlaybackTime(-1, 10)).toBe(0)
+  expect(clampPlaybackTime(4, 10)).toBe(4)
+  expect(clampPlaybackTime(12, 10)).toBe(10)
+  expect(clampPlaybackTime(2, 0)).toBe(0)
+  expect(clampPlaybackTime(Number.NaN, 10)).toBe(0)
 })
 
 test('clampVideoTimeToSelection keeps playback inside selected video window', () => {
@@ -136,9 +133,9 @@ test('clampVideoTimeToSelection keeps playback inside selected video window', ()
     ttsDuration: 4,
   })
 
-  assert.equal(clampVideoTimeToSelection(scene, 4), 5)
-  assert.equal(clampVideoTimeToSelection(scene, 5.8), 5.8)
-  assert.ok(Math.abs(clampVideoTimeToSelection(scene, 9) - 6.999) < 1e-9)
+  expect(clampVideoTimeToSelection(scene, 4)).toBe(5)
+  expect(clampVideoTimeToSelection(scene, 5.8)).toBe(5.8)
+  expect(clampVideoTimeToSelection(scene, 9)).toBeCloseTo(6.999, 9)
 })
 
 test('getVideoTimeInSelectionWithLoop loops video when TTS is longer than selection', () => {
@@ -148,13 +145,13 @@ test('getVideoTimeInSelectionWithLoop loops video when TTS is longer than select
     ttsDuration: 12,
   })
 
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 0), 0)
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 2), 2)
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 4.5), 4.5)
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 5), 0)
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 7), 2)
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 10), 0)
-  assert.ok(Math.abs(getVideoTimeInSelectionWithLoop(scene, 11) - 1) < 0.01)
+  expect(getVideoTimeInSelectionWithLoop(scene, 0)).toBe(0)
+  expect(getVideoTimeInSelectionWithLoop(scene, 2)).toBe(2)
+  expect(getVideoTimeInSelectionWithLoop(scene, 4.5)).toBe(4.5)
+  expect(getVideoTimeInSelectionWithLoop(scene, 5)).toBe(0)
+  expect(getVideoTimeInSelectionWithLoop(scene, 7)).toBe(2)
+  expect(getVideoTimeInSelectionWithLoop(scene, 10)).toBe(0)
+  expect(getVideoTimeInSelectionWithLoop(scene, 11)).toBeCloseTo(1, 2)
 })
 
 test('getVideoTimeInSelectionWithLoop with non-zero selection start', () => {
@@ -163,10 +160,10 @@ test('getVideoTimeInSelectionWithLoop with non-zero selection start', () => {
     selectionEndSeconds: 6,
   })
 
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 0), 2)
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 3), 5)
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 4), 2)
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 8), 2)
+  expect(getVideoTimeInSelectionWithLoop(scene, 0)).toBe(2)
+  expect(getVideoTimeInSelectionWithLoop(scene, 3)).toBe(5)
+  expect(getVideoTimeInSelectionWithLoop(scene, 4)).toBe(2)
+  expect(getVideoTimeInSelectionWithLoop(scene, 8)).toBe(2)
 })
 
 test('getVideoTimeInSelectionWithLoop extended source: original 7s, selection 0-12', () => {
@@ -176,16 +173,16 @@ test('getVideoTimeInSelectionWithLoop extended source: original 7s, selection 0-
     ttsDuration: 12,
     originalVideoDurationSeconds: 7,
   })
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 0, 7), 0)
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 6, 7), 6)
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 7, 7), 0)
-  assert.equal(getVideoTimeInSelectionWithLoop(scene, 12, 7), 5)
+  expect(getVideoTimeInSelectionWithLoop(scene, 0, 7)).toBe(0)
+  expect(getVideoTimeInSelectionWithLoop(scene, 6, 7)).toBe(6)
+  expect(getVideoTimeInSelectionWithLoop(scene, 7, 7)).toBe(0)
+  expect(getVideoTimeInSelectionWithLoop(scene, 12, 7)).toBe(5)
 })
 
 test('getEffectiveSourceDuration extends when original < TTS', () => {
-  assert.equal(getEffectiveSourceDuration(12, 7), 14)
-  assert.equal(getEffectiveSourceDuration(7, 7), 7)
-  assert.equal(getEffectiveSourceDuration(5, 10), 10)
+  expect(getEffectiveSourceDuration(12, 7)).toBe(14)
+  expect(getEffectiveSourceDuration(7, 7)).toBe(7)
+  expect(getEffectiveSourceDuration(5, 10)).toBe(10)
 })
 
 test('normalizeSelectionRange keeps stored selection when valid', () => {
@@ -196,10 +193,10 @@ test('normalizeSelectionRange keeps stored selection when valid', () => {
     selectionEndSeconds: 10,
   })
 
-  assert.equal(normalized.startSeconds, 3)
-  assert.equal(normalized.endSeconds, 10)
-  assert.equal(normalized.spanSeconds, 7)
-  assert.equal(normalized.effectiveSourceDurationSeconds, 10)
+  expect(normalized.startSeconds).toBe(3)
+  expect(normalized.endSeconds).toBe(10)
+  expect(normalized.spanSeconds).toBe(7)
+  expect(normalized.effectiveSourceDurationSeconds).toBe(10)
 })
 
 test('normalizeSelectionRange preserves stored extended range when original duration is missing', () => {
@@ -209,10 +206,10 @@ test('normalizeSelectionRange preserves stored extended range when original dura
     selectionEndSeconds: 10,
   })
 
-  assert.equal(normalized.startSeconds, 3)
-  assert.equal(normalized.endSeconds, 10)
-  assert.equal(normalized.spanSeconds, 7)
-  assert.equal(normalized.effectiveSourceDurationSeconds, 10)
+  expect(normalized.startSeconds).toBe(3)
+  expect(normalized.endSeconds).toBe(10)
+  expect(normalized.spanSeconds).toBe(7)
+  expect(normalized.effectiveSourceDurationSeconds).toBe(10)
 })
 
 test('normalizeSelectionRange clamps out-of-range selection into effective source', () => {
@@ -223,9 +220,9 @@ test('normalizeSelectionRange clamps out-of-range selection into effective sourc
     selectionEndSeconds: 11,
   })
 
-  assert.equal(normalized.startSeconds, 3)
-  assert.equal(normalized.endSeconds, 10)
-  assert.equal(normalized.spanSeconds, 7)
+  expect(normalized.startSeconds).toBe(3)
+  expect(normalized.endSeconds).toBe(10)
+  expect(normalized.spanSeconds).toBe(7)
 })
 
 test('normalizeSelectionRange falls back to TTS span when end is missing', () => {
@@ -235,16 +232,16 @@ test('normalizeSelectionRange falls back to TTS span when end is missing', () =>
     selectionStartSeconds: 1.5,
   })
 
-  assert.equal(normalized.startSeconds, 0)
-  assert.equal(normalized.endSeconds, 6)
-  assert.equal(normalized.spanSeconds, 6)
-  assert.equal(normalized.effectiveSourceDurationSeconds, 6)
+  expect(normalized.startSeconds).toBe(0)
+  expect(normalized.endSeconds).toBe(6)
+  expect(normalized.spanSeconds).toBe(6)
+  expect(normalized.effectiveSourceDurationSeconds).toBe(6)
 })
 
 test('hasRecentGesture validates timestamp in TTL window', () => {
   const now = 1_700_000_000_000
-  assert.equal(hasRecentGesture(null, now, 3000), false)
-  assert.equal(hasRecentGesture(now - 1000, now, 3000), true)
-  assert.equal(hasRecentGesture(now - 3500, now, 3000), false)
-  assert.equal(hasRecentGesture(now + 1, now, 3000), false)
+  expect(hasRecentGesture(null, now, 3000)).toBe(false)
+  expect(hasRecentGesture(now - 1000, now, 3000)).toBe(true)
+  expect(hasRecentGesture(now - 3500, now, 3000)).toBe(false)
+  expect(hasRecentGesture(now + 1, now, 3000)).toBe(false)
 })
