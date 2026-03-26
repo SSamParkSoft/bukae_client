@@ -30,6 +30,10 @@ pnpm lint
 # Typecheck (runs across all apps)
 pnpm typecheck
 
+# Test (creator app)
+pnpm test           # 1회 실행 후 종료 (CI용)
+pnpm test:watch     # watch 모드 — 파일 저장 시 자동 재실행 (개발 중 사용)
+
 # Seed demo data
 pnpm seed-demo
 ```
@@ -96,6 +100,25 @@ From ESLint config and Cursor rules:
 - **No `console.log`** in production code — only `console.warn` and `console.error` are allowed
 - **No unused variables** — prefix intentionally unused vars/args/destructured with `_`
 - Unused ESLint disable directives are errors
+
+## Testing
+
+Vitest 기반. 설정 파일: `apps/bukae_creator/vitest.config.ts` (`@/*` alias 포함).
+
+테스트 대상은 **순수 유틸리티 함수**만 — React hook, Pixi/Fabric 등 외부 의존성이 있는 코드는 제외.
+
+현재 커버리지 (13개 파일, 79개 테스트):
+
+| 영역 | 파일 |
+|------|------|
+| Step3 타이밍/재생 | `segmentDuration`, `proPlaybackUtils`, `transitionFrameState` |
+| Step3 유틸 | `reorderScenes`, `proPreviewLayout` |
+| Step3 편집 | `proFabricTransformUtils`, `useSceneSelectionUpdater` |
+| 자막 렌더링 | `useSubtitleRenderer` (anchor/position 계산), `previewStroke`, `getSubtitlePosition`, `serializeSubtitleForEncoding` |
+| 모션 타이밍 | `calculateMotionTiming` |
+| 익스포트 | `video-export` |
+
+새 유틸 함수 추가 시 같은 위치에 `.test.ts` 파일을 함께 작성할 것.
 
 ## CI/CD
 
