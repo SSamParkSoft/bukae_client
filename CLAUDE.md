@@ -27,6 +27,9 @@ pnpm build:all        # Build all apps
 # Lint (runs across all apps)
 pnpm lint
 
+# Typecheck (runs across all apps)
+pnpm typecheck
+
 # Seed demo data
 pnpm seed-demo
 ```
@@ -96,9 +99,18 @@ From ESLint config and Cursor rules:
 
 ## CI/CD
 
-- `lint.yml`: Runs ESLint on PRs and pushes to `develop`/`main`. Uses Node.js 20 and pnpm 10.7.0.
-- `coderabbit-guard.yml`: Blocks merge if CodeRabbit finds major/critical issues. Reviews are in Korean (`ko-KR`). Wait for CodeRabbit to complete before assuming a PR is ready.
+- `lint.yml`: Runs ESLint + TypeScript typecheck on pushes to `develop`. Uses Node version from `.nvmrc` and pnpm version from `package.json`. Path-filtered: only runs for the app that changed.
+- `build-check.yml`: Build validation workflow.
 - Main branch for PRs: `main`. Development branch: `develop`.
+
+## Version Update Locations
+
+| 항목 | 수정 파일 |
+|------|-----------|
+| 앱 버전 | `apps/bukae_creator/package.json`, `apps/bukae_viewer/package.json`, 루트 `package.json` → `"version"` |
+| Node.js | `.nvmrc` + 루트 `package.json` → `"engines".node` |
+| pnpm | 루트 `package.json` → `"packageManager"` + `"engines".pnpm` |
+| Next.js / 패키지 | 루트 및 각 앱 `package.json` → `dependencies` / `devDependencies` (`pnpm update` 후 `pnpm-lock.yaml` 자동 갱신) |
 
 ## App-Specific Documentation
 
