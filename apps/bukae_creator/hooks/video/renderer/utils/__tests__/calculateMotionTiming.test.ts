@@ -7,6 +7,8 @@ import type { TimelineData } from '@/store/useVideoCreateStore'
 
 function makeTimeline(motion?: TimelineData['scenes'][number]['motion']): TimelineData {
   return {
+    fps: 30,
+    resolution: '1080x1920',
     scenes: [
       {
         sceneId: 1,
