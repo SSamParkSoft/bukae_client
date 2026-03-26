@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest'
 import type { TimelineData } from '@/store/useVideoCreateStore'
-import { serializeSubtitleForEncoding } from './serializeSubtitleForEncoding'
+import { serializeSubtitleForEncoding } from '../serializeSubtitleForEncoding'
 
 function createScene(
   overrides: Partial<TimelineData['scenes'][number]> = {}

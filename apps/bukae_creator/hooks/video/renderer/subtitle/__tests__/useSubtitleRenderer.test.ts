@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { normalizeAnchorToTopLeft, calculateTextPositionInBox } from './useSubtitleRenderer'
+import { normalizeAnchorToTopLeft, calculateTextPositionInBox } from '../useSubtitleRenderer'
 
 // normalizeAnchorToTopLeft
 // ANIMATION.md 6.2 규칙: Box_x = Input_x - (Width × Scale_x × Anchor_x)

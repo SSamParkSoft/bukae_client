@@ -1,6 +1,6 @@
 import { test, expect } from 'vitest'
 import type { TimelineData } from '@/store/useVideoCreateStore'
-import { getSubtitlePosition } from './getSubtitlePosition'
+import { getSubtitlePosition } from '../getSubtitlePosition'
 
 const stage = { width: 1080, height: 1920 }
 

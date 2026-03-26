@@ -13,8 +13,8 @@ import {
   hasRecentGesture,
   isPlayableScene,
   resolveProSceneAtTime,
-} from './proPlaybackUtils'
-import type { ProStep3Scene } from '../model/types'
+} from '../proPlaybackUtils'
+import type { ProStep3Scene } from '../../model/types'
 
 function makeScene(overrides: Partial<ProStep3Scene> = {}): ProStep3Scene {
   return {

@@ -2,7 +2,7 @@ import { test, expect } from 'vitest'
 import {
   calculateMotionLocalTime,
   calculateMotionProgress,
-} from './calculateMotionTiming'
+} from '../calculateMotionTiming'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 
 function makeTimeline(motion?: TimelineData['scenes'][number]['motion']): TimelineData {

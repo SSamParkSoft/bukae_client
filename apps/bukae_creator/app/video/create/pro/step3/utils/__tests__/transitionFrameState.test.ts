@@ -2,7 +2,7 @@ import { test, expect } from 'vitest'
 import {
   DEFAULT_TRANSITION_START_BUFFER_SEC,
   getTransitionFrameState,
-} from './transitionFrameState'
+} from '../transitionFrameState'
 
 test('returns no transition when effect is disabled', () => {
   const result = getTransitionFrameState({

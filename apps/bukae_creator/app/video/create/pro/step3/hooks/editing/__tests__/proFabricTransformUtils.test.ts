@@ -3,7 +3,7 @@ import {
   buildDefaultTextSettings,
   toTimelineTextSettings,
   toTimelineTransform,
-} from './proFabricTransformUtils'
+} from '../proFabricTransformUtils'
 
 test('toTimelineTransform converts scaled fabric coordinates into timeline coordinates', () => {
   const result = toTimelineTransform(

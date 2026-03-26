@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { applySelectionRange } from './useSceneSelectionUpdater'
+import { applySelectionRange } from '../useSceneSelectionUpdater'
 
 interface TestScene {
   id: string

@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { getPreviewLetterSpacing, getPreviewStrokeWidth } from './previewStroke'
+import { getPreviewLetterSpacing, getPreviewStrokeWidth } from '../previewStroke'
 
 test('stroke 보정은 +5px 고정값이다', () => {
   expect(getPreviewStrokeWidth(0)).toBe(0)

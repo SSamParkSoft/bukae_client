@@ -8,7 +8,7 @@ import {
   getSegmentDuration,
   isPlayableSegment,
   resolvePlayableSegmentAtTime,
-} from './segmentDuration'
+} from '../segmentDuration'
 
 test('getSegmentDuration prefers ttsDuration and clamps invalid ranges', () => {
   expect(

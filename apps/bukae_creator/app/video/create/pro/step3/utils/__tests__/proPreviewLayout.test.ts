@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { calculateAspectFittedSize } from './proPreviewLayout'
+import { calculateAspectFittedSize } from '../proPreviewLayout'
 
 test('fits by height when container is wider than target aspect', () => {
   const fitted = calculateAspectFittedSize(1200, 1000, 9 / 16)

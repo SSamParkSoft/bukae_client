@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { reorderByIndexOrder } from './reorderScenes'
+import { reorderByIndexOrder } from '../reorderScenes'
 
 test('reorderByIndexOrder reorders by source index order', () => {
   const scenes = ['a', 'b', 'c']

@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest'
-import { resolveSceneEffect } from './video-export'
+import { resolveSceneEffect } from '../video-export'
 
 test('resolveSceneEffect prioritizes transition over motion', () => {
   const resolved = resolveSceneEffect({
