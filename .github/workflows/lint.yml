@@ -2,10 +2,6 @@ name: Lint & Typecheck
 
 on:
   pull_request:
-  push:
-    branches:
-      - develop
-      - main
 
 jobs:
   changes:
