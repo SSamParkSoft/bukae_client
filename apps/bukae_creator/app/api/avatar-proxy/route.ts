@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 type AvatarCacheEntry = {
   expiresAt: number
   contentType: string
-  body: Uint8Array
+  body: ArrayBuffer
 }
 
 const TTL_MS = 24 * 60 * 60 * 1000 // 24시간
@@ -82,8 +82,9 @@ export async function GET(request: Request) {
   try {
     const inflight = getInflight()
 
-    if (inflight.has(key)) {
-      const entry = await inflight.get(key)
+    const existingInflight = inflight.get(key)
+    if (existingInflight) {
+      const entry = await existingInflight
       return new NextResponse(entry.body, {
         headers: {
           'Content-Type': entry.contentType,
@@ -109,7 +110,7 @@ export async function GET(request: Request) {
       }
 
       const contentType = imageResponse.headers.get('content-type') ?? 'image/jpeg'
-      const body = new Uint8Array(await imageResponse.arrayBuffer())
+      const body = await imageResponse.arrayBuffer()
 
       const entry: AvatarCacheEntry = {
         expiresAt: now + TTL_MS,
