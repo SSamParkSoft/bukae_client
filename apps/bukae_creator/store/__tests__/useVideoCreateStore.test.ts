@@ -106,7 +106,7 @@ test('updateProduct does not change state when productId is unknown', () => {
 test('reset clears selectedProducts and scenes', () => {
   useVideoCreateStore.getState().addProduct(makeProduct({ id: 'p1' }))
   useVideoCreateStore.getState().setScenes([
-    { id: 'scene-1', script: '테스트', voiceTemplate: null, ttsDuration: null },
+    { sceneId: 1, script: '테스트' },
   ])
   useVideoCreateStore.getState().reset()
   const state = useVideoCreateStore.getState()
@@ -116,7 +116,7 @@ test('reset clears selectedProducts and scenes', () => {
 
 test('reset clears videoTitle and timeline', () => {
   useVideoCreateStore.getState().setVideoTitle('My Video')
-  useVideoCreateStore.getState().setTimeline({ scenes: [] })
+  useVideoCreateStore.getState().setTimeline({ fps: 30, resolution: '1080x1920', scenes: [] })
   useVideoCreateStore.getState().reset()
   const state = useVideoCreateStore.getState()
   expect(state.videoTitle).toBe('')
