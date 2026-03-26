@@ -23,6 +23,9 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
   const [dropdownWidth, setDropdownWidth] = useState<number | undefined>(undefined)
   const [imageError, setImageError] = useState(false)
 
+  const avatarProxySrc =
+    user?.profileImage ? `/api/avatar-proxy?url=${encodeURIComponent(user.profileImage)}` : null
+
   // 프로필 버튼의 너비를 측정하여 드롭다운 너비에 적용
   useEffect(() => {
     if (buttonRef.current) {
@@ -80,7 +83,7 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
         {/* 프로필 사진 */}
         {user.profileImage && !imageError ? (
           <Image
-            src={user.profileImage}
+            src={avatarProxySrc ?? user.profileImage}
             alt={user.name}
             width={36}
             height={36}
@@ -133,7 +136,7 @@ export default function ProfileDropdown({ className }: ProfileDropdownProps) {
               {/* 프로필 이미지 */}
               {user.profileImage && !imageError ? (
                 <Image
-                  src={user.profileImage}
+                  src={avatarProxySrc ?? user.profileImage}
                   alt={user.name}
                   width={32}
                   height={32}
