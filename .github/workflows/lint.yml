@@ -1,33 +1,77 @@
-name: Lint
+name: Lint & Typecheck
 
 on:
-  pull_request:
   push:
     branches:
       - develop
-      - main
 
 jobs:
-  lint:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      creator: ${{ steps.filter.outputs.creator }}
+      viewer: ${{ steps.filter.outputs.viewer }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            creator:
+              - 'apps/bukae_creator/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.nvmrc'
+            viewer:
+              - 'apps/bukae_viewer/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.nvmrc'
+
+  lint-creator:
+    needs: changes
+    if: needs.changes.outputs.creator == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.7.0
-          run_install: false
+      - uses: pnpm/action-setup@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run lint
-        run: pnpm lint
+      - name: Lint (creator)
+        run: pnpm --filter bookae_creator lint
+
+      - name: Typecheck (creator)
+        run: pnpm --filter bookae_creator typecheck
+
+  lint-viewer:
+    needs: changes
+    if: needs.changes.outputs.viewer == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (viewer)
+        run: pnpm --filter bukae_viewer lint
+
+      - name: Typecheck (viewer)
+        run: pnpm --filter bukae_viewer typecheck

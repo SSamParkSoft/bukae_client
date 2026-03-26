@@ -2,6 +2,11 @@
   "name": "bookae_client",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=10"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -20,6 +25,7 @@
     "start:creator": "pnpm --filter bookae_creator start",
     "start:viewer": "pnpm --filter bukae_viewer start",
     "lint": "pnpm --filter './apps/*' lint",
+    "typecheck": "pnpm --filter './apps/*' typecheck",
     "seed-demo": "pnpm --filter bookae_creator run seed-demo"
   },
   "devDependencies": {
@@ -35,7 +41,9 @@
       "js-yaml": ">=4.1.1",
       "minimatch": "10.2.4",
       "ajv": "6.14.0",
-      "flatted": ">=3.4.2"
+      "flatted": ">=3.4.2",
+      "picomatch": ">=2.3.2 <4 || >=4.0.4",
+      "@tootallnate/once": ">=3.0.1"
     }
   }
 }
