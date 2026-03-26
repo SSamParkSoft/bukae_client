@@ -2,6 +2,11 @@
   "name": "bookae_client",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=10"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -20,6 +25,7 @@
     "start:creator": "pnpm --filter bookae_creator start",
     "start:viewer": "pnpm --filter bukae_viewer start",
     "lint": "pnpm --filter './apps/*' lint",
+    "typecheck": "pnpm --filter './apps/*' typecheck",
     "seed-demo": "pnpm --filter bookae_creator run seed-demo"
   },
   "devDependencies": {
