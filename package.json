@@ -26,7 +26,8 @@
     "start:viewer": "pnpm --filter bukae_viewer start",
     "lint": "pnpm --filter './apps/*' lint",
     "typecheck": "pnpm --filter './apps/*' typecheck",
-    "seed-demo": "pnpm --filter bookae_creator run seed-demo"
+    "seed-demo": "pnpm --filter bookae_creator run seed-demo",
+    "test": "pnpm --filter bookae_creator test"
   },
   "devDependencies": {
     "eslint": "^9",

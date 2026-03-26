@@ -1,5 +1,4 @@
-import test from 'node:test'
-import assert from 'node:assert/strict'
+import { test, expect } from 'vitest'
 import {
   DEFAULT_TRANSITION_START_BUFFER_SEC,
   getTransitionFrameState,
@@ -12,8 +11,8 @@ test('returns no transition when effect is disabled', () => {
     relativeTimeSec: 0.1,
   })
 
-  assert.equal(result.shouldTransition, false)
-  assert.equal(result.progress, 1)
+  expect(result.shouldTransition).toBe(false)
+  expect(result.progress).toBe(1)
 })
 
 test('returns no transition when duration is invalid', () => {
@@ -23,8 +22,8 @@ test('returns no transition when duration is invalid', () => {
     relativeTimeSec: 0.1,
   })
 
-  assert.equal(result.shouldTransition, false)
-  assert.equal(result.progress, 1)
+  expect(result.shouldTransition).toBe(false)
+  expect(result.progress).toBe(1)
 })
 
 test('keeps transition active in start buffer range', () => {
@@ -34,8 +33,8 @@ test('keeps transition active in start buffer range', () => {
     relativeTimeSec: -0.01,
   })
 
-  assert.equal(result.shouldTransition, true)
-  assert.equal(result.progress, 0)
+  expect(result.shouldTransition).toBe(true)
+  expect(result.progress).toBe(0)
 })
 
 test('disables transition before start buffer range', () => {
@@ -45,8 +44,8 @@ test('disables transition before start buffer range', () => {
     relativeTimeSec: -(DEFAULT_TRANSITION_START_BUFFER_SEC + 0.01),
   })
 
-  assert.equal(result.shouldTransition, false)
-  assert.equal(result.progress, 0)
+  expect(result.shouldTransition).toBe(false)
+  expect(result.progress).toBe(0)
 })
 
 test('calculates progress in transition window', () => {
@@ -56,8 +55,8 @@ test('calculates progress in transition window', () => {
     relativeTimeSec: 0.2,
   })
 
-  assert.equal(result.shouldTransition, true)
-  assert.equal(result.progress, 0.4)
+  expect(result.shouldTransition).toBe(true)
+  expect(result.progress).toBe(0.4)
 })
 
 test('marks transition complete at end boundary', () => {
@@ -67,8 +66,8 @@ test('marks transition complete at end boundary', () => {
     relativeTimeSec: 0.5,
   })
 
-  assert.equal(result.shouldTransition, false)
-  assert.equal(result.progress, 1)
+  expect(result.shouldTransition).toBe(false)
+  expect(result.progress).toBe(1)
 })
 
 test('handles NaN input safely', () => {
@@ -78,7 +77,7 @@ test('handles NaN input safely', () => {
     relativeTimeSec: Number.NaN,
   })
 
-  assert.equal(result.shouldTransition, true)
-  assert.equal(result.progress, 0)
-  assert.equal(result.relativeTimeSec, 0)
+  expect(result.shouldTransition).toBe(true)
+  expect(result.progress).toBe(0)
+  expect(result.relativeTimeSec).toBe(0)
 })

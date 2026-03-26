@@ -1,5 +1,4 @@
-import test from 'node:test'
-import assert from 'node:assert/strict'
+import { test, expect } from 'vitest'
 import {
   buildDefaultTextSettings,
   toTimelineTextSettings,
@@ -18,23 +17,23 @@ test('toTimelineTransform converts scaled fabric coordinates into timeline coord
     2
   )
 
-  assert.equal(result.x, 100)
-  assert.equal(result.y, 150)
-  assert.equal(result.width, 200)
-  assert.equal(result.height, 250)
-  assert.equal(result.scaleX, 1)
-  assert.equal(result.scaleY, 1)
-  assert.ok(Math.abs(result.rotation - Math.PI / 2) < 1e-9)
+  expect(result.x).toBe(100)
+  expect(result.y).toBe(150)
+  expect(result.width).toBe(200)
+  expect(result.height).toBe(250)
+  expect(result.scaleX).toBe(1)
+  expect(result.scaleY).toBe(1)
+  expect(result.rotation).toBeCloseTo(Math.PI / 2, 9)
 })
 
 test('buildDefaultTextSettings returns required text defaults', () => {
   const settings = buildDefaultTextSettings('hello')
 
-  assert.equal(settings.content, 'hello')
-  assert.equal(settings.font, 'pretendard')
-  assert.equal(settings.color, '#ffffff')
-  assert.equal(settings.fontSize, 80)
-  assert.equal(settings.style?.align, 'center')
+  expect(settings.content).toBe('hello')
+  expect(settings.font).toBe('pretendard')
+  expect(settings.color).toBe('#ffffff')
+  expect(settings.fontSize).toBe(80)
+  expect(settings.style?.align).toBe('center')
 })
 
 test('toTimelineTextSettings updates content, style and transform safely', () => {
@@ -59,16 +58,16 @@ test('toTimelineTextSettings updates content, style and transform safely', () =>
     true
   )
 
-  assert.equal(next.content, 'new content')
-  assert.equal(next.color, '#00ff00')
-  assert.equal(next.style?.align, 'right')
-  assert.ok(next.transform)
-  assert.equal(next.transform?.x, 90)
-  assert.equal(next.transform?.y, 120)
-  assert.equal(next.transform?.width, 150)
-  assert.equal(next.transform?.height, 60)
-  assert.ok(Math.abs((next.transform?.rotation ?? 0) - Math.PI / 4) < 1e-9)
-  assert.equal(next.fontSize, 48)
+  expect(next.content).toBe('new content')
+  expect(next.color).toBe('#00ff00')
+  expect(next.style?.align).toBe('right')
+  expect(next.transform).toBeTruthy()
+  expect(next.transform?.x).toBe(90)
+  expect(next.transform?.y).toBe(120)
+  expect(next.transform?.width).toBe(150)
+  expect(next.transform?.height).toBe(60)
+  expect(next.transform?.rotation ?? 0).toBeCloseTo(Math.PI / 4, 9)
+  expect(next.fontSize).toBe(48)
 })
 
 test('toTimelineTextSettings keeps old content when updateContent=false', () => {
@@ -91,7 +90,7 @@ test('toTimelineTextSettings keeps old content when updateContent=false', () => 
     false
   )
 
-  assert.equal(next.content, 'keep me')
-  assert.equal(next.color, '#ffffff')
-  assert.equal(next.style?.align, 'center')
+  expect(next.content).toBe('keep me')
+  expect(next.color).toBe('#ffffff')
+  expect(next.style?.align).toBe('center')
 })

@@ -1,5 +1,4 @@
-import test from 'node:test'
-import assert from 'node:assert/strict'
+import { test, expect } from 'vitest'
 import {
   clampPlaybackTime,
   getPlayableDurationBeforeSceneIndex,
@@ -12,53 +11,48 @@ import {
 } from './segmentDuration'
 
 test('getSegmentDuration prefers ttsDuration and clamps invalid ranges', () => {
-  assert.equal(
+  expect(
     getSegmentDuration({
       ttsDuration: 4,
       selectionStartSeconds: 0,
       selectionEndSeconds: 1,
       mediaUrl: 'https://example.com/video.mp4',
-    }),
-    4
-  )
+    })
+  ).toBe(4)
 
-  assert.equal(
+  expect(
     getSegmentDuration({
       selectionStartSeconds: 5,
       selectionEndSeconds: 2,
       mediaUrl: 'https://example.com/video.mp4',
-    }),
-    0
-  )
+    })
+  ).toBe(0)
 })
 
 test('isPlayableSegment requires playable media and positive duration', () => {
-  assert.equal(
+  expect(
     isPlayableSegment({
       mediaUrl: null,
       selectionStartSeconds: 0,
       selectionEndSeconds: 2,
-    }),
-    false
-  )
+    })
+  ).toBe(false)
 
-  assert.equal(
+  expect(
     isPlayableSegment({
       videoUrl: 'https://example.com/video.mp4',
       selectionStartSeconds: 3,
       selectionEndSeconds: 3,
-    }),
-    false
-  )
+    })
+  ).toBe(false)
 
-  assert.equal(
+  expect(
     isPlayableSegment({
       mediaUrl: 'https://example.com/video.mp4',
       selectionStartSeconds: 1,
       selectionEndSeconds: 2,
-    }),
-    true
-  )
+    })
+  ).toBe(true)
 })
 
 test('getPlayableSegments keeps original index and duration order', () => {
@@ -69,11 +63,11 @@ test('getPlayableSegments keeps original index and duration order', () => {
   ]
 
   const playable = getPlayableSegments(scenes)
-  assert.equal(playable.length, 2)
-  assert.equal(playable[0]?.originalIndex, 0)
-  assert.equal(playable[0]?.duration, 2)
-  assert.equal(playable[1]?.originalIndex, 2)
-  assert.equal(playable[1]?.duration, 5)
+  expect(playable.length).toBe(2)
+  expect(playable[0]?.originalIndex).toBe(0)
+  expect(playable[0]?.duration).toBe(2)
+  expect(playable[1]?.originalIndex).toBe(2)
+  expect(playable[1]?.duration).toBe(5)
 })
 
 test('getPreviousPlayableDuration sums previous playable durations', () => {
@@ -83,17 +77,17 @@ test('getPreviousPlayableDuration sums previous playable durations', () => {
     { id: 's3', mediaUrl: 'https://example.com/3.mp4', selectionStartSeconds: 0, selectionEndSeconds: 1 },
   ])
 
-  assert.equal(getPreviousPlayableDuration(playable, 0), 0)
-  assert.equal(getPreviousPlayableDuration(playable, 1), 2)
-  assert.equal(getPreviousPlayableDuration(playable, 2), 5)
+  expect(getPreviousPlayableDuration(playable, 0)).toBe(0)
+  expect(getPreviousPlayableDuration(playable, 1)).toBe(2)
+  expect(getPreviousPlayableDuration(playable, 2)).toBe(5)
 })
 
 test('clampPlaybackTime limits values to valid range', () => {
-  assert.equal(clampPlaybackTime(-1, 5), 0)
-  assert.equal(clampPlaybackTime(2, 5), 2)
-  assert.equal(clampPlaybackTime(10, 5), 5)
-  assert.equal(clampPlaybackTime(Number.NaN, 5), 0)
-  assert.equal(clampPlaybackTime(2, 0), 0)
+  expect(clampPlaybackTime(-1, 5)).toBe(0)
+  expect(clampPlaybackTime(2, 5)).toBe(2)
+  expect(clampPlaybackTime(10, 5)).toBe(5)
+  expect(clampPlaybackTime(Number.NaN, 5)).toBe(0)
+  expect(clampPlaybackTime(2, 0)).toBe(0)
 })
 
 test('getPlayableDurationBeforeSceneIndex returns timeline start offset by scene index', () => {
@@ -103,10 +97,10 @@ test('getPlayableDurationBeforeSceneIndex returns timeline start offset by scene
     { id: 's3', mediaUrl: 'https://example.com/3.mp4', selectionStartSeconds: 0, selectionEndSeconds: 4 },
   ]
 
-  assert.equal(getPlayableDurationBeforeSceneIndex(scenes, 0), 0)
-  assert.equal(getPlayableDurationBeforeSceneIndex(scenes, 1), 2)
-  assert.equal(getPlayableDurationBeforeSceneIndex(scenes, 2), 2)
-  assert.equal(getPlayableDurationBeforeSceneIndex(scenes, 3), 6)
+  expect(getPlayableDurationBeforeSceneIndex(scenes, 0)).toBe(0)
+  expect(getPlayableDurationBeforeSceneIndex(scenes, 1)).toBe(2)
+  expect(getPlayableDurationBeforeSceneIndex(scenes, 2)).toBe(2)
+  expect(getPlayableDurationBeforeSceneIndex(scenes, 3)).toBe(6)
 })
 
 test('getPlayableSegmentStartTimeBySceneIndex returns start only for playable scene', () => {
@@ -116,9 +110,9 @@ test('getPlayableSegmentStartTimeBySceneIndex returns start only for playable sc
     { id: 's3', mediaUrl: 'https://example.com/3.mp4', selectionStartSeconds: 0, selectionEndSeconds: 4 },
   ]
 
-  assert.equal(getPlayableSegmentStartTimeBySceneIndex(scenes, 0), 0)
-  assert.equal(getPlayableSegmentStartTimeBySceneIndex(scenes, 1), null)
-  assert.equal(getPlayableSegmentStartTimeBySceneIndex(scenes, 2), 2)
+  expect(getPlayableSegmentStartTimeBySceneIndex(scenes, 0)).toBe(0)
+  expect(getPlayableSegmentStartTimeBySceneIndex(scenes, 1)).toBeNull()
+  expect(getPlayableSegmentStartTimeBySceneIndex(scenes, 2)).toBe(2)
 })
 
 test('resolvePlayableSegmentAtTime resolves scene and relative time with fallback to last scene', () => {
@@ -129,19 +123,19 @@ test('resolvePlayableSegmentAtTime resolves scene and relative time with fallbac
   ]
 
   const first = resolvePlayableSegmentAtTime(scenes, 1.5)
-  assert.equal(first?.originalIndex, 0)
-  assert.equal(first?.sceneTimeInSegment, 1.5)
-  assert.equal(first?.sceneStartTime, 0)
+  expect(first?.originalIndex).toBe(0)
+  expect(first?.sceneTimeInSegment).toBe(1.5)
+  expect(first?.sceneStartTime).toBe(0)
 
   const second = resolvePlayableSegmentAtTime(scenes, 3.2)
-  assert.equal(second?.originalIndex, 2)
-  assert.ok(second !== null)
-  assert.ok(Math.abs(second.sceneTimeInSegment - 1.2) < 1e-9)
-  assert.equal(second?.sceneStartTime, 2)
+  expect(second?.originalIndex).toBe(2)
+  expect(second).not.toBeNull()
+  expect(second!.sceneTimeInSegment).toBeCloseTo(1.2, 9)
+  expect(second?.sceneStartTime).toBe(2)
 
   const lastFallback = resolvePlayableSegmentAtTime(scenes, 999)
-  assert.equal(lastFallback?.originalIndex, 2)
-  assert.equal(lastFallback?.sceneTimeInSegment, 4)
+  expect(lastFallback?.originalIndex).toBe(2)
+  expect(lastFallback?.sceneTimeInSegment).toBe(4)
 })
 
 test('resolvePlayableSegmentAtTime supports forceSceneIndex', () => {
@@ -152,10 +146,10 @@ test('resolvePlayableSegmentAtTime supports forceSceneIndex', () => {
   ]
 
   const forcedPlayable = resolvePlayableSegmentAtTime(scenes, 0.5, { forceSceneIndex: 2 })
-  assert.equal(forcedPlayable?.originalIndex, 2)
-  assert.equal(forcedPlayable?.sceneStartTime, 2)
-  assert.equal(forcedPlayable?.sceneTimeInSegment, 0)
+  expect(forcedPlayable?.originalIndex).toBe(2)
+  expect(forcedPlayable?.sceneStartTime).toBe(2)
+  expect(forcedPlayable?.sceneTimeInSegment).toBe(0)
 
   const forcedNonPlayable = resolvePlayableSegmentAtTime(scenes, 0.5, { forceSceneIndex: 1 })
-  assert.equal(forcedNonPlayable, null)
+  expect(forcedNonPlayable).toBeNull()
 })

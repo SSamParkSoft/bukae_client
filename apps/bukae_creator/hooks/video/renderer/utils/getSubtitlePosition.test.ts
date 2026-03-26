@@ -1,5 +1,4 @@
-import test from 'node:test'
-import assert from 'node:assert/strict'
+import { test, expect } from 'vitest'
 import type { TimelineData } from '@/store/useVideoCreateStore'
 import { getSubtitlePosition } from './getSubtitlePosition'
 
@@ -50,13 +49,13 @@ test('transform이 있으면 position보다 transform 값을 우선 사용한다
   })
 
   const result = getSubtitlePosition(scene, stage)
-  assert.equal(result.x, 320)
-  assert.equal(result.y, 900)
-  assert.equal(result.scaleX, 1.1)
-  assert.equal(result.scaleY, 0.9)
-  assert.equal(result.rotation, 0.2)
-  assert.equal(result.hAlign, 'right')
-  assert.equal(result.vAlign, 'middle')
+  expect(result.x).toBe(320)
+  expect(result.y).toBe(900)
+  expect(result.scaleX).toBe(1.1)
+  expect(result.scaleY).toBe(0.9)
+  expect(result.rotation).toBe(0.2)
+  expect(result.hAlign).toBe('right')
+  expect(result.vAlign).toBe('middle')
 })
 
 test('transform이 없으면 top/center/bottom을 pro 규칙으로 계산한다', () => {
@@ -68,10 +67,10 @@ test('transform이 없으면 top/center/bottom을 pro 규칙으로 계산한다'
   const center = getSubtitlePosition(centerScene, stage)
   const bottom = getSubtitlePosition(bottomScene, stage)
 
-  assert.equal(top.x, stage.width * 0.5)
-  assert.equal(top.y, 200)
-  assert.equal(center.y, stage.height * 0.5)
-  assert.equal(bottom.y, stage.height - 200)
+  expect(top.x).toBe(stage.width * 0.5)
+  expect(top.y).toBe(200)
+  expect(center.y).toBe(stage.height * 0.5)
+  expect(bottom.y).toBe(stage.height - 200)
 })
 
 test('transform이 없고 position 누락 시 bottom 기본값을 사용한다', () => {
@@ -87,8 +86,8 @@ test('transform이 없고 position 누락 시 bottom 기본값을 사용한다',
   })
 
   const result = getSubtitlePosition(scene, stage)
-  assert.equal(result.y, stage.height - 200)
-  assert.equal(result.scaleX, 1)
-  assert.equal(result.scaleY, 1)
-  assert.equal(result.rotation, 0)
+  expect(result.y).toBe(stage.height - 200)
+  expect(result.scaleX).toBe(1)
+  expect(result.scaleY).toBe(1)
+  expect(result.rotation).toBe(0)
 })
