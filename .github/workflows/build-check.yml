@@ -21,6 +21,7 @@ jobs:
               - 'packages/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
+              - '.nvmrc'
 
   build:
     needs: changes

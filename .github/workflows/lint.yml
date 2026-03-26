@@ -25,11 +25,13 @@ jobs:
               - 'packages/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
+              - '.nvmrc'
             viewer:
               - 'apps/bukae_viewer/**'
               - 'packages/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
+              - '.nvmrc'
 
   lint-creator:
     needs: changes
