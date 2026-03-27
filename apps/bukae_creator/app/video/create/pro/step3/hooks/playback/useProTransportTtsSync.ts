@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { ProStep3Scene } from '@/app/video/create/pro/step3/model/types'
 import { resolveProSceneAtTime } from '../../utils/proPlaybackUtils'
+import { computeOnTtsEnded, computeTtsStartOffset } from '../../utils/ttsSyncScheduler'
 
 interface TransportHookLike {
   currentTime: number
   getTime?: () => number
+  seek?: (time: number) => void
 }
 
 interface TtsCacheItem {
@@ -36,8 +38,20 @@ export function useProTransportTtsSync({
 }: UseProTransportTtsSyncParams) {
   const activeTtsSceneIndexRef = useRef<number | null>(null)
 
+  // onended 클로저가 항상 최신 값을 참조할 수 있도록 ref로 관리
+  const scenesRef = useRef(scenes)
+  const isPlayingRef = useRef(isPlaying)
+  const transportHookRef = useRef(transportHook)
+  const playbackSpeedRef = useRef(playbackSpeed)
+
+  useEffect(() => { scenesRef.current = scenes }, [scenes])
+  useEffect(() => { isPlayingRef.current = isPlaying }, [isPlaying])
+  useEffect(() => { transportHookRef.current = transportHook }, [transportHook])
+  useEffect(() => { playbackSpeedRef.current = playbackSpeed }, [playbackSpeed])
+
   const stopAllTtsPlayback = useCallback(() => {
     ttsAudioRefsRef.current.forEach((audio) => {
+      audio.onended = null
       audio.pause()
       audio.src = ''
     })
@@ -45,117 +59,90 @@ export function useProTransportTtsSync({
     activeTtsSceneIndexRef.current = null
   }, [ttsAudioRefsRef])
 
-  useEffect(() => {
-    if (!pixiReady) {
-      return
+  // startTtsForScene이 onended 안에서 자신을 재귀 호출할 수 있도록 ref로 보관
+  const startTtsForSceneRef = useRef<(sceneIndex: number, transportTime: number) => void>(() => undefined)
+
+  const startTtsForScene = useCallback((sceneIndex: number, transportTime: number) => {
+    const currentScenes = scenesRef.current
+    const scene = currentScenes[sceneIndex]
+    if (!scene) return
+
+    const { voiceTemplate, script } = scene
+    if (!voiceTemplate || !script?.trim()) return
+
+    const ttsKey = `${voiceTemplate}::${script}`
+    const cached = ttsCacheRef.current.get(ttsKey)
+    if (!cached?.url) return
+
+    stopAllTtsPlayback()
+
+    const offset = computeTtsStartOffset(currentScenes, sceneIndex, transportTime)
+    const audio = new Audio(cached.url)
+    audio.playbackRate = playbackSpeedRef.current
+    audio.preload = 'auto'
+    ttsAudioRefsRef.current.set(sceneIndex, audio)
+    activeTtsSceneIndexRef.current = sceneIndex
+
+    // TTS가 끝나면 Transport를 정확한 씬 경계로 보정하고 다음 TTS 시작
+    audio.onended = () => {
+      if (!isPlayingRef.current) return
+
+      const action = computeOnTtsEnded(scenesRef.current, sceneIndex)
+      if (!action) return
+
+      transportHookRef.current.seek?.(action.seekTo)
+
+      if (action.type === 'next') {
+        startTtsForSceneRef.current(action.sceneIndex, action.seekTo)
+      }
     }
 
-    if (!isPlaying) {
+    const tryPlay = () => {
+      audio.currentTime = offset
+      void audio.play().catch(() => undefined)
+    }
+
+    if (audio.readyState >= 1) {
+      tryPlay()
+    } else {
+      audio.addEventListener('loadedmetadata', tryPlay, { once: true })
+    }
+  }, [stopAllTtsPlayback, ttsCacheRef, ttsAudioRefsRef])
+
+  useEffect(() => {
+    startTtsForSceneRef.current = startTtsForScene
+  }, [startTtsForScene])
+
+  // 재생 시작/정지 또는 씬 변경 시 TTS를 현재 Transport 위치에서 시작
+  useEffect(() => {
+    if (!pixiReady || !isPlaying) {
       stopAllTtsPlayback()
       return
     }
 
-    let frameId: number
+    const transportTime = transportHook.getTime?.() ?? transportHook.currentTime
+    const resolved = resolveProSceneAtTime(scenes, transportTime)
 
-    const syncLoop = () => {
-      const transportTime = typeof transportHook.getTime === 'function'
-        ? transportHook.getTime()
-        : transportHook.currentTime
-      const resolved = resolveProSceneAtTime(scenes, transportTime)
-      if (!resolved) {
-        stopAllTtsPlayback()
-        frameId = requestAnimationFrame(syncLoop)
-        return
-      }
-
-      const targetScene = scenes[resolved.sceneIndex]
-      const voiceTemplate = targetScene?.voiceTemplate
-      const script = targetScene?.script
-      if (!targetScene || !voiceTemplate || !script?.trim()) {
-        stopAllTtsPlayback()
-        frameId = requestAnimationFrame(syncLoop)
-        return
-      }
-
-      const ttsKey = `${voiceTemplate}::${script}`
-      const cached = ttsCacheRef.current.get(ttsKey)
-      if (!cached?.url) {
-        stopAllTtsPlayback()
-        frameId = requestAnimationFrame(syncLoop)
-        return
-      }
-
-      // sceneTimeInSegment를 TTS 오디오 duration으로 clamp하여 마지막 씬에서 끊김 방지
-      const ttsAudioDuration = cached.durationSec && Number.isFinite(cached.durationSec) && cached.durationSec > 0
-        ? cached.durationSec
-        : null
-
-      const clampedSceneTime = Math.min(resolved.sceneTimeInSegment, resolved.duration)
-
-      const targetOffset = ttsAudioDuration
-        ? Math.max(0, Math.min(clampedSceneTime, ttsAudioDuration - 0.01))
-        : Math.max(0, clampedSceneTime)
-
-      const activeSceneIndex = activeTtsSceneIndexRef.current
-      const activeAudio = activeSceneIndex !== null ? ttsAudioRefsRef.current.get(activeSceneIndex) : undefined
-
-      if (activeSceneIndex !== resolved.sceneIndex || !activeAudio) {
-        stopAllTtsPlayback()
-        const audio = new Audio(cached.url)
-        audio.playbackRate = playbackSpeed
-        audio.preload = 'auto'
-        ttsAudioRefsRef.current.set(resolved.sceneIndex, audio)
-        activeTtsSceneIndexRef.current = resolved.sceneIndex
-
-        const tryPlay = () => {
-          const audioDuration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : ttsAudioDuration
-          const finalOffset = audioDuration
-            ? Math.max(0, Math.min(targetOffset, audioDuration - 0.01))
-            : targetOffset
-          audio.currentTime = finalOffset
-          void audio.play().catch(() => undefined)
-        }
-
-        if (audio.readyState >= 1) {
-          tryPlay()
-        } else {
-          const onLoadedMetadata = () => {
-            audio.removeEventListener('loadedmetadata', onLoadedMetadata)
-            tryPlay()
-          }
-          audio.addEventListener('loadedmetadata', onLoadedMetadata)
-        }
-        frameId = requestAnimationFrame(syncLoop)
-        return
-      }
-
-      activeAudio.playbackRate = playbackSpeed
-
-      const activeAudioDuration = Number.isFinite(activeAudio.duration) && activeAudio.duration > 0
-        ? activeAudio.duration
-        : ttsAudioDuration
-
-      const finalTargetOffset = activeAudioDuration
-        ? Math.max(0, Math.min(targetOffset, activeAudioDuration - 0.01))
-        : targetOffset
-
-      if (Math.abs(activeAudio.currentTime - finalTargetOffset) > 0.2) {
-        activeAudio.currentTime = finalTargetOffset
-      }
-      if (activeAudio.paused) {
-        void activeAudio.play().catch(() => undefined)
-      }
-
-      frameId = requestAnimationFrame(syncLoop)
+    if (!resolved) {
+      stopAllTtsPlayback()
+      return
     }
 
-    frameId = requestAnimationFrame(syncLoop)
-    return () => cancelAnimationFrame(frameId)
-  }, [isPlaying, pixiReady, playbackSpeed, scenes, stopAllTtsPlayback, transportHook, ttsAudioRefsRef, ttsCacheRef])
+    startTtsForScene(resolved.sceneIndex, transportTime)
+
+    return () => stopAllTtsPlayback()
+  }, [isPlaying, pixiReady, scenes, transportHook, startTtsForScene, stopAllTtsPlayback])
+
+  // 재생속도 변경 → 현재 재생 중인 오디오에 즉시 반영
+  useEffect(() => {
+    if (activeTtsSceneIndexRef.current === null) return
+    const audio = ttsAudioRefsRef.current.get(activeTtsSceneIndexRef.current)
+    if (audio) {
+      audio.playbackRate = playbackSpeed
+    }
+  }, [playbackSpeed, ttsAudioRefsRef])
 
   useEffect(() => {
-    return () => {
-      stopAllTtsPlayback()
-    }
+    return () => stopAllTtsPlayback()
   }, [stopAllTtsPlayback])
 }
