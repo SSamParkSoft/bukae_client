@@ -794,6 +794,15 @@ export function useProTransportRenderer({
         return
       }
 
+      // TTS가 씬을 강제할 때(forceSceneIndex), sceneTimeInSegment가 duration에 정확히
+      // 도달하면 `% selectionDuration = 0`이 돼 비디오가 처음으로 점프하는 문제 방지.
+      // duration - 1ms로 clamp해 마지막 프레임에서 유지.
+      // 단, TTS > selectionDuration인 경우의 의도적 루프(중간 wrap)는 그대로 유지됨.
+      const sceneTimeInSegment =
+        resolvedForceSceneIndex !== undefined
+          ? Math.min(resolved.sceneTimeInSegment, Math.max(0, resolved.duration - 0.001))
+          : resolved.sceneTimeInSegment
+
       // 이미지인 경우 이미지 로드
       if (targetScene.imageUrl && !targetScene.videoUrl) {
         if (!loadImageAsSprite) {
@@ -883,7 +892,7 @@ export function useProTransportRenderer({
               applySceneMotion({
                 sprite: existingImageSprite,
                 motion: imageTimelineScene.motion,
-                sceneTimeInSegment: resolved.sceneTimeInSegment,
+                sceneTimeInSegment,
                 sceneDuration: resolved.duration,
               })
             }
@@ -944,7 +953,7 @@ export function useProTransportRenderer({
 
       const videoTime = getVideoTimeInSelectionWithLoop(
         targetScene,
-        resolved.sceneTimeInSegment,
+        sceneTimeInSegment,
         targetScene.originalVideoDurationSeconds
       )
       const timelineScene = timeline.scenes?.[targetSceneIndex]
@@ -1196,7 +1205,7 @@ export function useProTransportRenderer({
           applySceneMotion({
             sprite,
             motion: timelineScene.motion,
-            sceneTimeInSegment: resolved.sceneTimeInSegment,
+            sceneTimeInSegment,
             sceneDuration: resolved.duration,
           })
         }
@@ -1372,6 +1381,7 @@ export function useProTransportRenderer({
       spritesRef,
       videoElementsRef,
       sceneLoadingStateRef,
+      activeTtsSceneIndexRef,
       // C1: scenes, timeline, playableScenes, transportState.isPlaying, transportHook.transport은
       // ref로 관리하므로 deps에서 제거 → renderAt 재생성 횟수 최소화
     ]
