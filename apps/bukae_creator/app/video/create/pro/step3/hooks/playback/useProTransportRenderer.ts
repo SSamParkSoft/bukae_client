@@ -485,10 +485,10 @@ function applySceneStartTransition({
         fromSprite.alpha = 1 - eased
       }
       break
+      // 글리치 효과 수정은 가운데 곱하는 값을 수정하면 됨.
     case 'glitch': {
-      const jitter = (1 - eased) * 8 * Math.sin(clampedProgress * 40)
+      const jitter = (1 - eased) * 30 * Math.sin(clampedProgress * 40)
       toSprite.x = toBaseX + jitter
-      toSprite.alpha = eased
       if (fromSprite && !fromSprite.destroyed) {
         fromSprite.x = fromBaseX - jitter
         fromSprite.alpha = 1 - eased
