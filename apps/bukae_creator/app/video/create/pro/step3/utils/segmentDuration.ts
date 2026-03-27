@@ -106,13 +106,14 @@ export function resolvePlayableSegmentAtTime<T extends SegmentDurationSceneLike>
       return null
     }
     const sceneStartTime = getPreviousPlayableDuration(playableSegments, playableIndex)
+    const rawSceneTime = Math.max(0, Number.isFinite(tSec) ? tSec - sceneStartTime : 0)
     return {
       scene: target.scene,
       originalIndex: target.originalIndex,
       duration: target.duration,
       playableIndex,
       sceneStartTime,
-      sceneTimeInSegment: 0,
+      sceneTimeInSegment: rawSceneTime,
       totalDuration,
     }
   }

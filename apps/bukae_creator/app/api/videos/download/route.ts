@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getSupabaseServiceClient } from '@/lib/api/supabase-server'
 
 export const runtime = 'nodejs'
 
@@ -24,6 +25,23 @@ export async function GET(request: NextRequest) {
 
     const contentType = upstream.headers.get('Content-Type') ?? 'video/mp4'
     const contentLength = upstream.headers.get('Content-Length')
+
+    // egress 추적 로그 (fire-and-forget)
+    const publicPrefix = `${supabaseUrl}/storage/v1/object/public/`
+    if (url.startsWith(publicPrefix)) {
+      const objectPath = url.slice(publicPrefix.length)
+      const slashIdx = objectPath.indexOf('/')
+      const bucketId = slashIdx !== -1 ? objectPath.slice(0, slashIdx) : objectPath
+      const filePath = slashIdx !== -1 ? objectPath.slice(slashIdx + 1) : ''
+      const fileSize = contentLength ? parseInt(contentLength, 10) : null
+      const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
+      const userAgent = request.headers.get('user-agent') ?? null
+
+      getSupabaseServiceClient()
+        .from('storage_access_logs')
+        .insert({ bucket_id: bucketId, object_path: filePath, file_size_bytes: fileSize, ip_address: ip, user_agent: userAgent })
+        .then(() => {}, () => {})
+    }
 
     const headers = new Headers()
     headers.set('Content-Type', contentType)

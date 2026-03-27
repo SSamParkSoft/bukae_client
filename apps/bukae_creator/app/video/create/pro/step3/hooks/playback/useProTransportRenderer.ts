@@ -25,6 +25,8 @@ interface UseProTransportRendererParams {
   loadImageAsSprite?: (sceneIndex: number, imageUrl: string) => Promise<void>
   renderSubtitle: (sceneIndex: number, script: string) => void
   sceneLoadingStateRef: React.MutableRefObject<Map<number, LoadingState>>
+  /** TTS가 재생 중인 씬 인덱스 — 재생 중에는 이 씬을 강제로 표시 */
+  activeTtsSceneIndexRef?: React.MutableRefObject<number | null>
 }
 
 export interface RenderAtOptions {
@@ -237,12 +239,23 @@ function applySceneMotion({
         : 1
 
   const isZoomMotion = motion.type === 'zoom-in' || motion.type === 'zoom-out'
+
+  if (isZoomMotion) {
+    // 씬 전체 시간 기반 무한 확대/축소 (쌍곡선 공식)
+    const sceneProg = Math.max(0, Math.min(1, sceneTimeInSegment / safeSceneDuration))
+    const scale =
+      motion.type === 'zoom-in'
+        ? 1 / Math.max(1 - sceneProg * 0.95, 0.001)
+        : Math.max(1 - sceneProg * 0.95, 0.001)
+    sprite.scale.x = sprite.scale.x * scale
+    sprite.scale.y = sprite.scale.y * scale
+    return
+  }
+
   const baseDuration =
-    isZoomMotion
-      ? safeSceneDuration
-      : Number.isFinite(motion.durationSec) && motion.durationSec > 0
-        ? Math.min(motion.durationSec, safeSceneDuration)
-        : safeSceneDuration
+    Number.isFinite(motion.durationSec) && motion.durationSec > 0
+      ? Math.min(motion.durationSec, safeSceneDuration)
+      : safeSceneDuration
 
   const runtimeMotion: MotionConfig = {
     ...motion,
@@ -426,22 +439,26 @@ function applySceneStartTransition({
       }
       break
     }
-    case 'zoom-in':
-      toSprite.width = toBaseWidth * (0.5 + 0.5 * eased)
-      toSprite.height = toBaseHeight * (0.5 + 0.5 * eased)
-      toSprite.alpha = eased
+    case 'zoom-in': {
+      // 100% → 무한 확대: 1/(1-t) 쌍곡선으로 가속 확대
+      const zoomInScale = 1 / Math.max(1 - clampedProgress * 0.95, 0.001)
+      toSprite.width = toBaseWidth * zoomInScale
+      toSprite.height = toBaseHeight * zoomInScale
       if (fromSprite && !fromSprite.destroyed) {
         fromSprite.alpha = 1 - eased
       }
       break
-    case 'zoom-out':
-      toSprite.width = toBaseWidth * (1.5 - 0.5 * eased)
-      toSprite.height = toBaseHeight * (1.5 - 0.5 * eased)
-      toSprite.alpha = eased
+    }
+    case 'zoom-out': {
+      // 100% → 무한 축소: (1-t) 선형으로 가속 축소
+      const zoomOutScale = Math.max(1 - clampedProgress * 0.95, 0.001)
+      toSprite.width = toBaseWidth * zoomOutScale
+      toSprite.height = toBaseHeight * zoomOutScale
       if (fromSprite && !fromSprite.destroyed) {
         fromSprite.alpha = 1 - eased
       }
       break
+    }
     case 'rotate':
       // 공용 전환 로직과 동일하게 한 바퀴 회전하며 진입
       toSprite.rotation = toBaseRotation - Math.PI * 2 * (1 - eased)
@@ -470,10 +487,10 @@ function applySceneStartTransition({
         fromSprite.alpha = 1 - eased
       }
       break
+      // 글리치 효과 수정은 가운데 곱하는 값을 수정하면 됨.
     case 'glitch': {
-      const jitter = (1 - eased) * 8 * Math.sin(clampedProgress * 40)
+      const jitter = (1 - eased) * 30 * Math.sin(clampedProgress * 40)
       toSprite.x = toBaseX + jitter
-      toSprite.alpha = eased
       if (fromSprite && !fromSprite.destroyed) {
         fromSprite.x = fromBaseX - jitter
         fromSprite.alpha = 1 - eased
@@ -545,6 +562,7 @@ export function useProTransportRenderer({
   renderSubtitle,
   sceneLoadingStateRef,
   cleanupSceneResources,
+  activeTtsSceneIndexRef,
 }: UseProTransportRendererParams & { cleanupSceneResources: (sceneIndex: number) => void }) {
   const transportHook = useTransport()
   const { transportState } = useTransportState({ transport: transportHook.transport })
@@ -747,8 +765,18 @@ export function useProTransportRenderer({
         return
       }
 
+      // 재생 중에는 TTS 활성 씬을 우선 사용하여 Transport 드리프트로 인한 씬 전환을 방지.
+      // 명시적 forceSceneIndex(씬 카드 클릭, seek 등)는 항상 TTS보다 우선.
+      const ttsActiveScene = activeTtsSceneIndexRef?.current
+      const resolvedForceSceneIndex =
+        options?.forceSceneIndex !== undefined
+          ? options.forceSceneIndex
+          : isPlayingRef.current && ttsActiveScene !== null && ttsActiveScene !== undefined
+            ? ttsActiveScene
+            : undefined
+
       const resolved = resolveProSceneAtTime(scenes, tSec, {
-        forceSceneIndex: options?.forceSceneIndex,
+        forceSceneIndex: resolvedForceSceneIndex,
       })
       if (!resolved) {
         hideAllSprites(spritesRef.current)
@@ -765,6 +793,15 @@ export function useProTransportRenderer({
       if (!targetScene) {
         return
       }
+
+      // TTS가 씬을 강제할 때(forceSceneIndex), sceneTimeInSegment가 duration에 정확히
+      // 도달하면 `% selectionDuration = 0`이 돼 비디오가 처음으로 점프하는 문제 방지.
+      // duration - 1ms로 clamp해 마지막 프레임에서 유지.
+      // 단, TTS > selectionDuration인 경우의 의도적 루프(중간 wrap)는 그대로 유지됨.
+      const sceneTimeInSegment =
+        resolvedForceSceneIndex !== undefined
+          ? Math.min(resolved.sceneTimeInSegment, Math.max(0, resolved.duration - 0.001))
+          : resolved.sceneTimeInSegment
 
       // 이미지인 경우 이미지 로드
       if (targetScene.imageUrl && !targetScene.videoUrl) {
@@ -851,6 +888,14 @@ export function useProTransportRenderer({
             hideAllSprites(spritesRef.current)
             existingImageSprite.visible = true
             existingImageSprite.alpha = 1
+            if (!options?.skipAnimation && imageTimelineScene?.motion) {
+              applySceneMotion({
+                sprite: existingImageSprite,
+                motion: imageTimelineScene.motion,
+                sceneTimeInSegment,
+                sceneDuration: resolved.duration,
+              })
+            }
           }
 
           app.renderer.render(app.stage)
@@ -908,7 +953,7 @@ export function useProTransportRenderer({
 
       const videoTime = getVideoTimeInSelectionWithLoop(
         targetScene,
-        resolved.sceneTimeInSegment,
+        sceneTimeInSegment,
         targetScene.originalVideoDurationSeconds
       )
       const timelineScene = timeline.scenes?.[targetSceneIndex]
@@ -1160,7 +1205,7 @@ export function useProTransportRenderer({
           applySceneMotion({
             sprite,
             motion: timelineScene.motion,
-            sceneTimeInSegment: resolved.sceneTimeInSegment,
+            sceneTimeInSegment,
             sceneDuration: resolved.duration,
           })
         }
@@ -1336,6 +1381,7 @@ export function useProTransportRenderer({
       spritesRef,
       videoElementsRef,
       sceneLoadingStateRef,
+      activeTtsSceneIndexRef,
       // C1: scenes, timeline, playableScenes, transportState.isPlaying, transportHook.transport은
       // ref로 관리하므로 deps에서 제거 → renderAt 재생성 횟수 최소화
     ]

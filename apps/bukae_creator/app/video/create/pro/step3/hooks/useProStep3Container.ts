@@ -692,6 +692,9 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
   }, [currentSceneIndex, scenes, isPlaying, pixiReady, setCurrentTime])
 
   // ===== Transport 및 렌더링 =====
+  // TtsSync와 Renderer 간에 공유: 현재 TTS가 재생 중인 씬 인덱스
+  const activeTtsSceneIndexRef = useRef<number | null>(null)
+
   const { transportHook, transportState, renderAtRef } = useProTransportRenderer({
     timeline,
     scenes,
@@ -705,6 +708,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     renderSubtitle,
     sceneLoadingStateRef,
     cleanupSceneResources,
+    activeTtsSceneIndexRef,
   })
 
   useProTransportTtsSync({
@@ -715,6 +719,7 @@ export function useProStep3Container(params: UseProStep3ContainerParams) {
     scenes,
     ttsCacheRef,
     ttsAudioRefsRef,
+    activeTtsSceneIndexRef,
   })
 
   const { handlePlayPause } = useProTransportPlayback({
