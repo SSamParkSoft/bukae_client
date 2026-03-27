@@ -43,6 +43,8 @@ const SLIDE_TRANSITIONS = new Set([
   'slide-right',
   'slide-up',
   'slide-down',
+  'zoom-in',
+  'zoom-out',
 ])
 const MOVEMENT_TRANSITIONS = new Set([
   'slide-left',
