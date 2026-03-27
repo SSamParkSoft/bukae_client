@@ -37,9 +37,10 @@ export async function GET(request: NextRequest) {
       const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null
       const userAgent = request.headers.get('user-agent') ?? null
 
-      void getSupabaseServiceClient()
+      getSupabaseServiceClient()
         .from('storage_access_logs')
         .insert({ bucket_id: bucketId, object_path: filePath, file_size_bytes: fileSize, ip_address: ip, user_agent: userAgent })
+        .then(() => {}, () => {})
     }
 
     const headers = new Headers()
