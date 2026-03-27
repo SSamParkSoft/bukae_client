@@ -113,15 +113,18 @@ export function useProTransportTtsSync({
     startTtsForSceneRef.current = startTtsForScene
   }, [startTtsForScene])
 
-  // 재생 시작/정지 또는 씬 변경 시 TTS를 현재 Transport 위치에서 시작
+  // 재생 시작/정지 시 TTS를 현재 Transport 위치에서 시작
+  // scenes, transportHook은 ref로 읽어서 deps에서 제외 — 부모 re-render마다
+  // 배열 레퍼런스가 바뀌어도 TTS가 매 프레임 중단되지 않도록 함
   useEffect(() => {
     if (!pixiReady || !isPlaying) {
       stopAllTtsPlayback()
       return
     }
 
-    const transportTime = transportHook.getTime?.() ?? transportHook.currentTime
-    const resolved = resolveProSceneAtTime(scenes, transportTime)
+    const transport = transportHookRef.current
+    const transportTime = transport.getTime?.() ?? transport.currentTime
+    const resolved = resolveProSceneAtTime(scenesRef.current, transportTime)
 
     if (!resolved) {
       stopAllTtsPlayback()
@@ -131,7 +134,7 @@ export function useProTransportTtsSync({
     startTtsForScene(resolved.sceneIndex, transportTime)
 
     return () => stopAllTtsPlayback()
-  }, [isPlaying, pixiReady, scenes, transportHook, startTtsForScene, stopAllTtsPlayback])
+  }, [isPlaying, pixiReady, startTtsForScene, stopAllTtsPlayback])
 
   // 재생속도 변경 → 현재 재생 중인 오디오에 즉시 반영
   useEffect(() => {
