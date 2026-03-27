@@ -43,8 +43,6 @@ const SLIDE_TRANSITIONS = new Set([
   'slide-right',
   'slide-up',
   'slide-down',
-  'zoom-in',
-  'zoom-out',
 ])
 const MOVEMENT_TRANSITIONS = new Set([
   'slide-left',
@@ -239,12 +237,23 @@ function applySceneMotion({
         : 1
 
   const isZoomMotion = motion.type === 'zoom-in' || motion.type === 'zoom-out'
+
+  if (isZoomMotion) {
+    // 씬 전체 시간 기반 무한 확대/축소 (쌍곡선 공식)
+    const sceneProg = Math.max(0, Math.min(1, sceneTimeInSegment / safeSceneDuration))
+    const scale =
+      motion.type === 'zoom-in'
+        ? 1 / Math.max(1 - sceneProg * 0.95, 0.001)
+        : Math.max(1 - sceneProg * 0.95, 0.001)
+    sprite.scale.x = sprite.scale.x * scale
+    sprite.scale.y = sprite.scale.y * scale
+    return
+  }
+
   const baseDuration =
-    isZoomMotion
-      ? safeSceneDuration
-      : Number.isFinite(motion.durationSec) && motion.durationSec > 0
-        ? Math.min(motion.durationSec, safeSceneDuration)
-        : safeSceneDuration
+    Number.isFinite(motion.durationSec) && motion.durationSec > 0
+      ? Math.min(motion.durationSec, safeSceneDuration)
+      : safeSceneDuration
 
   const runtimeMotion: MotionConfig = {
     ...motion,
@@ -428,22 +437,26 @@ function applySceneStartTransition({
       }
       break
     }
-    case 'zoom-in':
-      toSprite.width = toBaseWidth * (0.5 + 0.5 * eased)
-      toSprite.height = toBaseHeight * (0.5 + 0.5 * eased)
-      toSprite.alpha = eased
+    case 'zoom-in': {
+      // 100% → 무한 확대: 1/(1-t) 쌍곡선으로 가속 확대
+      const zoomInScale = 1 / Math.max(1 - clampedProgress * 0.95, 0.001)
+      toSprite.width = toBaseWidth * zoomInScale
+      toSprite.height = toBaseHeight * zoomInScale
       if (fromSprite && !fromSprite.destroyed) {
         fromSprite.alpha = 1 - eased
       }
       break
-    case 'zoom-out':
-      toSprite.width = toBaseWidth * (1.5 - 0.5 * eased)
-      toSprite.height = toBaseHeight * (1.5 - 0.5 * eased)
-      toSprite.alpha = eased
+    }
+    case 'zoom-out': {
+      // 100% → 무한 축소: (1-t) 선형으로 가속 축소
+      const zoomOutScale = Math.max(1 - clampedProgress * 0.95, 0.001)
+      toSprite.width = toBaseWidth * zoomOutScale
+      toSprite.height = toBaseHeight * zoomOutScale
       if (fromSprite && !fromSprite.destroyed) {
         fromSprite.alpha = 1 - eased
       }
       break
+    }
     case 'rotate':
       // 공용 전환 로직과 동일하게 한 바퀴 회전하며 진입
       toSprite.rotation = toBaseRotation - Math.PI * 2 * (1 - eased)
@@ -853,6 +866,14 @@ export function useProTransportRenderer({
             hideAllSprites(spritesRef.current)
             existingImageSprite.visible = true
             existingImageSprite.alpha = 1
+            if (!options?.skipAnimation && imageTimelineScene?.motion) {
+              applySceneMotion({
+                sprite: existingImageSprite,
+                motion: imageTimelineScene.motion,
+                sceneTimeInSegment: resolved.sceneTimeInSegment,
+                sceneDuration: resolved.duration,
+              })
+            }
           }
 
           app.renderer.render(app.stage)
