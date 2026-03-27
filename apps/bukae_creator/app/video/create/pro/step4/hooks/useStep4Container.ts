@@ -832,14 +832,6 @@ export function useStep4Container() {
     }
   }, [getProductAndScript, setVideoTitle, setVideoTitleCandidates])
 
-  // 컴포넌트 마운트 시 자동 생성 (렌더링 완료 후에만)
-  useEffect(() => {
-    if (jobStatus === 'COMPLETED' && videoTitleCandidates.length === 0 && !isGenerating) {
-      handleGenerateTitles()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobStatus])
-
   // 기본 추천 상세 설명/해시태그 세팅
   useEffect(() => {
     if (descriptionInitialized.current || jobStatus !== 'COMPLETED') return
