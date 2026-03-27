@@ -25,6 +25,8 @@ interface UseProTransportRendererParams {
   loadImageAsSprite?: (sceneIndex: number, imageUrl: string) => Promise<void>
   renderSubtitle: (sceneIndex: number, script: string) => void
   sceneLoadingStateRef: React.MutableRefObject<Map<number, LoadingState>>
+  /** TTS가 재생 중인 씬 인덱스 — 재생 중에는 이 씬을 강제로 표시 */
+  activeTtsSceneIndexRef?: React.MutableRefObject<number | null>
 }
 
 export interface RenderAtOptions {
@@ -560,6 +562,7 @@ export function useProTransportRenderer({
   renderSubtitle,
   sceneLoadingStateRef,
   cleanupSceneResources,
+  activeTtsSceneIndexRef,
 }: UseProTransportRendererParams & { cleanupSceneResources: (sceneIndex: number) => void }) {
   const transportHook = useTransport()
   const { transportState } = useTransportState({ transport: transportHook.transport })
@@ -762,8 +765,18 @@ export function useProTransportRenderer({
         return
       }
 
+      // 재생 중에는 TTS 활성 씬을 우선 사용하여 Transport 드리프트로 인한 씬 전환을 방지.
+      // 명시적 forceSceneIndex(씬 카드 클릭, seek 등)는 항상 TTS보다 우선.
+      const ttsActiveScene = activeTtsSceneIndexRef?.current
+      const resolvedForceSceneIndex =
+        options?.forceSceneIndex !== undefined
+          ? options.forceSceneIndex
+          : isPlayingRef.current && ttsActiveScene !== null && ttsActiveScene !== undefined
+            ? ttsActiveScene
+            : undefined
+
       const resolved = resolveProSceneAtTime(scenes, tSec, {
-        forceSceneIndex: options?.forceSceneIndex,
+        forceSceneIndex: resolvedForceSceneIndex,
       })
       if (!resolved) {
         hideAllSprites(spritesRef.current)

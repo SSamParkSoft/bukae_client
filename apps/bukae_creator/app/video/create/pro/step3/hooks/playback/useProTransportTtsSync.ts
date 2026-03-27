@@ -25,6 +25,8 @@ interface UseProTransportTtsSyncParams {
   scenes: ProStep3Scene[]
   ttsCacheRef: React.MutableRefObject<Map<string, TtsCacheItem>>
   ttsAudioRefsRef: React.MutableRefObject<Map<number, HTMLAudioElement>>
+  /** 현재 TTS가 재생 중인 씬 인덱스를 외부에서 읽을 수 있도록 공유되는 ref */
+  activeTtsSceneIndexRef: React.MutableRefObject<number | null>
 }
 
 export function useProTransportTtsSync({
@@ -35,8 +37,8 @@ export function useProTransportTtsSync({
   scenes,
   ttsCacheRef,
   ttsAudioRefsRef,
+  activeTtsSceneIndexRef,
 }: UseProTransportTtsSyncParams) {
-  const activeTtsSceneIndexRef = useRef<number | null>(null)
 
   // onended 클로저가 항상 최신 값을 참조할 수 있도록 ref로 관리
   const scenesRef = useRef(scenes)
