@@ -51,7 +51,7 @@ The `pnpm build` script (`scripts/auto-build-fix.sh`) attempts build, auto-fixes
 - **Auth/DB**: Supabase auth, Better SQLite3 (local), Upstash Redis (rate limiting)
 - **Video**: PixiJS 8 (canvas playback/transitions), Fabric.js 7 (editing mode), FFmpeg (client-side encoding)
 - **AI/Voice**: Google Cloud TTS (Korean SSML), ElevenLabs
-- **Real-time**: STOMP over WebSocket (video processing progress)
+- **Real-time**: HTTP 폴링 (5초 간격, Step4 job 상태 확인). `lib/api/websocket.ts`에 STOMP 클라이언트 존재하나 보조 용도.
 - **Path alias**: `@/*` maps to `apps/bukae_creator/` root
 
 ## Architecture: Video Creation Flow
