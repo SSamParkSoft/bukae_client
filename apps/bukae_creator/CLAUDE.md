@@ -74,10 +74,12 @@ All Next.js route handlers are under `app/api/`:
 ```
 auth/{refresh,oauth-callback}   tts/{synthesize,voices}
 videos/{generate,cleanup,refund} script/generate
-images/{upload,cleanup}          media/{upload,proxy,cleanup}
+images/{upload,cleanup}          media/{upload,proxy}
 credit/{balance,add}             youtube/{videos,stats}
 sound-effects/list               coupang/stats
 ```
+
+`media/cleanup`, `videos/pro/cleanup`은 삭제됨 — Supabase Edge Function으로 대체 (루트 CLAUDE.md의 Storage Cleanup 섹션 참고).
 
 Client-side API calls go through `lib/api/client.ts` (`ApiError`, auto token-refresh on 401). Server-side Supabase access uses `lib/api/supabase-server.ts`.
 

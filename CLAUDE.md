@@ -126,6 +126,19 @@ Vitest 기반. 설정 파일: `apps/bukae_creator/vitest.config.ts` (`@/*` alias
 - `build-check.yml`: Build validation workflow.
 - Main branch for PRs: `main`. Development branch: `develop`.
 
+## Storage Cleanup
+
+버킷 파일 정리는 GitHub Actions가 아닌 **Supabase pg_cron + Edge Function**으로 처리됨. 매 시간 정각 자동 실행.
+
+| Edge Function | 버킷 | 보존 기간 |
+|---------------|------|----------|
+| `cleanup-jobs` | `videos/jobs/*` | 24시간 |
+| `cleanup-pro-upload` | `pro_upload` 전체 | 1시간 |
+| `cleanup-media` | `media` 전체 | 1시간 |
+
+보존 기간 변경 시: Edge Function 코드의 `RETENTION_MS` 수정 후 재배포. pg_cron 스케줄은 그대로 유지됨.
+Edge Function 인증은 `x-cron-secret` 헤더 사용 (Supabase Edge Function Secrets에 `CRON_SECRET` 등록 필요).
+
 ## Version Update Locations
 
 | 항목 | 수정 파일 |
