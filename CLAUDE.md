@@ -128,16 +128,28 @@ Vitest 기반. 설정 파일: `apps/bukae_creator/vitest.config.ts` (`@/*` alias
 
 ## Storage Cleanup
 
-버킷 파일 정리는 GitHub Actions가 아닌 **Supabase pg_cron + Edge Function**으로 처리됨. 매 시간 정각 자동 실행.
+**현재 마이그레이션 진행 중** — Edge Function과 in-repo API route가 병행 실행됨.
 
-| Edge Function | 버킷 | 보존 기간 |
-|---------------|------|----------|
-| `cleanup-jobs` | `videos/jobs/*` | 24시간 |
-| `cleanup-pro-upload` | `pro_upload` 전체 | 1시간 |
-| `cleanup-media` | `media` 전체 | 1시간 |
+### Supabase pg_cron + Edge Function (자동, 매 시간 정각)
+
+스토리지 용량 절약을 위해 짧은 보존 기간으로 운영 중. 인증: `x-cron-secret` 헤더 (`CRON_SECRET` 환경변수).
+
+| Edge Function | 버킷 | 현재 보존 기간 | 운영 전환 시 예정 |
+|---------------|------|--------------|----------------|
+| `cleanup-jobs` | `videos/jobs/*` | 24시간 | 30일 |
+| `cleanup-pro-upload` | `pro_upload` 전체 | 1시간 | — |
+| `cleanup-media` | `media` 전체 | 1시간 | — |
 
 보존 기간 변경 시: Edge Function 코드의 `RETENTION_MS` 수정 후 재배포. pg_cron 스케줄은 그대로 유지됨.
-Edge Function 인증은 `x-cron-secret` 헤더 사용 (Supabase Edge Function Secrets에 `CRON_SECRET` 등록 필요).
+
+### In-repo API route (수동 트리거용, 병행 운영 중)
+
+`apps/bukae_creator/app/api/videos/cleanup/route.ts` — `POST /api/videos/cleanup`
+
+- 대상: `videos/jobs/*` (Edge Function `cleanup-jobs`와 동일 버킷)
+- 보존 기간: `RETENTION_DAYS = 30` (운영 기준값)
+- 인증: `x-admin-secret` 헤더 (`ADMIN_VIDEO_CLEANUP_SECRET` 환경변수)
+- 운영 전환 시 Edge Function의 보존 기간을 30일로 맞춘 뒤 이 route는 제거 예정
 
 ## Version Update Locations
 
