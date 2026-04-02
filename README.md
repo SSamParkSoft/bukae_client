@@ -1,115 +1,94 @@
-# Bukae Client (Monorepo)
+# Bukae Client
 
-AI 기반 부업 자동화 서비스 **부캐(Bookae)** 의 모노레포 프론트엔드입니다.  
-Next.js 16 + TypeScript 기반으로, 상품 정보를 자동으로 크롤링하고 영상 생성 및 YouTube 업로드 기능을 제공합니다.
+AI 기반 숏폼 영상 자동화 서비스 **부캐(Bukae)** 의 프론트엔드 모노레포입니다.  
+상품 정보를 입력하면 스크립트 생성 → 씬 편집 → 효과 적용 → FFmpeg 인코딩 → YouTube 업로드까지 자동화합니다.
 
-## 📁 프로젝트 구조
+---
 
-이 모노레포는 두 개의 독립적인 앱으로 구성되어 있습니다:
+## 앱 구성
+
+| 앱 | 포트 | 역할 |
+|----|------|------|
+| `apps/bukae_creator` | 3000 | 크리에이터 대시보드. 영상 제작 전 과정 담당. |
+| `apps/bukae_viewer` | 3001 | 공개 뷰어. 완성된 영상 시청 플랫폼. |
+
+---
+
+## 영상 제작 플로우
 
 ```
-bukae_client/
-├── apps/
-│   ├── bukae_creator/          # 관리자용 대시보드 (포트: 3000)
-│   │   ├── app/                 # Next.js App Router 페이지 및 API 라우트
-│   │   │   ├── api/             # API 엔드포인트 (TTS, 영상 생성, YouTube 등)
-│   │   │   ├── video/create/    # 영상 제작 페이지
-│   │   │   └── ...
-│   │   ├── components/          # React 컴포넌트
-│   │   │   ├── video-editor/    # 영상 편집 관련 컴포넌트
-│   │   │   └── ui/              # shadcn/ui 기반 UI 컴포넌트
-│   │   ├── hooks/               # Custom React Hooks
-│   │   │   └── video/           # 영상 관련 훅들
-│   │   ├── lib/                 # 유틸리티 및 라이브러리
-│   │   │   ├── api/             # API 클라이언트
-│   │   │   ├── tts/             # TTS 관련 로직
-│   │   │   └── utils/           # 유틸리티 함수
-│   │   └── store/               # Zustand 상태 관리
-│   │
-│   └── bukae_viewer/            # 제3자용 공개 웹사이트 (포트: 3001)
-│       ├── app/                 # Next.js App Router 페이지
-│       ├── components/          # React 컴포넌트
-│       └── lib/                 # 유틸리티 및 라이브러리
-│
-├── packages/                    # 공유 패키지
-│   └── shared/
-│
-└── scripts/                     # 빌드 및 유틸리티 스크립트
+step1  상품 선택 + 이미지 수집
+step2  스크립트 생성 (직접 입력 또는 AI 생성)
+step3  씬 구성 + 타임라인 편집  ← 가장 복잡한 단계
+step4  효과/템플릿 적용
+Export FFmpeg 인코딩 + YouTube 업로드
 ```
 
-### 주요 디렉토리 설명
+---
 
-- **`apps/bukae_creator`** - 관리자용 대시보드
-  - 영상 제작 및 편집 관리
-  - 통계 확인 (쿠팡, YouTube)
-  - 계정 설정 및 프로필 관리
-  - TTS 음성 합성 및 영상 생성
+## 기술 스택
 
-- **`apps/bukae_viewer`** - 제3자용 공개 웹사이트
-  - 영상 시청 플랫폼
-  - 공개 콘텐츠 제공
-  - 상품 검색 및 조회
+### 프레임워크 / 언어
+- Next.js 16 (App Router), React 19, TypeScript 5
+- pnpm workspace (Node >=24, pnpm >=10)
 
-## ⚙️ 기술 스택
+### UI / 스타일링
+- TailwindCSS 4, shadcn/ui (Radix UI), Framer Motion, GSAP
 
-### Core Framework & Language
-- **Framework:** Next.js 16 (App Router)
-- **Language:** TypeScript 5
-- **Package Manager:** pnpm (Workspace)
+### 상태 관리 / 데이터 패칭
+- Zustand 5 (전역 상태 + localStorage 영속화)
+- TanStack React Query 5 (서버 상태 캐싱)
 
-### UI & Styling
-- **Styling:** TailwindCSS 4
-- **UI Components:** shadcn/ui (Radix UI 기반)
-- **Icons:** Lucide React
-- **Animation:** Framer Motion, GSAP
+### 영상 렌더링 / 편집
+- **PixiJS 8** — 씬 재생 및 전환 효과 (캔버스 렌더)
+- **Fabric.js 7** — 편집 모드 텍스트/이미지 드래그·리사이즈·회전
+- **FFmpeg (WebAssembly)** — 클라이언트 사이드 인코딩
 
-### State Management & Data Fetching
-- **State Management:** Zustand
-- **Data Fetching:** TanStack Query (React Query)
+### AI / 음성
+- **Google Cloud TTS** — 한국어 SSML 음성 합성
+- **ElevenLabs** — 프리미엄 AI 음성
 
-### 영상 렌더링 & 편집
-- **PixiJS**: 캔버스 기반 이미지/텍스트 렌더링 및 재생 시 전환 효과 적용
-- **Fabric.js**: 편집 모드에서 이미지·텍스트 드래그/리사이즈/회전 등 인터랙션 처리
-- **GSAP**: 씬 전환 애니메이션(페이드, 슬라이드, 줌 등) 구현
+### 인프라 / 백엔드
+- **Supabase** — 인증, DB, 스토리지
+- **Upstash Redis** — TTS 레이트리밋 + 일일 쿼터 관리
+- **Better SQLite3** — 로컬 데모 데이터
 
-### AI & 외부 서비스
-- **Google Cloud Text-to-Speech**: AI 기반 음성 합성
-- **Supabase**: 인증 및 데이터베이스
-- **Upstash Redis**: 레이트 리밋 및 쿼터 관리
+### 실시간
+- HTTP 폴링 (5초 간격, step4 job 상태 확인)
+- WebSocket/STOMP — 보조 용도
 
-### 기타
-- **WebSocket**: 실시간 통신 (STOMP 프로토콜)
+---
 
-## 🤖 AI 적극 활용
+## 개발 명령어
 
-이 프로젝트는 개발 단계부터 운영까지 전 과정에서 AI 도구를 적극적으로 활용하여 개발 효율성과 품질을 극대화합니다:
+루트에서 실행:
 
-### 1. **AI 기반 개발 도구**
-- **Cursor AI**: 코드 작성, 리팩토링, 버그 수정 등 개발 전 과정에서 AI 어시스턴트 활용
-- **MCP (Model Context Protocol)**: Context7, Figma 등 외부 도구와의 통합을 통한 문서화 및 디자인 자동화
-- **AI 코드 리뷰**: 자동화된 코드 품질 검사 및 개선 제안
+```bash
+pnpm dev          # creator 앱 실행 (포트 3000, Chrome 자동 오픈)
+pnpm dev:viewer   # viewer 앱 실행 (포트 3001)
+pnpm dev:all      # 전체 앱 동시 실행
 
-### 2. **프로덕트 AI 기능**
-- **Google Cloud Text-to-Speech**: 자연스러운 한국어 음성 합성 및 SSML 마크업 지원
-- **AI 추천 시스템**: 영상 제작 시 제목, 콘셉트, 톤 등에 대한 AI 기반 추천
-- **자동화된 워크플로우**: 상품 정보 크롤링, 스크립트 생성, 씬 구성 등 AI 기반 자동화
+pnpm build        # 빌드 (lint 오류 자동 수정 포함)
+pnpm lint         # ESLint 검사
+pnpm typecheck    # TypeScript 타입 검사
+pnpm test         # 테스트 1회 실행 (CI용)
+pnpm test:watch   # watch 모드 테스트
+```
 
-### 3. **개발 생산성 향상**
-- AI를 통한 빠른 프로토타이핑 및 반복 개발
-- 복잡한 로직 구현 시 AI 어시스턴트 활용으로 개발 시간 단축
-- 코드베이스 이해 및 문서화 자동화
+---
 
-## 🧠 Redis 사용 (Upstash)
+## 주요 환경변수 (bukae_creator)
 
-`apps/bukae_creator`에서는 **Upstash Redis**를 사용해 서버 API의 **레이트리밋**과 **일일 쿼터(TTS 문자수/요청수)** 를 관리합니다. (비용 발생/남용 방지 목적)
+| 변수 | 용도 |
+|------|------|
+| `UPSTASH_REDIS_REST_URL` | Redis 레이트리밋 |
+| `UPSTASH_REDIS_REST_TOKEN` | Redis 인증 |
+| `GOOGLE_TTS_*` | Google Cloud TTS |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase 연결 |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase 인증 |
 
-- **사용 위치**: `apps/bukae_creator/lib/api/rate-limit.ts`
-- **프로덕션 필수 환경변수**
-  - `UPSTASH_REDIS_REST_URL`
-  - `UPSTASH_REDIS_REST_TOKEN`
+---
 
-## 📧 협업 문의
-
-프로젝트 관련 협업 및 문의사항은 아래 이메일로 연락해주세요:
+## 문의
 
 **이메일:** ssamso8282@gmail.com
