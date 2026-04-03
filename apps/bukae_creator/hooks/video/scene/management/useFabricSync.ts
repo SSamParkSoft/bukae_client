@@ -8,7 +8,7 @@ import * as fabric from 'fabric'
 import { TimelineData } from '@/store/useVideoCreateStore'
 import { calculateSpriteParams } from '@/utils/pixi'
 import { resolveSubtitleFontFamily } from '@/lib/subtitle-fonts'
-import { applyCornerControlPolicy } from '@/hooks/video/pixi/fabricObjectDefaults'
+import { applyCornerControlPolicy } from '@/hooks/video/editing/fabricObjectDefaults'
 import type { StageDimensions } from '../../types/common'
 
 const INVISIBLE_HIT_FILL = 'rgba(0,0,0,0)'
