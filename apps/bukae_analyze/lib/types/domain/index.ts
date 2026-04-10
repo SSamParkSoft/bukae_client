@@ -13,3 +13,4 @@
 // 각 도메인별 타입을 아래에 re-export
 // export * from './channelStats'
 // export * from './videoStats'
+export * from './videoAnalysis'

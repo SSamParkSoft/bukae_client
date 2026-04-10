@@ -15,3 +15,4 @@
  * export * from './channelStats'
  * export * from './videoStats'
  */
+export * from './videoAnalysis'
