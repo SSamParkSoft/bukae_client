@@ -94,9 +94,28 @@ elif [ "$APP_NAME" = "creator" ]; then
   echo "Skipping creator build: No relevant files changed"
   exit 0
 
+elif [ "$APP_NAME" = "analyze" ]; then
+  if echo "$CHANGED_FILES" | grep -qE "^apps/bukae_analyze/"; then
+    echo "Building analyze: apps/bukae_analyze/ files changed"
+    exit 1
+  fi
+
+  if echo "$CHANGED_FILES" | grep -qE "^packages/shared/"; then
+    echo "Building analyze: packages/shared/ files changed"
+    exit 1
+  fi
+
+  if echo "$CHANGED_FILES" | grep -qE "^package\.json$|^pnpm-workspace\.yaml$|^pnpm-lock\.yaml$|^tsconfig\.json$"; then
+    echo "Building analyze: root config files changed"
+    exit 1
+  fi
+
+  echo "Skipping analyze build: No relevant files changed"
+  exit 0
+
 else
   echo "Error: Unknown app name: $APP_NAME"
-  echo "Valid app names: viewer, creator"
+  echo "Valid app names: viewer, creator, analyze"
   exit 1
 fi
 
