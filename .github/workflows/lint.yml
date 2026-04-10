@@ -11,6 +11,7 @@ jobs:
     outputs:
       creator: ${{ steps.filter.outputs.creator }}
       viewer: ${{ steps.filter.outputs.viewer }}
+      analyze: ${{ steps.filter.outputs.analyze }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -25,6 +26,12 @@ jobs:
               - '.nvmrc'
             viewer:
               - 'apps/bukae_viewer/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.nvmrc'
+            analyze:
+              - 'apps/bukae_analyze/**'
               - 'packages/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
@@ -75,3 +82,26 @@ jobs:
 
       - name: Typecheck (viewer)
         run: pnpm --filter bukae_viewer typecheck
+
+  lint-analyze:
+    needs: changes
+    if: needs.changes.outputs.analyze == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (analyze)
+        run: pnpm --filter bukae_analyze lint
+
+      - name: Typecheck (analyze)
+        run: pnpm --filter bukae_analyze typecheck
