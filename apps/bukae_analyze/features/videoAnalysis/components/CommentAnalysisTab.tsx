@@ -1,33 +1,8 @@
 import type { CommentAnalysisViewModel } from '../types/viewModel'
+import { SectionLabel, WhyBox, EvidenceList } from './shared'
 
 interface Props {
   data: CommentAnalysisViewModel
-}
-
-function SectionLabel({ children }: { children: string }) {
-  return <p className="text-xs font-semibold text-black/40 uppercase tracking-wider mb-2">{children}</p>
-}
-
-function WhyBox({ children }: { children: string }) {
-  return (
-    <div className="border-2 border-black rounded-xl p-5">
-      <p className="text-xs font-bold text-black/50 mb-2">★ 핵심 분석</p>
-      <p className="text-sm leading-relaxed">{children}</p>
-    </div>
-  )
-}
-
-function EvidenceList({ items }: { items: string[] }) {
-  return (
-    <ul className="space-y-1.5">
-      {items.map((item, i) => (
-        <li key={i} className="flex items-start gap-2 text-sm text-black/60">
-          <span className="mt-0.5 shrink-0 text-black/30">—</span>
-          <span>{item}</span>
-        </li>
-      ))}
-    </ul>
-  )
 }
 
 function SentimentBar({
