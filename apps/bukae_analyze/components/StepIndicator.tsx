@@ -1,26 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-
-const STEPS = [
-  { label: 'URL 입력', path: '/' },
-  { label: 'AI 분석', path: '/analysis' },
-  { label: '기획 설정', path: '/planning-setup' },
-  { label: 'AI 기획', path: '/ai-planning' },
-  { label: '촬영가이드 & 스크립트', path: '/shooting-guide' },
-]
-
-function getCurrentStepIndex(pathname: string): number {
-  // 역순으로 매칭해 더 구체적인 경로 우선
-  for (let i = STEPS.length - 1; i >= 0; i--) {
-    const step = STEPS[i]
-    if (!step) continue
-    if (step.path === '/' ? pathname === '/' : pathname.startsWith(step.path)) {
-      return i
-    }
-  }
-  return 0
-}
+import { STEPS, getCurrentStepIndex } from './_utils/stepNavigation'
 
 export function StepIndicator() {
   const pathname = usePathname()
@@ -96,5 +77,3 @@ export function StepIndicator() {
     </ol>
   )
 }
-
-export { STEPS }

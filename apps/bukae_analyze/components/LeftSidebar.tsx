@@ -2,22 +2,15 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { LAYOUT } from './layout-constants'
-import { StepIndicator, STEPS } from './StepIndicator'
-
-function getCurrentStepIndex(pathname: string): number {
-  for (let i = STEPS.length - 1; i >= 0; i--) {
-    const step = STEPS[i]
-    if (!step) continue
-    if (step.path === '/' ? pathname === '/' : pathname.startsWith(step.path)) {
-      return i
-    }
-  }
-  return 0
-}
+import { STEPS, getCurrentStepIndex } from './_utils/stepNavigation'
+import { StepIndicator } from './StepIndicator'
 
 export function LeftSidebar() {
   const pathname = usePathname()
   const router = useRouter()
+
+  if (pathname === '/') return null
+
   const currentIndex = getCurrentStepIndex(pathname)
   const isFirst = currentIndex === 0
 
@@ -29,7 +22,7 @@ export function LeftSidebar() {
 
   return (
     <aside
-      className="h-full relative border-r border-black/10 shrink-0"
+      className="relative border-r border-black/10 shrink-0"
       style={{ width: LAYOUT.SIDEBAR_WIDTH }}
     >
       {/* 스텝 인디케이터 */}
