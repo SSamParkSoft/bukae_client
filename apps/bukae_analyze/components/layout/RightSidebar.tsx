@@ -2,8 +2,8 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { LAYOUT } from './layout-constants'
-import { STEPS, getCurrentStepIndex } from './_utils/stepNavigation'
-import { SolidButton } from './buttons/SolidButton'
+import { STEPS, getCurrentStepIndex } from '../_utils/stepNavigation'
+import { SolidButton } from '../buttons/SolidButton'
 
 export function RightSidebar() {
   const pathname = usePathname()

@@ -2,9 +2,9 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { LAYOUT } from './layout-constants'
-import { STEPS, getCurrentStepIndex } from './_utils/stepNavigation'
+import { STEPS, getCurrentStepIndex } from '../_utils/stepNavigation'
 import { StepIndicator } from './StepIndicator'
-import { OutlineButton } from './buttons/OutlineButton'
+import { OutlineButton } from '../buttons/OutlineButton'
 
 export function LeftSidebar() {
   const pathname = usePathname()

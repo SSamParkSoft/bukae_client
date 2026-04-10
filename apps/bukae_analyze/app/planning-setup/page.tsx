@@ -1,7 +1,12 @@
+import { PageTitle } from '@/components/pageShared/PageTitle'
+
 export default function PlanningSetupPage() {
   return (
-    <div className="h-full flex items-center justify-center">
-      <p className="text-sm text-black/40">기획 설정</p>
+    <div className="px-8 pt-10 pb-16">
+      <PageTitle
+        title="기획 설정"
+        description="영상 기획에 필요한 기본 설정을 입력해요."
+      />
     </div>
   )
 }

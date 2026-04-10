@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { Check } from 'lucide-react'
-import { STEPS, getCurrentStepIndex } from './_utils/stepNavigation'
+import { STEPS, getCurrentStepIndex } from '../_utils/stepNavigation'
 
 type StepState = 'completed' | 'active' | 'upcoming'
 

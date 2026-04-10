@@ -1,5 +1,5 @@
 import './globals.css'
-import { AppShell } from '@/components/AppShell'
+import { AppShell } from '@/components/layout/AppShell'
 
 export const metadata = {
   title: 'Bukae Analyze',
