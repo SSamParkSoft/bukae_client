@@ -1,13 +1,13 @@
 #!/bin/bash
 # Vercel Build Check Script
 # 각 앱이 독립적으로 배포되도록 변경된 파일을 확인합니다.
-# 사용법: bash scripts/vercel-build-check.sh <viewer|creator>
+# 사용법: bash scripts/vercel-build-check.sh <viewer|creator|analyze>
 
 APP_NAME=$1
 
 if [ -z "$APP_NAME" ]; then
   echo "Error: App name is required"
-  echo "Usage: $0 <viewer|creator>"
+  echo "Usage: $0 <viewer|creator|analyze>"
   exit 1
 fi
 
@@ -61,7 +61,7 @@ if [ "$APP_NAME" = "viewer" ]; then
   fi
   
   # 루트 설정 파일 변경 확인 (의존성 변경 등)
-  if echo "$CHANGED_FILES" | grep -qE "^package\.json$|^pnpm-workspace\.yaml$|^pnpm-lock\.yaml$|^tsconfig\.json$"; then
+  if echo "$CHANGED_FILES" | grep -qE "^package\.json$|^pnpm-workspace\.yaml$|^pnpm-lock\.yaml$|^tsconfig\.json$|^\.nvmrc$"; then
     echo "Building viewer: root config files changed"
     exit 1
   fi
@@ -85,7 +85,7 @@ elif [ "$APP_NAME" = "creator" ]; then
   fi
   
   # 루트 설정 파일 변경 확인
-  if echo "$CHANGED_FILES" | grep -qE "^package\.json$|^pnpm-workspace\.yaml$|^pnpm-lock\.yaml$|^tsconfig\.json$"; then
+  if echo "$CHANGED_FILES" | grep -qE "^package\.json$|^pnpm-workspace\.yaml$|^pnpm-lock\.yaml$|^tsconfig\.json$|^\.nvmrc$"; then
     echo "Building creator: root config files changed"
     exit 1
   fi
@@ -105,7 +105,7 @@ elif [ "$APP_NAME" = "analyze" ]; then
     exit 1
   fi
 
-  if echo "$CHANGED_FILES" | grep -qE "^package\.json$|^pnpm-workspace\.yaml$|^pnpm-lock\.yaml$|^tsconfig\.json$"; then
+  if echo "$CHANGED_FILES" | grep -qE "^package\.json$|^pnpm-workspace\.yaml$|^pnpm-lock\.yaml$|^tsconfig\.json$|^\.nvmrc$"; then
     echo "Building analyze: root config files changed"
     exit 1
   fi
