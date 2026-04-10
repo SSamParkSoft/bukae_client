@@ -1,42 +1,26 @@
-name: Build Check
+name: Build Check (Creator)
 
 on:
   pull_request:
     branches:
       - main
+    paths:
+      - 'apps/bukae_creator/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.nvmrc'
 
 jobs:
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      apps: ${{ steps.filter.outputs.apps }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            apps:
-              - 'apps/**'
-              - 'packages/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - '.nvmrc'
-
   build:
-    needs: changes
-    if: needs.changes.outputs.apps == 'true'
     runs-on: ubuntu-latest
     env:
-      # --- NEXT_PUBLIC (빌드 시 번들에 포함) ---
-      # GitHub Repository Settings > Secrets에 등록 필요
       NEXT_PUBLIC_API_BASE_URL: ${{ secrets.NEXT_PUBLIC_API_BASE_URL }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_EMAIL_REDIRECT_URL }}
       NEXT_PUBLIC_OAUTH_REDIRECT_URI: ${{ secrets.NEXT_PUBLIC_OAUTH_REDIRECT_URI }}
       NEXT_PUBLIC_USE_SHADER_TRANSITIONS: ${{ secrets.NEXT_PUBLIC_USE_SHADER_TRANSITIONS }}
-      # --- 서버사이드 (런타임 전용이지만 빌드 시 참조될 수 있음) ---
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
       ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
@@ -55,5 +39,5 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build all apps
-        run: pnpm build:all
+      - name: Build (creator)
+        run: pnpm build:raw

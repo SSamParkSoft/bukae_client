@@ -1,0 +1,31 @@
+name: Build Check (Viewer)
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'apps/bukae_viewer/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.nvmrc'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (viewer)
+        run: pnpm --filter bukae_viewer build
