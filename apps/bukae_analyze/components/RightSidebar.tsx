@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation'
 import { LAYOUT } from './layout-constants'
 import { STEPS, getCurrentStepIndex } from './_utils/stepNavigation'
+import { SolidButton } from './buttons/SolidButton'
 
 export function RightSidebar() {
   const pathname = usePathname()
@@ -29,15 +30,7 @@ export function RightSidebar() {
         className="absolute left-0 right-0 flex justify-center"
         style={{ bottom: LAYOUT.NAV_BUTTON_BOTTOM }}
       >
-        <button
-          type="button"
-          onClick={handleNext}
-          className="px-6 py-2.5 text-sm font-medium bg-black text-white rounded-md hover:bg-black/80 transition-colors"
-          style={{ opacity: isLast ? 0 : 1, pointerEvents: isLast ? 'none' : 'auto' }}
-          tabIndex={isLast ? -1 : 0}
-        >
-          다음
-        </button>
+        <SolidButton onClick={handleNext} hidden={isLast}>다음</SolidButton>
       </div>
     </aside>
   )

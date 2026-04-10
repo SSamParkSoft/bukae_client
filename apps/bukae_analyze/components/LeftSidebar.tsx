@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { LAYOUT } from './layout-constants'
 import { STEPS, getCurrentStepIndex } from './_utils/stepNavigation'
 import { StepIndicator } from './StepIndicator'
+import { OutlineButton } from './buttons/OutlineButton'
 
 export function LeftSidebar() {
   const pathname = usePathname()
@@ -35,15 +36,7 @@ export function LeftSidebar() {
         className="absolute left-0 right-0 flex justify-center"
         style={{ bottom: LAYOUT.NAV_BUTTON_BOTTOM }}
       >
-        <button
-          type="button"
-          onClick={handlePrev}
-          className="px-6 py-2.5 text-sm font-medium border border-black rounded-md hover:bg-black hover:text-white transition-colors"
-          style={{ opacity: isFirst ? 0 : 1, pointerEvents: isFirst ? 'none' : 'auto' }}
-          tabIndex={isFirst ? -1 : 0}
-        >
-          이전
-        </button>
+        <OutlineButton onClick={handlePrev} hidden={isFirst}>이전</OutlineButton>
       </div>
     </aside>
   )

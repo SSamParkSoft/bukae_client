@@ -1,6 +1,7 @@
 'use client'
 
 import { useUrlInput } from './_hooks/useUrlInput'
+import { SolidButton } from '@/components/buttons/SolidButton'
 
 export default function AnalyzeHomePage() {
   const { url, handleChange, handleSubmit } = useUrlInput()
@@ -20,12 +21,7 @@ export default function AnalyzeHomePage() {
             placeholder="https://..."
             className="flex-1 px-4 py-3 border border-black/20 rounded-md text-sm outline-none focus:border-black transition-colors"
           />
-          <button
-            type="submit"
-            className="px-5 py-3 bg-black text-white text-sm font-medium rounded-md hover:bg-black/80 transition-colors"
-          >
-            분석
-          </button>
+          <SolidButton type="submit">분석</SolidButton>
         </div>
       </form>
     </div>
