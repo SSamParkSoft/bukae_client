@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { Check } from 'lucide-react'
 import { STEPS, getCurrentStepIndex } from './_utils/stepNavigation'
 
@@ -80,11 +81,11 @@ export function StepIndicator() {
 
         return (
           <li key={step.path} className="flex flex-col">
-            {/* 원형 + 라벨 */}
-            <div className="flex items-center gap-3">
+            {/* 원형 + 라벨 — 해당 스텝 페이지로 이동 */}
+            <Link href={step.path} className="flex items-center gap-3">
               <StepCircle state={state} number={index + 1} />
               <StepLabel state={state}>{step.label}</StepLabel>
-            </div>
+            </Link>
 
             {/* 스텝 사이 연결선 */}
             {index < STEPS.length - 1 && (

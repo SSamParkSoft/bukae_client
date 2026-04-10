@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { LAYOUT } from './layout-constants'
 
 export function Header() {
@@ -8,10 +9,10 @@ export function Header() {
       className="w-full flex items-center justify-between px-10 border-b border-black/10 shrink-0"
       style={{ height: LAYOUT.HEADER_HEIGHT }}
     >
-      {/* 로고 */}
-      <div className="flex items-center">
-        <span className="text-lg font-bold tracking-tight">BUKAE</span>
-      </div>
+      {/* 로고 — 홈으로 이동 */}
+      <Link href="/" className="text-lg font-bold tracking-tight">
+        BUKAE
+      </Link>
 
       {/* 로그인 / 프로필 영역 (플레이스홀더) */}
       <div className="flex items-center">
