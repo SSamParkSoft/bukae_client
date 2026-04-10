@@ -54,6 +54,20 @@ apps/bukae_analyze/
         └── components/           # UI 컴포넌트
 ```
 
+## 폴더별 역할 요약
+
+| 폴더 | 역할 |
+|------|------|
+| `lib/types/api/` | 서버 raw 응답 타입 (DTO) |
+| `lib/types/domain/` | 앱 표준 타입 (Domain Model) |
+| `lib/services/` | fetch + Zod 검증 + mapper 호출 |
+| `lib/services/mappers/` | DTO → Domain Model 변환 함수 |
+| `lib/services/endpoints.ts` | API 엔드포인트 상수 |
+| `lib/mocks/` | UI 개발용 목 데이터 (Domain Model 형태) |
+| `features/{domain}/hooks/` | Domain Model → ViewModel 변환 |
+| `features/{domain}/types/` | ViewModel 타입 |
+| `features/{domain}/components/` | 렌더링만 |
+
 ---
 
 ## Layer Rules
