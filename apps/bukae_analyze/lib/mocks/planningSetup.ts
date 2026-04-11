@@ -9,4 +9,5 @@ export const MOCK_PLANNING_SETUP_ANSWERS: PlanningSetupAnswers = {
   videoLengthCustom: '',
   shooting: null,
   shootingEnvironment: '',
+  coreMaterial: '',
 }

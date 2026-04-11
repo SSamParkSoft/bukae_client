@@ -14,9 +14,15 @@ export interface ShootingViewModel {
   onEnvironmentChange: (value: string) => void
 }
 
+export interface TextQuestionViewModel {
+  value: string
+  onChange: (value: string) => void
+}
+
 export interface PlanningSetupViewModel {
   category: QuestionSectionViewModel<VideoCategory>
   faceExposure: QuestionSectionViewModel<FaceExposure>
   videoLength: QuestionSectionViewModel<VideoLength>
   shooting: ShootingViewModel
+  coreMaterial: TextQuestionViewModel
 }

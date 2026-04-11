@@ -5,6 +5,7 @@ import { CategoryQuestion } from '@/features/planningSetup/components/CategoryQu
 import { FaceExposureQuestion } from '@/features/planningSetup/components/FaceExposureQuestion'
 import { VideoLengthQuestion } from '@/features/planningSetup/components/VideoLengthQuestion'
 import { ShootingQuestion } from '@/features/planningSetup/components/ShootingQuestion'
+import { CoreMaterialQuestion } from '@/features/planningSetup/components/CoreMaterialQuestion'
 import { PageTitle } from '@/components/pageShared/PageTitle'
 
 export default function PlanningSetupPage() {
@@ -24,6 +25,7 @@ export default function PlanningSetupPage() {
         <FaceExposureQuestion data={viewModel.faceExposure} />
         <VideoLengthQuestion data={viewModel.videoLength} />
         <ShootingQuestion data={viewModel.shooting} />
+        <CoreMaterialQuestion data={viewModel.coreMaterial} />
       </div>
     </div>
   )

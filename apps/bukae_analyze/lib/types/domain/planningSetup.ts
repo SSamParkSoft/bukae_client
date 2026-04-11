@@ -23,4 +23,5 @@ export interface PlanningSetupAnswers {
   videoLengthCustom: string
   shooting: ShootingAvailability | null
   shootingEnvironment: string
+  coreMaterial: string
 }

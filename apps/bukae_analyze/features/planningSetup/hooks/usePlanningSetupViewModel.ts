@@ -13,6 +13,7 @@ const INITIAL_ANSWERS: PlanningSetupAnswers = {
   videoLengthCustom: '',
   shooting: null,
   shootingEnvironment: '',
+  coreMaterial: '',
 }
 
 export function usePlanningSetupViewModel(): PlanningSetupViewModel {
@@ -50,6 +51,11 @@ export function usePlanningSetupViewModel(): PlanningSetupViewModel {
       environment: answers.shootingEnvironment,
       onEnvironmentChange: (value: string) =>
         setAnswers(prev => ({ ...prev, shootingEnvironment: value })),
+    },
+    coreMaterial: {
+      value: answers.coreMaterial,
+      onChange: (value: string) =>
+        setAnswers(prev => ({ ...prev, coreMaterial: value })),
     },
   }), [answers])
 }
