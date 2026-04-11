@@ -17,4 +17,3 @@
  */
 export * from './videoAnalysis'
 export * from './planningSetup'
-export * from './aiPlanning'
