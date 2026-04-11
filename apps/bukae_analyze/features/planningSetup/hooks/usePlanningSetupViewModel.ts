@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import type { VideoCategory, FaceExposure, VideoLength, ShootingAvailability, PlanningSetupAnswers } from '@/lib/types/domain'
 import type { PlanningSetupViewModel } from '../types/viewModel'
+import { usePlanningStore } from '@/store/usePlanningStore'
 
 const INITIAL_ANSWERS: PlanningSetupAnswers = {
   category: null,
@@ -18,44 +19,53 @@ const INITIAL_ANSWERS: PlanningSetupAnswers = {
 
 export function usePlanningSetupViewModel(): PlanningSetupViewModel {
   const [answers, setAnswers] = useState<PlanningSetupAnswers>(INITIAL_ANSWERS)
+  const setStoreAnswers = usePlanningStore(state => state.setAnswers)
 
-  return useMemo((): PlanningSetupViewModel => ({
+  function update(partial: Partial<PlanningSetupAnswers>) {
+    setAnswers(prev => {
+      const next = { ...prev, ...partial }
+      setStoreAnswers(next)
+      return next
+    })
+  }
+
+  return {
     category: {
       selected: answers.category,
       customValue: answers.categoryCustom,
       onSelect: (value: VideoCategory | 'custom') =>
-        setAnswers(prev => ({ ...prev, category: value })),
+        update({ category: value }),
       onCustomChange: (value: string) =>
-        setAnswers(prev => ({ ...prev, categoryCustom: value })),
+        update({ categoryCustom: value }),
     },
     faceExposure: {
       selected: answers.faceExposure,
       customValue: answers.faceExposureCustom,
       onSelect: (value: FaceExposure | 'custom') =>
-        setAnswers(prev => ({ ...prev, faceExposure: value })),
+        update({ faceExposure: value }),
       onCustomChange: (value: string) =>
-        setAnswers(prev => ({ ...prev, faceExposureCustom: value })),
+        update({ faceExposureCustom: value }),
     },
     videoLength: {
       selected: answers.videoLength,
       customValue: answers.videoLengthCustom,
       onSelect: (value: VideoLength | 'custom') =>
-        setAnswers(prev => ({ ...prev, videoLength: value })),
+        update({ videoLength: value }),
       onCustomChange: (value: string) =>
-        setAnswers(prev => ({ ...prev, videoLengthCustom: value })),
+        update({ videoLengthCustom: value }),
     },
     shooting: {
       selected: answers.shooting,
       onSelect: (value: ShootingAvailability) =>
-        setAnswers(prev => ({ ...prev, shooting: value })),
+        update({ shooting: value }),
       environment: answers.shootingEnvironment,
       onEnvironmentChange: (value: string) =>
-        setAnswers(prev => ({ ...prev, shootingEnvironment: value })),
+        update({ shootingEnvironment: value }),
     },
     coreMaterial: {
       value: answers.coreMaterial,
       onChange: (value: string) =>
-        setAnswers(prev => ({ ...prev, coreMaterial: value })),
+        update({ coreMaterial: value }),
     },
-  }), [answers])
+  }
 }

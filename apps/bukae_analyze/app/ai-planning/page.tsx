@@ -1,6 +1,7 @@
 'use client'
 
-import { MOCK_AI_PLANNING_INPUT } from '@/lib/mocks'
+import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
+import { usePlanningStore } from '@/store/usePlanningStore'
 import { useAiPlanningViewModel } from '@/features/aiPlanning/hooks/useAiPlanningViewModel'
 import { HookingQuestion } from '@/features/aiPlanning/components/HookingQuestion'
 import { StoryDirectionQuestion } from '@/features/aiPlanning/components/StoryDirectionQuestion'
@@ -8,9 +9,29 @@ import { CoreMessageQuestion } from '@/features/aiPlanning/components/CoreMessag
 import { AudienceReactionQuestion } from '@/features/aiPlanning/components/AudienceReactionQuestion'
 import { CtaQuestion } from '@/features/aiPlanning/components/CtaQuestion'
 import { PageTitle } from '@/components/pageShared/PageTitle'
+import type { AiPlanningInput } from '@/lib/types/domain'
+
+function buildReferenceContext(analysis: typeof MOCK_VIDEO_ANALYSIS) {
+  return {
+    hookingStyleLabel: `${analysis.hook.openingType} — ${(analysis.hook.firstSentence ?? '').slice(0, 20)}…`,
+    storyPatternLabel: analysis.structure.storyStructure.slice(0, 40) + '…',
+    emotionTriggerLabel: analysis.hook.emotionTrigger,
+    ctaStyleLabel: analysis.structure.ctaStrategy.slice(0, 30) + '…',
+  }
+}
 
 export default function AiPlanningPage() {
-  const viewModel = useAiPlanningViewModel(MOCK_AI_PLANNING_INPUT)
+  const planningAnswers = usePlanningStore(state => state.answers)
+
+  const input: AiPlanningInput = {
+    category: (planningAnswers.category === 'custom' || planningAnswers.category === null)
+      ? 'self-narrative'
+      : planningAnswers.category,
+    coreMaterial: planningAnswers.coreMaterial,
+    referenceContext: buildReferenceContext(MOCK_VIDEO_ANALYSIS),
+  }
+
+  const viewModel = useAiPlanningViewModel(input)
 
   return (
     <div className="px-8 pt-10 pb-16">
