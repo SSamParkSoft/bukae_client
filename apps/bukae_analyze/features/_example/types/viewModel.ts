@@ -12,6 +12,7 @@
 // Domain Model import 예시:
 // import type { ExampleDomain } from '@/lib/types/domain'
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ExampleViewModel {
   // 화면에 바로 표시할 수 있는 형태의 필드들
   // ex) formattedCount: string    // "1,234"

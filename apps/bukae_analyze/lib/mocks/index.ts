@@ -16,3 +16,4 @@
  * export * from './videoStats'
  */
 export * from './videoAnalysis'
+export * from './planningSetup'
