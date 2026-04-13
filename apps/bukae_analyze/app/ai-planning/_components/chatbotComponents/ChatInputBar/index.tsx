@@ -1,5 +1,6 @@
-import { PlusIcon, ArrowRightIcon } from 'lucide-react'
 import { ChatInput } from './ChatInput'
+// import { ChatInputAttachButton } from './ChatInputAttachButton'
+import { ChatInputSubmitButton } from './ChatInputSubmitButton'
 import type { FollowUpQuestion } from '@/features/aiPlanning/types/chatbotViewModel'
 
 interface Props {
@@ -26,20 +27,11 @@ export function ChatInputBar({ questions, answers, onAnswerChange, onSubmit, isS
           />
           {i === questions.length - 1 && (
             <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                className="w-7 h-7 rounded-full border border-black/15 flex items-center justify-center text-black/30 hover:text-black/60 transition-colors"
-              >
-                <PlusIcon size={12} />
-              </button>
-              <button
-                type="button"
+              {/* <ChatInputAttachButton /> */}
+              <ChatInputSubmitButton
                 onClick={onSubmit}
                 disabled={!allAnswered || isSubmitting}
-                className="w-7 h-7 rounded-full bg-black/8 flex items-center justify-center text-black/50 hover:bg-black/15 hover:text-black disabled:opacity-20 transition-all"
-              >
-                <ArrowRightIcon size={12} />
-              </button>
+              />
             </div>
           )}
         </div>
