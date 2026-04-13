@@ -13,6 +13,7 @@ interface Props {
 export function ChatInterface({ messages, currentQuestions, isSubmitting, isComplete, scrollRef }: Props) {
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto">
+      {/* TODO: key={i} 안티패턴 — API 연동 시 ChatMessage에 id 필드 추가 후 key={msg.id}로 교체 */}
       {messages.map((msg, i) =>
         msg.role === 'ai'
           ? <AiChatCard key={i} questions={[msg.text]} />
