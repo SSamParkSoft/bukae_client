@@ -53,7 +53,7 @@ apps/bukae_analyze/
 └── features/
     └── {domain}/                 # 데이터/로직 전용 — UI 없음
         ├── types/                # ViewModel 타입
-        ├── hooks/                # Domain → ViewModel 변환 훅
+        ├── hooks/                # Form 상태 관리 훅 + ViewModel 변환 훅
         └── config/               # 도메인 설정 상수 (선택)
 ```
 
@@ -67,7 +67,7 @@ apps/bukae_analyze/
 | `lib/services/mappers/` | DTO → Domain Model 변환 함수 |
 | `lib/services/endpoints.ts` | API 엔드포인트 상수 |
 | `lib/mocks/` | UI 개발용 목 데이터 (Domain Model 형태) |
-| `features/{domain}/hooks/` | Domain Model → ViewModel 변환 |
+| `features/{domain}/hooks/` | Form 상태 관리 + Domain Model → ViewModel 변환 |
 | `features/{domain}/types/` | ViewModel 타입 |
 | `app/{page}/_components/` | 해당 페이지 전용 UI 컴포넌트 (렌더링만) |
 
@@ -101,10 +101,24 @@ apps/bukae_analyze/
 - 포맷된 문자열, 색상 결정 boolean, UI 전용 파생 상태 등
 - DTO 타입을 import하지 않는다
 
-### `features/{domain}/hooks/` — ViewModel 변환 훅
-- Domain Model을 받아 ViewModel로 변환한다
-- **데이터 fetch 금지** — 변환(transform)만 담당한다
+### `features/{domain}/hooks/` — 훅
+
+**ViewModel 변환 훅** (`useXxxViewModel`)
+- Domain Model(+ Form 상태)을 받아 ViewModel로 변환한다
+- **데이터 fetch 금지, 상태 소유 금지** — 변환(transform)만 담당한다
 - 순수 변환이므로 `useMemo`로 감싼다
+
+**Form 훅** (`useXxxForm`) — 입력 페이지 전용
+- 사용자 입력 상태(`useState`)와 업데이트 함수를 소유한다
+- Zustand store 동기화 등 부수효과도 여기서 처리한다
+- `{ answers, update }` 형태의 `XxxForm` 인터페이스를 반환한다
+- ViewModel 훅에 인자로 넘겨서 조합한다
+
+```tsx
+// page.tsx에서 조합
+const form = useXxxForm()                    // 상태 관리
+const viewModel = useXxxViewModel(input, form)  // 순수 변환
+```
 
 ### `app/{page}/_components/` — UI 컴포넌트
 - 해당 페이지에서만 사용하는 전용 컴포넌트

@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
 import { usePlanningStore } from '@/store/usePlanningStore'
+import { useAiPlanningForm } from '@/features/aiPlanning/hooks/useAiPlanningForm'
 import { useAiPlanningViewModel } from '@/features/aiPlanning/hooks/useAiPlanningViewModel'
 import { useFollowUpChatbotViewModel } from '@/features/aiPlanning/hooks/useFollowUpChatbotViewModel'
 import { HookingQuestion } from './_components/HookingQuestion'
@@ -38,7 +39,8 @@ export default function AiPlanningPage() {
     referenceContext: buildReferenceContext(MOCK_VIDEO_ANALYSIS),
   }
 
-  const viewModel = useAiPlanningViewModel(input)
+  const form = useAiPlanningForm()
+  const viewModel = useAiPlanningViewModel(input, form)
   const chatbotViewModel = useFollowUpChatbotViewModel()
 
   const enterChatbotMode = () => {

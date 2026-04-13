@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import type { AiPlanningInput, AiPlanningAnswers } from '@/lib/types/domain'
+import { useMemo } from 'react'
+import type { AiPlanningInput } from '@/lib/types/domain'
 import type { AiPlanningViewModel } from '../types/viewModel'
+import type { AiPlanningForm } from './useAiPlanningForm'
 import {
   getHookingOptions,
   getStoryDirectionConfig,
@@ -12,19 +13,12 @@ import {
   getCtaOptions,
 } from '../config/categoryQuestionConfig'
 
-const INITIAL_ANSWERS: AiPlanningAnswers = {
-  hooking: null,
-  hookingCustom: '',
-  storyDirection: null,
-  coreMessage: null,
-  coreMessageCustom: '',
-  audienceReaction: null,
-  cta: null,
-}
-
-export function useAiPlanningViewModel(input: AiPlanningInput): AiPlanningViewModel {
-  const [answers, setAnswers] = useState<AiPlanningAnswers>(INITIAL_ANSWERS)
+export function useAiPlanningViewModel(
+  input: AiPlanningInput,
+  form: AiPlanningForm,
+): AiPlanningViewModel {
   const { category, coreMaterial, referenceContext } = input
+  const { answers, update } = form
 
   return useMemo((): AiPlanningViewModel => {
     const storyConfig = getStoryDirectionConfig(category)
@@ -39,8 +33,8 @@ export function useAiPlanningViewModel(input: AiPlanningInput): AiPlanningViewMo
         selected: answers.hooking,
         customValue: answers.hookingCustom,
         hasCustomOption: true,
-        onSelect: (value: string) => setAnswers(prev => ({ ...prev, hooking: value })),
-        onCustomChange: (value: string) => setAnswers(prev => ({ ...prev, hookingCustom: value })),
+        onSelect: (value: string) => update({ hooking: value }),
+        onCustomChange: (value: string) => update({ hookingCustom: value }),
       },
       storyDirection: {
         sectionTitle: storyConfig.title,
@@ -49,7 +43,7 @@ export function useAiPlanningViewModel(input: AiPlanningInput): AiPlanningViewMo
         selected: answers.storyDirection,
         customValue: '',
         hasCustomOption: storyConfig.hasCustomOption,
-        onSelect: (value: string) => setAnswers(prev => ({ ...prev, storyDirection: value })),
+        onSelect: (value: string) => update({ storyDirection: value }),
         onCustomChange: () => {},
       },
       coreMessage: {
@@ -59,8 +53,8 @@ export function useAiPlanningViewModel(input: AiPlanningInput): AiPlanningViewMo
         selected: answers.coreMessage,
         customValue: answers.coreMessageCustom,
         hasCustomOption: true,
-        onSelect: (value: string) => setAnswers(prev => ({ ...prev, coreMessage: value })),
-        onCustomChange: (value: string) => setAnswers(prev => ({ ...prev, coreMessageCustom: value })),
+        onSelect: (value: string) => update({ coreMessage: value }),
+        onCustomChange: (value: string) => update({ coreMessageCustom: value }),
       },
       audienceReaction: {
         sectionTitle: '원하는 시청자 반응',
@@ -69,7 +63,7 @@ export function useAiPlanningViewModel(input: AiPlanningInput): AiPlanningViewMo
         selected: answers.audienceReaction,
         customValue: '',
         hasCustomOption: false,
-        onSelect: (value: string) => setAnswers(prev => ({ ...prev, audienceReaction: value })),
+        onSelect: (value: string) => update({ audienceReaction: value }),
         onCustomChange: () => {},
       },
       cta: {
@@ -79,9 +73,9 @@ export function useAiPlanningViewModel(input: AiPlanningInput): AiPlanningViewMo
         selected: answers.cta,
         customValue: '',
         hasCustomOption: false,
-        onSelect: (value: string) => setAnswers(prev => ({ ...prev, cta: value })),
+        onSelect: (value: string) => update({ cta: value }),
         onCustomChange: () => {},
       },
     }
-  }, [answers, category, coreMaterial, referenceContext])
+  }, [answers, category, coreMaterial, referenceContext, update])
 }

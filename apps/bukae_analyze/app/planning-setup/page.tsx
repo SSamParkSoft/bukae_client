@@ -1,5 +1,6 @@
 'use client'
 
+import { usePlanningSetupForm } from '@/features/planningSetup/hooks/usePlanningSetupForm'
 import { usePlanningSetupViewModel } from '@/features/planningSetup/hooks/usePlanningSetupViewModel'
 import { CategoryQuestion } from './_components/CategoryQuestion'
 import { FaceExposureQuestion } from './_components/FaceExposureQuestion'
@@ -9,7 +10,8 @@ import { CoreMaterialQuestion } from './_components/CoreMaterialQuestion'
 import { PageTitle } from '@/components/pageShared/PageTitle'
 
 export default function PlanningSetupPage() {
-  const viewModel = usePlanningSetupViewModel()
+  const form = usePlanningSetupForm()
+  const viewModel = usePlanningSetupViewModel(form)
 
   return (
     <div className="px-8 pt-10 pb-16">
