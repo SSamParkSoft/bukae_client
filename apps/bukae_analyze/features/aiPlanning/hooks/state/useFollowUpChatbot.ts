@@ -24,15 +24,15 @@ export function useFollowUpChatbot(): FollowUpChatbotViewModel {
   const [round, setRound] = useState(0)
 
   // TODO: API 연동 시 이 함수를 fetch 콜백으로 호출
-  function handleServerResponse(nextQuestions: FollowUpQuestion[], aiText: string, done: boolean) {
-    setIsSubmitting(false)
-    setMessages(prev => [...prev, { role: 'ai', text: aiText }])
-    if (done) {
-      setIsComplete(true)
-    } else {
-      setCurrentQuestions(nextQuestions)
-    }
-  }
+  // function handleServerResponse(nextQuestions: FollowUpQuestion[], aiText: string, done: boolean) {
+  //   setIsSubmitting(false)
+  //   setMessages(prev => [...prev, { role: 'ai', text: aiText }])
+  //   if (done) {
+  //     setIsComplete(true)
+  //   } else {
+  //     setCurrentQuestions(nextQuestions)
+  //   }
+  // }
 
   return useMemo((): FollowUpChatbotViewModel => ({
     messages,
