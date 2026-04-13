@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { ChatInput } from './ChatInput'
 // import { ChatInputAttachButton } from './ChatInputAttachButton'
 import { ChatInputSubmitButton } from './ChatInputSubmitButton'
@@ -13,7 +14,10 @@ interface Props {
 
 export function ChatInputBar({ questions, answers, onAnswerChange, onSubmit, isSubmitting }: Props) {
   // 전 문항 비어 있지 않을 때만 전송 가능
-  const allAnswered = questions.every(q => (answers[q.questionId] ?? '').trim() !== '')
+  const allAnswered = useMemo(
+    () => questions.every(q => (answers[q.questionId] ?? '').trim() !== ''),
+    [questions, answers],
+  )
 
   return (
     <div className="border-t border-black/8 px-10 py-5 flex flex-col gap-3">
