@@ -1,13 +1,16 @@
 'use client'
 
+import { useRouter, useSearchParams } from 'next/navigation'
 import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
 import { usePlanningStore } from '@/store/usePlanningStore'
 import { useAiPlanningViewModel } from '@/features/aiPlanning/hooks/useAiPlanningViewModel'
+import { useFollowUpChatbotViewModel } from '@/features/aiPlanning/hooks/useFollowUpChatbotViewModel'
 import { HookingQuestion } from './_components/HookingQuestion'
 import { StoryDirectionQuestion } from './_components/StoryDirectionQuestion'
 import { CoreMessageQuestion } from './_components/CoreMessageQuestion'
 import { AudienceReactionQuestion } from './_components/AudienceReactionQuestion'
 import { CtaQuestion } from './_components/CtaQuestion'
+import { FollowUpChatbot } from './_components/chatbotComponents'
 import { PageTitle } from '@/components/pageShared/PageTitle'
 import type { AiPlanningInput } from '@/lib/types/domain'
 
@@ -21,6 +24,10 @@ function buildReferenceContext(analysis: typeof MOCK_VIDEO_ANALYSIS) {
 }
 
 export default function AiPlanningPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const isChatbotMode = searchParams.get('mode') === 'chatbot'
+
   const planningAnswers = usePlanningStore(state => state.answers)
 
   const input: AiPlanningInput = {
@@ -32,6 +39,35 @@ export default function AiPlanningPage() {
   }
 
   const viewModel = useAiPlanningViewModel(input)
+  const chatbotViewModel = useFollowUpChatbotViewModel()
+
+  const enterChatbotMode = () => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('mode', 'chatbot')
+    router.push(`/ai-planning?${params.toString()}`)
+  }
+
+  const exitChatbotMode = () => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete('mode')
+    router.push(`/ai-planning?${params.toString()}`)
+  }
+
+  if (isChatbotMode) {
+    return (
+      <div className="relative h-full flex flex-col">
+        <FollowUpChatbot data={chatbotViewModel} />
+        {/* 서버 미연동 시 개발용 토글 */}
+        <button
+          type="button"
+          onClick={exitChatbotMode}
+          className="absolute top-4 right-4 text-[10px] text-black/20 hover:text-black/40 transition-colors z-10"
+        >
+          [DEV] 나가기
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="px-8 pt-10 pb-16">
@@ -49,6 +85,14 @@ export default function AiPlanningPage() {
         <AudienceReactionQuestion data={viewModel.audienceReaction} />
         <CtaQuestion data={viewModel.cta} />
       </div>
+      {/* 서버 미연동 시 개발용 토글 */}
+      <button
+        type="button"
+        onClick={enterChatbotMode}
+        className="mt-10 text-xs text-black/30 underline underline-offset-2"
+      >
+        [DEV] 정보 부족 → 챗봇 모드 테스트
+      </button>
     </div>
   )
 }
