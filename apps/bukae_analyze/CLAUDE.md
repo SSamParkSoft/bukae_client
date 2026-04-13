@@ -78,6 +78,31 @@ apps/bukae_analyze/
 
 ---
 
+## Layer Dependency Rules
+
+의존 방향은 **항상 아래쪽으로만** 흐른다. 역방향 import는 금지.
+
+```
+Service Layer  (lib/services/, lib/types/api/)
+       ↓
+Domain Layer   (lib/types/domain/)
+       ↓
+Feature Layer  (features/{domain}/)
+       ↓
+UI Layer       (app/{page}/)
+```
+
+| 레이어 | import 가능 | import 금지 |
+|--------|------------|------------|
+| Service (`lib/services/`, `lib/types/api/`) | `lib/types/domain/` | `features/`, `app/` |
+| Domain (`lib/types/domain/`) | 없음 (자체 완결) | `lib/types/api/`, `features/`, `app/` |
+| Feature (`features/`) | `lib/types/domain/` | `lib/types/api/`, `app/` |
+| UI (`app/`) | `features/`, `lib/types/domain/`, `lib/mocks/` | `lib/types/api/` |
+
+`lib/types/api/`(DTO)는 `lib/services/` 내부에서만 사용한다 — 외부 노출 금지.
+
+---
+
 ## Layer Rules
 
 ### `lib/types/api/` — DTO 타입
