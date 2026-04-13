@@ -13,14 +13,20 @@ import { AudienceReactionQuestion } from './_components/AudienceReactionQuestion
 import { CtaQuestion } from './_components/CtaQuestion'
 import { FollowUpChatbot } from './_components/chatbotComponents'
 import { PageTitle } from '@/components/pageShared/PageTitle'
-import type { AiPlanningInput } from '@/lib/types/domain'
+import type { AiPlanningInput, PlanningSetupAnswers, VideoAnalysis } from '@/lib/types/domain'
 
-function buildReferenceContext(analysis: typeof MOCK_VIDEO_ANALYSIS) {
+function buildInput(answers: PlanningSetupAnswers, analysis: VideoAnalysis): AiPlanningInput {
   return {
-    hookingStyleLabel: `${analysis.hook.openingType} — ${(analysis.hook.firstSentence ?? '').slice(0, 20)}…`,
-    storyPatternLabel: analysis.structure.storyStructure.slice(0, 40) + '…',
-    emotionTriggerLabel: analysis.hook.emotionTrigger,
-    ctaStyleLabel: analysis.structure.ctaStrategy.slice(0, 30) + '…',
+    category: (answers.category === 'custom' || answers.category === null)
+      ? 'self-narrative'
+      : answers.category,
+    coreMaterial: answers.coreMaterial,
+    referenceContext: {
+      hookingStyleLabel: `${analysis.hook.openingType} — ${(analysis.hook.firstSentence ?? '').slice(0, 20)}…`,
+      storyPatternLabel: analysis.structure.storyStructure.slice(0, 40) + '…',
+      emotionTriggerLabel: analysis.hook.emotionTrigger,
+      ctaStyleLabel: analysis.structure.ctaStrategy.slice(0, 30) + '…',
+    },
   }
 }
 
@@ -30,14 +36,7 @@ export default function AiPlanningPage() {
   const isChatbotMode = searchParams.get('mode') === 'chatbot'
 
   const planningAnswers = usePlanningStore(state => state.answers)
-
-  const input: AiPlanningInput = {
-    category: (planningAnswers.category === 'custom' || planningAnswers.category === null)
-      ? 'self-narrative'
-      : planningAnswers.category,
-    coreMaterial: planningAnswers.coreMaterial,
-    referenceContext: buildReferenceContext(MOCK_VIDEO_ANALYSIS),
-  }
+  const input = buildInput(planningAnswers, MOCK_VIDEO_ANALYSIS)
 
   const form = useAiPlanningForm()
   const viewModel = useAiPlanningViewModel(input, form)
