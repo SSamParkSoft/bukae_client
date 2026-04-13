@@ -3,9 +3,9 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
 import { usePlanningStore } from '@/store/usePlanningStore'
-import { useAiPlanningForm } from '@/features/aiPlanning/hooks/useAiPlanningForm'
-import { useAiPlanningViewModel } from '@/features/aiPlanning/hooks/useAiPlanningViewModel'
-import { useFollowUpChatbotViewModel } from '@/features/aiPlanning/hooks/useFollowUpChatbotViewModel'
+import { useAiPlanningForm } from '@/features/aiPlanning/hooks/form/useAiPlanningForm'
+import { useAiPlanningViewModel } from '@/features/aiPlanning/hooks/viewmodel/useAiPlanningViewModel'
+import { useFollowUpChatbot } from '@/features/aiPlanning/hooks/state/useFollowUpChatbot'
 import { HookingQuestion } from './_components/HookingQuestion'
 import { StoryDirectionQuestion } from './_components/StoryDirectionQuestion'
 import { CoreMessageQuestion } from './_components/CoreMessageQuestion'
@@ -41,7 +41,7 @@ export default function AiPlanningPage() {
 
   const form = useAiPlanningForm()
   const viewModel = useAiPlanningViewModel(input, form)
-  const chatbotViewModel = useFollowUpChatbotViewModel()
+  const chatbotViewModel = useFollowUpChatbot()
 
   const enterChatbotMode = () => {
     const params = new URLSearchParams(searchParams.toString())

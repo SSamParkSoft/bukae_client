@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import type { FollowUpQuestion, ChatMessage, FollowUpChatbotViewModel } from '../types/chatbotViewModel'
+import type { FollowUpQuestion, ChatMessage, FollowUpChatbotViewModel } from '../../types/chatbotViewModel'
 
 const MOCK_INITIAL_QUESTIONS: FollowUpQuestion[] = [
   { questionId: 'q1', question: '영상에서 가장 강조하고 싶은 감정이나 분위기가 있나요?' },
@@ -13,7 +13,7 @@ const MOCK_SECOND_QUESTIONS: FollowUpQuestion[] = [
 ]
 
 
-export function useFollowUpChatbotViewModel(): FollowUpChatbotViewModel {
+export function useFollowUpChatbot(): FollowUpChatbotViewModel {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'ai', text: '답변 내용만으로는 기획 방향을 확정하기 어려워요. 조금 더 여쭤볼게요!' },
   ])
@@ -22,6 +22,17 @@ export function useFollowUpChatbotViewModel(): FollowUpChatbotViewModel {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isComplete, setIsComplete] = useState(false)
   const [round, setRound] = useState(0)
+
+  // TODO: API 연동 시 이 함수를 fetch 콜백으로 호출
+  function handleServerResponse(nextQuestions: FollowUpQuestion[], aiText: string, done: boolean) {
+    setIsSubmitting(false)
+    setMessages(prev => [...prev, { role: 'ai', text: aiText }])
+    if (done) {
+      setIsComplete(true)
+    } else {
+      setCurrentQuestions(nextQuestions)
+    }
+  }
 
   return useMemo((): FollowUpChatbotViewModel => ({
     messages,
@@ -45,7 +56,7 @@ export function useFollowUpChatbotViewModel(): FollowUpChatbotViewModel {
       setAnswers({})
       setIsSubmitting(true)
       setCurrentQuestions([])
-      // TODO: API 연동 — 응답 수신 시 onServerResponse 호출
+      // TODO: API 연동 — 응답 수신 시 handleServerResponse 호출
       setTimeout(() => {
         setIsSubmitting(false)
         if (round === 0) {
@@ -57,15 +68,6 @@ export function useFollowUpChatbotViewModel(): FollowUpChatbotViewModel {
           setIsComplete(true)
         }
       }, 1500)
-    },
-    onServerResponse: (nextQuestions: FollowUpQuestion[], aiText: string, done: boolean) => {
-      setIsSubmitting(false)
-      setMessages(prev => [...prev, { role: 'ai', text: aiText }])
-      if (done) {
-        setIsComplete(true)
-      } else {
-        setCurrentQuestions(nextQuestions)
-      }
     },
   }), [messages, currentQuestions, answers, isSubmitting, isComplete, round])
 }

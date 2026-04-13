@@ -16,5 +16,4 @@ export interface FollowUpChatbotViewModel {
   isComplete: boolean
   onAnswerChange: (questionId: string, value: string) => void
   onSubmit: () => void
-  onServerResponse: (nextQuestions: FollowUpQuestion[], aiText: string, done: boolean) => void
 }

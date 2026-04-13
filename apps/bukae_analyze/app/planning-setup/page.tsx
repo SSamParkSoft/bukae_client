@@ -1,7 +1,7 @@
 'use client'
 
-import { usePlanningSetupForm } from '@/features/planningSetup/hooks/usePlanningSetupForm'
-import { usePlanningSetupViewModel } from '@/features/planningSetup/hooks/usePlanningSetupViewModel'
+import { usePlanningSetupForm } from '@/features/planningSetup/hooks/form/usePlanningSetupForm'
+import { usePlanningSetupViewModel } from '@/features/planningSetup/hooks/viewmodel/usePlanningSetupViewModel'
 import { CategoryQuestion } from './_components/CategoryQuestion'
 import { FaceExposureQuestion } from './_components/FaceExposureQuestion'
 import { VideoLengthQuestion } from './_components/VideoLengthQuestion'

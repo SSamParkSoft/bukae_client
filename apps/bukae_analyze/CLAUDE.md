@@ -53,7 +53,10 @@ apps/bukae_analyze/
 └── features/
     └── {domain}/                 # 데이터/로직 전용 — UI 없음
         ├── types/                # ViewModel 타입
-        ├── hooks/                # Form 상태 관리 훅 + ViewModel 변환 훅
+        ├── hooks/
+        │   ├── form/             # Form 상태 관리 훅
+        │   ├── viewmodel/        # Domain Model → ViewModel 변환 훅
+        │   └── state/            # 자체 상태를 소유하는 훅 (상태 머신)
         └── config/               # 도메인 설정 상수 (선택)
 ```
 
@@ -67,7 +70,9 @@ apps/bukae_analyze/
 | `lib/services/mappers/` | DTO → Domain Model 변환 함수 |
 | `lib/services/endpoints.ts` | API 엔드포인트 상수 |
 | `lib/mocks/` | UI 개발용 목 데이터 (Domain Model 형태) |
-| `features/{domain}/hooks/` | Form 상태 관리 + Domain Model → ViewModel 변환 |
+| `features/{domain}/hooks/form/` | Form 상태 관리 훅 (`useXxxForm`) |
+| `features/{domain}/hooks/viewmodel/` | Domain Model → ViewModel 변환 훅 (`useXxxViewModel`) |
+| `features/{domain}/hooks/state/` | 자체 상태 소유 훅 — 상태 머신, 복잡한 인터랙션 |
 | `features/{domain}/types/` | ViewModel 타입 |
 | `app/{page}/_components/` | 해당 페이지 전용 UI 컴포넌트 (렌더링만) |
 
@@ -103,21 +108,27 @@ apps/bukae_analyze/
 
 ### `features/{domain}/hooks/` — 훅
 
-**ViewModel 변환 훅** (`useXxxViewModel`)
+**`hooks/viewmodel/` — ViewModel 변환 훅** (`useXxxViewModel`)
 - Domain Model(+ Form 상태)을 받아 ViewModel로 변환한다
 - **데이터 fetch 금지, 상태 소유 금지** — 변환(transform)만 담당한다
 - 순수 변환이므로 `useMemo`로 감싼다
 
-**Form 훅** (`useXxxForm`) — 입력 페이지 전용
+**`hooks/form/` — Form 훅** (`useXxxForm`) — 입력 페이지 전용
 - 사용자 입력 상태(`useState`)와 업데이트 함수를 소유한다
 - Zustand store 동기화 등 부수효과도 여기서 처리한다
 - `{ answers, update }` 형태의 `XxxForm` 인터페이스를 반환한다
 - ViewModel 훅에 인자로 넘겨서 조합한다
 
+**`hooks/state/` — 상태 훅** — 자체 상태 소유가 불가피한 경우
+- `useState`를 직접 보유하며 독립적인 상태 머신처럼 동작한다
+- 변환이 아니라 "이 훅 자체가 상태의 주인"인 경우에만 사용한다
+- 이름에 `ViewModel`을 붙이지 않는다 (ex: `useFollowUpChatbot`)
+
 ```tsx
 // page.tsx에서 조합
-const form = useXxxForm()                    // 상태 관리
-const viewModel = useXxxViewModel(input, form)  // 순수 변환
+const form = useXxxForm()                       // form/ — 상태 관리
+const viewModel = useXxxViewModel(input, form)  // viewmodel/ — 순수 변환
+const chatbot = useFollowUpChatbot()            // state/ — 자체 상태 머신
 ```
 
 ### `app/{page}/_components/` — UI 컴포넌트
@@ -167,10 +178,10 @@ export interface ChannelStatsViewModel {
 
 ### 4. ViewModel 변환 훅 작성
 ```ts
-// features/channelStats/hooks/useChannelStatsViewModel.ts
+// features/channelStats/hooks/viewmodel/useChannelStatsViewModel.ts
 import { useMemo } from 'react'
 import type { ChannelStats } from '@/lib/types/domain'
-import type { ChannelStatsViewModel } from '../types/viewModel'
+import type { ChannelStatsViewModel } from '../../types/viewModel'
 
 export function useChannelStatsViewModel(domain: ChannelStats): ChannelStatsViewModel {
   return useMemo(() => ({
@@ -194,7 +205,7 @@ export function ChannelStatsCard({ data }: { data: ChannelStatsViewModel }) {
 ```tsx
 // app/dashboard/page.tsx
 import { MOCK_CHANNEL_STATS } from '@/lib/mocks'
-import { useChannelStatsViewModel } from '@/features/channelStats/hooks/useChannelStatsViewModel'
+import { useChannelStatsViewModel } from '@/features/channelStats/hooks/viewmodel/useChannelStatsViewModel'
 import { ChannelStatsCard } from './_components/ChannelStatsCard'
 
 export default function DashboardPage() {

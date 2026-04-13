@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
-import { useVideoAnalysisViewModel } from '@/features/videoAnalysis/hooks/useVideoAnalysisViewModel'
+import { useVideoAnalysisViewModel } from '@/features/videoAnalysis/hooks/viewmodel/useVideoAnalysisViewModel'
 import { ThumbnailAnalysisTab } from './_components/ThumbnailAnalysisTab'
 import { HookAnalysisTab } from './_components/HookAnalysisTab'
 import { CommentAnalysisTab } from './_components/CommentAnalysisTab'

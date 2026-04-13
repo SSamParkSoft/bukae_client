@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import type { VideoAnalysis } from '@/lib/types/domain'
-import type { VideoAnalysisViewModel } from '../types/viewModel'
+import type { VideoAnalysisViewModel } from '../../types/viewModel'
 
 const PACING_LABEL: Record<'fast' | 'medium' | 'slow', string> = {
   fast: '빠름',

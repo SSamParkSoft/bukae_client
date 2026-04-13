@@ -2,8 +2,8 @@
 
 import { useMemo } from 'react'
 import type { AiPlanningInput } from '@/lib/types/domain'
-import type { AiPlanningViewModel } from '../types/viewModel'
-import type { AiPlanningForm } from './useAiPlanningForm'
+import type { AiPlanningViewModel } from '../../types/viewModel'
+import type { AiPlanningForm } from '../form/useAiPlanningForm'
 import {
   getHookingOptions,
   getStoryDirectionConfig,
@@ -11,21 +11,19 @@ import {
   AUDIENCE_REACTION_OPTIONS,
   getAudienceReactionInsight,
   getCtaOptions,
-} from '../config/categoryQuestionConfig'
+} from '../../config/categoryQuestionConfig'
 
 export function useAiPlanningViewModel(
   input: AiPlanningInput,
   form: AiPlanningForm,
 ): AiPlanningViewModel {
-  const { category, coreMaterial, referenceContext } = input
+  const { category, referenceContext } = input
   const { answers, update } = form
 
   return useMemo((): AiPlanningViewModel => {
     const storyConfig = getStoryDirectionConfig(category)
 
     return {
-      category,
-      coreMaterial,
       hooking: {
         sectionTitle: '후킹',
         referenceInsight: `이 영상은 "${referenceContext.hookingStyleLabel}" 방식을 사용했어요. 어떤 점을 가져가고 싶으신가요?`,
@@ -77,5 +75,5 @@ export function useAiPlanningViewModel(
         onCustomChange: () => {},
       },
     }
-  }, [answers, category, coreMaterial, referenceContext, update])
+  }, [answers, category, referenceContext, update])
 }

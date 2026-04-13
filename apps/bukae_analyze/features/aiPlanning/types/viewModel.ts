@@ -1,5 +1,3 @@
-import type { VideoCategory } from '@/lib/types/domain'
-
 export interface AiQuestionOption {
   value: string
   label: string
@@ -17,8 +15,6 @@ export interface AiQuestionViewModel {
 }
 
 export interface AiPlanningViewModel {
-  category: VideoCategory
-  coreMaterial: string
   hooking: AiQuestionViewModel
   storyDirection: AiQuestionViewModel
   coreMessage: AiQuestionViewModel

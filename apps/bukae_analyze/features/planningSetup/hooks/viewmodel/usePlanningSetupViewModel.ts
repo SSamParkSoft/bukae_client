@@ -2,8 +2,8 @@
 
 import { useMemo } from 'react'
 import type { VideoCategory, FaceExposure, VideoLength, ShootingAvailability } from '@/lib/types/domain'
-import type { PlanningSetupViewModel } from '../types/viewModel'
-import type { PlanningSetupForm } from './usePlanningSetupForm'
+import type { PlanningSetupViewModel } from '../../types/viewModel'
+import type { PlanningSetupForm } from '../form/usePlanningSetupForm'
 
 export function usePlanningSetupViewModel(form: PlanningSetupForm): PlanningSetupViewModel {
   const { answers, update } = form
