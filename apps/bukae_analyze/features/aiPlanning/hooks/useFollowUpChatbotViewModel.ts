@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import type { FollowUpQuestion, ChatMessage, Exchange, FollowUpChatbotViewModel } from '../types/chatbotViewModel'
+import type { FollowUpQuestion, ChatMessage, FollowUpChatbotViewModel } from '../types/chatbotViewModel'
 
 const MOCK_INITIAL_QUESTIONS: FollowUpQuestion[] = [
   { questionId: 'q1', question: '영상에서 가장 강조하고 싶은 감정이나 분위기가 있나요?' },
@@ -12,24 +12,6 @@ const MOCK_SECOND_QUESTIONS: FollowUpQuestion[] = [
   { questionId: 'q3', question: '비슷한 영상 중 참고하고 싶은 스타일이 있다면 설명해 주세요.' },
 ]
 
-function toExchanges(messages: ChatMessage[]): Exchange[] {
-  const result: Exchange[] = []
-  let i = 0
-  while (i < messages.length) {
-    const msg = messages[i]
-    if (msg.role === 'ai') {
-      const next = messages[i + 1]
-      result.push({
-        aiTexts: [msg.text],
-        userAnswers: next?.role === 'user' ? [next.text] : [],
-      })
-      i += next?.role === 'user' ? 2 : 1
-    } else {
-      i += 1
-    }
-  }
-  return result
-}
 
 export function useFollowUpChatbotViewModel(): FollowUpChatbotViewModel {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -42,7 +24,7 @@ export function useFollowUpChatbotViewModel(): FollowUpChatbotViewModel {
   const [round, setRound] = useState(0)
 
   return useMemo((): FollowUpChatbotViewModel => ({
-    exchanges: toExchanges(messages),
+    messages,
     currentQuestions,
     answers,
     isSubmitting,
@@ -51,11 +33,15 @@ export function useFollowUpChatbotViewModel(): FollowUpChatbotViewModel {
       setAnswers(prev => ({ ...prev, [questionId]: value }))
     },
     onSubmit: () => {
+      const aiMessages: ChatMessage[] = currentQuestions.map(q => ({
+        role: 'ai' as const,
+        text: q.question,
+      }))
       const userMessages: ChatMessage[] = currentQuestions.map(q => ({
         role: 'user' as const,
         text: answers[q.questionId] ?? '',
       }))
-      setMessages(prev => [...prev, ...userMessages])
+      setMessages(prev => [...prev, ...aiMessages, ...userMessages])
       setAnswers({})
       setIsSubmitting(true)
       setCurrentQuestions([])

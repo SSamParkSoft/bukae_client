@@ -8,13 +8,8 @@ export interface ChatMessage {
   text: string
 }
 
-export interface Exchange {
-  aiTexts: string[]
-  userAnswers: string[]
-}
-
 export interface FollowUpChatbotViewModel {
-  exchanges: Exchange[]
+  messages: ChatMessage[]
   currentQuestions: FollowUpQuestion[]
   answers: Record<string, string>
   isSubmitting: boolean

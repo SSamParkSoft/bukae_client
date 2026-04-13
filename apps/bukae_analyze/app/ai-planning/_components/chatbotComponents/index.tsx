@@ -11,25 +11,22 @@ interface Props {
 }
 
 export function FollowUpChatbot({ data }: Props) {
-  const scrollRef = useScrollToBottom([data.exchanges, data.currentQuestions])
+  const scrollRef = useScrollToBottom([data.messages, data.currentQuestions])
 
   return (
     <div className="flex flex-col h-full">
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        {data.exchanges.map((ex, i) => (
-          <div key={i} className="grid grid-cols-2 min-h-[160px]">
-            <AiChatCard questions={ex.aiTexts} />
-            <UserChatCard answers={ex.userAnswers} />
-          </div>
-        ))}
-
-        {!data.isSubmitting && data.currentQuestions.length > 0 && (
-          <div className="grid grid-cols-2 min-h-[180px]">
-            <AiChatCard questions={data.currentQuestions.map(q => q.question)} />
-            <UserChatCard answers={[]} />
-          </div>
+        {data.messages.map((msg, i) =>
+          msg.role === 'ai'
+            ? <AiChatCard key={i} questions={[msg.text]} />
+            : <UserChatCard key={i} answers={[msg.text]} />
         )}
+
+        {/* AI가 연속으로 말을 걸었을 때 */}
+        {!data.isSubmitting && data.currentQuestions.map((q, i) => (
+          <AiChatCard key={`current-${i}`} questions={[q.question]} />
+        ))}
 
         {data.isSubmitting && (
           <p className="px-10 py-8 text-xs text-black/30 animate-pulse">분석 중…</p>
