@@ -28,7 +28,7 @@ export function ChatInputBar({ questions, answers, onAnswerChange, onSubmit, isS
             value={answers[q.questionId] ?? ''}
             onChange={value => onAnswerChange(q.questionId, value)}
           />
-          {/* 마마지막 행에만 버튼 배치(한 번에 전체 제출)*/}
+          {/* 마지막 행에만 버튼 배치(한 번에 전체 제출)*/}
           {i === questions.length - 1 && (
             <div className="flex items-center gap-2 shrink-0">
               {/* <ChatInputAttachButton /> */}
