@@ -51,7 +51,7 @@ export function useVideoAnalysisViewModel(domain: VideoAnalysis): VideoAnalysisV
         negativePercent: Math.round(domain.comment.sentimentRatio.negative * 100),
         neutralPercent: Math.round(domain.comment.sentimentRatio.neutral * 100),
       },
-      praiseKeywords: domain.comment.praiseKeywords,
+      keywords: domain.comment.keywords,
       why: domain.comment.why,
       evidence: domain.comment.evidence,
       conversionComments: domain.comment.conversionComments,

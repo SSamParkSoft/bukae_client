@@ -1,5 +1,5 @@
 import type { FaceExposure } from '@/lib/types/domain'
-import type { QuestionSectionViewModel } from '../types/viewModel'
+import type { QuestionSectionViewModel } from '@/features/planningSetup/types/viewModel'
 import { QuestionHeader, OptionButton, CustomTextInput } from './shared'
 
 const OPTIONS: { value: FaceExposure; label: string }[] = [

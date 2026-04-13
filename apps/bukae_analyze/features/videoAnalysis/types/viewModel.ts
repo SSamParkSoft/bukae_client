@@ -51,7 +51,7 @@ export interface CommentAnalysisViewModel {
   requestPatterns: string[]
   confusionPoints: string[]
   sentimentBar: SentimentBarViewModel
-  praiseKeywords: string[]
+  keywords: string[]
   why: string
   evidence: string[]
   conversionComments?: number

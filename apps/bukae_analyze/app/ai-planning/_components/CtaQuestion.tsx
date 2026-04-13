@@ -1,18 +1,18 @@
-import type { AiQuestionViewModel } from '../types/viewModel'
+import type { AiQuestionViewModel } from '@/features/aiPlanning/types/viewModel'
 import { QuestionHeader, InsightBox, OptionButton } from './shared'
 
-const LETTERS = ['a', 'b', 'c', 'd', 'e', 'f', 'g']
+const LETTERS = ['a', 'b', 'c', 'd']
 
 interface Props {
   data: AiQuestionViewModel
 }
 
-export function AudienceReactionQuestion({ data }: Props) {
+export function CtaQuestion({ data }: Props) {
   return (
     <div>
-      <QuestionHeader number="Q4" question="어떤 반응을 노리고 싶으신가요?" />
+      <QuestionHeader number="Q5" question="시청자에게 어떤 행동을 유도하고 싶으신가요?" />
       <InsightBox text={data.referenceInsight} />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex flex-col gap-2">
         {data.options.map((option, i) => (
           <OptionButton
             key={option.value}

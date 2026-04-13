@@ -1,4 +1,4 @@
-import type { SentimentBarViewModel } from '../../types/viewModel'
+import type { SentimentBarViewModel } from '@/features/videoAnalysis/types/viewModel'
 
 export function SentimentBar({ positivePercent, negativePercent, neutralPercent }: SentimentBarViewModel) {
   return (

@@ -1,4 +1,4 @@
-import type { HookAnalysisViewModel } from '../../types/viewModel'
+import type { HookAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 import { WhyBox, SectionLabel, EvidenceList, CrossValidationBox } from '../shared'
 import { HookMetrics } from './HookMetrics'
 import { HookOptionalFields } from './HookOptionalFields'

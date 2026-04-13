@@ -1,4 +1,4 @@
-import type { ThumbnailAnalysisViewModel } from '../../types/viewModel'
+import type { ThumbnailAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 import { AiBadge, SectionLabel } from '../shared'
 
 type FieldDef = {

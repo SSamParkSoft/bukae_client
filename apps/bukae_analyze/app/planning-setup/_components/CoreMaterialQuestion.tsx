@@ -1,4 +1,4 @@
-import type { TextQuestionViewModel } from '../types/viewModel'
+import type { TextQuestionViewModel } from '@/features/planningSetup/types/viewModel'
 import { QuestionHeader } from './shared'
 
 interface Props {

@@ -1,4 +1,4 @@
-import type { CommentAnalysisViewModel } from '../../types/viewModel'
+import type { CommentAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 import { SectionLabel, WhyBox, EvidenceList } from '../shared'
 import { CommentAudience } from './CommentAudience'
 import { CommentSentiment } from './CommentSentiment'

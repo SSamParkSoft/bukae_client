@@ -65,7 +65,7 @@ export const MOCK_VIDEO_ANALYSIS: VideoAnalysis = {
       negative: 0.06,
       neutral: 0.12,
     },
-    praiseKeywords: [
+    keywords: [
       '썸네일 보고 클릭',
       '설명이 깔끔해요',
       '비교가 제일 잘 됐어요',

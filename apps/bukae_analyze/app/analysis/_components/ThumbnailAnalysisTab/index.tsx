@@ -1,4 +1,4 @@
-import type { ThumbnailAnalysisViewModel } from '../../types/viewModel'
+import type { ThumbnailAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 import { WhyBox, SectionLabel, EvidenceList, CrossValidationBox } from '../shared'
 import { ThumbnailImage } from './ThumbnailImage'
 import { ThumbnailFields } from './ThumbnailFields'

@@ -1,4 +1,4 @@
-import type { ShootingViewModel } from '../types/viewModel'
+import type { ShootingViewModel } from '@/features/planningSetup/types/viewModel'
 import { QuestionHeader, CustomTextInput } from './shared'
 
 interface ShootingOptionProps {

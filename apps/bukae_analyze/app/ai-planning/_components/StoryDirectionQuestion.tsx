@@ -1,4 +1,4 @@
-import type { AiQuestionViewModel } from '../types/viewModel'
+import type { AiQuestionViewModel } from '@/features/aiPlanning/types/viewModel'
 import { QuestionHeader, InsightBox, OptionButton, CustomTextInput } from './shared'
 
 const LETTERS = ['a', 'b', 'c', 'd', 'e', 'f']

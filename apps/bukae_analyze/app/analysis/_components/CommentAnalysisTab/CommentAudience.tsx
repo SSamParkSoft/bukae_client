@@ -1,4 +1,4 @@
-import type { CommentAnalysisViewModel } from '../../types/viewModel'
+import type { CommentAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 import { SectionLabel } from '../shared'
 
 export function CommentAudience({ data }: { data: CommentAnalysisViewModel }) {

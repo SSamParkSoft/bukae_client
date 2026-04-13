@@ -53,7 +53,7 @@ export interface CommentAnalysis {
   requestPatterns: string[]
   confusionPoints: string[]
   sentimentRatio: SentimentRatio
-  praiseKeywords: string[]
+  keywords: string[]
   why: string
   evidence: string[]
   conversionComments?: number

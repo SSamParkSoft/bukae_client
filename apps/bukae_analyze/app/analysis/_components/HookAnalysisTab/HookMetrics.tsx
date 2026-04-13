@@ -1,4 +1,4 @@
-import type { HookAnalysisViewModel } from '../../types/viewModel'
+import type { HookAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 import { AiBadge, SectionLabel } from '../shared'
 
 const PACING_DOTS: Record<'fast' | 'medium' | 'slow', number> = {

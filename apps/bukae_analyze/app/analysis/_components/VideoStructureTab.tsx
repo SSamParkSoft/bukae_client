@@ -1,4 +1,4 @@
-import type { VideoStructureViewModel } from '../types/viewModel'
+import type { VideoStructureViewModel } from '@/features/videoAnalysis/types/viewModel'
 
 interface Props {
   data: VideoStructureViewModel

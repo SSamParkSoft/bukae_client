@@ -1,4 +1,4 @@
-import type { AiQuestionViewModel } from '../types/viewModel'
+import type { AiQuestionViewModel } from '@/features/aiPlanning/types/viewModel'
 import { QuestionHeader, InsightBox, OptionButton, CustomTextInput } from './shared'
 
 const LETTERS = ['a', 'b', 'c', 'd', 'e', 'f']
@@ -7,10 +7,10 @@ interface Props {
   data: AiQuestionViewModel
 }
 
-export function CoreMessageQuestion({ data }: Props) {
+export function HookingQuestion({ data }: Props) {
   return (
     <div>
-      <QuestionHeader number="Q3" question="이 영상으로 전달하고 싶은 한 줄 메시지가 뭔가요?" />
+      <QuestionHeader number="Q1" question="이 영상의 시작 방식 중 어떤 점을 가져가고 싶으신가요?" />
       <InsightBox text={data.referenceInsight} />
       <div className="flex flex-col gap-2">
         {data.options.map((option, i) => (
@@ -35,7 +35,7 @@ export function CoreMessageQuestion({ data }: Props) {
         <CustomTextInput
           value={data.customValue}
           onChange={data.onCustomChange}
-          placeholder="전달하고 싶은 메시지를 직접 입력해 주세요."
+          placeholder="강조하고 싶은 후킹 방식을 입력해 주세요."
         />
       )}
     </div>

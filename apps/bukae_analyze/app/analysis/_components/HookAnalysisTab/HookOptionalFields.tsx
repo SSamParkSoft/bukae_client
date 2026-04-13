@@ -1,4 +1,4 @@
-import type { HookAnalysisViewModel } from '../../types/viewModel'
+import type { HookAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 import { SectionLabel } from '../shared'
 
 export function HookOptionalFields({ data }: { data: HookAnalysisViewModel }) {

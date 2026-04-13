@@ -1,11 +1,11 @@
 'use client'
 
 import { usePlanningSetupViewModel } from '@/features/planningSetup/hooks/usePlanningSetupViewModel'
-import { CategoryQuestion } from '@/features/planningSetup/components/CategoryQuestion'
-import { FaceExposureQuestion } from '@/features/planningSetup/components/FaceExposureQuestion'
-import { VideoLengthQuestion } from '@/features/planningSetup/components/VideoLengthQuestion'
-import { ShootingQuestion } from '@/features/planningSetup/components/ShootingQuestion'
-import { CoreMaterialQuestion } from '@/features/planningSetup/components/CoreMaterialQuestion'
+import { CategoryQuestion } from './_components/CategoryQuestion'
+import { FaceExposureQuestion } from './_components/FaceExposureQuestion'
+import { VideoLengthQuestion } from './_components/VideoLengthQuestion'
+import { ShootingQuestion } from './_components/ShootingQuestion'
+import { CoreMaterialQuestion } from './_components/CoreMaterialQuestion'
 import { PageTitle } from '@/components/pageShared/PageTitle'
 
 export default function PlanningSetupPage() {
