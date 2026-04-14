@@ -1,0 +1,6 @@
+export const LAYOUT = {
+  HEADER_HEIGHT: 112,
+  SIDEBAR_WIDTH: 280,
+  STEP_INDICATOR_TOP: 64,
+  NAV_BUTTON_BOTTOM: 60,
+} as const
