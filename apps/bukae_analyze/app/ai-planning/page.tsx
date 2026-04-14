@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
 import { usePlanningStore } from '@/store/usePlanningStore'
@@ -30,7 +31,7 @@ function buildInput(answers: PlanningSetupAnswers, analysis: VideoAnalysis): AiP
   }
 }
 
-export default function AiPlanningPage() {
+function AiPlanningContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const isChatbotMode = searchParams.get('mode') === 'chatbot'
@@ -95,5 +96,13 @@ export default function AiPlanningPage() {
         [DEV] 정보 부족 → 챗봇 모드 테스트
       </button>
     </div>
+  )
+}
+
+export default function AiPlanningPage() {
+  return (
+    <Suspense>
+      <AiPlanningContent />
+    </Suspense>
   )
 }
