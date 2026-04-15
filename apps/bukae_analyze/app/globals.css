@@ -10,6 +10,31 @@
   --foreground: #171717;
 
   /*
+   * Color system — 컬러 시스템 정리 (brand / white / highlight + opacity 단계)
+   * 원색은 --palette-* , 단계색은 --derived-* → @theme 의 --color-* 로 노출
+   */
+  --palette-brand: #17171b;
+  --palette-white: #ffffff;
+  --palette-highlight: #aefffa;
+
+  --derived-brand-80: color-mix(in srgb, var(--palette-brand) 80%, transparent);
+  --derived-brand-60: color-mix(in srgb, var(--palette-brand) 60%, transparent);
+  --derived-brand-40: color-mix(in srgb, var(--palette-brand) 40%, transparent);
+  --derived-brand-20: color-mix(in srgb, var(--palette-brand) 20%, transparent);
+  --derived-brand-10: color-mix(in srgb, var(--palette-brand) 10%, transparent);
+
+  --derived-white-80: color-mix(in srgb, var(--palette-white) 80%, transparent);
+  --derived-white-60: color-mix(in srgb, var(--palette-white) 60%, transparent);
+  --derived-white-40: color-mix(in srgb, var(--palette-white) 40%, transparent);
+  --derived-white-20: color-mix(in srgb, var(--palette-white) 20%, transparent);
+  --derived-white-10: color-mix(in srgb, var(--palette-white) 10%, transparent);
+
+  --derived-black-80: color-mix(in srgb, #000000 80%, transparent);
+
+  --glass-blur-strong: 10px;
+  --glass-blur-soft: 4px;
+
+  /*
    * Typography scale — SUIT
    * 각 토큰: 폰트 크기 → 자간(-4%) → 행간 → 굵기 (sm=semibold, md=medium, rg=regular)
    * 14px 계열은 텍스트 박스 내 리스트 등에 160% 행간 적용 (스펙 시트 기준)
@@ -84,6 +109,26 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: 'SUIT', ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand: var(--palette-brand);
+  --color-brand-80: var(--derived-brand-80);
+  --color-brand-60: var(--derived-brand-60);
+  --color-brand-40: var(--derived-brand-40);
+  --color-brand-20: var(--derived-brand-20);
+  --color-brand-10: var(--derived-brand-10);
+
+  --color-white-100: var(--palette-white);
+  --color-white-80: var(--derived-white-80);
+  --color-white-60: var(--derived-white-60);
+  --color-white-40: var(--derived-white-40);
+  --color-white-20: var(--derived-white-20);
+  --color-white-10: var(--derived-white-10);
+
+  --color-highlight: var(--palette-highlight);
+  --color-black-80: var(--derived-black-80);
+
+  --blur-glass-strong: var(--glass-blur-strong);
+  --blur-glass-soft: var(--glass-blur-soft);
 }
 
 /*
@@ -192,6 +237,16 @@
     letter-spacing: var(--text-12_rg-tracking);
     line-height: var(--text-12_rg-leading);
     font-weight: var(--text-12_rg-weight);
+  }
+
+  .backdrop-glass-strong {
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+    backdrop-filter: blur(var(--glass-blur-strong));
+  }
+
+  .backdrop-glass-soft {
+    -webkit-backdrop-filter: blur(var(--glass-blur-soft));
+    backdrop-filter: blur(var(--glass-blur-soft));
   }
 }
 
