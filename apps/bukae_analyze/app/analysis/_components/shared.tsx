@@ -20,23 +20,25 @@ export function SectionLabel({ children }: { children: string }) {
 
 export function WhyBox({ children }: { children: string }) {
   return (
-    <div className="border-2 border-white rounded-xl p-5">
-      <p className="text-xs font-bold text-white/50 mb-2">★ 핵심 분석</p>
-      <p className="text-sm leading-relaxed">{children}</p>
+    <div className="border border-white p-6 bg-white/10">
+      <p className="font-20-md text-white/60 mb-2">★ 핵심 분석</p>
+      <p className="font-20-md leading-relaxed text-white/80 pt-4 px-6">{children}</p>
     </div>
   )
 }
 
+/** 분석 근거 목록 — 하단 보더 박스, 본문 단일 줄 말줄임 */
 export function EvidenceList({ items }: { items: string[] }) {
   return (
-    <ul className="space-y-1.5 mb-16">
+    <div className="flex w-full flex-col gap-6">
       {items.map((item, i) => (
-        <li key={i} className="flex items-start gap-2 text-sm text-white/60">
-          <span className="mt-0.5 shrink-0 text-white/30">—</span>
-          <span>{item}</span>
-        </li>
+        <div key={i} className="min-w-0 backdrop-blur-[2px] border-b border-white/40 px-6 py-4">
+          <p className="min-w-0 truncate font-20-md leading-[1.8] text-white/80" title={item}>
+            {item}
+          </p>
+        </div>
       ))}
-    </ul>
+    </div>
   )
 }
 

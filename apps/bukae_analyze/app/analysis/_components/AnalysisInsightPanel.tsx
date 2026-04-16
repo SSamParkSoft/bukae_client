@@ -1,4 +1,4 @@
-import { WhyBox, SectionLabel, EvidenceList } from './shared'
+import { WhyBox, EvidenceList } from './shared'
 
 interface Props {
   why: string
@@ -7,10 +7,10 @@ interface Props {
 
 export function AnalysisInsightPanel({ why, evidence }: Props) {
   return (
-    <div className="w-full space-y-8">
+    <div className="w-full space-y-16">
       <WhyBox>{why}</WhyBox>
-      <div>
-        <SectionLabel>분석 근거</SectionLabel>
+      <div className="flex flex-col gap-6">
+        <p className="font-20-md leading-none text-white/60">분석 근거</p>
         <EvidenceList items={evidence} />
       </div>
     </div>
