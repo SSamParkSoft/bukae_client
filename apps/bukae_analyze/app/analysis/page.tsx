@@ -8,7 +8,10 @@ import { HookAnalysisTab } from './_components/HookAnalysisTab'
 // import { CommentAnalysisTab } from './_components/CommentAnalysisTab' // MVP 제외: 댓글 반응 분석
 import { VideoStructureTab } from './_components/VideoStructureTab'
 import { PageTitle } from '@/components/pageShared/PageTitle'
+import { ReferenceUrlTopBar } from './_components/ReferenceUrlTopBar'
 import { PageTabs } from '@/components/ui/analysis/PageTabs'
+
+const REFERENCE_URL_DISPLAY = 'youtube.com/shorts/contentruckai'
 
 const TABS = [
   { id: 'thumbnail', label: '썸네일 분석' },
@@ -25,6 +28,8 @@ export default function AnalysisPage() {
 
   return (
     <div className="px-8 pt-10 pb-16">
+      <ReferenceUrlTopBar referenceUrl={REFERENCE_URL_DISPLAY} className="mb-10" />
+
       <PageTitle
         title="AI 분석"
         description={[
