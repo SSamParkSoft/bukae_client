@@ -29,7 +29,7 @@ export function WhyBox({ children }: { children: string }) {
 
 export function EvidenceList({ items }: { items: string[] }) {
   return (
-    <ul className="space-y-1.5">
+    <ul className="space-y-1.5 mb-16">
       {items.map((item, i) => (
         <li key={i} className="flex items-start gap-2 text-sm text-white/60">
           <span className="mt-0.5 shrink-0 text-white/30">—</span>

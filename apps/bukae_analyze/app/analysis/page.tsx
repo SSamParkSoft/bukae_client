@@ -11,6 +11,7 @@ import { VideoStructureTab } from './_components/VideoStructureTab'
 import { PageTitle } from '@/components/pageShared/PageTitle'
 import { ReferenceUrlTopBar } from './_components/ReferenceUrlTopBar'
 import { PageTabs } from '@/components/ui/analysis/PageTabs'
+import { AnalysisInsightPanel } from './_components/AnalysisInsightPanel'
 
 const REFERENCE_URL_DISPLAY = 'youtube.com/shorts/contentruckai'
 
@@ -48,6 +49,13 @@ export default function AnalysisPage() {
           </div>
         </div>
       </div>
+
+      {activeTab === 'thumbnail' && (
+        <AnalysisInsightPanel why={viewModel.thumbnail.why} evidence={viewModel.thumbnail.evidence} />
+      )}
+      {activeTab === 'hook' && (
+        <AnalysisInsightPanel why={viewModel.hook.why} evidence={viewModel.hook.evidence} />
+      )}
     </div>
   )
 }
