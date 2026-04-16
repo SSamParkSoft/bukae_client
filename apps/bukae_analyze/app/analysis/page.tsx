@@ -37,7 +37,7 @@ export default function AnalysisPage() {
         ]}
       />
       
-      <hr className="my-10 border-b border-white/10" />
+      <hr className="mb-10 border-b border-white/10" />
 
       <PageTabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
 

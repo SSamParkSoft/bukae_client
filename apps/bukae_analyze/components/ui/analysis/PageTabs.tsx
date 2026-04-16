@@ -22,13 +22,13 @@ export function PageTabs<T extends string>({ tabs, activeTab, onChange }: PageTa
             type="button"
             onClick={() => onChange(tab.id)}
             className={[
-              'shrink-0 px-4 pb-3 text-sm font-medium transition-colors relative',
+              'shrink-0 px-9 py-4 font-20-rg transition-colors relative min-w-50',
               isActive ? 'text-white' : 'text-white/40 hover:text-white/70',
             ].join(' ')}
           >
             {tab.label}
             {isActive && (
-              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-white rounded-t-full" />
+              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/40 rounded-t-full" />
             )}
           </button>
         )
