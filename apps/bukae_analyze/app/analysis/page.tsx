@@ -29,18 +29,18 @@ export default function AnalysisPage() {
   const viewModel = useVideoAnalysisViewModel(MOCK_VIDEO_ANALYSIS)
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col px-8 pb-16 pt-10">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden px-8 pb-16 pt-10">
       <ReferenceUrlTopBar referenceUrl={REFERENCE_URL_DISPLAY} className="mb-10" />
       <PageTitle title="AI 분석" description="원본 영상의 핵심 요소를 파악했습니다" />
       <hr className="mb-10 border-b border-white/10" />
 
-      <div className="flex gap-x-9">
+      <div className="flex min-w-0 gap-x-9">
         <AnalysisVideoPanel
           posterUrl={MOCK_VIDEO_ANALYSIS.thumbnail.imageUrl}
           videoSrc={MOCK_REFERENCE_VIDEO_URL}
         />
 
-        <div className="flex w-[1000px] shrink-0 flex-col">
+        <div className="flex min-w-0 max-w-[1000px] flex-1 flex-col">
           <PageTabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
           <div className="min-w-0">
             {activeTab === 'thumbnail' && <ThumbnailAnalysisTab data={viewModel.thumbnail} />}
