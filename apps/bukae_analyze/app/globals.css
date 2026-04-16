@@ -222,6 +222,14 @@
     -webkit-backdrop-filter: blur(var(--glass-blur-soft));
     backdrop-filter: blur(var(--glass-blur-soft));
   }
+
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -237,4 +245,12 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

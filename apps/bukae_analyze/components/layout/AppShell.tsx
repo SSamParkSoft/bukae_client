@@ -8,7 +8,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Header />
       <div className="flex flex-1 overflow-hidden">
         <LeftSidebar />
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto scrollbar-hide">
           {children}
         </main>
         <RightSidebar />

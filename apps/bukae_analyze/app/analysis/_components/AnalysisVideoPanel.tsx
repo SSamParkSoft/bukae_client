@@ -11,13 +11,8 @@ type Props = {
  */
 export function AnalysisVideoPanel({ posterUrl, videoSrc, className }: Props) {
   return (
-    <div
-      className={[
-        'shrink-0 border-b border-white/10 pb-6 lg:sticky lg:top-0 lg:self-start lg:border-b-0 lg:border-r lg:border-white/10 lg:pb-10 lg:pr-6',
-        className ?? '',
-      ].join(' ')}
-    >
-      <div className="mx-auto aspect-9/16 w-full max-w-[min(100%,360px)] overflow-hidden rounded-2xl bg-black lg:max-h-[calc(100vh-7rem)] lg:max-w-none">
+    <div className={['shrink-0', className ?? ''].join(' ')}>
+      <div className="h-[572px] w-[324px] overflow-hidden rounded-2xl bg-black">
         <video
           className="h-full w-full object-contain"
           controls
