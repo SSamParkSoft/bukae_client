@@ -2,8 +2,8 @@ import type { ThumbnailAnalysisViewModel } from '@/features/videoAnalysis/types/
 
 function FieldValueBox({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-white/4 px-6 py-2">
-      <div className="min-w-0 wrap-break-word font-16-rg leading-[1.8] text-white/80">{children}</div>
+    <div className="rounded-lg px-6 py-2">
+      <div className="truncate font-16-rg leading-[1.8] text-white/80">{children}</div>
     </div>
   )
 }
@@ -19,7 +19,7 @@ function FieldCell({ label, children }: { label: string; children: React.ReactNo
 
 function ColorsValue({ colors }: { colors: string[] }) {
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-nowrap items-center gap-3">
       {colors.map((color) => (
         <div key={color} className="flex items-center gap-1.5">
           <div
@@ -44,20 +44,20 @@ export function ThumbnailAnalysisTab({ data }: Props) {
 
   const rows = [
     {
-      left: { label: '메인 텍스트' as const, node: <p>{data.mainText}</p> },
+      left: { label: '메인 텍스트' as const, node: data.mainText },
       right: { label: '주요 색상' as const, node: <ColorsValue colors={data.colors} /> },
     },
     {
-      left: { label: '텍스트 비율' as const, node: <p>{data.textRatioPercent}</p> },
-      right: { label: '얼굴 노출' as const, node: <p>{face}</p> },
+      left: { label: '텍스트 비율' as const, node: data.textRatioPercent },
+      right: { label: '얼굴 노출' as const, node: face },
     },
     {
-      left: { label: '레이아웃 구성' as const, node: <p>{data.layoutComposition}</p> },
-      right: { label: '숫자 강조' as const, node: <p>{numberEmphasis}</p> },
+      left: { label: '레이아웃 구성' as const, node: data.layoutComposition },
+      right: { label: '숫자 강조' as const, node: numberEmphasis },
     },
     {
-      left: { label: 'CTR 등급' as const, node: <p>{data.ctrGrade}</p> },
-      right: { label: '감정 유발' as const, node: <p>{emotion}</p> },
+      left: { label: 'CTR 등급' as const, node: data.ctrGrade },
+      right: { label: '감정 유발' as const, node: emotion },
     },
   ]
 
