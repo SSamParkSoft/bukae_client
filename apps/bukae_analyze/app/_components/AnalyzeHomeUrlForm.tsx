@@ -19,8 +19,8 @@ export function AnalyzeHomeUrlForm({
       <label htmlFor="url-input" className="sr-only">
         레퍼런스 숏폼 URL
       </label>
-      <div className="rounded-[48px] border border-white/10 bg-white/16 py-2 pl-6 pr-4 backdrop-blur-[5px] 2xl:rounded-[64px] 2xl:py-3 2xl:pl-8 2xl:pr-6">
-        <div className="flex min-h-12 items-center gap-2 2xl:min-h-16 2xl:gap-3">
+      <div className="rounded-[clamp(48px,3.33vw,64px)] border border-white/10 bg-white/16 py-[clamp(8px,0.625vw,12px)] pl-[clamp(24px,1.67vw,32px)] pr-[clamp(16px,1.25vw,24px)] backdrop-blur-[5px]">
+        <div className="flex min-h-[clamp(48px,3.33vw,64px)] items-center gap-[clamp(8px,0.625vw,12px)]">
           <input
             id="url-input"
             type="url"
@@ -33,10 +33,10 @@ export function AnalyzeHomeUrlForm({
           />
           <button
             type="submit"
-            className="inline-flex size-10 shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40 2xl:size-12"
+            className="inline-flex size-[clamp(40px,2.5vw,48px)] shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
             aria-label="분석 시작"
           >
-            <Send className="size-6 2xl:size-8" strokeWidth={1.25} aria-hidden />
+            <Send className="size-[clamp(24px,1.67vw,32px)]" strokeWidth={1.25} aria-hidden />
           </button>
         </div>
       </div>

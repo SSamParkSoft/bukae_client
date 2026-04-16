@@ -11,7 +11,7 @@ export function AnalyzeHomeHeroCopy() {
           Plan Your Shorts
         </p>
       </div>
-      <p className="font-32-sm max-w-[clamp(48rem,50vw,64rem)] text-center text-white/80">
+      <p className="font-32-sm max-w-[clamp(48rem,5.0vw,64rem)] text-center text-white/80">
         번뜩이는 레퍼런스 영상으로, 나만의 AI 숏폼 기획을 완성하세요.
       </p>
     </>

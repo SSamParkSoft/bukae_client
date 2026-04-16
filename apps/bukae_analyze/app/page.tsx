@@ -8,8 +8,8 @@ export default function AnalyzeHomePage() {
   const { url, handleChange, handleSubmit } = useUrlInput()
 
   return (
-    <div className="flex h-full min-h-0 flex-col items-center mt-20 2xl:mt-32">
-      <div className="flex w-full flex-col items-center gap-8 py-8 2xl:gap-12">
+    <div className="flex h-full min-h-0 flex-col items-center mt-[clamp(80px,6.67vw,128px)]">
+      <div className="flex w-full flex-col items-center gap-[clamp(32px,2.5vw,48px)] py-8">
         <AnalyzeHomeHeroCopy />
         <AnalyzeHomeUrlForm url={url} onUrlChange={handleChange} onSubmit={handleSubmit} />
       </div>
