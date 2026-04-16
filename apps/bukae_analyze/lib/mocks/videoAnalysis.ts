@@ -1,5 +1,9 @@
 import type { VideoAnalysis } from '@/lib/types/domain'
 
+/** UI용 샘플 영상 (분석 페이지 왼쪽 플레이어) — API 연동 시 실제 URL로 교체 */
+export const MOCK_REFERENCE_VIDEO_URL =
+  'https://www.w3.org/WAI/content-assets/wcag-act-rules/test-assets/av/video/mp4/sample-mp4-file.mp4'
+
 export const MOCK_VIDEO_ANALYSIS: VideoAnalysis = {
   thumbnail: {
     imageUrl: 'https://picsum.photos/seed/thumbnail/360/640',

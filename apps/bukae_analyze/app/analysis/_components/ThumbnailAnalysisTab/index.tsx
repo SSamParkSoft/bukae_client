@@ -1,6 +1,5 @@
 import type { ThumbnailAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 import { WhyBox, SectionLabel, EvidenceList /*, CrossValidationBox */ } from '../shared'
-import { ThumbnailImage } from './ThumbnailImage'
 import { ThumbnailFields } from './ThumbnailFields'
 
 interface Props {
@@ -10,10 +9,7 @@ interface Props {
 export function ThumbnailAnalysisTab({ data }: Props) {
   return (
     <div className="py-8 space-y-8">
-      <div className="flex gap-6 items-stretch">
-        <ThumbnailImage imageUrl={data.imageUrl} />
-        <ThumbnailFields data={data} />
-      </div>
+      <ThumbnailFields data={data} />
 
       <WhyBox>{data.why}</WhyBox>
 

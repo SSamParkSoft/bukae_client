@@ -75,10 +75,7 @@ function AiPlanningContent() {
     <div className="px-8 pt-10 pb-16">
       <PageTitle
         title="AI 기획"
-        description={[
-          '레퍼런스 영상 분석을 바탕으로 질문에 답해 주세요.',
-          'AI가 다음 영상의 기획 방향을 제안해 드릴게요.',
-        ]}
+        description="레퍼런스 영상 분석을 바탕으로 질문에 답해 주세요. AI가 다음 영상의 기획 방향을 제안해 드릴게요."
       />
       <div className="mt-10 flex flex-col gap-10">
         <HookingQuestion data={viewModel.hooking} />

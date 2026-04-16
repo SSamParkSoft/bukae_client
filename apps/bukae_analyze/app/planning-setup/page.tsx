@@ -17,10 +17,7 @@ export default function PlanningSetupPage() {
     <div className="px-8 pt-10 pb-16">
       <PageTitle
         title="기획 설정"
-        description={[
-          '영상을 기획하기 전, 몇 가지 질문에 답해 주세요.',
-          'AI가 더 정확한 기획안을 제안해 드릴 수 있어요.',
-        ]}
+        description="영상을 기획하기 전, 몇 가지 질문에 답해 주세요. AI가 더 정확한 기획안을 제안해 드릴 수 있어요."
       />
       <div className="mt-10 flex flex-col gap-10">
         <CategoryQuestion data={viewModel.category} />
