@@ -17,20 +17,6 @@
   --palette-white: #ffffff;
   --palette-highlight: #aefffa;
 
-  --derived-brand-80: color-mix(in srgb, var(--palette-brand) 80%, transparent);
-  --derived-brand-60: color-mix(in srgb, var(--palette-brand) 60%, transparent);
-  --derived-brand-40: color-mix(in srgb, var(--palette-brand) 40%, transparent);
-  --derived-brand-20: color-mix(in srgb, var(--palette-brand) 20%, transparent);
-  --derived-brand-10: color-mix(in srgb, var(--palette-brand) 10%, transparent);
-
-  --derived-white-80: color-mix(in srgb, var(--palette-white) 80%, transparent);
-  --derived-white-60: color-mix(in srgb, var(--palette-white) 60%, transparent);
-  --derived-white-40: color-mix(in srgb, var(--palette-white) 40%, transparent);
-  --derived-white-20: color-mix(in srgb, var(--palette-white) 20%, transparent);
-  --derived-white-10: color-mix(in srgb, var(--palette-white) 10%, transparent);
-
-  --derived-black-80: color-mix(in srgb, #000000 80%, transparent);
-
   --glass-blur-strong: 10px;
   --glass-blur-soft: 4px;
 
@@ -111,21 +97,8 @@
   --font-sans: 'SUIT', ui-sans-serif, system-ui, sans-serif;
 
   --color-brand: var(--palette-brand);
-  --color-brand-80: var(--derived-brand-80);
-  --color-brand-60: var(--derived-brand-60);
-  --color-brand-40: var(--derived-brand-40);
-  --color-brand-20: var(--derived-brand-20);
-  --color-brand-10: var(--derived-brand-10);
-
-  --color-white-100: var(--palette-white);
-  --color-white-80: var(--derived-white-80);
-  --color-white-60: var(--derived-white-60);
-  --color-white-40: var(--derived-white-40);
-  --color-white-20: var(--derived-white-20);
-  --color-white-10: var(--derived-white-10);
-
+  --color-white: var(--palette-white);
   --color-highlight: var(--palette-highlight);
-  --color-black-80: var(--derived-black-80);
 
   --blur-glass-strong: var(--glass-blur-strong);
   --blur-glass-soft: var(--glass-blur-soft);
