@@ -23,7 +23,7 @@ export function LeftSidebar() {
 
   return (
     <aside
-      className="relative border-r border-white/10 shrink-0"
+      className="relative shrink-0"
       style={{ width: LAYOUT.SIDEBAR_WIDTH }}
     >
       {/* 스텝 인디케이터 */}
