@@ -8,7 +8,7 @@ import Image from 'next/image'
 export function Header() {
   return (
     <header
-      className="w-full flex items-center justify-between px-10 border-b border-white/10 shrink-0"
+      className="w-full flex items-center justify-between px-18 border-b border-white/10 shrink-0"
       style={{ height: LAYOUT.HEADER_HEIGHT }}
     >
       {/* 로고 — 홈으로 이동 */}
@@ -17,6 +17,7 @@ export function Header() {
       </Link>
 
       {/* 로그인 / 프로필 영역 (플레이스홀더) */}
+      {/* todo : 디자인 추가 */}
       <div className="flex items-center">
         <button
           type="button"
