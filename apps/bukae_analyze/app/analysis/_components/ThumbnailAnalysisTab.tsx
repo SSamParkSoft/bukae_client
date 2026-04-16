@@ -62,8 +62,8 @@ export function ThumbnailAnalysisTab({ data }: Props) {
   ]
 
   return (
-    <div className="py-8">
-      <div className="flex flex-col gap-6 rounded-xl border border-white/10 bg-white/10 px-6 py-8 backdrop-blur-[2px]">
+    <div className="py-10 overflow-y-auto">
+      <div className="flex flex-col gap-8 rounded-xl border border-white/10 bg-white/10 px-6 py-8 backdrop-blur-[2px]">
         {rows.map((row, i) => (
           <div key={i} className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <FieldCell label={row.left.label}>{row.left.node}</FieldCell>
