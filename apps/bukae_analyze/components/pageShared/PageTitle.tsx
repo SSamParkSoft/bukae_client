@@ -8,8 +8,8 @@ export function PageTitle({ title, description }: PageTitleProps) {
 
   return (
     <section className="mb-10">
-      <h1 className="text-2xl font-bold tracking-tight mb-2">{title}</h1>
-      <p className="text-sm text-white/50 leading-relaxed">
+      <h1 className="font-28-md tracking-tight mb-2">{title}</h1>
+      <p className="font-16-sb text-white/60 leading-relaxed">
         {lines.map((line, i) => (
           <span key={i}>
             {line}

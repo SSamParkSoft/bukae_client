@@ -33,10 +33,11 @@ export default function AnalysisPage() {
       <PageTitle
         title="AI 분석"
         description={[
-          '영상의 썸네일, 훅, 구조를 AI가 분석했어요.',
-          '각 항목에서 성공 요인과 근거를 확인할 수 있어요.',
+          '원본 영상의 핵심 요소를 파악했습니다'
         ]}
       />
+      
+      <hr className="my-10 border-b border-white/10" />
 
       <PageTabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
 
