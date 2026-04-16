@@ -1,5 +1,5 @@
 import type { ThumbnailAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
-import { WhyBox, SectionLabel, EvidenceList, CrossValidationBox } from '../shared'
+import { WhyBox, SectionLabel, EvidenceList /*, CrossValidationBox */ } from '../shared'
 import { ThumbnailImage } from './ThumbnailImage'
 import { ThumbnailFields } from './ThumbnailFields'
 
@@ -22,6 +22,7 @@ export function ThumbnailAnalysisTab({ data }: Props) {
         <EvidenceList items={data.evidence} />
       </div>
 
+      {/* MVP 제외: 댓글 교차 검증
       <div>
         <SectionLabel>댓글 교차 검증</SectionLabel>
         <CrossValidationBox
@@ -29,6 +30,7 @@ export function ThumbnailAnalysisTab({ data }: Props) {
           evidence={data.crossValidation.evidence}
         />
       </div>
+      */}
     </div>
   )
 }
