@@ -25,11 +25,11 @@ export function ChatInterface({ messages, currentQuestions, isSubmitting, isComp
       ))}
 
       {isSubmitting && (
-        <p className="px-10 py-8 text-xs text-black/30 animate-pulse">분석 중…</p>
+        <p className="px-10 py-8 text-xs text-white/35 animate-pulse">분석 중…</p>
       )}
 
       {isComplete && (
-        <p className="px-10 py-8 text-xs text-black/30 text-center">
+        <p className="px-10 py-8 text-xs text-white/35 text-center">
           충분한 정보를 확인했어요. 기획 결과를 확인해 보세요.
         </p>
       )}

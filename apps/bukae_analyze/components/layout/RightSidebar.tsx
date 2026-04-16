@@ -22,7 +22,7 @@ export function RightSidebar() {
 
   return (
     <aside
-      className="relative border-l border-black/10 shrink-0"
+      className="relative border-l border-white/10 shrink-0"
       style={{ width: LAYOUT.SIDEBAR_WIDTH }}
     >
       {/* 다음 버튼 */}

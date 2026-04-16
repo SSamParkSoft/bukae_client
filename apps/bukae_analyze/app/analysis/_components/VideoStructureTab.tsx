@@ -18,14 +18,14 @@ export function VideoStructureTab({ data }: Props) {
   return (
     <div className="py-8 space-y-4">
       {SECTIONS.map(({ key, label }, index) => (
-        <div key={key} className="rounded-xl border border-black/10 p-5">
+        <div key={key} className="rounded-xl border border-white/10 p-5">
           <div className="flex items-start gap-3">
-            <span className="shrink-0 w-6 h-6 rounded-full bg-black text-white text-xs font-bold flex items-center justify-center mt-0.5">
+            <span className="shrink-0 w-6 h-6 rounded-full bg-white text-brand text-xs font-bold flex items-center justify-center mt-0.5">
               {index + 1}
             </span>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-black/40 uppercase tracking-wider mb-2">{label}</p>
-              <p className="text-sm leading-relaxed text-black/80">{data[key]}</p>
+              <p className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2">{label}</p>
+              <p className="text-sm leading-relaxed text-white/80">{data[key]}</p>
             </div>
           </div>
         </div>

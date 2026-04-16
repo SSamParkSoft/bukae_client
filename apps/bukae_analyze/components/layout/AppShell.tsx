@@ -4,7 +4,7 @@ import { RightSidebar } from './RightSidebar'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-white text-black">
+    <div className="h-screen overflow-hidden flex flex-col bg-background text-foreground">
       <Header />
       <div className="flex flex-1 overflow-hidden">
         <LeftSidebar />

@@ -63,7 +63,7 @@ function AiPlanningContent() {
         <button
           type="button"
           onClick={exitChatbotMode}
-          className="absolute top-4 right-4 text-[10px] text-black/20 hover:text-black/40 transition-colors z-10"
+          className="absolute top-4 right-4 text-[10px] text-white/25 hover:text-white/50 transition-colors z-10"
         >
           [DEV] 나가기
         </button>
@@ -91,7 +91,7 @@ function AiPlanningContent() {
       <button
         type="button"
         onClick={enterChatbotMode}
-        className="mt-10 text-xs text-black/30 underline underline-offset-2"
+        className="mt-10 text-xs text-white/40 underline underline-offset-2"
       >
         [DEV] 정보 부족 → 챗봇 모드 테스트
       </button>

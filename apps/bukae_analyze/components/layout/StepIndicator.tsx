@@ -14,49 +14,47 @@ function resolveStepState(index: number, currentIndex: number): StepState {
   return 'upcoming'
 }
 
-// 원형 — 완료 시 체크, 그 외 스텝 번호 표시
+const circleBase =
+  'flex items-center justify-center rounded-full shrink-0 w-7 h-7'
+
+// 원형 — 완료 시 체크, 활성은 흰 배경+브랜드 숫자, 미도달은 얇은 보더
 function StepCircle({ state, number }: { state: StepState; number: number }) {
+  if (state === 'completed') {
+    return (
+      <div className={`${circleBase} bg-white`} aria-hidden="true">
+        <Check size={14} className="text-brand" strokeWidth={2.5} />
+      </div>
+    )
+  }
+  if (state === 'active') {
+    return (
+      <div className={`${circleBase} bg-white`} aria-hidden="true">
+        <span className="text-xs font-semibold leading-none text-brand">{number}</span>
+      </div>
+    )
+  }
   return (
     <div
-      className="flex items-center justify-center rounded-full shrink-0"
+      className={`${circleBase} border border-white/25 bg-transparent`}
       aria-hidden="true"
-      style={{
-        width: 28,
-        height: 28,
-        backgroundColor: state !== 'upcoming' ? '#000' : '#fff',
-        border: state === 'upcoming' ? '1.5px solid #000' : 'none',
-      }}
     >
-      {state === 'completed' ? (
-        <Check size={14} color="#fff" strokeWidth={2.5} />
-      ) : (
-        <span
-          className="text-xs font-semibold leading-none"
-          style={{ color: state === 'active' ? '#fff' : '#000' }}
-        >
-          {number}
-        </span>
-      )}
+      <span className="text-xs font-semibold leading-none text-white/45">{number}</span>
     </div>
   )
 }
 
-// 라벨 — 활성 스텝은 굵게, 미도달 스텝은 회색
+// 라벨 — 활성만 굵게, 완료·미도달은 일반 굵기
 function StepLabel({ state, children }: { state: StepState; children: string }) {
-  return (
-    <span
-      className="text-sm leading-none"
-      style={{
-        fontWeight: state === 'active' ? 700 : 400,
-        color: state === 'upcoming' ? '#999' : '#000',
-      }}
-    >
-      {children}
-    </span>
-  )
+  if (state === 'upcoming') {
+    return <span className="text-sm leading-none font-normal text-white/45">{children}</span>
+  }
+  if (state === 'active') {
+    return <span className="text-sm leading-none font-bold text-white">{children}</span>
+  }
+  return <span className="text-sm leading-none font-normal text-white">{children}</span>
 }
 
-// 연결선 — 완료 구간은 검정, 미완료 구간은 회색
+// 연결선 — 완료 구간은 밝게, 미완료 구간은 흐리게
 function StepConnector({ completed }: { completed: boolean }) {
   return (
     <div
@@ -64,7 +62,7 @@ function StepConnector({ completed }: { completed: boolean }) {
       style={{
         width: 1.5,
         height: 24,
-        backgroundColor: completed ? '#000' : '#d4d4d4',
+        backgroundColor: completed ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.2)',
       }}
     />
   )

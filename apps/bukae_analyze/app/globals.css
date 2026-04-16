@@ -6,9 +6,6 @@
  * https://sun.fo/suit/#features
  */
 :root {
-  --background: #f9fafb;
-  --foreground: #171717;
-
   /*
    * Color system — 컬러 시스템 정리 (brand / white / highlight + opacity 단계)
    * 원색은 --palette-* , 단계색은 --derived-* → @theme 의 --color-* 로 노출
@@ -16,6 +13,10 @@
   --palette-brand: #17171b;
   --palette-white: #ffffff;
   --palette-highlight: #aefffa;
+
+  /* 페이지 전체: 브랜드 배경 + 화이트 텍스트 */
+  --background: var(--palette-brand);
+  --foreground: var(--palette-white);
 
   --glass-blur-strong: 10px;
   --glass-blur-soft: 4px;
@@ -225,8 +226,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: var(--palette-brand);
+    --foreground: var(--palette-white);
   }
 }
 

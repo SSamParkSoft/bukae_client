@@ -1,4 +1,4 @@
-// 솔리드 버튼 — 검정 배경, hover 시 밝아짐
+// 솔리드 버튼 — 라이트 CTA (브랜드 배경 위)
 export function SolidButton({
   onClick,
   children,
@@ -14,7 +14,7 @@ export function SolidButton({
     <button
       type={type}
       onClick={onClick}
-      className="px-6 py-2.5 text-sm font-medium bg-black text-white rounded-md hover:bg-black/80 transition-colors"
+      className="px-6 py-2.5 text-sm font-medium bg-white text-brand rounded-md hover:bg-white/85 transition-colors"
       style={{ opacity: hidden ? 0 : 1, pointerEvents: hidden ? 'none' : 'auto' }}
       tabIndex={hidden ? -1 : 0}
     >

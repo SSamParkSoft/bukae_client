@@ -6,8 +6,8 @@ interface QuestionHeaderProps {
 export function QuestionHeader({ number, question }: QuestionHeaderProps) {
   return (
     <div className="mb-5">
-      <span className="text-xs font-semibold text-black/30 tracking-widest uppercase">{number}</span>
-      <p className="mt-1 text-base font-semibold text-black leading-snug">{question}</p>
+      <span className="text-xs font-semibold text-white/30 tracking-widest uppercase">{number}</span>
+      <p className="mt-1 text-base font-semibold text-white leading-snug">{question}</p>
     </div>
   )
 }
@@ -18,8 +18,8 @@ interface InsightBoxProps {
 
 export function InsightBox({ text }: InsightBoxProps) {
   return (
-    <div className="mb-4 px-4 py-3 rounded-lg bg-black/[0.03] border border-black/8">
-      <p className="text-xs text-black/50 leading-relaxed">{text}</p>
+    <div className="mb-4 px-4 py-3 rounded-lg bg-white/[0.06] border border-white/10">
+      <p className="text-xs text-white/50 leading-relaxed">{text}</p>
     </div>
   )
 }
@@ -38,11 +38,11 @@ export function OptionButton({ letter, label, selected, onClick }: OptionButtonP
       onClick={onClick}
       className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg border text-sm text-left transition-colors ${
         selected
-          ? 'bg-black text-white border-black'
-          : 'bg-white text-black border-black/15 hover:border-black/40'
+          ? 'bg-white text-brand border-white'
+          : 'bg-white/10 text-white border-white/20 hover:border-white/50'
       }`}
     >
-      <span className={`shrink-0 text-xs font-bold ${selected ? 'text-white/60' : 'text-black/30'}`}>
+      <span className={`shrink-0 text-xs font-bold ${selected ? 'text-brand/60' : 'text-white/40'}`}>
         {letter}.
       </span>
       <span>{label}</span>
@@ -64,7 +64,7 @@ export function CustomTextInput({ value, onChange, placeholder = '직접 입력�
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         rows={2}
-        className="w-full px-4 py-3 rounded-lg border border-black/15 text-sm resize-none focus:outline-none focus:border-black/40 placeholder:text-black/25"
+        className="w-full px-4 py-3 rounded-lg border border-white/20 bg-white/5 text-sm text-white resize-none focus:outline-none focus:border-white/50 placeholder:text-white/35"
       />
     </div>
   )

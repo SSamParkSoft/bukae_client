@@ -14,7 +14,7 @@ export function OutlineButton({
     <button
       type={type}
       onClick={onClick}
-      className="px-6 py-2.5 text-sm font-medium border border-black rounded-md hover:bg-black hover:text-white transition-colors"
+      className="px-6 py-2.5 text-sm font-medium border border-white rounded-md text-white hover:bg-white hover:text-brand transition-colors"
       style={{ opacity: hidden ? 0 : 1, pointerEvents: hidden ? 'none' : 'auto' }}
       tabIndex={hidden ? -1 : 0}
     >

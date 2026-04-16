@@ -14,8 +14,8 @@ function ShootingOption({ label, selected, onClick }: ShootingOptionProps) {
       onClick={onClick}
       className={`flex-1 py-3 rounded-lg border text-sm font-semibold transition-colors ${
         selected
-          ? 'bg-black text-white border-black'
-          : 'bg-white text-black border-black/15 hover:border-black/40'
+          ? 'bg-white text-brand border-white'
+          : 'bg-white/10 text-white border-white/20 hover:border-white/50'
       }`}
     >
       {label}
@@ -45,7 +45,7 @@ export function ShootingQuestion({ data }: Props) {
       </div>
       {data.selected === 'yes' && (
         <div className="mt-5">
-          <p className="text-sm font-semibold text-black mb-3">어느 환경에서 촬영할 생각인가요?</p>
+          <p className="text-sm font-semibold text-white mb-3">어느 환경에서 촬영할 생각인가요?</p>
           <CustomTextInput
             value={data.environment}
             onChange={data.onEnvironmentChange}

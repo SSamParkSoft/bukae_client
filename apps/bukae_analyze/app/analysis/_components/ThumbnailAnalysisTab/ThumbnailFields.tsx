@@ -15,7 +15,7 @@ function buildFields(data: ThumbnailAnalysisViewModel): FieldDef[] {
   const fields: (FieldDef | null)[] = [
     { label: '메인 텍스트', content: text(data.mainText, 'font-medium') },
     { label: '텍스트 비율', ai: true, content: text(data.textRatioPercent, 'font-medium') },
-    { label: '레이아웃 구성', ai: true, content: text(data.layoutComposition, 'text-black/70 leading-relaxed') },
+    { label: '레이아웃 구성', ai: true, content: text(data.layoutComposition, 'text-white/70 leading-relaxed') },
     { label: 'CTR 등급', ai: true, content: text(data.ctrGrade, 'font-semibold') },
     {
       label: '주요 색상',
@@ -23,8 +23,8 @@ function buildFields(data: ThumbnailAnalysisViewModel): FieldDef[] {
         <div className="flex items-center gap-2 flex-wrap mt-1">
           {data.colors.map((color) => (
             <div key={color} className="flex items-center gap-1.5">
-              <div className="w-5 h-5 rounded-full border border-black/10 shrink-0" style={{ backgroundColor: color }} />
-              <span className="text-xs text-black/50 font-mono">{color}</span>
+              <div className="w-5 h-5 rounded-full border border-white/15 shrink-0" style={{ backgroundColor: color }} />
+              <span className="text-xs text-white/50 font-mono">{color}</span>
             </div>
           ))}
         </div>

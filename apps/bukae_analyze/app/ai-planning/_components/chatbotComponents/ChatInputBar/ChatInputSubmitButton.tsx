@@ -12,7 +12,7 @@ export function ChatInputSubmitButton({ onClick, disabled }: Props) {
       onClick={onClick}
       disabled={disabled}
       aria-label="전송"
-      className="w-7 h-7 rounded-full bg-black/8 flex items-center justify-center text-black/50 hover:bg-black/15 hover:text-black disabled:opacity-20 transition-all"
+      className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:bg-white/20 hover:text-white disabled:opacity-20 transition-all"
     >
       <ArrowRightIcon size={12} />
     </button>

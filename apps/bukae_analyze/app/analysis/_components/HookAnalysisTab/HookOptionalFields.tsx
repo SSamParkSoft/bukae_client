@@ -4,7 +4,7 @@ import { SectionLabel } from '../shared'
 export function HookOptionalFields({ data }: { data: HookAnalysisViewModel }) {
   if (!data.viewerPositioning && !data.visualHook && !data.firstSentence) return null
   return (
-    <div className="space-y-4 p-4 rounded-xl bg-black/[0.03] border border-black/[0.06]">
+    <div className="space-y-4 p-4 rounded-xl bg-white/[0.06] border border-white/10">
       {data.viewerPositioning && (
         <div>
           <SectionLabel>시청자 포지셔닝</SectionLabel>
@@ -20,7 +20,7 @@ export function HookOptionalFields({ data }: { data: HookAnalysisViewModel }) {
       {data.firstSentence && (
         <div>
           <SectionLabel>첫 문장</SectionLabel>
-          <p className="text-sm italic text-black/70">{`"${data.firstSentence}"`}</p>
+          <p className="text-sm italic text-white/70">{`"${data.firstSentence}"`}</p>
         </div>
       )}
     </div>
