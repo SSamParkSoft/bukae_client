@@ -9,8 +9,8 @@ interface HookCategoryItemProps {
 function HookCategoryItem({ label, value, isLarge }: HookCategoryItemProps) {
   return (
     <div className="flex-1 h-[180px] bg-white/10 p-6 flex flex-col gap-4 min-w-0 mt-11">
-      <p className="font-20-md text-white/60 shrink-0">{label}</p>
-      <div className="flex items-center px-6 py-4 rounded-lg overflow-hidden">
+      <p className="text-[clamp(16px,1.04vw,20px)] font-medium tracking-[-0.04em] leading-[1.4] text-white/60 shrink-0">{label}</p>
+      <div className="flex items-center py-4 rounded-lg overflow-hidden">
         <p
           className={`min-w-0 text-white/80 ${
             isLarge

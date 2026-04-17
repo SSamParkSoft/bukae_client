@@ -22,7 +22,7 @@ export function PageTabs<T extends string>({ tabs, activeTab, onChange }: PageTa
             type="button"
             onClick={() => onChange(tab.id)}
             className={[
-              'shrink-0 px-4 py-3 font-20-rg transition-colors relative sm:px-6 sm:py-3.5 lg:px-9 lg:py-4',
+              'shrink-0 px-[clamp(16px,1.88vw,36px)] py-[clamp(10px,0.83vw,16px)] text-[clamp(16px,1.04vw,20px)] font-normal tracking-[-0.04em] leading-[1.4] transition-colors relative',
               isActive ? 'text-white' : 'text-white/40 hover:text-white/70',
             ].join(' ')}
           >

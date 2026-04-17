@@ -29,7 +29,7 @@ export default function AnalysisPage() {
   const viewModel = useVideoAnalysisViewModel(MOCK_VIDEO_ANALYSIS)
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden pb-16 pt-10">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden pb-32 pt-10">
       <ReferenceUrlTopBar referenceUrl={REFERENCE_URL_DISPLAY} className="mb-10" />
       <PageTitle title="AI 분석" description="원본 영상의 핵심 요소를 파악했습니다" />
       <hr className="mb-10 border-b border-white/10" />

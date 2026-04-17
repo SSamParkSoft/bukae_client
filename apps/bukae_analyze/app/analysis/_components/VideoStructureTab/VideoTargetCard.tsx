@@ -18,7 +18,7 @@ export function VideoTargetCard({ description, attributes }: Props) {
             {attributes.map((attr) => (
               <span
                 key={attr}
-                className="bg-white/10 backdrop-glass-strong rounded-full px-4 py-2 text-[clamp(16px,1.04vw,20px)] font-medium tracking-[-0.04em] text-white"
+                className="bg-white/10 backdrop-glass-strong rounded-full px-[clamp(8px,0.83vw,16px)] py-[clamp(4px,0.42vw,8px)] text-[clamp(12px,0.83vw,16px)] font-medium tracking-[-0.04em] text-white"
               >
                 {attr}
               </span>

@@ -17,8 +17,8 @@ export function ReferenceUrlTopBar({
       ].join(' ')}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
-        <p className="font-20-md shrink-0 font-semibold text-white">레퍼런스 영상 URL</p>
-        <p className="font-16-rg min-w-0 truncate text-white/60" title={referenceUrl}>
+        <p className="text-[clamp(16px,1.04vw,20px)] font-semibold tracking-[-0.04em] leading-[1.4] shrink-0 text-white">레퍼런스 영상 URL</p>
+        <p className="text-[clamp(12px,0.83vw,16px)] font-normal tracking-[-0.04em] leading-[1.4] min-w-0 truncate text-white/60" title={referenceUrl}>
           {referenceUrl}
         </p>
       </div>
