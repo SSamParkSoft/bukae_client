@@ -4,6 +4,9 @@ export interface AiQuestionOption {
 }
 
 export interface AiQuestionViewModel {
+  questionNumber: string
+  questionText: string
+  customPlaceholder: string
   sectionTitle: string
   referenceInsight: string
   options: AiQuestionOption[]
@@ -15,6 +18,7 @@ export interface AiQuestionViewModel {
 }
 
 export interface AiPlanningViewModel {
+  questions: AiQuestionViewModel[]
   hooking: AiQuestionViewModel
   storyDirection: AiQuestionViewModel
   coreMessage: AiQuestionViewModel

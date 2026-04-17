@@ -1,3 +1,81 @@
+'use client'
+
+import type { AiQuestionViewModel } from '@/features/aiPlanning/types/viewModel'
+
+// ---- QuestionBlock (새 디자인) ----
+
+export function QuestionBlock({ data }: { data: AiQuestionViewModel }) {
+  const allOptions = [
+    ...data.options,
+    ...(data.hasCustomOption ? [{ value: 'custom', label: '직접 입력' }] : []),
+  ]
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col">
+        <p className="text-[clamp(16px,1.04vw,20px)] font-medium tracking-[-0.04em] leading-[1.4] text-white">
+          {data.questionNumber}
+        </p>
+        <p className="text-[clamp(12px,0.83vw,16px)] font-medium tracking-[-0.04em] leading-[1.4] text-white/60">
+          {data.questionText}
+        </p>
+        <div className="backdrop-blur-[2px] border-b border-white/20 py-3 w-full">
+          <p className="text-[clamp(12px,0.83vw,16px)] font-medium tracking-[-0.04em] text-white/80 leading-[1.8] line-clamp-2">
+            {data.referenceInsight}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        {allOptions.map((option, i) => {
+          const isSelected = data.selected === option.value
+          const letter = String.fromCharCode(97 + i)
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => data.onSelect(option.value)}
+              className={[
+                'backdrop-blur-[2px] flex items-center gap-4 px-6 py-3 rounded-[8px] transition-colors',
+                isSelected ? 'bg-white/[0.32]' : 'bg-white/[0.08] hover:bg-white/[0.15]',
+              ].join(' ')}
+            >
+              <span
+                className={[
+                  'shrink-0 text-[clamp(16px,1.04vw,20px)] font-medium tracking-[-0.04em] leading-[1.4] whitespace-nowrap',
+                  isSelected ? 'text-white' : 'text-white/40',
+                ].join(' ')}
+              >
+                {letter}.
+              </span>
+              <span
+                className={[
+                  'flex-1 min-w-0 text-[clamp(12px,0.83vw,16px)] font-medium tracking-[-0.04em] leading-[1.4] text-left',
+                  isSelected ? 'text-white' : 'text-white/40',
+                ].join(' ')}
+              >
+                {option.label}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {data.selected === 'custom' && (
+        <textarea
+          value={data.customValue}
+          onChange={e => data.onCustomChange(e.target.value)}
+          placeholder={data.customPlaceholder}
+          rows={2}
+          className="w-full px-6 py-3 rounded-[8px] border border-white/40 bg-transparent text-[clamp(12px,0.83vw,16px)] font-medium tracking-[-0.04em] text-white resize-none focus:outline-none focus:border-white/60 placeholder:text-white/35"
+        />
+      )}
+    </div>
+  )
+}
+
+// ---- 레거시 컴포넌트 (기존 개별 질문 컴포넌트용) ----
+
 interface QuestionHeaderProps {
   number: string
   question: string
