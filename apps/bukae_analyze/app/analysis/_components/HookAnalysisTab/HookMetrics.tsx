@@ -15,7 +15,7 @@ function MetricCard({ icon, label, value }: MetricCardProps) {
       </div>
       <div className="flex flex-col min-w-0">
         <p className="font-16-rg text-white/60">{label}</p>
-        <p className="font-24-md text-white">{value}</p>
+        <p className="text-[clamp(20px,1.42vw,24px)] font-medium text-white">{value}</p>
       </div>
     </div>
   )

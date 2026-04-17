@@ -14,8 +14,8 @@ function HookCategoryItem({ label, value, isLarge }: HookCategoryItemProps) {
         <p
           className={`min-w-0 text-white/80 ${
             isLarge
-              ? 'font-32-sm leading-[1.8] text-center w-full'
-              : 'font-20-md leading-[1.8] line-clamp-2 overflow-hidden text-ellipsis'
+              ? 'text-[clamp(20px,1.42vw,32px)] font-semibold leading-[1.8] tracking-[-0.04em] text-center w-full'
+              : 'text-[clamp(20px,1.42vw,32px)] font-semibold leading-[1.8] tracking-[-0.04em] text-center w-full'
           }`}
         >
           {value}
