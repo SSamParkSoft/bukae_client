@@ -29,9 +29,12 @@ export interface ThumbnailAnalysis {
 // 훅 분석
 export interface HookAnalysis {
   durationSec: number
-  openingType: string                      // * AI 추정
-  emotionTrigger: string                   // * AI 추정
-  pacing: 'fast' | 'medium' | 'slow'      // * AI 추정
+  videoLengthMin?: number           // 전체 영상 길이 (분)
+  sceneCount?: number               // 총 씬 개수
+  avgCutLengthSec?: number          // 평균 컷 길이 (초)
+  openingType: string               // * AI 추정
+  emotionTrigger: string            // * AI 추정
+  pacing: 'fast' | 'medium' | 'slow' // * AI 추정
   why: string
   evidence: string[]
   crossValidation: CrossValidation

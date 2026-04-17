@@ -2,7 +2,7 @@ import type { ThumbnailAnalysisViewModel } from '@/features/videoAnalysis/types/
 
 function FieldValueBox({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg px-6 py-2">
+    <div className="px-6 py-2">
       <div className="truncate font-16-rg leading-[1.8] text-white/80">{children}</div>
     </div>
   )
@@ -10,7 +10,7 @@ function FieldValueBox({ children }: { children: React.ReactNode }) {
 
 function FieldCell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="h-[77px] flex min-w-0 flex-col gap-4">
       <p className="font-16-md text-white/60">{label}</p>
       <FieldValueBox>{children}</FieldValueBox>
     </div>
@@ -62,8 +62,8 @@ export function ThumbnailAnalysisTab({ data }: Props) {
   ]
 
   return (
-    <div className="py-10 overflow-y-auto">
-      <div className="flex flex-col gap-8 rounded-xl border border-white/10 bg-white/10 px-6 py-8 backdrop-blur-[2px]">
+    <div className="pt-10 overflow-y-auto">
+      <div className="flex flex-col gap-[33.33px] bg-white/10 px-6 py-8 backdrop-blur-[2px]">
         {rows.map((row, i) => (
           <div key={i} className="grid grid-cols-1 gap-6 sm:grid-cols-2">
             <FieldCell label={row.left.label}>{row.left.node}</FieldCell>

@@ -8,7 +8,7 @@ interface Props {
 
 export function HookAnalysisTab({ data }: Props) {
   return (
-    <div className="py-8 space-y-8">
+    <div className="flex flex-col">
       <HookMetrics data={data} />
       <HookOptionalFields data={data} />
     </div>

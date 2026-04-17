@@ -27,6 +27,10 @@ export interface ThumbnailAnalysisViewModel {
 
 export interface HookAnalysisViewModel {
   durationLabel: string         // "첫 9초"
+  hookDurationSecLabel: string  // "9.0 Sec"
+  videoLengthLabel?: string     // "0.58 Min"
+  sceneCountLabel?: string      // "4 EA"
+  avgCutLengthLabel?: string    // "1.5 Sec"
   openingType: string
   emotionTrigger: string
   pacing: 'fast' | 'medium' | 'slow'

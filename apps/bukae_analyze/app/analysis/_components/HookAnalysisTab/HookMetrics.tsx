@@ -1,53 +1,54 @@
+import { Clock, Layers2, Anchor, Scissors } from 'lucide-react'
 import type { HookAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
-import { AiBadge, SectionLabel } from '../shared'
 
-const PACING_DOTS: Record<'fast' | 'medium' | 'slow', number> = {
-  fast: 3,
-  medium: 2,
-  slow: 1,
+interface MetricCardProps {
+  icon: React.ReactNode
+  label: string
+  value: string
 }
 
-function PacingVisual({ pacing, label }: { pacing: 'fast' | 'medium' | 'slow'; label: string }) {
-  const filled = PACING_DOTS[pacing]
+function MetricCard({ icon, label, value }: MetricCardProps) {
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex gap-1">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className={`w-2.5 h-2.5 rounded-full ${i <= filled ? 'bg-white' : 'bg-white/20'}`} />
-        ))}
+    <div className="flex flex-1 items-center gap-4 min-w-0">
+      <div className="shrink-0 size-16 rounded-2xl bg-white/10 backdrop-blur-[2.667px] flex items-center justify-center">
+        {icon}
       </div>
-      <span className="text-sm font-medium">{label}</span>
+      <div className="flex flex-col min-w-0">
+        <p className="font-16-rg text-white/60">{label}</p>
+        <p className="font-24-md text-white">{value}</p>
+      </div>
     </div>
   )
 }
 
 export function HookMetrics({ data }: { data: HookAnalysisViewModel }) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div className="rounded-xl border border-white/10 p-4 text-center">
-        <p className="text-2xl font-bold">{data.durationLabel}</p>
-        <SectionLabel>훅 구간</SectionLabel>
-      </div>
-      <div className="rounded-xl border border-white/10 p-4 col-span-2 md:col-span-1">
-        <div className="flex items-center gap-1.5 mb-1">
-          <SectionLabel>오프닝 유형</SectionLabel>
-          <AiBadge />
+    <div className="p-11 mt-10">
+      <div className="flex flex-col gap-8">
+        <div className="flex items-center">
+          <MetricCard
+            icon={<Clock size={32} className="text-white" />}
+            label="길이"
+            value={data.videoLengthLabel ?? '—'}
+          />
+          <MetricCard
+            icon={<Layers2 size={32} className="text-white" />}
+            label="총 씬 개수"
+            value={data.sceneCountLabel ?? '—'}
+          />
         </div>
-        <p className="text-sm font-semibold">{data.openingType}</p>
-      </div>
-      <div className="rounded-xl border border-white/10 p-4">
-        <div className="flex items-center gap-1.5 mb-1">
-          <SectionLabel>감정 자극</SectionLabel>
-          <AiBadge />
+        <div className="flex items-center">
+          <MetricCard
+            icon={<Anchor size={32} className="text-white" />}
+            label="후킹 구간"
+            value={data.hookDurationSecLabel}
+          />
+          <MetricCard
+            icon={<Scissors size={32} className="text-white" />}
+            label="평균 컷 길이"
+            value={data.avgCutLengthLabel ?? '—'}
+          />
         </div>
-        <p className="text-sm font-semibold">{data.emotionTrigger}</p>
-      </div>
-      <div className="rounded-xl border border-white/10 p-4">
-        <div className="flex items-center gap-1.5 mb-1">
-          <SectionLabel>페이싱</SectionLabel>
-          <AiBadge />
-        </div>
-        <PacingVisual pacing={data.pacing} label={data.pacingLabel} />
       </div>
     </div>
   )

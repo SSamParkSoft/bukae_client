@@ -30,6 +30,9 @@ export const MOCK_VIDEO_ANALYSIS: VideoAnalysis = {
 
   hook: {
     durationSec: 9,
+    videoLengthMin: 0.58,
+    sceneCount: 4,
+    avgCutLengthSec: 1.5,
     openingType: 'bold claim',
     emotionTrigger: 'curiosity',
     pacing: 'fast',
