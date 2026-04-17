@@ -19,7 +19,7 @@ export function CoreMaterialQuestion({ data }: Props) {
         onChange={e => data.onChange(e.target.value)}
         placeholder="예: 다이어트 식단, 내가 직접 만든 핸드메이드 가방, 강아지와의 일상 등"
         rows={5}
-        className="w-full px-6 py-4 rounded-lg border border-white/40 bg-transparent font-16-rg text-white/80 resize-none focus:outline-none focus:border-white/60 placeholder:text-white/35"
+        className="w-full px-6 py-4 rounded-lg border border-white/40 bg-transparent text-[clamp(12px,0.83vw,16px)] font-normal tracking-[-0.04em] leading-[1.4] text-white/80 resize-none focus:outline-none focus:border-white/60 placeholder:text-white/35"
       />
     </div>
   )

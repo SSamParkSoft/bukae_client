@@ -15,8 +15,8 @@ export default function PlanningSetupPage() {
   return (
     <div className="pt-10 pb-32">
       {/* 섹션 타이틀 */}
-        <h1 className="font-28-md text-white">기획 프리세팅</h1>
-        <p className="font-16-rg text-white/60 mt-2">
+        <h1 className="text-[clamp(20px,1.46vw,28px)] font-medium tracking-[-0.04em] leading-[1.4] text-white">기획 프리세팅</h1>
+        <p className="text-[clamp(12px,0.83vw,16px)] font-normal tracking-[-0.04em] leading-[1.4] text-white/60 mt-2">
           영상을 기획하기 전에 사전 설정하면, AI가 더 정확한 기획안을 제안해드릴 수 있어요.
         </p>
 

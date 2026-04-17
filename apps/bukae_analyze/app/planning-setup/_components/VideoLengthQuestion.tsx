@@ -82,7 +82,7 @@ export function VideoLengthQuestion({ data }: Props) {
           }`}
         >
           <span
-            className={`min-w-0 truncate text-left font-20-md ${isPlaceholder ? 'text-white/50' : 'text-white/90'}`}
+            className={`min-w-0 truncate text-left text-[clamp(16px,1.04vw,20px)] font-medium tracking-[-0.04em] leading-[1.4] ${isPlaceholder ? 'text-white/50' : 'text-white/90'}`}
           >
             {label}
           </span>
@@ -111,8 +111,8 @@ export function VideoLengthQuestion({ data }: Props) {
                     onClick={() => pick(option.value)}
                     className={`flex w-full items-center justify-between gap-3 px-6 py-3 text-left transition-colors ${
                       selected
-                        ? 'bg-white/20 font-16-md text-white'
-                        : 'font-16-md text-white/70 hover:bg-white/10 hover:text-white'
+                        ? 'bg-white/20 text-[clamp(12px,0.83vw,16px)] font-medium tracking-[-0.04em] text-white'
+                        : 'text-[clamp(12px,0.83vw,16px)] font-medium tracking-[-0.04em] text-white/70 hover:bg-white/10 hover:text-white'
                     }`}
                   >
                     <span className="min-w-0">{option.label}</span>
