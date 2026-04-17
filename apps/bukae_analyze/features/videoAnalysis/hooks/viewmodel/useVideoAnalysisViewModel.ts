@@ -67,6 +67,16 @@ export function useVideoAnalysisViewModel(domain: VideoAnalysis): VideoAnalysisV
       conversionComments: domain.comment.conversionComments,
     },
 
-    structure: domain.structure,
+    structure: {
+      overview: domain.structure.overview,
+      targetAudienceDescription: domain.structure.targetAudienceDescription,
+      targetAudienceAttributes: domain.structure.targetAudienceAttributes,
+      storyStructure: domain.structure.storyStructure,
+      editingPoints: domain.structure.editingPoints,
+      viralPoints: domain.structure.viralPoints,
+      trendContextDescription: domain.structure.trendContextDescription,
+      trendInsights: domain.structure.trendInsights,
+      ctaStrategy: domain.structure.ctaStrategy,
+    },
   }), [domain])
 }

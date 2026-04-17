@@ -1,0 +1,27 @@
+interface Props {
+  description: string
+  attributes: string[]
+}
+
+export function VideoTargetCard({ description, attributes }: Props) {
+  return (
+    <div className="backdrop-blur-[2px] bg-white/10 flex flex-col items-start px-6 py-8 w-full">
+      <div className="flex flex-col gap-4 items-start w-full">
+        <p className="font-20-md text-white/60">핵심 타겟층</p>
+        <div className="flex flex-col gap-4 px-6 py-4 rounded-lg w-full">
+          <p className="font-20-md text-white/80 leading-[1.8]">{description}</p>
+          <div className="flex gap-4 items-center flex-wrap">
+            {attributes.map((attr) => (
+              <span
+                key={attr}
+                className="bg-white/10 backdrop-glass-strong rounded-full px-4 py-2 font-20-md text-white"
+              >
+                {attr}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -18,7 +18,7 @@
   --background: var(--palette-brand);
   --foreground: var(--palette-white);
 
-  --glass-blur-strong: 10px;
+  --glass-blur-strong: 20px;
   --glass-blur-soft: 4px;
 
   /*
@@ -40,6 +40,11 @@
   --text-28_rg-tracking: -0.04em;
   --text-28_rg-leading: 1.4;
   --text-28_rg-weight: 400;
+
+  --text-24_sm-size: 24px;
+  --text-24_sm-tracking: -0.04em;
+  --text-24_sm-leading: 1.4;
+  --text-24_sm-weight: 600;
 
   --text-24_md-size: 24px;
   --text-24_md-tracking: -0.04em;
@@ -131,6 +136,14 @@
     letter-spacing: var(--text-28_rg-tracking);
     line-height: var(--text-28_rg-leading);
     font-weight: var(--text-28_rg-weight);
+  }
+
+  .font-24-sm {
+    font-family: var(--font-sans);
+    font-size: var(--text-24_sm-size);
+    letter-spacing: var(--text-24_sm-tracking);
+    line-height: var(--text-24_sm-leading);
+    font-weight: var(--text-24_sm-weight);
   }
 
   .font-24-md {

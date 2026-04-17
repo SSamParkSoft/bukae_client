@@ -62,15 +62,34 @@ export interface CommentAnalysis {
   conversionComments?: number
 }
 
+// 영상 구조 분석 — 서브 타입
+export interface StorySegment {
+  timeframe: string    // "0~9초"
+  title: string        // "훅"
+  description: string
+}
+
+export interface LabeledPoint {
+  label: string        // "컷", "링크" 등
+  description: string
+}
+
+export interface TrendInsight {
+  value: string        // "+40%"
+  label: string        // '"가성비" 키워드 검색량'
+}
+
 // 영상 구조 분석
 export interface VideoStructureAnalysis {
   overview: string
-  storyStructure: string
-  editingPoints: string
-  targetAudience: string
-  viralPoints: string
-  trendContext: string
-  ctaStrategy: string
+  targetAudienceDescription: string
+  targetAudienceAttributes: string[]
+  storyStructure: StorySegment[]
+  editingPoints: LabeledPoint[]
+  viralPoints: string[]
+  trendContextDescription: string
+  trendInsights: TrendInsight[]
+  ctaStrategy: LabeledPoint[]
 }
 
 // 합성 타입
