@@ -7,24 +7,39 @@ import { FaceExposureQuestion } from './_components/FaceExposureQuestion'
 import { VideoLengthQuestion } from './_components/VideoLengthQuestion'
 import { ShootingQuestion } from './_components/ShootingQuestion'
 import { CoreMaterialQuestion } from './_components/CoreMaterialQuestion'
-import { PageTitle } from '@/components/pageShared/PageTitle'
 
 export default function PlanningSetupPage() {
   const form = usePlanningSetupForm()
   const viewModel = usePlanningSetupViewModel(form)
 
   return (
-    <div className="px-8 pt-10 pb-16">
-      <PageTitle
-        title="기획 설정"
-        description="영상을 기획하기 전, 몇 가지 질문에 답해 주세요. AI가 더 정확한 기획안을 제안해 드릴 수 있어요."
-      />
-      <div className="mt-10 flex flex-col gap-10">
-        <CategoryQuestion data={viewModel.category} />
-        <FaceExposureQuestion data={viewModel.faceExposure} />
-        <VideoLengthQuestion data={viewModel.videoLength} />
-        <ShootingQuestion data={viewModel.shooting} />
-        <CoreMaterialQuestion data={viewModel.coreMaterial} />
+    <div className="pt-10 pb-32">
+      {/* 섹션 타이틀 */}
+        <h1 className="font-28-md text-white">기획 프리세팅</h1>
+        <p className="font-16-rg text-white/60 mt-2">
+          영상을 기획하기 전에 사전 설정하면, AI가 더 정확한 기획안을 제안해드릴 수 있어요.
+        </p>
+
+      {/* 구분선 */}
+      <div className="mx-6 mt-6 mb-10 h-px bg-white/40" />
+
+      {/* 두 컬럼 레이아웃 */}
+      <div className="flex">
+        {/* 왼쪽: 카테고리 + 영상 길이 */}
+        <div className="flex-1 min-w-0 px-6 flex flex-col gap-10">
+          <CategoryQuestion data={viewModel.category} />
+          <div className="h-px bg-white/20" />
+          <VideoLengthQuestion data={viewModel.videoLength} />
+        </div>
+
+        {/* 오른쪽: 노출 범위 + 촬영 방식 + 영상 소스 */}
+        <div className="flex-1 min-w-0 px-6 flex flex-col gap-10">
+          <FaceExposureQuestion data={viewModel.faceExposure} />
+          <div className="h-px bg-white/20" />
+          <ShootingQuestion data={viewModel.shooting} />
+          <div className="h-px bg-white/20" />
+          <CoreMaterialQuestion data={viewModel.coreMaterial} />
+        </div>
       </div>
     </div>
   )

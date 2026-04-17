@@ -8,9 +8,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Header />
       <div className="flex flex-1 overflow-hidden">
         <LeftSidebar />
-        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto scrollbar-hide">
-          {children}
-        </main>
+        <div className="relative flex-1 min-w-0 min-h-0">
+          <main className="flex h-full flex-col overflow-x-hidden overflow-y-auto scrollbar-hide">
+            {children}
+          </main>
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-brand to-transparent" />
+        </div>
         <RightSidebar />
       </div>
     </div>
