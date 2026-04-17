@@ -37,7 +37,7 @@ export function QuestionBlock({ data }: { data: AiQuestionViewModel }) {
               onClick={() => data.onSelect(option.value)}
               className={[
                 'backdrop-blur-[2px] flex items-center gap-4 px-6 py-3 rounded-[8px] transition-colors',
-                isSelected ? 'bg-white/[0.32]' : 'bg-white/[0.08] hover:bg-white/[0.15]',
+                isSelected ? 'bg-white/32' : 'bg-white/08 hover:bg-white/15',
               ].join(' ')}
             >
               <span

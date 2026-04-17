@@ -15,7 +15,7 @@ export function StepNavButton({ direction, onClick, hidden = false }: Props) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-20-rg text-white transition-colors hover:bg-white/8 focus-visible:outline-white/30"
+      className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-[clamp(14px,1.04vw,20px)] font-normal tracking-[-0.04em] leading-[1.4] text-white transition-colors hover:bg-white/8 focus-visible:outline-white/30"
       style={{
         width: 'clamp(160px, 6.25vw + 112px, 232px)',
         height: 'clamp(44px, 1.39vw + 33px, 60px)',
@@ -24,9 +24,9 @@ export function StepNavButton({ direction, onClick, hidden = false }: Props) {
       }}
       tabIndex={hidden ? -1 : 0}
     >
-      {direction === 'prev' && <ArrowLeft className="size-6 shrink-0" strokeWidth={1.5} aria-hidden />}
+      {direction === 'prev' && <ArrowLeft style={{ width: 'clamp(16px,1.25vw,24px)', height: 'clamp(16px,1.25vw,24px)' }} className="shrink-0" strokeWidth={1.5} aria-hidden />}
       <span>{label}</span>
-      {direction === 'next' && <ArrowRight className="size-6 shrink-0" strokeWidth={1.5} aria-hidden />}
+      {direction === 'next' && <ArrowRight style={{ width: 'clamp(16px,1.25vw,24px)', height: 'clamp(16px,1.25vw,24px)' }} className="shrink-0" strokeWidth={1.5} aria-hidden />}
     </button>
   )
 }

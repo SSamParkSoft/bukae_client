@@ -27,7 +27,7 @@ export function LeftSidebar() {
       style={{ width: LAYOUT.SIDEBAR_WIDTH }}
     >
       {/* 스텝 인디케이터 */}
-      <div style={{ marginTop: LAYOUT.STEP_INDICATOR_TOP, paddingLeft: 32, paddingRight: 16 }}>
+      <div style={{ marginTop: LAYOUT.STEP_INDICATOR_TOP, paddingLeft: 'clamp(32px,1.88vw,40px)', paddingRight: '40px' }}>
         <StepIndicator />
       </div>
 
