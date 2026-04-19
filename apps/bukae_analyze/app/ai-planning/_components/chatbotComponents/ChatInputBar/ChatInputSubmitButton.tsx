@@ -1,4 +1,4 @@
-import { ArrowRightIcon } from 'lucide-react'
+import { SendIcon } from 'lucide-react'
 
 interface Props {
   onClick: () => void
@@ -12,9 +12,9 @@ export function ChatInputSubmitButton({ onClick, disabled }: Props) {
       onClick={onClick}
       disabled={disabled}
       aria-label="전송"
-      className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:bg-white/20 hover:text-white disabled:opacity-20 transition-all"
+      className="size-12 flex items-center justify-center text-white/60 hover:text-white disabled:opacity-25 transition-colors"
     >
-      <ArrowRightIcon size={12} />
+      <SendIcon size={28} strokeWidth={1.5} />
     </button>
   )
 }

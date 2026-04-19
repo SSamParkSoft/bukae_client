@@ -12,9 +12,9 @@ export function ChatInputAttachButton({ onClick, disabled }: Props) {
       onClick={onClick}
       disabled={disabled}
       aria-label="첨부"
-      className="w-7 h-7 rounded-full border border-white/20 flex items-center justify-center text-white/40 hover:text-white/70 transition-colors disabled:opacity-40"
+      className="size-12 flex items-center justify-center text-white/60 hover:text-white transition-colors disabled:opacity-40"
     >
-      <PlusIcon size={12} />
+      <PlusIcon size={28} strokeWidth={1.5} />
     </button>
   )
 }
