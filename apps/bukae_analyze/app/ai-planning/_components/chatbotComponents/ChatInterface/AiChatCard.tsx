@@ -6,13 +6,16 @@ interface Props {
 
 export function AiChatCard({ questions }: Props) {
   return (
-    <div className="px-10 py-8">
-      <div className="w-7 h-7 rounded border border-white/15 flex items-center justify-center text-white/45">
-        <MonitorIcon size={13} />
+    <div
+      className="flex gap-4 items-start w-full"
+      style={{ paddingRight: 'clamp(120px, 12.5vw, 240px)' }}
+    >
+      <div className="shrink-0 size-[60px] rounded-full bg-white/[0.04] backdrop-blur-[2px] flex items-center justify-center">
+        <MonitorIcon size={32} className="text-white/80" strokeWidth={1.5} />
       </div>
-      <div className="mt-4 flex flex-col gap-4">
+      <div className="flex flex-col gap-6 px-8 py-4 rounded-bl-[16px] rounded-br-[16px] rounded-tl-[2px] rounded-tr-[16px]">
         {questions.map((q, i) => (
-          <p key={i} className="text-sm leading-relaxed text-white/75 whitespace-pre-line">{q}</p>
+          <p key={i} className="font-16-rg text-white/80 whitespace-pre-line">{q}</p>
         ))}
       </div>
     </div>

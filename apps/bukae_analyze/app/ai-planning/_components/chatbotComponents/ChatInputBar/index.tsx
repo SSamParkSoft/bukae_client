@@ -20,13 +20,13 @@ export function ChatInputBar({ questions, answers, onAnswerChange, onSubmit, isS
   )
 
   return (
-    <div className="border-t border-white/10 px-10 py-5 flex flex-col gap-3">
+    <div className="shrink-0 px-6 py-5 flex flex-col gap-3 border-t border-white/20">
       {/* 질문마다 한 행 */}
       {questions.map((q, i) => (
-        <div key={q.questionId} className="flex items-end gap-3">
+        <div key={q.questionId} className="flex items-end gap-3 px-5 py-3 rounded-[12px] bg-white/[0.04] backdrop-blur-[2px] border border-white/10">
           {/* 2문항 이상일 때만 Q1, Q2 */}
           {questions.length > 1 && (
-            <span className="text-[11px] text-white/35 mb-[3px] shrink-0">Q{i + 1}</span>
+            <span className="font-12-rg text-white/35 mb-[3px] shrink-0">Q{i + 1}</span>
           )}
           <ChatInput
             value={answers[q.questionId] ?? ''}
