@@ -10,12 +10,28 @@ export function AiChatCard({ questions }: Props) {
       className="flex gap-4 items-start w-full"
       style={{ paddingRight: 'clamp(120px, 12.5vw, 240px)' }}
     >
-      <div className="shrink-0 size-[60px] rounded-full bg-white/[0.04] backdrop-blur-[2px] flex items-center justify-center">
-        <MonitorIcon size={32} className="text-white/80" strokeWidth={1.5} />
+      <div
+        className="shrink-0 rounded-full bg-white/[0.04] backdrop-blur-[2px] flex items-center justify-center"
+        style={{ width: 'clamp(44px, 3.125vw, 60px)', height: 'clamp(44px, 3.125vw, 60px)' }}
+      >
+        <MonitorIcon
+          className="text-white/80"
+          strokeWidth={1.5}
+          style={{ width: 'clamp(22px, 1.67vw, 32px)', height: 'clamp(22px, 1.67vw, 32px)' }}
+        />
       </div>
-      <div className="flex flex-col gap-6 px-8 py-4 rounded-bl-[16px] rounded-br-[16px] rounded-tl-[2px] rounded-tr-[16px]">
+      <div
+        className="flex flex-col gap-6 py-4 rounded-bl-[16px] rounded-br-[16px] rounded-tl-[2px] rounded-tr-[16px]"
+        style={{ paddingLeft: 'clamp(16px, 1.67vw, 32px)', paddingRight: 'clamp(16px, 1.67vw, 32px)' }}
+      >
         {questions.map((q, i) => (
-          <p key={i} className="font-16-rg text-white/80 whitespace-pre-line">{q}</p>
+          <p
+            key={i}
+            className="font-normal tracking-[-0.04em] leading-[1.4] text-white/80 whitespace-pre-line"
+            style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}
+          >
+            {q}
+          </p>
         ))}
       </div>
     </div>

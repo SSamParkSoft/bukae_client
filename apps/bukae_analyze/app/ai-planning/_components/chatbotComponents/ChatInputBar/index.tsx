@@ -23,7 +23,11 @@ export function ChatInputBar({ questions, answers, onAnswerChange, onSubmit, isS
     <div className="shrink-0 px-6 pb-[60px] pt-5 flex flex-col gap-3">
       {/* 질문마다 한 행 */}
       {questions.map((q, i) => (
-        <div key={q.questionId} className="flex items-center gap-4 w-full px-12 py-4 rounded-[64px] bg-white/10 backdrop-blur-[5px]">
+        <div
+          key={q.questionId}
+          className="flex items-center gap-4 w-full rounded-[64px] bg-white/10 backdrop-blur-[5px]"
+          style={{ paddingLeft: 'clamp(20px, 2.5vw, 48px)', paddingRight: 'clamp(20px, 2.5vw, 48px)', paddingTop: '16px', paddingBottom: '16px' }}
+        >
           {/* 2문항 이상일 때만 Q1, Q2 */}
           {questions.length > 1 && (
             <span className="font-12-rg text-white/35 shrink-0">Q{i + 1}</span>

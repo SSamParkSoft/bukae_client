@@ -12,9 +12,10 @@ export function ChatInputSubmitButton({ onClick, disabled }: Props) {
       onClick={onClick}
       disabled={disabled}
       aria-label="전송"
-      className="size-12 flex items-center justify-center text-white/60 hover:text-white disabled:opacity-25 transition-colors"
+      className="flex items-center justify-center text-white/60 hover:text-white disabled:opacity-25 transition-colors"
+      style={{ width: 'clamp(32px, 2.5vw, 48px)', height: 'clamp(32px, 2.5vw, 48px)' }}
     >
-      <SendIcon size={28} strokeWidth={1.5} />
+      <SendIcon strokeWidth={1.5} style={{ width: 'clamp(20px, 1.46vw, 28px)', height: 'clamp(20px, 1.46vw, 28px)' }} />
     </button>
   )
 }
