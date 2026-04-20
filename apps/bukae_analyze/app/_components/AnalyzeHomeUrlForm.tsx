@@ -19,8 +19,8 @@ export function AnalyzeHomeUrlForm({
       <label htmlFor="url-input" className="sr-only">
         레퍼런스 숏폼 URL
       </label>
-      <div className="rounded-[clamp(48px,3.33vw,64px)] border border-white/10 bg-white/16 py-[clamp(8px,0.625vw,12px)] pl-[clamp(24px,1.67vw,32px)] pr-[clamp(16px,1.25vw,24px)] backdrop-blur-[5px]">
-        <div className="flex min-h-[clamp(48px,3.33vw,64px)] items-center gap-[clamp(8px,0.625vw,12px)]">
+      <div className="border border-white/10 bg-white/16 backdrop-blur-[5px]" style={{ borderRadius: 'clamp(48px, 3.33vw, 64px)', paddingTop: 'clamp(8px, 0.625vw, 12px)', paddingBottom: 'clamp(8px, 0.625vw, 12px)', paddingLeft: 'clamp(24px, 1.67vw, 32px)', paddingRight: 'clamp(16px, 1.25vw, 24px)' }}>
+        <div className="flex items-center" style={{ minHeight: 'clamp(48px, 3.33vw, 64px)', gap: 'clamp(8px, 0.625vw, 12px)' }}>
           <input
             id="url-input"
             type="url"
@@ -33,10 +33,11 @@ export function AnalyzeHomeUrlForm({
           />
           <button
             type="submit"
-            className="inline-flex size-[clamp(40px,2.5vw,48px)] shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
+            className="inline-flex shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
+            style={{ width: 'clamp(40px, 2.5vw, 48px)', height: 'clamp(40px, 2.5vw, 48px)' }}
             aria-label="분석 시작"
           >
-            <Send className="size-[clamp(24px,1.67vw,32px)]" strokeWidth={1.25} aria-hidden />
+            <Send style={{ width: 'clamp(24px, 1.67vw, 32px)', height: 'clamp(24px, 1.67vw, 32px)' }} strokeWidth={1.25} aria-hidden />
           </button>
         </div>
       </div>

@@ -13,8 +13,8 @@ export function SectionHeader({ icon: Icon, title, subtitle }: SectionHeaderProp
         <Icon className="size-6 text-white" strokeWidth={1.5} aria-hidden />
       </div>
       <div className="flex flex-col">
-        <span className="text-[clamp(16px,1.04vw,20px)] font-medium tracking-[-0.04em] leading-[1.4] text-white">{title}</span>
-        <span className="text-[clamp(12px,0.83vw,16px)] font-medium tracking-[-0.04em] leading-[1.4] text-white/60">{subtitle}</span>
+        <span className="font-medium tracking-[-0.04em] leading-[1.4] text-white" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>{title}</span>
+        <span className="font-medium tracking-[-0.04em] leading-[1.4] text-white/60" style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}>{subtitle}</span>
       </div>
     </div>
   )
@@ -43,7 +43,7 @@ export function IconButton({ icon: Icon, label, selected, onClick }: IconButtonP
       ) : (
         <span className="shrink-0 size-8" aria-hidden />
       )}
-      <span className="text-[clamp(12px,0.83vw,16px)] font-medium tracking-[-0.04em]">{label}</span>
+      <span className="font-medium tracking-[-0.04em]" style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}>{label}</span>
     </button>
   )
 }
@@ -62,7 +62,8 @@ export function CustomTextInput({ value, onChange, placeholder = '직접 입력�
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         rows={2}
-        className="w-full px-4 py-3 rounded-lg border border-white/20 bg-white/5 text-[clamp(12px,0.83vw,16px)] font-normal tracking-[-0.04em] leading-[1.4] text-white resize-none focus:outline-none focus:border-white/50 placeholder:text-white/35"
+        className="w-full px-4 py-3 rounded-lg border border-white/20 bg-white/5 font-normal tracking-[-0.04em] leading-[1.4] text-white resize-none focus:outline-none focus:border-white/50 placeholder:text-white/35"
+        style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}
       />
     </div>
   )

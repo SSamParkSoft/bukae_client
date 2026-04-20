@@ -1,5 +1,6 @@
 export interface ShootingScene {
   sceneNumber: number
+  sceneName: string
   startTimeSec: number
   endTimeSec: number
   description: string

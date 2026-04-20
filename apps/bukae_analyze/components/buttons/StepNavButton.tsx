@@ -15,8 +15,9 @@ export function StepNavButton({ direction, onClick, hidden = false }: Props) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-[clamp(14px,1.04vw,20px)] font-normal tracking-[-0.04em] leading-[1.4] text-white transition-colors hover:bg-white/8 focus-visible:outline-white/30"
+      className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-normal tracking-[-0.04em] leading-[1.4] text-white transition-colors hover:bg-white/8 focus-visible:outline-white/30"
       style={{
+        fontSize: 'clamp(14px, 1.04vw, 20px)',
         width: 'clamp(160px, 6.25vw + 112px, 232px)',
         height: 'clamp(44px, 1.39vw + 33px, 60px)',
         opacity: hidden ? 0 : 1,

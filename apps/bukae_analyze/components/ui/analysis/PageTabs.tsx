@@ -21,8 +21,9 @@ export function PageTabs<T extends string>({ tabs, activeTab, onChange }: PageTa
             key={tab.id}
             type="button"
             onClick={() => onChange(tab.id)}
+            style={{ fontSize: 'clamp(16px, 1.04vw, 20px)', paddingLeft: 'clamp(16px, 1.88vw, 36px)', paddingRight: 'clamp(16px, 1.88vw, 36px)', paddingTop: 'clamp(10px, 0.83vw, 16px)', paddingBottom: 'clamp(10px, 0.83vw, 16px)' }}
             className={[
-              'shrink-0 px-[clamp(16px,1.88vw,36px)] py-[clamp(10px,0.83vw,16px)] text-[clamp(16px,1.04vw,20px)] font-normal tracking-[-0.04em] leading-[1.4] transition-colors relative',
+              'shrink-0 font-normal tracking-[-0.04em] leading-[1.4] transition-colors relative',
               isActive ? 'text-white' : 'text-white/40 hover:text-white/70',
             ].join(' ')}
           >

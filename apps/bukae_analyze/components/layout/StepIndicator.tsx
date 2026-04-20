@@ -41,8 +41,9 @@ function StepItem({
         ].join(' ')}
       >
         <span
+          style={{ fontSize: 'clamp(14px, 0.94vw, 16px)' }}
           className={[
-            'text-[clamp(14px,0.94vw,16px)] font-medium tracking-[-0.04em] leading-[1.4]',
+            'font-medium tracking-[-0.04em] leading-[1.4]',
             isActive ? 'text-brand' : 'text-white',
           ].join(' ')}
         >
@@ -52,8 +53,9 @@ function StepItem({
 
       {/* 라벨 */}
       <span
+        style={{ fontSize: 'clamp(14px, 0.83vw, 16px)' }}
         className={[
-          'text-[clamp(14px,0.83vw,16px)] tracking-[-0.04em] leading-[1.4] whitespace-nowrap',
+          'tracking-[-0.04em] leading-[1.4] whitespace-nowrap',
           isActive
             ? 'font-semibold text-white'
             : 'font-normal text-white/60',

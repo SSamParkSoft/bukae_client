@@ -13,14 +13,14 @@ export function QuestionBlock({ data }: { data: AiQuestionViewModel }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col">
-        <p className="text-[clamp(16px,1.04vw,20px)] font-medium tracking-[-0.04em] leading-[1.4] text-white">
+        <p className="font-medium tracking-[-0.04em] leading-[1.4] text-white" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>
           {data.questionNumber}
         </p>
-        <p className="text-[clamp(12px,0.83vw,16px)] font-medium tracking-[-0.04em] leading-[1.4] text-white/60">
+        <p className="font-medium tracking-[-0.04em] leading-[1.4] text-white/60" style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}>
           {data.questionText}
         </p>
         <div className="backdrop-blur-[2px] border-b border-white/20 py-3 w-full">
-          <p className="text-[clamp(12px,0.83vw,16px)] font-medium tracking-[-0.04em] text-white/80 leading-[1.8] line-clamp-2">
+          <p className="font-medium tracking-[-0.04em] text-white/80 leading-[1.8] line-clamp-2" style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}>
             {data.referenceInsight}
           </p>
         </div>
@@ -41,16 +41,18 @@ export function QuestionBlock({ data }: { data: AiQuestionViewModel }) {
               ].join(' ')}
             >
               <span
-                className={[
-                  'shrink-0 text-[clamp(16px,1.04vw,20px)] font-medium tracking-[-0.04em] leading-[1.4] whitespace-nowrap',
+                style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}
+              className={[
+                  'shrink-0 font-medium tracking-[-0.04em] leading-[1.4] whitespace-nowrap',
                   isSelected ? 'text-white' : 'text-white/40',
                 ].join(' ')}
               >
                 {letter}.
               </span>
               <span
-                className={[
-                  'flex-1 min-w-0 text-[clamp(12px,0.83vw,16px)] font-medium tracking-[-0.04em] leading-[1.4] text-left',
+                style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}
+              className={[
+                  'flex-1 min-w-0 font-medium tracking-[-0.04em] leading-[1.4] text-left',
                   isSelected ? 'text-white' : 'text-white/40',
                 ].join(' ')}
               >
@@ -67,7 +69,8 @@ export function QuestionBlock({ data }: { data: AiQuestionViewModel }) {
           onChange={e => data.onCustomChange(e.target.value)}
           placeholder={data.customPlaceholder}
           rows={2}
-          className="w-full px-6 py-3 rounded-[8px] border border-white/40 bg-transparent text-[clamp(12px,0.83vw,16px)] font-medium tracking-[-0.04em] text-white resize-none focus:outline-none focus:border-white/60 placeholder:text-white/35"
+          className="w-full px-6 py-3 rounded-[8px] border border-white/40 bg-transparent font-medium tracking-[-0.04em] text-white resize-none focus:outline-none focus:border-white/60 placeholder:text-white/35"
+          style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}
         />
       )}
     </div>
@@ -96,7 +99,7 @@ interface InsightBoxProps {
 
 export function InsightBox({ text }: InsightBoxProps) {
   return (
-    <div className="mb-4 px-4 py-3 rounded-lg bg-white/[0.06] border border-white/10">
+    <div className="mb-4 px-4 py-3 rounded-lg bg-white/6 border border-white/10">
       <p className="text-xs text-white/50 leading-relaxed">{text}</p>
     </div>
   )

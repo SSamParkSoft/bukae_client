@@ -16,7 +16,7 @@ export function DeepDiveReportButton({ className }: { className?: string }) {
     >
       <span className="flex items-center gap-2">
         <ClipboardList className="size-6 shrink-0 text-white" strokeWidth={1.5} aria-hidden />
-        <span className="text-[clamp(16px,1.04vw,20px)] font-medium tracking-[-0.04em] leading-[1.4] whitespace-nowrap text-white">딥다이브 리포트 분석 보기</span>
+        <span className="font-medium tracking-[-0.04em] leading-[1.4] whitespace-nowrap text-white" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>딥다이브 리포트 분석 보기</span>
       </span>
     </button>
   )
