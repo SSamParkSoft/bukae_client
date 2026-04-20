@@ -5,7 +5,7 @@ import type { ShootingGuideViewModel, ShootingSceneViewModel } from '../../types
 export function useShootingGuideViewModel(domain: ShootingGuide): ShootingGuideViewModel {
   return useMemo(() => ({
     scenes: domain.scenes.map((scene): ShootingSceneViewModel => ({
-      sceneLabel: `SCENE ${scene.sceneNumber}`,
+      sceneLabel: `SCENE ${scene.sceneNumber} : ${scene.sceneName}`,
       durationLabel: `${scene.startTimeSec.toFixed(1)}s − ${scene.endTimeSec.toFixed(1)}s`,
       description: scene.description,
       contentItems: [

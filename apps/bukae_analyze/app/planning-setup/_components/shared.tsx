@@ -1,39 +1,49 @@
-interface QuestionHeaderProps {
-  number: string
-  question: string
+import type { LucideIcon } from 'lucide-react'
+
+interface SectionHeaderProps {
+  icon: LucideIcon
+  title: string
+  subtitle: string
 }
 
-export function QuestionHeader({ number, question }: QuestionHeaderProps) {
+export function SectionHeader({ icon: Icon, title, subtitle }: SectionHeaderProps) {
   return (
-    <div className="mb-5">
-      <span className="text-xs font-semibold text-black/30 tracking-widest uppercase">{number}</span>
-      <p className="mt-1 text-base font-semibold text-black leading-snug">{question}</p>
+    <div className="flex items-center gap-3">
+      <div className="shrink-0 size-12 rounded-[12px] bg-white/10 backdrop-blur-[2px] flex items-center justify-center">
+        <Icon className="size-6 text-white" strokeWidth={1.5} aria-hidden />
+      </div>
+      <div className="flex flex-col">
+        <span className="font-medium tracking-[-0.04em] leading-[1.4] text-white" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>{title}</span>
+        <span className="font-medium tracking-[-0.04em] leading-[1.4] text-white/60" style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}>{subtitle}</span>
+      </div>
     </div>
   )
 }
 
-interface OptionButtonProps {
-  letter: string
+interface IconButtonProps {
+  icon?: LucideIcon
   label: string
   selected: boolean
   onClick: () => void
 }
 
-export function OptionButton({ letter, label, selected, onClick }: OptionButtonProps) {
+export function IconButton({ icon: Icon, label, selected, onClick }: IconButtonProps) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg border text-sm text-left transition-colors ${
+      className={`flex items-center gap-4 w-full px-6 py-3 rounded-lg backdrop-blur-[2px] text-left justify-between transition-colors ${
         selected
-          ? 'bg-black text-white border-black'
-          : 'bg-white text-black border-black/15 hover:border-black/40'
+          ? 'bg-white/40 text-white'
+          : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'
       }`}
     >
-      <span className={`shrink-0 text-xs font-bold ${selected ? 'text-white/60' : 'text-black/30'}`}>
-        {letter}.
-      </span>
-      <span>{label}</span>
+      {Icon ? (
+        <Icon className="shrink-0 size-8" strokeWidth={1.5} aria-hidden />
+      ) : (
+        <span className="shrink-0 size-8" aria-hidden />
+      )}
+      <span className="font-medium tracking-[-0.04em]" style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}>{label}</span>
     </button>
   )
 }
@@ -52,7 +62,8 @@ export function CustomTextInput({ value, onChange, placeholder = '직접 입력�
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
         rows={2}
-        className="w-full px-4 py-3 rounded-lg border border-black/15 text-sm resize-none focus:outline-none focus:border-black/40 placeholder:text-black/25"
+        className="w-full px-4 py-3 rounded-lg border border-white/20 bg-white/5 font-normal tracking-[-0.04em] leading-[1.4] text-white resize-none focus:outline-none focus:border-white/50 placeholder:text-white/35"
+        style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}
       />
     </div>
   )

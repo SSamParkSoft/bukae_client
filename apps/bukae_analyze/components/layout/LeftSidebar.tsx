@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { LAYOUT } from './layout-constants'
 import { STEPS, getCurrentStepIndex } from '../_utils/stepNavigation'
 import { StepIndicator } from './StepIndicator'
-import { OutlineButton } from '../buttons/OutlineButton'
+import { StepNavButton } from '../buttons/StepNavButton'
 
 export function LeftSidebar() {
   const pathname = usePathname()
@@ -23,11 +23,11 @@ export function LeftSidebar() {
 
   return (
     <aside
-      className="relative border-r border-black/10 shrink-0"
+      className="relative shrink-0"
       style={{ width: LAYOUT.SIDEBAR_WIDTH }}
     >
       {/* 스텝 인디케이터 */}
-      <div style={{ marginTop: LAYOUT.STEP_INDICATOR_TOP, paddingLeft: 32, paddingRight: 16 }}>
+      <div style={{ marginTop: LAYOUT.STEP_INDICATOR_TOP, paddingLeft: 'clamp(32px,1.88vw,40px)', paddingRight: '40px' }}>
         <StepIndicator />
       </div>
 
@@ -36,7 +36,7 @@ export function LeftSidebar() {
         className="absolute left-0 right-0 flex justify-center"
         style={{ bottom: LAYOUT.NAV_BUTTON_BOTTOM }}
       >
-        <OutlineButton onClick={handlePrev} hidden={isFirst}>이전</OutlineButton>
+        <StepNavButton direction="prev" onClick={handlePrev} hidden={isFirst} />
       </div>
     </aside>
   )

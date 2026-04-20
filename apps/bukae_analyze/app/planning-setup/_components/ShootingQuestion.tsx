@@ -1,57 +1,50 @@
+'use client'
+
+import { Camera } from 'lucide-react'
 import type { ShootingViewModel } from '@/features/planningSetup/types/viewModel'
-import { QuestionHeader, CustomTextInput } from './shared'
-
-interface ShootingOptionProps {
-  label: string
-  selected: boolean
-  onClick: () => void
-}
-
-function ShootingOption({ label, selected, onClick }: ShootingOptionProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex-1 py-3 rounded-lg border text-sm font-semibold transition-colors ${
-        selected
-          ? 'bg-black text-white border-black'
-          : 'bg-white text-black border-black/15 hover:border-black/40'
-      }`}
-    >
-      {label}
-    </button>
-  )
-}
+import { SectionHeader } from './shared'
+import { ShootingEnvironmentPanel } from './ShootingEnvironmentPanel'
 
 interface Props {
   data: ShootingViewModel
 }
 
 export function ShootingQuestion({ data }: Props) {
+  const isOn = data.selected === 'yes'
+
+  const handleToggle = () => {
+    data.onSelect(isOn ? 'no' : 'yes')
+  }
+
   return (
-    <div>
-      <QuestionHeader number="Q4" question="직접 촬영할 예정인가요?" />
-      <div className="flex gap-3">
-        <ShootingOption
-          label="O"
-          selected={data.selected === 'yes'}
-          onClick={() => data.onSelect('yes')}
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center justify-between gap-4">
+        <SectionHeader
+          icon={Camera}
+          title="촬영 방식"
+          subtitle="직접 콘텐츠 촬영을 하실 예정인가요?"
         />
-        <ShootingOption
-          label="X"
-          selected={data.selected === 'no'}
-          onClick={() => data.onSelect('no')}
-        />
-      </div>
-      {data.selected === 'yes' && (
-        <div className="mt-5">
-          <p className="text-sm font-semibold text-black mb-3">어느 환경에서 촬영할 생각인가요?</p>
-          <CustomTextInput
-            value={data.environment}
-            onChange={data.onEnvironmentChange}
-            placeholder="예: 실내 자연광, 야외, 스튜디오 등"
+        <button
+          type="button"
+          role="switch"
+          aria-checked={isOn}
+          aria-controls="shooting-environment-panel"
+          onClick={handleToggle}
+          className="relative flex h-8 w-12 shrink-0 items-center rounded-full border border-white/20 px-[3px] py-px transition-colors"
+        >
+          <span
+            className={`size-6 rounded-full transition-all duration-200 ${
+              isOn ? 'translate-x-4 bg-white' : 'translate-x-0 bg-white/60'
+            }`}
           />
-        </div>
+        </button>
+      </div>
+
+      {isOn && (
+        <ShootingEnvironmentPanel
+          value={data.environment}
+          onChange={data.onEnvironmentChange}
+        />
       )}
     </div>
   )

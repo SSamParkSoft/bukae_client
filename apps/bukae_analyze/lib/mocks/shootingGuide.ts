@@ -4,9 +4,10 @@ export const MOCK_SHOOTING_GUIDE: ShootingGuide = {
   scenes: [
     {
       sceneNumber: 1,
+      sceneName: 'Hook',
       startTimeSec: 0,
       endTimeSec: 3,
-      description: '강렬한 오프닝',
+      description: '이탈 방어 최우선 구간',
       visualGuide:
         '제품을 클로즈업으로 촬영하여 첫 프레임부터 시선을 사로잡는다. 배경은 단색으로 처리하고 조명은 정면에서 강하게 주어 제품의 질감을 강조한다.',
       subtitleScript:
@@ -16,6 +17,7 @@ export const MOCK_SHOOTING_GUIDE: ShootingGuide = {
     },
     {
       sceneNumber: 2,
+      sceneName: 'Rising Action',
       startTimeSec: 3,
       endTimeSec: 10,
       description: '중요한 갈등 발생',
@@ -28,6 +30,7 @@ export const MOCK_SHOOTING_GUIDE: ShootingGuide = {
     },
     {
       sceneNumber: 3,
+      sceneName: 'Resolution',
       startTimeSec: 10,
       endTimeSec: 22,
       description: '해결책 제시',
@@ -40,6 +43,7 @@ export const MOCK_SHOOTING_GUIDE: ShootingGuide = {
     },
     {
       sceneNumber: 4,
+      sceneName: 'Call to Action',
       startTimeSec: 22,
       endTimeSec: 30,
       description: '행동 유도',

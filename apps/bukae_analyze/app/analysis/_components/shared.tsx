@@ -4,7 +4,7 @@
 
 export function AiBadge() {
   return (
-    <span className="inline-block text-[10px] font-medium text-black/40 border border-black/20 rounded px-1.5 py-0.5 leading-none">
+    <span className="inline-block text-[10px] font-medium text-white/40 border border-white/20 rounded px-1.5 py-0.5 leading-none">
       AI 추정
     </span>
   )
@@ -12,7 +12,7 @@ export function AiBadge() {
 
 export function SectionLabel({ children }: { children: string }) {
   return (
-    <p className="text-xs font-semibold text-black/40 uppercase tracking-wider mb-1">
+    <p className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-1">
       {children}
     </p>
   )
@@ -20,36 +20,38 @@ export function SectionLabel({ children }: { children: string }) {
 
 export function WhyBox({ children }: { children: string }) {
   return (
-    <div className="border-2 border-black rounded-xl p-5">
-      <p className="text-xs font-bold text-black/50 mb-2">★ 핵심 분석</p>
-      <p className="text-sm leading-relaxed">{children}</p>
+    <div className="border border-white p-6 bg-white/10">
+      <p className="font-medium tracking-[-0.04em] text-white/60 mb-2" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>★ 핵심 분석</p>
+      <p className="font-medium tracking-[-0.04em] leading-relaxed text-white/80 pt-4 px-6" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>{children}</p>
     </div>
   )
 }
 
+/** 분석 근거 목록 — 하단 보더 박스, 본문 단일 줄 말줄임 */
 export function EvidenceList({ items }: { items: string[] }) {
   return (
-    <ul className="space-y-1.5">
+    <div className="flex w-full flex-col gap-6">
       {items.map((item, i) => (
-        <li key={i} className="flex items-start gap-2 text-sm text-black/60">
-          <span className="mt-0.5 shrink-0 text-black/30">—</span>
-          <span>{item}</span>
-        </li>
+        <div key={i} className="min-w-0 backdrop-blur-[2px] border-b border-white/40 px-6 py-4">
+          <p className="min-w-0 truncate font-medium tracking-[-0.04em] leading-[1.8] text-white/80" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }} title={item}>
+            {item}
+          </p>
+        </div>
       ))}
-    </ul>
+    </div>
   )
 }
 
 export function CrossValidationBox({ match, evidence }: { match: boolean; evidence: string }) {
   return (
-    <div className="rounded-xl bg-black/5 p-4">
+    <div className="rounded-xl bg-white/10 p-4">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-base">{match ? '✓' : '✗'}</span>
         <p className="text-xs font-semibold">
           {match ? '댓글 데이터와 일치' : '댓글 데이터와 불일치'}
         </p>
       </div>
-      <p className="text-sm text-black/60">{evidence}</p>
+      <p className="text-sm text-white/60">{evidence}</p>
     </div>
   )
 }

@@ -1,26 +1,269 @@
+@import url('https://cdn.jsdelivr.net/gh/sun-typeface/SUIT@2/fonts/static/woff2/SUIT.css');
 @import "tailwindcss";
 
+/*
+ * Typography — SUIT (SIL OFL)
+ * https://sun.fo/suit/#features
+ */
 :root {
-  --background: #f9fafb;
-  --foreground: #171717;
+  /*
+   * Color system — 컬러 시스템 정리 (brand / white / highlight + opacity 단계)
+   * 원색은 --palette-* , 단계색은 --derived-* → @theme 의 --color-* 로 노출
+   */
+  --palette-brand: #17171b;
+  --palette-white: #ffffff;
+  --palette-highlight: #aefffa;
+
+  /* 페이지 전체: 브랜드 배경 + 화이트 텍스트 */
+  --background: var(--palette-brand);
+  --foreground: var(--palette-white);
+
+  --glass-blur-strong: 20px;
+  --glass-blur-soft: 4px;
+
+  /*
+   * Typography scale — SUIT
+   * 각 토큰: 폰트 크기 → 자간(-4%) → 행간 → 굵기 (sm=semibold, md=medium, rg=regular)
+   * 14px 계열은 텍스트 박스 내 리스트 등에 160% 행간 적용 (스펙 시트 기준)
+   */
+  --text-32_sm-size: 32px;
+  --text-32_sm-tracking: -0.04em;
+  --text-32_sm-leading: 1;
+  --text-32_sm-weight: 600;
+
+  --text-28_md-size: 28px;
+  --text-28_md-tracking: -0.04em;
+  --text-28_md-leading: 1.4;
+  --text-28_md-weight: 500;
+
+  --text-28_rg-size: 28px;
+  --text-28_rg-tracking: -0.04em;
+  --text-28_rg-leading: 1.4;
+  --text-28_rg-weight: 400;
+
+  --text-24_sm-size: 24px;
+  --text-24_sm-tracking: -0.04em;
+  --text-24_sm-leading: 1.4;
+  --text-24_sm-weight: 600;
+
+  --text-24_md-size: 24px;
+  --text-24_md-tracking: -0.04em;
+  --text-24_md-leading: 1.4;
+  --text-24_md-weight: 500;
+
+  --text-24_rg-size: 24px;
+  --text-24_rg-tracking: -0.04em;
+  --text-24_rg-leading: 1.4;
+  --text-24_rg-weight: 400;
+
+  --text-20_md-size: 20px;
+  --text-20_md-tracking: -0.04em;
+  --text-20_md-leading: 1.4;
+  --text-20_md-weight: 500;
+
+  --text-20_rg-size: 20px;
+  --text-20_rg-tracking: -0.04em;
+  --text-20_rg-leading: 1.4;
+  --text-20_rg-weight: 400;
+
+  --text-16_md-size: 16px;
+  --text-16_md-tracking: -0.04em;
+  --text-16_md-leading: 1.4;
+  --text-16_md-weight: 500;
+
+  --text-16_rg-size: 16px;
+  --text-16_rg-tracking: -0.04em;
+  --text-16_rg-leading: 1.4;
+  --text-16_rg-weight: 400;
+
+  --text-14_md-size: 14px;
+  --text-14_md-tracking: -0.04em;
+  --text-14_md-leading: 1.6;
+  --text-14_md-weight: 500;
+
+  --text-14_rg-size: 14px;
+  --text-14_rg-tracking: -0.04em;
+  --text-14_rg-leading: 1.6;
+  --text-14_rg-weight: 400;
+
+  --text-12_md-size: 12px;
+  --text-12_md-tracking: -0.04em;
+  --text-12_md-leading: 1.4;
+  --text-12_md-weight: 500;
+
+  --text-12_rg-size: 12px;
+  --text-12_rg-tracking: -0.04em;
+  --text-12_rg-leading: 1.4;
+  --text-12_rg-weight: 400;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --font-sans: 'SUIT', ui-sans-serif, system-ui, sans-serif;
+
+  --color-brand: var(--palette-brand);
+  --color-white: var(--palette-white);
+  --color-highlight: var(--palette-highlight);
+
+  --blur-glass-strong: var(--glass-blur-strong);
+  --blur-glass-soft: var(--glass-blur-soft);
+}
+
+/*
+ * 타이포 프리셋: `className="font-32-sm"` — `font-sans`·`font-bold`와 달리 `숫자-굵기` 패턴 (sm/md/rg = 굵기)
+ */
+@layer utilities {
+  .font-32-sm {
+    font-family: var(--font-sans);
+    font-size: var(--text-32_sm-size);
+    letter-spacing: var(--text-32_sm-tracking);
+    line-height: var(--text-32_sm-leading);
+    font-weight: var(--text-32_sm-weight);
+  }
+
+  .font-28-md {
+    font-family: var(--font-sans);
+    font-size: var(--text-28_md-size);
+    letter-spacing: var(--text-28_md-tracking);
+    line-height: var(--text-28_md-leading);
+    font-weight: var(--text-28_md-weight);
+  }
+
+  .font-28-rg {
+    font-family: var(--font-sans);
+    font-size: var(--text-28_rg-size);
+    letter-spacing: var(--text-28_rg-tracking);
+    line-height: var(--text-28_rg-leading);
+    font-weight: var(--text-28_rg-weight);
+  }
+
+  .font-24-sm {
+    font-family: var(--font-sans);
+    font-size: var(--text-24_sm-size);
+    letter-spacing: var(--text-24_sm-tracking);
+    line-height: var(--text-24_sm-leading);
+    font-weight: var(--text-24_sm-weight);
+  }
+
+  .font-24-md {
+    font-family: var(--font-sans);
+    font-size: var(--text-24_md-size);
+    letter-spacing: var(--text-24_md-tracking);
+    line-height: var(--text-24_md-leading);
+    font-weight: var(--text-24_md-weight);
+  }
+
+  .font-24-rg {
+    font-family: var(--font-sans);
+    font-size: var(--text-24_rg-size);
+    letter-spacing: var(--text-24_rg-tracking);
+    line-height: var(--text-24_rg-leading);
+    font-weight: var(--text-24_rg-weight);
+  }
+
+  .font-20-md {
+    font-family: var(--font-sans);
+    font-size: var(--text-20_md-size);
+    letter-spacing: var(--text-20_md-tracking);
+    line-height: var(--text-20_md-leading);
+    font-weight: var(--text-20_md-weight);
+  }
+
+  .font-20-rg {
+    font-family: var(--font-sans);
+    font-size: var(--text-20_rg-size);
+    letter-spacing: var(--text-20_rg-tracking);
+    line-height: var(--text-20_rg-leading);
+    font-weight: var(--text-20_rg-weight);
+  }
+
+  .font-16-md {
+    font-family: var(--font-sans);
+    font-size: var(--text-16_md-size);
+    letter-spacing: var(--text-16_md-tracking);
+    line-height: var(--text-16_md-leading);
+    font-weight: var(--text-16_md-weight);
+  }
+
+  .font-16-rg {
+    font-family: var(--font-sans);
+    font-size: var(--text-16_rg-size);
+    letter-spacing: var(--text-16_rg-tracking);
+    line-height: var(--text-16_rg-leading);
+    font-weight: var(--text-16_rg-weight);
+  }
+
+  .font-14-md {
+    font-family: var(--font-sans);
+    font-size: var(--text-14_md-size);
+    letter-spacing: var(--text-14_md-tracking);
+    line-height: var(--text-14_md-leading);
+    font-weight: var(--text-14_md-weight);
+  }
+
+  .font-14-rg {
+    font-family: var(--font-sans);
+    font-size: var(--text-14_rg-size);
+    letter-spacing: var(--text-14_rg-tracking);
+    line-height: var(--text-14_rg-leading);
+    font-weight: var(--text-14_rg-weight);
+  }
+
+  .font-12-md {
+    font-family: var(--font-sans);
+    font-size: var(--text-12_md-size);
+    letter-spacing: var(--text-12_md-tracking);
+    line-height: var(--text-12_md-leading);
+    font-weight: var(--text-12_md-weight);
+  }
+
+  .font-12-rg {
+    font-family: var(--font-sans);
+    font-size: var(--text-12_rg-size);
+    letter-spacing: var(--text-12_rg-tracking);
+    line-height: var(--text-12_rg-leading);
+    font-weight: var(--text-12_rg-weight);
+  }
+
+  .backdrop-glass-strong {
+    -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+    backdrop-filter: blur(var(--glass-blur-strong));
+  }
+
+  .backdrop-glass-soft {
+    -webkit-backdrop-filter: blur(var(--glass-blur-soft));
+    backdrop-filter: blur(var(--glass-blur-soft));
+  }
+
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: var(--palette-brand);
+    --foreground: var(--palette-white);
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

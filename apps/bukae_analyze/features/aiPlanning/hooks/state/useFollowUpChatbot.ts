@@ -15,17 +15,17 @@ export function useFollowUpChatbot(): FollowUpChatbotViewModel {
     { role: 'ai', text: '답변 내용만으로는 기획 방향을 확정하기 어려워요. 조금 더 여쭤볼게요!' },
   ])
   const [currentQuestions, setCurrentQuestions] = useState<FollowUpQuestion[]>([MOCK_QUESTIONS[0]])
-  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [answer, setAnswer] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isComplete, setIsComplete] = useState(false)
   const [step, setStep] = useState(0)
 
   // TODO: API 연동 시 이 함수를 fetch 콜백으로 호출
-  // function handleServerResponse(nextQuestion: FollowUpQuestion | null, aiText: string | null) {
+  // function handleServerResponse(nextQuestions: FollowUpQuestion[], aiText: string | null) {
   //   setIsSubmitting(false)
   //   if (aiText) setMessages(prev => [...prev, { role: 'ai', text: aiText }])
-  //   if (nextQuestion) {
-  //     setCurrentQuestions([nextQuestion])
+  //   if (nextQuestions.length > 0) {
+  //     setCurrentQuestions(nextQuestions)
   //   } else {
   //     setIsComplete(true)
   //   }
@@ -34,20 +34,18 @@ export function useFollowUpChatbot(): FollowUpChatbotViewModel {
   return useMemo((): FollowUpChatbotViewModel => ({
     messages,
     currentQuestions,
-    answers,
+    answer,
     isSubmitting,
     isComplete,
-    onAnswerChange: (questionId: string, value: string) => {
-      setAnswers(prev => ({ ...prev, [questionId]: value }))
-    },
+    onAnswerChange: (value: string) => setAnswer(value),
     onSubmit: () => {
-      const currentQ = currentQuestions[0]
+      if (!answer.trim()) return
       setMessages(prev => [
         ...prev,
-        { role: 'ai' as const, text: currentQ.question },
-        { role: 'user' as const, text: answers[currentQ.questionId] ?? '' },
+        ...currentQuestions.map(q => ({ role: 'ai' as const, text: q.question })),
+        { role: 'user' as const, text: answer.trim() },
       ])
-      setAnswers({})
+      setAnswer('')
       setIsSubmitting(true)
       setCurrentQuestions([])
       // TODO: API 연동 — 응답 수신 시 handleServerResponse 호출
@@ -67,5 +65,5 @@ export function useFollowUpChatbot(): FollowUpChatbotViewModel {
         }
       }, 1500)
     },
-  }), [messages, currentQuestions, answers, isSubmitting, isComplete, step])
+  }), [messages, currentQuestions, answer, isSubmitting, isComplete, step])
 }

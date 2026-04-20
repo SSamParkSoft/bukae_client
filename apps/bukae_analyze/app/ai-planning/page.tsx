@@ -7,12 +7,8 @@ import { usePlanningStore } from '@/store/usePlanningStore'
 import { useAiPlanningForm } from '@/features/aiPlanning/hooks/form/useAiPlanningForm'
 import { useAiPlanningViewModel } from '@/features/aiPlanning/hooks/viewmodel/useAiPlanningViewModel'
 import { useFollowUpChatbot } from '@/features/aiPlanning/hooks/state/useFollowUpChatbot'
-import { HookingQuestion } from './_components/HookingQuestion'
-import { StoryDirectionQuestion } from './_components/StoryDirectionQuestion'
-import { CoreMessageQuestion } from './_components/CoreMessageQuestion'
-import { AudienceReactionQuestion } from './_components/AudienceReactionQuestion'
-import { CtaQuestion } from './_components/CtaQuestion'
 import { FollowUpChatbot } from './_components/chatbotComponents'
+import { QuestionBlock } from './_components/shared'
 import { PageTitle } from '@/components/pageShared/PageTitle'
 import type { AiPlanningInput, PlanningSetupAnswers, VideoAnalysis } from '@/lib/types/domain'
 
@@ -63,7 +59,7 @@ function AiPlanningContent() {
         <button
           type="button"
           onClick={exitChatbotMode}
-          className="absolute top-4 right-4 text-[10px] text-black/20 hover:text-black/40 transition-colors z-10"
+          className="absolute top-4 right-4 text-[10px] text-white/25 hover:text-white/50 transition-colors z-10"
         >
           [DEV] 나가기
         </button>
@@ -72,26 +68,24 @@ function AiPlanningContent() {
   }
 
   return (
-    <div className="px-8 pt-10 pb-16">
+    <div className="pt-10 pb-32">
       <PageTitle
         title="AI 기획"
-        description={[
-          '레퍼런스 영상 분석을 바탕으로 질문에 답해 주세요.',
-          'AI가 다음 영상의 기획 방향을 제안해 드릴게요.',
-        ]}
+        description="레퍼런스 영상 분석을 바탕으로 질문에 답해 주세요. AI가 다음 영상의 기획 방향을 제안해 드릴게요."
       />
-      <div className="mt-10 flex flex-col gap-10">
-        <HookingQuestion data={viewModel.hooking} />
-        <StoryDirectionQuestion data={viewModel.storyDirection} />
-        <CoreMessageQuestion data={viewModel.coreMessage} />
-        <AudienceReactionQuestion data={viewModel.audienceReaction} />
-        <CtaQuestion data={viewModel.cta} />
+      <div className="mx-6 mt-6 mb-10 h-px bg-white/40" />
+      <div className="grid grid-cols-2 gap-y-10">
+        {viewModel.questions.map(q => (
+          <div key={q.questionNumber} className="px-6 min-w-0">
+            <QuestionBlock data={q} />
+          </div>
+        ))}
       </div>
       {/* 서버 미연동 시 개발용 토글 */}
       <button
         type="button"
         onClick={enterChatbotMode}
-        className="mt-10 text-xs text-black/30 underline underline-offset-2"
+        className="mt-10 mx-6 text-xs text-white/40 underline underline-offset-2"
       >
         [DEV] 정보 부족 → 챗봇 모드 테스트
       </button>

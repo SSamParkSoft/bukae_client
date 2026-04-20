@@ -14,20 +14,32 @@ export default function PlanningSetupPage() {
   const viewModel = usePlanningSetupViewModel(form)
 
   return (
-    <div className="px-8 pt-10 pb-16">
+    <div className="pt-10 pb-32">
       <PageTitle
-        title="기획 설정"
-        description={[
-          '영상을 기획하기 전, 몇 가지 질문에 답해 주세요.',
-          'AI가 더 정확한 기획안을 제안해 드릴 수 있어요.',
-        ]}
+        title="기획 프리세팅"
+        description="영상을 기획하기 전에 사전 설정하면, AI가 더 정확한 기획안을 제안해드릴 수 있어요."
       />
-      <div className="mt-10 flex flex-col gap-10">
-        <CategoryQuestion data={viewModel.category} />
-        <FaceExposureQuestion data={viewModel.faceExposure} />
-        <VideoLengthQuestion data={viewModel.videoLength} />
-        <ShootingQuestion data={viewModel.shooting} />
-        <CoreMaterialQuestion data={viewModel.coreMaterial} />
+
+      {/* 구분선 */}
+      <div className="mx-6 mt-6 mb-10 h-px bg-white/40" />
+
+      {/* 두 컬럼 레이아웃 */}
+      <div className="flex">
+        {/* 왼쪽: 카테고리 + 영상 길이 */}
+        <div className="flex-1 min-w-0 px-6 flex flex-col gap-10">
+          <CategoryQuestion data={viewModel.category} />
+          <div className="h-px bg-white/20" />
+          <VideoLengthQuestion data={viewModel.videoLength} />
+        </div>
+
+        {/* 오른쪽: 노출 범위 + 촬영 방식 + 영상 소스 */}
+        <div className="flex-1 min-w-0 px-6 flex flex-col gap-10">
+          <FaceExposureQuestion data={viewModel.faceExposure} />
+          <div className="h-px bg-white/20" />
+          <ShootingQuestion data={viewModel.shooting} />
+          <div className="h-px bg-white/20" />
+          <CoreMaterialQuestion data={viewModel.coreMaterial} />
+        </div>
       </div>
     </div>
   )

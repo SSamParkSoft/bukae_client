@@ -1,28 +1,38 @@
 import type { HookAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
-import { SectionLabel } from '../shared'
+
+interface HookCategoryItemProps {
+  label: string
+  value: string
+  isLarge?: boolean
+}
+
+function HookCategoryItem({ label, value, isLarge }: HookCategoryItemProps) {
+  return (
+    <div className="flex-1 h-[180px] bg-white/10 p-6 flex flex-col gap-4 min-w-0 mt-11">
+      <p className="font-medium tracking-[-0.04em] leading-[1.4] text-white/60 shrink-0" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>{label}</p>
+      <div className="flex items-center py-4 rounded-lg overflow-hidden">
+        <p
+          style={{ fontSize: 'clamp(20px, 1.42vw, 32px)' }}
+          className={`min-w-0 text-white/80 ${
+            isLarge
+              ? 'font-semibold leading-[1.8] tracking-[-0.04em] text-center w-full'
+              : 'font-semibold leading-[1.8] tracking-[-0.04em] text-center w-full'
+          }`}
+        >
+          {value}
+        </p>
+      </div>
+    </div>
+  )
+}
 
 export function HookOptionalFields({ data }: { data: HookAnalysisViewModel }) {
-  if (!data.viewerPositioning && !data.visualHook && !data.firstSentence) return null
   return (
-    <div className="space-y-4 p-4 rounded-xl bg-black/[0.03] border border-black/[0.06]">
-      {data.viewerPositioning && (
-        <div>
-          <SectionLabel>시청자 포지셔닝</SectionLabel>
-          <p className="text-sm">{data.viewerPositioning}</p>
-        </div>
-      )}
-      {data.visualHook && (
-        <div>
-          <SectionLabel>시각적 훅</SectionLabel>
-          <p className="text-sm">{data.visualHook}</p>
-        </div>
-      )}
-      {data.firstSentence && (
-        <div>
-          <SectionLabel>첫 문장</SectionLabel>
-          <p className="text-sm italic text-black/70">{`"${data.firstSentence}"`}</p>
-        </div>
-      )}
+    <div className="flex backdrop-blur-[2px]">
+      <HookCategoryItem label="훅 구간" value={data.durationLabel} isLarge />
+      <HookCategoryItem label="오프닝 유형" value={data.openingType} />
+      <HookCategoryItem label="감정 자극" value={data.emotionTrigger} />
+      <HookCategoryItem label="페이싱" value={data.pacingLabel} />
     </div>
   )
 }

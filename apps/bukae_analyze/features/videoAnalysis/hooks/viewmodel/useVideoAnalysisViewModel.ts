@@ -29,6 +29,16 @@ export function useVideoAnalysisViewModel(domain: VideoAnalysis): VideoAnalysisV
 
     hook: {
       durationLabel: `첫 ${domain.hook.durationSec}초`,
+      hookDurationSecLabel: `${domain.hook.durationSec.toFixed(1)} Sec`,
+      videoLengthLabel: domain.hook.videoLengthMin !== undefined
+        ? `${domain.hook.videoLengthMin.toFixed(2)} Min`
+        : undefined,
+      sceneCountLabel: domain.hook.sceneCount !== undefined
+        ? `${domain.hook.sceneCount} EA`
+        : undefined,
+      avgCutLengthLabel: domain.hook.avgCutLengthSec !== undefined
+        ? `${domain.hook.avgCutLengthSec.toFixed(1)} Sec`
+        : undefined,
       openingType: domain.hook.openingType,
       emotionTrigger: domain.hook.emotionTrigger,
       pacing: domain.hook.pacing,
@@ -57,6 +67,16 @@ export function useVideoAnalysisViewModel(domain: VideoAnalysis): VideoAnalysisV
       conversionComments: domain.comment.conversionComments,
     },
 
-    structure: domain.structure,
+    structure: {
+      overview: domain.structure.overview,
+      targetAudienceDescription: domain.structure.targetAudienceDescription,
+      targetAudienceAttributes: domain.structure.targetAudienceAttributes,
+      storyStructure: domain.structure.storyStructure,
+      editingPoints: domain.structure.editingPoints,
+      viralPoints: domain.structure.viralPoints,
+      trendContextDescription: domain.structure.trendContextDescription,
+      trendInsights: domain.structure.trendInsights,
+      ctaStrategy: domain.structure.ctaStrategy,
+    },
   }), [domain])
 }

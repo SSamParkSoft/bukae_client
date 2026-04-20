@@ -27,6 +27,10 @@ export interface ThumbnailAnalysisViewModel {
 
 export interface HookAnalysisViewModel {
   durationLabel: string         // "첫 9초"
+  hookDurationSecLabel: string  // "9.0 Sec"
+  videoLengthLabel?: string     // "0.58 Min"
+  sceneCountLabel?: string      // "4 EA"
+  avgCutLengthLabel?: string    // "1.5 Sec"
   openingType: string
   emotionTrigger: string
   pacing: 'fast' | 'medium' | 'slow'
@@ -57,14 +61,32 @@ export interface CommentAnalysisViewModel {
   conversionComments?: number
 }
 
+export interface StorySegmentViewModel {
+  timeframe: string
+  title: string
+  description: string
+}
+
+export interface LabeledItemViewModel {
+  label: string
+  description: string
+}
+
+export interface TrendInsightViewModel {
+  value: string
+  label: string
+}
+
 export interface VideoStructureViewModel {
   overview: string
-  storyStructure: string
-  editingPoints: string
-  targetAudience: string
-  viralPoints: string
-  trendContext: string
-  ctaStrategy: string
+  targetAudienceDescription: string
+  targetAudienceAttributes: string[]
+  storyStructure: StorySegmentViewModel[]
+  editingPoints: LabeledItemViewModel[]
+  viralPoints: string[]
+  trendContextDescription: string
+  trendInsights: TrendInsightViewModel[]
+  ctaStrategy: LabeledItemViewModel[]
 }
 
 export interface VideoAnalysisViewModel {

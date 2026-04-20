@@ -1,6 +1,6 @@
 export const STEPS = [
   { label: 'AI 분석', path: '/analysis' },
-  { label: '기획 설정', path: '/planning-setup' },
+  { label: '기획 프리세팅', path: '/planning-setup' },
   { label: 'AI 기획', path: '/ai-planning' },
   { label: '촬영가이드 & 스크립트', path: '/shooting-guide' },
 ] as const

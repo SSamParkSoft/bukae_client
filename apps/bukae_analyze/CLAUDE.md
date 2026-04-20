@@ -259,3 +259,95 @@ export default function DashboardPage() {
 
 `features/_example/` 폴더에 각 레이어의 주석 달린 예시 파일이 있다.
 새 기능 추가 시 참고하거나 복사해서 시작한다.
+
+---
+
+## Figma MCP Integration Rules
+
+Figma MCP 서버를 통해 디자인을 코드로 구현할 때 반드시 따라야 할 규칙이다.
+
+### Required Flow (순서 생략 금지)
+
+1. `get_design_context` 로 선택한 노드의 구조화된 표현을 가져온다
+2. 응답이 너무 크거나 잘린 경우 `get_metadata` 로 노드 맵을 먼저 파악한 뒤 필요한 노드만 `get_design_context` 로 재조회한다
+3. `get_screenshot` 으로 구현할 노드의 시각적 레퍼런스를 확보한다
+4. 두 결과를 모두 확보한 뒤 에셋을 다운로드하고 구현을 시작한다
+5. MCP 출력(React + Tailwind)을 이 앱의 컨벤션·스타일·아키텍처로 변환한다
+6. Figma 스크린샷과 비교해 1:1 시각적 일치를 확인한 뒤 완료 처리한다
+
+### Design Tokens
+
+디자인 토큰은 `app/globals.css` 의 CSS 변수로 정의되어 있다.
+
+**색상 팔레트**
+```css
+--palette-brand: #17171b     /* 페이지 배경 (다크) */
+--palette-white: #ffffff     /* 기본 텍스트 */
+--palette-highlight: #aefffa /* 강조색 */
+```
+
+- IMPORTANT: 색상 하드코딩 금지 — `var(--palette-brand)`, `var(--palette-white)`, `var(--palette-highlight)` 또는 Tailwind `text-brand`, `bg-brand`, `text-highlight` 사용
+- Tailwind에서 참조: `bg-brand`, `text-white`, `text-highlight` (globals.css의 `@theme inline` 참고)
+
+**타이포그래피 프리셋 (Tailwind utility)**
+
+`globals.css` 의 `@layer utilities` 에 정의된 프리셋을 사용한다. 숫자 = 폰트 크기, 접미사 = 굵기 (`sm`=600, `md`=500, `rg`=400).
+
+```
+font-32-sm   font-28-md   font-28-rg
+font-24-md   font-24-rg   font-20-md   font-20-rg
+font-16-md   font-16-rg   font-14-md   font-14-rg
+font-12-md   font-12-rg
+```
+
+- IMPORTANT: `font-size`, `line-height`, `letter-spacing`, `font-weight` 를 직접 작성하지 말고, 반드시 위 프리셋 클래스를 사용할 것
+- 기본 폰트: `SUIT` (한국어 UI)
+
+**글래스 효과**
+```css
+backdrop-glass-strong  /* blur 10px */
+backdrop-glass-soft    /* blur 4px */
+```
+
+### Component Organization
+
+| 위치 | 역할 |
+|------|------|
+| `components/ui/` | 페이지별 UI 컴포넌트 디렉토리 (ai-planning / analysis / planning-setup / shooting-guide) |
+| `components/buttons/` | 공통 버튼 컴포넌트 |
+| `components/layout/` | 공통 레이아웃 컴포넌트 |
+| `components/pageShared/` | 여러 페이지에서 공유하는 컴포넌트 |
+| `app/{page}/_components/` | 해당 페이지 전용 컴포넌트 |
+
+- IMPORTANT: 새 UI 구현 전 `components/` 하위에 이미 존재하는 컴포넌트인지 먼저 확인
+- 새 컴포넌트는 ViewModel을 props로 받아 렌더링만 하는 구조 유지 (아키텍처 규칙 준수)
+
+### Styling Rules
+
+- **스타일링**: TailwindCSS 4 유틸리티 클래스 사용
+- **인라인 스타일**: 토큰으로 표현 불가능한 경우에만 최소 사용
+- Figma MCP가 반환하는 Tailwind 클래스는 **레퍼런스**이며, 이 앱의 토큰과 프리셋으로 교체해야 함
+- 다크 배경(`#17171b`) 위 라이트 텍스트(`#ffffff`) 기반 UI
+
+### Asset Handling
+
+- IMPORTANT: Figma MCP 서버가 `localhost` 소스의 이미지/SVG를 반환하면 그 소스를 직접 사용
+- IMPORTANT: 새 아이콘 패키지 추가 금지 — 모든 에셋은 Figma 페이로드에 포함
+- IMPORTANT: localhost 소스가 있는 경우 플레이스홀더 생성 금지
+- 정적 에셋 저장 위치: `public/`
+
+### Path Alias
+
+`@/*` → `apps/bukae_analyze/` 루트 매핑
+
+```typescript
+import { useChannelStatsViewModel } from "@/features/channelStats/hooks/viewmodel/..."
+import type { ChannelStatsViewModel } from "@/features/channelStats/types/viewModel"
+```
+
+### Implementation Rules (아키텍처 연동)
+
+- Figma MCP 출력은 디자인 의도를 나타내는 **레퍼런스**이며 최종 코드가 아님
+- 컴포넌트는 ViewModel을 props로 받아 렌더링만 함 — API 호출·데이터 변환·포맷팅 로직 금지
+- 색상·타이포그래피는 `globals.css` 토큰 및 프리셋 준수
+- 구현 완료 전 Figma 스크린샷과 시각적·동작 일치 검증 필수

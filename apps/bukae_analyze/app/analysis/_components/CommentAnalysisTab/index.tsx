@@ -1,5 +1,5 @@
 import type { CommentAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
-import { SectionLabel, WhyBox, EvidenceList } from '../shared'
+import { WhyBox, EvidenceList } from '../shared'
 import { CommentAudience } from './CommentAudience'
 import { CommentSentiment } from './CommentSentiment'
 import { CommentThemes } from './CommentThemes'
@@ -19,8 +19,8 @@ export function CommentAnalysisTab({ data }: Props) {
       <CommentKeywords data={data} />
       <CommentPatterns data={data} />
       <WhyBox>{data.why}</WhyBox>
-      <div>
-        <SectionLabel>분석 근거</SectionLabel>
+      <div className="flex flex-col gap-6">
+        <p className="font-20-md leading-none text-white/60">분석 근거</p>
         <EvidenceList items={data.evidence} />
       </div>
     </div>

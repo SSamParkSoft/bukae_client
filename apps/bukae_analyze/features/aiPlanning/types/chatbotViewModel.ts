@@ -10,10 +10,10 @@ export interface ChatMessage {
 
 export interface FollowUpChatbotViewModel {
   messages: ChatMessage[]
-  currentQuestions: FollowUpQuestion[]
-  answers: Record<string, string>
+  currentQuestions: FollowUpQuestion[]  // AI가 보낸 질문/메시지 목록 (표시용)
+  answer: string                         // 유저 단일 입력값
   isSubmitting: boolean
   isComplete: boolean
-  onAnswerChange: (questionId: string, value: string) => void
+  onAnswerChange: (value: string) => void
   onSubmit: () => void
 }

@@ -7,7 +7,7 @@ export function CommentKeywords({ data }: { data: CommentAnalysisViewModel }) {
       <SectionLabel>키워드</SectionLabel>
       <div className="flex flex-wrap gap-2">
         {data.keywords.map((kw) => (
-          <span key={kw} className="text-sm border border-black/20 rounded-full px-3 py-1">
+          <span key={kw} className="text-sm border border-white/25 rounded-full px-3 py-1 text-white/90">
             {kw}
           </span>
         ))}
