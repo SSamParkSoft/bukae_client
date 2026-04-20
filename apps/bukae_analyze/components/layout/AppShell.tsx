@@ -12,7 +12,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <main className="flex h-full flex-col overflow-x-hidden overflow-y-auto scrollbar-hide">
             {children}
           </main>
-          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-brand to-transparent" />
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-32 bg-linear-to-t from-brand to-transparent" />
         </div>
         <RightSidebar />
       </div>
