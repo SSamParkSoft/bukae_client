@@ -9,6 +9,9 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
+      <head>
+        <link rel="preload" as="image" href="/bukae_space.webp" fetchPriority="high" />
+      </head>
       <body>
         <AppShell>{children}</AppShell>
       </body>
