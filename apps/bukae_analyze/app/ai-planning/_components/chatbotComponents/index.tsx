@@ -40,11 +40,11 @@ export function FollowUpChatbot({ data }: Props) {
       />
       {!data.isComplete && (
         <ChatInputBar
-          questions={data.currentQuestions}
-          answers={data.answers}
+          answer={data.answer}
           onAnswerChange={data.onAnswerChange}
           onSubmit={data.onSubmit}
           isSubmitting={data.isSubmitting}
+          hasQuestions={data.currentQuestions.length > 0}
         />
       )}
     </div>
