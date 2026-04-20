@@ -253,7 +253,7 @@
 }
 
 html {
-  background-color: #050a15;
+  background-color: #17171B;
 }
 
 body {
@@ -271,13 +271,15 @@ body::before {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background-image: url('/bukae_space.jpg');
+  background-color: #17171b; /* 이미지 로드 전/실패 시 fallback */
+  background-image: url('/bukae_space.webp');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
   opacity: 0.6;
   filter: brightness(0.87);
   pointer-events: none;
+  will-change: transform; /* 첫 페인트부터 GPU 레이어 확보 */
 }
 
 /* 가장자리 비네트 — 끝은 순검정(#000) */
