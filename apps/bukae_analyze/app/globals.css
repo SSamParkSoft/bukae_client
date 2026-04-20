@@ -252,12 +252,48 @@
   }
 }
 
+html {
+  background-color: #050a15;
+}
+
 body {
-  background: var(--background);
+  min-height: 100dvh;
+  background-color: transparent;
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* 배경 사진: 60% 불투명도 + 살짝 노출(밝기) — 본문은 그대로 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: url('/bukae_space.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.6;
+  filter: brightness(0.87);
+  pointer-events: none;
+}
+
+/* 가장자리 비네트 — 끝은 순검정(#000) */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 78% 68% at 50% 48%,
+    rgb(0 0 0 / 0) 0%,
+    rgb(0 0 0 / 0.55) 42%,
+    rgb(0 0 0 / 0.92) 72%,
+    #000000 100%
+  );
 }
 
 * {
