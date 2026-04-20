@@ -276,7 +276,7 @@ body::before {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  opacity: 0.6;
+  opacity: 0.3;
   filter: brightness(0.87);
   pointer-events: none;
   will-change: transform; /* 첫 페인트부터 GPU 레이어 확보 */
