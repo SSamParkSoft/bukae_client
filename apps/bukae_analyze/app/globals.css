@@ -289,10 +289,10 @@ body::after {
   pointer-events: none;
   background: radial-gradient(
     ellipse 78% 68% at 50% 48%,
-    rgb(0 0 0 / 0) 0%,
-    rgb(0 0 0 / 0.55) 42%,
-    rgb(0 0 0 / 0.92) 72%,
-    #000000 100%
+    rgb(23 23 27 / 0) 0%,
+    rgb(23 23 27 / 0.55) 42%,
+    rgb(23 23 27 / 0.92) 72%,
+    #17171b 100%
   );
 }
 

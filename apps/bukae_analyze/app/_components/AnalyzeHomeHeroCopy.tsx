@@ -4,7 +4,7 @@ export function AnalyzeHomeHeroCopy() {
   return (
     <>
       <div className="flex flex-col items-center text-center">
-        <p className="font-light leading-none tracking-tight text-white" style={{ fontSize: 'clamp(46px, 3.125vw, 60px)' }}>
+        <p className="font-light leading-none tracking-[-0.04em] text-white" style={{ fontSize: 'clamp(46px, 3.125vw, 60px)' }}>
           bukae. Chat. Plan. Create.
         </p>
         <p className="mt-2 font-light leading-none tracking-[-0.04em] text-white" style={{ fontSize: 'clamp(92px, 6.25vw, 120px)' }}>

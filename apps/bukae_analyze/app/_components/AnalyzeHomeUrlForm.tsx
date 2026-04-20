@@ -19,7 +19,7 @@ export function AnalyzeHomeUrlForm({
       <label htmlFor="url-input" className="sr-only">
         레퍼런스 숏폼 URL
       </label>
-      <div className="border border-white/10 bg-white/16 backdrop-blur-[5px]" style={{ borderRadius: 'clamp(48px, 3.33vw, 64px)', paddingTop: 'clamp(8px, 0.625vw, 12px)', paddingBottom: 'clamp(8px, 0.625vw, 12px)', paddingLeft: 'clamp(24px, 1.67vw, 32px)', paddingRight: 'clamp(16px, 1.25vw, 24px)' }}>
+      <div className="border border-white/10 bg-white/10 backdrop-blur-[5px]" style={{ borderRadius: 'clamp(48px, 3.33vw, 64px)', paddingTop: 'clamp(8px, 0.625vw, 12px)', paddingBottom: 'clamp(8px, 0.625vw, 12px)', paddingLeft: 'clamp(24px, 1.67vw, 32px)', paddingRight: 'clamp(16px, 1.25vw, 24px)' }}>
         <div className="flex items-center" style={{ minHeight: 'clamp(48px, 3.33vw, 64px)', gap: 'clamp(8px, 0.625vw, 12px)' }}>
           <input
             id="url-input"
