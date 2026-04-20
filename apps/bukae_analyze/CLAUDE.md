@@ -313,11 +313,10 @@ backdrop-glass-soft    /* blur 4px */
 
 | 위치 | 역할 |
 |------|------|
-| `components/ui/` | 페이지별 UI 컴포넌트 디렉토리 (ai-planning / analysis / planning-setup / shooting-guide) |
 | `components/buttons/` | 공통 버튼 컴포넌트 |
 | `components/layout/` | 공통 레이아웃 컴포넌트 |
 | `components/pageShared/` | 여러 페이지에서 공유하는 컴포넌트 |
-| `app/{page}/_components/` | 해당 페이지 전용 컴포넌트 |
+| `app/{page}/_components/` | 해당 페이지 전용 컴포넌트 (해당 라우트에서만 쓰는 UI는 여기 우선) |
 
 - IMPORTANT: 새 UI 구현 전 `components/` 하위에 이미 존재하는 컴포넌트인지 먼저 확인
 - 새 컴포넌트는 ViewModel을 props로 받아 렌더링만 하는 구조 유지 (아키텍처 규칙 준수)

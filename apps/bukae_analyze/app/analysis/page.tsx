@@ -10,7 +10,7 @@ import { HookAnalysisTab } from './_components/HookAnalysisTab'
 import { VideoStructureDetailSections, VideoStructureTab } from './_components/VideoStructureTab'
 import { PageTitle } from '@/components/pageShared/PageTitle'
 import { ReferenceUrlTopBar } from './_components/ReferenceUrlTopBar'
-import { PageTabs } from '@/components/ui/analysis/PageTabs'
+import { PageTabs } from './_components/PageTabs'
 import { AnalysisInsightPanel } from './_components/AnalysisInsightPanel'
 
 const REFERENCE_URL_DISPLAY = 'youtube.com/shorts/contentruckai'
