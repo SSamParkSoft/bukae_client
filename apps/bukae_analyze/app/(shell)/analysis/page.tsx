@@ -18,13 +18,13 @@ export default function AnalysisPage() {
   if (!hasProject) return null
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden pb-32 pt-10">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
       <ReferenceUrlTopBar referenceUrl={referenceUrl} className="mb-10" />
       <PageTitle title="AI 분석" description="원본 영상의 핵심 요소를 파악했습니다" />
       <hr className="mb-10 border-b border-white/10" />
 
       {/* 오버레이는 PageTitle 아래 영역에만 적용 */}
-      <div className="relative flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-w-0 flex-1 flex-col pt-10 pb-32">
         <AnalysisLoadingOverlay />
 
         {isFailed && <AnalysisErrorView errorMessage={errorMessage} />}
