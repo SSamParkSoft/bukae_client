@@ -7,8 +7,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-screen overflow-hidden flex flex-col text-foreground">
       <Header />
-      <AnalysisLoadingOverlay />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
+        <AnalysisLoadingOverlay />
         <LeftSidebar />
         <div className="relative flex-1 min-w-0 min-h-0">
           <main className="flex h-full flex-col overflow-x-hidden overflow-y-auto scrollbar-hide">

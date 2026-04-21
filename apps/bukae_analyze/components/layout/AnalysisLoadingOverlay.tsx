@@ -3,7 +3,6 @@
 import Image from 'next/image'
 import { useAnalysisPolling } from '@/features/analysis/hooks/state/useAnalysisPolling'
 import { useProjectStore } from '@/store/useProjectStore'
-import { LAYOUT } from './layout-constants'
 
 export function AnalysisLoadingOverlay() {
   const projectId = useProjectStore((s) => s.projectId)
@@ -12,10 +11,7 @@ export function AnalysisLoadingOverlay() {
   if (!projectId || !isLoading) return null
 
   return (
-    <div
-      className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-center"
-      style={{ top: LAYOUT.HEADER_HEIGHT }}
-    >
+    <div className="absolute inset-0 z-50 flex items-center justify-center">
       {/* 배경 딤 */}
       <div className="absolute inset-0 bg-brand/85" />
 
