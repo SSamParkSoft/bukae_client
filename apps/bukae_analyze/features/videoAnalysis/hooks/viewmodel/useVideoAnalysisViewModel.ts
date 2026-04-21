@@ -69,6 +69,7 @@ export function useVideoAnalysisViewModel(domain: VideoAnalysis): VideoAnalysisV
 
     structure: {
       overview: domain.structure.overview,
+      directorComment: domain.structure.directorComment,
       targetAudienceDescription: domain.structure.targetAudienceDescription,
       targetAudienceAttributes: domain.structure.targetAudienceAttributes,
       storyStructure: domain.structure.storyStructure,

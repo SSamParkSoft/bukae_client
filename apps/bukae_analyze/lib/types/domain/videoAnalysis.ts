@@ -82,6 +82,7 @@ export interface TrendInsight {
 // 영상 구조 분석
 export interface VideoStructureAnalysis {
   overview: string
+  directorComment: string
   targetAudienceDescription: string
   targetAudienceAttributes: string[]
   storyStructure: StorySegment[]

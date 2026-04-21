@@ -13,13 +13,13 @@ export function SectionTitle({ children }: { children: React.ReactNode }) {
 export function StoryRow({ timeframe, title, description }: StorySegmentViewModel) {
   return (
     <div className="flex w-full items-center gap-4 rounded-lg px-6 py-4">
-      <span className="min-w-[150px] shrink-0 whitespace-nowrap rounded-full bg-white/10 px-4 py-2 text-center font-medium tracking-[-0.04em] text-white backdrop-glass-strong" style={{ fontSize: 'clamp(16px, 1.17vw, 20px)' }}>
+      <span className="min-w-[clamp(120px, 8.33vw, 150px)] shrink-0 whitespace-nowrap rounded-full bg-white/10 px-4 py-2 text-center font-medium tracking-[-0.04em] text-white backdrop-glass-strong" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
         {timeframe}
       </span>
-      <span className="shrink-0 whitespace-nowrap font-semibold tracking-[-0.04em] text-white/80" style={{ fontSize: 'clamp(20px, 1.17vw, 24px)' }}>
+      <span className="shrink-0 whitespace-nowrap font-semibold tracking-[-0.04em] text-white/80" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>
         {title}
       </span>
-      <p className="min-w-0 flex-1 truncate font-medium leading-[1.4] tracking-[-0.04em] text-white/80" style={{ fontSize: 'clamp(16px, 1.17vw, 20px)' }}>
+      <p className="min-w-0 flex-1 truncate font-medium leading-[1.4] tracking-[-0.04em] text-white/80" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
         {description}
       </p>
     </div>
@@ -29,10 +29,10 @@ export function StoryRow({ timeframe, title, description }: StorySegmentViewMode
 export function LabeledRow({ label, description }: LabeledItemViewModel) {
   return (
     <div className="flex w-full items-center gap-4 rounded-lg px-6 py-4">
-      <span className="w-[83px] shrink-0 whitespace-nowrap rounded-lg bg-white/20 px-4 py-2 text-center font-medium tracking-[-0.04em] text-white backdrop-glass-strong" style={{ fontSize: 'clamp(16px, 1.17vw, 20px)' }}>
+      <span className="w-[clamp(64px, 4.17vw, 83px)] shrink-0 whitespace-nowrap rounded-lg bg-white/20 px-4 py-2 text-center font-medium tracking-[-0.04em] text-white backdrop-glass-strong" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
         {label}
       </span>
-      <p className="min-w-0 flex-1 truncate font-medium leading-[1.4] tracking-[-0.04em] text-white/80" style={{ fontSize: 'clamp(16px, 1.17vw, 20px)' }}>
+      <p className="min-w-0 flex-1 truncate font-medium leading-[1.4] tracking-[-0.04em] text-white/80" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
         {description}
       </p>
     </div>
@@ -42,10 +42,17 @@ export function LabeledRow({ label, description }: LabeledItemViewModel) {
 export function ViralRow({ index, description }: { index: number; description: string }) {
   return (
     <div className="flex w-full items-center gap-4 border-b border-white/40 px-6 py-4">
-      <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-white/20 font-medium tracking-[-0.04em] text-white backdrop-glass-strong" style={{ fontSize: 'clamp(16px, 1.17vw, 20px)' }}>
+      <span
+        className="flex shrink-0 items-center justify-center rounded-lg bg-white/20 font-medium tracking-[-0.04em] text-white backdrop-glass-strong"
+        style={{
+          fontSize: 'clamp(14px, 0.9vw, 16px)',
+          width: 'clamp(32px, 2.08vw, 44px)',
+          height: 'clamp(32px, 2.08vw, 44px)',
+        }}
+      >
         {index + 1}
       </span>
-      <p className="min-w-0 flex-1 font-medium leading-[1.4] tracking-[-0.04em] text-white/80" style={{ fontSize: 'clamp(16px, 1.17vw, 20px)' }}>
+      <p className="min-w-0 flex-1 font-medium leading-[1.4] tracking-[-0.04em] text-white/80" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
         {description}
       </p>
     </div>

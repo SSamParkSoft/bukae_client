@@ -91,6 +91,7 @@ export const MOCK_VIDEO_ANALYSIS: VideoAnalysis = {
 
   structure: {
     overview: '30~40대 실용주의 소비자 대상 6분 스마트폰 가성비 비교 리뷰. 4개 모델을 동일 기준으로 직접 비교해 구매 결정을 돕는 것이 핵심 목적.',
+    directorComment: '"TOP 4 비교" 포맷은 결과 궁금증을 끝까지 유지시키는 강력한 구조입니다. 순위 발표 전 긴장감을 쌓는 편집 리듬이 이 영상의 시청 완료율을 높이는 핵심입니다.',
     targetAudienceDescription: '브랜드 팬덤보다 객관적 비교 데이터를 신뢰하는 소비자. 가성비 키워드에 민감한 반응.',
     targetAudienceAttributes: ['30-40대 직장인', '교체 예정자', '100만원 이하', '실용주의'],
     storyStructure: [

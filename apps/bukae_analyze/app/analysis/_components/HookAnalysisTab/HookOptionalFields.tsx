@@ -8,11 +8,11 @@ interface HookCategoryItemProps {
 
 function HookCategoryItem({ label, value, isLarge }: HookCategoryItemProps) {
   return (
-    <div className="flex-1 h-[180px] bg-white/10 p-6 flex flex-col gap-4 min-w-0 mt-11">
+    <div className="flex-1 h-[clamp(160px, 1.04vw, 180px)] p-6 flex flex-col gap-4 min-w-0">
       <p className="font-medium tracking-[-0.04em] leading-[1.4] text-white/60 shrink-0" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>{label}</p>
       <div className="flex items-center py-4 rounded-lg overflow-hidden">
         <p
-          style={{ fontSize: 'clamp(20px, 1.42vw, 32px)' }}
+          style={{ fontSize: 'clamp(20px, 1.25vw, 24px)' }}
           className={`min-w-0 text-white/80 ${
             isLarge
               ? 'font-semibold leading-[1.8] tracking-[-0.04em] text-center w-full'

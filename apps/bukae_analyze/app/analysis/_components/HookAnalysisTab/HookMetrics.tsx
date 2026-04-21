@@ -10,12 +10,12 @@ interface MetricCardProps {
 function MetricCard({ icon, label, value }: MetricCardProps) {
   return (
     <div className="flex flex-1 items-center gap-4 min-w-0">
-      <div className="shrink-0 size-16 rounded-2xl bg-white/10 backdrop-blur-[2.667px] flex items-center justify-center">
+      <div className="shrink-0 size-[clamp(16px, 1.04vw, 20px)] rounded-2xl bg-white/10 backdrop-blur-[2.667px] flex items-center justify-center">
         {icon}
       </div>
       <div className="flex flex-col min-w-0">
-        <p className="font-normal tracking-[-0.04em] leading-[1.4] text-white/60" style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}>{label}</p>
-        <p className="font-medium text-white" style={{ fontSize: 'clamp(20px, 1.42vw, 24px)' }}>{value}</p>
+        <p className="font-normal tracking-[-0.04em] leading-[1.4] text-white/60" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>{label}</p>
+        <p className="font-medium text-white" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>{value}</p>
       </div>
     </div>
   )
@@ -23,7 +23,7 @@ function MetricCard({ icon, label, value }: MetricCardProps) {
 
 export function HookMetrics({ data }: { data: HookAnalysisViewModel }) {
   return (
-    <div className="p-11 mt-10">
+    <div className="p-6 mt-4">
       <div className="flex flex-col gap-8">
         <div className="flex items-center">
           <MetricCard
@@ -36,8 +36,6 @@ export function HookMetrics({ data }: { data: HookAnalysisViewModel }) {
             label="총 씬 개수"
             value={data.sceneCountLabel ?? '—'}
           />
-        </div>
-        <div className="flex items-center">
           <MetricCard
             icon={<Anchor size={32} className="text-white" />}
             label="후킹 구간"

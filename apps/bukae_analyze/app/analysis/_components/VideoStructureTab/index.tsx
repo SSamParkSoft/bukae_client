@@ -1,5 +1,6 @@
 import type { VideoStructureViewModel } from '@/features/videoAnalysis/types/viewModel'
 import { VideoOverviewCard } from './VideoOverviewCard'
+import { DirectorComment } from './DirectorComment'
 import { VideoTargetCard } from './VideoTargetCard'
 import { StoryStructureSection } from './StoryStructureSection'
 import { EditingPointsSection } from './EditingPointsSection'
@@ -14,8 +15,9 @@ interface Props {
 /** 탭 우측 패널: 오버뷰 + 타겟 카드 */
 export function VideoStructureTab({ data }: Props) {
   return (
-    <div className="mt-10 flex flex-col gap-8">
+    <div className="flex flex-col gap-12">
       <VideoOverviewCard overview={data.overview} />
+      <DirectorComment comment={data.directorComment} />
       <VideoTargetCard
         description={data.targetAudienceDescription}
         attributes={data.targetAudienceAttributes}

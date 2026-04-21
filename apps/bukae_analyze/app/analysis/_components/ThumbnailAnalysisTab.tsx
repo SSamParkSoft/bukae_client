@@ -1,4 +1,5 @@
 import type { ThumbnailAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
+import { WhyBox } from './shared'
 
 function FieldValueBox({ children }: { children: React.ReactNode }) {
   return (
@@ -10,8 +11,8 @@ function FieldValueBox({ children }: { children: React.ReactNode }) {
 
 function FieldCell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="h-[77px] flex min-w-0 flex-col gap-4">
-      <p className="font-16-md text-white/60">{label}</p>
+    <div className="h-[clamp(64px, 1.04vw, 76px)] flex min-w-0 flex-col gap-2">
+      <p className="font-medium tracking-[-0.04em] text-white/60" style={{ fontSize: 'clamp(14px, 0.86vw, 16px)' }}>{label}</p>
       <FieldValueBox>{children}</FieldValueBox>
     </div>
   )
@@ -62,15 +63,16 @@ export function ThumbnailAnalysisTab({ data }: Props) {
   ]
 
   return (
-    <div className="pt-10 overflow-y-auto">
-      <div className="flex flex-col gap-[33.33px] bg-white/10 px-6 py-8 backdrop-blur-[2px]">
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-3 px-6 pt-6 backdrop-blur-[2px]">
         {rows.map((row, i) => (
-          <div key={i} className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div key={i} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FieldCell label={row.left.label}>{row.left.node}</FieldCell>
             <FieldCell label={row.right.label}>{row.right.node}</FieldCell>
           </div>
         ))}
       </div>
+      <WhyBox>{data.why}</WhyBox>
     </div>
   )
 }

@@ -40,9 +40,9 @@ export default function AnalysisPage() {
           videoSrc={MOCK_REFERENCE_VIDEO_URL}
         />
 
-        <div className="flex min-w-0 max-w-[1000px] flex-1 flex-col">
+        <div className="flex min-w-0 max-w-[1000px] flex-1 flex-col h-[572px]">
           <PageTabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1 overflow-y-auto scrollbar-hide">
             {activeTab === 'thumbnail' && <ThumbnailAnalysisTab data={viewModel.thumbnail} />}
             {activeTab === 'hook' && <HookAnalysisTab data={viewModel.hook} />}
             {activeTab === 'structure' && <VideoStructureTab data={viewModel.structure} />}
@@ -51,10 +51,10 @@ export default function AnalysisPage() {
       </div>
 
       {activeTab === 'thumbnail' && (
-        <AnalysisInsightPanel why={viewModel.thumbnail.why} evidence={viewModel.thumbnail.evidence} />
+        <AnalysisInsightPanel evidence={viewModel.thumbnail.evidence} />
       )}
       {activeTab === 'hook' && (
-        <AnalysisInsightPanel why={viewModel.hook.why} evidence={viewModel.hook.evidence} />
+        <AnalysisInsightPanel evidence={viewModel.hook.evidence} />
       )}
       {activeTab === 'structure' && (
         <VideoStructureDetailSections data={viewModel.structure} />

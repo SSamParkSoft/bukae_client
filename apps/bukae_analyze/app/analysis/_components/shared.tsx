@@ -20,7 +20,7 @@ export function SectionLabel({ children }: { children: string }) {
 
 export function WhyBox({ children }: { children: string }) {
   return (
-    <div className="border border-white p-6 bg-white/10">
+    <div className="p-6 bg-white/10">
       <p className="font-medium tracking-[-0.04em] text-white/60 mb-2" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>★ 핵심 분석</p>
       <p className="font-medium tracking-[-0.04em] leading-relaxed text-white/80 pt-4 px-6" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>{children}</p>
     </div>

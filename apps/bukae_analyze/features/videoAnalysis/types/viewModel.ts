@@ -79,6 +79,7 @@ export interface TrendInsightViewModel {
 
 export interface VideoStructureViewModel {
   overview: string
+  directorComment: string
   targetAudienceDescription: string
   targetAudienceAttributes: string[]
   storyStructure: StorySegmentViewModel[]

@@ -4,13 +4,13 @@ interface Props {
 
 export function VideoOverviewCard({ overview }: Props) {
   return (
-    <div className="backdrop-blur-[2px] bg-white/10 flex flex-col items-start px-6 pt-8 w-full" style={{ paddingBottom: 'clamp(24px, 2.5vw, 48px)' }}>
-      <div className="flex flex-col gap-4 items-start w-full">
+    <div className="backdrop-blur-[2px] flex flex-col items-start px-6 pt-6 w-full">
+      <div className="flex flex-col items-start w-full">
         <p className="font-medium tracking-[-0.04em] leading-[1.4] text-white/60" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>
-          영상 오버뷰
+          한 줄 기획 요약
         </p>
-        <div className="flex items-center px-6 py-4 rounded-lg w-full">
-          <p className="line-clamp-2 min-w-0 flex-1 wrap-break-word font-medium tracking-[-0.04em] text-white/80 leading-[1.4]" style={{ fontSize: 'clamp(16px, 1.17vw, 20px)' }}>
+        <div className="flex items-center px-6 py-4 w-full">
+          <p className="line-clamp-2 min-w-0 flex-1 wrap-break-word font-medium tracking-[-0.04em] text-white/80 font-16-rg">
             {overview}
           </p>
         </div>
