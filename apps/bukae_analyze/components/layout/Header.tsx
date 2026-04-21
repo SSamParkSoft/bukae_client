@@ -21,7 +21,7 @@ export function Header() {
       <div className="flex items-center">
         <Link
           href="/login"
-          className="px-4 py-2 text-sm font-medium border border-white rounded-md text-white hover:bg-white hover:text-brand transition-colors"
+          className="px-4 py-2 text-sm font-regular text-white hover:bg-white/10 backdrop-blur-[2px] rounded-full"
         >
           로그인
         </Link>
