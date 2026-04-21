@@ -36,10 +36,11 @@
 
 ## 갭 4 — URL 제출 → API 연동
 
-- [ ] `lib/types/api/project.ts` 생성 — `ProjectDto`, `BenchmarkSubmissionDto` DTO 타입
-- [ ] `lib/services/projects.ts` 생성 — `createProject`, `submitBenchmark` 함수
-- [ ] `store/useProjectStore.ts` 생성 — `projectId`, `projectStatus`, `currentStep` 저장
-- [ ] `useUrlInput.ts` 수정 — submit 시 프로젝트 생성 → URL 제출 → `projectId` store 저장 → `/analysis` 라우팅
+- [x] `lib/services/apiClient.ts` 생성 — Authorization 헤더 자동 주입, 401 시 refresh → 재시도
+- [x] `lib/types/api/project.ts` 생성 — `ProjectDto`, `BenchmarkSubmissionDto` DTO 타입
+- [x] `lib/services/projects.ts` 생성 — `createProject`, `submitBenchmark` 함수
+- [x] `store/useProjectStore.ts` 생성 — `projectId`, `projectStatus`, `currentStep` 저장
+- [x] `useUrlInput.ts` 수정 — submit 시 프로젝트 생성 → URL 제출 → `projectId` store 저장 → `/analysis` 라우팅
 
 ---
 
