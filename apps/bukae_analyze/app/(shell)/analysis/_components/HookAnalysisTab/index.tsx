@@ -1,7 +1,7 @@
 import type { HookAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 import { HookMetrics } from './HookMetrics'
 import { HookOptionalFields } from './HookOptionalFields'
-import { WhyBox } from '../shared'
+import { WhyBox } from '../AnalysisPrimitives'
 
 interface Props {
   data: HookAnalysisViewModel

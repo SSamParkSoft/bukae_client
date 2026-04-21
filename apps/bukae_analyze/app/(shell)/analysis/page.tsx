@@ -1,16 +1,16 @@
 'use client'
 
-import { useAnalysisPage } from '@/features/analysis/hooks/state/useAnalysisPage'
+import { useAnalysisPage } from '@/features/analysisPage/hooks/state/useAnalysisPage'
 import { AnalysisVideoPanel } from './_components/AnalysisVideoPanel'
 import { ThumbnailAnalysisTab } from './_components/ThumbnailAnalysisTab'
 import { HookAnalysisTab } from './_components/HookAnalysisTab'
 import { VideoStructureDetailSections, VideoStructureTab } from './_components/VideoStructureTab'
-import { PageTitle } from '@/components/pageShared/PageTitle'
+import { PageTitle } from '@/components/page/PageTitle'
 import { ReferenceUrlTopBar } from './_components/ReferenceUrlTopBar'
 import { PageTabs } from './_components/PageTabs'
 import { AnalysisInsightPanel } from './_components/AnalysisInsightPanel'
 import { AnalysisErrorView } from './_components/AnalysisErrorView'
-import { AnalysisLoadingOverlay } from '@/components/layout/AnalysisLoadingOverlay'
+import { AnalysisLoadingOverlay } from '@/components/loading/AnalysisLoadingOverlay'
 
 export default function AnalysisPage() {
   const { hasProject, activeTab, setActiveTab, tabs, viewModel, referenceUrl, videoSrc, isReady, isFailed, errorMessage } = useAnalysisPage()

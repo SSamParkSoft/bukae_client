@@ -2,7 +2,7 @@ import { UserCircle, Hand, Mic, User } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FaceExposure } from '@/lib/types/domain'
 import type { QuestionSectionViewModel } from '@/features/planningSetup/types/viewModel'
-import { SectionHeader, IconButton, CustomTextInput } from './shared'
+import { SectionHeader, IconButton, CustomTextInput } from './PlanningSetupPrimitives'
 
 const OPTIONS: { value: FaceExposure; label: string; icon: LucideIcon }[] = [
   { value: 'face-cam', label: '얼굴 포함 직접 출연', icon: UserCircle },

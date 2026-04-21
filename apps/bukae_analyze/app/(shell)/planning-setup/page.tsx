@@ -7,7 +7,7 @@ import { FaceExposureQuestion } from './_components/FaceExposureQuestion'
 import { VideoLengthQuestion } from './_components/VideoLengthQuestion'
 import { ShootingQuestion } from './_components/ShootingQuestion'
 import { CoreMaterialQuestion } from './_components/CoreMaterialQuestion'
-import { PageTitle } from '@/components/pageShared/PageTitle'
+import { PageTitle } from '@/components/page/PageTitle'
 
 export default function PlanningSetupPage() {
   const form = usePlanningSetupForm()

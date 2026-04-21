@@ -8,8 +8,8 @@ import { useAiPlanningForm } from '@/features/aiPlanning/hooks/form/useAiPlannin
 import { useAiPlanningViewModel } from '@/features/aiPlanning/hooks/viewmodel/useAiPlanningViewModel'
 import { useFollowUpChatbot } from '@/features/aiPlanning/hooks/state/useFollowUpChatbot'
 import { FollowUpChatbot } from './_components/chatbotComponents'
-import { QuestionBlock } from './_components/shared'
-import { PageTitle } from '@/components/pageShared/PageTitle'
+import { QuestionBlock } from './_components/AiPlanningQuestionPrimitives'
+import { PageTitle } from '@/components/page/PageTitle'
 import type { AiPlanningInput, PlanningSetupAnswers, VideoAnalysis } from '@/lib/types/domain'
 
 function buildInput(answers: PlanningSetupAnswers, analysis: VideoAnalysis): AiPlanningInput {

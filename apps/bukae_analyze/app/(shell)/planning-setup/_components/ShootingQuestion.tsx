@@ -2,7 +2,7 @@
 
 import { Camera } from 'lucide-react'
 import type { ShootingViewModel } from '@/features/planningSetup/types/viewModel'
-import { SectionHeader } from './shared'
+import { SectionHeader } from './PlanningSetupPrimitives'
 import { ShootingEnvironmentPanel } from './ShootingEnvironmentPanel'
 
 interface Props {

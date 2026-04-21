@@ -1,5 +1,5 @@
 import type { TrendInsightViewModel } from '@/features/videoAnalysis/types/viewModel'
-import { glassPanelClass, SectionTitle } from './shared'
+import { glassPanelClass, SectionTitle } from './VideoStructurePrimitives'
 
 interface Props {
   description: string

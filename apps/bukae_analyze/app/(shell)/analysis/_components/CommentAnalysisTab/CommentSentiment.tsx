@@ -1,5 +1,5 @@
 import type { CommentAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
-import { SectionLabel } from '../shared'
+import { SectionLabel } from '../AnalysisPrimitives'
 import { SentimentBar } from './SentimentBar'
 
 export function CommentSentiment({ data }: { data: CommentAnalysisViewModel }) {

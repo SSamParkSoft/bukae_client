@@ -1,5 +1,5 @@
 import type { StorySegmentViewModel } from '@/features/videoAnalysis/types/viewModel'
-import { glassPanelClass, SectionTitle, StoryRow } from './shared'
+import { glassPanelClass, SectionTitle, StoryRow } from './VideoStructurePrimitives'
 
 interface Props {
   segments: StorySegmentViewModel[]

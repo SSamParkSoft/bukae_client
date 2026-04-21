@@ -1,5 +1,5 @@
 import type { CommentAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
-import { WhyBox, EvidenceList } from '../shared'
+import { WhyBox, EvidenceList } from '../AnalysisPrimitives'
 import { CommentAudience } from './CommentAudience'
 import { CommentSentiment } from './CommentSentiment'
 import { CommentThemes } from './CommentThemes'

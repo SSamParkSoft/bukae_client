@@ -315,7 +315,7 @@ backdrop-glass-soft    /* blur 4px */
 |------|------|
 | `components/buttons/` | 공통 버튼 컴포넌트 |
 | `components/layout/` | 공통 레이아웃 컴포넌트 |
-| `components/pageShared/` | 여러 페이지에서 공유하는 컴포넌트 |
+| `components/page/` | 여러 페이지에서 공유하는 컴포넌트 |
 | `app/{page}/_components/` | 해당 페이지 전용 컴포넌트 (해당 라우트에서만 쓰는 UI는 여기 우선) |
 
 - IMPORTANT: 새 UI 구현 전 `components/` 하위에 이미 존재하는 컴포넌트인지 먼저 확인

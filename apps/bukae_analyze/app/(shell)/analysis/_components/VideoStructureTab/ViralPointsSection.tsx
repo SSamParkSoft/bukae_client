@@ -1,4 +1,4 @@
-import { glassPanelClass, SectionTitle, ViralRow } from './shared'
+import { glassPanelClass, SectionTitle, ViralRow } from './VideoStructurePrimitives'
 
 interface Props {
   points: string[]

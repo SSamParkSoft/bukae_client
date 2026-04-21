@@ -1,5 +1,5 @@
 import type { ThumbnailAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
-import { WhyBox } from './shared'
+import { WhyBox } from './AnalysisPrimitives'
 
 function FieldValueBox({ children }: { children: React.ReactNode }) {
   return (

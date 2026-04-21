@@ -2,7 +2,7 @@
 
 import { MOCK_SHOOTING_GUIDE } from '@/lib/mocks'
 import { useShootingGuideViewModel } from '@/features/shootingGuide/hooks/viewmodel/useShootingGuideViewModel'
-import { PageTitle } from '@/components/pageShared/PageTitle'
+import { PageTitle } from '@/components/page/PageTitle'
 import { SceneCard } from './_components/SceneCard'
 
 export default function ShootingGuidePage() {

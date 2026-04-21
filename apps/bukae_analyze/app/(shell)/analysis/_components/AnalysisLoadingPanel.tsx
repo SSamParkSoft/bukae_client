@@ -1,4 +1,4 @@
-import { LoadingLogoBlock } from '@/components/layout/LoadingLogoBlock'
+import { LoadingLogoBlock } from '@/components/loading/LoadingLogoBlock'
 
 export function AnalysisLoadingPanel({ className }: { className?: string }) {
   return (

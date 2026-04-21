@@ -1,7 +1,7 @@
 'use client'
 
-import { LoadingLogoBlock } from '@/components/layout/LoadingLogoBlock'
-import { useAnalysisPolling } from '@/features/analysis/hooks/state/useAnalysisPolling'
+import { LoadingLogoBlock } from '@/components/loading/LoadingLogoBlock'
+import { useAnalysisPolling } from '@/features/analysisPage/hooks/state/useAnalysisPolling'
 import { useProjectStore } from '@/store/useProjectStore'
 
 export function AnalysisLoadingOverlay() {

@@ -1,6 +1,6 @@
 import { FileVideo } from 'lucide-react'
 import type { TextQuestionViewModel } from '@/features/planningSetup/types/viewModel'
-import { SectionHeader } from './shared'
+import { SectionHeader } from './PlanningSetupPrimitives'
 
 interface Props {
   data: TextQuestionViewModel

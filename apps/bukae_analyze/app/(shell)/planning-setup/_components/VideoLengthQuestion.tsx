@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Clock, ChevronDown, Check } from 'lucide-react'
 import type { VideoLength } from '@/lib/types/domain'
 import type { QuestionSectionViewModel } from '@/features/planningSetup/types/viewModel'
-import { SectionHeader, CustomTextInput } from './shared'
+import { SectionHeader, CustomTextInput } from './PlanningSetupPrimitives'
 
 const OPTIONS: { value: VideoLength; label: string }[] = [
   { value: 'under-15s', label: '15초 이내 (릴스 최적)' },

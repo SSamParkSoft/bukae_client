@@ -11,6 +11,7 @@ export function LoadingLogoBlock({ size }: LoadingLogoBlockProps) {
   const s = `${size}px`
   return (
     <div className="relative isolate shrink-0" style={{ width: s, height: s }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/loading.svg"
         alt="분석 중"

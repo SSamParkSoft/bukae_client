@@ -12,7 +12,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import type { VideoCategory } from '@/lib/types/domain'
 import type { QuestionSectionViewModel } from '@/features/planningSetup/types/viewModel'
-import { SectionHeader, IconButton } from './shared'
+import { SectionHeader, IconButton } from './PlanningSetupPrimitives'
 
 const OPTIONS: { value: VideoCategory; label: string; icon: LucideIcon }[] = [
   { value: 'product-promo', label: '상품 홍보형', icon: Volume2 },

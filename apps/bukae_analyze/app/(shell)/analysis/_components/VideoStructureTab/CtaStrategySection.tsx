@@ -1,5 +1,5 @@
 import type { LabeledItemViewModel } from '@/features/videoAnalysis/types/viewModel'
-import { glassPanelClass, LabeledRow, SectionTitle } from './shared'
+import { glassPanelClass, LabeledRow, SectionTitle } from './VideoStructurePrimitives'
 
 interface Props {
   items: LabeledItemViewModel[]

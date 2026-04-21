@@ -1,4 +1,4 @@
-import { EvidenceList } from './shared'
+import { EvidenceList } from './AnalysisPrimitives'
 
 interface Props {
   evidence: string[]
