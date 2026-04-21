@@ -243,6 +243,40 @@
       display: none;
     }
   }
+
+  /*
+   * 스캔 그라데이션만 로고 모양으로 클립 (img에는 mask 적용 안 함 → 잘리는 버그 회피)
+   */
+  .loading-logo-sweep-layer {
+    mix-blend-mode: screen;
+    -webkit-mask-image: url('/loading.svg');
+    mask-image: url('/loading.svg');
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+
+  /* 실루엣 전체: 거의 안 보임 ↔ 선명 (스캔과 다른 주기로 어긋나게) */
+  .loading-logo-base {
+    animation: loading-logo-breathe 3.2s ease-in-out infinite;
+  }
+
+  /* 스캔 띠: 가장자리는 ~3%, 중앙 한 줄만 ~95% — 지나갈 때만 강하게 번쩍 */
+  .loading-scan-beam {
+    background: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.03) 0%,
+      rgba(255, 255, 255, 0.04) 40%,
+      rgba(255, 255, 255, 0.95) 48%,
+      rgba(255, 255, 255, 0.95) 52%,
+      rgba(255, 255, 255, 0.04) 60%,
+      rgba(255, 255, 255, 0.03) 100%
+    );
+    animation: loading-scan-vertical 2.1s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -256,9 +290,27 @@ html {
   background-color: #17171B;
 }
 
-@keyframes scan {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(300%); }
+/* 로딩 스캔: 위 → 아래 → 위 (그라데이션 띠 transform) */
+@keyframes loading-scan-vertical {
+  0% {
+    transform: translateY(-108%);
+  }
+  50% {
+    transform: translateY(268%);
+  }
+  100% {
+    transform: translateY(-108%);
+  }
+}
+
+@keyframes loading-logo-breathe {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 body {

@@ -12,6 +12,7 @@ const BASE = "/api/v1"
 export const API_ENDPOINTS = {
   auth: {
     refresh: `${BASE}/auth/refresh`,
+    logout:  `${BASE}/auth/logout`,
   },
   projects: {
     list:   `${BASE}/projects`,

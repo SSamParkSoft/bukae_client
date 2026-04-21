@@ -2,6 +2,13 @@ import { z } from 'zod'
 import { TokenResponseSchema, type ApiTokenResponse } from '@/lib/types/api/auth'
 import { API_ENDPOINTS } from './endpoints'
 
+export async function logout(accessToken: string): Promise<void> {
+  await fetch(API_ENDPOINTS.auth.logout, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+}
+
 export async function refreshToken(): Promise<ApiTokenResponse> {
   const res = await fetch(API_ENDPOINTS.auth.refresh, { method: 'POST' })
   if (!res.ok) throw new Error('토큰 재발급 실패')

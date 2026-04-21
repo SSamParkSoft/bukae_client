@@ -5,24 +5,42 @@ import Image from 'next/image'
 import { LAYOUT } from './layout-constants'
 import logo from '@/public/logo.svg'
 import { useAuthStore } from '@/store/useAuthStore'
+import { useHeaderProfile } from '@/features/auth/hooks/state/useHeaderProfile'
 
-function UserProfile({ name, profileImageUrl }: { name: string; profileImageUrl: string | null }) {
+function UserProfileMenu() {
+  const { name, profileImageUrl, handleLogout } = useHeaderProfile()
+
   return (
-    <div className="flex items-center gap-2">
-      {profileImageUrl ? (
-        <Image
-          src={profileImageUrl}
-          alt={name}
-          width={32}
-          height={32}
-          className="rounded-full object-cover"
-        />
-      ) : (
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 font-14-md text-white">
-          {name.charAt(0)}
+    <div className="group relative">
+      {/* 프로필 */}
+      <div className="flex cursor-pointer items-center gap-2">
+        {profileImageUrl ? (
+          <Image
+            src={profileImageUrl}
+            alt={name}
+            width={32}
+            height={32}
+            className="rounded-full object-cover"
+          />
+        ) : (
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 font-14-md text-white">
+            {name.charAt(0)}
+          </div>
+        )}
+        <span className="font-14-md text-white">{name}</span>
+      </div>
+
+      {/* 호버 드롭다운 */}
+      <div className="pointer-events-none absolute right-0 top-full pt-2 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
+        <div className="min-w-[120px] overflow-hidden rounded-xl border border-white/10 bg-brand/90 backdrop-glass-soft">
+          <button
+            onClick={handleLogout}
+            className="w-full px-4 py-3 text-left font-14-md text-white/80 hover:bg-white/10 transition-colors"
+          >
+            로그아웃
+          </button>
         </div>
-      )}
-      <span className="font-14-md text-white">{name}</span>
+      </div>
     </div>
   )
 }
@@ -42,7 +60,7 @@ export function Header() {
 
       <div className="flex items-center">
         {accessToken && user ? (
-          <UserProfile name={user.name} profileImageUrl={user.profileImageUrl} />
+          <UserProfileMenu />
         ) : (
           <Link
             href="/login"
