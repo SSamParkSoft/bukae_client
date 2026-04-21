@@ -26,8 +26,8 @@ export function ChatInput({ value, onChange, placeholder = '입력', onSubmit, d
         el.style.height = 'auto'
         el.style.height = `${el.scrollHeight}px`
       }}
-      className="flex-1 bg-transparent font-regular tracking-[-0.04em] leading-[1.4] text-white placeholder:text-white/40 resize-none focus:outline-none min-h-[28px] max-h-[120px]"
-      style={{ fontSize: 'clamp(14px, 1.04vw, 20px)' }}
+      className="flex-1 bg-transparent font-regular tracking-[-0.04em] leading-[1.4] text-white placeholder:text-white/40 resize-none focus:outline-none min-h-[28px] max-h-[120px] justify-center"
+      style={{ fontSize: 'clamp(16px, 1.17vw, 20px)' }}
     />
   )
 }

@@ -22,7 +22,7 @@ export function WhyBox({ children }: { children: string }) {
   return (
     <div className="p-6 bg-white/10">
       <p className="font-medium tracking-[-0.04em] text-white/60 mb-2" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>★ 핵심 분석</p>
-      <p className="font-medium tracking-[-0.04em] leading-relaxed text-white/80 pt-4 px-6" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>{children}</p>
+      <p className="font-16-md tracking-[-0.04em] leading-relaxed text-white/80 pt-4 px-6">{children}</p>
     </div>
   )
 }
@@ -33,7 +33,7 @@ export function EvidenceList({ items }: { items: string[] }) {
     <div className="flex w-full flex-col gap-6">
       {items.map((item, i) => (
         <div key={i} className="min-w-0 backdrop-blur-[2px] border-b border-white/40 px-6 py-4">
-          <p className="min-w-0 truncate font-medium tracking-[-0.04em] leading-[1.8] text-white/80" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }} title={item}>
+          <p className="min-w-0 truncate font-16-md tracking-[-0.04em] leading-[1.8] text-white/80" title={item}>
             {item}
           </p>
         </div>

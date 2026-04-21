@@ -16,11 +16,11 @@ export function QuestionBlock({ data }: { data: AiQuestionViewModel }) {
         <p className="font-medium tracking-[-0.04em] leading-[1.4] text-white" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>
           {data.questionNumber}
         </p>
-        <p className="font-medium tracking-[-0.04em] leading-[1.4] text-white/60" style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}>
+        <p className="font-medium tracking-[-0.04em] leading-[1.4] text-white/60" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
           {data.questionText}
         </p>
         <div className="backdrop-blur-[2px] border-b border-white/20 py-3 w-full">
-          <p className="font-medium tracking-[-0.04em] text-white/80 leading-[1.8] line-clamp-2" style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}>
+          <p className="font-medium tracking-[-0.04em] text-white/80 leading-[1.8] line-clamp-2" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
             {data.referenceInsight}
           </p>
         </div>
@@ -50,7 +50,7 @@ export function QuestionBlock({ data }: { data: AiQuestionViewModel }) {
                 {letter}.
               </span>
               <span
-                style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}
+                style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}
               className={[
                   'flex-1 min-w-0 font-medium tracking-[-0.04em] leading-[1.4] text-left',
                   isSelected ? 'text-white' : 'text-white/40',
@@ -70,7 +70,7 @@ export function QuestionBlock({ data }: { data: AiQuestionViewModel }) {
           placeholder={data.customPlaceholder}
           rows={2}
           className="w-full px-6 py-3 rounded-[8px] border border-white/40 bg-transparent font-medium tracking-[-0.04em] text-white resize-none focus:outline-none focus:border-white/60 placeholder:text-white/35"
-          style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}
+          style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}
         />
       )}
     </div>

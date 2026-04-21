@@ -11,7 +11,7 @@ export function AiChatCard({ questions }: Props) {
       style={{ paddingRight: 'clamp(120px, 12.5vw, 240px)' }}
     >
       <div
-        className="shrink-0 rounded-full bg-white/[0.04] backdrop-blur-[2px] flex items-center justify-center"
+        className="shrink-0 rounded-full bg-white/4 backdrop-blur-[2px] flex items-center justify-center"
         style={{ width: 'clamp(44px, 3.125vw, 60px)', height: 'clamp(44px, 3.125vw, 60px)' }}
       >
         <MonitorIcon
@@ -28,7 +28,7 @@ export function AiChatCard({ questions }: Props) {
           <p
             key={i}
             className="font-normal tracking-[-0.04em] leading-[1.4] text-white/80 whitespace-pre-line"
-            style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}
+            style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}
           >
             {q}
           </p>
