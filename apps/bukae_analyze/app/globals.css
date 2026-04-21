@@ -265,23 +265,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* 배경 사진: 60% 불투명도 + 살짝 노출(밝기) — 본문은 그대로 */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background-color: #17171b; /* 이미지 로드 전/실패 시 fallback */
-  background-image: url('/bukae_space.webp');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  opacity: 0.3;
-  filter: brightness(0.87);
-  pointer-events: none;
-  will-change: transform; /* 첫 페인트부터 GPU 레이어 확보 */
-}
-
 /* 가장자리 비네트 — 끝은 순검정(#000) */
 body::after {
   content: '';

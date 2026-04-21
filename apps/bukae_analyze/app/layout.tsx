@@ -1,4 +1,5 @@
 import './globals.css'
+import { CinematicBackground } from '@/app/_components/CinematicBackground'
 import { AppShell } from '@/components/layout/AppShell'
 
 export const metadata = {
@@ -9,10 +10,9 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
-      <head>
-        <link rel="preload" as="image" href="/bukae_space.webp" fetchPriority="high" />
-      </head>
+      <head />
       <body>
+        <CinematicBackground />
         <AppShell>{children}</AppShell>
       </body>
     </html>
