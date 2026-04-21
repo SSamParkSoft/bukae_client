@@ -256,6 +256,11 @@ html {
   background-color: #17171B;
 }
 
+@keyframes scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(300%); }
+}
+
 body {
   min-height: 100dvh;
   background-color: transparent;

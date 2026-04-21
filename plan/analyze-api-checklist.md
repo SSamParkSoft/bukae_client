@@ -46,10 +46,10 @@
 
 ## 갭 5 — 분석 대기 화면
 
-- [ ] `/analysis` 페이지에 `analysisStatus` 기반 분기 추가 (로딩 UI / 결과 UI)
-- [ ] `lib/services/benchmarkAnalysis.ts` 생성 — `GET /projects/{id}`, `GET /projects/{id}/benchmark-analysis` 함수
-- [ ] polling 로직 구현 — 2~3초 간격, `COMPLETED` 또는 `FAILED` 시 중단
-- [ ] 실패 상태 UI — `project.failure` / `lastErrorMessage` 표시
+- [x] `/analysis` 페이지에 `analysisStatus` 기반 분기 추가 (로딩 UI / 결과 UI)
+- [x] `lib/services/benchmarkAnalysis.ts` 생성 — `GET /projects/{id}/benchmark-analysis` 함수
+- [x] polling 로직 구현 — 2.5초 간격, `COMPLETED` 또는 `FAILED` 시 중단
+- [x] 실패 상태 UI — `project.failure` / `lastErrorMessage` 표시
 
 ---
 
