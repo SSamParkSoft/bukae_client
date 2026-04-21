@@ -19,8 +19,8 @@
 
 ## 갭 2 — 백엔드 URL 라우팅
 
-- [ ] 환경변수 `NEXT_PUBLIC_API_BASE_URL` 추가 (`.env.local`)
-- [ ] `next.config.ts`에 `rewrites` 추가 또는 fetch base URL 설정
+- [x] 환경변수 `NEXT_PUBLIC_API_BASE_URL` 추가 (`.env.local`)
+- [x] `next.config.ts`에 `rewrites` 추가 또는 fetch base URL 설정
 
 ---
 
