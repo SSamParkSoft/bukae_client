@@ -8,7 +8,6 @@ const POLL_INTERVAL_MS = 2500
 const TERMINAL_STATUSES = ['COMPLETED', 'FAILED']
 
 interface PollingState {
-  submissionStatus: string | null
   isCompleted: boolean
   isFailed: boolean
   isLoading: boolean
@@ -17,11 +16,13 @@ interface PollingState {
 
 export function useAnalysisPolling(): PollingState {
   const projectId = useProjectStore((s) => s.projectId)
-  const [submissionStatus, setSubmissionStatus] = useState<string | null>(null)
+  const storedStatus = useProjectStore((s) => s.submissionStatus)
+  const setSubmissionStatus = useProjectStore((s) => s.setSubmissionStatus)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!projectId) return
+    if (storedStatus && TERMINAL_STATUSES.includes(storedStatus)) return
 
     let cancelled = false
 
@@ -54,11 +55,11 @@ export function useAnalysisPolling(): PollingState {
 
     poll()
     return () => { cancelled = true }
-  }, [projectId])
+  }, [projectId, storedStatus, setSubmissionStatus])
 
-  const isCompleted = submissionStatus === 'COMPLETED'
-  const isFailed = submissionStatus === 'FAILED' || errorMessage !== null
+  const isCompleted = storedStatus === 'COMPLETED'
+  const isFailed = storedStatus === 'FAILED' || errorMessage !== null
   const isLoading = !isCompleted && !isFailed
 
-  return { submissionStatus, isCompleted, isFailed, isLoading, errorMessage }
+  return { isCompleted, isFailed, isLoading, errorMessage }
 }

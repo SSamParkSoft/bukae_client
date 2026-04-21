@@ -1,11 +1,13 @@
 import { Header } from './Header'
 import { LeftSidebar } from './LeftSidebar'
 import { RightSidebar } from './RightSidebar'
+import { AnalysisLoadingOverlay } from './AnalysisLoadingOverlay'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-screen overflow-hidden flex flex-col text-foreground">
       <Header />
+      <AnalysisLoadingOverlay />
       <div className="flex flex-1 overflow-hidden">
         <LeftSidebar />
         <div className="relative flex-1 min-w-0 min-h-0">

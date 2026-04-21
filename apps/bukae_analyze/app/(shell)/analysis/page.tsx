@@ -7,7 +7,6 @@ import { useVideoAnalysisViewModel } from '@/features/videoAnalysis/hooks/viewmo
 import { useAnalysisPolling } from '@/features/analysis/hooks/state/useAnalysisPolling'
 import { useProjectStore } from '@/store/useProjectStore'
 import { AnalysisVideoPanel } from './_components/AnalysisVideoPanel'
-import { AnalysisLoadingPanel } from './_components/AnalysisLoadingPanel'
 import { ThumbnailAnalysisTab } from './_components/ThumbnailAnalysisTab'
 import { HookAnalysisTab } from './_components/HookAnalysisTab'
 import { VideoStructureDetailSections, VideoStructureTab } from './_components/VideoStructureTab'
@@ -56,24 +55,7 @@ export default function AnalysisPage() {
     )
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden pb-32 pt-10">
-        <ReferenceUrlTopBar referenceUrl={REFERENCE_URL_DISPLAY} className="mb-10" />
-        <PageTitle title="AI 분석" description="레퍼런스 영상을 분석하고 있습니다" />
-        <hr className="mb-10 border-b border-white/10" />
-
-        <div className="flex min-w-0 gap-x-[38.25px]">
-          <AnalysisLoadingPanel />
-
-          <div className="flex min-w-0 max-w-[1000px] flex-1 flex-col h-[572px] items-center justify-center gap-4">
-            <p className="font-16-md text-white/80">분석 중...</p>
-            <p className="font-14-rg text-white/40">영상을 분석하고 있어요. 잠시만 기다려주세요.</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  if (isLoading) return null
 
   // isCompleted
   return (
