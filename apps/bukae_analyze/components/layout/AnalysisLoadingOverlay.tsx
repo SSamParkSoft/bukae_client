@@ -22,7 +22,7 @@ export function AnalysisLoadingOverlay() {
       {/* SVG + 스캔 */}
       <div className="relative z-10 overflow-hidden" style={{ width: 200, height: 200 }}>
         <Image
-          src="/loding.svg"
+          src="/loading.svg"
           alt="분석 중"
           width={200}
           height={200}

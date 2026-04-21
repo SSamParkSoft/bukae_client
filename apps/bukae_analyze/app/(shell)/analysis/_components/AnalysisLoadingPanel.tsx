@@ -6,7 +6,7 @@ export function AnalysisLoadingPanel({ className }: { className?: string }) {
       <div className="relative h-[572px] w-[321.75px] overflow-hidden rounded-2xl bg-black flex items-center justify-center">
         {/* SVG 아이콘 */}
         <Image
-          src="/loding.svg"
+          src="/loading.svg"
           alt="분석 중"
           width={140}
           height={140}
