@@ -19,12 +19,12 @@ export function Header() {
       {/* 로그인 / 프로필 영역 (플레이스홀더) */}
       {/* todo : 디자인 추가 */}
       <div className="flex items-center">
-        <button
-          type="button"
+        <Link
+          href="/login"
           className="px-4 py-2 text-sm font-medium border border-white rounded-md text-white hover:bg-white hover:text-brand transition-colors"
         >
           로그인
-        </button>
+        </Link>
       </div>
     </header>
   )

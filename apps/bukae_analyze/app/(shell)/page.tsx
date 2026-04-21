@@ -1,8 +1,8 @@
 'use client'
 
-import { AnalyzeHomeHeroCopy } from './_components/AnalyzeHomeHeroCopy'
-import { AnalyzeHomeUrlForm } from './_components/AnalyzeHomeUrlForm'
-import { useUrlInput } from './_hooks/useUrlInput'
+import { AnalyzeHomeHeroCopy } from '@/app/_components/AnalyzeHomeHeroCopy'
+import { AnalyzeHomeUrlForm } from '@/app/_components/AnalyzeHomeUrlForm'
+import { useUrlInput } from '@/app/_hooks/useUrlInput'
 
 export default function AnalyzeHomePage() {
   const { url, handleChange, handleSubmit } = useUrlInput()
