@@ -26,11 +26,11 @@
 
 ## 갭 3 — 인증 플로우
 
-- [ ] `store/useAuthStore.ts` 생성 — `accessToken` 저장/갱신/초기화
-- [ ] `login/page.tsx` Google 버튼에 `onClick` 연결 → `GET /oauth2/authorization/google?redirect_uri=...` 리다이렉트
-- [ ] OAuth 콜백 처리 — URL query에서 `accessToken` 파싱 후 store 저장, query param 제거
-- [ ] `lib/services/auth.ts` 생성 — `POST /api/v1/auth/refresh` (토큰 재발급)
-- [ ] 미인증 시 `/login` 리다이렉트 처리 (미들웨어 또는 layout)
+- [x] `store/useAuthStore.ts` 생성 — `accessToken` 저장/갱신/초기화
+- [x] `login/page.tsx` Google 버튼에 `onClick` 연결 → `GET /oauth2/authorization/google?redirect_uri=...` 리다이렉트
+- [x] OAuth 콜백 처리 — URL query에서 `accessToken` 파싱 후 store 저장, query param 제거
+- [x] `lib/services/auth.ts` 생성 — `POST /api/v1/auth/refresh` (토큰 재발급)
+- [x] 미인증 시 `/login` 리다이렉트 처리 (미들웨어 또는 layout)
 
 ---
 

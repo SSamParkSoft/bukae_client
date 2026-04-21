@@ -1,5 +1,14 @@
+'use client'
+
 import Image from 'next/image'
 import logo from '@/public/logo.svg'
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
+const REDIRECT_URI = process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI ?? ''
+
+function handleGoogleLogin() {
+  window.location.href = `${API_BASE_URL}/oauth2/authorization/google?redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
+}
 
 export default function LoginPage() {
   return (
@@ -22,7 +31,7 @@ export default function LoginPage() {
 
         {/* 버튼 + 약관 안내 */}
         <div className="flex flex-col items-center gap-8">
-          <button className="gsi-material-button" type="button">
+          <button className="gsi-material-button" type="button" onClick={handleGoogleLogin}>
             <div className="gsi-material-button-state" />
             <div className="gsi-material-button-content-wrapper">
               <div className="gsi-material-button-icon">
