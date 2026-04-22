@@ -1,68 +1,33 @@
-/**
- * Video Analysis — ViewModel Types
- *
- * Domain Model을 UI에 맞게 파생한 타입.
- * 포맷된 문자열, UI 전용 파생 상태 등.
- */
+import type {
+  HookAnalysis,
+  LabeledPoint,
+  StorySegment,
+  ThumbnailAnalysis,
+  TrendInsight,
+  VideoStructureAnalysis,
+} from '@/lib/types/domain'
 
-export interface ThumbnailAnalysisViewModel {
-  imageUrl: string
-  mainText: string
-  textRatioPercent?: string     // API에서 미제공 시 undefined
-  layoutComposition?: string    // API에서 미제공 시 undefined
-  colors: string[]
-  ctrGrade: string
-  why?: string
-  evidence: string[]
-  facePresence?: string
-  numberEmphasis?: string
-  emotionTrigger?: string
+export interface ThumbnailAnalysisViewModel extends ThumbnailAnalysis {
+  textRatioPercent?: string
 }
 
-export interface HookAnalysisViewModel {
-  durationLabel: string         // "첫 3초"
-  hookDurationSecLabel: string  // "3.0 Sec"
-  videoLengthLabel?: string     // "0.73 Min"
-  sceneCountLabel?: string      // "4 EA"
-  avgCutLengthLabel?: string    // "4.6 Sec"
-  openingType: string
-  emotionTrigger: string
-  pacing: 'fast' | 'medium' | 'slow'
-  pacingLabel: string           // "빠름" | "보통" | "느림"
-  why: string
-  evidence: string[]
-  viewerPositioning?: string
-  visualHook?: string
-  firstSentence?: string
+export interface HookAnalysisViewModel extends HookAnalysis {
+  durationLabel: string
+  hookDurationSecLabel: string
+  videoLengthLabel?: string
+  sceneCountLabel: string
+  avgCutLengthLabel?: string
+  pacingLabel: string
 }
 
-export interface StorySegmentViewModel {
-  timeframe: string
-  title: string
-  description: string
-}
+export type StorySegmentViewModel = StorySegment
 
-export interface LabeledItemViewModel {
-  label: string
-  description: string
-}
+export type LabeledItemViewModel = LabeledPoint
 
-export interface TrendInsightViewModel {
-  value: string
-  label: string
-}
+export type TrendInsightViewModel = TrendInsight
 
-export interface VideoStructureViewModel {
-  overview: string
-  directorComment?: string
-  targetAudienceDescription: string
-  targetAudienceAttributes: string[]
-  storyStructure: StorySegmentViewModel[]
-  viralPoints: string[]               // ViralPointCard를 표시용 문자열로 변환한 목록
-  editingPoints?: LabeledItemViewModel[]
-  trendContextDescription?: string
-  trendInsights?: TrendInsightViewModel[]
-  ctaStrategy?: LabeledItemViewModel[]
+export interface VideoStructureViewModel extends Omit<VideoStructureAnalysis, 'viralPointCards'> {
+  viralPoints: string[]
 }
 
 export interface VideoAnalysisViewModel {
