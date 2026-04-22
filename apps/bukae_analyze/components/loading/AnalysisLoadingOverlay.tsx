@@ -12,7 +12,7 @@ export function AnalysisLoadingOverlay({ visible }: Props) {
   return (
     <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center pb-[8vh]">
       {/* 배경 딤 */}
-      <div className="absolute inset-0 bg-black/30" />
+      <div className="absolute inset-0 bg-black/3" />
 
       <div className="relative z-10 flex shrink-0 flex-col items-center gap-6">
         <LoadingLogoBlock size={200} />
