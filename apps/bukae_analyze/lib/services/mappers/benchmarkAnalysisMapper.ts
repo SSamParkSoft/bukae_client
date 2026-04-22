@@ -111,13 +111,30 @@ function mapViralPointCards(dto: BenchmarkAnalysisResponseDto): ViralPointCard[]
     }))
 }
 
+function mapEditingPoints(dto: BenchmarkAnalysisResponseDto): VideoStructureAnalysis['editingPoints'] {
+  const directions = dto.normalized_analysis_tabs?.structure?.editingDirections ?? []
+
+  if (directions.length === 0) return undefined
+
+  return directions.map((direction) => ({
+    label: direction.title,
+    description: direction.summary,
+  }))
+}
+
 function mapVideoStructureAnalysis(dto: BenchmarkAnalysisResponseDto): VideoStructureAnalysis {
+  const structure = dto.normalized_analysis_tabs?.structure
+
   return {
     overview: dto.benchmarkProfile?.profile_summary ?? '',
-    targetAudienceDescription: dto.benchmarkProfile?.target_audience_guess ?? '',
-    targetAudienceAttributes: [],
+    targetAudienceDescription:
+      structure?.targetAudience ??
+      dto.benchmarkProfile?.target_audience_guess ??
+      '',
+    targetAudienceAttributes: structure?.targetAudienceKeywords ?? [],
     storyStructure: mapStoryStructure(dto),
     viralPointCards: mapViralPointCards(dto),
+    editingPoints: mapEditingPoints(dto),
   }
 }
 

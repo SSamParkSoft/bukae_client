@@ -79,8 +79,17 @@ const StructureSceneSchema = z.object({
   capture: SceneCaptureSchema.optional(),
 })
 
+const EditingDirectionSchema = z.object({
+  key: z.string().optional(),
+  title: z.string(),
+  summary: z.string(),
+})
+
 const StructureTabSchema = z.object({
   scenes: z.array(StructureSceneSchema).optional(),
+  targetAudience: z.string().optional(),
+  targetAudienceKeywords: z.array(z.string()).optional(),
+  editingDirections: z.array(EditingDirectionSchema).optional(),
 })
 
 const SourceMetadataSchema = z.object({
