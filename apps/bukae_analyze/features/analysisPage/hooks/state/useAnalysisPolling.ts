@@ -3,11 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useProjectStore } from '@/store/useProjectStore'
 import { getBenchmarkAnalysis } from '@/lib/services/benchmarkAnalysis'
-import {
-  mapBenchmarkAnalysisToVideoAnalysis,
-  extractVideoSrc,
-  extractReferenceUrl,
-} from '@/lib/services/mappers'
+import { mapBenchmarkAnalysisResult } from '@/lib/services/mappers'
 
 const POLL_INTERVAL_MS = 2500
 const TERMINAL_STATUSES = ['COMPLETED', 'FAILED']
@@ -52,11 +48,7 @@ export function useAnalysisPolling(): PollingState {
 
           if (data.normalized_analysis_tabs) {
             setErrorMessage(null)
-            setAnalysisResult({
-              videoAnalysis: mapBenchmarkAnalysisToVideoAnalysis(data),
-              videoSrc: extractVideoSrc(data),
-              referenceUrl: extractReferenceUrl(data),
-            })
+            setAnalysisResult(mapBenchmarkAnalysisResult(data))
             return
           }
 
@@ -107,11 +99,7 @@ export function useAnalysisPolling(): PollingState {
         if (data.submissionStatus === 'COMPLETED') {
           if (data.normalized_analysis_tabs) {
             setErrorMessage(null)
-            setAnalysisResult({
-              videoAnalysis: mapBenchmarkAnalysisToVideoAnalysis(data),
-              videoSrc: extractVideoSrc(data),
-              referenceUrl: extractReferenceUrl(data),
-            })
+            setAnalysisResult(mapBenchmarkAnalysisResult(data))
             return
           }
 

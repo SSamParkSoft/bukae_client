@@ -78,3 +78,9 @@ export interface VideoAnalysis {
   hook: HookAnalysis
   structure: VideoStructureAnalysis
 }
+
+export interface VideoAnalysisResult {
+  videoAnalysis: VideoAnalysis
+  videoSrc: string
+  referenceUrl: string
+}

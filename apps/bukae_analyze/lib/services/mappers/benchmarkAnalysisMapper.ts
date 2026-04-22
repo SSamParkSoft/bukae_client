@@ -1,28 +1,13 @@
 import type { BenchmarkAnalysisResponseDto } from '@/lib/types/api/benchmarkAnalysis'
 import type {
-  VideoAnalysis,
-  ThumbnailAnalysis,
   HookAnalysis,
-  VideoStructureAnalysis,
   StorySegment,
+  ThumbnailAnalysis,
+  VideoAnalysis,
+  VideoAnalysisResult,
+  VideoStructureAnalysis,
   ViralPointCard,
 } from '@/lib/types/domain'
-
-// "0~3초" → 3
-function parseHookRangeSec(hookRange: string): number {
-  const match = hookRange.match(/~(\d+(\.\d+)?)초/)
-  return match ? parseFloat(match[1]) : 0
-}
-
-// evidence 목록에서 "초반 평균 컷 길이: 4.6초" 패턴 파싱
-function parseAvgCutLengthFromEvidence(evidence: string[]): number | undefined {
-  for (const e of evidence) {
-    const match = e.match(/평균 컷 길이[:\s]+(\d+(\.\d+)?)초/)
-    if (match) return parseFloat(match[1])
-  }
-  return undefined
-}
-
 
 const SCENE_ROLE_LABEL: Record<string, string> = {
   hook: '훅',
@@ -33,94 +18,125 @@ const SCENE_ROLE_LABEL: Record<string, string> = {
   outro: '아웃트로',
 }
 
+function parseHookRangeSec(hookRange: string): number {
+  const match = hookRange.match(/~(\d+(\.\d+)?)초/)
+  return match ? parseFloat(match[1]) : 0
+}
+
+function parseAvgCutLengthFromEvidence(evidence: string[]): number | undefined {
+  for (const item of evidence) {
+    const match = item.match(/평균 컷 길이[:\s]+(\d+(\.\d+)?)초/)
+    if (match) return parseFloat(match[1])
+  }
+  return undefined
+}
+
 function translateSceneRole(role: string): string {
   return SCENE_ROLE_LABEL[role] ?? role
 }
 
-function normalizePacing(raw: string): 'fast' | 'medium' | 'slow' {
+function normalizePacing(raw: string): HookAnalysis['pacing'] {
   const lower = raw.toLowerCase()
   if (lower === 'fast') return 'fast'
   if (lower === 'medium') return 'medium'
   return 'slow'
 }
 
-export function mapBenchmarkAnalysisToVideoAnalysis(
-  dto: BenchmarkAnalysisResponseDto
-): VideoAnalysis {
-  const tabs = dto.normalized_analysis_tabs
-  const hookTab = tabs?.hook
-  const thumbnailTab = tabs?.thumbnail
-  const structureTab = tabs?.structure
-  const sourceTab = tabs?.source
+function mapThumbnailAnalysis(dto: BenchmarkAnalysisResponseDto): ThumbnailAnalysis {
+  const thumbnail = dto.normalized_analysis_tabs?.thumbnail
+  const sourceMetadata = dto.normalized_analysis_tabs?.source?.metadata
 
-  const thumbnail: ThumbnailAnalysis = {
-    imageUrl: thumbnailTab?.imageUrl ?? sourceTab?.metadata?.thumbnail_url ?? '',
-    mainText: thumbnailTab?.mainText ?? '',
-    colors: thumbnailTab?.colors ?? [],
-    ctrGrade: thumbnailTab?.ctrGrade ?? '',
-    why: thumbnailTab?.coreAnalysis,
-    evidence: thumbnailTab?.evidence ?? [],
-    textRatio: thumbnailTab?.textRatio,
-    layoutComposition: thumbnailTab?.layoutComposition,
-    facePresence: thumbnailTab?.facePresence,
-    numberEmphasis: thumbnailTab?.numberEmphasis !== undefined
-      ? (thumbnailTab.numberEmphasis ? '있음' : '없음')
-      : undefined,
-    emotionTrigger: thumbnailTab?.emotionTrigger,
+  return {
+    imageUrl: thumbnail?.imageUrl ?? sourceMetadata?.thumbnail_url ?? '',
+    mainText: thumbnail?.mainText ?? '',
+    colors: thumbnail?.colors ?? [],
+    ctrGrade: thumbnail?.ctrGrade ?? '',
+    why: thumbnail?.coreAnalysis,
+    evidence: thumbnail?.evidence ?? [],
+    textRatio: thumbnail?.textRatio,
+    layoutComposition: thumbnail?.layoutComposition,
+    facePresence: thumbnail?.facePresence,
+    numberEmphasis:
+      thumbnail?.numberEmphasis === undefined
+        ? undefined
+        : thumbnail.numberEmphasis
+          ? '있음'
+          : '없음',
+    emotionTrigger: thumbnail?.emotionTrigger,
   }
+}
 
-  const hookRange = hookTab?.coreCard?.hookRange ?? '0~0초'
-  const hook: HookAnalysis = {
+function mapHookAnalysis(dto: BenchmarkAnalysisResponseDto): HookAnalysis {
+  const hook = dto.normalized_analysis_tabs?.hook
+  const sourceMetadata = dto.normalized_analysis_tabs?.source?.metadata
+  const hookRange = hook?.coreCard?.hookRange ?? '0~0초'
+
+  return {
     hookRange,
     durationSec: parseHookRangeSec(hookRange),
     videoLengthMin:
-      sourceTab?.metadata?.duration_sec !== undefined
-        ? sourceTab.metadata.duration_sec / 60
+      sourceMetadata?.duration_sec !== undefined
+        ? sourceMetadata.duration_sec / 60
         : undefined,
-    avgCutLengthSec: parseAvgCutLengthFromEvidence(hookTab?.evidence ?? []),
-    openingType: hookTab?.coreCard?.openingType ?? '',
-    emotionTrigger: hookTab?.coreCard?.emotionTrigger ?? '',
-    pacing: normalizePacing(hookTab?.coreCard?.pacing ?? 'slow'),
-    why: hookTab?.coreAnalysis ?? '',
-    evidence: hookTab?.evidence ?? [],
-    viewerPositioning: hookTab?.insightBox?.viewerPositioning,
-    visualHook: hookTab?.insightBox?.visualHook,
-    firstSentence: hookTab?.insightBox?.firstSentence,
+    avgCutLengthSec: parseAvgCutLengthFromEvidence(hook?.evidence ?? []),
+    openingType: hook?.coreCard?.openingType ?? '',
+    emotionTrigger: hook?.coreCard?.emotionTrigger ?? '',
+    pacing: normalizePacing(hook?.coreCard?.pacing ?? 'slow'),
+    why: hook?.coreAnalysis ?? '',
+    evidence: hook?.evidence ?? [],
+    viewerPositioning: hook?.insightBox?.viewerPositioning,
+    visualHook: hook?.insightBox?.visualHook,
+    firstSentence: hook?.insightBox?.firstSentence,
   }
+}
 
-  const scenes = structureTab?.scenes ?? []
+function mapStoryStructure(dto: BenchmarkAnalysisResponseDto): StorySegment[] {
+  const scenes = dto.normalized_analysis_tabs?.structure?.scenes ?? []
 
-  const storyStructure: StorySegment[] = scenes.map((scene) => ({
+  return scenes.map((scene) => ({
     timeframe: scene.time_range,
     title: translateSceneRole(scene.scene_role),
     description: scene.scene_point ?? scene.visual_summary ?? '',
   }))
+}
 
-  // scenes의 why_it_works에서 바이럴 포인트 추출 (내용 있는 씬만)
-  const viralPointCards: ViralPointCard[] = scenes
-    .filter((s) => s.why_it_works)
-    .map((s) => ({
-      title: translateSceneRole(s.scene_role),
-      summary: s.why_it_works!,
+function mapViralPointCards(dto: BenchmarkAnalysisResponseDto): ViralPointCard[] {
+  const scenes = dto.normalized_analysis_tabs?.structure?.scenes ?? []
+
+  return scenes
+    .filter((scene) => scene.why_it_works)
+    .map((scene) => ({
+      title: translateSceneRole(scene.scene_role),
+      summary: scene.why_it_works!,
     }))
+}
 
-  const overview = dto.benchmarkProfile?.profile_summary ?? ''
-
-  const structure: VideoStructureAnalysis = {
-    overview,
+function mapVideoStructureAnalysis(dto: BenchmarkAnalysisResponseDto): VideoStructureAnalysis {
+  return {
+    overview: dto.benchmarkProfile?.profile_summary ?? '',
     targetAudienceDescription: dto.benchmarkProfile?.target_audience_guess ?? '',
     targetAudienceAttributes: [],
-    storyStructure,
-    viralPointCards,
+    storyStructure: mapStoryStructure(dto),
+    viralPointCards: mapViralPointCards(dto),
   }
-
-  return { thumbnail, hook, structure }
 }
 
-export function extractVideoSrc(dto: BenchmarkAnalysisResponseDto): string {
-  return dto.normalized_analysis_tabs?.source?.video?.public_url ?? ''
+export function mapBenchmarkAnalysisToVideoAnalysis(
+  dto: BenchmarkAnalysisResponseDto
+): VideoAnalysis {
+  return {
+    thumbnail: mapThumbnailAnalysis(dto),
+    hook: mapHookAnalysis(dto),
+    structure: mapVideoStructureAnalysis(dto),
+  }
 }
 
-export function extractReferenceUrl(dto: BenchmarkAnalysisResponseDto): string {
-  return dto.normalized_analysis_tabs?.source?.metadata?.source_url ?? ''
+export function mapBenchmarkAnalysisResult(
+  dto: BenchmarkAnalysisResponseDto
+): VideoAnalysisResult {
+  return {
+    videoAnalysis: mapBenchmarkAnalysisToVideoAnalysis(dto),
+    videoSrc: dto.normalized_analysis_tabs?.source?.video?.public_url ?? '',
+    referenceUrl: dto.normalized_analysis_tabs?.source?.metadata?.source_url ?? '',
+  }
 }
