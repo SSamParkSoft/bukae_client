@@ -8,7 +8,6 @@ import {
   extractVideoSrc,
   extractReferenceUrl,
 } from '@/lib/services/mappers'
-import type { BenchmarkAnalysisResponseDto } from '@/lib/types/api/benchmarkAnalysis'
 
 const POLL_INTERVAL_MS = 2500
 const TERMINAL_STATUSES = ['COMPLETED', 'FAILED']
@@ -20,10 +19,6 @@ interface PollingState {
   isFailed: boolean
   isLoading: boolean
   errorMessage: string | null
-}
-
-function getResolvedTabs(data: BenchmarkAnalysisResponseDto) {
-  return data.normalized_analysis_tabs ?? data.analysisRawPayload?.normalized_analysis_tabs
 }
 
 export function useAnalysisPolling(): PollingState {
@@ -54,9 +49,8 @@ export function useAnalysisPolling(): PollingState {
         try {
           const data = await getBenchmarkAnalysis(currentProjectId)
           if (cancelled) return
-          const resolvedTabs = getResolvedTabs(data)
 
-          if (resolvedTabs) {
+          if (data.normalized_analysis_tabs) {
             setErrorMessage(null)
             setAnalysisResult({
               videoAnalysis: mapBenchmarkAnalysisToVideoAnalysis(data),
@@ -97,7 +91,6 @@ export function useAnalysisPolling(): PollingState {
       try {
         const data = await getBenchmarkAnalysis(currentProjectId)
         if (cancelled) return
-        const resolvedTabs = getResolvedTabs(data)
 
         setSubmissionStatus(data.submissionStatus)
 
@@ -112,7 +105,7 @@ export function useAnalysisPolling(): PollingState {
         }
 
         if (data.submissionStatus === 'COMPLETED') {
-          if (resolvedTabs) {
+          if (data.normalized_analysis_tabs) {
             setErrorMessage(null)
             setAnalysisResult({
               videoAnalysis: mapBenchmarkAnalysisToVideoAnalysis(data),

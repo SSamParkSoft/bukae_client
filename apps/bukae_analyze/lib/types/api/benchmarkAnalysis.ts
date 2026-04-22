@@ -1,6 +1,5 @@
 import { z } from 'zod'
 
-// --- 폴링 전용 스키마 (상태 확인용) ---
 export const BenchmarkAnalysisPollingSchema = z.object({
   submissionStatus: z.string(),
   analysisStatus: z.string().nullable().optional(),
@@ -17,9 +16,7 @@ export const BenchmarkAnalysisPollingSchema = z.object({
 
 export type BenchmarkAnalysisPollingDto = z.infer<typeof BenchmarkAnalysisPollingSchema>
 
-// --- 전체 응답 스키마 (normalized_analysis_tabs 포함) ---
-
-const ThumbnailTabDto = z.object({
+const ThumbnailTabSchema = z.object({
   imageUrl: z.string(),
   mainText: z.string().optional(),
   imageSize: z.object({ width: z.number(), height: z.number() }).optional(),
@@ -38,36 +35,35 @@ const ThumbnailTabDto = z.object({
   visualElements: z.array(z.string()).optional(),
 })
 
-const HookCoreCardDto = z.object({
+const HookCoreCardSchema = z.object({
   pacing: z.string(),
   hookRange: z.string(),
   openingType: z.string(),
   emotionTrigger: z.string(),
 })
 
-const HookInsightBoxDto = z.object({
+const HookInsightBoxSchema = z.object({
   visualHook: z.string().optional(),
   firstSentence: z.string().optional(),
   viewerPositioning: z.string().optional(),
 })
 
-const HookTabDto = z.object({
+const HookTabSchema = z.object({
   status: z.string().optional(),
-  coreCard: HookCoreCardDto,
+  coreCard: HookCoreCardSchema,
   evidence: z.array(z.string()),
-  insightBox: HookInsightBoxDto.optional(),
+  insightBox: HookInsightBoxSchema.optional(),
   coreAnalysis: z.string(),
 })
 
-// structure 탭: scenes 배열
-const SceneCaptureDto = z.object({
+const SceneCaptureSchema = z.object({
   status: z.string().optional(),
   public_url: z.string().optional(),
   scene_number: z.number().optional(),
   capture_time_sec: z.number().optional(),
 })
 
-const StructureSceneDto = z.object({
+const StructureSceneSchema = z.object({
   scene_number: z.number(),
   scene_role: z.string(),
   time_range: z.string(),
@@ -80,14 +76,14 @@ const StructureSceneDto = z.object({
   visual_summary: z.string().optional(),
   narration_excerpt: z.string().optional(),
   editing_takeaway: z.string().optional(),
-  capture: SceneCaptureDto.optional(),
+  capture: SceneCaptureSchema.optional(),
 })
 
-const StructureTabDto = z.object({
-  scenes: z.array(StructureSceneDto).optional(),
+const StructureTabSchema = z.object({
+  scenes: z.array(StructureSceneSchema).optional(),
 })
 
-const SourceMetadataDto = z.object({
+const SourceMetadataSchema = z.object({
   title: z.string().optional(),
   uploader: z.string().optional(),
   source_url: z.string().optional(),
@@ -99,37 +95,24 @@ const SourceMetadataDto = z.object({
   platform_type: z.string().optional(),
 })
 
-const SourceVideoDto = z.object({
+const SourceVideoSchema = z.object({
   status: z.string().optional(),
   public_url: z.string().optional(),
 })
 
-const SourceTabDto = z.object({
-  video: SourceVideoDto.optional(),
-  metadata: SourceMetadataDto.optional(),
+const SourceTabSchema = z.object({
+  video: SourceVideoSchema.optional(),
+  metadata: SourceMetadataSchema.optional(),
 })
 
-const NormalizedAnalysisTabsDto = z.object({
-  hook: HookTabDto.optional(),
-  source: SourceTabDto.optional(),
-  thumbnail: ThumbnailTabDto.optional(),
-  thumbnail_analysis: ThumbnailTabDto.optional(),
-  structure: StructureTabDto.optional(),
+export const BenchmarkAnalysisTabsSchema = z.object({
+  hook: HookTabSchema.optional(),
+  source: SourceTabSchema.optional(),
+  thumbnail: ThumbnailTabSchema.optional(),
+  structure: StructureTabSchema.optional(),
 })
 
-const AnalysisRawPayloadDto = z.object({
-  source_url: z.string().optional(),
-  source_asset: z
-    .object({
-      status: z.string().optional(),
-      public_url: z.string().optional(),
-    })
-    .optional(),
-  normalized_analysis_tabs: NormalizedAnalysisTabsDto.optional(),
-  thumbnail_analysis: ThumbnailTabDto.optional(),
-})
-
-const BenchmarkProfileDto = z
+const BenchmarkProfileSchema = z
   .object({
     profile_summary: z.string().optional(),
     content_category: z.string().optional(),
@@ -142,13 +125,51 @@ const BenchmarkProfileDto = z
   .optional()
 
 export const BenchmarkAnalysisResponseSchema = BenchmarkAnalysisPollingSchema.extend({
-  normalized_analysis_tabs: NormalizedAnalysisTabsDto.optional(),
-  thumbnail_analysis: ThumbnailTabDto.optional(),
-  analysisRawPayload: AnalysisRawPayloadDto.optional(),
+  normalized_analysis_tabs: BenchmarkAnalysisTabsSchema.optional(),
   hookSummary: z.string().nullable().optional(),
   editPace: z.string().nullable().optional(),
   persuasionStructureSummary: z.string().nullable().optional(),
-  benchmarkProfile: BenchmarkProfileDto,
+  benchmarkProfile: BenchmarkProfileSchema,
 })
 
 export type BenchmarkAnalysisResponseDto = z.infer<typeof BenchmarkAnalysisResponseSchema>
+
+export const BenchmarkAnalysisRawResponseSchema = BenchmarkAnalysisPollingSchema.extend({
+  normalized_analysis_tabs: z
+    .object({
+      hook: HookTabSchema.optional(),
+      source: SourceTabSchema.optional(),
+      thumbnail: ThumbnailTabSchema.optional(),
+      thumbnail_analysis: ThumbnailTabSchema.optional(),
+      structure: StructureTabSchema.optional(),
+    })
+    .optional(),
+  thumbnail_analysis: ThumbnailTabSchema.optional(),
+  analysisRawPayload: z
+    .object({
+      source_url: z.string().optional(),
+      source_asset: z
+        .object({
+          status: z.string().optional(),
+          public_url: z.string().optional(),
+        })
+        .optional(),
+      normalized_analysis_tabs: z
+        .object({
+          hook: HookTabSchema.optional(),
+          source: SourceTabSchema.optional(),
+          thumbnail: ThumbnailTabSchema.optional(),
+          thumbnail_analysis: ThumbnailTabSchema.optional(),
+          structure: StructureTabSchema.optional(),
+        })
+        .optional(),
+      thumbnail_analysis: ThumbnailTabSchema.optional(),
+    })
+    .optional(),
+  hookSummary: z.string().nullable().optional(),
+  editPace: z.string().nullable().optional(),
+  persuasionStructureSummary: z.string().nullable().optional(),
+  benchmarkProfile: BenchmarkProfileSchema,
+})
+
+export type BenchmarkAnalysisRawResponseDto = z.infer<typeof BenchmarkAnalysisRawResponseSchema>

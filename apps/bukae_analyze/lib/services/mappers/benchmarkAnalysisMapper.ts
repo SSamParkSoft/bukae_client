@@ -47,13 +47,9 @@ function normalizePacing(raw: string): 'fast' | 'medium' | 'slow' {
 export function mapBenchmarkAnalysisToVideoAnalysis(
   dto: BenchmarkAnalysisResponseDto
 ): VideoAnalysis {
-  const tabs = dto.normalized_analysis_tabs ?? dto.analysisRawPayload?.normalized_analysis_tabs
+  const tabs = dto.normalized_analysis_tabs
   const hookTab = tabs?.hook
-  const thumbnailTab =
-    tabs?.thumbnail ??
-    tabs?.thumbnail_analysis ??
-    dto.thumbnail_analysis ??
-    dto.analysisRawPayload?.thumbnail_analysis
+  const thumbnailTab = tabs?.thumbnail
   const structureTab = tabs?.structure
   const sourceTab = tabs?.source
 
@@ -122,19 +118,9 @@ export function mapBenchmarkAnalysisToVideoAnalysis(
 }
 
 export function extractVideoSrc(dto: BenchmarkAnalysisResponseDto): string {
-  return (
-    dto.normalized_analysis_tabs?.source?.video?.public_url ??
-    dto.analysisRawPayload?.normalized_analysis_tabs?.source?.video?.public_url ??
-    dto.analysisRawPayload?.source_asset?.public_url ??
-    ''
-  )
+  return dto.normalized_analysis_tabs?.source?.video?.public_url ?? ''
 }
 
 export function extractReferenceUrl(dto: BenchmarkAnalysisResponseDto): string {
-  return (
-    dto.normalized_analysis_tabs?.source?.metadata?.source_url ??
-    dto.analysisRawPayload?.normalized_analysis_tabs?.source?.metadata?.source_url ??
-    dto.analysisRawPayload?.source_url ??
-    ''
-  )
+  return dto.normalized_analysis_tabs?.source?.metadata?.source_url ?? ''
 }
