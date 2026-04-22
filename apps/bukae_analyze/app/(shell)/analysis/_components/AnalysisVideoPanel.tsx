@@ -16,10 +16,13 @@ export function AnalysisVideoPanel({ posterUrl, videoSrc, className }: Props) {
         <video
           className="h-full w-full object-contain"
           controls
+          controlsList="nodownload"
+          disablePictureInPicture
           playsInline
           preload="metadata"
           poster={posterUrl}
           src={videoSrc || undefined}
+          onContextMenu={(e) => e.preventDefault()}
         >
           브라우저가 비디오를 지원하지 않습니다.
         </video>
