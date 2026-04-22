@@ -1,14 +1,13 @@
 'use client'
 
 import { LoadingLogoBlock } from '@/components/loading/LoadingLogoBlock'
-import { useAnalysisPolling } from '@/features/analysisPage/hooks/state/useAnalysisPolling'
-import { useProjectStore } from '@/store/useProjectStore'
 
-export function AnalysisLoadingOverlay() {
-  const projectId = useProjectStore((s) => s.projectId)
-  const { isLoading } = useAnalysisPolling()
+type Props = {
+  visible: boolean
+}
 
-  if (!projectId || !isLoading) return null
+export function AnalysisLoadingOverlay({ visible }: Props) {
+  if (!visible) return null
 
   return (
     <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center pb-[8vh]">

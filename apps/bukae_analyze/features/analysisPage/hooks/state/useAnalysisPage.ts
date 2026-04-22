@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useProjectStore } from '@/store/useProjectStore'
 import { useAnalysisPolling } from './useAnalysisPolling'
 import { usePageError } from '@/lib/hooks/usePageError'
-import { MOCK_REFERENCE_VIDEO_URL, MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
+import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
 import { useVideoAnalysisViewModel } from '@/features/videoAnalysis/hooks/viewmodel/useVideoAnalysisViewModel'
 
 const TABS = [
@@ -25,6 +25,7 @@ export interface AnalysisPageState {
   referenceUrl: string
   videoSrc: string
   isReady: boolean
+  isLoading: boolean
   isFailed: boolean
   errorMessage: string | null
 }
@@ -32,18 +33,28 @@ export interface AnalysisPageState {
 export function useAnalysisPage(): AnalysisPageState {
   const router = useRouter()
   const projectId = useProjectStore((s) => s.projectId)
+  const videoAnalysis = useProjectStore((s) => s.videoAnalysis)
+  const storedVideoSrc = useProjectStore((s) => s.videoSrc)
+  const storedReferenceUrl = useProjectStore((s) => s.referenceUrl)
   const [activeTab, setActiveTab] = useState<AnalysisTabId>('thumbnail')
-  const { message: errorMessage, setError } = usePageError()
-  const { isCompleted, isFailed, errorMessage: pollingError } = useAnalysisPolling()
-  const viewModel = useVideoAnalysisViewModel(MOCK_VIDEO_ANALYSIS)
+  const { message: errorMessage, setError, clearError } = usePageError()
+  const { isCompleted, isLoading, isFailed, errorMessage: pollingError } = useAnalysisPolling()
+
+  // videoAnalysis가 없는 동안은 mock 데이터로 대체 (isReady가 false이므로 렌더되지 않음)
+  const viewModel = useVideoAnalysisViewModel(videoAnalysis ?? MOCK_VIDEO_ANALYSIS)
 
   useEffect(() => {
     if (!projectId) router.replace('/')
   }, [projectId, router])
 
   useEffect(() => {
-    if (pollingError) setError(pollingError)
-  }, [pollingError, setError])
+    if (pollingError) {
+      setError(pollingError)
+      return
+    }
+
+    clearError()
+  }, [pollingError, setError, clearError])
 
   return {
     hasProject: Boolean(projectId),
@@ -51,10 +62,11 @@ export function useAnalysisPage(): AnalysisPageState {
     setActiveTab,
     tabs: TABS,
     viewModel,
-    referenceUrl: 'youtube.com/shorts/contentruckai',
-    videoSrc: MOCK_REFERENCE_VIDEO_URL,
+    referenceUrl: storedReferenceUrl ?? '',
+    videoSrc: storedVideoSrc ?? '',  // 빈 문자열 허용 — AnalysisVideoPanel에서 undefined 변환
     isReady: isCompleted,
-    isFailed,
-    errorMessage,
+    isLoading,
+    isFailed: !isCompleted && isFailed,
+    errorMessage: isCompleted ? null : errorMessage,
   }
 }

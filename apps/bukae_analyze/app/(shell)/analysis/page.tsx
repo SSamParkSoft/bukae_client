@@ -13,7 +13,7 @@ import { AnalysisErrorView } from './_components/AnalysisErrorView'
 import { AnalysisLoadingOverlay } from '@/components/loading/AnalysisLoadingOverlay'
 
 export default function AnalysisPage() {
-  const { hasProject, activeTab, setActiveTab, tabs, viewModel, referenceUrl, videoSrc, isReady, isFailed, errorMessage } = useAnalysisPage()
+  const { hasProject, activeTab, setActiveTab, tabs, viewModel, referenceUrl, videoSrc, isReady, isLoading, isFailed, errorMessage } = useAnalysisPage()
 
   if (!hasProject) return null
 
@@ -25,7 +25,7 @@ export default function AnalysisPage() {
 
       {/* 오버레이는 PageTitle 아래 영역에만 적용 */}
       <div className="relative flex min-w-0 flex-1 flex-col pt-10 pb-32">
-        <AnalysisLoadingOverlay />
+        <AnalysisLoadingOverlay visible={isLoading} />
 
         {isFailed && <AnalysisErrorView errorMessage={errorMessage} />}
 
