@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { VideoAnalysis } from '@/lib/types/domain'
+import type { VideoAnalysis, VideoAnalysisResult } from '@/lib/types/domain'
 
 interface ProjectStore {
   // 퍼시스트 필드
@@ -15,7 +15,7 @@ interface ProjectStore {
 
   setProject: (data: { projectId: string; projectStatus: string; currentStep: string | null }) => void
   setSubmissionStatus: (status: string) => void
-  setAnalysisResult: (data: { videoAnalysis: VideoAnalysis; videoSrc: string; referenceUrl: string }) => void
+  setAnalysisResult: (data: VideoAnalysisResult) => void
   clearProject: () => void
 }
 
