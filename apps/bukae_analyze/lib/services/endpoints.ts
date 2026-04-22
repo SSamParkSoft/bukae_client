@@ -14,6 +14,9 @@ export const API_ENDPOINTS = {
     refresh: `${BASE}/auth/refresh`,
     logout:  `${BASE}/auth/logout`,
   },
+  users: {
+    me: `${BASE}/users/me`,
+  },
   projects: {
     list:   `${BASE}/projects`,
     detail: (projectId: string) => `${BASE}/projects/${projectId}`,

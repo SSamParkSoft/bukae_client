@@ -10,12 +10,12 @@ interface MetricCardProps {
 function MetricCard({ icon, label, value }: MetricCardProps) {
   return (
     <div className="flex flex-1 items-center gap-4 min-w-0">
-      <div className="shrink-0 size-[clamp(16px, 1.04vw, 20px)] rounded-2xl bg-white/10 backdrop-blur-[2.667px] flex items-center justify-center">
+      <div className="shrink-0 size-8 rounded-2xl bg-white/10 backdrop-glass-soft flex items-center justify-center">
         {icon}
       </div>
       <div className="flex flex-col min-w-0">
-        <p className="font-normal tracking-[-0.04em] leading-[1.4] text-white/60" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>{label}</p>
-        <p className="font-medium text-white" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>{value}</p>
+        <p className="font-fluid-16-rg text-white/60">{label}</p>
+        <p className="font-fluid-20-md text-white">{value}</p>
       </div>
     </div>
   )

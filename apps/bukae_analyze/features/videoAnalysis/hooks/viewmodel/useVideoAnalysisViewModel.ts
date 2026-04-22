@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import type { VideoAnalysis } from '@/lib/types/domain'
 import type {
   HookAnalysisViewModel,
@@ -95,9 +96,12 @@ function mapStructureViewModel(domain: VideoAnalysis): VideoStructureViewModel {
 }
 
 export function useVideoAnalysisViewModel(domain: VideoAnalysis): VideoAnalysisViewModel {
-  return {
-    thumbnail: mapThumbnailViewModel(domain),
-    hook: mapHookViewModel(domain),
-    structure: mapStructureViewModel(domain),
-  }
+  return useMemo(
+    () => ({
+      thumbnail: mapThumbnailViewModel(domain),
+      hook: mapHookViewModel(domain),
+      structure: mapStructureViewModel(domain),
+    }),
+    [domain],
+  )
 }

@@ -226,6 +226,58 @@
     font-weight: var(--text-12_rg-weight);
   }
 
+  /*
+   * Fluid 타이포 프리셋 — font-size만 clamp() 반응형, 나머지는 고정 프리셋과 동일
+   * 네이밍: font-fluid-{max크기}-{굵기}  (max값이 고정 프리셋 이름과 대응)
+   */
+  .font-fluid-16-rg {
+    font-family: var(--font-sans);
+    font-size: clamp(14px, 0.9vw, 16px);
+    letter-spacing: -0.04em;
+    line-height: 1.4;
+    font-weight: 400;
+  }
+
+  .font-fluid-16-md {
+    font-family: var(--font-sans);
+    font-size: clamp(14px, 0.9vw, 16px);
+    letter-spacing: -0.04em;
+    line-height: 1.4;
+    font-weight: 500;
+  }
+
+  .font-fluid-20-md {
+    font-family: var(--font-sans);
+    font-size: clamp(16px, 1.04vw, 20px);
+    letter-spacing: -0.04em;
+    line-height: 1.4;
+    font-weight: 500;
+  }
+
+  .font-fluid-20-sm {
+    font-family: var(--font-sans);
+    font-size: clamp(16px, 1.04vw, 20px);
+    letter-spacing: -0.04em;
+    line-height: 1.4;
+    font-weight: 600;
+  }
+
+  .font-fluid-24-sm {
+    font-family: var(--font-sans);
+    font-size: clamp(20px, 1.24vw, 24px);
+    letter-spacing: -0.04em;
+    line-height: 1.4;
+    font-weight: 600;
+  }
+
+  .font-fluid-28-md {
+    font-family: var(--font-sans);
+    font-size: clamp(20px, 1.46vw, 28px);
+    letter-spacing: -0.04em;
+    line-height: 1.4;
+    font-weight: 500;
+  }
+
   .backdrop-glass-strong {
     -webkit-backdrop-filter: blur(var(--glass-blur-strong));
     backdrop-filter: blur(var(--glass-blur-strong));

@@ -13,7 +13,8 @@ export interface HeaderProfileState {
 
 export function useHeaderProfile(): HeaderProfileState {
   const router = useRouter()
-  const { accessToken, user, clearToken } = useAuthStore.getState()
+  const user = useAuthStore((s) => s.user)
+  const { accessToken, clearToken } = useAuthStore.getState()
   const clearProject = useProjectStore((s) => s.clearProject)
 
   const handleLogout = async () => {

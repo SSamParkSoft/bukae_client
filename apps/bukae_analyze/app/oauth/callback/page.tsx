@@ -21,9 +21,14 @@ function OAuthCallbackHandler() {
     setAccessToken(token)
 
     fetchCurrentUser(token)
-      .then((user) => setUser(user))
-      .catch(() => {/* 사용자 정보 실패해도 로그인은 유지 */})
-      .finally(() => router.replace('/'))
+      .then((user) => {
+        setUser(user)
+        router.replace('/')
+      })
+      .catch(() => {
+        useAuthStore.getState().clearToken()
+        router.replace('/login')
+      })
   }, [searchParams, setAccessToken, setUser, router])
 
   return null

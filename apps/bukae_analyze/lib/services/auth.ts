@@ -3,10 +3,11 @@ import { TokenResponseSchema, type ApiTokenResponse } from '@/lib/types/api/auth
 import { API_ENDPOINTS } from './endpoints'
 
 export async function logout(accessToken: string): Promise<void> {
-  await fetch(API_ENDPOINTS.auth.logout, {
+  const res = await fetch(API_ENDPOINTS.auth.logout, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}` },
   })
+  if (!res.ok) throw new Error('로그아웃 실패')
 }
 
 export async function refreshToken(): Promise<ApiTokenResponse> {
@@ -27,7 +28,7 @@ export interface CurrentUser {
 }
 
 export async function fetchCurrentUser(accessToken: string): Promise<CurrentUser> {
-  const res = await fetch('/api/v1/users/me', {
+  const res = await fetch(API_ENDPOINTS.users.me, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (!res.ok) throw new Error('사용자 정보 조회 실패')

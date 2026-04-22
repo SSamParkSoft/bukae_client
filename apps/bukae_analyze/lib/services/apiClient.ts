@@ -6,14 +6,12 @@ async function apiFetchWithToken(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  return fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-      Authorization: `Bearer ${token}`,
-    },
-  })
+  const headers = new Headers(options.headers)
+  if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json')
+  }
+  headers.set('Authorization', `Bearer ${token}`)
+  return fetch(url, { ...options, headers })
 }
 
 export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {

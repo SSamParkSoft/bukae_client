@@ -25,11 +25,11 @@ export function WhyBox({ sentences }: { sentences: string[] }) {
 
   return (
     <div className="p-6 bg-white/10">
-      <p className="mb-2 font-medium tracking-[-0.04em] text-white/60" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>★ 핵심 분석</p>
-      <div className="px-6 pt-4" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
+      <p className="mb-2 font-fluid-20-md text-white/60">★ 핵심 분석</p>
+      <div className="px-6 pt-4">
         <BulletSentenceList
           sentences={sentences}
-          itemClassName="whitespace-pre-line font-medium leading-[1.4] tracking-[-0.04em] text-white/80"
+          itemClassName="whitespace-pre-line font-fluid-16-md text-white/80"
         />
       </div>
     </div>
@@ -41,8 +41,8 @@ export function EvidenceList({ items }: { items: string[] }) {
   return (
     <div className="flex w-full flex-col gap-6">
       {items.map((item, i) => (
-        <div key={i} className="min-w-0 backdrop-blur-[2px] border-b border-white/40 px-6 py-4">
-          <p className="min-w-0 truncate font-16-md tracking-[-0.04em] leading-[1.4] text-white/80" title={item}>
+        <div key={i} className="min-w-0 backdrop-glass-soft border-b border-white/40 px-6 py-4">
+          <p className="min-w-0 truncate font-16-md text-white/80" title={item}>
             {item}
           </p>
         </div>

@@ -13,7 +13,7 @@ function UserProfileMenu() {
   return (
     <div className="group relative">
       {/* 프로필 */}
-      <div className="flex cursor-pointer items-center gap-2">
+      <button type="button" className="flex cursor-pointer items-center gap-2" aria-haspopup="menu">
         {profileImageUrl ? (
           <Image
             src={profileImageUrl}
@@ -28,10 +28,10 @@ function UserProfileMenu() {
           </div>
         )}
         <span className="font-14-md text-white">{name}</span>
-      </div>
+      </button>
 
-      {/* 호버 드롭다운 */}
-      <div className="pointer-events-none absolute right-0 top-full pt-2 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
+      {/* 호버/포커스 드롭다운 */}
+      <div className="pointer-events-none absolute right-0 top-full pt-2 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
         <div className="min-w-[120px] overflow-hidden rounded-xl border border-white/10 bg-brand/90 backdrop-glass-soft">
           <button
             onClick={handleLogout}

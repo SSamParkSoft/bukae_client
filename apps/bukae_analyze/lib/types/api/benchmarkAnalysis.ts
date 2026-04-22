@@ -36,10 +36,10 @@ const ThumbnailTabSchema = z.object({
 })
 
 const HookCoreCardSchema = z.object({
-  pacing: z.string(),
-  hookRange: z.string(),
-  openingType: z.string(),
-  emotionTrigger: z.string(),
+  pacing: z.string().optional(),
+  hookRange: z.string().optional(),
+  openingType: z.string().optional(),
+  emotionTrigger: z.string().optional(),
 })
 
 const HookInsightBoxSchema = z.object({
@@ -50,10 +50,10 @@ const HookInsightBoxSchema = z.object({
 
 const HookTabSchema = z.object({
   status: z.string().optional(),
-  coreCard: HookCoreCardSchema,
-  evidence: z.array(z.string()),
+  coreCard: HookCoreCardSchema.optional(),
+  evidence: z.array(z.string()).optional(),
   insightBox: HookInsightBoxSchema.optional(),
-  coreAnalysis: z.string(),
+  coreAnalysis: z.string().optional(),
 })
 
 const SceneCaptureSchema = z.object({
