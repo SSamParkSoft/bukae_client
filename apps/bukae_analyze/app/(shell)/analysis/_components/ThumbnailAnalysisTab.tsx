@@ -4,7 +4,9 @@ import { WhyBox } from './AnalysisPrimitives'
 function FieldValueBox({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-6 py-2">
-      <div className="truncate font-16-rg leading-[1.8] text-white/80">{children}</div>
+      <div className="truncate font-16-rg leading-[1.8] text-white/80">
+        {children ?? '—'}
+      </div>
     </div>
   )
 }
@@ -19,6 +21,8 @@ function FieldCell({ label, children }: { label: string; children: React.ReactNo
 }
 
 function ColorsValue({ colors }: { colors: string[] }) {
+  if (colors.length === 0) return <span>—</span>
+
   return (
     <div className="flex flex-nowrap items-center gap-3">
       {colors.map((color) => (

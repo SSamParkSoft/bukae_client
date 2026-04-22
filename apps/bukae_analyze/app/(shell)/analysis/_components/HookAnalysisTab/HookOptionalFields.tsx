@@ -30,8 +30,8 @@ export function HookOptionalFields({ data }: { data: HookAnalysisViewModel }) {
   return (
     <div className="flex backdrop-blur-[2px]">
       <HookCategoryItem label="훅 구간" value={data.durationLabel} isLarge />
-      <HookCategoryItem label="오프닝 유형" value={data.openingType} />
-      <HookCategoryItem label="감정 자극" value={data.emotionTrigger} />
+      <HookCategoryItem label="오프닝 유형" value={data.openingType || '—'} />
+      <HookCategoryItem label="감정 자극" value={data.emotionTrigger || '—'} />
       <HookCategoryItem label="페이싱" value={data.pacingLabel} />
     </div>
   )

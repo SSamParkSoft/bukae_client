@@ -12,6 +12,17 @@ interface Props {
   data: VideoStructureViewModel
 }
 
+function EmptySectionCard({ title }: { title: string }) {
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center rounded-[32px] border border-white/10 bg-white/[0.03] px-6 py-10 text-center">
+      <div className="flex flex-col gap-2">
+        <p className="font-16-md text-white/80">{title}</p>
+        <p className="font-14-rg text-white/45">현재 응답에 표시할 데이터가 없습니다.</p>
+      </div>
+    </div>
+  )
+}
+
 /** 탭 우측 패널: 오버뷰 + 타겟 카드 */
 export function VideoStructureTab({ data }: Props) {
   return (
@@ -37,21 +48,25 @@ export function VideoStructureDetailSections({ data }: Props) {
       <StoryStructureSection segments={data.storyStructure} />
 
       <div className="flex min-h-0 w-full items-stretch gap-10">
-        {hasEditingPoints && <EditingPointsSection points={data.editingPoints!} />}
+        {hasEditingPoints
+          ? <EditingPointsSection points={data.editingPoints!} />
+          : <EmptySectionCard title="편집 및 연출 포인트" />}
         <ViralPointsSection points={data.viralPoints} />
       </div>
 
-      {(hasTrend || hasCta) && (
-        <div className="flex min-h-0 w-full items-stretch gap-10">
-          {hasTrend && (
+      <div className="flex min-h-0 w-full items-stretch gap-10">
+        {hasTrend
+          ? (
             <TrendContextSection
               description={data.trendContextDescription!}
               insights={data.trendInsights ?? []}
             />
-          )}
-          {hasCta && <CtaStrategySection items={data.ctaStrategy!} />}
-        </div>
-      )}
+          )
+          : <EmptySectionCard title="현재 트렌드 맥락" />}
+        {hasCta
+          ? <CtaStrategySection items={data.ctaStrategy!} />
+          : <EmptySectionCard title="CTA 전략" />}
+      </div>
     </div>
   )
 }
