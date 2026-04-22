@@ -22,8 +22,14 @@ function formatSeconds(value?: number): string | undefined {
   return value !== undefined ? `${value.toFixed(1)} Sec` : undefined
 }
 
-function formatMinutes(value?: number): string | undefined {
-  return value !== undefined ? `${value.toFixed(2)} Min` : undefined
+function formatMinutesToClock(value?: number): string | undefined {
+  if (value === undefined) return undefined
+
+  const totalSeconds = Math.round(value * 60)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
 function mapThumbnailViewModel(domain: VideoAnalysis): ThumbnailAnalysisViewModel {
@@ -38,7 +44,7 @@ function mapHookViewModel(domain: VideoAnalysis): HookAnalysisViewModel {
     ...domain.hook,
     durationLabel: `첫 ${domain.hook.durationSec}초`,
     hookDurationSecLabel: formatSeconds(domain.hook.durationSec) ?? '0.0 Sec',
-    videoLengthLabel: formatMinutes(domain.hook.videoLengthMin),
+    videoLengthLabel: formatMinutesToClock(domain.hook.videoLengthMin),
     sceneCountLabel: `${domain.structure.storyStructure.length} EA`,
     avgCutLengthLabel: formatSeconds(domain.hook.avgCutLengthSec),
     pacingLabel: PACING_LABEL[domain.hook.pacing],
