@@ -13,7 +13,20 @@ import { AnalysisErrorView } from './_components/AnalysisErrorView'
 import { AnalysisLoadingOverlay } from '@/components/loading/AnalysisLoadingOverlay'
 
 export default function AnalysisPage() {
-  const { hasProject, activeTab, setActiveTab, tabs, viewModel, referenceUrl, videoSrc, isReady, isLoading, isFailed, errorMessage } = useAnalysisPage()
+  const {
+    hasProject,
+    activeTab,
+    setActiveTab,
+    tabs,
+    viewModel,
+    referenceUrl,
+    videoSrc,
+    isReady,
+    isLoading,
+    isFailed,
+    errorType,
+    errorMessage,
+  } = useAnalysisPage()
 
   if (!hasProject) return null
 
@@ -27,7 +40,7 @@ export default function AnalysisPage() {
       <div className="relative flex min-w-0 flex-1 flex-col pt-10 pb-32">
         <AnalysisLoadingOverlay visible={isLoading} />
 
-        {isFailed && <AnalysisErrorView errorMessage={errorMessage} />}
+        {isFailed && <AnalysisErrorView errorType={errorType} errorMessage={errorMessage} />}
 
         {isReady && (
           <>

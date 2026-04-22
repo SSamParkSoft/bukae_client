@@ -11,24 +11,36 @@ const COMPLETED_RESULT_RETRY_MS = 1000
 const MAX_COMPLETED_RESULT_RETRIES = 10
 
 export type AnalysisResourceStatus = 'idle' | 'loading' | 'ready' | 'error'
+export type AnalysisResourceErrorType = 'failed' | 'missing_result' | 'unknown'
 
 interface AnalysisResourceState {
   status: AnalysisResourceStatus
+  errorType: AnalysisResourceErrorType | null
   errorMessage: string | null
   result: VideoAnalysisResult | null
 }
 
-function getFailureMessage(params: {
+function getErrorState(params: {
   submissionStatus: string | null
   errorMessage: string | null
   hasStoredResult: boolean
-}): string | null {
+}): { errorType: AnalysisResourceErrorType | null; errorMessage: string | null } {
   const { submissionStatus, errorMessage, hasStoredResult } = params
-  if (hasStoredResult) return null
+  if (hasStoredResult) return { errorType: null, errorMessage: null }
   if (submissionStatus === 'FAILED') {
-    return errorMessage ?? '분석에 실패했습니다. 다시 시도해주세요.'
+    return {
+      errorType: 'failed',
+      errorMessage: errorMessage ?? '분석에 실패했습니다. 다시 시도해주세요.',
+    }
   }
-  return errorMessage
+  if (!errorMessage) return { errorType: null, errorMessage: null }
+  return {
+    errorType:
+      submissionStatus === 'COMPLETED'
+        ? 'missing_result'
+        : 'unknown',
+    errorMessage,
+  }
 }
 
 function getResourceStatus(params: {
@@ -128,7 +140,7 @@ export function useAnalysisResource(): AnalysisResourceState {
     }
   }, [projectId, submissionStatus, hasStoredResult, setSubmissionStatus, setAnalysisResult])
 
-  const resolvedErrorMessage = getFailureMessage({
+  const errorState = getErrorState({
     submissionStatus,
     errorMessage,
     hasStoredResult,
@@ -138,9 +150,10 @@ export function useAnalysisResource(): AnalysisResourceState {
     status: getResourceStatus({
       projectId,
       hasStoredResult,
-      errorMessage: resolvedErrorMessage,
+      errorMessage: errorState.errorMessage,
     }),
-    errorMessage: resolvedErrorMessage,
+    errorType: errorState.errorType,
+    errorMessage: errorState.errorMessage,
     result,
   }
 }

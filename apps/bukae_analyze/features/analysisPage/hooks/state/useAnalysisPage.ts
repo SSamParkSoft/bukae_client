@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useProjectStore } from '@/store/useProjectStore'
-import { useAnalysisResource } from './useAnalysisResource'
+import { useAnalysisResource, type AnalysisResourceErrorType } from './useAnalysisResource'
 import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
 import { useVideoAnalysisViewModel } from '@/features/videoAnalysis/hooks/viewmodel/useVideoAnalysisViewModel'
 
@@ -26,6 +26,7 @@ export interface AnalysisPageState {
   isReady: boolean
   isLoading: boolean
   isFailed: boolean
+  errorType: AnalysisResourceErrorType | null
   errorMessage: string | null
 }
 
@@ -33,7 +34,7 @@ export function useAnalysisPage(): AnalysisPageState {
   const router = useRouter()
   const projectId = useProjectStore((s) => s.projectId)
   const [activeTab, setActiveTab] = useState<AnalysisTabId>('thumbnail')
-  const { status, errorMessage, result } = useAnalysisResource()
+  const { status, errorType, errorMessage, result } = useAnalysisResource()
 
   // videoAnalysis가 없는 동안은 mock 데이터로 대체 (isReady가 false이므로 렌더되지 않음)
   const viewModel = useVideoAnalysisViewModel(result?.videoAnalysis ?? MOCK_VIDEO_ANALYSIS)
@@ -53,6 +54,7 @@ export function useAnalysisPage(): AnalysisPageState {
     isReady: status === 'ready',
     isLoading: status === 'loading',
     isFailed: status === 'error',
+    errorType,
     errorMessage,
   }
 }
