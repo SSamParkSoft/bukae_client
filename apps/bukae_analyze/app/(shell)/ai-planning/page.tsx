@@ -22,7 +22,7 @@ function buildInput(answers: PlanningSetupAnswers, analysis: VideoAnalysis): AiP
       hookingStyleLabel: `${analysis.hook.openingType} — ${(analysis.hook.firstSentence ?? '').slice(0, 20)}…`,
       storyPatternLabel: analysis.structure.storyStructure.slice(0, 40) + '…',
       emotionTriggerLabel: analysis.hook.emotionTrigger,
-      ctaStyleLabel: analysis.structure.ctaStrategy.slice(0, 30) + '…',
+      ctaStyleLabel: (analysis.structure.ctaStrategy?.[0]?.label ?? analysis.structure.storyStructure.slice(0, 30)) + '…',
     },
   }
 }

@@ -19,7 +19,7 @@ export function AnalysisVideoPanel({ posterUrl, videoSrc, className }: Props) {
           playsInline
           preload="metadata"
           poster={posterUrl}
-          src={videoSrc}
+          src={videoSrc || undefined}
         >
           브라우저가 비디오를 지원하지 않습니다.
         </video>

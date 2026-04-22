@@ -17,7 +17,7 @@ export function VideoStructureTab({ data }: Props) {
   return (
     <div className="flex flex-col gap-12">
       <VideoOverviewCard overview={data.overview} />
-      <DirectorComment comment={data.directorComment} />
+      {data.directorComment && <DirectorComment comment={data.directorComment} />}
       <VideoTargetCard
         description={data.targetAudienceDescription}
         attributes={data.targetAudienceAttributes}
@@ -28,19 +28,30 @@ export function VideoStructureTab({ data }: Props) {
 
 /** 비디오 패널 아래 전폭: 스토리 + 편집/바이럴 + 트렌드/CTA */
 export function VideoStructureDetailSections({ data }: Props) {
+  const hasEditingPoints = data.editingPoints && data.editingPoints.length > 0
+  const hasTrend = data.trendContextDescription
+  const hasCta = data.ctaStrategy && data.ctaStrategy.length > 0
+
   return (
     <div className="mt-8 flex flex-col gap-8">
       <StoryStructureSection segments={data.storyStructure} />
 
       <div className="flex min-h-0 w-full items-stretch gap-10">
-        <EditingPointsSection points={data.editingPoints} />
+        {hasEditingPoints && <EditingPointsSection points={data.editingPoints!} />}
         <ViralPointsSection points={data.viralPoints} />
       </div>
 
-      <div className="flex min-h-0 w-full items-stretch gap-10">
-        <TrendContextSection description={data.trendContextDescription} insights={data.trendInsights} />
-        <CtaStrategySection items={data.ctaStrategy} />
-      </div>
+      {(hasTrend || hasCta) && (
+        <div className="flex min-h-0 w-full items-stretch gap-10">
+          {hasTrend && (
+            <TrendContextSection
+              description={data.trendContextDescription!}
+              insights={data.trendInsights ?? []}
+            />
+          )}
+          {hasCta && <CtaStrategySection items={data.ctaStrategy!} />}
+        </div>
+      )}
     </div>
   )
 }

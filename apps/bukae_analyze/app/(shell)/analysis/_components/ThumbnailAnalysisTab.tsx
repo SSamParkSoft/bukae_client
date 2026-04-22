@@ -72,7 +72,7 @@ export function ThumbnailAnalysisTab({ data }: Props) {
           </div>
         ))}
       </div>
-      <WhyBox>{data.why}</WhyBox>
+      {data.why && <WhyBox>{data.why}</WhyBox>}
     </div>
   )
 }

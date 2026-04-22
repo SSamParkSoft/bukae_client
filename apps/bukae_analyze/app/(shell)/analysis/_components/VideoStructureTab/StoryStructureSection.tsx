@@ -12,7 +12,7 @@ export function StoryStructureSection({ segments }: Props) {
         <SectionTitle>스토리 전개 구성</SectionTitle>
         <div className="flex w-full flex-col items-start">
           {segments.map((seg) => (
-            <StoryRow key={seg.timeframe} {...seg} />
+            <StoryRow key={`${seg.timeframe}-${seg.title}`} {...seg} />
           ))}
         </div>
       </div>

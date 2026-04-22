@@ -1,7 +1,4 @@
-import type {
-  LabeledItemViewModel,
-  StorySegmentViewModel,
-} from '@/features/videoAnalysis/types/viewModel'
+import type { LabeledItemViewModel, StorySegmentViewModel } from '@/features/videoAnalysis/types/viewModel'
 
 const sectionTitleClass =
   'font-medium tracking-[-0.04em] leading-[1.4] text-white/60 max-h-[20px]'

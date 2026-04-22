@@ -57,7 +57,7 @@
 
 > 사전 확인에서 `normalized_analysis_tabs` 스키마 확인 후 진행
 
-- [ ] `lib/types/api/benchmarkAnalysis.ts` 생성 — `BenchmarkAnalysisResponse` DTO 타입 (Zod 스키마 포함)
-- [ ] `lib/types/domain/videoAnalysis.ts` 검토 — 현재 UI 필드와 API 응답 필드 일치 여부 확인 후 필요 시 수정
-- [ ] `lib/services/mappers/benchmarkAnalysisMapper.ts` 생성 — `BenchmarkAnalysisResponse` → `VideoAnalysis` 변환
-- [ ] `/analysis` 페이지에서 mock 데이터 → 실제 API 데이터로 교체
+- [x] `lib/types/api/benchmarkAnalysis.ts` 생성 — `BenchmarkAnalysisResponse` DTO 타입 (Zod 스키마 포함)
+- [x] `lib/types/domain/videoAnalysis.ts` 검토 — 현재 UI 필드와 API 응답 필드 일치 여부 확인 후 필요 시 수정
+- [x] `lib/services/mappers/benchmarkAnalysisMapper.ts` 생성 — `BenchmarkAnalysisResponse` → `VideoAnalysis` 변환
+- [x] `/analysis` 페이지에서 mock 데이터 → 실제 API 데이터로 교체

@@ -5,60 +5,35 @@
  * 포맷된 문자열, UI 전용 파생 상태 등.
  */
 
-export interface CrossValidationViewModel {
-  match: boolean
-  evidence: string
-}
-
 export interface ThumbnailAnalysisViewModel {
   imageUrl: string
   mainText: string
-  textRatioPercent: string      // "38%"
-  layoutComposition: string
+  textRatioPercent?: string     // API에서 미제공 시 undefined
+  layoutComposition?: string    // API에서 미제공 시 undefined
   colors: string[]
   ctrGrade: string
-  why: string
+  why?: string
   evidence: string[]
-  crossValidation: CrossValidationViewModel
   facePresence?: string
   numberEmphasis?: string
   emotionTrigger?: string
 }
 
 export interface HookAnalysisViewModel {
-  durationLabel: string         // "첫 9초"
-  hookDurationSecLabel: string  // "9.0 Sec"
-  videoLengthLabel?: string     // "0.58 Min"
+  durationLabel: string         // "첫 3초"
+  hookDurationSecLabel: string  // "3.0 Sec"
+  videoLengthLabel?: string     // "0.73 Min"
   sceneCountLabel?: string      // "4 EA"
-  avgCutLengthLabel?: string    // "1.5 Sec"
+  avgCutLengthLabel?: string    // "4.6 Sec"
   openingType: string
   emotionTrigger: string
   pacing: 'fast' | 'medium' | 'slow'
   pacingLabel: string           // "빠름" | "보통" | "느림"
   why: string
   evidence: string[]
-  crossValidation: CrossValidationViewModel
   viewerPositioning?: string
   visualHook?: string
   firstSentence?: string
-}
-
-export interface SentimentBarViewModel {
-  positivePercent: number       // 82
-  negativePercent: number       // 6
-  neutralPercent: number        // 12
-}
-
-export interface CommentAnalysisViewModel {
-  targetAudienceSignal: string
-  topThemes: string[]
-  requestPatterns: string[]
-  confusionPoints: string[]
-  sentimentBar: SentimentBarViewModel
-  keywords: string[]
-  why: string
-  evidence: string[]
-  conversionComments?: number
 }
 
 export interface StorySegmentViewModel {
@@ -79,20 +54,19 @@ export interface TrendInsightViewModel {
 
 export interface VideoStructureViewModel {
   overview: string
-  directorComment: string
+  directorComment?: string
   targetAudienceDescription: string
   targetAudienceAttributes: string[]
   storyStructure: StorySegmentViewModel[]
-  editingPoints: LabeledItemViewModel[]
-  viralPoints: string[]
-  trendContextDescription: string
-  trendInsights: TrendInsightViewModel[]
-  ctaStrategy: LabeledItemViewModel[]
+  viralPoints: string[]               // ViralPointCard를 표시용 문자열로 변환한 목록
+  editingPoints?: LabeledItemViewModel[]
+  trendContextDescription?: string
+  trendInsights?: TrendInsightViewModel[]
+  ctaStrategy?: LabeledItemViewModel[]
 }
 
 export interface VideoAnalysisViewModel {
   thumbnail: ThumbnailAnalysisViewModel
   hook: HookAnalysisViewModel
-  comment: CommentAnalysisViewModel
   structure: VideoStructureViewModel
 }

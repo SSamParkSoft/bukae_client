@@ -15,13 +15,14 @@ export function useVideoAnalysisViewModel(domain: VideoAnalysis): VideoAnalysisV
     thumbnail: {
       imageUrl: domain.thumbnail.imageUrl,
       mainText: domain.thumbnail.mainText,
-      textRatioPercent: `${Math.round(domain.thumbnail.textRatio * 100)}%`,
+      textRatioPercent: domain.thumbnail.textRatio !== undefined
+        ? `${Math.round(domain.thumbnail.textRatio * 100)}%`
+        : undefined,
       layoutComposition: domain.thumbnail.layoutComposition,
       colors: domain.thumbnail.colors,
       ctrGrade: domain.thumbnail.ctrGrade,
       why: domain.thumbnail.why,
       evidence: domain.thumbnail.evidence,
-      crossValidation: domain.thumbnail.crossValidation,
       facePresence: domain.thumbnail.facePresence,
       numberEmphasis: domain.thumbnail.numberEmphasis,
       emotionTrigger: domain.thumbnail.emotionTrigger,
@@ -33,9 +34,7 @@ export function useVideoAnalysisViewModel(domain: VideoAnalysis): VideoAnalysisV
       videoLengthLabel: domain.hook.videoLengthMin !== undefined
         ? `${domain.hook.videoLengthMin.toFixed(2)} Min`
         : undefined,
-      sceneCountLabel: domain.hook.sceneCount !== undefined
-        ? `${domain.hook.sceneCount} EA`
-        : undefined,
+      sceneCountLabel: undefined,
       avgCutLengthLabel: domain.hook.avgCutLengthSec !== undefined
         ? `${domain.hook.avgCutLengthSec.toFixed(1)} Sec`
         : undefined,
@@ -45,26 +44,9 @@ export function useVideoAnalysisViewModel(domain: VideoAnalysis): VideoAnalysisV
       pacingLabel: PACING_LABEL[domain.hook.pacing],
       why: domain.hook.why,
       evidence: domain.hook.evidence,
-      crossValidation: domain.hook.crossValidation,
       viewerPositioning: domain.hook.viewerPositioning,
       visualHook: domain.hook.visualHook,
       firstSentence: domain.hook.firstSentence,
-    },
-
-    comment: {
-      targetAudienceSignal: domain.comment.targetAudienceSignal,
-      topThemes: domain.comment.topThemes,
-      requestPatterns: domain.comment.requestPatterns,
-      confusionPoints: domain.comment.confusionPoints,
-      sentimentBar: {
-        positivePercent: Math.round(domain.comment.sentimentRatio.positive * 100),
-        negativePercent: Math.round(domain.comment.sentimentRatio.negative * 100),
-        neutralPercent: Math.round(domain.comment.sentimentRatio.neutral * 100),
-      },
-      keywords: domain.comment.keywords,
-      why: domain.comment.why,
-      evidence: domain.comment.evidence,
-      conversionComments: domain.comment.conversionComments,
     },
 
     structure: {
@@ -72,12 +54,27 @@ export function useVideoAnalysisViewModel(domain: VideoAnalysis): VideoAnalysisV
       directorComment: domain.structure.directorComment,
       targetAudienceDescription: domain.structure.targetAudienceDescription,
       targetAudienceAttributes: domain.structure.targetAudienceAttributes,
-      storyStructure: domain.structure.storyStructure,
-      editingPoints: domain.structure.editingPoints,
-      viralPoints: domain.structure.viralPoints,
+      storyStructure: domain.structure.storyStructure.map((seg) => ({
+        timeframe: seg.timeframe,
+        title: seg.title,
+        description: seg.description,
+      })),
+      viralPoints: domain.structure.viralPointCards.map(
+        (c) => `${c.title}: ${c.summary}`
+      ),
+      editingPoints: domain.structure.editingPoints?.map((p) => ({
+        label: p.label,
+        description: p.description,
+      })),
       trendContextDescription: domain.structure.trendContextDescription,
-      trendInsights: domain.structure.trendInsights,
-      ctaStrategy: domain.structure.ctaStrategy,
+      trendInsights: domain.structure.trendInsights?.map((t) => ({
+        value: t.value,
+        label: t.label,
+      })),
+      ctaStrategy: domain.structure.ctaStrategy?.map((c) => ({
+        label: c.label,
+        description: c.description,
+      })),
     },
   }), [domain])
 }
