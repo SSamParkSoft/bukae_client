@@ -8,6 +8,7 @@ import { useProjectStore } from '@/store/useProjectStore'
 
 const POLL_INTERVAL_MS = 2500
 const COMPLETED_RESULT_RETRY_MS = 1000
+const MAX_COMPLETED_RESULT_RETRIES = 10
 
 export type AnalysisResourceStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -70,6 +71,7 @@ export function useAnalysisResource(): AnalysisResourceState {
 
     let cancelled = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let completedRetryCount = 0
 
     async function syncAnalysisResult() {
       try {
@@ -92,6 +94,17 @@ export function useAnalysisResource(): AnalysisResourceState {
           setErrorMessage(null)
           setAnalysisResult(mapBenchmarkAnalysisResult(data))
           return
+        }
+
+        if (data.submissionStatus === 'COMPLETED') {
+          completedRetryCount += 1
+
+          if (completedRetryCount >= MAX_COMPLETED_RESULT_RETRIES) {
+            setErrorMessage('분석은 완료되었지만 결과 데이터를 불러오지 못했습니다.')
+            return
+          }
+        } else {
+          completedRetryCount = 0
         }
 
         const nextDelay =

@@ -17,7 +17,7 @@ export const BenchmarkAnalysisPollingSchema = z.object({
 export type BenchmarkAnalysisPollingDto = z.infer<typeof BenchmarkAnalysisPollingSchema>
 
 const ThumbnailTabSchema = z.object({
-  imageUrl: z.string(),
+  imageUrl: z.string().optional(),
   mainText: z.string().optional(),
   imageSize: z.object({ width: z.number(), height: z.number() }).optional(),
   textRatio: z.number().optional(),
