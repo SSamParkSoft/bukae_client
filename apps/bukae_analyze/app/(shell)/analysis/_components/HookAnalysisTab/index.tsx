@@ -14,7 +14,7 @@ export function HookAnalysisTab({ data }: Props) {
         <HookOptionalFields data={data} />
         <HookMetrics data={data} />
       </div>
-      <WhyBox>{data.why}</WhyBox>
+      {data.why.length > 0 ? <WhyBox sentences={data.why} /> : null}
     </div>
   )
 }

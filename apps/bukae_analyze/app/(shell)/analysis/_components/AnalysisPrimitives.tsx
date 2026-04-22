@@ -2,6 +2,8 @@
  * videoAnalysis 탭들이 공유하는 UI 프리미티브
  */
 
+import { BulletSentenceList } from './VideoStructureTab/VideoStructurePrimitives'
+
 export function AiBadge() {
   return (
     <span className="inline-block text-[10px] font-medium text-white/40 border border-white/20 rounded px-1.5 py-0.5 leading-none">
@@ -18,11 +20,18 @@ export function SectionLabel({ children }: { children: string }) {
   )
 }
 
-export function WhyBox({ children }: { children: string }) {
+export function WhyBox({ sentences }: { sentences: string[] }) {
+  if (sentences.length === 0) return null
+
   return (
     <div className="p-6 bg-white/10">
-      <p className="font-medium tracking-[-0.04em] text-white/60 mb-2" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>★ 핵심 분석</p>
-      <p className="font-16-md tracking-[-0.04em] leading-relaxed text-white/80 pt-4 px-6">{children}</p>
+      <p className="mb-2 font-medium tracking-[-0.04em] text-white/60" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>★ 핵심 분석</p>
+      <div className="px-6 pt-4" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
+        <BulletSentenceList
+          sentences={sentences}
+          itemClassName="whitespace-pre-line font-medium leading-[1.4] tracking-[-0.04em] text-white/80"
+        />
+      </div>
     </div>
   )
 }

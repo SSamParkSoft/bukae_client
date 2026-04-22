@@ -76,7 +76,7 @@ export function ThumbnailAnalysisTab({ data }: Props) {
           </div>
         ))}
       </div>
-      {data.why && <WhyBox>{data.why}</WhyBox>}
+      {data.why && data.why.length > 0 ? <WhyBox sentences={data.why} /> : null}
     </div>
   )
 }

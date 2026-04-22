@@ -7,11 +7,13 @@ import type {
   VideoStructureAnalysis,
 } from '@/lib/types/domain'
 
-export interface ThumbnailAnalysisViewModel extends ThumbnailAnalysis {
+export interface ThumbnailAnalysisViewModel extends Omit<ThumbnailAnalysis, 'why'> {
   textRatioPercent?: string
+  why?: string[]
 }
 
-export interface HookAnalysisViewModel extends HookAnalysis {
+export interface HookAnalysisViewModel extends Omit<HookAnalysis, 'why'> {
+  why: string[]
   durationLabel: string
   hookDurationSecLabel: string
   videoLengthLabel?: string

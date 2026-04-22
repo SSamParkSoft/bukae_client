@@ -46,15 +46,19 @@ function formatSentenceBreaks(value: string): string[] {
 }
 
 function mapThumbnailViewModel(domain: VideoAnalysis): ThumbnailAnalysisViewModel {
+  const why = domain.thumbnail.why
+
   return {
     ...domain.thumbnail,
     textRatioPercent: formatPercent(domain.thumbnail.textRatio),
+    why: why?.trim() ? formatSentenceBreaks(why) : undefined,
   }
 }
 
 function mapHookViewModel(domain: VideoAnalysis): HookAnalysisViewModel {
   return {
     ...domain.hook,
+    why: formatSentenceBreaks(domain.hook.why),
     durationLabel: `첫 ${domain.hook.durationSec}초`,
     hookDurationSecLabel: formatSeconds(domain.hook.durationSec) ?? '0.0 Sec',
     videoLengthLabel: formatMinutesToClock(domain.hook.videoLengthMin),
