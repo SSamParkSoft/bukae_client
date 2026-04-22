@@ -15,8 +15,8 @@ function HookCategoryItem({ label, value, isLarge }: HookCategoryItemProps) {
           style={{ fontSize: 'clamp(20px, 1.25vw, 24px)' }}
           className={`min-w-0 text-white/80 ${
             isLarge
-              ? 'font-semibold leading-[1.8] tracking-[-0.04em] text-center w-full'
-              : 'font-semibold leading-[1.8] tracking-[-0.04em] text-center w-full'
+              ? 'font-semibold leading-[1.4] tracking-[-0.04em] text-center w-full'
+              : 'font-semibold leading-[1.4] tracking-[-0.04em] text-center w-full'
           }`}
         >
           {value}

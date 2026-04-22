@@ -10,7 +10,7 @@ export function VideoOverviewCard({ overview }: Props) {
           한 줄 기획 요약
         </p>
         <div className="flex items-center px-6 py-4 w-full">
-          <p className="line-clamp-2 min-w-0 flex-1 wrap-break-word font-medium tracking-[-0.04em] text-white/80 font-16-rg">
+          <p className="min-w-0 flex-1 whitespace-pre-line wrap-break-word font-medium leading-[1.4] tracking-[-0.04em] text-white/80 font-16-rg">
             {overview}
           </p>
         </div>

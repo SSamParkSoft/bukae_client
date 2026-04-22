@@ -11,7 +11,7 @@ export function VideoTargetCard({ description, attributes }: Props) {
           핵심 타겟층
         </p>
         <div className="flex flex-col px-6 py-4 w-full">
-          <p className="font-medium tracking-[-0.04em] text-white/80 font-16-rg mb-4">
+          <p className="mb-4 whitespace-pre-line font-medium leading-[1.4] tracking-[-0.04em] text-white/80 font-16-rg">
             {description}
           </p>
           <div className="flex gap-4 items-center flex-wrap">

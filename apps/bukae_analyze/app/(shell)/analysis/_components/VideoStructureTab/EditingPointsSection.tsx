@@ -13,7 +13,7 @@ export function EditingPointsSection({ points }: Props) {
     >
       <div className="flex h-full min-h-0 w-full flex-col items-start gap-4">
         <SectionTitle>편집 및 연출 포인트</SectionTitle>
-        <div className="flex w-full flex-col items-start">
+        <div className="flex w-full flex-col items-center">
           {points.map((pt) => (
             <LabeledRow key={pt.label} {...pt} />
           ))}

@@ -20,7 +20,7 @@ export function QuestionBlock({ data }: { data: AiQuestionViewModel }) {
           {data.questionText}
         </p>
         <div className="backdrop-blur-[2px] border-b border-white/20 py-3 w-full">
-          <p className="font-medium tracking-[-0.04em] text-white/80 leading-[1.8] line-clamp-2" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
+          <p className="font-medium tracking-[-0.04em] text-white/80 leading-[1.4] line-clamp-2" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
             {data.referenceInsight}
           </p>
         </div>

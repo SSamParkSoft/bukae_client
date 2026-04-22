@@ -4,7 +4,7 @@ import { WhyBox } from './AnalysisPrimitives'
 function FieldValueBox({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-6 py-2">
-      <div className="truncate font-16-rg leading-[1.8] text-white/80">
+      <div className="truncate font-16-rg leading-[1.4] text-white/80">
         {children ?? '—'}
       </div>
     </div>

@@ -32,6 +32,19 @@ function formatMinutesToClock(value?: number): string | undefined {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
+function formatSentenceBreaks(value: string): string[] {
+  const trimmed = value.trim()
+  if (!trimmed) return []
+
+  const sentences = trimmed
+    .replace(/니다\.\s+/g, '니다.\n')
+    .split('\n')
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+
+  return sentences.length > 0 ? sentences : [trimmed]
+}
+
 function mapThumbnailViewModel(domain: VideoAnalysis): ThumbnailAnalysisViewModel {
   return {
     ...domain.thumbnail,
@@ -52,8 +65,25 @@ function mapHookViewModel(domain: VideoAnalysis): HookAnalysisViewModel {
 }
 
 function mapStructureViewModel(domain: VideoAnalysis): VideoStructureViewModel {
+  const dc = domain.structure.directorComment
+  const tc = domain.structure.trendContextDescription
+
   return {
     ...domain.structure,
+    directorComment: dc?.trim() ? formatSentenceBreaks(dc) : undefined,
+    trendContextDescription: tc?.trim() ? formatSentenceBreaks(tc) : undefined,
+    storyStructure: domain.structure.storyStructure.map((segment) => ({
+      ...segment,
+      description: formatSentenceBreaks(segment.description),
+    })),
+    editingPoints: domain.structure.editingPoints?.map((item) => ({
+      ...item,
+      description: formatSentenceBreaks(item.description),
+    })),
+    ctaStrategy: domain.structure.ctaStrategy?.map((item) => ({
+      ...item,
+      description: formatSentenceBreaks(item.description),
+    })),
     viralPoints: domain.structure.viralPointCards.map(
       (point) => `${point.title}: ${point.summary}`
     ),

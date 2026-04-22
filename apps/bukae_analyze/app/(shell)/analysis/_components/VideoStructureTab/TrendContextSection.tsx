@@ -1,8 +1,8 @@
 import type { TrendInsightViewModel } from '@/features/videoAnalysis/types/viewModel'
-import { glassPanelClass, SectionTitle } from './VideoStructurePrimitives'
+import { BulletSentenceList, glassPanelClass, SectionTitle } from './VideoStructurePrimitives'
 
 interface Props {
-  description: string
+  description: string[]
   insights: TrendInsightViewModel[]
 }
 
@@ -15,22 +15,23 @@ export function TrendContextSection({ description, insights }: Props) {
       <div className="flex h-full min-h-0 w-full flex-col items-start gap-4">
         <SectionTitle>현재 트렌드 맥락</SectionTitle>
         <div className="flex w-full flex-col gap-4 rounded-lg px-6 py-4">
-          <div className="min-w-0 p-2">
-            <p className="line-clamp-2 font-medium leading-[1.4] tracking-[-0.04em] text-white/80" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
-              {description}
-            </p>
+          <div className="min-w-0 p-2" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
+            <BulletSentenceList
+              sentences={description}
+              itemClassName="whitespace-pre-line font-medium leading-[1.4] tracking-[-0.04em] text-white/80"
+            />
           </div>
           <div className="flex w-full items-center justify-between gap-4">
             {insights.map((insight) => (
               <div
                 key={insight.label}
-                className="min-w-0 flex-1 rounded-lg bg-white/10 px-6 py-4 backdrop-glass-strong"
+                className="min-w-0 flex-1 rounded-lg bg-white/10 px-6 py-4"
               >
                 <div className="flex max-h-[65px] min-w-0 flex-col">
-                  <p className="min-w-0 truncate font-semibold tracking-[-0.04em] text-white" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>
+                  <p className="min-w-0 font-semibold tracking-[-0.04em] text-white" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>
                     {insight.value}
                   </p>
-                  <p className="min-w-0 truncate font-medium tracking-[-0.04em] text-white/60" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
+                  <p className="min-w-0 font-medium tracking-[-0.04em] text-white/60" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
                     {insight.label}
                   </p>
                 </div>

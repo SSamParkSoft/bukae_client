@@ -20,14 +20,32 @@ export interface HookAnalysisViewModel extends HookAnalysis {
   pacingLabel: string
 }
 
-export type StorySegmentViewModel = StorySegment
+export interface StorySegmentViewModel extends Omit<StorySegment, 'description'> {
+  description: string[]
+}
 
-export type LabeledItemViewModel = LabeledPoint
+export interface LabeledItemViewModel extends Omit<LabeledPoint, 'description'> {
+  description: string[]
+}
 
 export type TrendInsightViewModel = TrendInsight
 
-export interface VideoStructureViewModel extends Omit<VideoStructureAnalysis, 'viralPointCards'> {
+export interface VideoStructureViewModel
+  extends Omit<
+    VideoStructureAnalysis,
+    | 'viralPointCards'
+    | 'directorComment'
+    | 'trendContextDescription'
+    | 'storyStructure'
+    | 'editingPoints'
+    | 'ctaStrategy'
+  > {
   viralPoints: string[]
+  directorComment?: string[]
+  trendContextDescription?: string[]
+  storyStructure: StorySegmentViewModel[]
+  editingPoints?: LabeledItemViewModel[]
+  ctaStrategy?: LabeledItemViewModel[]
 }
 
 export interface VideoAnalysisViewModel {

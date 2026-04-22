@@ -33,7 +33,7 @@ export function EvidenceList({ items }: { items: string[] }) {
     <div className="flex w-full flex-col gap-6">
       {items.map((item, i) => (
         <div key={i} className="min-w-0 backdrop-blur-[2px] border-b border-white/40 px-6 py-4">
-          <p className="min-w-0 truncate font-16-md tracking-[-0.04em] leading-[1.8] text-white/80" title={item}>
+          <p className="min-w-0 truncate font-16-md tracking-[-0.04em] leading-[1.4] text-white/80" title={item}>
             {item}
           </p>
         </div>
