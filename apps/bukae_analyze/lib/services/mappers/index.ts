@@ -13,3 +13,5 @@
  * export * from './channelStatsMapper'
  * export * from './videoStatsMapper'
  */
+
+export * from './benchmarkAnalysisMapper'

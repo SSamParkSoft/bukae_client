@@ -226,6 +226,58 @@
     font-weight: var(--text-12_rg-weight);
   }
 
+  /*
+   * Fluid 타이포 프리셋 — font-size만 clamp() 반응형, 나머지는 고정 프리셋과 동일
+   * 네이밍: font-fluid-{max크기}-{굵기}  (max값이 고정 프리셋 이름과 대응)
+   */
+  .font-fluid-16-rg {
+    font-family: var(--font-sans);
+    font-size: clamp(14px, 0.9vw, 16px);
+    letter-spacing: -0.04em;
+    line-height: 1.4;
+    font-weight: 400;
+  }
+
+  .font-fluid-16-md {
+    font-family: var(--font-sans);
+    font-size: clamp(14px, 0.9vw, 16px);
+    letter-spacing: -0.04em;
+    line-height: 1.4;
+    font-weight: 500;
+  }
+
+  .font-fluid-20-md {
+    font-family: var(--font-sans);
+    font-size: clamp(16px, 1.04vw, 20px);
+    letter-spacing: -0.04em;
+    line-height: 1.4;
+    font-weight: 500;
+  }
+
+  .font-fluid-20-sm {
+    font-family: var(--font-sans);
+    font-size: clamp(16px, 1.04vw, 20px);
+    letter-spacing: -0.04em;
+    line-height: 1.4;
+    font-weight: 600;
+  }
+
+  .font-fluid-24-sm {
+    font-family: var(--font-sans);
+    font-size: clamp(20px, 1.24vw, 24px);
+    letter-spacing: -0.04em;
+    line-height: 1.4;
+    font-weight: 600;
+  }
+
+  .font-fluid-28-md {
+    font-family: var(--font-sans);
+    font-size: clamp(20px, 1.46vw, 28px);
+    letter-spacing: -0.04em;
+    line-height: 1.4;
+    font-weight: 500;
+  }
+
   .backdrop-glass-strong {
     -webkit-backdrop-filter: blur(var(--glass-blur-strong));
     backdrop-filter: blur(var(--glass-blur-strong));
@@ -243,6 +295,40 @@
       display: none;
     }
   }
+
+  /*
+   * 스캔 그라데이션만 로고 모양으로 클립 (img에는 mask 적용 안 함 → 잘리는 버그 회피)
+   */
+  .loading-logo-sweep-layer {
+    mix-blend-mode: screen;
+    -webkit-mask-image: url('/loading.svg');
+    mask-image: url('/loading.svg');
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+
+  /* 실루엣 전체: 거의 안 보임 ↔ 선명 (스캔과 다른 주기로 어긋나게) */
+  .loading-logo-base {
+    animation: loading-logo-breathe 3.2s ease-in-out infinite;
+  }
+
+  /* 스캔 띠: 가장자리는 ~3%, 중앙 한 줄만 ~95% — 지나갈 때만 강하게 번쩍 */
+  .loading-scan-beam {
+    background: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.03) 0%,
+      rgba(255, 255, 255, 0.04) 40%,
+      rgba(255, 255, 255, 0.95) 48%,
+      rgba(255, 255, 255, 0.95) 52%,
+      rgba(255, 255, 255, 0.04) 60%,
+      rgba(255, 255, 255, 0.03) 100%
+    );
+    animation: loading-scan-vertical 2.1s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -256,6 +342,29 @@ html {
   background-color: #17171B;
 }
 
+/* 로딩 스캔: 위 → 아래 → 위 (그라데이션 띠 transform) */
+@keyframes loading-scan-vertical {
+  0% {
+    transform: translateY(-108%);
+  }
+  50% {
+    transform: translateY(268%);
+  }
+  100% {
+    transform: translateY(-108%);
+  }
+}
+
+@keyframes loading-logo-breathe {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 body {
   min-height: 100dvh;
   background-color: transparent;
@@ -263,23 +372,6 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-/* 배경 사진: 60% 불투명도 + 살짝 노출(밝기) — 본문은 그대로 */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background-color: #17171b; /* 이미지 로드 전/실패 시 fallback */
-  background-image: url('/bukae_space.webp');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  opacity: 0.6;
-  filter: brightness(0.87);
-  pointer-events: none;
-  will-change: transform; /* 첫 페인트부터 GPU 레이어 확보 */
 }
 
 /* 가장자리 비네트 — 끝은 순검정(#000) */
@@ -304,4 +396,114 @@ body::after {
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+/* Google Sign-In Material Button (공식 GSI 규격) */
+.gsi-material-button {
+  -moz-user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
+  -webkit-appearance: none;
+  background-color: #131314;
+  background-image: none;
+  border: 1px solid #747775;
+  -webkit-border-radius: 20px;
+  border-radius: 20px;
+  -webkit-box-sizing: border-box;
+  box-sizing: border-box;
+  color: #e3e3e3;
+  cursor: pointer;
+  font-family: 'Roboto', arial, sans-serif;
+  font-size: 14px;
+  height: 40px;
+  letter-spacing: 0.25px;
+  outline: none;
+  overflow: hidden;
+  padding: 0 12px;
+  position: relative;
+  text-align: center;
+  -webkit-transition: background-color .218s, border-color .218s, box-shadow .218s;
+  transition: background-color .218s, border-color .218s, box-shadow .218s;
+  vertical-align: middle;
+  white-space: nowrap;
+  width: auto;
+  max-width: 400px;
+  min-width: min-content;
+  border-color: #8e918f;
+}
+
+.gsi-material-button .gsi-material-button-icon {
+  height: 20px;
+  margin-right: 10px;
+  min-width: 20px;
+  width: 20px;
+}
+
+.gsi-material-button .gsi-material-button-content-wrapper {
+  -webkit-align-items: center;
+  align-items: center;
+  display: flex;
+  -webkit-flex-direction: row;
+  flex-direction: row;
+  -webkit-flex-wrap: nowrap;
+  flex-wrap: nowrap;
+  height: 100%;
+  justify-content: space-between;
+  position: relative;
+  width: 100%;
+}
+
+.gsi-material-button .gsi-material-button-contents {
+  -webkit-flex-grow: 1;
+  flex-grow: 1;
+  font-family: 'Roboto', arial, sans-serif;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+.gsi-material-button .gsi-material-button-state {
+  -webkit-transition: opacity .218s;
+  transition: opacity .218s;
+  bottom: 0;
+  left: 0;
+  opacity: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.gsi-material-button:disabled {
+  cursor: default;
+  background-color: #13131461;
+  border-color: #8e918f1f;
+}
+
+.gsi-material-button:disabled .gsi-material-button-state {
+  background-color: #e3e3e31f;
+}
+
+.gsi-material-button:disabled .gsi-material-button-contents {
+  opacity: 38%;
+}
+
+.gsi-material-button:disabled .gsi-material-button-icon {
+  opacity: 38%;
+}
+
+.gsi-material-button:not(:disabled):active .gsi-material-button-state,
+.gsi-material-button:not(:disabled):focus .gsi-material-button-state {
+  background-color: white;
+  opacity: 12%;
+}
+
+.gsi-material-button:not(:disabled):hover {
+  -webkit-box-shadow: 0 1px 2px 0 rgba(60, 64, 67, .30), 0 1px 3px 1px rgba(60, 64, 67, .15);
+  box-shadow: 0 1px 2px 0 rgba(60, 64, 67, .30), 0 1px 3px 1px rgba(60, 64, 67, .15);
+}
+
+.gsi-material-button:not(:disabled):hover .gsi-material-button-state {
+  background-color: white;
+  opacity: 8%;
 }

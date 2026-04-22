@@ -9,10 +9,12 @@ export function AnalyzeHomeUrlForm({
   url,
   onUrlChange,
   onSubmit,
+  isSubmitting = false,
 }: {
   url: string
   onUrlChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
+  isSubmitting?: boolean
 }) {
   return (
     <form onSubmit={onSubmit} className="w-[70%] max-w-[1360px]">
@@ -27,13 +29,15 @@ export function AnalyzeHomeUrlForm({
             value={url}
             onChange={onUrlChange}
             placeholder={URL_PLACEHOLDER}
-            className="min-w-0 flex-1 bg-transparent font-20-rg text-white outline-none placeholder:text-white/60 2xl:font-24-rg"
+            className="min-w-0 flex-1 bg-transparent font-20-rg text-white outline-none placeholder:text-white/60 2xl:font-24-rg disabled:opacity-50"
             autoComplete="url"
             inputMode="url"
+            disabled={isSubmitting}
           />
           <button
             type="submit"
-            className="inline-flex shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
+            disabled={isSubmitting}
+            className="inline-flex shrink-0 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ width: 'clamp(40px, 2.5vw, 48px)', height: 'clamp(40px, 2.5vw, 48px)' }}
             aria-label="분석 시작"
           >

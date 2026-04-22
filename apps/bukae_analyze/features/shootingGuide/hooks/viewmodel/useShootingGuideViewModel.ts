@@ -8,11 +8,10 @@ export function useShootingGuideViewModel(domain: ShootingGuide): ShootingGuideV
       sceneLabel: `SCENE ${scene.sceneNumber} : ${scene.sceneName}`,
       durationLabel: `${scene.startTimeSec.toFixed(1)}s − ${scene.endTimeSec.toFixed(1)}s`,
       description: scene.description,
-      contentItems: [
-        { title: '비주얼 촬영 가이드', content: scene.visualGuide },
-        { title: '자막 스크립트', content: scene.subtitleScript },
-        { title: '오디오 스크립트', content: scene.audioScript },
-      ],
+      visualGuide: scene.visualGuide,
+      audioScript: scene.audioScript,
+      subtitleScript: scene.subtitleScript,
+      planningBasis: scene.planningBasis,
     })),
   }), [domain])
 }

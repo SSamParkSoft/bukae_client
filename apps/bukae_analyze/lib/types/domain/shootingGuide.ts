@@ -7,6 +7,7 @@ export interface ShootingScene {
   visualGuide: string
   subtitleScript: string
   audioScript: string
+  planningBasis: string
 }
 
 export interface ShootingGuide {

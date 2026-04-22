@@ -2,81 +2,106 @@
 
 import { useMemo } from 'react'
 import type { VideoAnalysis } from '@/lib/types/domain'
-import type { VideoAnalysisViewModel } from '../../types/viewModel'
+import type {
+  HookAnalysisViewModel,
+  ThumbnailAnalysisViewModel,
+  VideoAnalysisViewModel,
+  VideoStructureViewModel,
+} from '../../types/viewModel'
 
-const PACING_LABEL: Record<'fast' | 'medium' | 'slow', string> = {
+const PACING_LABEL: Record<VideoAnalysis['hook']['pacing'], string> = {
   fast: '빠름',
   medium: '보통',
   slow: '느림',
 }
 
+function formatPercent(value?: number): string | undefined {
+  return value !== undefined ? `${Math.round(value * 100)}%` : undefined
+}
+
+function formatSeconds(value?: number): string | undefined {
+  return value !== undefined ? `${value.toFixed(1)} Sec` : undefined
+}
+
+function formatMinutesToClock(value?: number): string | undefined {
+  if (value === undefined) return undefined
+
+  const totalSeconds = Math.round(value * 60)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function formatSentenceBreaks(value: string): string[] {
+  const trimmed = value.trim()
+  if (!trimmed) return []
+
+  const sentences = trimmed
+    .replace(/니다\.\s+/g, '니다.\n')
+    .split('\n')
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+
+  return sentences.length > 0 ? sentences : [trimmed]
+}
+
+function mapThumbnailViewModel(domain: VideoAnalysis): ThumbnailAnalysisViewModel {
+  const why = domain.thumbnail.why
+
+  return {
+    ...domain.thumbnail,
+    textRatioPercent: formatPercent(domain.thumbnail.textRatio),
+    why: why?.trim() ? formatSentenceBreaks(why) : undefined,
+  }
+}
+
+function mapHookViewModel(domain: VideoAnalysis): HookAnalysisViewModel {
+  return {
+    ...domain.hook,
+    why: formatSentenceBreaks(domain.hook.why),
+    durationLabel: `첫 ${domain.hook.durationSec}초`,
+    hookDurationSecLabel: formatSeconds(domain.hook.durationSec) ?? '0.0 Sec',
+    videoLengthLabel: formatMinutesToClock(domain.hook.videoLengthMin),
+    sceneCountLabel: `${domain.structure.storyStructure.length} EA`,
+    avgCutLengthLabel: formatSeconds(domain.hook.avgCutLengthSec),
+    pacingLabel: PACING_LABEL[domain.hook.pacing],
+  }
+}
+
+function mapStructureViewModel(domain: VideoAnalysis): VideoStructureViewModel {
+  const dc = domain.structure.directorComment
+  const tc = domain.structure.trendContextDescription
+
+  return {
+    ...domain.structure,
+    directorComment: dc?.trim() ? formatSentenceBreaks(dc) : undefined,
+    trendContextDescription: tc?.trim() ? formatSentenceBreaks(tc) : undefined,
+    storyStructure: domain.structure.storyStructure.map((segment) => ({
+      ...segment,
+      description: formatSentenceBreaks(segment.description),
+    })),
+    editingPoints: domain.structure.editingPoints?.map((item) => ({
+      ...item,
+      description: formatSentenceBreaks(item.description),
+    })),
+    ctaStrategy: domain.structure.ctaStrategy?.map((item) => ({
+      ...item,
+      description: formatSentenceBreaks(item.description),
+    })),
+    viralPoints: domain.structure.viralPointCards.map(
+      (point) => `${point.title}: ${point.summary}`
+    ),
+  }
+}
+
 export function useVideoAnalysisViewModel(domain: VideoAnalysis): VideoAnalysisViewModel {
-  return useMemo(() => ({
-    thumbnail: {
-      imageUrl: domain.thumbnail.imageUrl,
-      mainText: domain.thumbnail.mainText,
-      textRatioPercent: `${Math.round(domain.thumbnail.textRatio * 100)}%`,
-      layoutComposition: domain.thumbnail.layoutComposition,
-      colors: domain.thumbnail.colors,
-      ctrGrade: domain.thumbnail.ctrGrade,
-      why: domain.thumbnail.why,
-      evidence: domain.thumbnail.evidence,
-      crossValidation: domain.thumbnail.crossValidation,
-      facePresence: domain.thumbnail.facePresence,
-      numberEmphasis: domain.thumbnail.numberEmphasis,
-      emotionTrigger: domain.thumbnail.emotionTrigger,
-    },
-
-    hook: {
-      durationLabel: `첫 ${domain.hook.durationSec}초`,
-      hookDurationSecLabel: `${domain.hook.durationSec.toFixed(1)} Sec`,
-      videoLengthLabel: domain.hook.videoLengthMin !== undefined
-        ? `${domain.hook.videoLengthMin.toFixed(2)} Min`
-        : undefined,
-      sceneCountLabel: domain.hook.sceneCount !== undefined
-        ? `${domain.hook.sceneCount} EA`
-        : undefined,
-      avgCutLengthLabel: domain.hook.avgCutLengthSec !== undefined
-        ? `${domain.hook.avgCutLengthSec.toFixed(1)} Sec`
-        : undefined,
-      openingType: domain.hook.openingType,
-      emotionTrigger: domain.hook.emotionTrigger,
-      pacing: domain.hook.pacing,
-      pacingLabel: PACING_LABEL[domain.hook.pacing],
-      why: domain.hook.why,
-      evidence: domain.hook.evidence,
-      crossValidation: domain.hook.crossValidation,
-      viewerPositioning: domain.hook.viewerPositioning,
-      visualHook: domain.hook.visualHook,
-      firstSentence: domain.hook.firstSentence,
-    },
-
-    comment: {
-      targetAudienceSignal: domain.comment.targetAudienceSignal,
-      topThemes: domain.comment.topThemes,
-      requestPatterns: domain.comment.requestPatterns,
-      confusionPoints: domain.comment.confusionPoints,
-      sentimentBar: {
-        positivePercent: Math.round(domain.comment.sentimentRatio.positive * 100),
-        negativePercent: Math.round(domain.comment.sentimentRatio.negative * 100),
-        neutralPercent: Math.round(domain.comment.sentimentRatio.neutral * 100),
-      },
-      keywords: domain.comment.keywords,
-      why: domain.comment.why,
-      evidence: domain.comment.evidence,
-      conversionComments: domain.comment.conversionComments,
-    },
-
-    structure: {
-      overview: domain.structure.overview,
-      targetAudienceDescription: domain.structure.targetAudienceDescription,
-      targetAudienceAttributes: domain.structure.targetAudienceAttributes,
-      storyStructure: domain.structure.storyStructure,
-      editingPoints: domain.structure.editingPoints,
-      viralPoints: domain.structure.viralPoints,
-      trendContextDescription: domain.structure.trendContextDescription,
-      trendInsights: domain.structure.trendInsights,
-      ctaStrategy: domain.structure.ctaStrategy,
-    },
-  }), [domain])
+  return useMemo(
+    () => ({
+      thumbnail: mapThumbnailViewModel(domain),
+      hook: mapHookViewModel(domain),
+      structure: mapStructureViewModel(domain),
+    }),
+    [domain],
+  )
 }
