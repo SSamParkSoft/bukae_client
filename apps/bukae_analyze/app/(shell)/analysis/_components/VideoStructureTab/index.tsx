@@ -28,7 +28,9 @@ export function VideoStructureTab({ data }: Props) {
   return (
     <div className="flex flex-col gap-12">
       <VideoOverviewCard overview={data.overview} />
-      {data.directorComment && <DirectorComment comment={data.directorComment} />}
+      {data.directorComment
+        ? <DirectorComment comment={data.directorComment} />
+        : <EmptySectionCard title="디렉터 코멘트" />}
       <VideoTargetCard
         description={data.targetAudienceDescription}
         attributes={data.targetAudienceAttributes}

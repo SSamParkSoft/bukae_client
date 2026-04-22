@@ -79,11 +79,12 @@ export function useAnalysisResource(): AnalysisResourceState {
     if (!projectId) return
     const currentProjectId = projectId
     if (submissionStatus === 'FAILED') return
-    if (submissionStatus === 'COMPLETED' && hasStoredResult) return
 
     let cancelled = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     let completedRetryCount = 0
+    const shouldRefreshCompletedResult =
+      submissionStatus === 'COMPLETED' && hasStoredResult
 
     async function syncAnalysisResult() {
       try {
@@ -105,6 +106,10 @@ export function useAnalysisResource(): AnalysisResourceState {
         if (data.normalized_analysis_tabs) {
           setErrorMessage(null)
           setAnalysisResult(mapBenchmarkAnalysisResult(data))
+          return
+        }
+
+        if (shouldRefreshCompletedResult) {
           return
         }
 

@@ -122,6 +122,19 @@ function mapEditingPoints(dto: BenchmarkAnalysisResponseDto): VideoStructureAnal
   }))
 }
 
+function mapCtaStrategy(dto: BenchmarkAnalysisResponseDto): VideoStructureAnalysis['ctaStrategy'] {
+  const ctaStrategy = dto.normalized_analysis_tabs?.structure?.ctaStrategy
+
+  if (!ctaStrategy) return undefined
+
+  return [
+    {
+      label: '전략',
+      description: ctaStrategy,
+    },
+  ]
+}
+
 function mapVideoStructureAnalysis(dto: BenchmarkAnalysisResponseDto): VideoStructureAnalysis {
   const structure = dto.normalized_analysis_tabs?.structure
 
@@ -135,6 +148,8 @@ function mapVideoStructureAnalysis(dto: BenchmarkAnalysisResponseDto): VideoStru
     storyStructure: mapStoryStructure(dto),
     viralPointCards: mapViralPointCards(dto),
     editingPoints: mapEditingPoints(dto),
+    trendContextDescription: structure?.trendContext,
+    ctaStrategy: mapCtaStrategy(dto),
   }
 }
 

@@ -90,6 +90,8 @@ const StructureTabSchema = z.object({
   targetAudience: z.string().optional(),
   targetAudienceKeywords: z.array(z.string()).optional(),
   editingDirections: z.array(EditingDirectionSchema).optional(),
+  trendContext: z.string().optional(),
+  ctaStrategy: z.string().optional(),
 })
 
 const SourceMetadataSchema = z.object({
