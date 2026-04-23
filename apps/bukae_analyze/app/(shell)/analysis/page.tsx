@@ -1,15 +1,8 @@
 import { PageTitle } from '@/components/page/PageTitle'
 import { AnalysisPageProvider } from '@/features/analysisPage/context/AnalysisPageContext'
+import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
 import { AnalysisPageContent } from './_components/AnalysisPageContent'
 import { AnalysisReferenceUrlBar } from './_components/AnalysisReferenceUrlBar'
-
-function resolveProjectId(
-  projectId: string | string[] | undefined
-): string | null {
-  if (typeof projectId === 'string') return projectId
-  if (Array.isArray(projectId)) return projectId[0] ?? null
-  return null
-}
 
 export default async function AnalysisPage({
   searchParams,
@@ -17,7 +10,7 @@ export default async function AnalysisPage({
   searchParams: Promise<{ projectId?: string | string[] }>
 }) {
   const { projectId } = await searchParams
-  const initialProjectId = resolveProjectId(projectId)
+  const initialProjectId = resolveSingleSearchParam(projectId)
 
   return (
     <AnalysisPageProvider initialProjectId={initialProjectId}>
