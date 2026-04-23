@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { TokenResponseSchema, type ApiTokenResponse } from '@/lib/types/api/auth'
+import { apiFetchWithToken } from './apiFetchCore'
 import { API_ENDPOINTS } from './endpoints'
 
 export async function logout(accessToken: string): Promise<void> {
@@ -27,14 +28,21 @@ export interface CurrentUser {
   profileImageUrl: string | null
 }
 
-export async function fetchCurrentUser(accessToken: string): Promise<CurrentUser> {
-  const res = await fetch(API_ENDPOINTS.users.me, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!res.ok) throw new Error('사용자 정보 조회 실패')
-  const data = CurrentUserSchema.parse(await res.json())
+function mapCurrentUser(data: z.infer<typeof CurrentUserSchema>): CurrentUser {
   return {
     name: data.nickname ?? data.name,
     profileImageUrl: data.profileImageUrl ?? null,
   }
+}
+
+export async function fetchCurrentUserWithToken(
+  accessToken: string
+): Promise<CurrentUser> {
+  const res = await apiFetchWithToken(accessToken, API_ENDPOINTS.users.me)
+  if (!res.ok) throw new Error('사용자 정보 조회 실패')
+  return mapCurrentUser(CurrentUserSchema.parse(await res.json()))
+}
+
+export async function fetchCurrentUser(accessToken: string): Promise<CurrentUser> {
+  return fetchCurrentUserWithToken(accessToken)
 }

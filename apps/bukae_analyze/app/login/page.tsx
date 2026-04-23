@@ -1,11 +1,19 @@
+import { redirect } from 'next/navigation'
 import Image from 'next/image'
+import { getServerAccessToken } from '@/lib/server/authSession'
 import logo from '@/public/logo.svg'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 const REDIRECT_URI = process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI ?? ''
 const LOGIN_HREF = `${API_BASE_URL}/oauth2/authorization/google?redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const accessToken = await getServerAccessToken()
+
+  if (accessToken) {
+    redirect('/')
+  }
+
   return (
     <div className="flex h-dvh items-center justify-center">
       <div className="flex flex-col items-center gap-[120px]">

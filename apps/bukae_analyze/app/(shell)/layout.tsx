@@ -1,10 +1,21 @@
+import { redirect } from 'next/navigation'
 import { AppShell } from '@/components/layout/AppShell'
-import { AuthGuard } from '@/components/layout/AuthGuard'
+import { getServerAccessToken, getServerCurrentUser } from '@/lib/server/authSession'
 
-export default function ShellLayout({ children }: { children: React.ReactNode }) {
+export default async function ShellLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const accessToken = await getServerAccessToken()
+
+  if (!accessToken) {
+    redirect('/login')
+  }
+
+  const initialUser = await getServerCurrentUser()
+
   return (
-    <AuthGuard>
-      <AppShell>{children}</AppShell>
-    </AuthGuard>
+    <AppShell isAuthenticated initialUser={initialUser}>{children}</AppShell>
   )
 }

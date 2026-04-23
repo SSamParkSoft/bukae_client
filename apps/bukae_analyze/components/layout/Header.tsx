@@ -2,13 +2,15 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
+import { useSyncExternalStore } from 'react'
+import type { CurrentUser } from '@/lib/services/auth'
 import { LAYOUT } from './layout-constants'
 import logo from '@/public/logo.svg'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useHeaderProfile } from '@/features/auth/hooks/state/useHeaderProfile'
 
-function UserProfileMenu() {
-  const { name, profileImageUrl, handleLogout } = useHeaderProfile()
+function UserProfileMenu({ initialUser }: { initialUser: CurrentUser | null }) {
+  const { name, profileImageUrl, handleLogout } = useHeaderProfile(initialUser)
 
   return (
     <div className="group relative">
@@ -45,9 +47,28 @@ function UserProfileMenu() {
   )
 }
 
-export function Header() {
-  const accessToken = useAuthStore((s) => s.accessToken)
+export function Header({
+  isAuthenticated = false,
+  initialUser = null,
+}: {
+  isAuthenticated?: boolean
+  initialUser?: CurrentUser | null
+}) {
   const user = useAuthStore((s) => s.user)
+  const hydrated = useSyncExternalStore(
+    (onStoreChange) => {
+      const unsubHydrate = useAuthStore.persist?.onHydrate(onStoreChange)
+      const unsubFinish = useAuthStore.persist?.onFinishHydration(onStoreChange)
+
+      return () => {
+        unsubHydrate?.()
+        unsubFinish?.()
+      }
+    },
+    () => useAuthStore.persist?.hasHydrated() ?? false,
+    () => false
+  )
+  const resolvedUser = user ?? initialUser
 
   return (
     <header
@@ -59,15 +80,19 @@ export function Header() {
       </Link>
 
       <div className="flex items-center">
-        {accessToken && user ? (
-          <UserProfileMenu />
-        ) : (
+        {resolvedUser ? (
+          <UserProfileMenu initialUser={resolvedUser} />
+        ) : !hydrated && isAuthenticated ? (
+          <div className="h-8 w-[120px]" />
+        ) : !isAuthenticated ? (
           <Link
             href="/login"
             className="px-4 py-2 text-sm font-regular text-white hover:bg-white/10 backdrop-blur-[2px] rounded-full"
           >
             로그인
           </Link>
+        ) : (
+          <div className="h-8 w-[120px]" />
         )}
       </div>
     </header>
