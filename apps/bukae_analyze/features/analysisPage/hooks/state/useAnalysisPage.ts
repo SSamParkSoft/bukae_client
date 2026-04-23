@@ -1,8 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useProjectStore } from '@/store/useProjectStore'
+import { useState } from 'react'
 import { useAnalysisResource, type AnalysisResourceErrorType } from './useAnalysisResource'
 import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
 import { mapVideoAnalysisToViewModel } from '@/features/videoAnalysis/hooks/viewmodel/useVideoAnalysisViewModel'
@@ -17,7 +15,6 @@ const TABS = [
 export type AnalysisTabId = (typeof TABS)[number]['id']
 
 export interface AnalysisPageState {
-  hasProject: boolean
   activeTab: AnalysisTabId
   setActiveTab: (tab: AnalysisTabId) => void
   tabs: typeof TABS
@@ -31,29 +28,14 @@ export interface AnalysisPageState {
   errorMessage: string | null
 }
 
-export function useAnalysisPage(initialProjectId: string | null): AnalysisPageState {
-  const router = useRouter()
-  const storedProjectId = useProjectStore((s) => s.projectId)
-  const clearProject = useProjectStore((s) => s.clearProject)
-  const projectId = initialProjectId ?? storedProjectId
+export function useAnalysisPage(projectId: string): AnalysisPageState {
   const [activeTab, setActiveTab] = useState<AnalysisTabId>('thumbnail')
   const { status, errorType, errorMessage, result } = useAnalysisResource(projectId)
-
-  useEffect(() => {
-    if (initialProjectId && storedProjectId && storedProjectId !== initialProjectId) {
-      clearProject()
-    }
-  }, [initialProjectId, storedProjectId, clearProject])
 
   // videoAnalysis가 없는 동안은 mock 데이터로 대체 (isReady가 false이므로 렌더되지 않음)
   const viewModel = mapVideoAnalysisToViewModel(result?.videoAnalysis ?? MOCK_VIDEO_ANALYSIS)
 
-  useEffect(() => {
-    if (!projectId) router.replace('/')
-  }, [projectId, router])
-
   return {
-    hasProject: Boolean(projectId),
     activeTab,
     setActiveTab,
     tabs: TABS,

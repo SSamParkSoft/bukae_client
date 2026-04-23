@@ -9,7 +9,7 @@ export function AnalysisPageProvider({
   initialProjectId,
   children,
 }: {
-  initialProjectId: string | null
+  initialProjectId: string
   children: React.ReactNode
 }) {
   const value = useAnalysisPage(initialProjectId)

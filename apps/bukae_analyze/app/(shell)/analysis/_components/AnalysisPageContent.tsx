@@ -15,7 +15,6 @@ import {
 
 export function AnalysisPageContent() {
   const {
-    hasProject,
     activeTab,
     setActiveTab,
     tabs,
@@ -27,8 +26,6 @@ export function AnalysisPageContent() {
     errorType,
     errorMessage,
   } = useAnalysisPageContext()
-
-  if (!hasProject) return null
 
   if (isFailed) {
     return (

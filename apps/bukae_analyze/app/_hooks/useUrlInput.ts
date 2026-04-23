@@ -3,12 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createProject, submitBenchmark } from '@/lib/services/projects'
-import { useProjectStore } from '@/store/useProjectStore'
 
 export function useUrlInput() {
   const router = useRouter()
-  const setProject = useProjectStore((s) => s.setProject)
-  const setSubmissionStatus = useProjectStore((s) => s.setSubmissionStatus)
   const [url, setUrl] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -23,13 +20,7 @@ export function useUrlInput() {
     setIsSubmitting(true)
     try {
       const project = await createProject()
-      const submission = await submitBenchmark(project.projectId, url.trim())
-      setProject({
-        projectId: project.projectId,
-        projectStatus: submission.projectStatus,
-        currentStep: submission.currentStep ?? null,
-      })
-      setSubmissionStatus(submission.submissionStatus)
+      await submitBenchmark(project.projectId, url.trim())
       router.push(`/analysis?projectId=${encodeURIComponent(project.projectId)}`)
     } catch (err) {
       console.error('분석 요청 실패:', err)

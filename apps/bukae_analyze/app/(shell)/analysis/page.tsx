@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { PageTitle } from '@/components/page/PageTitle'
 import { AnalysisPageProvider } from '@/features/analysisPage/context/AnalysisPageContext'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
@@ -12,8 +13,12 @@ export default async function AnalysisPage({
   const { projectId } = await searchParams
   const initialProjectId = resolveSingleSearchParam(projectId)
 
+  if (!initialProjectId) {
+    redirect('/')
+  }
+
   return (
-    <AnalysisPageProvider initialProjectId={initialProjectId}>
+    <AnalysisPageProvider key={initialProjectId} initialProjectId={initialProjectId}>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
         <AnalysisReferenceUrlBar className="mb-10" />
         <PageTitle title="AI 분석" description="원본 영상의 핵심 요소를 파악했습니다" />
