@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
 import { PageTitle } from '@/components/page/PageTitle'
+import { fetchPlanningBootstrap } from '@/lib/server/planningBootstrap'
+import { getServerAccessToken } from '@/lib/server/authSession'
 import { parsePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
 import { AiPlanningPageClient } from './_components/AiPlanningPageClient'
@@ -29,6 +31,13 @@ export default async function AiPlanningPage({
 
   const resolvedMode = resolveMode(resolveSingleSearchParam(mode))
   const initialPlanningAnswers = parsePlanningSetupAnswers(resolvedPlanning)
+  const accessToken = await getServerAccessToken()
+  const initialPlanningSession = accessToken
+    ? await fetchPlanningBootstrap({
+      accessToken,
+      projectId: resolvedProjectId,
+    }).catch(() => null)
+    : null
 
   if (resolvedMode === 'chatbot') {
     return (
@@ -37,6 +46,7 @@ export default async function AiPlanningPage({
         mode={resolvedMode}
         initialPlanningAnswers={initialPlanningAnswers}
         planningParam={resolvedPlanning}
+        initialPlanningSession={initialPlanningSession}
       />
     )
   }
@@ -53,6 +63,7 @@ export default async function AiPlanningPage({
         mode={resolvedMode}
         initialPlanningAnswers={initialPlanningAnswers}
         planningParam={resolvedPlanning}
+        initialPlanningSession={initialPlanningSession}
       />
     </div>
   )

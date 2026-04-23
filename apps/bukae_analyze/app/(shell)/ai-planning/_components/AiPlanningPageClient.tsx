@@ -1,15 +1,21 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
 import { usePlanningStore } from '@/store/usePlanningStore'
 import { useAiPlanningForm } from '@/features/aiPlanning/hooks/form/useAiPlanningForm'
 import { useAiPlanningViewModel } from '@/features/aiPlanning/hooks/viewmodel/useAiPlanningViewModel'
 import { useFollowUpChatbot } from '@/features/aiPlanning/hooks/state/useFollowUpChatbot'
+import { usePlanningSession } from '@/features/aiPlanning/hooks/state/usePlanningSession'
 import { FollowUpChatbot } from './chatbotComponents'
+import { PlanningQuestionCard } from './PlanningQuestionCard'
+import { PlanningSessionError } from './PlanningSessionError'
+import { PlanningSessionLoading } from './PlanningSessionLoading'
 import { QuestionBlock } from './AiPlanningQuestionPrimitives'
 import type {
   AiPlanningInput,
+  PlanningSession,
   PlanningSetupAnswers,
   VideoAnalysis,
 } from '@/lib/types/domain'
@@ -62,11 +68,13 @@ export function AiPlanningPageClient({
   mode,
   initialPlanningAnswers,
   planningParam,
+  initialPlanningSession,
 }: {
   projectId: string
   mode: AiPlanningMode
   initialPlanningAnswers: PlanningSetupAnswers
   planningParam: string | null
+  initialPlanningSession: PlanningSession | null
 }) {
   const router = useRouter()
   const isChatbotMode = mode === 'chatbot'
@@ -81,6 +89,30 @@ export function AiPlanningPageClient({
   const form = useAiPlanningForm()
   const viewModel = useAiPlanningViewModel(input, form)
   const chatbotViewModel = useFollowUpChatbot()
+  const planningSessionState = usePlanningSession(projectId, initialPlanningSession)
+  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({})
+  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({})
+  const [fieldAnswers, setFieldAnswers] = useState<Record<string, Record<string, string>>>({})
+
+  const questions = useMemo(
+    () => planningSessionState.session?.clarifyingQuestions ?? [],
+    [planningSessionState.session]
+  )
+
+  const questionColumns = useMemo(() => {
+    const left: typeof questions = []
+    const right: typeof questions = []
+
+    questions.forEach((question, index) => {
+      if (index % 2 === 0) {
+        left.push(question)
+      } else {
+        right.push(question)
+      }
+    })
+
+    return [left, right] as const
+  }, [questions])
 
   const enterChatbotMode = () => {
     router.push(buildAiPlanningHref(projectId, 'chatbot', planningParam))
@@ -105,14 +137,58 @@ export function AiPlanningPageClient({
     )
   }
 
+  if (planningSessionState.errorMessage) {
+    return <PlanningSessionError message={planningSessionState.errorMessage} />
+  }
+
+  if (planningSessionState.isLoading && questions.length === 0) {
+    return <PlanningSessionLoading />
+  }
+
   return (
     <div className="pb-32">
       <div className="grid grid-cols-2 gap-y-10">
-        {viewModel.questions.map((q) => (
-          <div key={q.questionNumber} className="px-6 min-w-0">
-            <QuestionBlock data={q} />
-          </div>
-        ))}
+        {questions.length > 0 ? (
+          questionColumns.map((column, columnIndex) => (
+            <div key={columnIndex} className="flex min-w-0 flex-col gap-10 px-6">
+              {column.map((question, questionIndex) => {
+                const absoluteIndex = columnIndex === 0 ? questionIndex * 2 : questionIndex * 2 + 1
+
+                return (
+                  <PlanningQuestionCard
+                    key={question.questionId}
+                    question={question}
+                    index={absoluteIndex}
+                    selectedValue={selectedAnswers[question.questionId] ?? null}
+                    customValue={customAnswers[question.questionId] ?? ''}
+                    fieldValues={fieldAnswers[question.questionId] ?? {}}
+                    onSelect={(value) => {
+                      setSelectedAnswers((prev) => ({ ...prev, [question.questionId]: value }))
+                    }}
+                    onCustomChange={(value) => {
+                      setCustomAnswers((prev) => ({ ...prev, [question.questionId]: value }))
+                    }}
+                    onFieldChange={(fieldKey, value) => {
+                      setFieldAnswers((prev) => ({
+                        ...prev,
+                        [question.questionId]: {
+                          ...(prev[question.questionId] ?? {}),
+                          [fieldKey]: value,
+                        },
+                      }))
+                    }}
+                  />
+                )
+              })}
+            </div>
+          ))
+        ) : (
+          viewModel.questions.map((q) => (
+            <div key={q.questionNumber} className="px-6 min-w-0">
+              <QuestionBlock data={q} />
+            </div>
+          ))
+        )}
       </div>
       <button
         type="button"
