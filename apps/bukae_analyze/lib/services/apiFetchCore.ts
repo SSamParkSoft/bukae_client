@@ -3,6 +3,20 @@ export type ApiFetcher = (
   options?: RequestInit
 ) => Promise<Response>
 
+function resolveRequestUrl(url: string): string {
+  if (typeof window !== 'undefined' || !url.startsWith('/')) {
+    return url
+  }
+
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL
+
+  if (!apiBaseUrl) {
+    return url
+  }
+
+  return new URL(url, apiBaseUrl).toString()
+}
+
 export async function apiFetchWithToken(
   token: string,
   url: string,
@@ -16,5 +30,5 @@ export async function apiFetchWithToken(
 
   headers.set('Authorization', `Bearer ${token}`)
 
-  return fetch(url, { ...options, headers })
+  return fetch(resolveRequestUrl(url), { ...options, headers })
 }
