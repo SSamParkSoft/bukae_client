@@ -17,6 +17,8 @@ export const apiFetch: ApiFetcher = async (
   if (res.status !== 401) return res
 
   // 401 → 토큰 재발급 후 1회 재시도
+  // TODO(analyze-auth): cookie-first로 전환하면 refresh와 재시도도 서버/BFF 쪽으로 옮기고,
+  // 클라이언트 store accessToken 의존을 줄인다.
   try {
     const refreshed = await refreshToken()
     setAccessToken(refreshed.accessToken)
