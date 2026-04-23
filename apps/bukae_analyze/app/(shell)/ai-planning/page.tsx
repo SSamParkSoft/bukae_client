@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { PageTitle } from '@/components/page/PageTitle'
+import { parsePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
 import { AiPlanningPageClient } from './_components/AiPlanningPageClient'
 
@@ -14,23 +15,28 @@ export default async function AiPlanningPage({
 }: {
   searchParams: Promise<{
     mode?: string | string[]
+    planning?: string | string[]
     projectId?: string | string[]
   }>
 }) {
-  const { mode, projectId } = await searchParams
+  const { mode, planning, projectId } = await searchParams
   const resolvedProjectId = resolveSingleSearchParam(projectId)
+  const resolvedPlanning = resolveSingleSearchParam(planning)
 
   if (!resolvedProjectId) {
     redirect('/')
   }
 
   const resolvedMode = resolveMode(resolveSingleSearchParam(mode))
+  const initialPlanningAnswers = parsePlanningSetupAnswers(resolvedPlanning)
 
   if (resolvedMode === 'chatbot') {
     return (
       <AiPlanningPageClient
         projectId={resolvedProjectId}
         mode={resolvedMode}
+        initialPlanningAnswers={initialPlanningAnswers}
+        planningParam={resolvedPlanning}
       />
     )
   }
@@ -45,6 +51,8 @@ export default async function AiPlanningPage({
       <AiPlanningPageClient
         projectId={resolvedProjectId}
         mode={resolvedMode}
+        initialPlanningAnswers={initialPlanningAnswers}
+        planningParam={resolvedPlanning}
       />
     </div>
   )

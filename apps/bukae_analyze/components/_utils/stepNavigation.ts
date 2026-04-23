@@ -5,9 +5,25 @@ export const STEPS = [
   { label: '촬영가이드 & 스크립트', path: '/shooting-guide' },
 ] as const
 
-export function buildStepPath(path: string, projectId: string | null): string {
-  if (!projectId) return path
-  return `${path}?projectId=${encodeURIComponent(projectId)}`
+export function buildStepPath(
+  path: string,
+  options: {
+    projectId: string | null
+    planning: string | null
+  }
+): string {
+  const params = new URLSearchParams()
+
+  if (options.projectId) {
+    params.set('projectId', options.projectId)
+  }
+
+  if (options.planning) {
+    params.set('planning', options.planning)
+  }
+
+  const query = params.toString()
+  return query ? `${path}?${query}` : path
 }
 
 export function getCurrentStepIndex(pathname: string): number {

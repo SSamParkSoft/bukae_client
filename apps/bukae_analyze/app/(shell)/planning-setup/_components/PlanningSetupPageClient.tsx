@@ -1,5 +1,6 @@
 'use client'
 
+import type { PlanningSetupAnswers } from '@/lib/types/domain'
 import { usePlanningSetupForm } from '@/features/planningSetup/hooks/form/usePlanningSetupForm'
 import { usePlanningSetupViewModel } from '@/features/planningSetup/hooks/viewmodel/usePlanningSetupViewModel'
 import { CategoryQuestion } from './CategoryQuestion'
@@ -8,8 +9,12 @@ import { FaceExposureQuestion } from './FaceExposureQuestion'
 import { ShootingQuestion } from './ShootingQuestion'
 import { VideoLengthQuestion } from './VideoLengthQuestion'
 
-export function PlanningSetupPageClient() {
-  const form = usePlanningSetupForm()
+export function PlanningSetupPageClient({
+  initialAnswers,
+}: {
+  initialAnswers: PlanningSetupAnswers
+}) {
+  const form = usePlanningSetupForm(initialAnswers)
   const viewModel = usePlanningSetupViewModel(form)
 
   return (

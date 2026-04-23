@@ -13,6 +13,7 @@ import type {
   PlanningSetupAnswers,
   VideoAnalysis,
 } from '@/lib/types/domain'
+import { EMPTY_PLANNING_SETUP_ANSWERS } from '@/lib/utils/planningSetupQuery'
 
 type AiPlanningMode = 'default' | 'chatbot'
 
@@ -38,8 +39,16 @@ function buildInput(
   }
 }
 
-function buildAiPlanningHref(projectId: string, mode: AiPlanningMode): string {
+function buildAiPlanningHref(
+  projectId: string,
+  mode: AiPlanningMode,
+  planning: string | null
+): string {
   const params = new URLSearchParams({ projectId })
+
+  if (planning) {
+    params.set('planning', planning)
+  }
 
   if (mode === 'chatbot') {
     params.set('mode', 'chatbot')
@@ -51,14 +60,22 @@ function buildAiPlanningHref(projectId: string, mode: AiPlanningMode): string {
 export function AiPlanningPageClient({
   projectId,
   mode,
+  initialPlanningAnswers,
+  planningParam,
 }: {
   projectId: string
   mode: AiPlanningMode
+  initialPlanningAnswers: PlanningSetupAnswers
+  planningParam: string | null
 }) {
   const router = useRouter()
   const isChatbotMode = mode === 'chatbot'
 
-  const planningAnswers = usePlanningStore((state) => state.answers)
+  const storedPlanningAnswers = usePlanningStore((state) => state.answers)
+  const planningAnswers =
+    planningParam !== null
+      ? initialPlanningAnswers
+      : storedPlanningAnswers ?? EMPTY_PLANNING_SETUP_ANSWERS
   const input = buildInput(planningAnswers, MOCK_VIDEO_ANALYSIS)
 
   const form = useAiPlanningForm()
@@ -66,11 +83,11 @@ export function AiPlanningPageClient({
   const chatbotViewModel = useFollowUpChatbot()
 
   const enterChatbotMode = () => {
-    router.push(buildAiPlanningHref(projectId, 'chatbot'))
+    router.push(buildAiPlanningHref(projectId, 'chatbot', planningParam))
   }
 
   const exitChatbotMode = () => {
-    router.push(buildAiPlanningHref(projectId, 'default'))
+    router.push(buildAiPlanningHref(projectId, 'default', planningParam))
   }
 
   if (isChatbotMode) {

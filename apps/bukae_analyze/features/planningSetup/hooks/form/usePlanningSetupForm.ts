@@ -1,29 +1,24 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import type { PlanningSetupAnswers } from '@/lib/types/domain'
+import { EMPTY_PLANNING_SETUP_ANSWERS } from '@/lib/utils/planningSetupQuery'
 import { usePlanningStore } from '@/store/usePlanningStore'
-
-const INITIAL_ANSWERS: PlanningSetupAnswers = {
-  category: null,
-  categoryCustom: '',
-  faceExposure: null,
-  faceExposureCustom: '',
-  videoLength: null,
-  videoLengthCustom: '',
-  shooting: null,
-  shootingEnvironment: '',
-  coreMaterial: '',
-}
 
 export interface PlanningSetupForm {
   answers: PlanningSetupAnswers
   update: (partial: Partial<PlanningSetupAnswers>) => void
 }
 
-export function usePlanningSetupForm(): PlanningSetupForm {
-  const [answers, setAnswers] = useState<PlanningSetupAnswers>(INITIAL_ANSWERS)
+export function usePlanningSetupForm(
+  initialAnswers: PlanningSetupAnswers = EMPTY_PLANNING_SETUP_ANSWERS
+): PlanningSetupForm {
+  const [answers, setAnswers] = useState<PlanningSetupAnswers>(initialAnswers)
   const setStoreAnswers = usePlanningStore(state => state.setAnswers)
+
+  useEffect(() => {
+    setStoreAnswers(initialAnswers)
+  }, [initialAnswers, setStoreAnswers])
 
   const update = useCallback((partial: Partial<PlanningSetupAnswers>) => {
     setAnswers(prev => {

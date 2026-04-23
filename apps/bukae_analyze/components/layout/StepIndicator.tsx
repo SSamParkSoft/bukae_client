@@ -2,6 +2,8 @@
 
 import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { serializePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
+import { usePlanningStore } from '@/store/usePlanningStore'
 import { STEPS, buildStepPath, getCurrentStepIndex } from '../_utils/stepNavigation'
 
 type StepState = 'completed' | 'active' | 'upcoming'
@@ -17,17 +19,19 @@ function StepItem({
   number,
   state,
   projectId,
+  planning,
 }: {
   step: { label: string; path: string }
   number: number
   state: StepState
   projectId: string | null
+  planning: string | null
 }) {
   const isActive = state === 'active'
 
   return (
     <Link
-      href={buildStepPath(step.path, projectId)}
+      href={buildStepPath(step.path, { projectId, planning })}
       className={[
         'flex items-center gap-4 w-full transition-colors',
         isActive
@@ -73,6 +77,12 @@ export function StepIndicator() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId')
+  const planningFromQuery = searchParams.get('planning')
+  const planningAnswers = usePlanningStore((state) => state.answers)
+  const planning =
+    pathname.startsWith('/planning-setup')
+      ? serializePlanningSetupAnswers(planningAnswers)
+      : planningFromQuery
   const currentIndex = getCurrentStepIndex(pathname)
 
   return (
@@ -84,6 +94,7 @@ export function StepIndicator() {
             number={index + 1}
             state={resolveStepState(index, currentIndex)}
             projectId={projectId}
+            planning={planning}
           />
         </li>
       ))}

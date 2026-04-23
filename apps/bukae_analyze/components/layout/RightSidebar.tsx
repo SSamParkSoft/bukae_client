@@ -1,6 +1,8 @@
 'use client'
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { serializePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
+import { usePlanningStore } from '@/store/usePlanningStore'
 import { LAYOUT } from './layout-constants'
 import { STEPS, buildStepPath, getCurrentStepIndex } from '../_utils/stepNavigation'
 import { StepNavButton } from '../buttons/StepNavButton'
@@ -10,6 +12,12 @@ export function RightSidebar() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId')
+  const planningFromQuery = searchParams.get('planning')
+  const planningAnswers = usePlanningStore((state) => state.answers)
+  const planning =
+    pathname.startsWith('/planning-setup')
+      ? serializePlanningSetupAnswers(planningAnswers)
+      : planningFromQuery
 
   if (pathname === '/') return null
 
@@ -19,7 +27,9 @@ export function RightSidebar() {
   const handleNext = () => {
     if (isLast) return
     const nextStep = STEPS[currentIndex + 1]
-    if (nextStep) router.push(buildStepPath(nextStep.path, projectId))
+    if (nextStep) {
+      router.push(buildStepPath(nextStep.path, { projectId, planning }))
+    }
   }
 
   return (
