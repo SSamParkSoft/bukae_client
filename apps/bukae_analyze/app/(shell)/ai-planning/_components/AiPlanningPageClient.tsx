@@ -99,21 +99,6 @@ export function AiPlanningPageClient({
     [planningSessionState.session]
   )
 
-  const questionColumns = useMemo(() => {
-    const left: typeof questions = []
-    const right: typeof questions = []
-
-    questions.forEach((question, index) => {
-      if (index % 2 === 0) {
-        left.push(question)
-      } else {
-        right.push(question)
-      }
-    })
-
-    return [left, right] as const
-  }, [questions])
-
   const enterChatbotMode = () => {
     router.push(buildAiPlanningHref(projectId, 'chatbot', planningParam))
   }
@@ -149,37 +134,30 @@ export function AiPlanningPageClient({
     <div className="pb-32">
       <div className="grid grid-cols-2 gap-y-10">
         {questions.length > 0 ? (
-          questionColumns.map((column, columnIndex) => (
-            <div key={columnIndex} className="flex min-w-0 flex-col gap-10 px-6">
-              {column.map((question, questionIndex) => {
-                const absoluteIndex = columnIndex === 0 ? questionIndex * 2 : questionIndex * 2 + 1
-
-                return (
-                  <PlanningQuestionCard
-                    key={question.questionId}
-                    question={question}
-                    index={absoluteIndex}
-                    selectedValue={selectedAnswers[question.questionId] ?? null}
-                    customValue={customAnswers[question.questionId] ?? ''}
-                    fieldValues={fieldAnswers[question.questionId] ?? {}}
-                    onSelect={(value) => {
-                      setSelectedAnswers((prev) => ({ ...prev, [question.questionId]: value }))
-                    }}
-                    onCustomChange={(value) => {
-                      setCustomAnswers((prev) => ({ ...prev, [question.questionId]: value }))
-                    }}
-                    onFieldChange={(fieldKey, value) => {
-                      setFieldAnswers((prev) => ({
-                        ...prev,
-                        [question.questionId]: {
-                          ...(prev[question.questionId] ?? {}),
-                          [fieldKey]: value,
-                        },
-                      }))
-                    }}
-                  />
-                )
-              })}
+          questions.map((question, index) => (
+            <div key={question.questionId} className="px-6 min-w-0">
+              <PlanningQuestionCard
+                question={question}
+                index={index}
+                selectedValue={selectedAnswers[question.questionId] ?? null}
+                customValue={customAnswers[question.questionId] ?? ''}
+                fieldValues={fieldAnswers[question.questionId] ?? {}}
+                onSelect={(value) => {
+                  setSelectedAnswers((prev) => ({ ...prev, [question.questionId]: value }))
+                }}
+                onCustomChange={(value) => {
+                  setCustomAnswers((prev) => ({ ...prev, [question.questionId]: value }))
+                }}
+                onFieldChange={(fieldKey, value) => {
+                  setFieldAnswers((prev) => ({
+                    ...prev,
+                    [question.questionId]: {
+                      ...(prev[question.questionId] ?? {}),
+                      [fieldKey]: value,
+                    },
+                  }))
+                }}
+              />
             </div>
           ))
         ) : (
