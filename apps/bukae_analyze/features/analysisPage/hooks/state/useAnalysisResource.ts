@@ -63,8 +63,8 @@ function getResourceStatus(params: {
   return 'loading'
 }
 
-export function useAnalysisResource(): AnalysisResourceState {
-  const projectId = useProjectStore((s) => s.projectId)
+export function useAnalysisResource(projectId: string | null): AnalysisResourceState {
+  const storedProjectId = useProjectStore((s) => s.projectId)
   const projectStatus = useProjectStore((s) => s.projectStatus)
   const submissionStatus = useProjectStore((s) => s.submissionStatus)
   const videoAnalysis = useProjectStore((s) => s.videoAnalysis)
@@ -76,15 +76,15 @@ export function useAnalysisResource(): AnalysisResourceState {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isCompleted, setIsCompleted] = useState(false)
 
-  const hasStoredResult = videoAnalysis !== null
+  const hasStoredResult = storedProjectId === projectId && videoAnalysis !== null
   const result = useMemo<VideoAnalysisResult | null>(() => {
-    if (!videoAnalysis) return null
+    if (!hasStoredResult || !videoAnalysis) return null
     return {
       videoAnalysis,
       videoSrc: videoSrc ?? '',
       referenceUrl: referenceUrl ?? '',
     }
-  }, [videoAnalysis, videoSrc, referenceUrl])
+  }, [hasStoredResult, videoAnalysis, videoSrc, referenceUrl])
 
   useEffect(() => {
     if (!projectId) return

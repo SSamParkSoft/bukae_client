@@ -31,11 +31,19 @@ export interface AnalysisPageState {
   errorMessage: string | null
 }
 
-export function useAnalysisPage(): AnalysisPageState {
+export function useAnalysisPage(initialProjectId: string | null): AnalysisPageState {
   const router = useRouter()
-  const projectId = useProjectStore((s) => s.projectId)
+  const storedProjectId = useProjectStore((s) => s.projectId)
+  const clearProject = useProjectStore((s) => s.clearProject)
+  const projectId = initialProjectId ?? storedProjectId
   const [activeTab, setActiveTab] = useState<AnalysisTabId>('thumbnail')
-  const { status, errorType, errorMessage, result } = useAnalysisResource()
+  const { status, errorType, errorMessage, result } = useAnalysisResource(projectId)
+
+  useEffect(() => {
+    if (initialProjectId && storedProjectId && storedProjectId !== initialProjectId) {
+      clearProject()
+    }
+  }, [initialProjectId, storedProjectId, clearProject])
 
   // videoAnalysis가 없는 동안은 mock 데이터로 대체 (isReady가 false이므로 렌더되지 않음)
   const viewModel = mapVideoAnalysisToViewModel(result?.videoAnalysis ?? MOCK_VIDEO_ANALYSIS)

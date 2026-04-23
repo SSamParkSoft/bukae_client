@@ -30,7 +30,7 @@ export function useUrlInput() {
         currentStep: submission.currentStep ?? null,
       })
       setSubmissionStatus(submission.submissionStatus)
-      router.push('/analysis')
+      router.push(`/analysis?projectId=${encodeURIComponent(project.projectId)}`)
     } catch (err) {
       console.error('분석 요청 실패:', err)
     } finally {
