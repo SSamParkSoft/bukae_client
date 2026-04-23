@@ -15,3 +15,4 @@
  */
 
 export * from './benchmarkAnalysisMapper'
+export * from './projectAnalysisMapper'

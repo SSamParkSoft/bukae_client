@@ -1,11 +1,17 @@
 import { apiFetch } from './apiClient'
 import { API_ENDPOINTS } from './endpoints'
 import {
+  mapBenchmarkSubmissionState,
+  mapProjectSession,
+} from './mappers'
+import {
   ProjectDetailSchema,
   BenchmarkSubmissionSchema,
-  type ProjectDetailDto,
-  type BenchmarkSubmissionDto,
 } from '@/lib/types/api/project'
+import type {
+  BenchmarkSubmissionState,
+  ProjectSession,
+} from '@/lib/types/domain'
 
 async function throwIfNotOk(res: Response, label: string): Promise<void> {
   if (res.ok) return
@@ -13,23 +19,23 @@ async function throwIfNotOk(res: Response, label: string): Promise<void> {
   throw new Error(`${label} (${res.status})${body ? `: ${body}` : ''}`)
 }
 
-export async function createProject(title?: string): Promise<ProjectDetailDto> {
+export async function createProject(title?: string): Promise<ProjectSession> {
   const res = await apiFetch(API_ENDPOINTS.projects.list, {
     method: 'POST',
     body: JSON.stringify({ title: title ?? '' }),
   })
   await throwIfNotOk(res, '프로젝트 생성 실패')
-  return ProjectDetailSchema.parse(await res.json())
+  return mapProjectSession(ProjectDetailSchema.parse(await res.json()))
 }
 
 export async function submitBenchmark(
   projectId: string,
   sourceUrl: string
-): Promise<BenchmarkSubmissionDto> {
+): Promise<BenchmarkSubmissionState> {
   const res = await apiFetch(API_ENDPOINTS.projects.benchmark(projectId), {
     method: 'POST',
     body: JSON.stringify({ sourceUrl }),
   })
   await throwIfNotOk(res, '벤치마크 URL 제출 실패')
-  return BenchmarkSubmissionSchema.parse(await res.json())
+  return mapBenchmarkSubmissionState(BenchmarkSubmissionSchema.parse(await res.json()))
 }

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { VideoAnalysisResult } from '@/lib/types/domain'
-import { mapBenchmarkAnalysisResult } from '@/lib/services/mappers'
 import { getBenchmarkAnalysis } from '@/lib/services/benchmarkAnalysis'
 import { useProjectStore } from '@/store/useProjectStore'
 
@@ -88,24 +87,22 @@ export function useAnalysisResource(): AnalysisResourceState {
 
     async function syncAnalysisResult() {
       try {
-        const data = await getBenchmarkAnalysis(currentProjectId)
+        const snapshot = await getBenchmarkAnalysis(currentProjectId)
         if (cancelled) return
+        const { polling, result } = snapshot
 
-        setSubmissionStatus(data.submissionStatus)
+        setSubmissionStatus(polling.submissionStatus)
 
-        if (data.submissionStatus === 'FAILED') {
+        if (polling.submissionStatus === 'FAILED') {
           setErrorMessage(
-            data.failure?.summary ??
-            data.failure?.message ??
-            data.lastErrorMessage ??
-            '분석에 실패했습니다. 다시 시도해주세요.'
+            polling.errorMessage ?? '분석에 실패했습니다. 다시 시도해주세요.'
           )
           return
         }
 
-        if (data.normalized_analysis_tabs) {
+        if (result) {
           setErrorMessage(null)
-          setAnalysisResult(mapBenchmarkAnalysisResult(data))
+          setAnalysisResult(result)
           return
         }
 
@@ -113,7 +110,7 @@ export function useAnalysisResource(): AnalysisResourceState {
           return
         }
 
-        if (data.submissionStatus === 'COMPLETED') {
+        if (polling.submissionStatus === 'COMPLETED') {
           completedRetryCount += 1
 
           if (completedRetryCount >= MAX_COMPLETED_RESULT_RETRIES) {
@@ -125,7 +122,7 @@ export function useAnalysisResource(): AnalysisResourceState {
         }
 
         const nextDelay =
-          data.submissionStatus === 'COMPLETED'
+          polling.submissionStatus === 'COMPLETED'
             ? COMPLETED_RESULT_RETRY_MS
             : POLL_INTERVAL_MS
 

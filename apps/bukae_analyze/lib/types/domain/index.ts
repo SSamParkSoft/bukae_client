@@ -14,6 +14,7 @@
 // export * from './channelStats'
 // export * from './videoStats'
 export * from './videoAnalysis'
+export * from './projectAnalysis'
 export * from './planningSetup'
 export * from './aiPlanning'
 export * from './shootingGuide'

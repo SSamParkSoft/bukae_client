@@ -1,5 +1,7 @@
 import type { BenchmarkAnalysisResponseDto } from '@/lib/types/api/benchmarkAnalysis'
 import type {
+  AnalysisPollingState,
+  AnalysisSnapshot,
   HookAnalysis,
   StorySegment,
   ThumbnailAnalysis,
@@ -170,5 +172,33 @@ export function mapBenchmarkAnalysisResult(
     videoAnalysis: mapBenchmarkAnalysisToVideoAnalysis(dto),
     videoSrc: dto.normalized_analysis_tabs?.source?.video?.public_url ?? '',
     referenceUrl: dto.normalized_analysis_tabs?.source?.metadata?.source_url ?? '',
+  }
+}
+
+export function mapBenchmarkAnalysisPollingState(
+  dto: BenchmarkAnalysisResponseDto
+): AnalysisPollingState {
+  return {
+    submissionStatus: dto.submissionStatus,
+    analysisStatus: dto.analysisStatus ?? null,
+    projectStatus: dto.projectStatus ?? null,
+    currentStep: null,
+    errorMessage:
+      dto.failure?.summary ??
+      dto.failure?.message ??
+      dto.lastErrorMessage ??
+      null,
+    hasResult: Boolean(dto.normalized_analysis_tabs),
+  }
+}
+
+export function mapBenchmarkAnalysisSnapshot(
+  dto: BenchmarkAnalysisResponseDto
+): AnalysisSnapshot {
+  return {
+    polling: mapBenchmarkAnalysisPollingState(dto),
+    result: dto.normalized_analysis_tabs
+      ? mapBenchmarkAnalysisResult(dto)
+      : null,
   }
 }

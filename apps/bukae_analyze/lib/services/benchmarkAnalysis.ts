@@ -1,5 +1,6 @@
 import { apiFetch } from './apiClient'
 import { API_ENDPOINTS } from './endpoints'
+import { mapBenchmarkAnalysisSnapshot } from './mappers'
 import {
   BenchmarkAnalysisPollingSchema,
   BenchmarkAnalysisRawResponseSchema,
@@ -8,6 +9,7 @@ import {
   type BenchmarkAnalysisRawResponseDto,
   type BenchmarkAnalysisResponseDto,
 } from '@/lib/types/api/benchmarkAnalysis'
+import type { AnalysisSnapshot } from '@/lib/types/domain'
 
 function normalizeBenchmarkAnalysisResponse(
   raw: BenchmarkAnalysisRawResponseDto | BenchmarkAnalysisPollingDto
@@ -58,19 +60,19 @@ function normalizeBenchmarkAnalysisResponse(
 
 export async function getBenchmarkAnalysis(
   projectId: string
-): Promise<BenchmarkAnalysisResponseDto> {
+): Promise<AnalysisSnapshot> {
   const res = await apiFetch(API_ENDPOINTS.projects.benchmarkAnalysis(projectId))
   if (!res.ok) throw new Error(`분석 상태 조회 실패 (HTTP ${res.status})`)
   const json = await res.json()
 
   const rawResult = BenchmarkAnalysisRawResponseSchema.safeParse(json)
   if (rawResult.success) {
-    return normalizeBenchmarkAnalysisResponse(rawResult.data)
+    return mapBenchmarkAnalysisSnapshot(normalizeBenchmarkAnalysisResponse(rawResult.data))
   }
 
   const pollingResult = BenchmarkAnalysisPollingSchema.safeParse(json)
   if (pollingResult.success) {
-    return normalizeBenchmarkAnalysisResponse(pollingResult.data)
+    return mapBenchmarkAnalysisSnapshot(normalizeBenchmarkAnalysisResponse(pollingResult.data))
   }
 
   throw new Error('분석 응답 형식이 예상과 다릅니다.')
