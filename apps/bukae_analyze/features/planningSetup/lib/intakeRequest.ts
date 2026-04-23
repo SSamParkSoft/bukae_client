@@ -1,16 +1,10 @@
 import type { PlanningSetupAnswers } from '@/lib/types/domain'
 
-const FACE_EXPOSURE_PLAN_MAP: Record<Exclude<PlanningSetupAnswers['faceExposure'], 'custom' | null>, string> = {
-  'face-cam': 'custom',
+const FACE_EXPOSURE_PLAN_MAP: Record<Exclude<PlanningSetupAnswers['faceExposure'], null>, string> = {
+  'face-cam': 'face-cam',
   'part-shot': 'hands-only',
-  'voice-over': 'product-only',
-  'no-face': 'product-only',
-}
-
-const FACE_EXPOSURE_CUSTOM_LABELS: Partial<
-  Record<Exclude<PlanningSetupAnswers['faceExposure'], null>, string>
-> = {
-  'face-cam': '얼굴 포함 직접 출연',
+  voiceover: 'voiceover',
+  'no-face': 'custom',
 }
 
 function trim(value: string): string {
@@ -62,10 +56,6 @@ function resolveCategoryCustom(): string {
 }
 
 function resolveFaceExposurePlan(answers: PlanningSetupAnswers): string | null {
-  if (answers.faceExposure === 'custom') {
-    return 'custom'
-  }
-
   if (!answers.faceExposure) {
     return null
   }
@@ -74,15 +64,11 @@ function resolveFaceExposurePlan(answers: PlanningSetupAnswers): string | null {
 }
 
 function resolveFaceExposureCustom(answers: PlanningSetupAnswers): string {
-  if (answers.faceExposure === 'custom') {
+  if (answers.faceExposure === 'no-face') {
     return trim(answers.faceExposureCustom)
   }
 
-  if (!answers.faceExposure) {
-    return ''
-  }
-
-  return FACE_EXPOSURE_CUSTOM_LABELS[answers.faceExposure] ?? ''
+  return ''
 }
 
 export function validatePlanningSetupAnswers(
@@ -100,7 +86,7 @@ export function validatePlanningSetupAnswers(
     return '영상 노출 범위를 선택해 주세요.'
   }
 
-  if (answers.faceExposure === 'custom' && !isNonEmpty(answers.faceExposureCustom)) {
+  if (answers.faceExposure === 'no-face' && !isNonEmpty(answers.faceExposureCustom)) {
     return '영상 노출 범위를 직접 입력해 주세요.'
   }
 

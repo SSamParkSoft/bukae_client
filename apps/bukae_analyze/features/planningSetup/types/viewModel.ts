@@ -7,6 +7,13 @@ export interface QuestionSectionViewModel<T extends string> {
   onCustomChange: (value: string) => void
 }
 
+export interface FaceExposureQuestionViewModel {
+  selected: FaceExposure | null
+  customValue: string
+  onSelect: (value: FaceExposure) => void
+  onCustomChange: (value: string) => void
+}
+
 export interface ShootingViewModel {
   selected: ShootingAvailability | null
   onSelect: (value: ShootingAvailability) => void
@@ -21,7 +28,7 @@ export interface TextQuestionViewModel {
 
 export interface PlanningSetupViewModel {
   category: QuestionSectionViewModel<VideoCategory>
-  faceExposure: QuestionSectionViewModel<FaceExposure>
+  faceExposure: FaceExposureQuestionViewModel
   videoLength: QuestionSectionViewModel<VideoLength>
   shooting: ShootingViewModel
   coreMaterial: TextQuestionViewModel

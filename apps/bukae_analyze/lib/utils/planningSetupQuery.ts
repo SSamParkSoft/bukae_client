@@ -33,7 +33,7 @@ const VIDEO_CATEGORIES = new Set<VideoCategory | 'custom'>([
 const FACE_EXPOSURES = new Set<FaceExposure | 'custom'>([
   'face-cam',
   'part-shot',
-  'voice-over',
+  'voiceover',
   'no-face',
   'custom',
 ])
@@ -61,6 +61,13 @@ function sanitizeNullableEnum<T extends string>(
     : null
 }
 
+function sanitizeFaceExposure(value: unknown): FaceExposure | null {
+  if (value === 'voice-over') return 'voiceover'
+  if (value === 'custom') return 'no-face'
+
+  return sanitizeNullableEnum(value, FACE_EXPOSURES) as FaceExposure | null
+}
+
 export function parsePlanningSetupAnswers(
   serialized: string | null
 ): PlanningSetupAnswers {
@@ -76,7 +83,7 @@ export function parsePlanningSetupAnswers(
     return {
       category: sanitizeNullableEnum(parsed.category, VIDEO_CATEGORIES),
       categoryCustom: sanitizeString(parsed.categoryCustom),
-      faceExposure: sanitizeNullableEnum(parsed.faceExposure, FACE_EXPOSURES),
+      faceExposure: sanitizeFaceExposure(parsed.faceExposure),
       faceExposureCustom: sanitizeString(parsed.faceExposureCustom),
       videoLength: sanitizeNullableEnum(parsed.videoLength, VIDEO_LENGTHS),
       videoLengthCustom: sanitizeString(parsed.videoLengthCustom),

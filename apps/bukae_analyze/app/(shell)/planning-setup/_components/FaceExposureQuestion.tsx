@@ -1,17 +1,17 @@
 import { UserCircle, Hand, Mic, User } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FaceExposure } from '@/lib/types/domain'
-import type { QuestionSectionViewModel } from '@/features/planningSetup/types/viewModel'
+import type { FaceExposureQuestionViewModel } from '@/features/planningSetup/types/viewModel'
 import { SectionHeader, IconButton, CustomTextInput } from './PlanningSetupPrimitives'
 
 const OPTIONS: { value: FaceExposure; label: string; icon: LucideIcon }[] = [
   { value: 'face-cam', label: '얼굴 포함 직접 출연', icon: UserCircle },
   { value: 'part-shot', label: '손/신체 일부 출연', icon: Hand },
-  { value: 'voice-over', label: '보이스만', icon: Mic },
+  { value: 'voiceover', label: '보이스만', icon: Mic },
 ]
 
 interface Props {
-  data: QuestionSectionViewModel<FaceExposure>
+  data: FaceExposureQuestionViewModel
 }
 
 export function FaceExposureQuestion({ data }: Props) {
@@ -35,11 +35,11 @@ export function FaceExposureQuestion({ data }: Props) {
           ))}
           <IconButton
             label="직접 입력"
-            selected={data.selected === 'custom'}
-            onClick={() => data.onSelect('custom')}
+            selected={data.selected === 'no-face'}
+            onClick={() => data.onSelect('no-face')}
           />
         </div>
-        {data.selected === 'custom' && (
+        {data.selected === 'no-face' && (
           <CustomTextInput
             value={data.customValue}
             onChange={data.onCustomChange}

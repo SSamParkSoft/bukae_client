@@ -18,7 +18,7 @@ export function usePlanningSetupViewModel(form: PlanningSetupForm): PlanningSetu
     faceExposure: {
       selected: answers.faceExposure,
       customValue: answers.faceExposureCustom,
-      onSelect: (value: FaceExposure | 'custom') => update({ faceExposure: value }),
+      onSelect: (value: FaceExposure) => update({ faceExposure: value }),
       onCustomChange: (value: string) => update({ faceExposureCustom: value }),
     },
     videoLength: {
