@@ -1,8 +1,8 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { STEPS, getCurrentStepIndex } from '../_utils/stepNavigation'
+import { STEPS, buildStepPath, getCurrentStepIndex } from '../_utils/stepNavigation'
 
 type StepState = 'completed' | 'active' | 'upcoming'
 
@@ -16,16 +16,18 @@ function StepItem({
   step,
   number,
   state,
+  projectId,
 }: {
   step: { label: string; path: string }
   number: number
   state: StepState
+  projectId: string | null
 }) {
   const isActive = state === 'active'
 
   return (
     <Link
-      href={step.path}
+      href={buildStepPath(step.path, projectId)}
       className={[
         'flex items-center gap-4 w-full transition-colors',
         isActive
@@ -69,6 +71,8 @@ function StepItem({
 
 export function StepIndicator() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const projectId = searchParams.get('projectId')
   const currentIndex = getCurrentStepIndex(pathname)
 
   return (
@@ -79,6 +83,7 @@ export function StepIndicator() {
             step={step}
             number={index + 1}
             state={resolveStepState(index, currentIndex)}
+            projectId={projectId}
           />
         </li>
       ))}

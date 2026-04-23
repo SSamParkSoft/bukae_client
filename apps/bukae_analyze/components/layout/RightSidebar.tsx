@@ -1,13 +1,15 @@
 'use client'
 
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { LAYOUT } from './layout-constants'
-import { STEPS, getCurrentStepIndex } from '../_utils/stepNavigation'
+import { STEPS, buildStepPath, getCurrentStepIndex } from '../_utils/stepNavigation'
 import { StepNavButton } from '../buttons/StepNavButton'
 
 export function RightSidebar() {
   const pathname = usePathname()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const projectId = searchParams.get('projectId')
 
   if (pathname === '/') return null
 
@@ -17,7 +19,7 @@ export function RightSidebar() {
   const handleNext = () => {
     if (isLast) return
     const nextStep = STEPS[currentIndex + 1]
-    if (nextStep) router.push(nextStep.path)
+    if (nextStep) router.push(buildStepPath(nextStep.path, projectId))
   }
 
   return (
