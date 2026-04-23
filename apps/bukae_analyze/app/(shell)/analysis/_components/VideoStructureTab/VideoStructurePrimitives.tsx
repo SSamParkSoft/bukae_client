@@ -34,10 +34,10 @@ export function SectionTitle({ children }: { children: React.ReactNode }) {
 export function StoryRow({ timeframe, title, description }: StorySegmentViewModel) {
   return (
     <div className="flex w-full items-center gap-4 rounded-lg px-6 py-4">
-      <span className="min-w-[clamp(120px,8.33vw,150px)] shrink-0 whitespace-nowrap rounded-full bg-white/10 px-4 py-2 text-center font-fluid-16-md text-white backdrop-glass-strong">
+      <span className="min-w-[clamp(120px,8.33vw,150px)] shrink-0 whitespace-nowrap rounded-full bg-white/10 px-4 py-2 text-center font-fluid-16-md text-white">
         {timeframe}
       </span>
-      <span className="shrink-0 whitespace-nowrap font-fluid-20-md text-white/80">
+      <span className="shrink-0 whitespace-nowrap font-fluid-20-md text-white/80 text-center min-w-[clamp(80px,5.33vw,100px)] ">
         {title}
       </span>
       <div className="min-w-0 flex-1">
