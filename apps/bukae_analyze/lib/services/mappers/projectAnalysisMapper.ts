@@ -1,5 +1,6 @@
 import type {
   BenchmarkSubmissionState,
+  ProjectPollingState,
   ProjectSession,
 } from '@/lib/types/domain'
 import type {
@@ -23,5 +24,17 @@ export function mapBenchmarkSubmissionState(
     projectStatus: dto.projectStatus,
     currentStep: dto.currentStep ?? null,
     submissionStatus: dto.submissionStatus,
+  }
+}
+
+export function mapProjectPollingState(dto: ProjectDetailDto): ProjectPollingState {
+  return {
+    projectStatus: dto.status,
+    currentStep: dto.currentStep ?? null,
+    errorMessage:
+      dto.failure?.summary ??
+      dto.failure?.message ??
+      dto.lastErrorMessage ??
+      null,
   }
 }

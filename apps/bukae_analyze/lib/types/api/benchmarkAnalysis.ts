@@ -4,6 +4,8 @@ export const BenchmarkAnalysisPollingSchema = z.object({
   submissionStatus: z.string(),
   analysisStatus: z.string().nullable().optional(),
   projectStatus: z.string().nullable().optional(),
+  currentStep: z.string().nullable().optional(),
+  readyForCategorySelection: z.boolean().optional(),
   lastErrorMessage: z.string().nullable().optional(),
   failure: z
     .object({
@@ -137,10 +139,20 @@ const BenchmarkProfileSchema = z
 
 export const BenchmarkAnalysisResponseSchema = BenchmarkAnalysisPollingSchema.extend({
   normalized_analysis_tabs: BenchmarkAnalysisTabsSchema.optional(),
+  analysisVersion: z.string().nullable().optional(),
+  videoTypeGuess: z.string().nullable().optional(),
   hookSummary: z.string().nullable().optional(),
   editPace: z.string().nullable().optional(),
+  subtitleStyleSummary: z.string().nullable().optional(),
+  narrationStyleSummary: z.string().nullable().optional(),
   persuasionStructureSummary: z.string().nullable().optional(),
+  targetAudienceGuess: z.string().nullable().optional(),
+  adaptableElements: z.array(z.string()).nullable().optional(),
+  doNotCopyElements: z.array(z.string()).nullable().optional(),
   benchmarkProfile: BenchmarkProfileSchema,
+  benchmarkDna: z.unknown().optional(),
+  riskReport: z.unknown().optional(),
+  analysisRawPayload: z.unknown().optional(),
 })
 
 export type BenchmarkAnalysisResponseDto = z.infer<typeof BenchmarkAnalysisResponseSchema>
@@ -179,8 +191,17 @@ export const BenchmarkAnalysisRawResponseSchema = BenchmarkAnalysisPollingSchema
     .optional(),
   hookSummary: z.string().nullable().optional(),
   editPace: z.string().nullable().optional(),
+  subtitleStyleSummary: z.string().nullable().optional(),
+  narrationStyleSummary: z.string().nullable().optional(),
   persuasionStructureSummary: z.string().nullable().optional(),
+  analysisVersion: z.string().nullable().optional(),
+  videoTypeGuess: z.string().nullable().optional(),
+  targetAudienceGuess: z.string().nullable().optional(),
+  adaptableElements: z.array(z.string()).nullable().optional(),
+  doNotCopyElements: z.array(z.string()).nullable().optional(),
   benchmarkProfile: BenchmarkProfileSchema,
+  benchmarkDna: z.unknown().optional(),
+  riskReport: z.unknown().optional(),
 })
 
 export type BenchmarkAnalysisRawResponseDto = z.infer<typeof BenchmarkAnalysisRawResponseSchema>

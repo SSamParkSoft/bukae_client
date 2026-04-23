@@ -14,7 +14,7 @@ export function AnalysisVideoPanel({ posterUrl, videoSrc, className }: Props) {
     <div className={['shrink-0', className ?? ''].join(' ')}>
       <div className="h-[572px] w-[321.75px] overflow-hidden rounded-2xl bg-black">
         <video
-          className="h-full w-full object-contain"
+          className="h-full w-full object-cover"
           controls
           controlsList="nodownload"
           disablePictureInPicture

@@ -20,6 +20,20 @@ const SCENE_ROLE_LABEL: Record<string, string> = {
   outro: '아웃트로',
 }
 
+function hasAnalysisContent(dto: BenchmarkAnalysisResponseDto): boolean {
+  return Boolean(
+    dto.normalized_analysis_tabs ||
+    dto.hookSummary ||
+    dto.editPace ||
+    dto.subtitleStyleSummary ||
+    dto.narrationStyleSummary ||
+    dto.persuasionStructureSummary ||
+    dto.targetAudienceGuess ||
+    dto.benchmarkProfile?.profile_summary ||
+    dto.benchmarkProfile?.target_audience_guess
+  )
+}
+
 function parseHookRangeSec(hookRange: string): number {
   const match = hookRange.match(/~(\d+(\.\d+)?)초/)
   return match ? parseFloat(match[1]) : 0
@@ -84,7 +98,7 @@ function mapHookAnalysis(dto: BenchmarkAnalysisResponseDto): HookAnalysis {
     openingType: hook?.coreCard?.openingType ?? '',
     emotionTrigger: hook?.coreCard?.emotionTrigger ?? '',
     pacing: normalizePacing(hook?.coreCard?.pacing ?? 'slow'),
-    why: hook?.coreAnalysis ?? '',
+    why: hook?.coreAnalysis ?? dto.hookSummary ?? '',
     evidence: hook?.evidence ?? [],
     viewerPositioning: hook?.insightBox?.viewerPositioning,
     visualHook: hook?.insightBox?.visualHook,
@@ -141,9 +155,13 @@ function mapVideoStructureAnalysis(dto: BenchmarkAnalysisResponseDto): VideoStru
   const structure = dto.normalized_analysis_tabs?.structure
 
   return {
-    overview: dto.benchmarkProfile?.profile_summary ?? '',
+    overview:
+      dto.benchmarkProfile?.profile_summary ??
+      dto.persuasionStructureSummary ??
+      '',
     targetAudienceDescription:
       structure?.targetAudience ??
+      dto.targetAudienceGuess ??
       dto.benchmarkProfile?.target_audience_guess ??
       '',
     targetAudienceAttributes: structure?.targetAudienceKeywords ?? [],
@@ -182,13 +200,14 @@ export function mapBenchmarkAnalysisPollingState(
     submissionStatus: dto.submissionStatus,
     analysisStatus: dto.analysisStatus ?? null,
     projectStatus: dto.projectStatus ?? null,
-    currentStep: null,
+    currentStep: dto.currentStep ?? null,
+    readyForCategorySelection: dto.readyForCategorySelection ?? false,
     errorMessage:
       dto.failure?.summary ??
       dto.failure?.message ??
       dto.lastErrorMessage ??
       null,
-    hasResult: Boolean(dto.normalized_analysis_tabs),
+    hasResult: hasAnalysisContent(dto),
   }
 }
 
@@ -197,7 +216,7 @@ export function mapBenchmarkAnalysisSnapshot(
 ): AnalysisSnapshot {
   return {
     polling: mapBenchmarkAnalysisPollingState(dto),
-    result: dto.normalized_analysis_tabs
+    result: hasAnalysisContent(dto)
       ? mapBenchmarkAnalysisResult(dto)
       : null,
   }

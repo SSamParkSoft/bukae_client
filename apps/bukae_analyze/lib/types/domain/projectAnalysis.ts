@@ -6,6 +6,12 @@ export interface ProjectSession {
   currentStep: string | null
 }
 
+export interface ProjectPollingState {
+  projectStatus: string
+  currentStep: string | null
+  errorMessage: string | null
+}
+
 export interface BenchmarkSubmissionState extends ProjectSession {
   submissionStatus: string
 }
@@ -15,6 +21,7 @@ export interface AnalysisPollingState {
   analysisStatus: string | null
   projectStatus: string | null
   currentStep: string | null
+  readyForCategorySelection: boolean
   errorMessage: string | null
   hasResult: boolean
 }

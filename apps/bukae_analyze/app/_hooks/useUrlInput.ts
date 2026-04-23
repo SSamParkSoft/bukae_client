@@ -8,6 +8,7 @@ import { useProjectStore } from '@/store/useProjectStore'
 export function useUrlInput() {
   const router = useRouter()
   const setProject = useProjectStore((s) => s.setProject)
+  const setSubmissionStatus = useProjectStore((s) => s.setSubmissionStatus)
   const [url, setUrl] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -28,6 +29,7 @@ export function useUrlInput() {
         projectStatus: submission.projectStatus,
         currentStep: submission.currentStep ?? null,
       })
+      setSubmissionStatus(submission.submissionStatus)
       router.push('/analysis')
     } catch (err) {
       console.error('분석 요청 실패:', err)
