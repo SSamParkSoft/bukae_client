@@ -34,10 +34,8 @@ export function AnalysisPageContent() {
       </div>
     )
   }
-  const DEBUG_ALWAYS_LOADING = true
-  // ...
-  // if (!isReady || isLoading) {
-  if (DEBUG_ALWAYS_LOADING || !isReady || isLoading) {
+
+  if (!isReady || isLoading) {
     return (
       <div className="relative flex min-w-0 flex-1 flex-col">
         <AnalysisLoadingOverlay visible />
