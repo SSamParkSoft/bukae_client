@@ -3,6 +3,7 @@
 import type { PlanningSetupAnswers } from '@/lib/types/domain'
 import { usePlanningSetupForm } from '@/features/planningSetup/hooks/form/usePlanningSetupForm'
 import { usePlanningSetupViewModel } from '@/features/planningSetup/hooks/viewmodel/usePlanningSetupViewModel'
+import { usePlanningStore } from '@/store/usePlanningStore'
 import { CategoryQuestion } from './CategoryQuestion'
 import { CoreMaterialQuestion } from './CoreMaterialQuestion'
 import { FaceExposureQuestion } from './FaceExposureQuestion'
@@ -16,9 +17,23 @@ export function PlanningSetupPageClient({
 }) {
   const form = usePlanningSetupForm(initialAnswers)
   const viewModel = usePlanningSetupViewModel(form)
+  const isSubmitting = usePlanningStore((state) => state.isSubmitting)
+  const submitError = usePlanningStore((state) => state.submitError)
 
   return (
     <div className="pb-32">
+      {submitError ? (
+        <div className="mx-6 mb-6 rounded-lg border border-red-400/30 bg-red-500/10 px-5 py-4 text-sm text-red-100">
+          {submitError}
+        </div>
+      ) : null}
+
+      {isSubmitting ? (
+        <div className="mx-6 mb-6 rounded-lg border border-white/15 bg-white/8 px-5 py-4 text-sm text-white/80">
+          기획 프리세팅을 저장하는 중입니다.
+        </div>
+      ) : null}
+
       <div className="flex">
         <div className="flex flex-1 min-w-0 flex-col gap-10 px-6">
           <CategoryQuestion data={viewModel.category} />

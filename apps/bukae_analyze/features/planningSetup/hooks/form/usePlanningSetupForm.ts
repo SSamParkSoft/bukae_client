@@ -17,16 +17,16 @@ export function usePlanningSetupForm(
   const setStoreAnswers = usePlanningStore(state => state.setAnswers)
 
   useEffect(() => {
-    setStoreAnswers(initialAnswers)
-  }, [initialAnswers, setStoreAnswers])
+    setAnswers(initialAnswers)
+  }, [initialAnswers])
+
+  useEffect(() => {
+    setStoreAnswers(answers)
+  }, [answers, setStoreAnswers])
 
   const update = useCallback((partial: Partial<PlanningSetupAnswers>) => {
-    setAnswers(prev => {
-      const next = { ...prev, ...partial }
-      setStoreAnswers(next)
-      return next
-    })
-  }, [setStoreAnswers])
+    setAnswers(prev => ({ ...prev, ...partial }))
+  }, [])
 
   return { answers, update }
 }

@@ -1,6 +1,8 @@
 'use client'
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { mapPlanningSetupAnswersToIntakeRequest, validatePlanningSetupAnswers } from '@/features/planningSetup/lib/intakeRequest'
+import { submitIntake } from '@/lib/services/planning'
 import { serializePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
 import { usePlanningStore } from '@/store/usePlanningStore'
 import { LAYOUT } from './layout-constants'
@@ -14,8 +16,12 @@ export function RightSidebar() {
   const projectId = searchParams.get('projectId')
   const planningFromQuery = searchParams.get('planning')
   const planningAnswers = usePlanningStore((state) => state.answers)
+  const isSubmitting = usePlanningStore((state) => state.isSubmitting)
+  const setSubmitting = usePlanningStore((state) => state.setSubmitting)
+  const setSubmitError = usePlanningStore((state) => state.setSubmitError)
+  const isPlanningSetup = pathname.startsWith('/planning-setup')
   const planning =
-    pathname.startsWith('/planning-setup')
+    isPlanningSetup
       ? serializePlanningSetupAnswers(planningAnswers)
       : planningFromQuery
 
@@ -23,13 +29,43 @@ export function RightSidebar() {
 
   const currentIndex = getCurrentStepIndex(pathname)
   const isLast = currentIndex === STEPS.length - 1
+  const planningValidationError = isPlanningSetup
+    ? validatePlanningSetupAnswers(planningAnswers)
+    : null
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (isLast) return
     const nextStep = STEPS[currentIndex + 1]
-    if (nextStep) {
-      router.push(buildStepPath(nextStep.path, { projectId, planning }))
+    if (!nextStep) return
+
+    if (isPlanningSetup) {
+      if (!projectId || isSubmitting) return
+
+      if (planningValidationError) {
+        setSubmitError(planningValidationError)
+        return
+      }
+
+      setSubmitting(true)
+      setSubmitError(null)
+
+      try {
+        await submitIntake(projectId, mapPlanningSetupAnswersToIntakeRequest(planningAnswers))
+        router.push(buildStepPath(nextStep.path, { projectId, planning }))
+      } catch (error) {
+        setSubmitError(
+          error instanceof Error
+            ? error.message
+            : '기획 프리세팅 제출에 실패했습니다.'
+        )
+      } finally {
+        setSubmitting(false)
+      }
+
+      return
     }
+
+    router.push(buildStepPath(nextStep.path, { projectId, planning }))
   }
 
   return (
@@ -42,7 +78,14 @@ export function RightSidebar() {
         className="absolute left-0 right-0 flex justify-center"
         style={{ bottom: LAYOUT.NAV_BUTTON_BOTTOM }}
       >
-        <StepNavButton direction="next" onClick={handleNext} hidden={isLast} />
+        <StepNavButton
+          direction="next"
+          onClick={() => {
+            void handleNext()
+          }}
+          hidden={isLast}
+          disabled={isSubmitting}
+        />
       </div>
     </aside>
   )
