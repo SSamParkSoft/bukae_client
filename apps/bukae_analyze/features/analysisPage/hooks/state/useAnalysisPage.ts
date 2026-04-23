@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { useProjectStore } from '@/store/useProjectStore'
 import { useAnalysisResource, type AnalysisResourceErrorType } from './useAnalysisResource'
 import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
-import { useVideoAnalysisViewModel } from '@/features/videoAnalysis/hooks/viewmodel/useVideoAnalysisViewModel'
+import { mapVideoAnalysisToViewModel } from '@/features/videoAnalysis/hooks/viewmodel/useVideoAnalysisViewModel'
+import type { VideoAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 
 const TABS = [
   { id: 'thumbnail', label: 'Thumbnail 분석' },
@@ -20,7 +21,7 @@ export interface AnalysisPageState {
   activeTab: AnalysisTabId
   setActiveTab: (tab: AnalysisTabId) => void
   tabs: typeof TABS
-  viewModel: ReturnType<typeof useVideoAnalysisViewModel>
+  viewModel: VideoAnalysisViewModel
   referenceUrl: string
   videoSrc: string
   isReady: boolean
@@ -37,7 +38,7 @@ export function useAnalysisPage(): AnalysisPageState {
   const { status, errorType, errorMessage, result } = useAnalysisResource()
 
   // videoAnalysis가 없는 동안은 mock 데이터로 대체 (isReady가 false이므로 렌더되지 않음)
-  const viewModel = useVideoAnalysisViewModel(result?.videoAnalysis ?? MOCK_VIDEO_ANALYSIS)
+  const viewModel = mapVideoAnalysisToViewModel(result?.videoAnalysis ?? MOCK_VIDEO_ANALYSIS)
 
   useEffect(() => {
     if (!projectId) router.replace('/')

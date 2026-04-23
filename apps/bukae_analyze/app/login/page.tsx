@@ -1,14 +1,9 @@
-'use client'
-
 import Image from 'next/image'
 import logo from '@/public/logo.svg'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? ''
 const REDIRECT_URI = process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI ?? ''
-
-function handleGoogleLogin() {
-  window.location.href = `${API_BASE_URL}/oauth2/authorization/google?redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
-}
+const LOGIN_HREF = `${API_BASE_URL}/oauth2/authorization/google?redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
 
 export default function LoginPage() {
   return (
@@ -31,7 +26,7 @@ export default function LoginPage() {
 
         {/* 버튼 + 약관 안내 */}
         <div className="flex flex-col items-center gap-8">
-          <button className="gsi-material-button" type="button" onClick={handleGoogleLogin}>
+          <a className="gsi-material-button" href={LOGIN_HREF}>
             <div className="gsi-material-button-state" />
             <div className="gsi-material-button-content-wrapper">
               <div className="gsi-material-button-icon">
@@ -51,7 +46,7 @@ export default function LoginPage() {
               <span className="gsi-material-button-contents">Sign in with Google</span>
               <span style={{ display: 'none' }}>Sign in with Google</span>
             </div>
-          </button>
+          </a>
 
           <p className="font-16-md text-white/80 tracking-[-0.04em] text-center">
             로그인 시 서비스 이용약관 및 개인정보 처리방침에 동의하게 됩니다.

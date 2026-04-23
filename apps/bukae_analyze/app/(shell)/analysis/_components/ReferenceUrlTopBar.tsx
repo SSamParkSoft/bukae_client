@@ -1,5 +1,3 @@
-'use client'
-
 // import { DeepDiveReportButton } from './DeepDiveReportButton'
 
 export function ReferenceUrlTopBar({
