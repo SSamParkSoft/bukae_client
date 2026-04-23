@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/useAuthStore'
 import { logout } from '@/lib/services/auth'
+import { clearServerAccessToken } from '@/lib/services/authSession'
 
 export interface HeaderProfileState {
   name: string
@@ -19,6 +20,7 @@ export function useHeaderProfile(): HeaderProfileState {
     if (accessToken) {
       await logout(accessToken).catch(() => {})
     }
+    await clearServerAccessToken().catch(() => {})
     clearToken()
     router.replace('/login')
   }

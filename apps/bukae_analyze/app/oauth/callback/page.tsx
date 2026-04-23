@@ -4,6 +4,7 @@ import { Suspense, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthStore } from '@/store/useAuthStore'
 import { fetchCurrentUser } from '@/lib/services/auth'
+import { clearServerAccessToken, syncServerAccessToken } from '@/lib/services/authSession'
 
 function OAuthCallbackHandler() {
   const router = useRouter()
@@ -20,12 +21,16 @@ function OAuthCallbackHandler() {
 
     setAccessToken(token)
 
-    fetchCurrentUser(token)
-      .then((user) => {
+    Promise.all([
+      syncServerAccessToken(token).catch(() => {}),
+      fetchCurrentUser(token),
+    ])
+      .then(([, user]) => {
         setUser(user)
         router.replace('/')
       })
       .catch(() => {
+        clearServerAccessToken().catch(() => {})
         useAuthStore.getState().clearToken()
         router.replace('/login')
       })
