@@ -17,8 +17,10 @@ export function RightSidebar() {
   const planningFromQuery = searchParams.get('planning')
   const planningAnswers = usePlanningStore((state) => state.answers)
   const isSubmitting = usePlanningStore((state) => state.isSubmitting)
+  const lastSubmittedIntakeKey = usePlanningStore((state) => state.lastSubmittedIntakeKey)
   const setSubmitting = usePlanningStore((state) => state.setSubmitting)
   const setSubmitError = usePlanningStore((state) => state.setSubmitError)
+  const markIntakeSubmitted = usePlanningStore((state) => state.markIntakeSubmitted)
   const isPlanningSetup = pathname.startsWith('/planning-setup')
   const planning =
     isPlanningSetup
@@ -46,11 +48,19 @@ export function RightSidebar() {
         return
       }
 
+      const intakeSubmissionKey = `${projectId}:${planning ?? ''}`
+
+      if (lastSubmittedIntakeKey === intakeSubmissionKey) {
+        router.push(buildStepPath(nextStep.path, { projectId, planning }))
+        return
+      }
+
       setSubmitting(true)
       setSubmitError(null)
 
       try {
         await submitIntake(projectId, mapPlanningSetupAnswersToIntakeRequest(planningAnswers))
+        markIntakeSubmitted(intakeSubmissionKey)
         router.push(buildStepPath(nextStep.path, { projectId, planning }))
       } catch (error) {
         setSubmitError(
