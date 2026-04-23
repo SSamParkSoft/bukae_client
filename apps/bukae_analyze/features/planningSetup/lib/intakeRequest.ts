@@ -1,16 +1,5 @@
 import type { PlanningSetupAnswers } from '@/lib/types/domain'
 
-const CATEGORY_LABELS: Record<Exclude<PlanningSetupAnswers['category'], 'custom' | null>, string> = {
-  'product-promo': '상품 홍보형',
-  information: '정보 전달형',
-  review: '후기/리뷰형',
-  vlog: '브이로그형',
-  'self-narrative': '자기서사형',
-  'challenge-meme': '챌린지/밈 활용형',
-  'interview-talk': '인터뷰/토크형',
-  tutorial: '튜토리얼형',
-}
-
 const FACE_EXPOSURE_PLAN_MAP: Record<Exclude<PlanningSetupAnswers['faceExposure'], 'custom' | null>, string> = {
   'face-cam': 'custom',
   'part-shot': 'hands-only',
@@ -68,16 +57,8 @@ function resolveTargetDurationSec(answers: PlanningSetupAnswers): number | null 
   }
 }
 
-function resolveCategoryCustom(answers: PlanningSetupAnswers): string {
-  if (answers.category === 'custom') {
-    return trim(answers.categoryCustom)
-  }
-
-  if (!answers.category) {
-    return ''
-  }
-
-  return CATEGORY_LABELS[answers.category]
+function resolveCategoryCustom(): string {
+  return ''
 }
 
 function resolveFaceExposurePlan(answers: PlanningSetupAnswers): string | null {
@@ -157,7 +138,7 @@ export function mapPlanningSetupAnswersToIntakeRequest(
   return {
     category: 'PRODUCT_PROMOTION' as const,
     payload: {
-      categoryCustom: resolveCategoryCustom(answers),
+      categoryCustom: resolveCategoryCustom(),
       faceExposurePlan,
       faceExposureCustom: resolveFaceExposureCustom(answers),
       targetDurationSec,
