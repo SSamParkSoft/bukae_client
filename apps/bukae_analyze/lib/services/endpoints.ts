@@ -22,6 +22,9 @@ export const API_ENDPOINTS = {
     detail: (projectId: string) => `${BASE}/projects/${projectId}`,
     benchmark:         (projectId: string) => `${BASE}/projects/${projectId}/benchmark`,
     benchmarkAnalysis: (projectId: string) => `${BASE}/projects/${projectId}/benchmark-analysis`,
+    intake:            (projectId: string) => `${BASE}/projects/${projectId}/intake`,
+    planning:          (projectId: string) => `${BASE}/projects/${projectId}/planning`,
+    planningMessages:  (projectId: string) => `${BASE}/projects/${projectId}/planning/messages`,
     timeline:          (projectId: string) => `${BASE}/projects/${projectId}/timeline`,
   },
 } as const

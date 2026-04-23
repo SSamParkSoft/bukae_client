@@ -16,5 +16,6 @@
 export * from './videoAnalysis'
 export * from './projectAnalysis'
 export * from './planningSetup'
+export * from './planning'
 export * from './aiPlanning'
 export * from './shootingGuide'
