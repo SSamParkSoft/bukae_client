@@ -160,10 +160,11 @@ export function useAnalysisResource(): AnalysisResourceState {
             : POLL_INTERVAL_MS
 
         timeoutId = setTimeout(syncAnalysisResult, nextDelay)
-      } catch {
-        if (!cancelled) {
-          setErrorMessage('분석 상태 확인 중 오류가 발생했습니다.')
-        }
+      } catch (err) {
+        if (cancelled) return
+        console.error('[useAnalysisResource] poll failed:', err)
+        setErrorMessage('분석 상태 확인 중 오류가 발생했습니다.')
+        timeoutId = setTimeout(syncAnalysisResult, POLL_INTERVAL_MS)
       }
     }
 

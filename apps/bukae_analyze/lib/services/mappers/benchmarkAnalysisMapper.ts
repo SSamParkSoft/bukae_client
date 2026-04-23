@@ -20,17 +20,40 @@ const SCENE_ROLE_LABEL: Record<string, string> = {
   outro: '아웃트로',
 }
 
+function hasMeaningfulText(value: string | null | undefined): boolean {
+  return Boolean(value?.trim())
+}
+
+function firstNonEmptyMessage(
+  ...messages: Array<string | null | undefined>
+): string | null {
+  return messages.find(hasMeaningfulText) ?? null
+}
+
 function hasAnalysisContent(dto: BenchmarkAnalysisResponseDto): boolean {
+  const tabs = dto.normalized_analysis_tabs
+
   return Boolean(
-    dto.normalized_analysis_tabs ||
-    dto.hookSummary ||
-    dto.editPace ||
-    dto.subtitleStyleSummary ||
-    dto.narrationStyleSummary ||
-    dto.persuasionStructureSummary ||
-    dto.targetAudienceGuess ||
-    dto.benchmarkProfile?.profile_summary ||
-    dto.benchmarkProfile?.target_audience_guess
+    hasMeaningfulText(tabs?.hook?.coreAnalysis) ||
+    (tabs?.hook?.evidence?.length ?? 0) > 0 ||
+    hasMeaningfulText(tabs?.thumbnail?.coreAnalysis) ||
+    hasMeaningfulText(tabs?.thumbnail?.mainText) ||
+    (tabs?.thumbnail?.evidence?.length ?? 0) > 0 ||
+    (tabs?.thumbnail?.colors?.length ?? 0) > 0 ||
+    (tabs?.structure?.scenes?.length ?? 0) > 0 ||
+    hasMeaningfulText(tabs?.structure?.targetAudience) ||
+    (tabs?.structure?.targetAudienceKeywords?.length ?? 0) > 0 ||
+    (tabs?.structure?.editingDirections?.length ?? 0) > 0 ||
+    hasMeaningfulText(tabs?.structure?.trendContext) ||
+    hasMeaningfulText(tabs?.structure?.ctaStrategy) ||
+    hasMeaningfulText(dto.hookSummary) ||
+    hasMeaningfulText(dto.editPace) ||
+    hasMeaningfulText(dto.subtitleStyleSummary) ||
+    hasMeaningfulText(dto.narrationStyleSummary) ||
+    hasMeaningfulText(dto.persuasionStructureSummary) ||
+    hasMeaningfulText(dto.targetAudienceGuess) ||
+    hasMeaningfulText(dto.benchmarkProfile?.profile_summary) ||
+    hasMeaningfulText(dto.benchmarkProfile?.target_audience_guess)
   )
 }
 
@@ -202,11 +225,11 @@ export function mapBenchmarkAnalysisPollingState(
     projectStatus: dto.projectStatus ?? null,
     currentStep: dto.currentStep ?? null,
     readyForCategorySelection: dto.readyForCategorySelection ?? false,
-    errorMessage:
-      dto.failure?.summary ??
-      dto.failure?.message ??
-      dto.lastErrorMessage ??
-      null,
+    errorMessage: firstNonEmptyMessage(
+      dto.failure?.summary,
+      dto.failure?.message,
+      dto.lastErrorMessage
+    ),
     hasResult: hasAnalysisContent(dto),
   }
 }

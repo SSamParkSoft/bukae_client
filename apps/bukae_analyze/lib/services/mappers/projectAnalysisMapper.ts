@@ -8,6 +8,12 @@ import type {
   ProjectDetailDto,
 } from '@/lib/types/api/project'
 
+function firstNonEmptyMessage(
+  ...messages: Array<string | null | undefined>
+): string | null {
+  return messages.find((message) => message?.trim()) ?? null
+}
+
 export function mapProjectSession(dto: ProjectDetailDto): ProjectSession {
   return {
     projectId: dto.projectId,
@@ -31,10 +37,10 @@ export function mapProjectPollingState(dto: ProjectDetailDto): ProjectPollingSta
   return {
     projectStatus: dto.status,
     currentStep: dto.currentStep ?? null,
-    errorMessage:
-      dto.failure?.summary ??
-      dto.failure?.message ??
-      dto.lastErrorMessage ??
-      null,
+    errorMessage: firstNonEmptyMessage(
+      dto.failure?.summary,
+      dto.failure?.message,
+      dto.lastErrorMessage
+    ),
   }
 }
