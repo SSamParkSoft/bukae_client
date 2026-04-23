@@ -12,10 +12,16 @@ const CATEGORY_LABELS: Record<Exclude<PlanningSetupAnswers['category'], 'custom'
 }
 
 const FACE_EXPOSURE_PLAN_MAP: Record<Exclude<PlanningSetupAnswers['faceExposure'], 'custom' | null>, string> = {
-  'face-cam': 'face-visible',
+  'face-cam': 'custom',
   'part-shot': 'hands-only',
   'voice-over': 'product-only',
   'no-face': 'product-only',
+}
+
+const FACE_EXPOSURE_CUSTOM_LABELS: Partial<
+  Record<Exclude<PlanningSetupAnswers['faceExposure'], null>, string>
+> = {
+  'face-cam': '얼굴 포함 직접 출연',
 }
 
 function trim(value: string): string {
@@ -86,6 +92,18 @@ function resolveFaceExposurePlan(answers: PlanningSetupAnswers): string | null {
   return FACE_EXPOSURE_PLAN_MAP[answers.faceExposure]
 }
 
+function resolveFaceExposureCustom(answers: PlanningSetupAnswers): string {
+  if (answers.faceExposure === 'custom') {
+    return trim(answers.faceExposureCustom)
+  }
+
+  if (!answers.faceExposure) {
+    return ''
+  }
+
+  return FACE_EXPOSURE_CUSTOM_LABELS[answers.faceExposure] ?? ''
+}
+
 export function validatePlanningSetupAnswers(
   answers: PlanningSetupAnswers
 ): string | null {
@@ -141,8 +159,7 @@ export function mapPlanningSetupAnswersToIntakeRequest(
     payload: {
       categoryCustom: resolveCategoryCustom(answers),
       faceExposurePlan,
-      faceExposureCustom:
-        answers.faceExposure === 'custom' ? trim(answers.faceExposureCustom) : '',
+      faceExposureCustom: resolveFaceExposureCustom(answers),
       targetDurationSec,
       shootPlanned: answers.shooting === 'yes',
       shootEnvironment: trim(answers.shootingEnvironment),
