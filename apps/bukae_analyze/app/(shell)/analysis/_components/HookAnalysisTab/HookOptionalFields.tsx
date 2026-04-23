@@ -7,7 +7,7 @@ interface HookCategoryItemProps {
 
 function HookCategoryItem({ label, value }: HookCategoryItemProps) {
   return (
-    <div className="flex-1 h-[clamp(160px, 1.04vw, 180px)] px-4 py-6 flex flex-col gap-4 min-w-0">
+    <div className="flex-1 h-[clamp(160px, 1.04vw, 180px)] py-6 flex flex-col gap-4 min-w-0">
       <p className="font-fluid-20-md text-white/60 shrink-0">{label}</p>
       <div className="flex items-center py-4 overflow-hidden">
         <p className="min-w-0 font-fluid-24-sm text-white/80 text-center w-full">
