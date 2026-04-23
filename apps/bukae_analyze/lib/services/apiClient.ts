@@ -1,7 +1,12 @@
 import { useAuthStore } from '@/store/useAuthStore'
 import { refreshToken } from './auth'
 
-async function apiFetchWithToken(
+export type ApiFetcher = (
+  url: string,
+  options?: RequestInit
+) => Promise<Response>
+
+export async function apiFetchWithToken(
   token: string,
   url: string,
   options: RequestInit = {}
@@ -14,7 +19,10 @@ async function apiFetchWithToken(
   return fetch(url, { ...options, headers })
 }
 
-export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
+export const apiFetch: ApiFetcher = async (
+  url: string,
+  options: RequestInit = {}
+) => {
   const { accessToken, setAccessToken, clearToken } = useAuthStore.getState()
 
   if (!accessToken) throw new Error('인증 토큰이 없습니다')
