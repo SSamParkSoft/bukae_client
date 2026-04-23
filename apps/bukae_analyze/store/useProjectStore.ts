@@ -14,6 +14,7 @@ interface ProjectStore {
   referenceUrl: string | null
 
   setProject: (data: { projectId: string; projectStatus: string; currentStep: string | null }) => void
+  setProjectProgress: (data: { projectStatus: string; currentStep: string | null }) => void
   setSubmissionStatus: (status: string) => void
   setAnalysisResult: (data: VideoAnalysisResult) => void
   clearProject: () => void
@@ -40,6 +41,9 @@ export const useProjectStore = create<ProjectStore>()(
           videoSrc: null,
           referenceUrl: null,
         }),
+
+      setProjectProgress: ({ projectStatus, currentStep }) =>
+        set({ projectStatus, currentStep }),
 
       setSubmissionStatus: (status) => set({ submissionStatus: status }),
 

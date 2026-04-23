@@ -1,5 +1,7 @@
 import type { BenchmarkAnalysisResponseDto } from '@/lib/types/api/benchmarkAnalysis'
 import type {
+  AnalysisPollingState,
+  AnalysisSnapshot,
   HookAnalysis,
   StorySegment,
   ThumbnailAnalysis,
@@ -16,6 +18,43 @@ const SCENE_ROLE_LABEL: Record<string, string> = {
   cta: 'CTA',
   resolution: '해결',
   outro: '아웃트로',
+}
+
+function hasMeaningfulText(value: string | null | undefined): boolean {
+  return Boolean(value?.trim())
+}
+
+function firstNonEmptyMessage(
+  ...messages: Array<string | null | undefined>
+): string | null {
+  return messages.find(hasMeaningfulText) ?? null
+}
+
+function hasAnalysisContent(dto: BenchmarkAnalysisResponseDto): boolean {
+  const tabs = dto.normalized_analysis_tabs
+
+  return Boolean(
+    hasMeaningfulText(tabs?.hook?.coreAnalysis) ||
+    (tabs?.hook?.evidence?.length ?? 0) > 0 ||
+    hasMeaningfulText(tabs?.thumbnail?.coreAnalysis) ||
+    hasMeaningfulText(tabs?.thumbnail?.mainText) ||
+    (tabs?.thumbnail?.evidence?.length ?? 0) > 0 ||
+    (tabs?.thumbnail?.colors?.length ?? 0) > 0 ||
+    (tabs?.structure?.scenes?.length ?? 0) > 0 ||
+    hasMeaningfulText(tabs?.structure?.targetAudience) ||
+    (tabs?.structure?.targetAudienceKeywords?.length ?? 0) > 0 ||
+    (tabs?.structure?.editingDirections?.length ?? 0) > 0 ||
+    hasMeaningfulText(tabs?.structure?.trendContext) ||
+    hasMeaningfulText(tabs?.structure?.ctaStrategy) ||
+    hasMeaningfulText(dto.hookSummary) ||
+    hasMeaningfulText(dto.editPace) ||
+    hasMeaningfulText(dto.subtitleStyleSummary) ||
+    hasMeaningfulText(dto.narrationStyleSummary) ||
+    hasMeaningfulText(dto.persuasionStructureSummary) ||
+    hasMeaningfulText(dto.targetAudienceGuess) ||
+    hasMeaningfulText(dto.benchmarkProfile?.profile_summary) ||
+    hasMeaningfulText(dto.benchmarkProfile?.target_audience_guess)
+  )
 }
 
 function parseHookRangeSec(hookRange: string): number {
@@ -82,7 +121,7 @@ function mapHookAnalysis(dto: BenchmarkAnalysisResponseDto): HookAnalysis {
     openingType: hook?.coreCard?.openingType ?? '',
     emotionTrigger: hook?.coreCard?.emotionTrigger ?? '',
     pacing: normalizePacing(hook?.coreCard?.pacing ?? 'slow'),
-    why: hook?.coreAnalysis ?? '',
+    why: hook?.coreAnalysis ?? dto.hookSummary ?? '',
     evidence: hook?.evidence ?? [],
     viewerPositioning: hook?.insightBox?.viewerPositioning,
     visualHook: hook?.insightBox?.visualHook,
@@ -139,9 +178,13 @@ function mapVideoStructureAnalysis(dto: BenchmarkAnalysisResponseDto): VideoStru
   const structure = dto.normalized_analysis_tabs?.structure
 
   return {
-    overview: dto.benchmarkProfile?.profile_summary ?? '',
+    overview:
+      dto.benchmarkProfile?.profile_summary ??
+      dto.persuasionStructureSummary ??
+      '',
     targetAudienceDescription:
       structure?.targetAudience ??
+      dto.targetAudienceGuess ??
       dto.benchmarkProfile?.target_audience_guess ??
       '',
     targetAudienceAttributes: structure?.targetAudienceKeywords ?? [],
@@ -170,5 +213,34 @@ export function mapBenchmarkAnalysisResult(
     videoAnalysis: mapBenchmarkAnalysisToVideoAnalysis(dto),
     videoSrc: dto.normalized_analysis_tabs?.source?.video?.public_url ?? '',
     referenceUrl: dto.normalized_analysis_tabs?.source?.metadata?.source_url ?? '',
+  }
+}
+
+export function mapBenchmarkAnalysisPollingState(
+  dto: BenchmarkAnalysisResponseDto
+): AnalysisPollingState {
+  return {
+    submissionStatus: dto.submissionStatus,
+    analysisStatus: dto.analysisStatus ?? null,
+    projectStatus: dto.projectStatus ?? null,
+    currentStep: dto.currentStep ?? null,
+    readyForCategorySelection: dto.readyForCategorySelection ?? false,
+    errorMessage: firstNonEmptyMessage(
+      dto.failure?.summary,
+      dto.failure?.message,
+      dto.lastErrorMessage
+    ),
+    hasResult: hasAnalysisContent(dto),
+  }
+}
+
+export function mapBenchmarkAnalysisSnapshot(
+  dto: BenchmarkAnalysisResponseDto
+): AnalysisSnapshot {
+  return {
+    polling: mapBenchmarkAnalysisPollingState(dto),
+    result: hasAnalysisContent(dto)
+      ? mapBenchmarkAnalysisResult(dto)
+      : null,
   }
 }
