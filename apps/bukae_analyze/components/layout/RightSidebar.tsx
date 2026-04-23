@@ -2,8 +2,9 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { mapPlanningSetupAnswersToIntakeRequest, validatePlanningSetupAnswers } from '@/features/planningSetup/lib/intakeRequest'
-import { submitIntake } from '@/lib/services/planning'
+import { postPlanningMessage, submitIntake } from '@/lib/services/planning'
 import { serializePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
+import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { usePlanningStore } from '@/store/usePlanningStore'
 import { LAYOUT } from './layout-constants'
 import { STEPS, buildStepPath, getCurrentStepIndex } from '../_utils/stepNavigation'
@@ -15,13 +16,21 @@ export function RightSidebar() {
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId')
   const planningFromQuery = searchParams.get('planning')
+  const mode = searchParams.get('mode')
   const planningAnswers = usePlanningStore((state) => state.answers)
   const isSubmitting = usePlanningStore((state) => state.isSubmitting)
   const lastSubmittedIntakeKey = usePlanningStore((state) => state.lastSubmittedIntakeKey)
   const setSubmitting = usePlanningStore((state) => state.setSubmitting)
   const setSubmitError = usePlanningStore((state) => state.setSubmitError)
   const markIntakeSubmitted = usePlanningStore((state) => state.markIntakeSubmitted)
+  const canProceedAiPlanning = useAiPlanningStore((state) => state.canProceed)
+  const isAdvancingAiPlanning = useAiPlanningStore((state) => state.isAdvancing)
+  const aiPlanningNextTarget = useAiPlanningStore((state) => state.nextTarget)
+  const planningSessionId = useAiPlanningStore((state) => state.planningSessionId)
+  const setAdvancingAiPlanning = useAiPlanningStore((state) => state.setAdvancing)
   const isPlanningSetup = pathname.startsWith('/planning-setup')
+  const isAiPlanning = pathname.startsWith('/ai-planning')
+  const isChatbotMode = mode === 'chatbot'
   const planning =
     isPlanningSetup
       ? serializePlanningSetupAnswers(planningAnswers)
@@ -75,6 +84,46 @@ export function RightSidebar() {
       return
     }
 
+    if (isAiPlanning) {
+      if (!projectId || isChatbotMode || !canProceedAiPlanning || isAdvancingAiPlanning) {
+        return
+      }
+
+      setAdvancingAiPlanning(true)
+
+      try {
+        if (aiPlanningNextTarget === 'chatbot') {
+          if (planningSessionId) {
+            await postPlanningMessage(projectId, {
+              message: 'PT2 워크스페이스 진입',
+              messageType: 'planning_workspace_entered',
+              payload: {
+                planning_session_id: planningSessionId,
+                answer_source: 'planning_pt1',
+              },
+            }).catch(() => {})
+          }
+
+          const params = new URLSearchParams({ projectId })
+          if (planning) {
+            params.set('planning', planning)
+          }
+          params.set('mode', 'chatbot')
+          router.push(`/ai-planning?${params.toString()}`)
+          return
+        }
+
+        if (aiPlanningNextTarget === 'shooting-guide') {
+          router.push(buildStepPath(nextStep.path, { projectId, planning }))
+          return
+        }
+      } finally {
+        setAdvancingAiPlanning(false)
+      }
+
+      return
+    }
+
     router.push(buildStepPath(nextStep.path, { projectId, planning }))
   }
 
@@ -94,7 +143,11 @@ export function RightSidebar() {
             void handleNext()
           }}
           hidden={isLast}
-          disabled={isSubmitting}
+          disabled={
+            isSubmitting ||
+            (isAiPlanning &&
+              (isChatbotMode || !canProceedAiPlanning || isAdvancingAiPlanning))
+          }
         />
       </div>
     </aside>

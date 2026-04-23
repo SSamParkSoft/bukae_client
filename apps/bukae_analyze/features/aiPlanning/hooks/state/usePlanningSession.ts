@@ -11,6 +11,7 @@ export interface PlanningSessionState {
   session: PlanningSession | null
   isLoading: boolean
   errorMessage: string | null
+  replaceSession: (nextSession: PlanningSession) => void
 }
 
 function getFailureMessage(session: PlanningSession | null): string | null {
@@ -102,5 +103,6 @@ export function usePlanningSession(
     session,
     isLoading,
     errorMessage,
+    replaceSession: setSession,
   }), [session, isLoading, errorMessage])
 }

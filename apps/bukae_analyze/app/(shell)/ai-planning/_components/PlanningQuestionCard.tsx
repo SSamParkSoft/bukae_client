@@ -19,6 +19,8 @@ export function PlanningQuestionCard({
   onSelect,
   onCustomChange,
   onFieldChange,
+  onCustomBlur,
+  onFieldBlur,
 }: {
   question: PlanningQuestion
   index: number
@@ -28,6 +30,8 @@ export function PlanningQuestionCard({
   onSelect: (value: string) => void
   onCustomChange: (value: string) => void
   onFieldChange: (fieldKey: string, value: string) => void
+  onCustomBlur: () => void
+  onFieldBlur: (fieldKey: string) => void
 }) {
   const allOptions = [
     ...question.options.map((option) => ({
@@ -72,6 +76,7 @@ export function PlanningQuestionCard({
                 type="text"
                 value={fieldValues[field.fieldKey] ?? ''}
                 onChange={(event) => onFieldChange(field.fieldKey, event.target.value)}
+                onBlur={() => onFieldBlur(field.fieldKey)}
                 placeholder={field.placeholder || resolveInputPlaceholder(question)}
                 className="w-full rounded-[8px] border border-white/20 bg-white/8 px-4 py-3 text-white placeholder:text-white/30 focus:border-white/40 focus:outline-none"
               />
@@ -122,6 +127,7 @@ export function PlanningQuestionCard({
         <textarea
           value={customValue}
           onChange={(event) => onCustomChange(event.target.value)}
+          onBlur={onCustomBlur}
           placeholder={resolveInputPlaceholder(question)}
           rows={2}
           className="w-full rounded-[8px] border border-white/40 bg-transparent px-6 py-3 text-white placeholder:text-white/35 focus:border-white/60 focus:outline-none"
