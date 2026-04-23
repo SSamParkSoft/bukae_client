@@ -1,7 +1,7 @@
 'use client'
 
+import { AnalysisLoadingOverlay } from '@/components/loading/AnalysisLoadingOverlay'
 import { useAnalysisPageContext } from '@/features/analysisPage/context/AnalysisPageContext'
-import { AnalysisContentLoadingState } from './AnalysisContentLoadingState'
 import { AnalysisErrorView } from './AnalysisErrorView'
 import { AnalysisInsightPanel } from './AnalysisInsightPanel'
 import { AnalysisVideoPanel } from './AnalysisVideoPanel'
@@ -34,9 +34,15 @@ export function AnalysisPageContent() {
       </div>
     )
   }
-
-  if (!isReady || isLoading) {
-    return <AnalysisContentLoadingState />
+  const DEBUG_ALWAYS_LOADING = true
+  // ...
+  // if (!isReady || isLoading) {
+  if (DEBUG_ALWAYS_LOADING || !isReady || isLoading) {
+    return (
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        <AnalysisLoadingOverlay visible />
+      </div>
+    )
   }
 
   return (
