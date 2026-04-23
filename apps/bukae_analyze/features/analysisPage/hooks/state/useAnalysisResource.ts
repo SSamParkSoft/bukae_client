@@ -1,85 +1,28 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import type { VideoAnalysisResult } from '@/lib/types/domain'
+import { useEffect, useRef, useState } from 'react'
 import { getBenchmarkAnalysis } from '@/lib/services/benchmarkAnalysis'
 import { getProjectPollingState } from '@/lib/services/projects'
+import {
+  createAnalysisResourceSnapshot,
+  deriveAnalysisResourceState,
+  EMPTY_ANALYSIS_RESOURCE_SNAPSHOT,
+  type AnalysisResourceState,
+} from '@/features/analysisPage/lib/analysisResource'
 
 const POLL_INTERVAL_MS = 2500
 const COMPLETED_RESULT_RETRY_MS = 1000
 const MAX_COMPLETED_RESULT_RETRIES = 10
 
-export type AnalysisResourceStatus = 'idle' | 'loading' | 'ready' | 'error'
-export type AnalysisResourceErrorType = 'failed' | 'missing_result' | 'unknown'
-
-interface AnalysisResourceState {
-  status: AnalysisResourceStatus
-  errorType: AnalysisResourceErrorType | null
-  errorMessage: string | null
-  result: VideoAnalysisResult | null
-}
-
-interface AnalysisResourceSnapshot {
-  projectStatus: string | null
-  submissionStatus: string | null
-  result: VideoAnalysisResult | null
-  errorMessage: string | null
-  isCompleted: boolean
-}
-
-function getErrorState(params: {
-  submissionStatus: string | null
-  projectStatus: string | null
-  isCompleted: boolean
-  errorMessage: string | null
-  hasStoredResult: boolean
-}): { errorType: AnalysisResourceErrorType | null; errorMessage: string | null } {
-  const { submissionStatus, projectStatus, isCompleted, errorMessage, hasStoredResult } = params
-
-  if (hasStoredResult && isCompleted) return { errorType: null, errorMessage: null }
-
-  if (
-    submissionStatus === 'FAILED' ||
-    projectStatus === 'FAILED' ||
-    projectStatus === 'CANCELLED'
-  ) {
-    return {
-      errorType: 'failed',
-      errorMessage: errorMessage ?? '분석에 실패했습니다. 다시 시도해주세요.',
-    }
-  }
-
-  if (!errorMessage) return { errorType: null, errorMessage: null }
-
-  return {
-    errorType: isCompleted ? 'missing_result' : 'unknown',
-    errorMessage,
-  }
-}
-
-function getResourceStatus(params: {
-  isCompleted: boolean
-  hasResult: boolean
-  errorMessage: string | null
-}): AnalysisResourceStatus {
-  const { isCompleted, hasResult, errorMessage } = params
-  if (isCompleted && hasResult) return 'ready'
-  if (errorMessage) return 'error'
-  return 'loading'
-}
-
-const INITIAL_ANALYSIS_RESOURCE_SNAPSHOT: AnalysisResourceSnapshot = {
-  projectStatus: null,
-  submissionStatus: null,
-  result: null,
-  errorMessage: null,
-  isCompleted: false,
-}
-
 export function useAnalysisResource(projectId: string): AnalysisResourceState {
-  const [snapshot, setSnapshot] = useState<AnalysisResourceSnapshot>(
-    INITIAL_ANALYSIS_RESOURCE_SNAPSHOT
+  const [snapshot, setSnapshot] = useState(
+    EMPTY_ANALYSIS_RESOURCE_SNAPSHOT
   )
+  const latestResultRef = useRef(snapshot.result)
+
+  useEffect(() => {
+    latestResultRef.current = snapshot.result
+  }, [snapshot.result])
 
   useEffect(() => {
     let cancelled = false
@@ -88,58 +31,27 @@ export function useAnalysisResource(projectId: string): AnalysisResourceState {
 
     async function syncAnalysisResult() {
       try {
-        const [project, snapshot] = await Promise.all([
+        const [project, analysisSnapshot] = await Promise.all([
           getProjectPollingState(projectId),
           getBenchmarkAnalysis(projectId),
         ])
         if (cancelled) return
-        const { polling, result } = snapshot
+        const nextSnapshot = createAnalysisResourceSnapshot({
+          project,
+          snapshot: analysisSnapshot,
+          previousResult: latestResultRef.current,
+        })
 
-        setSnapshot((prev) => ({
-          ...prev,
-          projectStatus: project.projectStatus,
-          submissionStatus: polling.submissionStatus,
-        }))
+        setSnapshot(nextSnapshot)
 
-        const isFailed =
-          project.projectStatus === 'FAILED' ||
-          project.projectStatus === 'CANCELLED' ||
-          polling.submissionStatus === 'FAILED' ||
-          polling.analysisStatus === 'FAILED'
+        const reachedCompletion = nextSnapshot.isCompleted
+        const hasResult = nextSnapshot.result !== null
 
-        if (isFailed) {
-          setSnapshot((prev) => ({
-            ...prev,
-            isCompleted: false,
-            errorMessage:
-              project.errorMessage ??
-              polling.errorMessage ??
-              '분석에 실패했습니다. 다시 시도해주세요.',
-          }))
+        if (nextSnapshot.errorMessage) {
           return
         }
 
-        const reachedCompletion =
-          polling.analysisStatus === 'COMPLETED' ||
-          polling.readyForCategorySelection ||
-          (
-            project.projectStatus === 'INTAKE_READY' &&
-            project.currentStep === 'CATEGORY_SELECTION'
-          )
-
-        setSnapshot((prev) => ({
-          ...prev,
-          isCompleted: reachedCompletion,
-          result: result ?? prev.result,
-        }))
-
-        if (reachedCompletion && result) {
-          setSnapshot((prev) => ({
-            ...prev,
-            errorMessage: null,
-          }))
-          return
-        }
+        if (reachedCompletion && hasResult) return
 
         if (reachedCompletion) {
           completedRetryCount += 1
@@ -180,22 +92,5 @@ export function useAnalysisResource(projectId: string): AnalysisResourceState {
     }
   }, [projectId])
 
-  const errorState = getErrorState({
-    submissionStatus: snapshot.submissionStatus,
-    projectStatus: snapshot.projectStatus,
-    isCompleted: snapshot.isCompleted,
-    errorMessage: snapshot.errorMessage,
-    hasStoredResult: snapshot.result !== null,
-  })
-
-  return {
-    status: getResourceStatus({
-      isCompleted: snapshot.isCompleted,
-      hasResult: snapshot.result !== null,
-      errorMessage: errorState.errorMessage,
-    }),
-    errorType: errorState.errorType,
-    errorMessage: errorState.errorMessage,
-    result: snapshot.result,
-  }
+  return deriveAnalysisResourceState(snapshot)
 }

@@ -1,4 +1,5 @@
-import { apiFetch, type ApiFetcher } from './apiClient'
+import { apiFetch } from './apiClient'
+import type { ApiFetcher } from './apiFetchCore'
 import { API_ENDPOINTS } from './endpoints'
 import {
   mapBenchmarkSubmissionState,

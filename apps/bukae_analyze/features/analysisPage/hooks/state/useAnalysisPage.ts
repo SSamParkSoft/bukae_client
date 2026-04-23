@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useAnalysisResource, type AnalysisResourceErrorType } from './useAnalysisResource'
 import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
 import { mapVideoAnalysisToViewModel } from '@/features/videoAnalysis/hooks/viewmodel/useVideoAnalysisViewModel'
 import type { VideoAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
+import type { AnalysisResourceErrorType } from '@/features/analysisPage/lib/analysisResource'
+import { useAnalysisResource } from './useAnalysisResource'
 
 const TABS = [
   { id: 'thumbnail', label: 'Thumbnail 분석' },
