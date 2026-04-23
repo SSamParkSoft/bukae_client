@@ -7,6 +7,9 @@ import {
   createAnalysisResourceSnapshot,
   deriveAnalysisResourceState,
   EMPTY_ANALYSIS_RESOURCE_SNAPSHOT,
+  isAnalysisReadySnapshot,
+  isAnalysisTerminalFailure,
+  type AnalysisResourceSnapshotState,
   type AnalysisResourceState,
 } from '@/features/analysisPage/lib/analysisResource'
 
@@ -14,9 +17,12 @@ const POLL_INTERVAL_MS = 2500
 const COMPLETED_RESULT_RETRY_MS = 1000
 const MAX_COMPLETED_RESULT_RETRIES = 10
 
-export function useAnalysisResource(projectId: string): AnalysisResourceState {
+export function useAnalysisResource(
+  projectId: string,
+  initialSnapshot?: AnalysisResourceSnapshotState | null
+): AnalysisResourceState {
   const [snapshot, setSnapshot] = useState(
-    EMPTY_ANALYSIS_RESOURCE_SNAPSHOT
+    initialSnapshot ?? EMPTY_ANALYSIS_RESOURCE_SNAPSHOT
   )
   const latestResultRef = useRef(snapshot.result)
 
@@ -25,6 +31,13 @@ export function useAnalysisResource(projectId: string): AnalysisResourceState {
   }, [snapshot.result])
 
   useEffect(() => {
+    if (initialSnapshot && (
+      isAnalysisReadySnapshot(initialSnapshot) ||
+      isAnalysisTerminalFailure(initialSnapshot)
+    )) {
+      return
+    }
+
     let cancelled = false
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     let completedRetryCount = 0
@@ -90,7 +103,7 @@ export function useAnalysisResource(projectId: string): AnalysisResourceState {
       cancelled = true
       if (timeoutId) clearTimeout(timeoutId)
     }
-  }, [projectId])
+  }, [initialSnapshot, projectId])
 
   return deriveAnalysisResourceState(snapshot)
 }

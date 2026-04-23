@@ -121,3 +121,19 @@ export function deriveAnalysisResourceState(
     result: snapshot.result,
   }
 }
+
+export function isAnalysisTerminalFailure(
+  snapshot: AnalysisResourceSnapshotState
+): boolean {
+  return (
+    snapshot.submissionStatus === 'FAILED' ||
+    snapshot.projectStatus === 'FAILED' ||
+    snapshot.projectStatus === 'CANCELLED'
+  )
+}
+
+export function isAnalysisReadySnapshot(
+  snapshot: AnalysisResourceSnapshotState
+): boolean {
+  return snapshot.isCompleted && snapshot.result !== null && !snapshot.errorMessage
+}

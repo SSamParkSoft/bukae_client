@@ -4,7 +4,10 @@ import { useState } from 'react'
 import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
 import { mapVideoAnalysisToViewModel } from '@/features/videoAnalysis/hooks/viewmodel/useVideoAnalysisViewModel'
 import type { VideoAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
-import type { AnalysisResourceErrorType } from '@/features/analysisPage/lib/analysisResource'
+import type {
+  AnalysisResourceErrorType,
+  AnalysisResourceSnapshotState,
+} from '@/features/analysisPage/lib/analysisResource'
 import { useAnalysisResource } from './useAnalysisResource'
 
 const TABS = [
@@ -29,9 +32,15 @@ export interface AnalysisPageState {
   errorMessage: string | null
 }
 
-export function useAnalysisPage(projectId: string): AnalysisPageState {
+export function useAnalysisPage(
+  projectId: string,
+  initialSnapshot?: AnalysisResourceSnapshotState | null
+): AnalysisPageState {
   const [activeTab, setActiveTab] = useState<AnalysisTabId>('thumbnail')
-  const { status, errorType, errorMessage, result } = useAnalysisResource(projectId)
+  const { status, errorType, errorMessage, result } = useAnalysisResource(
+    projectId,
+    initialSnapshot
+  )
 
   // videoAnalysis가 없는 동안은 mock 데이터로 대체 (isReady가 false이므로 렌더되지 않음)
   const viewModel = mapVideoAnalysisToViewModel(result?.videoAnalysis ?? MOCK_VIDEO_ANALYSIS)
