@@ -2,55 +2,25 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
 import { postPlanningMessage } from '@/lib/services/planning'
-import { usePlanningStore } from '@/store/usePlanningStore'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
-import { useAiPlanningForm } from '@/features/aiPlanning/hooks/form/useAiPlanningForm'
-import { useAiPlanningViewModel } from '@/features/aiPlanning/hooks/viewmodel/useAiPlanningViewModel'
 import { useFollowUpChatbot } from '@/features/aiPlanning/hooks/state/useFollowUpChatbot'
 import { usePlanningSession } from '@/features/aiPlanning/hooks/state/usePlanningSession'
-import {
-  buildSlotAnswerRequest,
-  getDraftAnswerText,
-  isQuestionAnswered,
-  type PlanningQuestionDraft,
-} from '@/features/aiPlanning/lib/planningAnswers'
+import { buildSlotAnswerRequest } from '@/features/aiPlanning/lib/planningAnswers'
 import { FollowUpChatbot } from './chatbotComponents'
 import { PlanningQuestionCard } from './PlanningQuestionCard'
 import { PlanningSessionError } from './PlanningSessionError'
 import { PlanningSessionLoading } from './PlanningSessionLoading'
-import { QuestionBlock } from './AiPlanningQuestionPrimitives'
-import type {
-  AiPlanningInput,
-  PlanningSession,
-  PlanningSetupAnswers,
-  VideoAnalysis,
-} from '@/lib/types/domain'
-import { EMPTY_PLANNING_SETUP_ANSWERS } from '@/lib/utils/planningSetupQuery'
+import type { PlanningMessageRequestDto } from '@/lib/types/api'
+import type { PlanningSession } from '@/lib/types/domain'
 
 type AiPlanningMode = 'default' | 'chatbot'
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
-function buildInput(
-  answers: PlanningSetupAnswers,
-  analysis: VideoAnalysis
-): AiPlanningInput {
-  return {
-    category:
-      answers.category === 'custom' || answers.category === null
-        ? 'self-narrative'
-        : answers.category,
-    coreMaterial: answers.coreMaterial,
-    referenceContext: {
-      hookingStyleLabel: `${analysis.hook.openingType} — ${(analysis.hook.firstSentence ?? '').slice(0, 20)}…`,
-      storyPatternLabel: `${analysis.structure.storyStructure.slice(0, 40)}…`,
-      emotionTriggerLabel: analysis.hook.emotionTrigger,
-      ctaStyleLabel: `${
-        analysis.structure.ctaStrategy?.[0]?.label ??
-        analysis.structure.storyStructure.slice(0, 30)
-      }…`,
-    },
-  }
+interface AnswerRequest {
+  questionId: string
+  request: PlanningMessageRequestDto
+  signature: string
 }
 
 function buildAiPlanningHref(
@@ -74,103 +44,36 @@ function buildAiPlanningHref(
 export function AiPlanningPageClient({
   projectId,
   mode,
-  initialPlanningAnswers,
   planningParam,
   initialPlanningSession,
 }: {
   projectId: string
   mode: AiPlanningMode
-  initialPlanningAnswers: PlanningSetupAnswers
   planningParam: string | null
   initialPlanningSession: PlanningSession | null
 }) {
   const router = useRouter()
   const isChatbotMode = mode === 'chatbot'
 
-  const storedPlanningAnswers = usePlanningStore((state) => state.answers)
-  const planningAnswers =
-    planningParam !== null
-      ? initialPlanningAnswers
-      : storedPlanningAnswers ?? EMPTY_PLANNING_SETUP_ANSWERS
-  const input = buildInput(planningAnswers, MOCK_VIDEO_ANALYSIS)
-
-  const form = useAiPlanningForm()
-  const viewModel = useAiPlanningViewModel(input, form)
   const chatbotViewModel = useFollowUpChatbot()
   const planningSessionState = usePlanningSession(projectId, initialPlanningSession)
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({})
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({})
   const [fieldAnswers, setFieldAnswers] = useState<Record<string, Record<string, string>>>({})
-  const [saveStatusByQuestionId, setSaveStatusByQuestionId] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({})
-  const saveTimersRef = useRef<Record<string, number>>({})
+  const [saveStatusByQuestionId, setSaveStatusByQuestionId] = useState<Record<string, SaveStatus>>({})
   const lastSubmittedSignatureRef = useRef<Record<string, string>>({})
+  const isSubmittingAnswersRef = useRef(false)
   const setNavigationState = useAiPlanningStore((state) => state.setNavigationState)
   const resetAiPlanningStore = useAiPlanningStore((state) => state.reset)
+  const replacePlanningSession = planningSessionState.replaceSession
 
   const questions = useMemo(
     () => planningSessionState.session?.clarifyingQuestions ?? [],
     [planningSessionState.session]
   )
 
-  function getDraft(questionId: string, overrides?: Partial<PlanningQuestionDraft>): PlanningQuestionDraft {
-    return {
-      selectedValue: selectedAnswers[questionId] ?? null,
-      customValue: customAnswers[questionId] ?? '',
-      fieldValues: fieldAnswers[questionId] ?? {},
-      ...overrides,
-    }
-  }
-
-  async function submitQuestionAnswer(
-    questionId: string,
-    draftOverride?: Partial<PlanningQuestionDraft>
-  ): Promise<void> {
-    const question = questions.find((item) => item.questionId === questionId)
-    if (!question) return
-
-    const draft = getDraft(questionId, draftOverride)
-    const request = buildSlotAnswerRequest(question, draft)
-
-    if (!request) return
-
-    const signature = JSON.stringify(request)
-    if (lastSubmittedSignatureRef.current[questionId] === signature) {
-      return
-    }
-
-    setSaveStatusByQuestionId((prev) => ({ ...prev, [questionId]: 'saving' }))
-
-    try {
-      const nextSession = await postPlanningMessage(projectId, request)
-      lastSubmittedSignatureRef.current[questionId] = signature
-      planningSessionState.replaceSession(nextSession)
-      setSaveStatusByQuestionId((prev) => ({ ...prev, [questionId]: 'saved' }))
-    } catch {
-      setSaveStatusByQuestionId((prev) => ({ ...prev, [questionId]: 'error' }))
-    }
-  }
-
-  function scheduleQuestionSubmit(
-    questionId: string,
-    draftOverride?: Partial<PlanningQuestionDraft>
-  ) {
-    const existingTimer = saveTimersRef.current[questionId]
-    if (existingTimer) {
-      window.clearTimeout(existingTimer)
-    }
-
-    saveTimersRef.current[questionId] = window.setTimeout(() => {
-      void submitQuestionAnswer(questionId, draftOverride)
-    }, 800)
-  }
-
   useEffect(() => {
-    const timerEntries = saveTimersRef.current
-
     return () => {
-      Object.values(timerEntries).forEach((timerId) => {
-        window.clearTimeout(timerId)
-      })
       resetAiPlanningStore()
     }
   }, [resetAiPlanningStore])
@@ -183,21 +86,102 @@ export function AiPlanningPageClient({
     router.push(buildAiPlanningHref(projectId, 'default', planningParam))
   }
 
-  const answersByQuestionId = questions.reduce<Record<string, string>>((acc, question) => {
-    const draft = getDraft(question.questionId)
-    if (isQuestionAnswered(question, draft)) {
-      acc[question.questionId] = getDraftAnswerText(question, draft)
-    }
-    return acc
-  }, {})
+  const answerRequests = useMemo((): AnswerRequest[] => {
+    if (questions.length === 0) return []
 
+    const requests = questions.map((question) => {
+      const request = buildSlotAnswerRequest(question, {
+        selectedValue: selectedAnswers[question.questionId] ?? null,
+        customValue: customAnswers[question.questionId] ?? '',
+        fieldValues: fieldAnswers[question.questionId] ?? {},
+      })
+      if (!request) return null
+
+      return {
+        questionId: question.questionId,
+        request,
+        signature: JSON.stringify(request),
+      }
+    })
+
+    if (requests.some((request) => request === null)) {
+      return []
+    }
+
+    return requests as AnswerRequest[]
+  }, [questions, selectedAnswers, customAnswers, fieldAnswers])
+
+  const hasAnsweredAllQuestions =
+    questions.length > 0 && answerRequests.length === questions.length
   const hasPendingSave = Object.values(saveStatusByQuestionId).some((status) => status === 'saving')
+  const hasSaveError = Object.values(saveStatusByQuestionId).some((status) => status === 'error')
   const canEnterPt2 =
     planningSessionState.session?.readyForApproval ||
-    (questions.length > 0 &&
-      questions.every((question) => {
-        return Boolean(answersByQuestionId[question.questionId]?.trim())
-      }))
+    hasAnsweredAllQuestions
+
+  useEffect(() => {
+    if (!hasAnsweredAllQuestions || planningSessionState.session?.readyForApproval) {
+      return
+    }
+
+    if (isSubmittingAnswersRef.current) {
+      return
+    }
+
+    const unsavedRequests = answerRequests.filter(({ questionId, signature }) => {
+      return lastSubmittedSignatureRef.current[questionId] !== signature
+    })
+
+    if (unsavedRequests.length === 0) {
+      return
+    }
+
+    let cancelled = false
+    isSubmittingAnswersRef.current = true
+
+    async function submitAllAnswers() {
+      setSaveStatusByQuestionId((prev) => {
+        const next = { ...prev }
+        unsavedRequests.forEach(({ questionId }) => {
+          next[questionId] = 'saving'
+        })
+        return next
+      })
+
+      let latestSession: PlanningSession | null = null
+
+      for (const { questionId, request, signature } of unsavedRequests) {
+        if (cancelled) return
+
+        try {
+          latestSession = await postPlanningMessage(projectId, request)
+          lastSubmittedSignatureRef.current[questionId] = signature
+          setSaveStatusByQuestionId((prev) => ({ ...prev, [questionId]: 'saved' }))
+        } catch {
+          setSaveStatusByQuestionId((prev) => ({ ...prev, [questionId]: 'error' }))
+          return
+        }
+      }
+
+      if (latestSession && !cancelled) {
+        replacePlanningSession(latestSession)
+      }
+    }
+
+    void submitAllAnswers().finally(() => {
+      isSubmittingAnswersRef.current = false
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    answerRequests,
+    hasAnsweredAllQuestions,
+    planningSessionState.session?.readyForApproval,
+    projectId,
+    replacePlanningSession,
+  ])
 
   useEffect(() => {
     if (isChatbotMode) {
@@ -210,12 +194,13 @@ export function AiPlanningPageClient({
     }
 
     setNavigationState({
-      canProceed: Boolean(canEnterPt2) && !hasPendingSave,
+      canProceed: Boolean(canEnterPt2) && !hasPendingSave && !hasSaveError,
       nextTarget: planningSessionState.session?.readyForApproval ? 'shooting-guide' : 'chatbot',
       planningSessionId: planningSessionState.session?.planningSessionId ?? null,
     })
   }, [
     canEnterPt2,
+    hasSaveError,
     hasPendingSave,
     isChatbotMode,
     planningSessionState.session?.planningSessionId,
@@ -246,65 +231,47 @@ export function AiPlanningPageClient({
     return <PlanningSessionLoading />
   }
 
+  if (questions.length === 0) {
+    return (
+      <PlanningSessionError message="생성된 PT1 질문이 없습니다. 기획 프리세팅 제출 상태를 확인해 주세요." />
+    )
+  }
+
   return (
     <div className="pb-32">
       <div className="grid grid-cols-2 gap-y-10">
-        {questions.length > 0 ? (
-          questions.map((question, index) => (
-            <div key={question.questionId} className="px-6 min-w-0">
-              <PlanningQuestionCard
-                question={question}
-                index={index}
-                selectedValue={selectedAnswers[question.questionId] ?? null}
-                customValue={customAnswers[question.questionId] ?? ''}
-                fieldValues={fieldAnswers[question.questionId] ?? {}}
-                onSelect={(value) => {
-                  setSelectedAnswers((prev) => ({ ...prev, [question.questionId]: value }))
-                  if (value !== 'custom') {
-                    void submitQuestionAnswer(question.questionId, {
-                      selectedValue: value,
-                      customValue: '',
-                    })
-                  }
-                }}
-                onCustomChange={(value) => {
-                  setCustomAnswers((prev) => ({ ...prev, [question.questionId]: value }))
-                  scheduleQuestionSubmit(question.questionId, {
-                    selectedValue: 'custom',
-                    customValue: value,
-                  })
-                }}
-                onFieldChange={(fieldKey, value) => {
-                  setFieldAnswers((prev) => ({
-                    ...prev,
-                    [question.questionId]: {
-                      ...(prev[question.questionId] ?? {}),
-                      [fieldKey]: value,
-                    },
-                  }))
-                  scheduleQuestionSubmit(question.questionId, {
-                    fieldValues: {
-                      ...(fieldAnswers[question.questionId] ?? {}),
-                      [fieldKey]: value,
-                    },
-                  })
-                }}
-                onCustomBlur={() => {
-                  void submitQuestionAnswer(question.questionId)
-                }}
-                onFieldBlur={(_fieldKey) => {
-                  void submitQuestionAnswer(question.questionId)
-                }}
-              />
-            </div>
-          ))
-        ) : (
-          viewModel.questions.map((q) => (
-            <div key={q.questionNumber} className="px-6 min-w-0">
-              <QuestionBlock data={q} />
-            </div>
-          ))
-        )}
+        {questions.map((question, index) => (
+          <div key={question.questionId} className="px-6 min-w-0">
+            <PlanningQuestionCard
+              question={question}
+              index={index}
+              selectedValue={selectedAnswers[question.questionId] ?? null}
+              customValue={customAnswers[question.questionId] ?? ''}
+              fieldValues={fieldAnswers[question.questionId] ?? {}}
+              onSelect={(value) => {
+                setSelectedAnswers((prev) => ({ ...prev, [question.questionId]: value }))
+                if (value !== 'custom') {
+                  setCustomAnswers((prev) => ({ ...prev, [question.questionId]: '' }))
+                }
+              }}
+              onCustomChange={(value) => {
+                setSelectedAnswers((prev) => ({ ...prev, [question.questionId]: 'custom' }))
+                setCustomAnswers((prev) => ({ ...prev, [question.questionId]: value }))
+              }}
+              onFieldChange={(fieldKey, value) => {
+                setFieldAnswers((prev) => ({
+                  ...prev,
+                  [question.questionId]: {
+                    ...(prev[question.questionId] ?? {}),
+                    [fieldKey]: value,
+                  },
+                }))
+              }}
+              onCustomBlur={() => undefined}
+              onFieldBlur={() => undefined}
+            />
+          </div>
+        ))}
       </div>
       <button
         type="button"
