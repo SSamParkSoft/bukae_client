@@ -64,10 +64,11 @@ export function AiPlanningPageClient({
   const isSubmittingAnswersRef = useRef(false)
   const setNavigationState = useAiPlanningStore((state) => state.setNavigationState)
   const resetAiPlanningStore = useAiPlanningStore((state) => state.reset)
+  const chatbotInitialSession = useAiPlanningStore((state) => state.chatbotInitialSession)
   const replacePlanningSession = planningSessionState.replaceSession
   const chatbotViewModel = useFollowUpChatbot({
     projectId,
-    initialSession: planningSessionState.session,
+    initialSession: isChatbotMode && chatbotInitialSession ? chatbotInitialSession : planningSessionState.session,
     enabled: isChatbotMode,
     onSessionChange: replacePlanningSession,
   })

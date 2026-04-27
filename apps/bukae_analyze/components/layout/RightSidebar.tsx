@@ -2,7 +2,6 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { mapPlanningSetupAnswersToIntakeRequest, validatePlanningSetupAnswers } from '@/features/planningSetup/lib/intakeRequest'
-import { approveBrief, listBriefs } from '@/lib/services/briefs'
 import { startGeneration } from '@/lib/services/generations'
 import { postPlanningMessage, submitIntake } from '@/lib/services/planning'
 import { serializePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
@@ -11,38 +10,6 @@ import { usePlanningStore } from '@/store/usePlanningStore'
 import { LAYOUT } from './layout-constants'
 import { STEPS, buildStepPath, getCurrentStepIndex } from '../_utils/stepNavigation'
 import { StepNavButton } from '../buttons/StepNavButton'
-import type { Brief } from '@/lib/types/domain'
-
-function findGenerationBrief(briefs: Brief[], briefVersionId: string): Brief | null {
-  return briefs.find((brief) => brief.briefVersionId === briefVersionId) ?? null
-}
-
-async function resolveApprovedBriefVersionId(
-  projectId: string,
-  briefVersionId: string,
-  knownStatus: string | null
-): Promise<string> {
-  if (knownStatus === 'APPROVED') {
-    return briefVersionId
-  }
-
-  const currentBrief = findGenerationBrief(await listBriefs(projectId), briefVersionId)
-  if (currentBrief?.status === 'APPROVED') {
-    return currentBrief.briefVersionId
-  }
-
-  try {
-    const approvedBrief = await approveBrief(projectId, briefVersionId)
-    return approvedBrief.briefVersionId
-  } catch (error) {
-    const refreshedBrief = findGenerationBrief(await listBriefs(projectId), briefVersionId)
-    if (refreshedBrief?.status === 'APPROVED') {
-      return refreshedBrief.briefVersionId
-    }
-
-    throw error
-  }
-}
 
 export function RightSidebar() {
   const pathname = usePathname()
@@ -62,9 +29,9 @@ export function RightSidebar() {
   const aiPlanningNextTarget = useAiPlanningStore((state) => state.nextTarget)
   const planningSessionId = useAiPlanningStore((state) => state.planningSessionId)
   const briefVersionId = useAiPlanningStore((state) => state.briefVersionId)
-  const briefStatus = useAiPlanningStore((state) => state.briefStatus)
   const answeredQuestionIds = useAiPlanningStore((state) => state.answeredQuestionIds)
   const setAdvancingAiPlanning = useAiPlanningStore((state) => state.setAdvancing)
+  const setChatbotInitialSession = useAiPlanningStore((state) => state.setChatbotInitialSession)
   const isPlanningSetup = pathname.startsWith('/planning-setup')
   const isAiPlanning = pathname.startsWith('/ai-planning')
   const isChatbotMode = mode === 'chatbot'
@@ -131,7 +98,7 @@ export function RightSidebar() {
       try {
         if (aiPlanningNextTarget === 'chatbot') {
           if (planningSessionId) {
-            await postPlanningMessage(projectId, {
+            const chatbotSession = await postPlanningMessage(projectId, {
               message: [
                 'AI 기획 pt.1 질문 답변을 마치고 pt.2 대화 단계로 진입합니다.',
                 `answered_count=${answeredQuestionIds.length}`,
@@ -147,6 +114,10 @@ export function RightSidebar() {
                 selected_angle_id: null,
               },
             }).catch(() => null)
+
+            if (chatbotSession) {
+              setChatbotInitialSession(chatbotSession)
+            }
           }
 
           const params = new URLSearchParams({ projectId })
@@ -160,13 +131,8 @@ export function RightSidebar() {
 
         if (aiPlanningNextTarget === 'shooting-guide') {
           if (isChatbotMode && briefVersionId) {
-            const approvedBriefVersionId = await resolveApprovedBriefVersionId(
-              projectId,
-              briefVersionId,
-              briefStatus
-            )
             const generation = await startGeneration(projectId, {
-              briefVersionId: approvedBriefVersionId,
+              briefVersionId,
               generationMode: 'single',
               variantCount: 1,
             })

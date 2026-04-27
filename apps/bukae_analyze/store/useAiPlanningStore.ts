@@ -1,3 +1,4 @@
+import type { PlanningSession } from '@/lib/types/domain'
 import { create } from 'zustand'
 
 type AiPlanningNextTarget = 'chatbot' | 'shooting-guide' | null
@@ -10,6 +11,7 @@ interface AiPlanningStore {
   briefVersionId: string | null
   briefStatus: string | null
   answeredQuestionIds: string[]
+  chatbotInitialSession: PlanningSession | null
   setNavigationState: (params: {
     canProceed: boolean
     nextTarget: AiPlanningNextTarget
@@ -19,6 +21,7 @@ interface AiPlanningStore {
     answeredQuestionIds?: string[]
   }) => void
   setAdvancing: (isAdvancing: boolean) => void
+  setChatbotInitialSession: (session: PlanningSession | null) => void
   reset: () => void
 }
 
@@ -30,6 +33,7 @@ const INITIAL_STATE = {
   briefVersionId: null as string | null,
   briefStatus: null as string | null,
   answeredQuestionIds: [] as string[],
+  chatbotInitialSession: null as PlanningSession | null,
 }
 
 export const useAiPlanningStore = create<AiPlanningStore>()((set) => ({
@@ -44,5 +48,6 @@ export const useAiPlanningStore = create<AiPlanningStore>()((set) => ({
       answeredQuestionIds: answeredQuestionIds ?? state.answeredQuestionIds,
     })),
   setAdvancing: (isAdvancing) => set({ isAdvancing }),
+  setChatbotInitialSession: (session) => set({ chatbotInitialSession: session }),
   reset: () => set(INITIAL_STATE),
 }))
