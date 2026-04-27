@@ -60,36 +60,19 @@ function getNestedRecord(
     : null
 }
 
-function isPt2PlanningQuestion(question: PlanningQuestion): boolean {
-  const eventType = question.eventType ?? getPayloadString(question.payload, 'event_type')
-  const answerSource = question.answerSource ?? getPayloadString(question.payload, 'answer_source')
-
-  return eventType === 'pt2_question' || answerSource === 'planning_pt2'
+function isPt1QuestionBatch(session: PlanningSession | null): boolean {
+  return session?.planningMode === 'pt1_fast'
 }
 
-function getPt2PlanningQuestions(session: PlanningSession | null): PlanningQuestion[] {
-  return session?.clarifyingQuestions.filter(isPt2PlanningQuestion) ?? []
-}
+function getActivePlanningQuestions(session: PlanningSession | null): PlanningQuestion[] {
+  if (!session || isPt1QuestionBatch(session)) return []
 
-function hasPt2FinalizableContext(session: PlanningSession | null): boolean {
-  if (!session) return false
-  if (session.planningMode === 'finalize' || session.planningMode === 'revise') return true
-  if (getPt2PlanningQuestions(session).length > 0) return true
-
-  return session.messages.some((message) => {
-    const eventType = getPayloadString(message.payload, 'event_type')
-    const answerSource = getPayloadString(message.payload, 'answer_source')
-    return (
-      eventType === 'pt2_question' ||
-      eventType === 'pt2_answer' ||
-      answerSource === 'planning_pt2'
-    )
-  })
+  const firstQuestion = session.clarifyingQuestions[0]
+  return firstQuestion ? [firstQuestion] : []
 }
 
 function canFinalizePlanning(session: PlanningSession | null): boolean {
-  if (!session || getPt2PlanningQuestions(session).length > 0) return false
-  if (!hasPt2FinalizableContext(session)) return false
+  if (!session || isPt1QuestionBatch(session) || getActivePlanningQuestions(session).length > 0) return false
 
   const surface = session.planningSurface
   const artifacts = session.planningArtifacts
@@ -253,6 +236,38 @@ async function getStepMismatchMessage(projectId: string): Promise<string | null>
   return `현재 프로젝트 단계가 기획 단계가 아닙니다. (${formatWorkflowState(workflowState)})`
 }
 
+async function waitFinalizedBrief(
+  projectId: string,
+  onPlanningSession: (nextSession: PlanningSession) => void,
+  isCancelled: () => boolean
+): Promise<Brief | null> {
+  while (!isCancelled()) {
+    const [planning, briefs] = await Promise.all([
+      getPlanningSession(projectId),
+      listBriefs(projectId),
+    ])
+
+    if (isCancelled()) return null
+
+    onPlanningSession(planning)
+
+    if (planning.failure) {
+      throw new Error(
+        planning.failure.summary ??
+        planning.failure.message ??
+        '최종 기획안 생성에 실패했습니다.'
+      )
+    }
+
+    const selectedBrief = pickLatestGenerationBrief(briefs)
+    if (selectedBrief) return selectedBrief
+
+    await sleep(POLLING_INTERVAL_MS)
+  }
+
+  return null
+}
+
 interface UseFollowUpChatbotParams {
   projectId: string
   initialSession: PlanningSession | null
@@ -292,9 +307,7 @@ function mapPlanningQuestion(question: PlanningQuestion): ActiveQuestion {
 }
 
 function mapSessionQuestions(session: PlanningSession | null): ActiveQuestion[] {
-  if (!session) return []
-
-  return getPt2PlanningQuestions(session).map(mapPlanningQuestion)
+  return getActivePlanningQuestions(session).map(mapPlanningQuestion)
 }
 
 export function useFollowUpChatbot({
@@ -474,18 +487,12 @@ export function useFollowUpChatbot({
         }
 
         setStageMessage(STAGE_MESSAGES.approving)
-        let selectedBrief: Brief | null = null
-
-        while (!selectedBrief) {
-          if (cancelled) return
-
-          const briefs = await listBriefs(projectId)
-          selectedBrief = pickLatestGenerationBrief(briefs)
-
-          if (!selectedBrief) {
-            await sleep(POLLING_INTERVAL_MS)
-          }
-        }
+        const selectedBrief = await waitFinalizedBrief(
+          projectId,
+          applySession,
+          () => cancelled
+        )
+        if (!selectedBrief) return
 
         setReadyBrief({
           briefVersionId: selectedBrief.briefVersionId,

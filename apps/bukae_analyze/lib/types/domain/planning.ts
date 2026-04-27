@@ -30,9 +30,6 @@ export interface PlanningQuestion {
   question: string
   referenceInsight: string | null
   reasonWhyAsked: string | null
-  payload: Record<string, unknown> | null
-  eventType: string | null
-  answerSource: string | null
   responseType: string
   required: boolean
   allowCustom: boolean
