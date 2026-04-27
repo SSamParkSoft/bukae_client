@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { postPlanningMessage } from '@/lib/services/planning'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
@@ -65,18 +65,11 @@ export function AiPlanningPageClient({
   const setNavigationState = useAiPlanningStore((state) => state.setNavigationState)
   const resetAiPlanningStore = useAiPlanningStore((state) => state.reset)
   const replacePlanningSession = planningSessionState.replaceSession
-  const handleGenerationCompleted = useCallback((generationRequestId: string) => {
-    const params = new URLSearchParams({ projectId, generationRequestId })
-    if (planningParam) {
-      params.set('planning', planningParam)
-    }
-    router.push(`/shooting-guide?${params.toString()}`)
-  }, [planningParam, projectId, router])
   const chatbotViewModel = useFollowUpChatbot({
     projectId,
-    initialSession: initialPlanningSession,
-    onGenerationCompleted: handleGenerationCompleted,
+    initialSession: planningSessionState.session,
     enabled: isChatbotMode,
+    onSessionChange: replacePlanningSession,
   })
 
   const questions = useMemo(
@@ -212,9 +205,11 @@ export function AiPlanningPageClient({
   useEffect(() => {
     if (isChatbotMode) {
       setNavigationState({
-        canProceed: false,
-        nextTarget: null,
+        canProceed: Boolean(chatbotViewModel.readyBrief),
+        nextTarget: chatbotViewModel.readyBrief ? 'shooting-guide' : null,
         planningSessionId: planningSessionState.session?.planningSessionId ?? null,
+        briefVersionId: chatbotViewModel.readyBrief?.briefVersionId ?? null,
+        briefStatus: chatbotViewModel.readyBrief?.status ?? null,
         answeredQuestionIds: questions.map((question) => question.questionId),
       })
       return
@@ -224,10 +219,13 @@ export function AiPlanningPageClient({
       canProceed: Boolean(canEnterPt2) && !hasPendingSave && !hasSaveError,
       nextTarget: planningSessionState.session?.readyForApproval ? 'shooting-guide' : 'chatbot',
       planningSessionId: planningSessionState.session?.planningSessionId ?? null,
+      briefVersionId: null,
+      briefStatus: null,
       answeredQuestionIds: questions.map((question) => question.questionId),
     })
   }, [
     canEnterPt2,
+    chatbotViewModel.readyBrief,
     hasSaveError,
     hasPendingSave,
     isChatbotMode,

@@ -1,16 +1,20 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { approveBrief, listBriefs } from '@/lib/services/briefs'
-import { getGeneration, startGeneration } from '@/lib/services/generations'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { listBriefs } from '@/lib/services/briefs'
 import { getPlanningSession, postPlanningMessage } from '@/lib/services/planning'
 import {
   formatWorkflowState,
   getProjectWorkflowState,
   isPlanningStep,
 } from '@/lib/services/projectWorkflowState'
-import type { Brief, PlanningQuestion, PlanningSession } from '@/lib/types/domain'
-import type { FollowUpQuestion, ChatMessage, FollowUpChatbotViewModel } from '../../types/chatbotViewModel'
+import type { Brief, PlanningConversationMessage, PlanningQuestion, PlanningSession } from '@/lib/types/domain'
+import type {
+  ChatMessage,
+  FollowUpChatbotViewModel,
+  FollowUpQuestion,
+  ReadyBriefViewModel,
+} from '../../types/chatbotViewModel'
 
 const HIDDEN_MESSAGE_TYPES = new Set([
   'planning_summary',
@@ -23,8 +27,7 @@ const HIDDEN_MESSAGE_TYPES = new Set([
 
 const POLLING_INTERVAL_MS = 2000
 const PLANNING_POLLING_LIMIT = 60
-const BRIEF_POLLING_LIMIT = 90
-const GENERATION_POLLING_LIMIT = 120
+// const BRIEF_POLLING_LIMIT = 90
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -57,8 +60,36 @@ function getNestedRecord(
     : null
 }
 
+function isPt2PlanningQuestion(question: PlanningQuestion): boolean {
+  const eventType = question.eventType ?? getPayloadString(question.payload, 'event_type')
+  const answerSource = question.answerSource ?? getPayloadString(question.payload, 'answer_source')
+
+  return eventType === 'pt2_question' || answerSource === 'planning_pt2'
+}
+
+function getPt2PlanningQuestions(session: PlanningSession | null): PlanningQuestion[] {
+  return session?.clarifyingQuestions.filter(isPt2PlanningQuestion) ?? []
+}
+
+function hasPt2FinalizableContext(session: PlanningSession | null): boolean {
+  if (!session) return false
+  if (session.planningMode === 'finalize' || session.planningMode === 'revise') return true
+  if (getPt2PlanningQuestions(session).length > 0) return true
+
+  return session.messages.some((message) => {
+    const eventType = getPayloadString(message.payload, 'event_type')
+    const answerSource = getPayloadString(message.payload, 'answer_source')
+    return (
+      eventType === 'pt2_question' ||
+      eventType === 'pt2_answer' ||
+      answerSource === 'planning_pt2'
+    )
+  })
+}
+
 function canFinalizePlanning(session: PlanningSession | null): boolean {
-  if (!session || session.clarifyingQuestions.length > 0) return false
+  if (!session || getPt2PlanningQuestions(session).length > 0) return false
+  if (!hasPt2FinalizableContext(session)) return false
 
   const surface = session.planningSurface
   const artifacts = session.planningArtifacts
@@ -73,7 +104,7 @@ function canFinalizePlanning(session: PlanningSession | null): boolean {
   )
 }
 
-function mapQuestion(question: PlanningQuestion | null | undefined): FollowUpQuestion[] {
+function mapQuestion(question: ActiveQuestion | null | undefined): FollowUpQuestion[] {
   if (!question) return []
 
   return [{
@@ -82,7 +113,19 @@ function mapQuestion(question: PlanningQuestion | null | undefined): FollowUpQue
   }]
 }
 
-function mapTranscript(session: PlanningSession | null): ChatMessage[] {
+function getQuestionTextFromMessage(message: PlanningConversationMessage): string {
+  const qPayload = message.payload?.question
+  if (qPayload && typeof qPayload === 'object' && !Array.isArray(qPayload)) {
+    const q = qPayload as Record<string, unknown>
+    if (typeof q.question === 'string' && q.question.trim()) return q.question.trim()
+  }
+  return message.message
+}
+
+function mapTranscript(
+  session: PlanningSession | null,
+  currentQuestionId: string | null
+): ChatMessage[] {
   if (!session) {
     return [{
       role: 'ai',
@@ -90,21 +133,76 @@ function mapTranscript(session: PlanningSession | null): ChatMessage[] {
     }]
   }
 
-  const messages = [...session.messages].sort((a, b) => {
+  const sortedMessages = [...session.messages].sort((a, b) => {
     const aTime = a.createdAt?.getTime() ?? 0
     const bTime = b.createdAt?.getTime() ?? 0
     return aTime - bTime
   })
 
-  return messages
+  // questionId별로 최신 clarifying_question 인덱스·messageId와 최신 답변 인덱스를 사전 계산
+  const latestQuestionIndexByQId = new Map<string, number>()
+  const latestQuestionMessageIdByQId = new Map<string, string | null>()
+  const latestAnswerIndexByQId = new Map<string, number>()
+
+  sortedMessages.forEach((message, index) => {
+    if (message.messageType === 'clarifying_question') {
+      const questionId = getPayloadString(message.payload, 'question_id')
+      if (questionId) {
+        latestQuestionIndexByQId.set(questionId, index)
+        latestQuestionMessageIdByQId.set(questionId, message.messageId)
+      }
+    }
+
+    const questionId = getPayloadString(message.payload, 'question_id')
+    if (
+      questionId &&
+      (message.messageType === 'slot_answer' ||
+        message.messageType === 'free_text' ||
+        message.messageType === 'revision_note')
+    ) {
+      const prev = latestAnswerIndexByQId.get(questionId) ?? -1
+      if (index > prev) latestAnswerIndexByQId.set(questionId, index)
+    }
+  })
+
+  // 답변이 완료된 질문 ID 세트 (lastAnswer > lastQuestion)
+  const answeredQuestionIds = new Set<string>()
+  latestQuestionIndexByQId.forEach((qIndex, questionId) => {
+    const aIndex = latestAnswerIndexByQId.get(questionId) ?? -1
+    if (aIndex > qIndex) answeredQuestionIds.add(questionId)
+  })
+
+  const seenUserAnswerKeys = new Set<string>()
+
+  return sortedMessages
     .map((message): ChatMessage | null => {
       const messageType = message.messageType ?? ''
       if (HIDDEN_MESSAGE_TYPES.has(messageType)) return null
 
       if (messageType === 'clarifying_question' || message.role === 'assistant') {
+        const questionId = getPayloadString(message.payload, 'question_id')
+        const eventType = getPayloadString(message.payload, 'event_type')
+
+        if (messageType === 'clarifying_question' && eventType !== 'pt2_question') {
+          return null
+        }
+
+        if (questionId) {
+          // 같은 questionId의 최신 버전만 표시 (서버 재생성 중복 제거)
+          const latestMessageId = latestQuestionMessageIdByQId.get(questionId)
+          if (message.messageId !== latestMessageId) return null
+
+          // 아직 답변하지 않은 질문은 트랜스크립트에 표시하지 않음
+          // (미래 질문이 미리 렌더링되는 것 방지)
+          if (!answeredQuestionIds.has(questionId)) return null
+
+          // 현재 활성 질문은 별도 렌더링하므로 트랜스크립트에서 제외
+          if (questionId === currentQuestionId) return null
+        }
+
         return {
           role: 'ai',
-          text: message.message,
+          text: getQuestionTextFromMessage(message),
         }
       }
 
@@ -112,9 +210,22 @@ function mapTranscript(session: PlanningSession | null): ChatMessage[] {
         (messageType === 'free_text' || messageType === 'revision_note' || message.role === 'user') &&
         getPayloadString(message.payload, 'answer_source') === 'planning_pt2'
       ) {
+        const answerText = getPayloadString(message.payload, 'raw_answer') ?? message.message
+        const questionId = getPayloadString(message.payload, 'question_id')
+        const slotKey = getPayloadString(message.payload, 'slot_key')
+        const dedupeScope = questionId ?? slotKey
+
+        if (dedupeScope) {
+          const answerKey = `${dedupeScope}:${answerText.trim()}`
+          if (seenUserAnswerKeys.has(answerKey)) {
+            return null
+          }
+          seenUserAnswerKeys.add(answerKey)
+        }
+
         return {
           role: 'user',
-          text: message.message,
+          text: answerText,
         }
       }
 
@@ -145,8 +256,8 @@ async function getStepMismatchMessage(projectId: string): Promise<string | null>
 interface UseFollowUpChatbotParams {
   projectId: string
   initialSession: PlanningSession | null
-  onGenerationCompleted: (generationRequestId: string) => void
   enabled: boolean
+  onSessionChange?: (nextSession: PlanningSession) => void
 }
 
 const STAGE_MESSAGES = {
@@ -154,53 +265,110 @@ const STAGE_MESSAGES = {
   reflectingAnswer: '답변을 반영하고 있습니다.',
   finalizing: '충분한 정보가 모였습니다. 최종 기획안을 정리 중입니다.',
   approving: '촬영가이드와 스크립트 생성을 준비 중입니다.',
-  generating: '촬영가이드와 스크립트를 생성 중입니다.',
+  readyBrief: '최종 기획안 요약이 준비되었습니다. 다음 단계로 진행하면 촬영가이드와 스크립트를 생성합니다.',
   error: '진행 중 문제가 발생했습니다.',
 } as const
 
 type StageMessage = typeof STAGE_MESSAGES[keyof typeof STAGE_MESSAGES]
 
+interface ActiveQuestion {
+  questionId: string
+  title: string
+  question: string
+  referenceInsight: string | null
+  reasonWhyAsked: string | null
+  slotKey: string
+}
+
+function mapPlanningQuestion(question: PlanningQuestion): ActiveQuestion {
+  return {
+    questionId: question.questionId,
+    title: question.title,
+    question: question.question,
+    referenceInsight: question.referenceInsight,
+    reasonWhyAsked: question.reasonWhyAsked,
+    slotKey: question.slotKey,
+  }
+}
+
+function mapSessionQuestions(session: PlanningSession | null): ActiveQuestion[] {
+  if (!session) return []
+
+  return getPt2PlanningQuestions(session).map(mapPlanningQuestion)
+}
+
 export function useFollowUpChatbot({
   projectId,
   initialSession,
-  onGenerationCompleted,
   enabled,
+  onSessionChange,
 }: UseFollowUpChatbotParams): FollowUpChatbotViewModel {
   const [session, setSession] = useState<PlanningSession | null>(initialSession)
+  const [questionQueue, setQuestionQueue] = useState<ActiveQuestion[]>(() => mapSessionQuestions(initialSession))
   const [answer, setAnswer] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isComplete, setIsComplete] = useState(false)
+  const [readyBrief, setReadyBrief] = useState<ReadyBriefViewModel | null>(null)
   const [stageMessage, setStageMessage] = useState<StageMessage>(STAGE_MESSAGES.waitingQuestion)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  // 제출 직후 서버 응답 전까지 optimistic하게 보여줄 Q&A
+  const [pendingQA, setPendingQA] = useState<ChatMessage[]>([])
   const isPollingRef = useRef(false)
   const isFinalizingRef = useRef(false)
+  const appliedSessionRef = useRef<PlanningSession | null>(null)
 
-  const currentQuestion = session?.clarifyingQuestions[0] ?? null
+  const applySession = useCallback((nextSession: PlanningSession) => {
+    appliedSessionRef.current = nextSession
+    setSession(nextSession)
+    onSessionChange?.(nextSession)
+  }, [onSessionChange])
+
+  const currentQuestion = questionQueue[0] ?? null
   const currentQuestions = useMemo(
     () => mapQuestion(currentQuestion),
     [currentQuestion]
   )
+  const canFinalizeCurrentPlanning = canFinalizePlanning(session)
+  const isReadyForApproval = Boolean(session?.readyForApproval)
 
   const messages = useMemo(() => {
     if (errorMessage) {
       return [
-        ...mapTranscript(session),
+        ...mapTranscript(session, currentQuestion?.questionId ?? null),
         { role: 'ai' as const, text: `${STAGE_MESSAGES.error} ${errorMessage}` },
       ]
     }
 
-    return mapTranscript(session)
-  }, [errorMessage, session])
+    const transcript = mapTranscript(session, currentQuestion?.questionId ?? null)
+    if (readyBrief) {
+      return [
+        ...transcript,
+        {
+          role: 'ai' as const,
+          text: [
+            readyBrief.title,
+            readyBrief.planningSummary,
+            STAGE_MESSAGES.readyBrief,
+          ].filter(Boolean).join('\n\n'),
+        },
+      ]
+    }
+
+    return transcript
+  }, [currentQuestion?.questionId, errorMessage, readyBrief, session])
 
   useEffect(() => {
     if (!enabled) return
+    if (initialSession && appliedSessionRef.current === initialSession) return
+
     setSession(initialSession)
+    setQuestionQueue(mapSessionQuestions(initialSession))
   }, [enabled, initialSession])
 
   useEffect(() => {
     if (!enabled) return
     if (currentQuestion || isComplete || isFinalizingRef.current) return
-    if (canFinalizePlanning(session) || session?.readyForApproval) return
+    if (canFinalizeCurrentPlanning || isReadyForApproval) return
     if (isPollingRef.current) return
 
     let cancelled = false
@@ -215,7 +383,11 @@ export function useFollowUpChatbot({
 
         try {
           const nextSession = await getPlanningSession(projectId)
-          setSession(nextSession)
+          applySession(nextSession)
+          const nextQuestions = mapSessionQuestions(nextSession)
+          if (nextQuestions.length > 0) {
+            setQuestionQueue(nextQuestions)
+          }
 
           if (nextSession.failure) {
             throw new Error(
@@ -225,7 +397,7 @@ export function useFollowUpChatbot({
             )
           }
 
-          if (nextSession.clarifyingQuestions.length > 0) {
+          if (nextQuestions.length > 0) {
             setIsSubmitting(false)
             return
           }
@@ -261,13 +433,13 @@ export function useFollowUpChatbot({
     return () => {
       cancelled = true
     }
-  }, [currentQuestion, enabled, isComplete, projectId, session])
+  }, [applySession, canFinalizeCurrentPlanning, currentQuestion, enabled, isComplete, isReadyForApproval, projectId])
 
   useEffect(() => {
     if (!enabled) return
     if (!session) return
     if (currentQuestion || isComplete || isFinalizingRef.current) return
-    if (!canFinalizePlanning(session) && !session.readyForApproval) return
+    if (!canFinalizeCurrentPlanning && !isReadyForApproval) return
 
     let cancelled = false
     isFinalizingRef.current = true
@@ -282,85 +454,50 @@ export function useFollowUpChatbot({
         let latestSession = activeSession
         if (!latestSession.readyForApproval) {
           setStageMessage(STAGE_MESSAGES.finalizing)
-          latestSession = await postPlanningMessage(projectId, {
-            message: '수집된 PT1/PT2 정보를 바탕으로 최종 기획안 생성을 시작합니다.',
-            messageType: 'finalize_planning',
-            payload: {
-              event_type: 'finalize_planning',
-              planning_session_id: activeSession.planningSessionId,
-            },
-          })
-          setSession(latestSession)
+          try {
+            latestSession = await postPlanningMessage(projectId, {
+              message: '수집된 PT1/PT2 정보를 바탕으로 최종 기획안 생성을 시작합니다.',
+              messageType: 'finalize_planning',
+              payload: {
+                event_type: 'finalize_planning',
+                planning_session_id: activeSession.planningSessionId,
+              },
+            })
+            applySession(latestSession)
+          } catch (error) {
+            const stepMismatchMessage = await getStepMismatchMessage(projectId)
+            throw new Error(
+              stepMismatchMessage ??
+              (error instanceof Error ? error.message : '최종 기획안 생성 요청에 실패했습니다.')
+            )
+          }
         }
 
         setStageMessage(STAGE_MESSAGES.approving)
         let selectedBrief: Brief | null = null
 
-        for (let i = 0; i < BRIEF_POLLING_LIMIT; i += 1) {
+        while (!selectedBrief) {
           if (cancelled) return
 
           const briefs = await listBriefs(projectId)
           selectedBrief = pickLatestGenerationBrief(briefs)
 
-          if (selectedBrief) {
-            break
+          if (!selectedBrief) {
+            await sleep(POLLING_INTERVAL_MS)
           }
-
-          await sleep(POLLING_INTERVAL_MS)
         }
 
-        if (!selectedBrief) {
-          throw new Error('최종 기획안 생성 시간이 초과되었습니다.')
-        }
-
-        const approvedBrief = selectedBrief.status === 'APPROVED'
-          ? selectedBrief
-          : await approveBrief(projectId, selectedBrief.briefVersionId)
-
-        setStageMessage(STAGE_MESSAGES.generating)
-        const startedGeneration = await startGeneration(projectId, {
-          briefVersionId: approvedBrief.briefVersionId,
-          generationMode: 'single',
-          variantCount: 1,
+        setReadyBrief({
+          briefVersionId: selectedBrief.briefVersionId,
+          title: selectedBrief.title ?? '최종 기획안 요약',
+          planningSummary: selectedBrief.planningSummary ?? '',
+          status: selectedBrief.status,
         })
-
-        let latestGeneration = startedGeneration
-        for (let i = 0; i < GENERATION_POLLING_LIMIT; i += 1) {
-          if (cancelled) return
-
-          const hasFailed =
-            latestGeneration.failure ||
-            latestGeneration.generationStatus === 'FAILED' ||
-            latestGeneration.lastErrorCode ||
-            latestGeneration.lastErrorMessage
-
-          if (hasFailed) {
-            throw new Error(
-              latestGeneration.failure?.summary ??
-              latestGeneration.lastErrorMessage ??
-              '촬영가이드 생성에 실패했습니다.'
-            )
-          }
-
-          if (
-            latestGeneration.generationStatus === 'COMPLETED' ||
-            latestGeneration.projectStatus === 'GENERATION_COMPLETED'
-          ) {
-            setIsComplete(true)
-            onGenerationCompleted(latestGeneration.generationRequestId)
-            return
-          }
-
-          await sleep(3000)
-          latestGeneration = await getGeneration(projectId, latestGeneration.generationRequestId)
-        }
-
-        throw new Error('촬영가이드/스크립트 생성 시간이 초과되었습니다.')
+        setStageMessage(STAGE_MESSAGES.readyBrief)
+        setIsComplete(true)
       } catch (error) {
-        const stepMismatchMessage = await getStepMismatchMessage(projectId)
         setErrorMessage(
-          stepMismatchMessage ??
-          (error instanceof Error ? error.message : '촬영가이드 생성에 실패했습니다.')
+          error instanceof Error ? error.message : '촬영가이드 생성에 실패했습니다.'
         )
       } finally {
         setIsSubmitting(false)
@@ -373,16 +510,47 @@ export function useFollowUpChatbot({
     return () => {
       cancelled = true
     }
-  }, [currentQuestion, enabled, isComplete, onGenerationCompleted, projectId, session])
+  }, [
+    canFinalizeCurrentPlanning,
+    currentQuestion,
+    enabled,
+    isComplete,
+    isReadyForApproval,
+    applySession,
+    projectId,
+    session,
+  ])
 
   const visibleMessages = useMemo(() => {
-    if (messages.length > 0) return messages
+    // 서버 응답 전 optimistic Q&A를 기존 트랜스크립트 뒤에 붙임
+    const allMessages = pendingQA.length > 0 ? [...messages, ...pendingQA] : messages
+
+    const shouldAppendStageMessage =
+      !readyBrief &&
+      pendingQA.length === 0 &&
+      currentQuestions.length === 0 &&
+      (isSubmitting || canFinalizeCurrentPlanning || isReadyForApproval)
+
+    if (allMessages.length > 0 && shouldAppendStageMessage) {
+      return [...allMessages, { role: 'ai' as const, text: stageMessage }]
+    }
+    if (allMessages.length > 0) return allMessages
     return [{ role: 'ai' as const, text: stageMessage }]
-  }, [messages, stageMessage])
+  }, [
+    canFinalizeCurrentPlanning,
+    currentQuestions.length,
+    isReadyForApproval,
+    isSubmitting,
+    messages,
+    pendingQA,
+    readyBrief,
+    stageMessage,
+  ])
 
   return useMemo((): FollowUpChatbotViewModel => ({
     messages: visibleMessages,
     currentQuestions,
+    readyBrief,
     answer,
     isSubmitting,
     isComplete,
@@ -395,6 +563,11 @@ export function useFollowUpChatbot({
       setAnswer('')
       setIsSubmitting(true)
       setStageMessage(STAGE_MESSAGES.reflectingAnswer)
+      // 제출 즉시 채팅에 Q&A를 추가 (서버 응답 전 optimistic UI)
+      setPendingQA([
+        { role: 'ai', text: question.question },
+        { role: 'user', text: trimmedAnswer },
+      ])
 
       void postPlanningMessage(projectId, {
         message: trimmedAnswer,
@@ -413,10 +586,22 @@ export function useFollowUpChatbot({
         },
       })
         .then((nextSession) => {
-          setSession(nextSession)
+          applySession(nextSession)
+          // 서버 응답의 PT2 질문을 우선하고, 비어 있으면 로컬 큐의 다음 질문으로 진행
+          const nextQuestions = mapSessionQuestions(nextSession)
+          const unresolvedNextQuestions = nextQuestions.filter((nextQuestion) => (
+            nextQuestion.questionId !== question.questionId ||
+            nextQuestion.question !== question.question
+          ))
+          setQuestionQueue((prev) => (
+            unresolvedNextQuestions.length > 0 ? unresolvedNextQuestions : prev.slice(1)
+          ))
+          // 서버 세션에 실제 Q&A가 반영됐으므로 optimistic 데이터 제거
+          setPendingQA([])
           setErrorMessage(null)
         })
         .catch((error) => {
+          setPendingQA([])
           void getStepMismatchMessage(projectId).then((stepMismatchMessage) => {
             setErrorMessage(
               stepMismatchMessage ??
@@ -435,7 +620,9 @@ export function useFollowUpChatbot({
     enabled,
     isComplete,
     isSubmitting,
+    applySession,
     projectId,
+    readyBrief,
     session?.planningSessionId,
     visibleMessages,
   ])

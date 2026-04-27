@@ -27,6 +27,10 @@ function asStringValue(value: unknown): string {
   return ''
 }
 
+function getRecordString(record: Record<string, unknown> | null | undefined, key: string): string {
+  return asTrimmedString(record?.[key])
+}
+
 function parseOptionalDate(value: string | null | undefined): Date | null {
   if (!value) return null
 
@@ -75,7 +79,12 @@ function mapPlanningQuestion(
   const slotKey = asTrimmedString(question.slotKey ?? question.slot_key) || questionId
   const title = asTrimmedString(question.title)
   const prompt = asTrimmedString(question.question)
+  const payload = question.payload ?? null
+  const hasOptions = (question.options?.length ?? 0) > 0
+  const hasFields = (question.fields?.length ?? 0) > 0
+  const allowCustom = Boolean(question.allowCustom ?? question.allow_custom)
   const responseType = asTrimmedString(question.responseType ?? question.response_type)
+    || (hasFields ? 'form' : hasOptions ? (allowCustom ? 'single_select_with_custom' : 'single_select') : '')
 
   if (!questionId || !slotKey || !title || !prompt || !responseType) {
     return null
@@ -92,6 +101,13 @@ function mapPlanningQuestion(
     reasonWhyAsked: asTrimmedString(
       question.reasonWhyAsked ?? question.reason_why_asked
     ) || null,
+    payload,
+    eventType: asTrimmedString(question.eventType ?? question.event_type) ||
+      getRecordString(payload, 'event_type') ||
+      null,
+    answerSource: asTrimmedString(question.answerSource ?? question.answer_source) ||
+      getRecordString(payload, 'answer_source') ||
+      null,
     responseType,
     required: Boolean(question.required),
     allowCustom: Boolean(question.allowCustom ?? question.allow_custom),
