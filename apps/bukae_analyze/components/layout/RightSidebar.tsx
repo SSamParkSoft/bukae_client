@@ -27,6 +27,7 @@ export function RightSidebar() {
   const isAdvancingAiPlanning = useAiPlanningStore((state) => state.isAdvancing)
   const aiPlanningNextTarget = useAiPlanningStore((state) => state.nextTarget)
   const planningSessionId = useAiPlanningStore((state) => state.planningSessionId)
+  const answeredQuestionIds = useAiPlanningStore((state) => state.answeredQuestionIds)
   const setAdvancingAiPlanning = useAiPlanningStore((state) => state.setAdvancing)
   const isPlanningSetup = pathname.startsWith('/planning-setup')
   const isAiPlanning = pathname.startsWith('/ai-planning')
@@ -95,11 +96,19 @@ export function RightSidebar() {
         if (aiPlanningNextTarget === 'chatbot') {
           if (planningSessionId) {
             await postPlanningMessage(projectId, {
-              message: 'PT2 워크스페이스 진입',
+              message: [
+                'AI 기획 pt.1 질문 답변을 마치고 pt.2 대화 단계로 진입합니다.',
+                `answered_count=${answeredQuestionIds.length}`,
+                '이전 slot_answer payload들을 기준으로 다음 대화와 최종 기획안 생성을 이어가 주세요.',
+              ].join('\n'),
               messageType: 'planning_workspace_entered',
               payload: {
+                event_type: 'planning_workspace_entered',
                 planning_session_id: planningSessionId,
                 answer_source: 'planning_pt1',
+                answered_question_ids: answeredQuestionIds,
+                answered_count: answeredQuestionIds.length,
+                selected_angle_id: null,
               },
             }).catch(() => {})
           }

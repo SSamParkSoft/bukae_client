@@ -7,10 +7,12 @@ interface AiPlanningStore {
   isAdvancing: boolean
   nextTarget: AiPlanningNextTarget
   planningSessionId: string | null
+  answeredQuestionIds: string[]
   setNavigationState: (params: {
     canProceed: boolean
     nextTarget: AiPlanningNextTarget
     planningSessionId: string | null
+    answeredQuestionIds?: string[]
   }) => void
   setAdvancing: (isAdvancing: boolean) => void
   reset: () => void
@@ -21,12 +23,18 @@ const INITIAL_STATE = {
   isAdvancing: false,
   nextTarget: null as AiPlanningNextTarget,
   planningSessionId: null as string | null,
+  answeredQuestionIds: [] as string[],
 }
 
 export const useAiPlanningStore = create<AiPlanningStore>()((set) => ({
   ...INITIAL_STATE,
-  setNavigationState: ({ canProceed, nextTarget, planningSessionId }) =>
-    set({ canProceed, nextTarget, planningSessionId }),
+  setNavigationState: ({ canProceed, nextTarget, planningSessionId, answeredQuestionIds }) =>
+    set((state) => ({
+      canProceed,
+      nextTarget,
+      planningSessionId,
+      answeredQuestionIds: answeredQuestionIds ?? state.answeredQuestionIds,
+    })),
   setAdvancing: (isAdvancing) => set({ isAdvancing }),
   reset: () => set(INITIAL_STATE),
 }))

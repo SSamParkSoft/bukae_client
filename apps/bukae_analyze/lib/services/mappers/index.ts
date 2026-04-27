@@ -17,3 +17,5 @@
 export * from './benchmarkAnalysisMapper'
 export * from './projectAnalysisMapper'
 export * from './planningMapper'
+export * from './briefMapper'
+export * from './generationMapper'

@@ -25,6 +25,13 @@ export const API_ENDPOINTS = {
     intake:            (projectId: string) => `${BASE}/projects/${projectId}/intake`,
     planning:          (projectId: string) => `${BASE}/projects/${projectId}/planning`,
     planningMessages:  (projectId: string) => `${BASE}/projects/${projectId}/planning/messages`,
+    briefs:            (projectId: string) => `${BASE}/projects/${projectId}/briefs`,
+    briefDetail:       (projectId: string, briefVersionId: string) => `${BASE}/projects/${projectId}/briefs/${briefVersionId}`,
+    briefApprove:      (projectId: string, briefVersionId: string) => `${BASE}/projects/${projectId}/briefs/${briefVersionId}/approve`,
+    generations:       (projectId: string) => `${BASE}/projects/${projectId}/generations`,
+    generation:        (projectId: string, generationRequestId: string) => `${BASE}/projects/${projectId}/generations/${generationRequestId}`,
+    generationArtifact: (projectId: string, generationRequestId: string, artifactType: string) =>
+      `${BASE}/projects/${projectId}/generations/${generationRequestId}/artifacts/${artifactType}`,
     timeline:          (projectId: string) => `${BASE}/projects/${projectId}/timeline`,
   },
 } as const

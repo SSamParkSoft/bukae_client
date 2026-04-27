@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { postPlanningMessage } from '@/lib/services/planning'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
@@ -55,17 +55,29 @@ export function AiPlanningPageClient({
   const router = useRouter()
   const isChatbotMode = mode === 'chatbot'
 
-  const chatbotViewModel = useFollowUpChatbot()
   const planningSessionState = usePlanningSession(projectId, initialPlanningSession)
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({})
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({})
   const [fieldAnswers, setFieldAnswers] = useState<Record<string, Record<string, string>>>({})
   const [saveStatusByQuestionId, setSaveStatusByQuestionId] = useState<Record<string, SaveStatus>>({})
-  const lastSubmittedSignatureRef = useRef<Record<string, string>>({})
+  const [submittedSignatureByQuestionId, setSubmittedSignatureByQuestionId] = useState<Record<string, string>>({})
   const isSubmittingAnswersRef = useRef(false)
   const setNavigationState = useAiPlanningStore((state) => state.setNavigationState)
   const resetAiPlanningStore = useAiPlanningStore((state) => state.reset)
   const replacePlanningSession = planningSessionState.replaceSession
+  const handleGenerationCompleted = useCallback((generationRequestId: string) => {
+    const params = new URLSearchParams({ projectId, generationRequestId })
+    if (planningParam) {
+      params.set('planning', planningParam)
+    }
+    router.push(`/shooting-guide?${params.toString()}`)
+  }, [planningParam, projectId, router])
+  const chatbotViewModel = useFollowUpChatbot({
+    projectId,
+    initialSession: initialPlanningSession,
+    onGenerationCompleted: handleGenerationCompleted,
+    enabled: isChatbotMode,
+  })
 
   const questions = useMemo(
     () => planningSessionState.session?.clarifyingQuestions ?? [],
@@ -113,11 +125,16 @@ export function AiPlanningPageClient({
 
   const hasAnsweredAllQuestions =
     questions.length > 0 && answerRequests.length === questions.length
+  const hasSavedAllAnswers =
+    hasAnsweredAllQuestions &&
+    answerRequests.every(({ questionId, signature }) => {
+      return submittedSignatureByQuestionId[questionId] === signature
+    })
   const hasPendingSave = Object.values(saveStatusByQuestionId).some((status) => status === 'saving')
   const hasSaveError = Object.values(saveStatusByQuestionId).some((status) => status === 'error')
   const canEnterPt2 =
     planningSessionState.session?.readyForApproval ||
-    hasAnsweredAllQuestions
+    hasSavedAllAnswers
 
   useEffect(() => {
     if (!hasAnsweredAllQuestions || planningSessionState.session?.readyForApproval) {
@@ -129,7 +146,7 @@ export function AiPlanningPageClient({
     }
 
     const unsavedRequests = answerRequests.filter(({ questionId, signature }) => {
-      return lastSubmittedSignatureRef.current[questionId] !== signature
+      return submittedSignatureByQuestionId[questionId] !== signature
     })
 
     if (unsavedRequests.length === 0) {
@@ -155,7 +172,7 @@ export function AiPlanningPageClient({
 
         try {
           latestSession = await postPlanningMessage(projectId, request)
-          lastSubmittedSignatureRef.current[questionId] = signature
+          setSubmittedSignatureByQuestionId((prev) => ({ ...prev, [questionId]: signature }))
           setSaveStatusByQuestionId((prev) => ({ ...prev, [questionId]: 'saved' }))
         } catch {
           setSaveStatusByQuestionId((prev) => ({ ...prev, [questionId]: 'error' }))
@@ -163,7 +180,15 @@ export function AiPlanningPageClient({
         }
       }
 
-      if (latestSession && !cancelled) {
+      if (
+        latestSession &&
+        !cancelled &&
+        (
+          latestSession.clarifyingQuestions.length > 0 ||
+          latestSession.readyForApproval ||
+          latestSession.failure
+        )
+      ) {
         replacePlanningSession(latestSession)
       }
     }
@@ -181,6 +206,7 @@ export function AiPlanningPageClient({
     planningSessionState.session?.readyForApproval,
     projectId,
     replacePlanningSession,
+    submittedSignatureByQuestionId,
   ])
 
   useEffect(() => {
@@ -189,6 +215,7 @@ export function AiPlanningPageClient({
         canProceed: false,
         nextTarget: null,
         planningSessionId: planningSessionState.session?.planningSessionId ?? null,
+        answeredQuestionIds: questions.map((question) => question.questionId),
       })
       return
     }
@@ -197,12 +224,14 @@ export function AiPlanningPageClient({
       canProceed: Boolean(canEnterPt2) && !hasPendingSave && !hasSaveError,
       nextTarget: planningSessionState.session?.readyForApproval ? 'shooting-guide' : 'chatbot',
       planningSessionId: planningSessionState.session?.planningSessionId ?? null,
+      answeredQuestionIds: questions.map((question) => question.questionId),
     })
   }, [
     canEnterPt2,
     hasSaveError,
     hasPendingSave,
     isChatbotMode,
+    questions,
     planningSessionState.session?.planningSessionId,
     planningSessionState.session?.readyForApproval,
     setNavigationState,

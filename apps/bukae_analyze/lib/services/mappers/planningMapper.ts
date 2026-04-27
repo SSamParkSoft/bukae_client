@@ -14,6 +14,7 @@ import type {
   PlanningQuestionField,
   PlanningQuestionOption,
   PlanningSession,
+  PlanningSurface,
 } from '@/lib/types/domain'
 
 function asTrimmedString(value: unknown): string {
@@ -88,6 +89,9 @@ function mapPlanningQuestion(
     referenceInsight: asTrimmedString(
       question.referenceInsight ?? question.reference_insight
     ) || null,
+    reasonWhyAsked: asTrimmedString(
+      question.reasonWhyAsked ?? question.reason_why_asked
+    ) || null,
     responseType,
     required: Boolean(question.required),
     allowCustom: Boolean(question.allowCustom ?? question.allow_custom),
@@ -104,11 +108,28 @@ function mapPlanningMessage(
   message: PlanningMessageDto
 ): PlanningConversationMessage {
   return {
-    messageId: asTrimmedString(message.messageId ?? message.message_id) || null,
-    message: asTrimmedString(message.message),
+    messageId: asTrimmedString(
+      message.planningMessageId ??
+      message.planning_message_id ??
+      message.messageId ??
+      message.message_id
+    ) || null,
+    role: asTrimmedString(message.role) || null,
+    message: asTrimmedString(message.content ?? message.message),
     messageType: asTrimmedString(message.messageType ?? message.message_type) || null,
     payload: message.payload ?? null,
     createdAt: parseOptionalDate(message.createdAt ?? message.created_at),
+  }
+}
+
+function mapPlanningSurface(
+  surface: PlanningResponseDto['planningSurface']
+): PlanningSurface | null {
+  if (!surface) return null
+
+  return {
+    readyToFinalize: Boolean(surface.readyToFinalize ?? surface.ready_to_finalize),
+    detailGapState: surface.detailGapState ?? surface.detail_gap_state ?? null,
   }
 }
 
@@ -149,12 +170,15 @@ export function mapPlanningSession(dto: PlanningResponseDto): PlanningSession {
   return {
     planningSessionId: dto.planningSessionId ?? null,
     planningStatus: dto.planningStatus ?? null,
+    planningMode: dto.planningMode ?? null,
     clarifyingQuestions: (dto.clarifyingQuestions ?? [])
       .map(mapPlanningQuestion)
       .filter((question): question is PlanningQuestion => question !== null),
     canonicalSlotState: dto.canonicalSlotState ?? null,
     candidateAngles: dto.candidateAngles ?? [],
     messages: (dto.messages ?? []).map(mapPlanningMessage),
+    planningSurface: mapPlanningSurface(dto.planningSurface),
+    planningArtifacts: dto.planningArtifacts ?? null,
     readyForApproval: Boolean(dto.readyForApproval),
     failure: mapPlanningFailure(dto.failure),
     projectStatus: dto.projectStatus ?? null,

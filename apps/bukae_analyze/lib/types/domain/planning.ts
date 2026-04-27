@@ -29,6 +29,7 @@ export interface PlanningQuestion {
   title: string
   question: string
   referenceInsight: string | null
+  reasonWhyAsked: string | null
   responseType: string
   required: boolean
   allowCustom: boolean
@@ -38,10 +39,16 @@ export interface PlanningQuestion {
 
 export interface PlanningConversationMessage {
   messageId: string | null
+  role: string | null
   message: string
   messageType: string | null
   payload: Record<string, unknown> | null
   createdAt: Date | null
+}
+
+export interface PlanningSurface {
+  readyToFinalize: boolean
+  detailGapState: Record<string, unknown> | null
 }
 
 export interface PlanningFailureState {
@@ -59,10 +66,13 @@ export interface PlanningFailureState {
 export interface PlanningSession {
   planningSessionId: string | null
   planningStatus: string | null
+  planningMode: string | null
   clarifyingQuestions: PlanningQuestion[]
   canonicalSlotState: Record<string, unknown> | null
   candidateAngles: Array<Record<string, unknown>>
   messages: PlanningConversationMessage[]
+  planningSurface: PlanningSurface | null
+  planningArtifacts: Record<string, unknown> | null
   readyForApproval: boolean
   failure: PlanningFailureState | null
   projectStatus: string | null
