@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getPlanningSession } from '@/lib/services/planning'
+import {
+  formatWorkflowState,
+  getProjectWorkflowState,
+  isPlanningStep,
+} from '@/lib/services/projectWorkflowState'
 import type { PlanningSession } from '@/lib/types/domain'
 
 const POLLING_INTERVAL_MS = 2000
@@ -33,10 +38,11 @@ function shouldKeepPolling(session: PlanningSession | null): boolean {
 
 export function usePlanningSession(
   projectId: string,
-  initialSession: PlanningSession | null = null
+  initialSession: PlanningSession | null = null,
+  enabled = true
 ): PlanningSessionState {
   const [session, setSession] = useState<PlanningSession | null>(initialSession)
-  const [isLoading, setIsLoading] = useState<boolean>(() => shouldKeepPolling(initialSession))
+  const [isLoading, setIsLoading] = useState<boolean>(() => enabled && shouldKeepPolling(initialSession))
   const [errorMessage, setErrorMessage] = useState<string | null>(() => getFailureMessage(initialSession))
   const attemptsRef = useRef(0)
 
@@ -45,7 +51,7 @@ export function usePlanningSession(
 
     attemptsRef.current = 0
 
-    if (!shouldKeepPolling(initialSession)) {
+    if (!enabled || !shouldKeepPolling(initialSession)) {
       return
     }
 
@@ -83,6 +89,13 @@ export function usePlanningSession(
       } catch (error) {
         if (cancelled) return
 
+        const workflowState = await getProjectWorkflowState(projectId).catch(() => null)
+        if (workflowState && !isPlanningStep(workflowState)) {
+          setErrorMessage(`현재 프로젝트 단계가 기획 단계가 아닙니다. (${formatWorkflowState(workflowState)})`)
+          setIsLoading(false)
+          return
+        }
+
         setErrorMessage(
           error instanceof Error
             ? error.message
@@ -97,7 +110,7 @@ export function usePlanningSession(
     return () => {
       cancelled = true
     }
-  }, [initialSession, projectId])
+  }, [enabled, initialSession, projectId])
 
   return useMemo(() => ({
     session,

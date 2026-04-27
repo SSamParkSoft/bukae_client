@@ -55,7 +55,7 @@ export function AiPlanningPageClient({
   const router = useRouter()
   const isChatbotMode = mode === 'chatbot'
 
-  const planningSessionState = usePlanningSession(projectId, initialPlanningSession)
+  const planningSessionState = usePlanningSession(projectId, initialPlanningSession, !isChatbotMode)
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({})
   const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({})
   const [fieldAnswers, setFieldAnswers] = useState<Record<string, Record<string, string>>>({})

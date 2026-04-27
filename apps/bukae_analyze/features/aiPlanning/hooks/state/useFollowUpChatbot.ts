@@ -4,6 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { approveBrief, listBriefs } from '@/lib/services/briefs'
 import { getGeneration, startGeneration } from '@/lib/services/generations'
 import { getPlanningSession, postPlanningMessage } from '@/lib/services/planning'
+import {
+  formatWorkflowState,
+  getProjectWorkflowState,
+  isPlanningStep,
+} from '@/lib/services/projectWorkflowState'
 import type { Brief, PlanningQuestion, PlanningSession } from '@/lib/types/domain'
 import type { FollowUpQuestion, ChatMessage, FollowUpChatbotViewModel } from '../../types/chatbotViewModel'
 
@@ -130,6 +135,13 @@ function pickLatestGenerationBrief(briefs: Brief[]): Brief | null {
   return candidates[0] ?? null
 }
 
+async function getStepMismatchMessage(projectId: string): Promise<string | null> {
+  const workflowState = await getProjectWorkflowState(projectId).catch(() => null)
+  if (!workflowState || isPlanningStep(workflowState)) return null
+
+  return `현재 프로젝트 단계가 기획 단계가 아닙니다. (${formatWorkflowState(workflowState)})`
+}
+
 interface UseFollowUpChatbotParams {
   projectId: string
   initialSession: PlanningSession | null
@@ -225,6 +237,13 @@ export function useFollowUpChatbot({
 
           await sleep(POLLING_INTERVAL_MS)
         } catch (error) {
+          const stepMismatchMessage = await getStepMismatchMessage(projectId)
+          if (stepMismatchMessage) {
+            setErrorMessage(stepMismatchMessage)
+            setIsSubmitting(false)
+            return
+          }
+
           setErrorMessage(error instanceof Error ? error.message : '기획 상태 조회에 실패했습니다.')
           setIsSubmitting(false)
           return
@@ -280,19 +299,10 @@ export function useFollowUpChatbot({
         for (let i = 0; i < BRIEF_POLLING_LIMIT; i += 1) {
           if (cancelled) return
 
-          const [planning, briefs] = await Promise.all([
-            getPlanningSession(projectId),
-            listBriefs(projectId),
-          ])
-
-          setSession(planning)
+          const briefs = await listBriefs(projectId)
           selectedBrief = pickLatestGenerationBrief(briefs)
 
-          if (planning.failure) {
-            throw new Error(planning.failure.summary ?? planning.failure.message ?? '최종 기획안 생성에 실패했습니다.')
-          }
-
-          if ((planning.readyForApproval && selectedBrief) || selectedBrief?.status === 'APPROVED') {
+          if (selectedBrief) {
             break
           }
 
@@ -347,7 +357,11 @@ export function useFollowUpChatbot({
 
         throw new Error('촬영가이드/스크립트 생성 시간이 초과되었습니다.')
       } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : '촬영가이드 생성에 실패했습니다.')
+        const stepMismatchMessage = await getStepMismatchMessage(projectId)
+        setErrorMessage(
+          stepMismatchMessage ??
+          (error instanceof Error ? error.message : '촬영가이드 생성에 실패했습니다.')
+        )
       } finally {
         setIsSubmitting(false)
         isFinalizingRef.current = false
@@ -403,7 +417,12 @@ export function useFollowUpChatbot({
           setErrorMessage(null)
         })
         .catch((error) => {
-          setErrorMessage(error instanceof Error ? error.message : '답변 전송에 실패했습니다.')
+          void getStepMismatchMessage(projectId).then((stepMismatchMessage) => {
+            setErrorMessage(
+              stepMismatchMessage ??
+              (error instanceof Error ? error.message : '답변 전송에 실패했습니다.')
+            )
+          })
         })
         .finally(() => {
           setIsSubmitting(false)
