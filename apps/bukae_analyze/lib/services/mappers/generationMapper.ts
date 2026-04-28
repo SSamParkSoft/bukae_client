@@ -66,8 +66,9 @@ function mapGuidePreviewToShootingGuide(
   guidePreview: Record<string, unknown> | null,
   scriptPreview: string
 ): ShootingGuide | null {
-  const sceneRecords = Array.isArray(guidePreview?.scenes)
-    ? guidePreview.scenes.map(asRecord).filter((scene): scene is Record<string, unknown> => scene !== null)
+  const filmingGuide = asRecord(guidePreview?.filming_guide)
+  const sceneRecords = Array.isArray(filmingGuide?.scenes)
+    ? filmingGuide.scenes.map(asRecord).filter((scene): scene is Record<string, unknown> => scene !== null)
     : []
 
   if (sceneRecords.length === 0) return null

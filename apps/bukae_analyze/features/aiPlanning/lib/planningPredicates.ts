@@ -45,7 +45,6 @@ export function hasFinalizePlanningMessage(session: PlanningSession): boolean {
 
 export function hasFinalizePlanningStarted(session: PlanningSession): boolean {
   return (
-    session.planningMode === 'finalize' ||
     session.planningStatus === 'DRAFTING' ||
     hasFinalizePlanningMessage(session)
   )
