@@ -2,10 +2,10 @@
 
 import { useRouter } from 'next/navigation'
 import { LAYOUT } from '../layout/layout-constants'
-import { buildAnalyzeWorkflowStepPath } from './analyzeWorkflowSteps'
-import { AnalyzeWorkflowStepList } from './AnalyzeWorkflowStepList'
-import { WorkflowStepArrowButton } from './WorkflowStepArrowButton'
-import { useAnalyzeWorkflowRouteState } from './useAnalyzeWorkflowRouteState'
+import { useAnalyzeWorkflowRouteState } from './hooks/useAnalyzeWorkflowRouteState'
+import { buildAnalyzeWorkflowStepPath } from './lib/analyzeWorkflowSteps'
+import { AnalyzeWorkflowStepList } from './ui/AnalyzeWorkflowStepList'
+import { WorkflowStepArrowButton } from './ui/WorkflowStepArrowButton'
 
 export function AnalyzeWorkflowProgressSidebar() {
   const router = useRouter()

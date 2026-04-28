@@ -1,10 +1,10 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { buildAnalyzeWorkflowStepPath } from './analyzeWorkflowSteps'
-import { useAnalyzeWorkflowRouteState } from './useAnalyzeWorkflowRouteState'
-import { useAiPlanningStepAdvance } from './useAiPlanningStepAdvance'
-import { usePlanningSetupStepSubmission } from './usePlanningSetupStepSubmission'
+import { useAiPlanningStepAdvance } from './commands/useAiPlanningStepAdvance'
+import { usePlanningSetupStepSubmission } from './commands/usePlanningSetupStepSubmission'
+import { useAnalyzeWorkflowRouteState } from './hooks/useAnalyzeWorkflowRouteState'
+import { buildAnalyzeWorkflowStepPath } from './lib/analyzeWorkflowSteps'
 
 export interface AnalyzeWorkflowNextStepState {
   shouldRenderNextStepButton: boolean

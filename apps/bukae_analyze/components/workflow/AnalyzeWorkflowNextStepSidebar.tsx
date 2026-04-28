@@ -2,7 +2,7 @@
 
 import { useAnalyzeWorkflowNextStep } from './useAnalyzeWorkflowNextStep'
 import { LAYOUT } from '../layout/layout-constants'
-import { WorkflowStepArrowButton } from './WorkflowStepArrowButton'
+import { WorkflowStepArrowButton } from './ui/WorkflowStepArrowButton'
 
 export function AnalyzeWorkflowNextStepSidebar() {
   const {
