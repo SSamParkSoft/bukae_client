@@ -12,6 +12,7 @@ import {
   type FinalizedProject,
 } from '../../lib/planningWorkflow'
 import type {
+  ChatMessage,
   FollowUpChatbotViewModel,
   FollowUpQuestion,
   ReadyBriefViewModel,
@@ -52,6 +53,120 @@ function mapPlanningQuestion(question: PlanningQuestion): ActiveQuestion {
   }
 }
 
+function createReadyBriefViewModel(
+  finalizedProject: FinalizedProject
+): ReadyBriefViewModel {
+  return {
+    briefVersionId: finalizedProject.briefVersionId,
+    title: finalizedProject.title,
+    planningSummary: finalizedProject.planningSummary,
+    status: finalizedProject.status,
+  }
+}
+
+function getErrorMessage(error: unknown, fallbackMessage: string): string {
+  return error instanceof Error ? error.message : fallbackMessage
+}
+
+async function resolvePlanningRecovery(
+  projectId: string,
+  error: unknown,
+  fallbackMessage: string
+): Promise<PlanningRecovery> {
+  const finalizedProject = await getFinalizedProject(projectId).catch(() => null)
+  if (finalizedProject) {
+    return { finalizedProject, errorMessage: null }
+  }
+
+  const stepMismatchMessage = await getStepMismatchMessage(projectId)
+  return {
+    finalizedProject: null,
+    errorMessage: stepMismatchMessage ?? getErrorMessage(error, fallbackMessage),
+  }
+}
+
+function createChatbotMessages(params: {
+  session: PlanningSession | null
+  currentQuestionId: string | null
+  errorMessage: string | null
+  readyBrief: ReadyBriefViewModel | null
+}): ChatMessage[] {
+  const {
+    session,
+    currentQuestionId,
+    errorMessage,
+    readyBrief,
+  } = params
+
+  if (errorMessage) {
+    return [
+      ...mapTranscript(session, currentQuestionId),
+      { role: 'ai', text: `${STAGE_MESSAGES.error} ${errorMessage}` },
+    ]
+  }
+
+  const transcript = mapTranscript(session, currentQuestionId)
+  if (readyBrief) {
+    return [
+      ...transcript,
+      {
+        role: 'ai',
+        text: [
+          readyBrief.title,
+          readyBrief.planningSummary,
+          STAGE_MESSAGES.readyBrief,
+        ].filter(Boolean).join('\n\n'),
+      },
+    ]
+  }
+
+  return transcript
+}
+
+function createVisibleMessages(params: {
+  messages: ChatMessage[]
+  pendingQA: ChatMessage[]
+  readyBrief: ReadyBriefViewModel | null
+  currentQuestions: FollowUpQuestion[]
+  isSubmitting: boolean
+  canFinalizeCurrentPlanning: boolean
+  isReadyForApproval: boolean
+  stageMessage: StageMessage
+}): ChatMessage[] {
+  const {
+    messages,
+    pendingQA,
+    readyBrief,
+    currentQuestions,
+    isSubmitting,
+    canFinalizeCurrentPlanning,
+    isReadyForApproval,
+    stageMessage,
+  } = params
+  const allMessages = pendingQA.length > 0 ? [...messages, ...pendingQA] : messages
+  const shouldAppendStageMessage =
+    !readyBrief &&
+    pendingQA.length === 0 &&
+    currentQuestions.length === 0 &&
+    (isSubmitting || canFinalizeCurrentPlanning || isReadyForApproval)
+
+  if (allMessages.length > 0 && shouldAppendStageMessage) {
+    return [...allMessages, { role: 'ai', text: stageMessage }]
+  }
+  if (allMessages.length > 0) return allMessages
+  return [{ role: 'ai', text: stageMessage }]
+}
+
+function getUnresolvedNextQuestions(
+  nextSession: PlanningSession,
+  answeredQuestion: ActiveQuestion
+): ActiveQuestion[] {
+  return mapSessionQuestions(nextSession).filter((nextQuestion) => (
+    nextQuestion.questionId !== answeredQuestion.questionId ||
+    nextQuestion.question !== answeredQuestion.question
+  ))
+}
+
 // --- Types ---
 
 interface ActiveQuestion {
@@ -68,6 +183,11 @@ interface UseFollowUpChatbotParams {
   initialSession: PlanningSession | null
   enabled: boolean
   onSessionChange?: (nextSession: PlanningSession) => void
+}
+
+interface PlanningRecovery {
+  finalizedProject: FinalizedProject | null
+  errorMessage: string | null
 }
 
 const STAGE_MESSAGES = {
@@ -97,7 +217,7 @@ export function useFollowUpChatbot({
   const [readyBrief, setReadyBrief] = useState<ReadyBriefViewModel | null>(null)
   const [stageMessage, setStageMessage] = useState<StageMessage>(STAGE_MESSAGES.waitingQuestion)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [pendingQA, setPendingQA] = useState<{ role: 'ai' | 'user'; text: string }[]>([])
+  const [pendingQA, setPendingQA] = useState<ChatMessage[]>([])
   const isPollingRef = useRef(false)
   const isFinalizingRef = useRef(false)
   const isInitialRefreshRef = useRef(false)
@@ -118,12 +238,7 @@ export function useFollowUpChatbot({
     setQuestionQueue([])
     setPendingQA([])
     setErrorMessage(null)
-    setReadyBrief({
-      briefVersionId: finalizedProject.briefVersionId,
-      title: finalizedProject.title,
-      planningSummary: finalizedProject.planningSummary,
-      status: finalizedProject.status,
-    })
+    setReadyBrief(createReadyBriefViewModel(finalizedProject))
     setStageMessage(STAGE_MESSAGES.readyBrief)
     setIsComplete(true)
   }, [])
@@ -145,31 +260,12 @@ export function useFollowUpChatbot({
   const canFinalizeCurrentPlanning = canFinalizePlanning(session)
   const isReadyForApproval = Boolean(session?.readyForApproval)
 
-  const messages = useMemo(() => {
-    if (errorMessage) {
-      return [
-        ...mapTranscript(session, currentQuestion?.questionId ?? null),
-        { role: 'ai' as const, text: `${STAGE_MESSAGES.error} ${errorMessage}` },
-      ]
-    }
-
-    const transcript = mapTranscript(session, currentQuestion?.questionId ?? null)
-    if (readyBrief) {
-      return [
-        ...transcript,
-        {
-          role: 'ai' as const,
-          text: [
-            readyBrief.title,
-            readyBrief.planningSummary,
-            STAGE_MESSAGES.readyBrief,
-          ].filter(Boolean).join('\n\n'),
-        },
-      ]
-    }
-
-    return transcript
-  }, [currentQuestion?.questionId, errorMessage, readyBrief, session])
+  const messages = useMemo(() => createChatbotMessages({
+    session,
+    currentQuestionId: currentQuestion?.questionId ?? null,
+    errorMessage,
+    readyBrief,
+  }), [currentQuestion?.questionId, errorMessage, readyBrief, session])
 
   // --- Initial refresh ---
   useEffect(() => {
@@ -198,17 +294,17 @@ export function useFollowUpChatbot({
       } catch (error) {
         if (!isMountedRef.current) return
 
-        const finalizedProject = await getFinalizedProject(projectId).catch(() => null)
-        if (finalizedProject) {
-          applyFinalizedProjectRef.current(finalizedProject)
+        const recovery = await resolvePlanningRecovery(
+          projectId,
+          error,
+          '기획 상태 조회에 실패했습니다.'
+        )
+        if (recovery.finalizedProject) {
+          applyFinalizedProjectRef.current(recovery.finalizedProject)
           return
         }
 
-        const stepMismatchMessage = await getStepMismatchMessage(projectId)
-        setErrorMessage(
-          stepMismatchMessage ??
-          (error instanceof Error ? error.message : '기획 상태 조회에 실패했습니다.')
-        )
+        setErrorMessage(recovery.errorMessage)
       } finally {
         if (isMountedRef.current) {
           isInitialRefreshRef.current = false
@@ -269,21 +365,18 @@ export function useFollowUpChatbot({
 
           await sleep(POLLING_INTERVAL_MS)
         } catch (error) {
-          const finalizedProject = await getFinalizedProject(projectId).catch(() => null)
-          if (finalizedProject) {
-            applyFinalizedProjectRef.current(finalizedProject)
+          const recovery = await resolvePlanningRecovery(
+            projectId,
+            error,
+            '기획 상태 조회에 실패했습니다.'
+          )
+          if (recovery.finalizedProject) {
+            applyFinalizedProjectRef.current(recovery.finalizedProject)
             setIsSubmitting(false)
             return
           }
 
-          const stepMismatchMessage = await getStepMismatchMessage(projectId)
-          if (stepMismatchMessage) {
-            setErrorMessage(stepMismatchMessage)
-            setIsSubmitting(false)
-            return
-          }
-
-          setErrorMessage(error instanceof Error ? error.message : '기획 상태 조회에 실패했습니다.')
+          setErrorMessage(recovery.errorMessage)
           setIsSubmitting(false)
           return
         }
@@ -335,17 +428,17 @@ export function useFollowUpChatbot({
               planningSessionId: activeSession.planningSessionId ?? '',
             })
           } catch (error) {
-            const finalizedProject = await getFinalizedProject(projectId).catch(() => null)
-            if (finalizedProject) {
-              applyFinalizedProjectRef.current(finalizedProject)
+            const recovery = await resolvePlanningRecovery(
+              projectId,
+              error,
+              '최종 기획안 생성 요청에 실패했습니다.'
+            )
+            if (recovery.finalizedProject) {
+              applyFinalizedProjectRef.current(recovery.finalizedProject)
               return
             }
 
-            const stepMismatchMessage = await getStepMismatchMessage(projectId)
-            throw new Error(
-              stepMismatchMessage ??
-              (error instanceof Error ? error.message : '최종 기획안 생성 요청에 실패했습니다.')
-            )
+            throw new Error(recovery.errorMessage ?? '최종 기획안 생성 요청에 실패했습니다.')
           }
         }
 
@@ -355,9 +448,7 @@ export function useFollowUpChatbot({
         applyFinalizedProjectRef.current(finalizedProject)
       } catch (error) {
         if (!isMountedRef.current) return
-        setErrorMessage(
-          error instanceof Error ? error.message : '촬영가이드 생성에 실패했습니다.'
-        )
+        setErrorMessage(getErrorMessage(error, '촬영가이드 생성에 실패했습니다.'))
       } finally {
         if (isMountedRef.current) {
           setIsSubmitting(false)
@@ -380,23 +471,18 @@ export function useFollowUpChatbot({
   ])
 
   // --- Visible messages ---
-  const visibleMessages = useMemo(() => {
-    const allMessages = pendingQA.length > 0 ? [...messages, ...pendingQA] : messages
-
-    const shouldAppendStageMessage =
-      !readyBrief &&
-      pendingQA.length === 0 &&
-      currentQuestions.length === 0 &&
-      (isSubmitting || canFinalizeCurrentPlanning || isReadyForApproval)
-
-    if (allMessages.length > 0 && shouldAppendStageMessage) {
-      return [...allMessages, { role: 'ai' as const, text: stageMessage }]
-    }
-    if (allMessages.length > 0) return allMessages
-    return [{ role: 'ai' as const, text: stageMessage }]
-  }, [
+  const visibleMessages = useMemo(() => createVisibleMessages({
+    messages,
+    pendingQA,
+    readyBrief,
+    currentQuestions,
+    isSubmitting,
     canFinalizeCurrentPlanning,
-    currentQuestions.length,
+    isReadyForApproval,
+    stageMessage,
+  }), [
+    canFinalizeCurrentPlanning,
+    currentQuestions,
     isReadyForApproval,
     isSubmitting,
     messages,
@@ -437,11 +523,7 @@ export function useFollowUpChatbot({
       })
         .then((nextSession) => {
           applySession(nextSession)
-          const nextQuestions = mapSessionQuestions(nextSession)
-          const unresolvedNextQuestions = nextQuestions.filter((nextQuestion) => (
-            nextQuestion.questionId !== question.questionId ||
-            nextQuestion.question !== question.question
-          ))
+          const unresolvedNextQuestions = getUnresolvedNextQuestions(nextSession, question)
           setQuestionQueue((prev) => (
             unresolvedNextQuestions.length > 0 ? unresolvedNextQuestions : prev.slice(1)
           ))
@@ -450,22 +532,19 @@ export function useFollowUpChatbot({
         })
         .catch((error) => {
           setPendingQA([])
-          void getFinalizedProject(projectId).then((finalizedProject) => {
-            if (finalizedProject) {
-              applyFinalizedProjectRef.current(finalizedProject)
+          void resolvePlanningRecovery(
+            projectId,
+            error,
+            '답변 전송에 실패했습니다.'
+          ).then((recovery) => {
+            if (recovery.finalizedProject) {
+              applyFinalizedProjectRef.current(recovery.finalizedProject)
               return
             }
 
-            void getStepMismatchMessage(projectId).then((stepMismatchMessage) => {
-              setErrorMessage(
-                stepMismatchMessage ??
-                (error instanceof Error ? error.message : '답변 전송에 실패했습니다.')
-              )
-            })
+            setErrorMessage(recovery.errorMessage)
           }).catch(() => {
-            setErrorMessage(
-              error instanceof Error ? error.message : '답변 전송에 실패했습니다.'
-            )
+            setErrorMessage(getErrorMessage(error, '답변 전송에 실패했습니다.'))
           })
         })
         .finally(() => {

@@ -18,10 +18,20 @@ import { FollowUpChatbot } from './chatbotComponents'
 import { PlanningQuestionCard } from './PlanningQuestionCard'
 import { PlanningSessionError } from './PlanningSessionError'
 import { PlanningSessionLoading } from './PlanningSessionLoading'
-import type { PlanningSession } from '@/lib/types/domain'
+import type { PlanningQuestion, PlanningSession } from '@/lib/types/domain'
 
 type AiPlanningMode = 'default' | 'chatbot'
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
+interface UsePt1AnswerAutoSubmissionParams {
+  projectId: string
+  questions: PlanningQuestion[]
+  selectedAnswers: Record<string, string>
+  customAnswers: Record<string, string>
+  fieldAnswers: Record<string, Record<string, string>>
+  readyForApproval: boolean
+  onSessionChange: (nextSession: PlanningSession) => void
+}
 
 function buildAiPlanningHref(
   projectId: string,
@@ -41,61 +51,28 @@ function buildAiPlanningHref(
   return `/ai-planning?${params.toString()}`
 }
 
-export function AiPlanningPageClient({
-  projectId,
-  mode,
-  planningParam,
-  initialPlanningSession,
-}: {
-  projectId: string
-  mode: AiPlanningMode
-  planningParam: string | null
-  initialPlanningSession: PlanningSession | null
-}) {
-  const router = useRouter()
-  const isChatbotMode = mode === 'chatbot'
+function shouldReplacePlanningSessionAfterPt1Submission(
+  session: PlanningSession
+): boolean {
+  return (
+    session.clarifyingQuestions.length > 0 ||
+    session.readyForApproval ||
+    Boolean(session.failure)
+  )
+}
 
-  const planningSessionState = usePlanningSession(projectId, initialPlanningSession, !isChatbotMode)
-  const {
-    selectedAnswers,
-    customAnswers,
-    fieldAnswers,
-    selectAnswer,
-    changeCustomAnswer,
-    changeFieldAnswer,
-  } = usePt1AnswerDrafts()
+function usePt1AnswerAutoSubmission({
+  projectId,
+  questions,
+  selectedAnswers,
+  customAnswers,
+  fieldAnswers,
+  readyForApproval,
+  onSessionChange,
+}: UsePt1AnswerAutoSubmissionParams) {
   const [saveStatusByQuestionId, setSaveStatusByQuestionId] = useState<Record<string, SaveStatus>>({})
   const [submittedSignatureByQuestionId, setSubmittedSignatureByQuestionId] = useState<Record<string, string>>({})
   const isSubmittingAnswersRef = useRef(false)
-  const setNavigationState = useAiPlanningStore((state) => state.setNavigationState)
-  const resetAiPlanningStore = useAiPlanningStore((state) => state.reset)
-  const chatbotInitialSession = useAiPlanningStore((state) => state.chatbotInitialSession)
-  const replacePlanningSession = planningSessionState.replaceSession
-  const chatbotViewModel = useFollowUpChatbot({
-    projectId,
-    initialSession: isChatbotMode && chatbotInitialSession ? chatbotInitialSession : planningSessionState.session,
-    enabled: isChatbotMode,
-    onSessionChange: replacePlanningSession,
-  })
-
-  const questions = useMemo(
-    () => planningSessionState.session?.clarifyingQuestions ?? [],
-    [planningSessionState.session]
-  )
-
-  useEffect(() => {
-    return () => {
-      resetAiPlanningStore()
-    }
-  }, [resetAiPlanningStore])
-
-  const enterChatbotMode = () => {
-    router.push(buildAiPlanningHref(projectId, 'chatbot', planningParam))
-  }
-
-  const exitChatbotMode = () => {
-    router.push(buildAiPlanningHref(projectId, 'default', planningParam))
-  }
 
   const answerRequests = useMemo(() => {
     return buildPt1AnswerRequests(questions, {
@@ -112,12 +89,9 @@ export function AiPlanningPageClient({
     hasSavedAllPt1Answers(answerRequests, submittedSignatureByQuestionId)
   const hasPendingSave = Object.values(saveStatusByQuestionId).some((status) => status === 'saving')
   const hasSaveError = Object.values(saveStatusByQuestionId).some((status) => status === 'error')
-  const canEnterPt2 =
-    planningSessionState.session?.readyForApproval ||
-    hasSavedAllAnswers
 
   useEffect(() => {
-    if (!hasAnsweredAllQuestions || planningSessionState.session?.readyForApproval) {
+    if (!hasAnsweredAllQuestions || readyForApproval) {
       return
     }
 
@@ -158,13 +132,9 @@ export function AiPlanningPageClient({
       if (
         latestSession &&
         !cancelled &&
-        (
-          latestSession.clarifyingQuestions.length > 0 ||
-          latestSession.readyForApproval ||
-          latestSession.failure
-        )
+        shouldReplacePlanningSessionAfterPt1Submission(latestSession)
       ) {
-        replacePlanningSession(latestSession)
+        onSessionChange(latestSession)
       }
     }
 
@@ -178,11 +148,84 @@ export function AiPlanningPageClient({
   }, [
     answerRequests,
     hasAnsweredAllQuestions,
-    planningSessionState.session?.readyForApproval,
+    onSessionChange,
     projectId,
-    replacePlanningSession,
+    readyForApproval,
     submittedSignatureByQuestionId,
   ])
+
+  return {
+    hasSavedAllAnswers,
+    hasPendingSave,
+    hasSaveError,
+  }
+}
+
+export function AiPlanningPageClient({
+  projectId,
+  mode,
+  planningParam,
+  initialPlanningSession,
+}: {
+  projectId: string
+  mode: AiPlanningMode
+  planningParam: string | null
+  initialPlanningSession: PlanningSession | null
+}) {
+  const router = useRouter()
+  const isChatbotMode = mode === 'chatbot'
+
+  const planningSessionState = usePlanningSession(projectId, initialPlanningSession, !isChatbotMode)
+  const {
+    selectedAnswers,
+    customAnswers,
+    fieldAnswers,
+    selectAnswer,
+    changeCustomAnswer,
+    changeFieldAnswer,
+  } = usePt1AnswerDrafts()
+  const setNavigationState = useAiPlanningStore((state) => state.setNavigationState)
+  const resetAiPlanningStore = useAiPlanningStore((state) => state.reset)
+  const chatbotInitialSession = useAiPlanningStore((state) => state.chatbotInitialSession)
+  const replacePlanningSession = planningSessionState.replaceSession
+  const chatbotViewModel = useFollowUpChatbot({
+    projectId,
+    initialSession: isChatbotMode && chatbotInitialSession ? chatbotInitialSession : planningSessionState.session,
+    enabled: isChatbotMode,
+    onSessionChange: replacePlanningSession,
+  })
+
+  const questions = useMemo(
+    () => planningSessionState.session?.clarifyingQuestions ?? [],
+    [planningSessionState.session]
+  )
+
+  useEffect(() => {
+    return () => {
+      resetAiPlanningStore()
+    }
+  }, [resetAiPlanningStore])
+
+  const enterChatbotMode = () => {
+    router.push(buildAiPlanningHref(projectId, 'chatbot', planningParam))
+  }
+
+  const exitChatbotMode = () => {
+    router.push(buildAiPlanningHref(projectId, 'default', planningParam))
+  }
+
+  const pt1AnswerSubmission = usePt1AnswerAutoSubmission({
+    projectId,
+    questions,
+    selectedAnswers,
+    customAnswers,
+    fieldAnswers,
+    readyForApproval: Boolean(planningSessionState.session?.readyForApproval),
+    onSessionChange: replacePlanningSession,
+  })
+  const canEnterPt2 =
+    planningSessionState.session?.readyForApproval ||
+    pt1AnswerSubmission.hasSavedAllAnswers
 
   useEffect(() => {
     setNavigationState(createAiPlanningNavigationState({
@@ -191,17 +234,17 @@ export function AiPlanningPageClient({
       session: planningSessionState.session,
       questions,
       canEnterPt2: Boolean(canEnterPt2),
-      hasPendingSave,
-      hasSaveError,
+      hasPendingSave: pt1AnswerSubmission.hasPendingSave,
+      hasSaveError: pt1AnswerSubmission.hasSaveError,
     }))
   }, [
     canEnterPt2,
     chatbotViewModel.readyBrief,
-    hasSaveError,
-    hasPendingSave,
     isChatbotMode,
     questions,
     planningSessionState.session,
+    pt1AnswerSubmission.hasPendingSave,
+    pt1AnswerSubmission.hasSaveError,
     setNavigationState,
   ])
 
