@@ -1,13 +1,12 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { mapPlanningSetupAnswersToIntakeRequest, validatePlanningSetupAnswers } from '@/features/planningSetup/lib/intakeRequest'
-import { submitIntakeCommand, enterPlanningWorkspace } from '@/lib/services/planning'
+import { enterPlanningWorkspace } from '@/lib/services/planning'
 import { startGenerationFromCommand } from '@/lib/services/generations'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
-import { usePlanningStore } from '@/store/usePlanningStore'
 import { buildAnalyzeWorkflowStepPath } from './analyzeWorkflowSteps'
 import { useAnalyzeWorkflowRouteState } from './useAnalyzeWorkflowRouteState'
+import { usePlanningSetupStepSubmission } from './usePlanningSetupStepSubmission'
 
 export interface AnalyzeWorkflowNextStepState {
   shouldRenderNextStepButton: boolean
@@ -17,6 +16,7 @@ export interface AnalyzeWorkflowNextStepState {
 
 export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
   const router = useRouter()
+  const routeState = useAnalyzeWorkflowRouteState()
   const {
     projectId,
     planning,
@@ -26,14 +26,11 @@ export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
     isPlanningSetupStep,
     isAiPlanningStep,
     isChatbotMode,
-  } = useAnalyzeWorkflowRouteState()
-
-  const planningAnswers = usePlanningStore((state) => state.answers)
-  const isSubmitting = usePlanningStore((state) => state.isSubmitting)
-  const lastSubmittedIntakeKey = usePlanningStore((state) => state.lastSubmittedIntakeKey)
-  const setSubmitting = usePlanningStore((state) => state.setSubmitting)
-  const setSubmitError = usePlanningStore((state) => state.setSubmitError)
-  const markIntakeSubmitted = usePlanningStore((state) => state.markIntakeSubmitted)
+  } = routeState
+  const {
+    isSubmittingPlanningSetup,
+    submitPlanningSetupOnceAndOpenNextStep,
+  } = usePlanningSetupStepSubmission(routeState)
 
   const canProceedAiPlanning = useAiPlanningStore((state) => state.canProceed)
   const isAdvancingAiPlanning = useAiPlanningStore((state) => state.isAdvancing)
@@ -46,14 +43,14 @@ export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
 
   const shouldRenderNextStepButton = !isHomePage && !isLastStep
   const isNextStepButtonDisabled =
-    isSubmitting ||
+    isSubmittingPlanningSetup ||
     (isAiPlanningStep && (!canProceedAiPlanning || isAdvancingAiPlanning))
 
   async function advanceToNextWorkflowStep() {
     if (isLastStep || !nextStep) return
 
     if (isPlanningSetupStep) {
-      await submitPlanningSetupAndOpenNextStep(nextStep.path)
+      await submitPlanningSetupOnceAndOpenNextStep(nextStep.path)
       return
     }
 
@@ -63,39 +60,6 @@ export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
     }
 
     router.push(buildAnalyzeWorkflowStepPath(nextStep.path, { projectId, planning }))
-  }
-
-  async function submitPlanningSetupAndOpenNextStep(nextPath: string) {
-    if (!projectId || isSubmitting) return
-
-    const validationError = validatePlanningSetupAnswers(planningAnswers)
-    if (validationError) {
-      setSubmitError(validationError)
-      return
-    }
-
-    const intakeSubmissionKey = `${projectId}:${planning ?? ''}`
-    if (lastSubmittedIntakeKey === intakeSubmissionKey) {
-      router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, planning }))
-      return
-    }
-
-    setSubmitting(true)
-    setSubmitError(null)
-
-    try {
-      await submitIntakeCommand(projectId, mapPlanningSetupAnswersToIntakeRequest(planningAnswers))
-      markIntakeSubmitted(intakeSubmissionKey)
-      router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, planning }))
-    } catch (error) {
-      setSubmitError(
-        error instanceof Error
-          ? error.message
-          : '기획 프리세팅 제출에 실패했습니다.'
-      )
-    } finally {
-      setSubmitting(false)
-    }
   }
 
   async function advanceAiPlanningToChatbotOrGuide(nextPath: string) {
