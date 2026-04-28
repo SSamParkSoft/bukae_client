@@ -23,6 +23,12 @@
 - `chatbotSessionByPlanningSessionId`
   - follow-up chatbot workspace 진입 결과
   - 사용 위치: `components/workflow/useAiPlanningStepAdvance.ts`
+- `planningSessionByProjectId`
+  - AI 기획 PT1 질문/세션 복원용
+  - 사용 위치: `app/(shell)/ai-planning/_components/AiPlanningPageClient.tsx`
+- `pt1AnswerDraftByKey`
+  - 사용자가 입력한 PT1 선택/커스텀/필드 답변 draft
+  - 사용 위치: `features/aiPlanning/hooks/state/usePt1AnswerDrafts.ts`
 - `generationRequestIdByBriefVersionId`
   - 촬영가이드 generation 시작 결과
   - 사용 위치: `components/workflow/useAiPlanningStepAdvance.ts`
@@ -51,6 +57,17 @@ planningSessionId
 
 - 같은 planning session으로 이미 chatbot workspace에 진입했다면 cached session을 재사용한다.
 
+### AI planning PT1 복원
+
+```ts
+projectId
+`${projectId}:${planning ?? ''}`
+```
+
+- `planningSessionByProjectId`는 project 기준으로 PT1 질문과 session을 복원한다.
+- `pt1AnswerDraftByKey`는 project와 planning query를 함께 사용해 입력 draft를 복원한다.
+- 촬영가이드 화면에서 이전 단계로 돌아오는 경우 `generationRequestId`가 URL에 남아 있으므로 planning API 재조회와 PT1 auto-submit을 수행하지 않고 cached state를 우선 표시한다.
+
 ### Shooting guide generation
 
 ```ts
@@ -60,15 +77,21 @@ briefVersionId
 - 같은 brief로 이미 generation을 시작했다면 cached `generationRequestId`를 재사용한다.
 - 사용자가 이전 단계로 돌아갔다가 다시 다음으로 이동해도 generation을 중복 시작하지 않는다.
 
-## 조회 데이터 캐시 계획
+## 조회 데이터 캐시
 
-조회성 데이터는 추후 React Query로 옮긴다. 현재 dependency에는 `@tanstack/react-query`가 있다.
+조회성 데이터는 React Query 기반으로 점진 이동한다.
 
-대상:
+현재 적용:
+
+- `features/shootingGuide/hooks/state/useGenerationPolling.ts`
+  - query key: `['generation', projectId, generationRequestId]`
+  - 서버 bootstrap 데이터는 `initialData`로 주입한다.
+  - 완료/실패 상태가 되면 polling을 중단한다.
+
+추후 대상:
 
 - `features/analysisPage/hooks/state/useAnalysisResource.ts`
 - `features/aiPlanning/hooks/state/usePlanningSession.ts`
-- `features/shootingGuide/hooks/state/useGenerationPolling.ts`
 
 예상 query key:
 

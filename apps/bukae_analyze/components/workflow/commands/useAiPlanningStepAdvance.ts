@@ -21,6 +21,7 @@ export function useAiPlanningStepAdvance(
   const {
     projectId,
     planning,
+    generationRequestId,
     isChatbotMode,
   } = routeState
   const canProceedAiPlanning = useAiPlanningStore((state) => state.canProceed)
@@ -82,6 +83,11 @@ export function useAiPlanningStepAdvance(
   }
 
   async function startGenerationOnceAndOpenShootingGuide(nextPath: string) {
+    if (generationRequestId) {
+      router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, planning, generationRequestId }))
+      return
+    }
+
     if (isChatbotMode && briefVersionId) {
       const cachedGenerationRequestId = getCachedGenerationRequestId(briefVersionId)
       const generationRequestId = cachedGenerationRequestId ?? await startGenerationAndCacheRequestId(briefVersionId)

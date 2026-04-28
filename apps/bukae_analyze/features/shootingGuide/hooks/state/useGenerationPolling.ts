@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { getGeneration } from '@/lib/services/generations'
 import { getGenerationFailureMessage, isGenerationCompleted } from '@/features/shootingGuide/lib/generationState'
 import type { Generation } from '@/lib/types/domain'
@@ -17,55 +17,30 @@ export function useGenerationPolling(
   generationRequestId: string | null,
   initialGeneration: Generation | null
 ): GenerationPollingState {
-  const [generation, setGeneration] = useState<Generation | null>(initialGeneration)
-  const [errorMessage, setErrorMessage] = useState<string | null>(() => (
-    getGenerationFailureMessage(initialGeneration)
-  ))
+  const query = useQuery({
+    queryKey: ['generation', projectId, generationRequestId],
+    queryFn: () => getGeneration(projectId as string, generationRequestId as string),
+    enabled: Boolean(projectId && generationRequestId),
+    initialData: initialGeneration ?? undefined,
+    refetchOnWindowFocus: false,
+    refetchInterval: (queryState) => {
+      const generation = queryState.state.data
 
-  useEffect(() => {
-    if (!projectId || !generationRequestId) return
-    if (isGenerationCompleted(generation)) return
-    if (getGenerationFailureMessage(generation)) return
+      if (isGenerationCompleted(generation ?? null)) return false
+      if (getGenerationFailureMessage(generation ?? null)) return false
 
-    let cancelled = false
-    let timerId: number | null = null
+      return GENERATION_POLLING_INTERVAL_MS
+    },
+  })
 
-    async function pollGeneration() {
-      try {
-        const nextGeneration = await getGeneration(projectId as string, generationRequestId as string)
-        if (cancelled) return
-
-        setGeneration(nextGeneration)
-        const failureMessage = getGenerationFailureMessage(nextGeneration)
-        if (failureMessage) {
-          setErrorMessage(failureMessage)
-          return
-        }
-        if (isGenerationCompleted(nextGeneration)) {
-          setErrorMessage(null)
-          return
-        }
-
-        timerId = window.setTimeout(pollGeneration, GENERATION_POLLING_INTERVAL_MS)
-      } catch (error) {
-        if (cancelled) return
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : '촬영가이드 생성 상태를 조회하지 못했습니다.'
-        )
-      }
-    }
-
-    timerId = window.setTimeout(pollGeneration, GENERATION_POLLING_INTERVAL_MS)
-
-    return () => {
-      cancelled = true
-      if (timerId !== null) {
-        window.clearTimeout(timerId)
-      }
-    }
-  }, [generation, generationRequestId, projectId])
+  const generation = query.data ?? null
+  const errorMessage = getGenerationFailureMessage(generation) ?? (
+    query.error instanceof Error
+      ? query.error.message
+      : query.error
+        ? '촬영가이드 생성 상태를 조회하지 못했습니다.'
+        : null
+  )
 
   return { generation, errorMessage }
 }

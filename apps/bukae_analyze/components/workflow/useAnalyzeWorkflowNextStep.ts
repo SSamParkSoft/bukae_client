@@ -18,6 +18,7 @@ export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
   const {
     projectId,
     planning,
+    generationRequestId,
     nextStep,
     isHomePage,
     isLastStep,
@@ -52,7 +53,7 @@ export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
       return
     }
 
-    router.push(buildAnalyzeWorkflowStepPath(nextStep.path, { projectId, planning }))
+    router.push(buildAnalyzeWorkflowStepPath(nextStep.path, { projectId, planning, generationRequestId }))
   }
 
   return {

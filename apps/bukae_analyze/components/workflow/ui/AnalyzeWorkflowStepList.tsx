@@ -21,18 +21,20 @@ function AnalyzeWorkflowStepLink({
   state,
   projectId,
   planning,
+  generationRequestId,
 }: {
   step: { label: string; path: string }
   number: number
   state: StepState
   projectId: string | null
   planning: string | null
+  generationRequestId: string | null
 }) {
   const isActive = state === 'active'
 
   return (
     <Link
-      href={buildAnalyzeWorkflowStepPath(step.path, { projectId, planning })}
+      href={buildAnalyzeWorkflowStepPath(step.path, { projectId, planning, generationRequestId })}
       className={[
         'flex items-center gap-4 w-full transition-colors',
         isActive
@@ -78,6 +80,7 @@ export function AnalyzeWorkflowStepList() {
   const {
     projectId,
     planning,
+    generationRequestId,
     currentStepIndex,
   } = useAnalyzeWorkflowRouteState()
 
@@ -91,6 +94,7 @@ export function AnalyzeWorkflowStepList() {
             state={resolveStepState(index, currentStepIndex)}
             projectId={projectId}
             planning={planning}
+            generationRequestId={generationRequestId}
           />
         </li>
       ))}

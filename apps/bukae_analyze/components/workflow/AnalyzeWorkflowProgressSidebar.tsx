@@ -12,6 +12,7 @@ export function AnalyzeWorkflowProgressSidebar() {
   const {
     projectId,
     planning,
+    generationRequestId,
     previousStep,
     isHomePage,
     isFirstStep,
@@ -22,7 +23,7 @@ export function AnalyzeWorkflowProgressSidebar() {
   const openPreviousWorkflowStep = () => {
     if (isFirstStep || !previousStep) return
     if (previousStep) {
-      router.push(buildAnalyzeWorkflowStepPath(previousStep.path, { projectId, planning }))
+      router.push(buildAnalyzeWorkflowStepPath(previousStep.path, { projectId, planning, generationRequestId }))
     }
   }
 

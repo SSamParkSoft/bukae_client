@@ -4,7 +4,6 @@ import { useMemo } from 'react'
 import { mapShootingGuideToViewModel } from '@/features/shootingGuide/lib/mapShootingGuideToViewModel'
 import { useGenerationPolling } from '@/features/shootingGuide/hooks/state/useGenerationPolling'
 import { getGenerationStatusMessage, isGenerationCompleted } from '@/features/shootingGuide/lib/generationState'
-import { MOCK_SHOOTING_GUIDE } from '@/lib/mocks'
 import { SceneCard } from './SceneCard'
 import type { Generation } from '@/lib/types/domain'
 
@@ -25,8 +24,19 @@ export function ShootingGuidePageClient({
       : null
   ), [generation])
   const viewModel = useMemo(() => (
-    mapShootingGuideToViewModel(shootingGuide ?? MOCK_SHOOTING_GUIDE)
+    shootingGuide ? mapShootingGuideToViewModel(shootingGuide) : null
   ), [shootingGuide])
+
+  if (!projectId || !generationRequestId) {
+    return (
+      <div className="rounded-xl border border-white/20 bg-white/10 p-8 text-white">
+        <p className="text-lg font-medium">촬영가이드 생성 정보를 찾을 수 없습니다.</p>
+        <p className="mt-3 text-sm leading-6 text-white/60">
+          이전 단계에서 촬영가이드 생성을 시작한 뒤 다시 진입해 주세요.
+        </p>
+      </div>
+    )
+  }
 
   if (errorMessage) {
     return (
@@ -37,7 +47,7 @@ export function ShootingGuidePageClient({
     )
   }
 
-  if (projectId && generationRequestId && !shootingGuide) {
+  if (!shootingGuide || !viewModel) {
     return (
       <div className="rounded-xl border border-white/20 bg-white/10 p-8 text-white">
         <p className="text-lg font-medium">{getGenerationStatusMessage(generation)}</p>
@@ -50,12 +60,6 @@ export function ShootingGuidePageClient({
 
   return (
     <>
-      {generation?.scriptPreview ? (
-        <div className="rounded-xl border border-white/20 bg-white/10 p-6 text-white/80">
-          <p className="mb-3 font-medium text-white">스크립트 원문</p>
-          <pre className="whitespace-pre-wrap font-sans text-sm leading-6">{generation.scriptPreview}</pre>
-        </div>
-      ) : null}
       {viewModel.scenes.map((scene) => (
         <SceneCard key={scene.sceneLabel} scene={scene} />
       ))}

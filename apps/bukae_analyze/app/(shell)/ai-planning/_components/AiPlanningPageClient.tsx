@@ -8,6 +8,7 @@ import { useFollowUpChatbot } from '@/features/aiPlanning/hooks/state/useFollowU
 import { usePlanningSession } from '@/features/aiPlanning/hooks/state/usePlanningSession'
 import { usePt1AnswerAutoSubmission } from '@/features/aiPlanning/hooks/state/usePt1AnswerAutoSubmission'
 import { usePt1AnswerDrafts } from '@/features/aiPlanning/hooks/state/usePt1AnswerDrafts'
+import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { FollowUpChatbot } from './chatbotComponents'
 import { PlanningQuestionCard } from './PlanningQuestionCard'
 import { PlanningSessionError } from './PlanningSessionError'
@@ -38,17 +39,24 @@ export function AiPlanningPageClient({
   projectId,
   mode,
   planningParam,
+  generationRequestId,
   initialPlanningSession,
 }: {
   projectId: string
   mode: AiPlanningMode
   planningParam: string | null
+  generationRequestId: string | null
   initialPlanningSession: PlanningSession | null
 }) {
   const router = useRouter()
   const isChatbotMode = mode === 'chatbot'
+  const pt1CacheKey = `${projectId}:${planningParam ?? ''}`
+  const cachedPlanningSession = useAnalyzeWorkflowStore((state) => state.getCachedPlanningSession(projectId))
+  const cachePlanningSession = useAnalyzeWorkflowStore((state) => state.cachePlanningSession)
+  const planningInitialSession = initialPlanningSession ?? cachedPlanningSession
+  const shouldFetchPlanningSession = !isChatbotMode && !generationRequestId
 
-  const planningSessionState = usePlanningSession(projectId, initialPlanningSession, !isChatbotMode)
+  const planningSessionState = usePlanningSession(projectId, planningInitialSession, shouldFetchPlanningSession)
   const {
     selectedAnswers,
     customAnswers,
@@ -56,7 +64,7 @@ export function AiPlanningPageClient({
     selectAnswer,
     changeCustomAnswer,
     changeFieldAnswer,
-  } = usePt1AnswerDrafts()
+  } = usePt1AnswerDrafts(pt1CacheKey)
   const resetAiPlanningStore = useAiPlanningStore((state) => state.reset)
   const chatbotInitialSession = useAiPlanningStore((state) => state.chatbotInitialSession)
   const replacePlanningSession = planningSessionState.replaceSession
@@ -78,6 +86,12 @@ export function AiPlanningPageClient({
     }
   }, [resetAiPlanningStore])
 
+  useEffect(() => {
+    if (!planningSessionState.session) return
+
+    cachePlanningSession(projectId, planningSessionState.session)
+  }, [cachePlanningSession, planningSessionState.session, projectId])
+
   const enterChatbotMode = () => {
     router.push(buildAiPlanningHref(projectId, 'chatbot', planningParam))
   }
@@ -88,6 +102,7 @@ export function AiPlanningPageClient({
 
   const pt1AnswerSubmission = usePt1AnswerAutoSubmission({
     projectId,
+    enabled: !generationRequestId,
     questions,
     selectedAnswers,
     customAnswers,

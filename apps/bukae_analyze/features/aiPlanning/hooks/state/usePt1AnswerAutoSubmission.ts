@@ -14,6 +14,7 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 interface UsePt1AnswerAutoSubmissionParams {
   projectId: string
+  enabled?: boolean
   questions: PlanningQuestion[]
   selectedAnswers: Record<string, string>
   customAnswers: Record<string, string>
@@ -34,6 +35,7 @@ function shouldReplacePlanningSessionAfterPt1Submission(
 
 export function usePt1AnswerAutoSubmission({
   projectId,
+  enabled = true,
   questions,
   selectedAnswers,
   customAnswers,
@@ -62,6 +64,10 @@ export function usePt1AnswerAutoSubmission({
   const hasSaveError = Object.values(saveStatusByQuestionId).some((status) => status === 'error')
 
   useEffect(() => {
+    if (!enabled) {
+      return
+    }
+
     if (!hasAnsweredAllQuestions || readyForApproval) {
       return
     }
@@ -118,6 +124,7 @@ export function usePt1AnswerAutoSubmission({
     }
   }, [
     answerRequests,
+    enabled,
     hasAnsweredAllQuestions,
     onSessionChange,
     projectId,

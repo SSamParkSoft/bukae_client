@@ -13,6 +13,7 @@ export interface AnalyzeWorkflowRouteState {
   pathname: string
   projectId: string | null
   planning: string | null
+  generationRequestId: string | null
   mode: string | null
   currentStepIndex: number
   currentStep: AnalyzeWorkflowStep | null
@@ -30,6 +31,7 @@ export function useAnalyzeWorkflowRouteState(): AnalyzeWorkflowRouteState {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId')
+  const generationRequestId = searchParams.get('generationRequestId')
   const planningFromQuery = searchParams.get('planning')
   const mode = searchParams.get('mode')
   const planningAnswers = usePlanningStore((state) => state.answers)
@@ -48,6 +50,7 @@ export function useAnalyzeWorkflowRouteState(): AnalyzeWorkflowRouteState {
     pathname,
     projectId,
     planning,
+    generationRequestId,
     mode,
     currentStepIndex,
     currentStep,

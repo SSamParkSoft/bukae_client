@@ -18,11 +18,13 @@ export default async function AiPlanningPage({
     mode?: string | string[]
     planning?: string | string[]
     projectId?: string | string[]
+    generationRequestId?: string | string[]
   }>
 }) {
-  const { mode, planning, projectId } = await searchParams
+  const { generationRequestId, mode, planning, projectId } = await searchParams
   const resolvedProjectId = resolveSingleSearchParam(projectId)
   const resolvedPlanning = resolveSingleSearchParam(planning)
+  const resolvedGenerationRequestId = resolveSingleSearchParam(generationRequestId)
 
   if (!resolvedProjectId) {
     redirect('/')
@@ -43,6 +45,7 @@ export default async function AiPlanningPage({
         projectId={resolvedProjectId}
         mode={resolvedMode}
         planningParam={resolvedPlanning}
+        generationRequestId={resolvedGenerationRequestId}
         initialPlanningSession={initialPlanningSession}
       />
     )
@@ -59,6 +62,7 @@ export default async function AiPlanningPage({
         projectId={resolvedProjectId}
         mode={resolvedMode}
         planningParam={resolvedPlanning}
+        generationRequestId={resolvedGenerationRequestId}
         initialPlanningSession={initialPlanningSession}
       />
     </div>

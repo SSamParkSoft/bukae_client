@@ -12,6 +12,7 @@ export function buildAnalyzeWorkflowStepPath(
   options: {
     projectId: string | null
     planning: string | null
+    generationRequestId?: string | null
   }
 ): string {
   const params = new URLSearchParams()
@@ -22,6 +23,10 @@ export function buildAnalyzeWorkflowStepPath(
 
   if (options.planning) {
     params.set('planning', options.planning)
+  }
+
+  if (options.generationRequestId) {
+    params.set('generationRequestId', options.generationRequestId)
   }
 
   const query = params.toString()
