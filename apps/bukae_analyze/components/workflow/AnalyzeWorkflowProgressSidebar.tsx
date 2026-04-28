@@ -3,12 +3,16 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { serializePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
 import { usePlanningStore } from '@/store/usePlanningStore'
-import { LAYOUT } from './layout-constants'
-import { STEPS, buildStepPath, getCurrentStepIndex } from '../_utils/stepNavigation'
-import { StepIndicator } from './StepIndicator'
-import { StepNavButton } from '../buttons/StepNavButton'
+import { LAYOUT } from '../layout/layout-constants'
+import {
+  ANALYZE_WORKFLOW_STEPS,
+  buildAnalyzeWorkflowStepPath,
+  getAnalyzeWorkflowStepIndex,
+} from './analyzeWorkflowSteps'
+import { AnalyzeWorkflowStepList } from './AnalyzeWorkflowStepList'
+import { WorkflowStepArrowButton } from './WorkflowStepArrowButton'
 
-export function LeftSidebar() {
+export function AnalyzeWorkflowProgressSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -22,14 +26,14 @@ export function LeftSidebar() {
 
   if (pathname === '/') return null
 
-  const currentIndex = getCurrentStepIndex(pathname)
+  const currentIndex = getAnalyzeWorkflowStepIndex(pathname)
   const isFirst = currentIndex === 0
 
-  const handlePrev = () => {
+  const openPreviousWorkflowStep = () => {
     if (isFirst) return
-    const prevStep = STEPS[currentIndex - 1]
+    const prevStep = ANALYZE_WORKFLOW_STEPS[currentIndex - 1]
     if (prevStep) {
-      router.push(buildStepPath(prevStep.path, { projectId, planning }))
+      router.push(buildAnalyzeWorkflowStepPath(prevStep.path, { projectId, planning }))
     }
   }
 
@@ -40,7 +44,7 @@ export function LeftSidebar() {
     >
       {/* 스텝 인디케이터 */}
       <div style={{ marginTop: LAYOUT.STEP_INDICATOR_TOP, paddingLeft: 'clamp(32px,1.88vw,40px)', paddingRight: '40px' }}>
-        <StepIndicator />
+        <AnalyzeWorkflowStepList />
       </div>
 
       {/* 이전 버튼 */}
@@ -48,7 +52,7 @@ export function LeftSidebar() {
         className="absolute left-0 right-0 flex justify-center"
         style={{ bottom: LAYOUT.NAV_BUTTON_BOTTOM }}
       >
-        <StepNavButton direction="prev" onClick={handlePrev} hidden={isFirst} />
+        <WorkflowStepArrowButton direction="prev" onClick={openPreviousWorkflowStep} hidden={isFirst} />
       </div>
     </aside>
   )

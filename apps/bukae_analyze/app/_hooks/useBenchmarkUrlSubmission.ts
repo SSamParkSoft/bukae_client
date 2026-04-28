@@ -4,23 +4,23 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createProject, submitBenchmark } from '@/lib/services/projects'
 
-export function useUrlInput() {
+export function useBenchmarkUrlSubmission() {
   const router = useRouter()
-  const [url, setUrl] = useState('')
+  const [benchmarkUrl, setBenchmarkUrl] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setUrl(e.target.value)
+  const changeBenchmarkUrl = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBenchmarkUrl(e.target.value)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const submitBenchmarkUrl = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!url.trim() || isSubmitting) return
+    if (!benchmarkUrl.trim() || isSubmitting) return
 
     setIsSubmitting(true)
     try {
       const project = await createProject()
-      await submitBenchmark(project.projectId, url.trim())
+      await submitBenchmark(project.projectId, benchmarkUrl.trim())
       router.push(`/analysis?projectId=${encodeURIComponent(project.projectId)}`)
     } catch (err) {
       console.error('분석 요청 실패:', err)
@@ -29,5 +29,10 @@ export function useUrlInput() {
     }
   }
 
-  return { url, handleChange, handleSubmit, isSubmitting }
+  return {
+    benchmarkUrl,
+    changeBenchmarkUrl,
+    submitBenchmarkUrl,
+    isSubmitting,
+  }
 }

@@ -5,19 +5,19 @@ import { Send } from 'lucide-react'
 const URL_PLACEHOLDER =
   'YouTube | Instagram | TikTok 레퍼런스 숏폼 URL를 입력하세요.'
 
-export function AnalyzeHomeUrlForm({
-  url,
-  onUrlChange,
-  onSubmit,
+export function BenchmarkUrlSubmissionForm({
+  benchmarkUrl,
+  onBenchmarkUrlChange,
+  onSubmitBenchmarkUrl,
   isSubmitting = false,
 }: {
-  url: string
-  onUrlChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void
+  benchmarkUrl: string
+  onBenchmarkUrlChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onSubmitBenchmarkUrl: (e: React.FormEvent<HTMLFormElement>) => void
   isSubmitting?: boolean
 }) {
   return (
-    <form onSubmit={onSubmit} className="w-[70%] max-w-[1360px]">
+    <form onSubmit={onSubmitBenchmarkUrl} className="w-[70%] max-w-[1360px]">
       <label htmlFor="url-input" className="sr-only">
         레퍼런스 숏폼 URL
       </label>
@@ -26,8 +26,8 @@ export function AnalyzeHomeUrlForm({
           <input
             id="url-input"
             type="url"
-            value={url}
-            onChange={onUrlChange}
+            value={benchmarkUrl}
+            onChange={onBenchmarkUrlChange}
             placeholder={URL_PLACEHOLDER}
             className="min-w-0 flex-1 bg-transparent font-20-rg text-white outline-none placeholder:text-white/60 2xl:font-24-rg disabled:opacity-50"
             autoComplete="url"

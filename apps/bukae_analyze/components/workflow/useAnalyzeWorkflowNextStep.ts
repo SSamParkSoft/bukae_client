@@ -7,15 +7,15 @@ import { startGenerationFromCommand } from '@/lib/services/generations'
 import { serializePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { usePlanningStore } from '@/store/usePlanningStore'
-import { STEPS, buildStepPath, getCurrentStepIndex } from '../_utils/stepNavigation'
+import { ANALYZE_WORKFLOW_STEPS, buildAnalyzeWorkflowStepPath, getAnalyzeWorkflowStepIndex } from './analyzeWorkflowSteps'
 
-export interface StepNavigationState {
-  isHidden: boolean
-  isDisabled: boolean
-  handleNext: () => Promise<void>
+export interface AnalyzeWorkflowNextStepState {
+  shouldRenderNextStepButton: boolean
+  isNextStepButtonDisabled: boolean
+  advanceToNextWorkflowStep: () => Promise<void>
 }
 
-export function useStepNavigation(): StepNavigationState {
+export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -47,32 +47,32 @@ export function useStepNavigation(): StepNavigationState {
     ? serializePlanningSetupAnswers(planningAnswers)
     : planningFromQuery
 
-  const currentIndex = getCurrentStepIndex(pathname)
-  const isLast = currentIndex === STEPS.length - 1
-  const isHidden = pathname === '/' || isLast
-  const isDisabled =
+  const currentIndex = getAnalyzeWorkflowStepIndex(pathname)
+  const isLastStep = currentIndex === ANALYZE_WORKFLOW_STEPS.length - 1
+  const shouldRenderNextStepButton = pathname !== '/' && !isLastStep
+  const isNextStepButtonDisabled =
     isSubmitting ||
     (isAiPlanning && (!canProceedAiPlanning || isAdvancingAiPlanning))
 
-  async function handleNext() {
-    if (isLast) return
-    const nextStep = STEPS[currentIndex + 1]
+  async function advanceToNextWorkflowStep() {
+    if (isLastStep) return
+    const nextStep = ANALYZE_WORKFLOW_STEPS[currentIndex + 1]
     if (!nextStep) return
 
     if (isPlanningSetup) {
-      await handlePlanningSetupNext(nextStep.path)
+      await submitPlanningSetupAndOpenNextStep(nextStep.path)
       return
     }
 
     if (isAiPlanning) {
-      await handleAiPlanningNext(nextStep.path)
+      await advanceAiPlanningToChatbotOrGuide(nextStep.path)
       return
     }
 
-    router.push(buildStepPath(nextStep.path, { projectId, planning }))
+    router.push(buildAnalyzeWorkflowStepPath(nextStep.path, { projectId, planning }))
   }
 
-  async function handlePlanningSetupNext(nextPath: string) {
+  async function submitPlanningSetupAndOpenNextStep(nextPath: string) {
     if (!projectId || isSubmitting) return
 
     const validationError = validatePlanningSetupAnswers(planningAnswers)
@@ -83,7 +83,7 @@ export function useStepNavigation(): StepNavigationState {
 
     const intakeSubmissionKey = `${projectId}:${planning ?? ''}`
     if (lastSubmittedIntakeKey === intakeSubmissionKey) {
-      router.push(buildStepPath(nextPath, { projectId, planning }))
+      router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, planning }))
       return
     }
 
@@ -93,7 +93,7 @@ export function useStepNavigation(): StepNavigationState {
     try {
       await submitIntakeCommand(projectId, mapPlanningSetupAnswersToIntakeRequest(planningAnswers))
       markIntakeSubmitted(intakeSubmissionKey)
-      router.push(buildStepPath(nextPath, { projectId, planning }))
+      router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, planning }))
     } catch (error) {
       setSubmitError(
         error instanceof Error
@@ -105,19 +105,19 @@ export function useStepNavigation(): StepNavigationState {
     }
   }
 
-  async function handleAiPlanningNext(nextPath: string) {
+  async function advanceAiPlanningToChatbotOrGuide(nextPath: string) {
     if (!projectId || !canProceedAiPlanning || isAdvancingAiPlanning) return
 
     setAdvancingAiPlanning(true)
 
     try {
       if (aiPlanningNextTarget === 'chatbot') {
-        await enterChatbotMode()
+        await enterFollowUpChatbotMode()
         return
       }
 
       if (aiPlanningNextTarget === 'shooting-guide') {
-        await goToShootingGuide(nextPath)
+        await startGenerationAndOpenShootingGuide(nextPath)
         return
       }
     } finally {
@@ -125,7 +125,7 @@ export function useStepNavigation(): StepNavigationState {
     }
   }
 
-  async function enterChatbotMode() {
+  async function enterFollowUpChatbotMode() {
     if (planningSessionId) {
       const chatbotSession = await enterPlanningWorkspace(projectId!, {
         planningSessionId,
@@ -144,7 +144,7 @@ export function useStepNavigation(): StepNavigationState {
     router.push(`/ai-planning?${params.toString()}`)
   }
 
-  async function goToShootingGuide(nextPath: string) {
+  async function startGenerationAndOpenShootingGuide(nextPath: string) {
     if (isChatbotMode && briefVersionId) {
       const generation = await startGenerationFromCommand(projectId!, {
         briefVersionId,
@@ -160,8 +160,12 @@ export function useStepNavigation(): StepNavigationState {
       return
     }
 
-    router.push(buildStepPath(nextPath, { projectId, planning }))
+    router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, planning }))
   }
 
-  return { isHidden, isDisabled, handleNext }
+  return {
+    shouldRenderNextStepButton,
+    isNextStepButtonDisabled,
+    advanceToNextWorkflowStep,
+  }
 }

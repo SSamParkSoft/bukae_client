@@ -4,7 +4,11 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { serializePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
 import { usePlanningStore } from '@/store/usePlanningStore'
-import { STEPS, buildStepPath, getCurrentStepIndex } from '../_utils/stepNavigation'
+import {
+  ANALYZE_WORKFLOW_STEPS,
+  buildAnalyzeWorkflowStepPath,
+  getAnalyzeWorkflowStepIndex,
+} from './analyzeWorkflowSteps'
 
 type StepState = 'completed' | 'active' | 'upcoming'
 
@@ -14,7 +18,7 @@ function resolveStepState(index: number, currentIndex: number): StepState {
   return 'upcoming'
 }
 
-function StepItem({
+function AnalyzeWorkflowStepLink({
   step,
   number,
   state,
@@ -31,7 +35,7 @@ function StepItem({
 
   return (
     <Link
-      href={buildStepPath(step.path, { projectId, planning })}
+      href={buildAnalyzeWorkflowStepPath(step.path, { projectId, planning })}
       className={[
         'flex items-center gap-4 w-full transition-colors',
         isActive
@@ -73,7 +77,7 @@ function StepItem({
   )
 }
 
-export function StepIndicator() {
+export function AnalyzeWorkflowStepList() {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId')
@@ -83,13 +87,13 @@ export function StepIndicator() {
     pathname.startsWith('/planning-setup')
       ? serializePlanningSetupAnswers(planningAnswers)
       : planningFromQuery
-  const currentIndex = getCurrentStepIndex(pathname)
+  const currentIndex = getAnalyzeWorkflowStepIndex(pathname)
 
   return (
     <ol className="flex flex-col gap-6">
-      {STEPS.map((step, index) => (
+      {ANALYZE_WORKFLOW_STEPS.map((step, index) => (
         <li key={step.path}>
-          <StepItem
+          <AnalyzeWorkflowStepLink
             step={step}
             number={index + 1}
             state={resolveStepState(index, currentIndex)}

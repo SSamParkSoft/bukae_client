@@ -9,7 +9,7 @@ type Props = {
   disabled?: boolean
 }
 
-export function StepNavButton({
+export function WorkflowStepArrowButton({
   direction,
   onClick,
   hidden = false,
