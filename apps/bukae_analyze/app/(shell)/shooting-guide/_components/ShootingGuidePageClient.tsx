@@ -1,32 +1,12 @@
 'use client'
 
 import { useMemo } from 'react'
-import { mapShootingGuideToViewModel } from '@/features/shootingGuide/hooks/viewmodel/useShootingGuideViewModel'
+import { mapShootingGuideToViewModel } from '@/features/shootingGuide/lib/mapShootingGuideToViewModel'
 import { useGenerationPolling } from '@/features/shootingGuide/hooks/state/useGenerationPolling'
+import { getGenerationStatusMessage, isGenerationCompleted } from '@/features/shootingGuide/lib/generationState'
 import { MOCK_SHOOTING_GUIDE } from '@/lib/mocks'
 import { SceneCard } from './SceneCard'
 import type { Generation } from '@/lib/types/domain'
-
-function isGenerationCompleted(generation: Generation | null): boolean {
-  return (
-    generation?.generationStatus === 'COMPLETED' ||
-    generation?.projectStatus === 'GENERATION_COMPLETED'
-  )
-}
-
-function getStatusMessage(generation: Generation | null): string {
-  switch (generation?.generationStatus) {
-    case 'GENERATING_GUIDE':
-      return '촬영가이드를 생성 중입니다.'
-    case 'GENERATING_SCRIPT':
-      return '스크립트를 생성 중입니다.'
-    case 'REVIEWING':
-      return '생성 결과를 검토 중입니다.'
-    case 'PREPARING':
-    default:
-      return '촬영가이드와 스크립트 생성을 준비 중입니다.'
-  }
-}
 
 export function ShootingGuidePageClient({
   projectId,
@@ -60,7 +40,7 @@ export function ShootingGuidePageClient({
   if (projectId && generationRequestId && !shootingGuide) {
     return (
       <div className="rounded-xl border border-white/20 bg-white/10 p-8 text-white">
-        <p className="text-lg font-medium">{getStatusMessage(generation)}</p>
+        <p className="text-lg font-medium">{getGenerationStatusMessage(generation)}</p>
         <p className="mt-3 text-sm leading-6 text-white/60">
           생성이 완료되면 이 화면에서 촬영가이드와 스크립트가 자동으로 표시됩니다.
         </p>

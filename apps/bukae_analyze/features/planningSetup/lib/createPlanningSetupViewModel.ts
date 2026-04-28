@@ -1,14 +1,11 @@
-'use client'
-
-import { useMemo } from 'react'
 import type { VideoCategory, FaceExposure, VideoLength, ShootingAvailability } from '@/lib/types/domain'
-import type { PlanningSetupViewModel } from '../../types/viewModel'
-import type { PlanningSetupForm } from '../form/usePlanningSetupForm'
+import type { PlanningSetupViewModel } from '../types/viewModel'
+import type { PlanningSetupForm } from '../hooks/form/usePlanningSetupForm'
 
-export function usePlanningSetupViewModel(form: PlanningSetupForm): PlanningSetupViewModel {
+export function createPlanningSetupViewModel(form: PlanningSetupForm): PlanningSetupViewModel {
   const { answers, update } = form
 
-  return useMemo((): PlanningSetupViewModel => ({
+  return {
     category: {
       selected: answers.category,
       customValue: answers.categoryCustom,
@@ -37,5 +34,5 @@ export function usePlanningSetupViewModel(form: PlanningSetupForm): PlanningSetu
       value: answers.coreMaterial,
       onChange: (value: string) => update({ coreMaterial: value }),
     },
-  }), [answers, update])
+  }
 }

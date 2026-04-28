@@ -2,7 +2,7 @@
 
 import type { PlanningSetupAnswers } from '@/lib/types/domain'
 import { usePlanningSetupForm } from '@/features/planningSetup/hooks/form/usePlanningSetupForm'
-import { usePlanningSetupViewModel } from '@/features/planningSetup/hooks/viewmodel/usePlanningSetupViewModel'
+import { createPlanningSetupViewModel } from '@/features/planningSetup/lib/createPlanningSetupViewModel'
 import { usePlanningStore } from '@/store/usePlanningStore'
 import { CategoryQuestion } from './CategoryQuestion'
 import { CoreMaterialQuestion } from './CoreMaterialQuestion'
@@ -16,7 +16,7 @@ export function PlanningSetupPageClient({
   initialAnswers: PlanningSetupAnswers
 }) {
   const form = usePlanningSetupForm(initialAnswers)
-  const viewModel = usePlanningSetupViewModel(form)
+  const viewModel = createPlanningSetupViewModel(form)
   const isSubmitting = usePlanningStore((state) => state.isSubmitting)
   const submitError = usePlanningStore((state) => state.submitError)
 

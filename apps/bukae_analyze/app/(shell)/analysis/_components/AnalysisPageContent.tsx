@@ -35,7 +35,7 @@ export function AnalysisPageContent() {
     )
   }
 
-  if (!isReady || isLoading) {
+  if (!isReady || isLoading || !viewModel) {
     return (
       <div className="relative flex min-w-0 flex-1 flex-col">
         <AnalysisLoadingOverlay visible />

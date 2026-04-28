@@ -64,9 +64,6 @@ export function getDraftAnswerText(
   return trim(selectedOption?.label ?? draft.selectedValue)
 }
 
-/** @deprecated buildPt1SlotAnswerCommand 사용 */
-export const buildSlotAnswerRequest = buildPt1SlotAnswerCommand
-
 export function buildPt1SlotAnswerCommand(
   question: PlanningQuestion,
   draft: PlanningQuestionDraft

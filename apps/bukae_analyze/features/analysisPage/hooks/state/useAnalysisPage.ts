@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
-import { mapVideoAnalysisToViewModel } from '@/features/videoAnalysis/hooks/viewmodel/useVideoAnalysisViewModel'
+import { mapVideoAnalysisToViewModel } from '@/features/videoAnalysis/lib/mapVideoAnalysisToViewModel'
 import type { VideoAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 import type {
   AnalysisResourceErrorType,
@@ -22,7 +21,7 @@ export interface AnalysisPageState {
   activeTab: AnalysisTabId
   setActiveTab: (tab: AnalysisTabId) => void
   tabs: typeof TABS
-  viewModel: VideoAnalysisViewModel
+  viewModel: VideoAnalysisViewModel | null
   referenceUrl: string
   videoSrc: string
   isReady: boolean
@@ -42,8 +41,9 @@ export function useAnalysisPage(
     initialSnapshot
   )
 
-  // videoAnalysis가 없는 동안은 mock 데이터로 대체 (isReady가 false이므로 렌더되지 않음)
-  const viewModel = mapVideoAnalysisToViewModel(result?.videoAnalysis ?? MOCK_VIDEO_ANALYSIS)
+  const viewModel = result?.videoAnalysis
+    ? mapVideoAnalysisToViewModel(result.videoAnalysis)
+    : null
 
   return {
     activeTab,

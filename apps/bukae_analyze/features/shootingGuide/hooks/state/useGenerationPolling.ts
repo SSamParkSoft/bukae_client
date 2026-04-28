@@ -2,35 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { getGeneration } from '@/lib/services/generations'
+import { getGenerationFailureMessage, isGenerationCompleted } from '@/features/shootingGuide/lib/generationState'
 import type { Generation } from '@/lib/types/domain'
 
 const GENERATION_POLLING_INTERVAL_MS = 3000
-
-function isGenerationCompleted(generation: Generation | null): boolean {
-  return (
-    generation?.generationStatus === 'COMPLETED' ||
-    generation?.projectStatus === 'GENERATION_COMPLETED'
-  )
-}
-
-function getGenerationFailureMessage(generation: Generation | null): string | null {
-  if (!generation) return null
-  if (
-    !generation.failure &&
-    generation.generationStatus !== 'FAILED' &&
-    !generation.lastErrorCode &&
-    !generation.lastErrorMessage
-  ) {
-    return null
-  }
-
-  return (
-    generation.failure?.summary ??
-    generation.lastErrorMessage ??
-    generation.lastErrorCode ??
-    '촬영가이드 생성에 실패했습니다.'
-  )
-}
 
 export interface GenerationPollingState {
   generation: Generation | null

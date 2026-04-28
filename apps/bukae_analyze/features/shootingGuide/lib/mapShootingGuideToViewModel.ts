@@ -1,5 +1,5 @@
 import type { ShootingGuide } from '@/lib/types/domain'
-import type { ShootingGuideViewModel, ShootingSceneViewModel } from '../../types/viewModel'
+import type { ShootingGuideViewModel, ShootingSceneViewModel } from '../types/viewModel'
 
 export function mapShootingGuideToViewModel(domain: ShootingGuide): ShootingGuideViewModel {
   return {

@@ -4,7 +4,7 @@ import type {
   ThumbnailAnalysisViewModel,
   VideoAnalysisViewModel,
   VideoStructureViewModel,
-} from '../../types/viewModel'
+} from '../types/viewModel'
 
 const PACING_LABEL: Record<VideoAnalysis['hook']['pacing'], string> = {
   fast: '빠름',
