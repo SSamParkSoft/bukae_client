@@ -491,6 +491,67 @@ export function useFollowUpChatbot({
     stageMessage,
   ])
 
+  const submitCurrentAnswer = useCallback(() => {
+    const trimmedAnswer = answer.trim()
+    const question = currentQuestion
+    if (!enabled || !trimmedAnswer || !question || isSubmitting) return
+
+    setAnswer('')
+    setIsSubmitting(true)
+    setStageMessage(STAGE_MESSAGES.reflectingAnswer)
+    setPendingQA([
+      { role: 'ai', text: question.question },
+      { role: 'user', text: trimmedAnswer },
+    ])
+
+    void submitPt2FreeText(projectId, {
+      questionId: question.questionId,
+      questionTitle: question.title,
+      question: question.question,
+      referenceInsight: question.referenceInsight,
+      reasonWhyAsked: question.reasonWhyAsked,
+      slotKey: question.slotKey,
+      message: trimmedAnswer,
+    })
+      .then((nextSession) => {
+        applySession(nextSession)
+        const unresolvedNextQuestions = getUnresolvedNextQuestions(nextSession, question)
+        setQuestionQueue((prev) => (
+          unresolvedNextQuestions.length > 0 ? unresolvedNextQuestions : prev.slice(1)
+        ))
+        setPendingQA([])
+        setErrorMessage(null)
+      })
+      .catch((error) => {
+        setPendingQA([])
+        void resolvePlanningRecovery(
+          projectId,
+          error,
+          '답변 전송에 실패했습니다.'
+        ).then((recovery) => {
+          if (recovery.finalizedProject) {
+            applyFinalizedProjectRef.current(recovery.finalizedProject)
+            return
+          }
+
+          setErrorMessage(recovery.errorMessage)
+        }).catch(() => {
+          setErrorMessage(getErrorMessage(error, '답변 전송에 실패했습니다.'))
+        })
+      })
+      .finally(() => {
+        setIsSubmitting(false)
+      })
+  }, [
+    answer,
+    applyFinalizedProjectRef,
+    applySession,
+    currentQuestion,
+    enabled,
+    isSubmitting,
+    projectId,
+  ])
+
   return useMemo((): FollowUpChatbotViewModel => ({
     messages: visibleMessages,
     currentQuestions,
@@ -499,69 +560,14 @@ export function useFollowUpChatbot({
     isSubmitting,
     isComplete,
     onAnswerChange: (value: string) => setAnswer(value),
-    onSubmit: () => {
-      const trimmedAnswer = answer.trim()
-      const question = currentQuestion
-      if (!enabled || !trimmedAnswer || !question || isSubmitting) return
-
-      setAnswer('')
-      setIsSubmitting(true)
-      setStageMessage(STAGE_MESSAGES.reflectingAnswer)
-      setPendingQA([
-        { role: 'ai', text: question.question },
-        { role: 'user', text: trimmedAnswer },
-      ])
-
-      void submitPt2FreeText(projectId, {
-        questionId: question.questionId,
-        questionTitle: question.title,
-        question: question.question,
-        referenceInsight: question.referenceInsight,
-        reasonWhyAsked: question.reasonWhyAsked,
-        slotKey: question.slotKey,
-        message: trimmedAnswer,
-      })
-        .then((nextSession) => {
-          applySession(nextSession)
-          const unresolvedNextQuestions = getUnresolvedNextQuestions(nextSession, question)
-          setQuestionQueue((prev) => (
-            unresolvedNextQuestions.length > 0 ? unresolvedNextQuestions : prev.slice(1)
-          ))
-          setPendingQA([])
-          setErrorMessage(null)
-        })
-        .catch((error) => {
-          setPendingQA([])
-          void resolvePlanningRecovery(
-            projectId,
-            error,
-            '답변 전송에 실패했습니다.'
-          ).then((recovery) => {
-            if (recovery.finalizedProject) {
-              applyFinalizedProjectRef.current(recovery.finalizedProject)
-              return
-            }
-
-            setErrorMessage(recovery.errorMessage)
-          }).catch(() => {
-            setErrorMessage(getErrorMessage(error, '답변 전송에 실패했습니다.'))
-          })
-        })
-        .finally(() => {
-          setIsSubmitting(false)
-        })
-    },
+    onSubmit: submitCurrentAnswer,
   }), [
     answer,
-    currentQuestion,
     currentQuestions,
-    enabled,
     isComplete,
     isSubmitting,
-    applyFinalizedProjectRef,
-    applySession,
-    projectId,
     readyBrief,
+    submitCurrentAnswer,
     visibleMessages,
   ])
 }

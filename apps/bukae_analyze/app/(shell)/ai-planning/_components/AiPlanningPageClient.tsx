@@ -33,6 +33,16 @@ interface UsePt1AnswerAutoSubmissionParams {
   onSessionChange: (nextSession: PlanningSession) => void
 }
 
+interface UseAiPlanningNavigationStateSyncParams {
+  isChatbotMode: boolean
+  readyBrief: ReturnType<typeof useFollowUpChatbot>['readyBrief']
+  session: PlanningSession | null
+  questions: PlanningQuestion[]
+  canEnterPt2: boolean
+  hasPendingSave: boolean
+  hasSaveError: boolean
+}
+
 function buildAiPlanningHref(
   projectId: string,
   mode: AiPlanningMode,
@@ -161,6 +171,39 @@ function usePt1AnswerAutoSubmission({
   }
 }
 
+function useAiPlanningNavigationStateSync({
+  isChatbotMode,
+  readyBrief,
+  session,
+  questions,
+  canEnterPt2,
+  hasPendingSave,
+  hasSaveError,
+}: UseAiPlanningNavigationStateSyncParams) {
+  const setNavigationState = useAiPlanningStore((state) => state.setNavigationState)
+
+  useEffect(() => {
+    setNavigationState(createAiPlanningNavigationState({
+      isChatbotMode,
+      readyBrief,
+      session,
+      questions,
+      canEnterPt2,
+      hasPendingSave,
+      hasSaveError,
+    }))
+  }, [
+    canEnterPt2,
+    hasPendingSave,
+    hasSaveError,
+    isChatbotMode,
+    questions,
+    readyBrief,
+    session,
+    setNavigationState,
+  ])
+}
+
 export function AiPlanningPageClient({
   projectId,
   mode,
@@ -184,7 +227,6 @@ export function AiPlanningPageClient({
     changeCustomAnswer,
     changeFieldAnswer,
   } = usePt1AnswerDrafts()
-  const setNavigationState = useAiPlanningStore((state) => state.setNavigationState)
   const resetAiPlanningStore = useAiPlanningStore((state) => state.reset)
   const chatbotInitialSession = useAiPlanningStore((state) => state.chatbotInitialSession)
   const replacePlanningSession = planningSessionState.replaceSession
@@ -227,26 +269,15 @@ export function AiPlanningPageClient({
     planningSessionState.session?.readyForApproval ||
     pt1AnswerSubmission.hasSavedAllAnswers
 
-  useEffect(() => {
-    setNavigationState(createAiPlanningNavigationState({
-      isChatbotMode,
-      readyBrief: chatbotViewModel.readyBrief,
-      session: planningSessionState.session,
-      questions,
-      canEnterPt2: Boolean(canEnterPt2),
-      hasPendingSave: pt1AnswerSubmission.hasPendingSave,
-      hasSaveError: pt1AnswerSubmission.hasSaveError,
-    }))
-  }, [
-    canEnterPt2,
-    chatbotViewModel.readyBrief,
+  useAiPlanningNavigationStateSync({
     isChatbotMode,
+    readyBrief: chatbotViewModel.readyBrief,
+    session: planningSessionState.session,
     questions,
-    planningSessionState.session,
-    pt1AnswerSubmission.hasPendingSave,
-    pt1AnswerSubmission.hasSaveError,
-    setNavigationState,
-  ])
+    canEnterPt2: Boolean(canEnterPt2),
+    hasPendingSave: pt1AnswerSubmission.hasPendingSave,
+    hasSaveError: pt1AnswerSubmission.hasSaveError,
+  })
 
   if (isChatbotMode) {
     return (
