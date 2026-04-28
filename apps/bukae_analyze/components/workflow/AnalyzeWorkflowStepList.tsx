@@ -1,14 +1,11 @@
 'use client'
 
-import { usePathname, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { serializePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
-import { usePlanningStore } from '@/store/usePlanningStore'
 import {
   ANALYZE_WORKFLOW_STEPS,
   buildAnalyzeWorkflowStepPath,
-  getAnalyzeWorkflowStepIndex,
 } from './analyzeWorkflowSteps'
+import { useAnalyzeWorkflowRouteState } from './useAnalyzeWorkflowRouteState'
 
 type StepState = 'completed' | 'active' | 'upcoming'
 
@@ -78,16 +75,11 @@ function AnalyzeWorkflowStepLink({
 }
 
 export function AnalyzeWorkflowStepList() {
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const projectId = searchParams.get('projectId')
-  const planningFromQuery = searchParams.get('planning')
-  const planningAnswers = usePlanningStore((state) => state.answers)
-  const planning =
-    pathname.startsWith('/planning-setup')
-      ? serializePlanningSetupAnswers(planningAnswers)
-      : planningFromQuery
-  const currentIndex = getAnalyzeWorkflowStepIndex(pathname)
+  const {
+    projectId,
+    planning,
+    currentStepIndex,
+  } = useAnalyzeWorkflowRouteState()
 
   return (
     <ol className="flex flex-col gap-6">
@@ -96,7 +88,7 @@ export function AnalyzeWorkflowStepList() {
           <AnalyzeWorkflowStepLink
             step={step}
             number={index + 1}
-            state={resolveStepState(index, currentIndex)}
+            state={resolveStepState(index, currentStepIndex)}
             projectId={projectId}
             planning={planning}
           />

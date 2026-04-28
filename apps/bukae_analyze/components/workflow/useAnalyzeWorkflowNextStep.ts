@@ -1,13 +1,13 @@
 'use client'
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { mapPlanningSetupAnswersToIntakeRequest, validatePlanningSetupAnswers } from '@/features/planningSetup/lib/intakeRequest'
 import { submitIntakeCommand, enterPlanningWorkspace } from '@/lib/services/planning'
 import { startGenerationFromCommand } from '@/lib/services/generations'
-import { serializePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { usePlanningStore } from '@/store/usePlanningStore'
-import { ANALYZE_WORKFLOW_STEPS, buildAnalyzeWorkflowStepPath, getAnalyzeWorkflowStepIndex } from './analyzeWorkflowSteps'
+import { buildAnalyzeWorkflowStepPath } from './analyzeWorkflowSteps'
+import { useAnalyzeWorkflowRouteState } from './useAnalyzeWorkflowRouteState'
 
 export interface AnalyzeWorkflowNextStepState {
   shouldRenderNextStepButton: boolean
@@ -16,13 +16,17 @@ export interface AnalyzeWorkflowNextStepState {
 }
 
 export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
-  const pathname = usePathname()
   const router = useRouter()
-  const searchParams = useSearchParams()
-
-  const projectId = searchParams.get('projectId')
-  const planningFromQuery = searchParams.get('planning')
-  const mode = searchParams.get('mode')
+  const {
+    projectId,
+    planning,
+    nextStep,
+    isHomePage,
+    isLastStep,
+    isPlanningSetupStep,
+    isAiPlanningStep,
+    isChatbotMode,
+  } = useAnalyzeWorkflowRouteState()
 
   const planningAnswers = usePlanningStore((state) => state.answers)
   const isSubmitting = usePlanningStore((state) => state.isSubmitting)
@@ -40,31 +44,20 @@ export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
   const setAdvancingAiPlanning = useAiPlanningStore((state) => state.setAdvancing)
   const setChatbotInitialSession = useAiPlanningStore((state) => state.setChatbotInitialSession)
 
-  const isPlanningSetup = pathname.startsWith('/planning-setup')
-  const isAiPlanning = pathname.startsWith('/ai-planning')
-  const isChatbotMode = mode === 'chatbot'
-  const planning = isPlanningSetup
-    ? serializePlanningSetupAnswers(planningAnswers)
-    : planningFromQuery
-
-  const currentIndex = getAnalyzeWorkflowStepIndex(pathname)
-  const isLastStep = currentIndex === ANALYZE_WORKFLOW_STEPS.length - 1
-  const shouldRenderNextStepButton = pathname !== '/' && !isLastStep
+  const shouldRenderNextStepButton = !isHomePage && !isLastStep
   const isNextStepButtonDisabled =
     isSubmitting ||
-    (isAiPlanning && (!canProceedAiPlanning || isAdvancingAiPlanning))
+    (isAiPlanningStep && (!canProceedAiPlanning || isAdvancingAiPlanning))
 
   async function advanceToNextWorkflowStep() {
-    if (isLastStep) return
-    const nextStep = ANALYZE_WORKFLOW_STEPS[currentIndex + 1]
-    if (!nextStep) return
+    if (isLastStep || !nextStep) return
 
-    if (isPlanningSetup) {
+    if (isPlanningSetupStep) {
       await submitPlanningSetupAndOpenNextStep(nextStep.path)
       return
     }
 
-    if (isAiPlanning) {
+    if (isAiPlanningStep) {
       await advanceAiPlanningToChatbotOrGuide(nextStep.path)
       return
     }

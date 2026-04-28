@@ -1,39 +1,28 @@
 'use client'
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { serializePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
-import { usePlanningStore } from '@/store/usePlanningStore'
+import { useRouter } from 'next/navigation'
 import { LAYOUT } from '../layout/layout-constants'
-import {
-  ANALYZE_WORKFLOW_STEPS,
-  buildAnalyzeWorkflowStepPath,
-  getAnalyzeWorkflowStepIndex,
-} from './analyzeWorkflowSteps'
+import { buildAnalyzeWorkflowStepPath } from './analyzeWorkflowSteps'
 import { AnalyzeWorkflowStepList } from './AnalyzeWorkflowStepList'
 import { WorkflowStepArrowButton } from './WorkflowStepArrowButton'
+import { useAnalyzeWorkflowRouteState } from './useAnalyzeWorkflowRouteState'
 
 export function AnalyzeWorkflowProgressSidebar() {
-  const pathname = usePathname()
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const projectId = searchParams.get('projectId')
-  const planningFromQuery = searchParams.get('planning')
-  const planningAnswers = usePlanningStore((state) => state.answers)
-  const planning =
-    pathname.startsWith('/planning-setup')
-      ? serializePlanningSetupAnswers(planningAnswers)
-      : planningFromQuery
+  const {
+    projectId,
+    planning,
+    previousStep,
+    isHomePage,
+    isFirstStep,
+  } = useAnalyzeWorkflowRouteState()
 
-  if (pathname === '/') return null
-
-  const currentIndex = getAnalyzeWorkflowStepIndex(pathname)
-  const isFirst = currentIndex === 0
+  if (isHomePage) return null
 
   const openPreviousWorkflowStep = () => {
-    if (isFirst) return
-    const prevStep = ANALYZE_WORKFLOW_STEPS[currentIndex - 1]
-    if (prevStep) {
-      router.push(buildAnalyzeWorkflowStepPath(prevStep.path, { projectId, planning }))
+    if (isFirstStep || !previousStep) return
+    if (previousStep) {
+      router.push(buildAnalyzeWorkflowStepPath(previousStep.path, { projectId, planning }))
     }
   }
 
@@ -52,7 +41,7 @@ export function AnalyzeWorkflowProgressSidebar() {
         className="absolute left-0 right-0 flex justify-center"
         style={{ bottom: LAYOUT.NAV_BUTTON_BOTTOM }}
       >
-        <WorkflowStepArrowButton direction="prev" onClick={openPreviousWorkflowStep} hidden={isFirst} />
+        <WorkflowStepArrowButton direction="prev" onClick={openPreviousWorkflowStep} hidden={isFirstStep} />
       </div>
     </aside>
   )

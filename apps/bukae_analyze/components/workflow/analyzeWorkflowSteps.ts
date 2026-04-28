@@ -5,6 +5,8 @@ export const ANALYZE_WORKFLOW_STEPS = [
   { label: '촬영가이드 & 스크립트', path: '/shooting-guide' },
 ] as const
 
+export type AnalyzeWorkflowStep = (typeof ANALYZE_WORKFLOW_STEPS)[number]
+
 export function buildAnalyzeWorkflowStepPath(
   path: string,
   options: {
