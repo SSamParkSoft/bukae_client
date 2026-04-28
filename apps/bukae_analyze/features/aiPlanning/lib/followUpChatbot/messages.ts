@@ -3,10 +3,10 @@ import type {
   ChatMessage,
   FollowUpQuestion,
   ReadyBriefViewModel,
-} from '../types/chatbotViewModel'
-import { mapTranscript } from './planningTranscript'
-import type { FinalizedProject } from './planningWorkflow'
-import type { ActiveFollowUpQuestion } from './followUpPlanningQuestions'
+} from '../../types/chatbotViewModel'
+import { mapTranscript } from '../planningTranscript'
+import type { FinalizedProject } from '../planningWorkflow'
+import type { ActiveFollowUpQuestion } from './questions'
 
 export const FOLLOW_UP_STAGE_MESSAGES = {
   waitingQuestion: 'AI가 PT1 답변을 바탕으로 다음 질문을 준비 중입니다.',

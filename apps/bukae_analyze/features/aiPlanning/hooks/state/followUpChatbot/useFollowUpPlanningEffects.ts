@@ -6,17 +6,17 @@ import type { PlanningSession } from '@/lib/types/domain'
 import {
   FOLLOW_UP_STAGE_MESSAGES,
   type FollowUpStageMessage,
-} from '../../lib/followUpChatbotMessages'
+} from '../../../lib/followUpChatbot/messages'
 import {
   type ActiveFollowUpQuestion,
   mapSessionQuestions,
-} from '../../lib/followUpPlanningQuestions'
+} from '../../../lib/followUpChatbot/questions'
 import {
   getErrorMessage,
   resolvePlanningRecovery,
-} from '../../lib/followUpPlanningRecovery'
-import { canFinalizePlanning, hasFinalizePlanningStarted } from '../../lib/planningPredicates'
-import { waitFinalizedProject, type FinalizedProject } from '../../lib/planningWorkflow'
+} from '../../../lib/followUpChatbot/recovery'
+import { canFinalizePlanning, hasFinalizePlanningStarted } from '../../../lib/planningPredicates'
+import { waitFinalizedProject, type FinalizedProject } from '../../../lib/planningWorkflow'
 
 const POLLING_INTERVAL_MS = 2000
 const PLANNING_POLLING_LIMIT = 60

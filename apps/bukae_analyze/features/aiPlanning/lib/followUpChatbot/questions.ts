@@ -1,5 +1,5 @@
 import type { PlanningQuestion, PlanningSession } from '@/lib/types/domain'
-import { getActivePlanningQuestions } from './planningPredicates'
+import { getActivePlanningQuestions } from '../planningPredicates'
 
 export interface ActiveFollowUpQuestion {
   questionId: string

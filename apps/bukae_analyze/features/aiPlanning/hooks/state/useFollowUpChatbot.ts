@@ -10,16 +10,16 @@ import {
   createVisibleMessages,
   mapCurrentQuestion,
   type FollowUpStageMessage,
-} from '../../lib/followUpChatbotMessages'
+} from '../../lib/followUpChatbot/messages'
 import {
   getUnresolvedNextQuestions,
   mapSessionQuestions,
   type ActiveFollowUpQuestion,
-} from '../../lib/followUpPlanningQuestions'
+} from '../../lib/followUpChatbot/questions'
 import {
   getErrorMessage,
   resolvePlanningRecovery,
-} from '../../lib/followUpPlanningRecovery'
+} from '../../lib/followUpChatbot/recovery'
 import { canFinalizePlanning } from '../../lib/planningPredicates'
 import type { FinalizedProject } from '../../lib/planningWorkflow'
 import type {
@@ -33,7 +33,7 @@ import {
   usePollNextFollowUpQuestion,
   useRefreshPlanningSessionOnChatbotEntry,
   useSyncInitialPlanningSession,
-} from './useFollowUpPlanningEffects'
+} from './followUpChatbot/useFollowUpPlanningEffects'
 
 interface UseFollowUpChatbotParams {
   projectId: string

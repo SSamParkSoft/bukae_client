@@ -2,7 +2,7 @@ import {
   getFinalizedProject,
   getStepMismatchMessage,
   type FinalizedProject,
-} from './planningWorkflow'
+} from '../planningWorkflow'
 
 export interface PlanningRecovery {
   finalizedProject: FinalizedProject | null
