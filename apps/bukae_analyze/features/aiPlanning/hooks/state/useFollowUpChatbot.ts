@@ -1,182 +1,39 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getPlanningSession, submitPt2FreeText, finalizePlanning } from '@/lib/services/planning'
-import type { PlanningQuestion, PlanningSession } from '@/lib/types/domain'
-import { canFinalizePlanning, getActivePlanningQuestions, hasFinalizePlanningStarted } from '../../lib/planningPredicates'
-import { mapTranscript } from '../../lib/planningTranscript'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { submitPt2FreeText } from '@/lib/services/planning'
+import type { PlanningSession } from '@/lib/types/domain'
 import {
-  getFinalizedProject,
-  getStepMismatchMessage,
-  waitFinalizedProject,
-  type FinalizedProject,
-} from '../../lib/planningWorkflow'
+  FOLLOW_UP_STAGE_MESSAGES,
+  createChatbotMessages,
+  createReadyBriefViewModel,
+  createVisibleMessages,
+  mapCurrentQuestion,
+  type FollowUpStageMessage,
+} from '../../lib/followUpChatbotMessages'
+import {
+  getUnresolvedNextQuestions,
+  mapSessionQuestions,
+  type ActiveFollowUpQuestion,
+} from '../../lib/followUpPlanningQuestions'
+import {
+  getErrorMessage,
+  resolvePlanningRecovery,
+} from '../../lib/followUpPlanningRecovery'
+import { canFinalizePlanning } from '../../lib/planningPredicates'
+import type { FinalizedProject } from '../../lib/planningWorkflow'
 import type {
   ChatMessage,
   FollowUpChatbotViewModel,
-  FollowUpQuestion,
   ReadyBriefViewModel,
 } from '../../types/chatbotViewModel'
-
-const POLLING_INTERVAL_MS = 2000
-const PLANNING_POLLING_LIMIT = 60
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms)
-  })
-}
-
-// --- Helpers ---
-
-function mapQuestion(question: ActiveQuestion | null | undefined): FollowUpQuestion[] {
-  if (!question) return []
-
-  return [{
-    questionId: question.questionId,
-    question: question.question,
-  }]
-}
-
-function mapSessionQuestions(session: PlanningSession | null): ActiveQuestion[] {
-  return getActivePlanningQuestions(session).map(mapPlanningQuestion)
-}
-
-function mapPlanningQuestion(question: PlanningQuestion): ActiveQuestion {
-  return {
-    questionId: question.questionId,
-    title: question.title,
-    question: question.question,
-    referenceInsight: question.referenceInsight,
-    reasonWhyAsked: question.reasonWhyAsked,
-    slotKey: question.slotKey,
-  }
-}
-
-function createReadyBriefViewModel(
-  finalizedProject: FinalizedProject
-): ReadyBriefViewModel {
-  return {
-    briefVersionId: finalizedProject.briefVersionId,
-    title: finalizedProject.title,
-    planningSummary: finalizedProject.planningSummary,
-    status: finalizedProject.status,
-  }
-}
-
-function getErrorMessage(error: unknown, fallbackMessage: string): string {
-  return error instanceof Error ? error.message : fallbackMessage
-}
-
-async function resolvePlanningRecovery(
-  projectId: string,
-  error: unknown,
-  fallbackMessage: string
-): Promise<PlanningRecovery> {
-  const finalizedProject = await getFinalizedProject(projectId).catch(() => null)
-  if (finalizedProject) {
-    return { finalizedProject, errorMessage: null }
-  }
-
-  const stepMismatchMessage = await getStepMismatchMessage(projectId)
-  return {
-    finalizedProject: null,
-    errorMessage: stepMismatchMessage ?? getErrorMessage(error, fallbackMessage),
-  }
-}
-
-function createChatbotMessages(params: {
-  session: PlanningSession | null
-  currentQuestionId: string | null
-  errorMessage: string | null
-  readyBrief: ReadyBriefViewModel | null
-}): ChatMessage[] {
-  const {
-    session,
-    currentQuestionId,
-    errorMessage,
-    readyBrief,
-  } = params
-
-  if (errorMessage) {
-    return [
-      ...mapTranscript(session, currentQuestionId),
-      { role: 'ai', text: `${STAGE_MESSAGES.error} ${errorMessage}` },
-    ]
-  }
-
-  const transcript = mapTranscript(session, currentQuestionId)
-  if (readyBrief) {
-    return [
-      ...transcript,
-      {
-        role: 'ai',
-        text: [
-          readyBrief.title,
-          readyBrief.planningSummary,
-          STAGE_MESSAGES.readyBrief,
-        ].filter(Boolean).join('\n\n'),
-      },
-    ]
-  }
-
-  return transcript
-}
-
-function createVisibleMessages(params: {
-  messages: ChatMessage[]
-  pendingQA: ChatMessage[]
-  readyBrief: ReadyBriefViewModel | null
-  currentQuestions: FollowUpQuestion[]
-  isSubmitting: boolean
-  canFinalizeCurrentPlanning: boolean
-  isReadyForApproval: boolean
-  stageMessage: StageMessage
-}): ChatMessage[] {
-  const {
-    messages,
-    pendingQA,
-    readyBrief,
-    currentQuestions,
-    isSubmitting,
-    canFinalizeCurrentPlanning,
-    isReadyForApproval,
-    stageMessage,
-  } = params
-  const allMessages = pendingQA.length > 0 ? [...messages, ...pendingQA] : messages
-  const shouldAppendStageMessage =
-    !readyBrief &&
-    pendingQA.length === 0 &&
-    currentQuestions.length === 0 &&
-    (isSubmitting || canFinalizeCurrentPlanning || isReadyForApproval)
-
-  if (allMessages.length > 0 && shouldAppendStageMessage) {
-    return [...allMessages, { role: 'ai', text: stageMessage }]
-  }
-  if (allMessages.length > 0) return allMessages
-  return [{ role: 'ai', text: stageMessage }]
-}
-
-function getUnresolvedNextQuestions(
-  nextSession: PlanningSession,
-  answeredQuestion: ActiveQuestion
-): ActiveQuestion[] {
-  return mapSessionQuestions(nextSession).filter((nextQuestion) => (
-    nextQuestion.questionId !== answeredQuestion.questionId ||
-    nextQuestion.question !== answeredQuestion.question
-  ))
-}
-
-// --- Types ---
-
-interface ActiveQuestion {
-  questionId: string
-  title: string
-  question: string
-  referenceInsight: string | null
-  reasonWhyAsked: string | null
-  slotKey: string
-}
+import {
+  useFinalizePlanningWhenReady,
+  useMountedRef,
+  usePollNextFollowUpQuestion,
+  useRefreshPlanningSessionOnChatbotEntry,
+  useSyncInitialPlanningSession,
+} from './useFollowUpPlanningEffects'
 
 interface UseFollowUpChatbotParams {
   projectId: string
@@ -185,369 +42,6 @@ interface UseFollowUpChatbotParams {
   onSessionChange?: (nextSession: PlanningSession) => void
 }
 
-interface PlanningRecovery {
-  finalizedProject: FinalizedProject | null
-  errorMessage: string | null
-}
-
-const STAGE_MESSAGES = {
-  waitingQuestion: 'AI가 PT1 답변을 바탕으로 다음 질문을 준비 중입니다.',
-  reflectingAnswer: '답변을 반영하고 있습니다.',
-  finalizing: '충분한 정보가 모였습니다. 최종 기획안을 정리 중입니다.',
-  approving: '촬영가이드와 스크립트 생성을 준비 중입니다.',
-  readyBrief: '최종 기획안 요약이 준비되었습니다. 다음 단계로 진행하면 촬영가이드와 스크립트를 생성합니다.',
-  error: '진행 중 문제가 발생했습니다.',
-} as const
-
-type StageMessage = typeof STAGE_MESSAGES[keyof typeof STAGE_MESSAGES]
-type RefState<T> = { current: T }
-type StateSetter<T> = (value: T | ((prev: T) => T)) => void
-
-function useMountedRef(): RefState<boolean> {
-  const isMountedRef = useRef(false)
-
-  useEffect(() => {
-    isMountedRef.current = true
-
-    return () => {
-      isMountedRef.current = false
-    }
-  }, [])
-
-  return isMountedRef
-}
-
-function useSyncInitialPlanningSession(params: {
-  enabled: boolean
-  initialSession: PlanningSession | null
-  appliedSessionRef: RefState<PlanningSession | null>
-  setSession: StateSetter<PlanningSession | null>
-  setQuestionQueue: StateSetter<ActiveQuestion[]>
-}) {
-  const {
-    enabled,
-    initialSession,
-    appliedSessionRef,
-    setSession,
-    setQuestionQueue,
-  } = params
-
-  useEffect(() => {
-    if (!enabled) return
-    if (initialSession && appliedSessionRef.current === initialSession) return
-
-    setSession(initialSession)
-    setQuestionQueue(mapSessionQuestions(initialSession))
-  }, [appliedSessionRef, enabled, initialSession, setQuestionQueue, setSession])
-}
-
-function useRefreshPlanningSessionOnChatbotEntry(params: {
-  enabled: boolean
-  projectId: string
-  refreshedProjectIdRef: RefState<string | null>
-  isInitialRefreshRef: RefState<boolean>
-  isMountedRef: RefState<boolean>
-  applySession: (nextSession: PlanningSession) => void
-  applyFinalizedProject: (finalizedProject: FinalizedProject) => void
-  setQuestionQueue: StateSetter<ActiveQuestion[]>
-  setErrorMessage: StateSetter<string | null>
-}) {
-  const {
-    enabled,
-    projectId,
-    refreshedProjectIdRef,
-    isInitialRefreshRef,
-    isMountedRef,
-    applySession,
-    applyFinalizedProject,
-    setQuestionQueue,
-    setErrorMessage,
-  } = params
-
-  useEffect(() => {
-    if (!enabled) return
-    if (refreshedProjectIdRef.current === projectId) return
-
-    refreshedProjectIdRef.current = projectId
-    isInitialRefreshRef.current = true
-
-    async function refreshPlanning() {
-      try {
-        const nextSession = await getPlanningSession(projectId)
-        if (!isMountedRef.current) return
-
-        applySession(nextSession)
-        setQuestionQueue(mapSessionQuestions(nextSession))
-        setErrorMessage(null)
-      } catch (error) {
-        if (!isMountedRef.current) return
-
-        const recovery = await resolvePlanningRecovery(
-          projectId,
-          error,
-          '기획 상태 조회에 실패했습니다.'
-        )
-        if (recovery.finalizedProject) {
-          applyFinalizedProject(recovery.finalizedProject)
-          return
-        }
-
-        setErrorMessage(recovery.errorMessage)
-      } finally {
-        if (isMountedRef.current) {
-          isInitialRefreshRef.current = false
-        }
-      }
-    }
-
-    void refreshPlanning()
-
-    return () => {
-      isInitialRefreshRef.current = false
-    }
-  }, [
-    applyFinalizedProject,
-    applySession,
-    enabled,
-    isInitialRefreshRef,
-    isMountedRef,
-    projectId,
-    refreshedProjectIdRef,
-    setErrorMessage,
-    setQuestionQueue,
-  ])
-}
-
-function usePollNextFollowUpQuestion(params: {
-  enabled: boolean
-  projectId: string
-  currentQuestion: ActiveQuestion | null
-  canFinalizeCurrentPlanning: boolean
-  isComplete: boolean
-  isReadyForApproval: boolean
-  isInitialRefreshRef: RefState<boolean>
-  isPollingRef: RefState<boolean>
-  isFinalizingRef: RefState<boolean>
-  applySession: (nextSession: PlanningSession) => void
-  applyFinalizedProject: (finalizedProject: FinalizedProject) => void
-  setQuestionQueue: StateSetter<ActiveQuestion[]>
-  setIsSubmitting: StateSetter<boolean>
-  setStageMessage: StateSetter<StageMessage>
-  setErrorMessage: StateSetter<string | null>
-}) {
-  const {
-    enabled,
-    projectId,
-    currentQuestion,
-    canFinalizeCurrentPlanning,
-    isComplete,
-    isReadyForApproval,
-    isInitialRefreshRef,
-    isPollingRef,
-    isFinalizingRef,
-    applySession,
-    applyFinalizedProject,
-    setQuestionQueue,
-    setIsSubmitting,
-    setStageMessage,
-    setErrorMessage,
-  } = params
-
-  useEffect(() => {
-    if (!enabled) return
-    if (isInitialRefreshRef.current) return
-    if ((currentQuestion && !canFinalizeCurrentPlanning) || isComplete || isFinalizingRef.current) return
-    if (canFinalizeCurrentPlanning || isReadyForApproval) return
-    if (isPollingRef.current) return
-
-    let cancelled = false
-    isPollingRef.current = true
-
-    async function pollPlanning() {
-      setIsSubmitting(true)
-      setStageMessage(STAGE_MESSAGES.waitingQuestion)
-
-      for (let i = 0; i < PLANNING_POLLING_LIMIT; i += 1) {
-        if (cancelled) return
-
-        try {
-          const nextSession = await getPlanningSession(projectId)
-          applySession(nextSession)
-          const nextQuestions = mapSessionQuestions(nextSession)
-          if (nextQuestions.length > 0) {
-            setQuestionQueue(nextQuestions)
-          }
-
-          if (nextSession.failure) {
-            throw new Error(
-              nextSession.failure.summary ??
-              nextSession.failure.message ??
-              '기획 상태 조회에 실패했습니다.'
-            )
-          }
-
-          if (nextQuestions.length > 0) {
-            setIsSubmitting(false)
-            return
-          }
-
-          if (canFinalizePlanning(nextSession) || nextSession.readyForApproval) {
-            setIsSubmitting(false)
-            return
-          }
-
-          await sleep(POLLING_INTERVAL_MS)
-        } catch (error) {
-          const recovery = await resolvePlanningRecovery(
-            projectId,
-            error,
-            '기획 상태 조회에 실패했습니다.'
-          )
-          if (recovery.finalizedProject) {
-            applyFinalizedProject(recovery.finalizedProject)
-            setIsSubmitting(false)
-            return
-          }
-
-          setErrorMessage(recovery.errorMessage)
-          setIsSubmitting(false)
-          return
-        }
-      }
-
-      setErrorMessage('PT2 질문 준비 시간이 초과되었습니다.')
-      setIsSubmitting(false)
-    }
-
-    void pollPlanning().finally(() => {
-      isPollingRef.current = false
-    })
-
-    return () => {
-      cancelled = true
-      isPollingRef.current = false
-    }
-  }, [
-    applyFinalizedProject,
-    applySession,
-    canFinalizeCurrentPlanning,
-    currentQuestion,
-    enabled,
-    isComplete,
-    isFinalizingRef,
-    isInitialRefreshRef,
-    isPollingRef,
-    isReadyForApproval,
-    projectId,
-    setErrorMessage,
-    setIsSubmitting,
-    setQuestionQueue,
-    setStageMessage,
-  ])
-}
-
-function useFinalizePlanningWhenReady(params: {
-  enabled: boolean
-  projectId: string
-  session: PlanningSession | null
-  currentQuestion: ActiveQuestion | null
-  canFinalizeCurrentPlanning: boolean
-  isComplete: boolean
-  isReadyForApproval: boolean
-  isFinalizingRef: RefState<boolean>
-  isMountedRef: RefState<boolean>
-  applyFinalizedProject: (finalizedProject: FinalizedProject) => void
-  setIsSubmitting: StateSetter<boolean>
-  setStageMessage: StateSetter<StageMessage>
-  setErrorMessage: StateSetter<string | null>
-}) {
-  const {
-    enabled,
-    projectId,
-    session,
-    currentQuestion,
-    canFinalizeCurrentPlanning,
-    isComplete,
-    isReadyForApproval,
-    isFinalizingRef,
-    isMountedRef,
-    applyFinalizedProject,
-    setIsSubmitting,
-    setStageMessage,
-    setErrorMessage,
-  } = params
-
-  useEffect(() => {
-    if (!enabled) return
-    if (!session) return
-    if ((currentQuestion && !canFinalizeCurrentPlanning) || isComplete || isFinalizingRef.current) return
-    if (!canFinalizeCurrentPlanning && !isReadyForApproval) return
-
-    isFinalizingRef.current = true
-
-    async function finalizeAndGenerate() {
-      const activeSession = session
-      if (!activeSession) return
-
-      try {
-        setIsSubmitting(true)
-
-        if (!activeSession.readyForApproval && !hasFinalizePlanningStarted(activeSession)) {
-          setStageMessage(STAGE_MESSAGES.finalizing)
-          try {
-            await finalizePlanning(projectId, {
-              planningSessionId: activeSession.planningSessionId ?? '',
-            })
-          } catch (error) {
-            const recovery = await resolvePlanningRecovery(
-              projectId,
-              error,
-              '최종 기획안 생성 요청에 실패했습니다.'
-            )
-            if (recovery.finalizedProject) {
-              applyFinalizedProject(recovery.finalizedProject)
-              return
-            }
-
-            throw new Error(recovery.errorMessage ?? '최종 기획안 생성 요청에 실패했습니다.')
-          }
-        }
-
-        setStageMessage(STAGE_MESSAGES.approving)
-        const finalizedProject = await waitFinalizedProject(projectId)
-
-        applyFinalizedProject(finalizedProject)
-      } catch (error) {
-        if (!isMountedRef.current) return
-        setErrorMessage(getErrorMessage(error, '촬영가이드 생성에 실패했습니다.'))
-      } finally {
-        if (isMountedRef.current) {
-          setIsSubmitting(false)
-        }
-        isFinalizingRef.current = false
-      }
-    }
-
-    void finalizeAndGenerate()
-  }, [
-    applyFinalizedProject,
-    canFinalizeCurrentPlanning,
-    currentQuestion,
-    enabled,
-    isComplete,
-    isFinalizingRef,
-    isMountedRef,
-    isReadyForApproval,
-    projectId,
-    session,
-    setErrorMessage,
-    setIsSubmitting,
-    setStageMessage,
-  ])
-}
-
-// --- Hook ---
-
 export function useFollowUpChatbot({
   projectId,
   initialSession,
@@ -555,14 +49,15 @@ export function useFollowUpChatbot({
   onSessionChange,
 }: UseFollowUpChatbotParams): FollowUpChatbotViewModel {
   const [session, setSession] = useState<PlanningSession | null>(initialSession)
-  const [questionQueue, setQuestionQueue] = useState<ActiveQuestion[]>(() => mapSessionQuestions(initialSession))
+  const [questionQueue, setQuestionQueue] = useState<ActiveFollowUpQuestion[]>(() => mapSessionQuestions(initialSession))
   const [answer, setAnswer] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isComplete, setIsComplete] = useState(false)
   const [readyBrief, setReadyBrief] = useState<ReadyBriefViewModel | null>(null)
-  const [stageMessage, setStageMessage] = useState<StageMessage>(STAGE_MESSAGES.waitingQuestion)
+  const [stageMessage, setStageMessage] = useState<FollowUpStageMessage>(FOLLOW_UP_STAGE_MESSAGES.waitingQuestion)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pendingQA, setPendingQA] = useState<ChatMessage[]>([])
+
   const isPollingRef = useRef(false)
   const isFinalizingRef = useRef(false)
   const isInitialRefreshRef = useRef(false)
@@ -583,24 +78,17 @@ export function useFollowUpChatbot({
     setPendingQA([])
     setErrorMessage(null)
     setReadyBrief(createReadyBriefViewModel(finalizedProject))
-    setStageMessage(STAGE_MESSAGES.readyBrief)
+    setStageMessage(FOLLOW_UP_STAGE_MESSAGES.readyBrief)
     setIsComplete(true)
   }, [isMountedRef])
 
   const currentQuestion = questionQueue[0] ?? null
   const currentQuestions = useMemo(
-    () => mapQuestion(currentQuestion),
+    () => mapCurrentQuestion(currentQuestion),
     [currentQuestion]
   )
   const canFinalizeCurrentPlanning = canFinalizePlanning(session)
   const isReadyForApproval = Boolean(session?.readyForApproval)
-
-  const messages = useMemo(() => createChatbotMessages({
-    session,
-    currentQuestionId: currentQuestion?.questionId ?? null,
-    errorMessage,
-    readyBrief,
-  }), [currentQuestion?.questionId, errorMessage, readyBrief, session])
 
   useSyncInitialPlanningSession({
     enabled,
@@ -656,7 +144,13 @@ export function useFollowUpChatbot({
     setErrorMessage,
   })
 
-  // --- Visible messages ---
+  const messages = useMemo(() => createChatbotMessages({
+    session,
+    currentQuestionId: currentQuestion?.questionId ?? null,
+    errorMessage,
+    readyBrief,
+  }), [currentQuestion?.questionId, errorMessage, readyBrief, session])
+
   const visibleMessages = useMemo(() => createVisibleMessages({
     messages,
     pendingQA,
@@ -684,7 +178,7 @@ export function useFollowUpChatbot({
 
     setAnswer('')
     setIsSubmitting(true)
-    setStageMessage(STAGE_MESSAGES.reflectingAnswer)
+    setStageMessage(FOLLOW_UP_STAGE_MESSAGES.reflectingAnswer)
     setPendingQA([
       { role: 'ai', text: question.question },
       { role: 'user', text: trimmedAnswer },
