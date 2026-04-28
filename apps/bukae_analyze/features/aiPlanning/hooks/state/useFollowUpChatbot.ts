@@ -200,49 +200,11 @@ const STAGE_MESSAGES = {
 } as const
 
 type StageMessage = typeof STAGE_MESSAGES[keyof typeof STAGE_MESSAGES]
+type RefState<T> = { current: T }
+type StateSetter<T> = (value: T | ((prev: T) => T)) => void
 
-// --- Hook ---
-
-export function useFollowUpChatbot({
-  projectId,
-  initialSession,
-  enabled,
-  onSessionChange,
-}: UseFollowUpChatbotParams): FollowUpChatbotViewModel {
-  const [session, setSession] = useState<PlanningSession | null>(initialSession)
-  const [questionQueue, setQuestionQueue] = useState<ActiveQuestion[]>(() => mapSessionQuestions(initialSession))
-  const [answer, setAnswer] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isComplete, setIsComplete] = useState(false)
-  const [readyBrief, setReadyBrief] = useState<ReadyBriefViewModel | null>(null)
-  const [stageMessage, setStageMessage] = useState<StageMessage>(STAGE_MESSAGES.waitingQuestion)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [pendingQA, setPendingQA] = useState<ChatMessage[]>([])
-  const isPollingRef = useRef(false)
-  const isFinalizingRef = useRef(false)
-  const isInitialRefreshRef = useRef(false)
-  const refreshedProjectIdRef = useRef<string | null>(null)
-  const appliedSessionRef = useRef<PlanningSession | null>(null)
+function useMountedRef(): RefState<boolean> {
   const isMountedRef = useRef(false)
-  const applyFinalizedProjectRef = useRef<(finalizedProject: FinalizedProject) => void>(() => undefined)
-
-  const applySession = useCallback((nextSession: PlanningSession) => {
-    appliedSessionRef.current = nextSession
-    setSession(nextSession)
-    onSessionChange?.(nextSession)
-  }, [onSessionChange])
-
-  const applyFinalizedProject = useCallback((finalizedProject: FinalizedProject) => {
-    if (!isMountedRef.current) return
-
-    setQuestionQueue([])
-    setPendingQA([])
-    setErrorMessage(null)
-    setReadyBrief(createReadyBriefViewModel(finalizedProject))
-    setStageMessage(STAGE_MESSAGES.readyBrief)
-    setIsComplete(true)
-  }, [])
-  applyFinalizedProjectRef.current = applyFinalizedProject
 
   useEffect(() => {
     isMountedRef.current = true
@@ -252,29 +214,55 @@ export function useFollowUpChatbot({
     }
   }, [])
 
-  const currentQuestion = questionQueue[0] ?? null
-  const currentQuestions = useMemo(
-    () => mapQuestion(currentQuestion),
-    [currentQuestion]
-  )
-  const canFinalizeCurrentPlanning = canFinalizePlanning(session)
-  const isReadyForApproval = Boolean(session?.readyForApproval)
+  return isMountedRef
+}
 
-  const messages = useMemo(() => createChatbotMessages({
-    session,
-    currentQuestionId: currentQuestion?.questionId ?? null,
-    errorMessage,
-    readyBrief,
-  }), [currentQuestion?.questionId, errorMessage, readyBrief, session])
+function useSyncInitialPlanningSession(params: {
+  enabled: boolean
+  initialSession: PlanningSession | null
+  appliedSessionRef: RefState<PlanningSession | null>
+  setSession: StateSetter<PlanningSession | null>
+  setQuestionQueue: StateSetter<ActiveQuestion[]>
+}) {
+  const {
+    enabled,
+    initialSession,
+    appliedSessionRef,
+    setSession,
+    setQuestionQueue,
+  } = params
 
-  // --- Initial refresh ---
   useEffect(() => {
     if (!enabled) return
     if (initialSession && appliedSessionRef.current === initialSession) return
 
     setSession(initialSession)
     setQuestionQueue(mapSessionQuestions(initialSession))
-  }, [enabled, initialSession])
+  }, [appliedSessionRef, enabled, initialSession, setQuestionQueue, setSession])
+}
+
+function useRefreshPlanningSessionOnChatbotEntry(params: {
+  enabled: boolean
+  projectId: string
+  refreshedProjectIdRef: RefState<string | null>
+  isInitialRefreshRef: RefState<boolean>
+  isMountedRef: RefState<boolean>
+  applySession: (nextSession: PlanningSession) => void
+  applyFinalizedProject: (finalizedProject: FinalizedProject) => void
+  setQuestionQueue: StateSetter<ActiveQuestion[]>
+  setErrorMessage: StateSetter<string | null>
+}) {
+  const {
+    enabled,
+    projectId,
+    refreshedProjectIdRef,
+    isInitialRefreshRef,
+    isMountedRef,
+    applySession,
+    applyFinalizedProject,
+    setQuestionQueue,
+    setErrorMessage,
+  } = params
 
   useEffect(() => {
     if (!enabled) return
@@ -300,7 +288,7 @@ export function useFollowUpChatbot({
           '기획 상태 조회에 실패했습니다.'
         )
         if (recovery.finalizedProject) {
-          applyFinalizedProjectRef.current(recovery.finalizedProject)
+          applyFinalizedProject(recovery.finalizedProject)
           return
         }
 
@@ -317,9 +305,54 @@ export function useFollowUpChatbot({
     return () => {
       isInitialRefreshRef.current = false
     }
-  }, [applyFinalizedProjectRef, applySession, enabled, projectId])
+  }, [
+    applyFinalizedProject,
+    applySession,
+    enabled,
+    isInitialRefreshRef,
+    isMountedRef,
+    projectId,
+    refreshedProjectIdRef,
+    setErrorMessage,
+    setQuestionQueue,
+  ])
+}
 
-  // --- Polling for next question ---
+function usePollNextFollowUpQuestion(params: {
+  enabled: boolean
+  projectId: string
+  currentQuestion: ActiveQuestion | null
+  canFinalizeCurrentPlanning: boolean
+  isComplete: boolean
+  isReadyForApproval: boolean
+  isInitialRefreshRef: RefState<boolean>
+  isPollingRef: RefState<boolean>
+  isFinalizingRef: RefState<boolean>
+  applySession: (nextSession: PlanningSession) => void
+  applyFinalizedProject: (finalizedProject: FinalizedProject) => void
+  setQuestionQueue: StateSetter<ActiveQuestion[]>
+  setIsSubmitting: StateSetter<boolean>
+  setStageMessage: StateSetter<StageMessage>
+  setErrorMessage: StateSetter<string | null>
+}) {
+  const {
+    enabled,
+    projectId,
+    currentQuestion,
+    canFinalizeCurrentPlanning,
+    isComplete,
+    isReadyForApproval,
+    isInitialRefreshRef,
+    isPollingRef,
+    isFinalizingRef,
+    applySession,
+    applyFinalizedProject,
+    setQuestionQueue,
+    setIsSubmitting,
+    setStageMessage,
+    setErrorMessage,
+  } = params
+
   useEffect(() => {
     if (!enabled) return
     if (isInitialRefreshRef.current) return
@@ -371,7 +404,7 @@ export function useFollowUpChatbot({
             '기획 상태 조회에 실패했습니다.'
           )
           if (recovery.finalizedProject) {
-            applyFinalizedProjectRef.current(recovery.finalizedProject)
+            applyFinalizedProject(recovery.finalizedProject)
             setIsSubmitting(false)
             return
           }
@@ -395,17 +428,55 @@ export function useFollowUpChatbot({
       isPollingRef.current = false
     }
   }, [
-    applyFinalizedProjectRef,
+    applyFinalizedProject,
     applySession,
     canFinalizeCurrentPlanning,
     currentQuestion,
     enabled,
     isComplete,
+    isFinalizingRef,
+    isInitialRefreshRef,
+    isPollingRef,
     isReadyForApproval,
     projectId,
+    setErrorMessage,
+    setIsSubmitting,
+    setQuestionQueue,
+    setStageMessage,
   ])
+}
 
-  // --- Finalize ---
+function useFinalizePlanningWhenReady(params: {
+  enabled: boolean
+  projectId: string
+  session: PlanningSession | null
+  currentQuestion: ActiveQuestion | null
+  canFinalizeCurrentPlanning: boolean
+  isComplete: boolean
+  isReadyForApproval: boolean
+  isFinalizingRef: RefState<boolean>
+  isMountedRef: RefState<boolean>
+  applyFinalizedProject: (finalizedProject: FinalizedProject) => void
+  setIsSubmitting: StateSetter<boolean>
+  setStageMessage: StateSetter<StageMessage>
+  setErrorMessage: StateSetter<string | null>
+}) {
+  const {
+    enabled,
+    projectId,
+    session,
+    currentQuestion,
+    canFinalizeCurrentPlanning,
+    isComplete,
+    isReadyForApproval,
+    isFinalizingRef,
+    isMountedRef,
+    applyFinalizedProject,
+    setIsSubmitting,
+    setStageMessage,
+    setErrorMessage,
+  } = params
+
   useEffect(() => {
     if (!enabled) return
     if (!session) return
@@ -434,7 +505,7 @@ export function useFollowUpChatbot({
               '최종 기획안 생성 요청에 실패했습니다.'
             )
             if (recovery.finalizedProject) {
-              applyFinalizedProjectRef.current(recovery.finalizedProject)
+              applyFinalizedProject(recovery.finalizedProject)
               return
             }
 
@@ -445,7 +516,7 @@ export function useFollowUpChatbot({
         setStageMessage(STAGE_MESSAGES.approving)
         const finalizedProject = await waitFinalizedProject(projectId)
 
-        applyFinalizedProjectRef.current(finalizedProject)
+        applyFinalizedProject(finalizedProject)
       } catch (error) {
         if (!isMountedRef.current) return
         setErrorMessage(getErrorMessage(error, '촬영가이드 생성에 실패했습니다.'))
@@ -459,16 +530,131 @@ export function useFollowUpChatbot({
 
     void finalizeAndGenerate()
   }, [
-    applyFinalizedProjectRef,
+    applyFinalizedProject,
     canFinalizeCurrentPlanning,
     currentQuestion,
     enabled,
     isComplete,
+    isFinalizingRef,
+    isMountedRef,
     isReadyForApproval,
-    applySession,
     projectId,
     session,
+    setErrorMessage,
+    setIsSubmitting,
+    setStageMessage,
   ])
+}
+
+// --- Hook ---
+
+export function useFollowUpChatbot({
+  projectId,
+  initialSession,
+  enabled,
+  onSessionChange,
+}: UseFollowUpChatbotParams): FollowUpChatbotViewModel {
+  const [session, setSession] = useState<PlanningSession | null>(initialSession)
+  const [questionQueue, setQuestionQueue] = useState<ActiveQuestion[]>(() => mapSessionQuestions(initialSession))
+  const [answer, setAnswer] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isComplete, setIsComplete] = useState(false)
+  const [readyBrief, setReadyBrief] = useState<ReadyBriefViewModel | null>(null)
+  const [stageMessage, setStageMessage] = useState<StageMessage>(STAGE_MESSAGES.waitingQuestion)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [pendingQA, setPendingQA] = useState<ChatMessage[]>([])
+  const isPollingRef = useRef(false)
+  const isFinalizingRef = useRef(false)
+  const isInitialRefreshRef = useRef(false)
+  const refreshedProjectIdRef = useRef<string | null>(null)
+  const appliedSessionRef = useRef<PlanningSession | null>(null)
+  const isMountedRef = useMountedRef()
+
+  const applySession = useCallback((nextSession: PlanningSession) => {
+    appliedSessionRef.current = nextSession
+    setSession(nextSession)
+    onSessionChange?.(nextSession)
+  }, [onSessionChange])
+
+  const applyFinalizedProject = useCallback((finalizedProject: FinalizedProject) => {
+    if (!isMountedRef.current) return
+
+    setQuestionQueue([])
+    setPendingQA([])
+    setErrorMessage(null)
+    setReadyBrief(createReadyBriefViewModel(finalizedProject))
+    setStageMessage(STAGE_MESSAGES.readyBrief)
+    setIsComplete(true)
+  }, [isMountedRef])
+
+  const currentQuestion = questionQueue[0] ?? null
+  const currentQuestions = useMemo(
+    () => mapQuestion(currentQuestion),
+    [currentQuestion]
+  )
+  const canFinalizeCurrentPlanning = canFinalizePlanning(session)
+  const isReadyForApproval = Boolean(session?.readyForApproval)
+
+  const messages = useMemo(() => createChatbotMessages({
+    session,
+    currentQuestionId: currentQuestion?.questionId ?? null,
+    errorMessage,
+    readyBrief,
+  }), [currentQuestion?.questionId, errorMessage, readyBrief, session])
+
+  useSyncInitialPlanningSession({
+    enabled,
+    initialSession,
+    appliedSessionRef,
+    setSession,
+    setQuestionQueue,
+  })
+
+  useRefreshPlanningSessionOnChatbotEntry({
+    enabled,
+    projectId,
+    refreshedProjectIdRef,
+    isInitialRefreshRef,
+    isMountedRef,
+    applySession,
+    applyFinalizedProject,
+    setQuestionQueue,
+    setErrorMessage,
+  })
+
+  usePollNextFollowUpQuestion({
+    enabled,
+    projectId,
+    currentQuestion,
+    canFinalizeCurrentPlanning,
+    isComplete,
+    isReadyForApproval,
+    isInitialRefreshRef,
+    isPollingRef,
+    isFinalizingRef,
+    applySession,
+    applyFinalizedProject,
+    setQuestionQueue,
+    setIsSubmitting,
+    setStageMessage,
+    setErrorMessage,
+  })
+
+  useFinalizePlanningWhenReady({
+    enabled,
+    projectId,
+    session,
+    currentQuestion,
+    canFinalizeCurrentPlanning,
+    isComplete,
+    isReadyForApproval,
+    isFinalizingRef,
+    isMountedRef,
+    applyFinalizedProject,
+    setIsSubmitting,
+    setStageMessage,
+    setErrorMessage,
+  })
 
   // --- Visible messages ---
   const visibleMessages = useMemo(() => createVisibleMessages({
@@ -530,7 +716,7 @@ export function useFollowUpChatbot({
           '답변 전송에 실패했습니다.'
         ).then((recovery) => {
           if (recovery.finalizedProject) {
-            applyFinalizedProjectRef.current(recovery.finalizedProject)
+            applyFinalizedProject(recovery.finalizedProject)
             return
           }
 
@@ -544,7 +730,7 @@ export function useFollowUpChatbot({
       })
   }, [
     answer,
-    applyFinalizedProjectRef,
+    applyFinalizedProject,
     applySession,
     currentQuestion,
     enabled,
