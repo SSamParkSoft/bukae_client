@@ -1,4 +1,4 @@
-import type { PlanningMessageRequestDto } from '@/lib/types/api'
+import type { Pt1SlotAnswerCommand } from '@/lib/types/domain'
 import type { PlanningQuestion } from '@/lib/types/domain'
 
 export interface PlanningQuestionDraft {
@@ -64,10 +64,13 @@ export function getDraftAnswerText(
   return trim(selectedOption?.label ?? draft.selectedValue)
 }
 
-export function buildSlotAnswerRequest(
+/** @deprecated buildPt1SlotAnswerCommand 사용 */
+export const buildSlotAnswerRequest = buildPt1SlotAnswerCommand
+
+export function buildPt1SlotAnswerCommand(
   question: PlanningQuestion,
   draft: PlanningQuestionDraft
-): PlanningMessageRequestDto | null {
+): Pt1SlotAnswerCommand | null {
   if (!isQuestionAnswered(question, draft)) {
     return null
   }
@@ -77,20 +80,16 @@ export function buildSlotAnswerRequest(
     const summary = getDraftAnswerText(question, draft)
 
     return {
+      questionId: question.questionId,
+      questionTitle: question.title,
+      slotKey: question.slotKey,
+      answerType: 'form',
       message: summary,
-      messageType: 'slot_answer',
-      payload: {
-        question_id: question.questionId,
-        question_title: question.title,
-        slot_key: question.slotKey,
-        selected_option_id: '',
-        selected_option_label: '',
-        selected_option_value: '',
-        custom_value: summary,
-        answer_type: 'form',
-        field_values: normalizedFieldValues,
-        answer_source: 'planning_pt1',
-      },
+      selectedOptionId: '',
+      selectedOptionLabel: '',
+      selectedOptionValue: '',
+      customValue: summary,
+      fieldValues: normalizedFieldValues,
     }
   }
 
@@ -98,20 +97,16 @@ export function buildSlotAnswerRequest(
     const value = trim(draft.customValue)
 
     return {
+      questionId: question.questionId,
+      questionTitle: question.title,
+      slotKey: question.slotKey,
+      answerType: 'single_select_with_custom',
       message: value,
-      messageType: 'slot_answer',
-      payload: {
-        question_id: question.questionId,
-        question_title: question.title,
-        slot_key: question.slotKey,
-        selected_option_id: 'custom',
-        selected_option_label: value,
-        selected_option_value: value,
-        custom_value: value,
-        answer_type: 'single_select_with_custom',
-        field_values: null,
-        answer_source: 'planning_pt1',
-      },
+      selectedOptionId: 'custom',
+      selectedOptionLabel: value,
+      selectedOptionValue: value,
+      customValue: value,
+      fieldValues: null,
     }
   }
 
@@ -124,19 +119,15 @@ export function buildSlotAnswerRequest(
   }
 
   return {
+    questionId: question.questionId,
+    questionTitle: question.title,
+    slotKey: question.slotKey,
+    answerType: 'single_select',
     message: selectedOption.label,
-    messageType: 'slot_answer',
-    payload: {
-      question_id: question.questionId,
-      question_title: question.title,
-      slot_key: question.slotKey,
-      selected_option_id: selectedOption.optionId,
-      selected_option_label: selectedOption.label,
-      selected_option_value: selectedOption.value,
-      custom_value: null,
-      answer_type: 'single_select',
-      field_values: null,
-      answer_source: 'planning_pt1',
-    },
+    selectedOptionId: selectedOption.optionId,
+    selectedOptionLabel: selectedOption.label,
+    selectedOptionValue: selectedOption.value,
+    customValue: null,
+    fieldValues: null,
   }
 }

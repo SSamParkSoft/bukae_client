@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { postPlanningMessage } from '@/lib/services/planning'
+import { submitPt1SlotAnswer } from '@/lib/services/planning'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useFollowUpChatbot } from '@/features/aiPlanning/hooks/state/useFollowUpChatbot'
 import { usePlanningSession } from '@/features/aiPlanning/hooks/state/usePlanningSession'
@@ -11,7 +11,7 @@ import { FollowUpChatbot } from './chatbotComponents'
 import { PlanningQuestionCard } from './PlanningQuestionCard'
 import { PlanningSessionError } from './PlanningSessionError'
 import { PlanningSessionLoading } from './PlanningSessionLoading'
-import type { PlanningMessageRequestDto } from '@/lib/types/api'
+import type { Pt1SlotAnswerCommand } from '@/lib/types/domain'
 import type { PlanningSession } from '@/lib/types/domain'
 
 type AiPlanningMode = 'default' | 'chatbot'
@@ -19,7 +19,7 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 interface AnswerRequest {
   questionId: string
-  request: PlanningMessageRequestDto
+  request: Pt1SlotAnswerCommand
   signature: string
 }
 
@@ -165,7 +165,7 @@ export function AiPlanningPageClient({
         if (cancelled) return
 
         try {
-          latestSession = await postPlanningMessage(projectId, request)
+          latestSession = await submitPt1SlotAnswer(projectId, request)
           setSubmittedSignatureByQuestionId((prev) => ({ ...prev, [questionId]: signature }))
           setSaveStatusByQuestionId((prev) => ({ ...prev, [questionId]: 'saved' }))
         } catch {

@@ -1,3 +1,13 @@
+// --- Domain Command Types (mutation 입력) ---
+
+export interface GenerationStartCommand {
+  briefVersionId: string
+  generationMode: 'single'
+  variantCount: number
+}
+
+// --- Domain Model Types ---
+
 export interface GenerationArtifact {
   generatedArtifactId: string | null
   artifactType: string
@@ -26,7 +36,7 @@ export interface Generation {
   variantCount: number | null
   guideUrl: string | null
   scriptUrl: string | null
-  guidePreview: Record<string, unknown> | null
+  shootingGuide: import('./shootingGuide').ShootingGuide | null
   scriptPreview: string
   qaSurface: Record<string, unknown> | null
   generationQualityReview: Record<string, unknown> | null

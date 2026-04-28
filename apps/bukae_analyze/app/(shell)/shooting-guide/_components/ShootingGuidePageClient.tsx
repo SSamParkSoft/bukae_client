@@ -1,40 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import {
-  mapGenerationToShootingGuide,
-  mapShootingGuideToViewModel,
-} from '@/features/shootingGuide/hooks/viewmodel/useShootingGuideViewModel'
-import { getGeneration } from '@/lib/services/generations'
+import { useMemo } from 'react'
+import { mapShootingGuideToViewModel } from '@/features/shootingGuide/hooks/viewmodel/useShootingGuideViewModel'
+import { useGenerationPolling } from '@/features/shootingGuide/hooks/state/useGenerationPolling'
 import { MOCK_SHOOTING_GUIDE } from '@/lib/mocks'
 import { SceneCard } from './SceneCard'
 import type { Generation } from '@/lib/types/domain'
-
-const GENERATION_POLLING_INTERVAL_MS = 3000
 
 function isGenerationCompleted(generation: Generation | null): boolean {
   return (
     generation?.generationStatus === 'COMPLETED' ||
     generation?.projectStatus === 'GENERATION_COMPLETED'
-  )
-}
-
-function getGenerationFailureMessage(generation: Generation | null): string | null {
-  if (!generation) return null
-  if (
-    !generation.failure &&
-    generation.generationStatus !== 'FAILED' &&
-    !generation.lastErrorCode &&
-    !generation.lastErrorMessage
-  ) {
-    return null
-  }
-
-  return (
-    generation.failure?.summary ??
-    generation.lastErrorMessage ??
-    generation.lastErrorCode ??
-    '촬영가이드 생성에 실패했습니다.'
   )
 }
 
@@ -61,59 +37,11 @@ export function ShootingGuidePageClient({
   generationRequestId: string | null
   initialGeneration: Generation | null
 }) {
-  const [generation, setGeneration] = useState<Generation | null>(initialGeneration)
-  const [errorMessage, setErrorMessage] = useState<string | null>(() => (
-    getGenerationFailureMessage(initialGeneration)
-  ))
-
-  useEffect(() => {
-    if (!projectId || !generationRequestId) return
-    if (isGenerationCompleted(generation)) return
-    if (getGenerationFailureMessage(generation)) return
-
-    let cancelled = false
-    let timerId: number | null = null
-
-    async function pollGeneration() {
-      try {
-        const nextGeneration = await getGeneration(projectId as string, generationRequestId as string)
-        if (cancelled) return
-
-        setGeneration(nextGeneration)
-        const failureMessage = getGenerationFailureMessage(nextGeneration)
-        if (failureMessage) {
-          setErrorMessage(failureMessage)
-          return
-        }
-        if (isGenerationCompleted(nextGeneration)) {
-          setErrorMessage(null)
-          return
-        }
-
-        timerId = window.setTimeout(pollGeneration, GENERATION_POLLING_INTERVAL_MS)
-      } catch (error) {
-        if (cancelled) return
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : '촬영가이드 생성 상태를 조회하지 못했습니다.'
-        )
-      }
-    }
-
-    timerId = window.setTimeout(pollGeneration, GENERATION_POLLING_INTERVAL_MS)
-
-    return () => {
-      cancelled = true
-      if (timerId !== null) {
-        window.clearTimeout(timerId)
-      }
-    }
-  }, [generation, generationRequestId, projectId])
+  const { generation, errorMessage } = useGenerationPolling(projectId, generationRequestId, initialGeneration)
 
   const shootingGuide = useMemo(() => (
     generation && isGenerationCompleted(generation)
-      ? mapGenerationToShootingGuide(generation)
+      ? generation.shootingGuide
       : null
   ), [generation])
   const viewModel = useMemo(() => (

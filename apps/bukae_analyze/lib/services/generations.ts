@@ -1,12 +1,12 @@
 import { apiFetch } from './apiClient'
 import type { ApiFetcher } from './apiFetchCore'
 import { API_ENDPOINTS } from './endpoints'
-import { mapGeneration } from './mappers'
+import { mapGeneration, mapGenerationStartToDto } from './mappers'
 import {
   GenerationResponseSchema,
   type GenerationRequestDto,
 } from '@/lib/types/api/generation'
-import type { Generation } from '@/lib/types/domain'
+import type { Generation, GenerationStartCommand } from '@/lib/types/domain'
 
 async function throwIfNotOk(res: Response, label: string): Promise<void> {
   if (res.ok) return
@@ -27,11 +27,27 @@ export async function startGenerationWithFetcher(
   return mapGeneration(GenerationResponseSchema.parse(await res.json()))
 }
 
+/** @deprecated startGenerationFromCommand 사용 */
 export async function startGeneration(
   projectId: string,
   request: GenerationRequestDto = {}
 ): Promise<Generation> {
   return startGenerationWithFetcher(apiFetch, projectId, request)
+}
+
+export async function startGenerationFromCommandWithFetcher(
+  fetcher: ApiFetcher,
+  projectId: string,
+  command: GenerationStartCommand
+): Promise<Generation> {
+  return startGenerationWithFetcher(fetcher, projectId, mapGenerationStartToDto(command))
+}
+
+export async function startGenerationFromCommand(
+  projectId: string,
+  command: GenerationStartCommand
+): Promise<Generation> {
+  return startGenerationFromCommandWithFetcher(apiFetch, projectId, command)
 }
 
 export async function getGenerationWithFetcher(

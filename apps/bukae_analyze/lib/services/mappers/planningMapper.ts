@@ -1,5 +1,7 @@
 import type {
+  IntakeSubmissionRequestDto,
   IntakeSubmissionResponseDto,
+  PlanningMessageRequestDto,
   PlanningMessageDto,
   PlanningQuestionDto,
   PlanningQuestionFieldDto,
@@ -7,7 +9,11 @@ import type {
   PlanningResponseDto,
 } from '@/lib/types/api/planning'
 import type {
+  FinalizePlanningCommand,
+  IntakeSubmissionCommand,
   IntakeSubmissionState,
+  Pt1SlotAnswerCommand,
+  Pt2FreeTextCommand,
   PlanningConversationMessage,
   PlanningFailureState,
   PlanningQuestion,
@@ -15,6 +21,7 @@ import type {
   PlanningQuestionOption,
   PlanningSession,
   PlanningSurface,
+  WorkspaceEntryCommand,
 } from '@/lib/types/domain'
 
 function asTrimmedString(value: unknown): string {
@@ -188,4 +195,77 @@ export function mapPlanningSession(dto: PlanningResponseDto): PlanningSession {
     projectStatus: dto.projectStatus ?? null,
     currentStep: dto.currentStep ?? null,
   }
+}
+
+// --- Command → DTO 변환 ---
+
+export function mapPt1SlotAnswerToDto(command: Pt1SlotAnswerCommand): PlanningMessageRequestDto {
+  return {
+    message: command.message,
+    messageType: 'slot_answer',
+    payload: {
+      question_id: command.questionId,
+      question_title: command.questionTitle,
+      slot_key: command.slotKey,
+      selected_option_id: command.selectedOptionId,
+      selected_option_label: command.selectedOptionLabel,
+      selected_option_value: command.selectedOptionValue,
+      custom_value: command.customValue,
+      answer_type: command.answerType,
+      field_values: command.fieldValues,
+      answer_source: 'planning_pt1',
+    },
+  }
+}
+
+export function mapPt2FreeTextToDto(command: Pt2FreeTextCommand): PlanningMessageRequestDto {
+  return {
+    message: command.message,
+    messageType: 'free_text',
+    payload: {
+      event_type: 'pt2_answer',
+      answer_source: 'planning_pt2',
+      question_id: command.questionId,
+      question_title: command.questionTitle,
+      question_text: command.question,
+      reference_insight: command.referenceInsight,
+      reason_why_asked: command.reasonWhyAsked,
+      slot_key: command.slotKey,
+      raw_answer: command.message,
+    },
+  }
+}
+
+export function mapWorkspaceEntryToDto(command: WorkspaceEntryCommand): PlanningMessageRequestDto {
+  return {
+    message: [
+      'AI 기획 pt.1 질문 답변을 마치고 pt.2 대화 단계로 진입합니다.',
+      `answered_count=${command.answeredCount}`,
+      '이전 slot_answer payload들을 기준으로 다음 대화와 최종 기획안 생성을 이어가 주세요.',
+    ].join('\n'),
+    messageType: 'planning_workspace_entered',
+    payload: {
+      event_type: 'planning_workspace_entered',
+      planning_session_id: command.planningSessionId,
+      answer_source: 'planning_pt1',
+      answered_question_ids: command.answeredQuestionIds,
+      answered_count: command.answeredCount,
+      selected_angle_id: null,
+    },
+  }
+}
+
+export function mapFinalizePlanningToDto(command: FinalizePlanningCommand): PlanningMessageRequestDto {
+  return {
+    message: '수집된 PT1/PT2 정보를 바탕으로 최종 기획안 생성을 시작합니다.',
+    messageType: 'finalize_planning',
+    payload: {
+      event_type: 'finalize_planning',
+      planning_session_id: command.planningSessionId,
+    },
+  }
+}
+
+export function mapIntakeSubmissionToDto(command: IntakeSubmissionCommand): IntakeSubmissionRequestDto {
+  return command
 }

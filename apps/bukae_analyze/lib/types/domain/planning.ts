@@ -46,6 +46,56 @@ export interface PlanningConversationMessage {
   createdAt: Date | null
 }
 
+// --- Domain Command Types (mutation 입력) ---
+
+export interface Pt1SlotAnswerCommand {
+  questionId: string
+  questionTitle: string
+  slotKey: string
+  answerType: 'single_select' | 'single_select_with_custom' | 'form'
+  message: string
+  selectedOptionId: string
+  selectedOptionLabel: string
+  selectedOptionValue: string
+  customValue: string | null
+  fieldValues: Record<string, string> | null
+}
+
+export interface Pt2FreeTextCommand {
+  questionId: string
+  questionTitle: string
+  question: string
+  referenceInsight: string | null
+  reasonWhyAsked: string | null
+  slotKey: string
+  message: string
+}
+
+export interface WorkspaceEntryCommand {
+  planningSessionId: string
+  answeredQuestionIds: string[]
+  answeredCount: number
+}
+
+export interface FinalizePlanningCommand {
+  planningSessionId: string
+}
+
+export interface IntakeSubmissionCommand {
+  category: 'PRODUCT_PROMOTION'
+  payload: {
+    categoryCustom: string
+    faceExposurePlan: string
+    faceExposureCustom: string
+    targetDurationSec: number
+    shootPlanned: boolean
+    shootEnvironment: string
+    coreMaterial: string
+  }
+}
+
+// --- Domain Model Types ---
+
 export interface PlanningSurface {
   readyToFinalize: boolean
   detailGapState: Record<string, unknown> | null
