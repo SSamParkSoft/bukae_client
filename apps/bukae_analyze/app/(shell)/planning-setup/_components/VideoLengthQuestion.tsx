@@ -22,15 +22,16 @@ function triggerLabel(data: QuestionSectionViewModel<VideoLength>): string {
   return OPTIONS.find(o => o.value === data.selected)?.label ?? '선택하세요'
 }
 
-interface Props {
-  data: QuestionSectionViewModel<VideoLength>
-}
-
-export function VideoLengthQuestion({ data }: Props) {
+function useVideoLengthDropdown(onSelect: (value: VideoLength | 'custom') => void) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
   const close = useCallback(() => setOpen(false), [])
+  const toggle = useCallback(() => setOpen(value => !value), [])
+  const pick = useCallback((value: VideoLength | 'custom') => {
+    onSelect(value)
+    setOpen(false)
+  }, [onSelect])
 
   useEffect(() => {
     if (!open) return
@@ -52,11 +53,25 @@ export function VideoLengthQuestion({ data }: Props) {
     }
   }, [open, close])
 
-  const pick = (value: VideoLength | 'custom') => {
-    data.onSelect(value)
-    setOpen(false)
+  return {
+    open,
+    pick,
+    rootRef,
+    toggle,
   }
+}
 
+interface Props {
+  data: QuestionSectionViewModel<VideoLength>
+}
+
+export function VideoLengthQuestion({ data }: Props) {
+  const {
+    open,
+    pick,
+    rootRef,
+    toggle,
+  } = useVideoLengthDropdown(data.onSelect)
   const label = triggerLabel(data)
   const isPlaceholder = data.selected === null
 
@@ -74,7 +89,7 @@ export function VideoLengthQuestion({ data }: Props) {
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-controls="video-length-listbox"
-          onClick={() => setOpen(v => !v)}
+          onClick={toggle}
           className={`flex h-[60px] w-full items-center justify-between gap-3 rounded-lg border px-6 backdrop-blur-[2px] transition-colors focus:outline-none focus-visible:border-highlight/60 focus-visible:ring-2 focus-visible:ring-highlight/25 ${
             open
               ? 'border-white/60 bg-white/15 text-white'

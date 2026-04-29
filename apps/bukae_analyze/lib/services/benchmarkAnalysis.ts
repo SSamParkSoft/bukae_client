@@ -1,4 +1,5 @@
 import { apiFetch } from './apiClient'
+import type { ApiFetcher } from './apiFetchCore'
 import { API_ENDPOINTS } from './endpoints'
 import { mapBenchmarkAnalysisSnapshot } from './mappers'
 import {
@@ -104,10 +105,11 @@ function normalizeBenchmarkAnalysisResponse(
   })
 }
 
-export async function getBenchmarkAnalysis(
+export async function getBenchmarkAnalysisWithFetcher(
+  fetcher: ApiFetcher,
   projectId: string
 ): Promise<AnalysisSnapshot> {
-  const res = await apiFetch(API_ENDPOINTS.projects.benchmarkAnalysis(projectId))
+  const res = await fetcher(API_ENDPOINTS.projects.benchmarkAnalysis(projectId))
   const text = await res.text()
   const json = tryParseJson(text)
 
@@ -130,4 +132,10 @@ export async function getBenchmarkAnalysis(
   }
 
   throw new Error('분석 응답 형식이 예상과 다릅니다.')
+}
+
+export async function getBenchmarkAnalysis(
+  projectId: string
+): Promise<AnalysisSnapshot> {
+  return getBenchmarkAnalysisWithFetcher(apiFetch, projectId)
 }

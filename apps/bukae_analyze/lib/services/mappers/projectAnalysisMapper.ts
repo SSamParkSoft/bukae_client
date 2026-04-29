@@ -37,6 +37,8 @@ export function mapProjectPollingState(dto: ProjectDetailDto): ProjectPollingSta
   return {
     projectStatus: dto.status,
     currentStep: dto.currentStep ?? null,
+    activeBriefVersionId: dto.activeBriefVersionId ?? null,
+    lastSummary: dto.lastSummary ?? null,
     errorMessage: firstNonEmptyMessage(
       dto.failure?.summary,
       dto.failure?.message,

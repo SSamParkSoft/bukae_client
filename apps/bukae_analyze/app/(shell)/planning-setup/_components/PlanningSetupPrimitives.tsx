@@ -25,17 +25,27 @@ interface IconButtonProps {
   label: string
   selected: boolean
   onClick: () => void
+  disabled?: boolean
 }
 
-export function IconButton({ icon: Icon, label, selected, onClick }: IconButtonProps) {
+export function IconButton({
+  icon: Icon,
+  label,
+  selected,
+  onClick,
+  disabled = false,
+}: IconButtonProps) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={`flex items-center gap-4 w-full px-6 py-3 rounded-lg backdrop-blur-[2px] text-left justify-between transition-colors ${
         selected
           ? 'bg-white/40 text-white'
-          : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'
+          : disabled
+            ? 'bg-white/6 text-white/30 cursor-not-allowed'
+            : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'
       }`}
     >
       {Icon ? (

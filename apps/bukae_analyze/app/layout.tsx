@@ -1,5 +1,6 @@
 import './globals.css'
 import { CinematicBackground } from '@/app/_components/CinematicBackground'
+import { QueryProvider } from '@/app/_components/QueryProvider'
 
 export const metadata = {
   title: 'Bukae Analyze',
@@ -12,7 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head />
       <body>
         <CinematicBackground />
-        {children}
+        <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
   )

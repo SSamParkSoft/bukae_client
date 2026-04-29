@@ -9,6 +9,8 @@ export interface ProjectSession {
 export interface ProjectPollingState {
   projectStatus: string
   currentStep: string | null
+  activeBriefVersionId: string | null
+  lastSummary: string | null
   errorMessage: string | null
 }
 

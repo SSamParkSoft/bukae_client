@@ -21,17 +21,23 @@ export function SceneCard({ scene }: SceneCardProps) {
       {/* 바디 */}
       <div className="flex">
         {/* 왼쪽: 비주얼 촬영 가이드 + 스크립트 */}
-        <div className="w-3/5 p-6 space-y-5">
-          <SceneContentItem title="비주얼 촬영 가이드" content={scene.visualGuide} />
-          <div className="grid grid-cols-2 gap-6">
-            <SceneContentItem title="오디오 스크립트" content={scene.audioScript} />
-            <SceneContentItem title="자막 스크립트" content={scene.subtitleScript} />
+        <div className="w-3/5 p-6 space-y-10">
+          <SceneContentItem title="비주얼 촬영 가이드" items={scene.visualGuideItems} columns={2} />
+          <div className="h-px bg-white/20" />
+          <div className="flex gap-10 items-stretch">
+            <div className="min-w-0 flex-1">
+              <SceneContentItem title="오디오 스크립트" items={scene.audioScriptItems} columns={2} />
+            </div>
+            <div className="w-px shrink-0 bg-white/20" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <SceneContentItem title="자막 스크립트" items={scene.subtitleScriptItems} />
+            </div>
           </div>
         </div>
 
         {/* 오른쪽: 기획 및 산출 근거 */}
         <div className="w-2/5 p-6 bg-white/20">
-          <SceneContentItem title="기획 및 산출 근거" content={scene.planningBasis} />
+          <SceneContentItem title="기획 및 산출 근거" items={scene.planningBasisItems} />
         </div>
       </div>
     </div>

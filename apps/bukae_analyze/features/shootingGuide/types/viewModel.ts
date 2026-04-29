@@ -1,11 +1,16 @@
+export interface ShootingSceneContentItemViewModel {
+  label: string
+  lines: string[]
+}
+
 export interface ShootingSceneViewModel {
   sceneLabel: string
   durationLabel: string
   description: string
-  visualGuide: string
-  audioScript: string
-  subtitleScript: string
-  planningBasis: string
+  visualGuideItems: ShootingSceneContentItemViewModel[]
+  audioScriptItems: ShootingSceneContentItemViewModel[]
+  subtitleScriptItems: ShootingSceneContentItemViewModel[]
+  planningBasisItems: ShootingSceneContentItemViewModel[]
 }
 
 export interface ShootingGuideViewModel {

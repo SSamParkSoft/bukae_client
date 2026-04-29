@@ -4,6 +4,12 @@ import type { PlanningSetupAnswers } from '@/lib/types/domain'
 interface PlanningStore {
   answers: PlanningSetupAnswers
   setAnswers: (answers: PlanningSetupAnswers) => void
+  isSubmitting: boolean
+  submitError: string | null
+  lastSubmittedIntakeKey: string | null
+  setSubmitting: (isSubmitting: boolean) => void
+  setSubmitError: (message: string | null) => void
+  markIntakeSubmitted: (submissionKey: string) => void
 }
 
 const INITIAL_ANSWERS: PlanningSetupAnswers = {
@@ -20,5 +26,14 @@ const INITIAL_ANSWERS: PlanningSetupAnswers = {
 
 export const usePlanningStore = create<PlanningStore>()((set) => ({
   answers: INITIAL_ANSWERS,
-  setAnswers: (answers) => set({ answers }),
+  setAnswers: (answers) => set((state) => ({
+    answers,
+    submitError: state.submitError ? null : state.submitError,
+  })),
+  isSubmitting: false,
+  submitError: null,
+  lastSubmittedIntakeKey: null,
+  setSubmitting: (isSubmitting) => set({ isSubmitting }),
+  setSubmitError: (submitError) => set({ submitError }),
+  markIntakeSubmitted: (lastSubmittedIntakeKey) => set({ lastSubmittedIntakeKey }),
 }))

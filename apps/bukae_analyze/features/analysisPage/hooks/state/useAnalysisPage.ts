@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useProjectStore } from '@/store/useProjectStore'
-import { useAnalysisResource, type AnalysisResourceErrorType } from './useAnalysisResource'
-import { MOCK_VIDEO_ANALYSIS } from '@/lib/mocks'
-import { useVideoAnalysisViewModel } from '@/features/videoAnalysis/hooks/viewmodel/useVideoAnalysisViewModel'
+import { useState } from 'react'
+import { mapVideoAnalysisToViewModel } from '@/features/videoAnalysis/lib/mapVideoAnalysisToViewModel'
+import type { VideoAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
+import type {
+  AnalysisResourceErrorType,
+  AnalysisResourceSnapshotState,
+} from '@/features/analysisPage/lib/analysisResource'
+import { useAnalysisResource } from './useAnalysisResource'
 
 const TABS = [
   { id: 'thumbnail', label: 'Thumbnail 분석' },
@@ -16,11 +18,10 @@ const TABS = [
 export type AnalysisTabId = (typeof TABS)[number]['id']
 
 export interface AnalysisPageState {
-  hasProject: boolean
   activeTab: AnalysisTabId
   setActiveTab: (tab: AnalysisTabId) => void
   tabs: typeof TABS
-  viewModel: ReturnType<typeof useVideoAnalysisViewModel>
+  viewModel: VideoAnalysisViewModel | null
   referenceUrl: string
   videoSrc: string
   isReady: boolean
@@ -30,31 +31,36 @@ export interface AnalysisPageState {
   errorMessage: string | null
 }
 
-export function useAnalysisPage(): AnalysisPageState {
-  const router = useRouter()
-  const projectId = useProjectStore((s) => s.projectId)
+export function useAnalysisPage(
+  projectId: string,
+  initialSnapshot?: AnalysisResourceSnapshotState | null
+): AnalysisPageState {
   const [activeTab, setActiveTab] = useState<AnalysisTabId>('thumbnail')
-  const { status, errorType, errorMessage, result } = useAnalysisResource()
+  const { status, errorType, errorMessage, result } = useAnalysisResource(
+    projectId,
+    initialSnapshot
+  )
 
-  // videoAnalysis가 없는 동안은 mock 데이터로 대체 (isReady가 false이므로 렌더되지 않음)
-  const viewModel = useVideoAnalysisViewModel(result?.videoAnalysis ?? MOCK_VIDEO_ANALYSIS)
-
-  useEffect(() => {
-    if (!projectId) router.replace('/')
-  }, [projectId, router])
+  const viewModel = result?.videoAnalysis
+    ? mapVideoAnalysisToViewModel(result.videoAnalysis)
+    : null
+  const isMissingReadyResult = status === 'ready' && !viewModel
+  const resolvedErrorType = isMissingReadyResult ? 'missing_result' : errorType
+  const resolvedErrorMessage = isMissingReadyResult
+    ? '분석은 완료되었지만 화면에 표시할 결과 데이터가 없습니다.'
+    : errorMessage
 
   return {
-    hasProject: Boolean(projectId),
     activeTab,
     setActiveTab,
     tabs: TABS,
     viewModel,
     referenceUrl: result?.referenceUrl ?? '',
     videoSrc: result?.videoSrc ?? '',  // 빈 문자열 허용 — AnalysisVideoPanel에서 undefined 변환
-    isReady: status === 'ready',
+    isReady: status === 'ready' && Boolean(viewModel),
     isLoading: status === 'loading',
-    isFailed: status === 'error',
-    errorType,
-    errorMessage,
+    isFailed: status === 'error' || isMissingReadyResult,
+    errorType: resolvedErrorType,
+    errorMessage: resolvedErrorMessage,
   }
 }

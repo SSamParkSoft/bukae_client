@@ -25,6 +25,8 @@ const OPTIONS: { value: VideoCategory; label: string; icon: LucideIcon }[] = [
   { value: 'tutorial', label: '튜토리얼형', icon: GraduationCap },
 ]
 
+const ENABLED_CATEGORY: VideoCategory = 'product-promo'
+
 interface Props {
   data: QuestionSectionViewModel<VideoCategory>
 }
@@ -46,24 +48,26 @@ export function CategoryQuestion({ data }: Props) {
               label={option.label}
               selected={data.selected === option.value}
               onClick={() => data.onSelect(option.value)}
+              disabled={option.value !== ENABLED_CATEGORY}
             />
           ))}
         </div>
         <input
           type="text"
           value={data.selected === 'custom' ? data.customValue : ''}
-          onChange={e => {
-            data.onSelect('custom')
-            data.onCustomChange(e.target.value)
-          }}
+          onChange={() => {}}
           placeholder="직접 입력"
           aria-label="카테고리 직접 입력"
+          disabled
           className={`w-full px-6 py-[17px] rounded-lg backdrop-blur-[2px] font-16-md text-right transition-colors focus:outline-none 
             ${data.selected === 'custom'
               ? 'bg-white/40 text-white placeholder:text-white/50'
-              : 'bg-white/10 text-white/60 placeholder:text-white/35 hover:bg-white/20 hover:text-white'
+              : 'bg-white/6 text-white/30 placeholder:text-white/20 cursor-not-allowed'
           }`}
         />
+        <p className="text-xs text-white/45 tracking-[-0.04em]">
+          MVP에서는 상품 홍보형만 지원합니다.
+        </p>
       </div>
     </div>
   )

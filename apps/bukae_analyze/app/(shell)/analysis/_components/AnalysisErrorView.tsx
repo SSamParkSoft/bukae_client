@@ -1,4 +1,4 @@
-import type { AnalysisResourceErrorType } from '@/features/analysisPage/hooks/state/useAnalysisResource'
+import type { AnalysisResourceErrorType } from '@/features/analysisPage/lib/analysisResource'
 
 type Props = {
   errorType: AnalysisResourceErrorType | null

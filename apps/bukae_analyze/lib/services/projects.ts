@@ -1,4 +1,5 @@
 import { apiFetch } from './apiClient'
+import type { ApiFetcher } from './apiFetchCore'
 import { API_ENDPOINTS } from './endpoints'
 import {
   mapBenchmarkSubmissionState,
@@ -21,8 +22,11 @@ async function throwIfNotOk(res: Response, label: string): Promise<void> {
   throw new Error(`${label} (${res.status})${body ? `: ${body}` : ''}`)
 }
 
-export async function createProject(title?: string): Promise<ProjectSession> {
-  const res = await apiFetch(API_ENDPOINTS.projects.list, {
+export async function createProjectWithFetcher(
+  fetcher: ApiFetcher,
+  title?: string
+): Promise<ProjectSession> {
+  const res = await fetcher(API_ENDPOINTS.projects.list, {
     method: 'POST',
     body: JSON.stringify({ title: title ?? '' }),
   })
@@ -30,22 +34,41 @@ export async function createProject(title?: string): Promise<ProjectSession> {
   return mapProjectSession(ProjectDetailSchema.parse(await res.json()))
 }
 
+export async function createProject(title?: string): Promise<ProjectSession> {
+  return createProjectWithFetcher(apiFetch, title)
+}
+
+export async function getProjectPollingStateWithFetcher(
+  fetcher: ApiFetcher,
+  projectId: string
+): Promise<ProjectPollingState> {
+  const res = await fetcher(API_ENDPOINTS.projects.detail(projectId))
+  await throwIfNotOk(res, '프로젝트 상태 조회 실패')
+  return mapProjectPollingState(ProjectDetailSchema.parse(await res.json()))
+}
+
 export async function getProjectPollingState(
   projectId: string
 ): Promise<ProjectPollingState> {
-  const res = await apiFetch(API_ENDPOINTS.projects.detail(projectId))
-  await throwIfNotOk(res, '프로젝트 상태 조회 실패')
-  return mapProjectPollingState(ProjectDetailSchema.parse(await res.json()))
+  return getProjectPollingStateWithFetcher(apiFetch, projectId)
+}
+
+export async function submitBenchmarkWithFetcher(
+  fetcher: ApiFetcher,
+  projectId: string,
+  sourceUrl: string
+): Promise<BenchmarkSubmissionState> {
+  const res = await fetcher(API_ENDPOINTS.projects.benchmark(projectId), {
+    method: 'POST',
+    body: JSON.stringify({ sourceUrl }),
+  })
+  await throwIfNotOk(res, '벤치마크 URL 제출 실패')
+  return mapBenchmarkSubmissionState(BenchmarkSubmissionSchema.parse(await res.json()))
 }
 
 export async function submitBenchmark(
   projectId: string,
   sourceUrl: string
 ): Promise<BenchmarkSubmissionState> {
-  const res = await apiFetch(API_ENDPOINTS.projects.benchmark(projectId), {
-    method: 'POST',
-    body: JSON.stringify({ sourceUrl }),
-  })
-  await throwIfNotOk(res, '벤치마크 URL 제출 실패')
-  return mapBenchmarkSubmissionState(BenchmarkSubmissionSchema.parse(await res.json()))
+  return submitBenchmarkWithFetcher(apiFetch, projectId, sourceUrl)
 }

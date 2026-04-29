@@ -1,69 +1,254 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import type { FollowUpQuestion, ChatMessage, FollowUpChatbotViewModel } from '../../types/chatbotViewModel'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { submitPt2FreeText } from '@/lib/services/planning'
+import type { PlanningSession } from '@/lib/types/domain'
+import {
+  FOLLOW_UP_STAGE_MESSAGES,
+  createChatbotMessages,
+  createReadyBriefViewModel,
+  createVisibleMessages,
+  mapCurrentQuestion,
+  type FollowUpStageMessage,
+} from '../../lib/followUpChatbot/messages'
+import {
+  getUnresolvedNextQuestions,
+  mapSessionQuestions,
+  type ActiveFollowUpQuestion,
+} from '../../lib/followUpChatbot/questions'
+import {
+  getErrorMessage,
+  resolvePlanningRecovery,
+} from '../../lib/followUpChatbot/recovery'
+import { canFinalizePlanning } from '../../lib/planningPredicates'
+import type { FinalizedProject } from '../../lib/planningWorkflow'
+import type {
+  ChatMessage,
+  FollowUpChatbotViewModel,
+  ReadyBriefViewModel,
+} from '../../types/chatbotViewModel'
+import {
+  useFinalizePlanningWhenReady,
+  useMountedRef,
+  usePollNextFollowUpQuestion,
+  useRefreshPlanningSessionOnChatbotEntry,
+  useSyncInitialPlanningSession,
+} from './followUpChatbot/useFollowUpPlanningEffects'
 
-// step 0 → q1, step 1 → q2, step 2 → q3 (라운드 경계: step 1 제출 후 AI 중간 메시지 + q3)
-const MOCK_QUESTIONS: FollowUpQuestion[] = [
-  { questionId: 'q1', question: '영상에서 가장 강조하고 싶은 감정이나 분위기가 있나요?' },
-  { questionId: 'q2', question: '타겟 시청자의 주된 고민이나 관심사는 무엇인가요?' },
-  { questionId: 'q3', question: '비슷한 영상 중 참고하고 싶은 스타일이 있다면 설명해 주세요.' },
-]
+interface UseFollowUpChatbotParams {
+  projectId: string
+  initialSession: PlanningSession | null
+  enabled: boolean
+  onSessionChange?: (nextSession: PlanningSession) => void
+}
 
-export function useFollowUpChatbot(): FollowUpChatbotViewModel {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'ai', text: '답변 내용만으로는 기획 방향을 확정하기 어려워요. 조금 더 여쭤볼게요!' },
-  ])
-  const [currentQuestions, setCurrentQuestions] = useState<FollowUpQuestion[]>([MOCK_QUESTIONS[0]])
+export function useFollowUpChatbot({
+  projectId,
+  initialSession,
+  enabled,
+  onSessionChange,
+}: UseFollowUpChatbotParams): FollowUpChatbotViewModel {
+  const [session, setSession] = useState<PlanningSession | null>(initialSession)
+  const [questionQueue, setQuestionQueue] = useState<ActiveFollowUpQuestion[]>(() => mapSessionQuestions(initialSession))
   const [answer, setAnswer] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isComplete, setIsComplete] = useState(false)
-  const [step, setStep] = useState(0)
+  const [readyBrief, setReadyBrief] = useState<ReadyBriefViewModel | null>(null)
+  const [stageMessage, setStageMessage] = useState<FollowUpStageMessage>(FOLLOW_UP_STAGE_MESSAGES.waitingQuestion)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [pendingQA, setPendingQA] = useState<ChatMessage[]>([])
 
-  // TODO: API 연동 시 이 함수를 fetch 콜백으로 호출
-  // function handleServerResponse(nextQuestions: FollowUpQuestion[], aiText: string | null) {
-  //   setIsSubmitting(false)
-  //   if (aiText) setMessages(prev => [...prev, { role: 'ai', text: aiText }])
-  //   if (nextQuestions.length > 0) {
-  //     setCurrentQuestions(nextQuestions)
-  //   } else {
-  //     setIsComplete(true)
-  //   }
-  // }
+  const isPollingRef = useRef(false)
+  const isFinalizingRef = useRef(false)
+  const isInitialRefreshRef = useRef(false)
+  const refreshedProjectIdRef = useRef<string | null>(null)
+  const appliedSessionRef = useRef<PlanningSession | null>(null)
+  const isMountedRef = useMountedRef()
+
+  const applySession = useCallback((nextSession: PlanningSession) => {
+    appliedSessionRef.current = nextSession
+    setSession(nextSession)
+    onSessionChange?.(nextSession)
+  }, [onSessionChange])
+
+  const applyFinalizedProject = useCallback((finalizedProject: FinalizedProject) => {
+    if (!isMountedRef.current) return
+
+    setQuestionQueue([])
+    setPendingQA([])
+    setErrorMessage(null)
+    setReadyBrief(createReadyBriefViewModel(finalizedProject))
+    setStageMessage(FOLLOW_UP_STAGE_MESSAGES.readyBrief)
+    setIsComplete(true)
+  }, [isMountedRef])
+
+  const currentQuestion = questionQueue[0] ?? null
+  const currentQuestions = useMemo(
+    () => mapCurrentQuestion(currentQuestion),
+    [currentQuestion]
+  )
+  const canFinalizeCurrentPlanning = canFinalizePlanning(session)
+  const isReadyForApproval = Boolean(session?.readyForApproval)
+
+  useSyncInitialPlanningSession({
+    enabled,
+    initialSession,
+    appliedSessionRef,
+    setSession,
+    setQuestionQueue,
+  })
+
+  useRefreshPlanningSessionOnChatbotEntry({
+    enabled,
+    projectId,
+    refreshedProjectIdRef,
+    isInitialRefreshRef,
+    isMountedRef,
+    applySession,
+    applyFinalizedProject,
+    setQuestionQueue,
+    setErrorMessage,
+  })
+
+  usePollNextFollowUpQuestion({
+    enabled,
+    projectId,
+    currentQuestion,
+    canFinalizeCurrentPlanning,
+    isComplete,
+    isReadyForApproval,
+    isInitialRefreshRef,
+    isPollingRef,
+    isFinalizingRef,
+    applySession,
+    applyFinalizedProject,
+    setQuestionQueue,
+    setIsSubmitting,
+    setStageMessage,
+    setErrorMessage,
+  })
+
+  useFinalizePlanningWhenReady({
+    enabled,
+    projectId,
+    session,
+    currentQuestion,
+    canFinalizeCurrentPlanning,
+    isComplete,
+    isReadyForApproval,
+    isFinalizingRef,
+    isMountedRef,
+    applyFinalizedProject,
+    setIsSubmitting,
+    setStageMessage,
+    setErrorMessage,
+  })
+
+  const messages = useMemo(() => createChatbotMessages({
+    session,
+    currentQuestionId: currentQuestion?.questionId ?? null,
+    errorMessage,
+    readyBrief,
+  }), [currentQuestion?.questionId, errorMessage, readyBrief, session])
+
+  const visibleMessages = useMemo(() => createVisibleMessages({
+    messages,
+    pendingQA,
+    readyBrief,
+    currentQuestions,
+    isSubmitting,
+    canFinalizeCurrentPlanning,
+    isReadyForApproval,
+    stageMessage,
+  }), [
+    canFinalizeCurrentPlanning,
+    currentQuestions,
+    isReadyForApproval,
+    isSubmitting,
+    messages,
+    pendingQA,
+    readyBrief,
+    stageMessage,
+  ])
+
+  const submitCurrentAnswer = useCallback(() => {
+    const trimmedAnswer = answer.trim()
+    const question = currentQuestion
+    if (!enabled || !trimmedAnswer || !question || isSubmitting) return
+
+    setAnswer('')
+    setIsSubmitting(true)
+    setErrorMessage(null)
+    setStageMessage(FOLLOW_UP_STAGE_MESSAGES.reflectingAnswer)
+    setPendingQA([
+      { role: 'ai', text: question.question },
+      { role: 'user', text: trimmedAnswer },
+    ])
+
+    void submitPt2FreeText(projectId, {
+      questionId: question.questionId,
+      questionTitle: question.title,
+      question: question.question,
+      referenceInsight: question.referenceInsight,
+      reasonWhyAsked: question.reasonWhyAsked,
+      slotKey: question.slotKey,
+      message: trimmedAnswer,
+    })
+      .then((nextSession) => {
+        applySession(nextSession)
+        const unresolvedNextQuestions = getUnresolvedNextQuestions(nextSession, question)
+        setQuestionQueue((prev) => (
+          unresolvedNextQuestions.length > 0 ? unresolvedNextQuestions : prev.slice(1)
+        ))
+        setPendingQA([])
+        setErrorMessage(null)
+      })
+      .catch((error) => {
+        setPendingQA([])
+        void resolvePlanningRecovery(
+          projectId,
+          error,
+          '답변 전송에 실패했습니다.'
+        ).then((recovery) => {
+          if (recovery.finalizedProject) {
+            applyFinalizedProject(recovery.finalizedProject)
+            return
+          }
+
+          setErrorMessage(recovery.errorMessage)
+        }).catch(() => {
+          setErrorMessage(getErrorMessage(error, '답변 전송에 실패했습니다.'))
+        })
+      })
+      .finally(() => {
+        setIsSubmitting(false)
+      })
+  }, [
+    answer,
+    applyFinalizedProject,
+    applySession,
+    currentQuestion,
+    enabled,
+    isSubmitting,
+    projectId,
+  ])
 
   return useMemo((): FollowUpChatbotViewModel => ({
-    messages,
+    messages: visibleMessages,
     currentQuestions,
+    readyBrief,
     answer,
     isSubmitting,
     isComplete,
     onAnswerChange: (value: string) => setAnswer(value),
-    onSubmit: () => {
-      if (!answer.trim()) return
-      setMessages(prev => [
-        ...prev,
-        ...currentQuestions.map(q => ({ role: 'ai' as const, text: q.question })),
-        { role: 'user' as const, text: answer.trim() },
-      ])
-      setAnswer('')
-      setIsSubmitting(true)
-      setCurrentQuestions([])
-      // TODO: API 연동 — 응답 수신 시 handleServerResponse 호출
-      setTimeout(() => {
-        setIsSubmitting(false)
-        const nextStep = step + 1
-        setStep(nextStep)
-        if (nextStep < MOCK_QUESTIONS.length) {
-          if (nextStep === 2) {
-            // q2 → q3 전환 시 중간 AI 메시지 추가
-            setMessages(prev => [...prev, { role: 'ai', text: '조금 더 구체적으로 알면 더 좋은 기획이 나올 것 같아요!' }])
-          }
-          setCurrentQuestions([MOCK_QUESTIONS[nextStep]])
-        } else {
-          setMessages(prev => [...prev, { role: 'ai', text: '감사해요! 이제 기획 방향을 잡을 수 있을 것 같아요.' }])
-          setIsComplete(true)
-        }
-      }, 1500)
-    },
-  }), [messages, currentQuestions, answer, isSubmitting, isComplete, step])
+    onSubmit: submitCurrentAnswer,
+  }), [
+    answer,
+    currentQuestions,
+    isComplete,
+    isSubmitting,
+    readyBrief,
+    submitCurrentAnswer,
+    visibleMessages,
+  ])
 }

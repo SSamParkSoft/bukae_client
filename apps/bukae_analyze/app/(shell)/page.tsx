@@ -1,17 +1,12 @@
-'use client'
-
 import { AnalyzeHomeHeroCopy } from '@/app/_components/AnalyzeHomeHeroCopy'
-import { AnalyzeHomeUrlForm } from '@/app/_components/AnalyzeHomeUrlForm'
-import { useUrlInput } from '@/app/_hooks/useUrlInput'
+import { AnalyzeHomeBenchmarkSubmission } from '@/app/_components/AnalyzeHomeBenchmarkSubmission'
 
 export default function AnalyzeHomePage() {
-  const { url, handleChange, handleSubmit, isSubmitting } = useUrlInput()
-
   return (
     <div className="flex h-full min-h-0 flex-col items-center" style={{ marginTop: 'clamp(80px, 6.67vw, 128px)' }}>
       <div className="flex w-full flex-col items-center" style={{ gap: 'clamp(32px, 2.5vw, 48px)' }}>
         <AnalyzeHomeHeroCopy />
-        <AnalyzeHomeUrlForm url={url} onUrlChange={handleChange} onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+        <AnalyzeHomeBenchmarkSubmission />
       </div>
     </div>
   )
