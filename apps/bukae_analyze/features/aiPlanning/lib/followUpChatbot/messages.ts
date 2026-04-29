@@ -4,9 +4,9 @@ import type {
   FollowUpQuestion,
   ReadyBriefViewModel,
 } from '../../types/chatbotViewModel'
-import { mapTranscript } from '../planningTranscript'
 import type { FinalizedProject } from '../planningWorkflow'
 import type { ActiveFollowUpQuestion } from './questions'
+import { createFollowUpQuestionWorkflow } from './workflow'
 
 export const FOLLOW_UP_STAGE_MESSAGES = {
   waitingQuestion: 'AI가 PT1 답변을 바탕으로 다음 질문을 준비 중입니다.',
@@ -50,19 +50,24 @@ export function createChatbotMessages(params: {
 }): ChatMessage[] {
   const {
     session,
-    currentQuestionId,
     errorMessage,
     readyBrief,
   } = params
 
+  const transcript = session
+    ? createFollowUpQuestionWorkflow(session).transcriptMessages
+    : [{
+      role: 'ai' as const,
+      text: FOLLOW_UP_STAGE_MESSAGES.waitingQuestion,
+    }]
+
   if (errorMessage) {
     return [
-      ...mapTranscript(session, currentQuestionId),
+      ...transcript,
       { role: 'ai', text: `${FOLLOW_UP_STAGE_MESSAGES.error} ${errorMessage}` },
     ]
   }
 
-  const transcript = mapTranscript(session, currentQuestionId)
   if (readyBrief) {
     return [
       ...transcript,

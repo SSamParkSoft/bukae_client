@@ -52,12 +52,8 @@ export function hasFinalizePlanningStarted(session: PlanningSession): boolean {
 
 export function getActivePlanningQuestions(session: PlanningSession | null): PlanningQuestion[] {
   if (!session) return []
-  if (session.planningMode !== 'detail_interview') return []
   if (isReadyToFinalize(session)) return []
-
-  const firstQuestion = session.clarifyingQuestions[0]
-  if (!firstQuestion) return []
-  return [firstQuestion]
+  return session.clarifyingQuestions
 }
 
 export function getPayloadString(

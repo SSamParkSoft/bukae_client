@@ -1,4 +1,8 @@
 import type { ProjectPollingState, AnalysisSnapshot, VideoAnalysisResult } from '@/lib/types/domain'
+import {
+  isProjectCategorySelectionWorkflow,
+  isProjectFailedWorkflow,
+} from '@/lib/types/domain'
 
 export type AnalysisResourceStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type AnalysisResourceErrorType = 'failed' | 'missing_result' | 'unknown'
@@ -16,6 +20,7 @@ export interface AnalysisResourceSnapshotState {
   result: VideoAnalysisResult | null
   errorMessage: string | null
   isCompleted: boolean
+  isProjectFailed: boolean
 }
 
 export const EMPTY_ANALYSIS_RESOURCE_SNAPSHOT: AnalysisResourceSnapshotState = {
@@ -24,6 +29,7 @@ export const EMPTY_ANALYSIS_RESOURCE_SNAPSHOT: AnalysisResourceSnapshotState = {
   result: null,
   errorMessage: null,
   isCompleted: false,
+  isProjectFailed: false,
 }
 
 export function isAnalysisCompleted(
@@ -33,10 +39,7 @@ export function isAnalysisCompleted(
   return (
     snapshot.polling.analysisStatus === 'COMPLETED' ||
     snapshot.polling.readyForCategorySelection ||
-    (
-      project.projectStatus === 'INTAKE_READY' &&
-      project.currentStep === 'CATEGORY_SELECTION'
-    )
+    isProjectCategorySelectionWorkflow(project.workflow)
   )
 }
 
@@ -45,8 +48,7 @@ export function getAnalysisFailureMessage(
   snapshot: AnalysisSnapshot
 ): string | null {
   if (
-    project.projectStatus === 'FAILED' ||
-    project.projectStatus === 'CANCELLED' ||
+    isProjectFailedWorkflow(project.workflow) ||
     snapshot.polling.submissionStatus === 'FAILED' ||
     snapshot.polling.analysisStatus === 'FAILED'
   ) {
@@ -74,6 +76,7 @@ export function createAnalysisResourceSnapshot(params: {
     result: snapshot.result ?? previousResult,
     errorMessage: errorMessage ?? getAnalysisFailureMessage(project, snapshot),
     isCompleted: isAnalysisCompleted(project, snapshot),
+    isProjectFailed: isProjectFailedWorkflow(project.workflow),
   }
 }
 
@@ -83,8 +86,7 @@ export function deriveAnalysisResourceState(
   const hasResult = snapshot.result !== null
   const isFailedStatus =
     snapshot.submissionStatus === 'FAILED' ||
-    snapshot.projectStatus === 'FAILED' ||
-    snapshot.projectStatus === 'CANCELLED'
+    snapshot.isProjectFailed
 
   let errorType: AnalysisResourceErrorType | null = null
 
@@ -127,8 +129,7 @@ export function isAnalysisTerminalFailure(
 ): boolean {
   return (
     snapshot.submissionStatus === 'FAILED' ||
-    snapshot.projectStatus === 'FAILED' ||
-    snapshot.projectStatus === 'CANCELLED'
+    snapshot.isProjectFailed
   )
 }
 

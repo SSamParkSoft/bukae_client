@@ -15,14 +15,34 @@ import {
   getErrorMessage,
   resolvePlanningRecovery,
 } from '../../../lib/followUpChatbot/recovery'
-import { canFinalizePlanning, hasFinalizePlanningStarted } from '../../../lib/planningPredicates'
+import {
+  canFinalizePlanning,
+  hasFinalizePlanningStarted,
+} from '../../../lib/planningPredicates'
 import { waitFinalizedProject, type FinalizedProject } from '../../../lib/planningWorkflow'
+import { createFollowUpQuestionWorkflow } from '../../../lib/followUpChatbot/workflow'
 
 const POLLING_INTERVAL_MS = 2000
 const PLANNING_POLLING_LIMIT = 60
 
 export type RefState<T> = { current: T }
 export type StateSetter<T> = (value: T | ((prev: T) => T)) => void
+
+function getPlanningDebugSnapshot(session: PlanningSession | null) {
+  return {
+    planningSessionId: session?.planningSessionId ?? null,
+    planningMode: session?.planningMode ?? null,
+    planningStatus: session?.planningStatus ?? null,
+    readyForApproval: Boolean(session?.readyForApproval),
+    readyToFinalize: canFinalizePlanning(session),
+    clarifyingQuestionCount: session?.clarifyingQuestions.length ?? 0,
+    answeredQuestionCount: createFollowUpQuestionWorkflow(session).answeredQuestionCount,
+    firstQuestionId: session?.clarifyingQuestions[0]?.questionId ?? null,
+    failureMessage: session?.failure?.summary ?? session?.failure?.message ?? null,
+    projectStatus: session?.projectStatus ?? null,
+    currentStep: session?.currentStep ?? null,
+  }
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -103,12 +123,21 @@ export function useRefreshPlanningSessionOnChatbotEntry(params: {
         const nextSession = await getPlanningSession(projectId)
         if (!isMountedRef.current) return
 
+        console.warn('[followUpChatbot] entry refresh resolved', {
+          projectId,
+          session: getPlanningDebugSnapshot(nextSession),
+          mappedQuestionCount: mapSessionQuestions(nextSession).length,
+        })
         applySession(nextSession)
         setQuestionQueue(mapSessionQuestions(nextSession))
         setErrorMessage(null)
       } catch (error) {
         if (!isMountedRef.current) return
 
+        console.warn('[followUpChatbot] entry refresh failed', {
+          projectId,
+          error,
+        })
         const recovery = await resolvePlanningRecovery(
           projectId,
           error,
@@ -181,14 +210,54 @@ export function usePollNextFollowUpQuestion(params: {
   } = params
 
   useEffect(() => {
-    if (!enabled) return
-    if (isInitialRefreshRef.current) return
-    if ((currentQuestion && !canFinalizeCurrentPlanning) || isComplete || isFinalizingRef.current) return
-    if (canFinalizeCurrentPlanning || isReadyForApproval) return
-    if (isPollingRef.current) return
+    const guardSnapshot = {
+      projectId,
+      enabled,
+      initialRefreshing: isInitialRefreshRef.current,
+      currentQuestionId: currentQuestion?.questionId ?? null,
+      canFinalizeCurrentPlanning,
+      isComplete,
+      isFinalizing: isFinalizingRef.current,
+      isReadyForApproval,
+      isPolling: isPollingRef.current,
+    }
+
+    if (!enabled) {
+      console.warn('[followUpChatbot] poll skipped: disabled', guardSnapshot)
+      return
+    }
+    if (isInitialRefreshRef.current) {
+      console.warn('[followUpChatbot] poll skipped: entry refresh in progress', guardSnapshot)
+      return
+    }
+    if (currentQuestion && !canFinalizeCurrentPlanning) {
+      console.warn('[followUpChatbot] poll skipped: current question is active', guardSnapshot)
+      return
+    }
+    if (isComplete) {
+      console.warn('[followUpChatbot] poll skipped: complete', guardSnapshot)
+      return
+    }
+    if (isFinalizingRef.current) {
+      console.warn('[followUpChatbot] poll skipped: finalizing', guardSnapshot)
+      return
+    }
+    if (canFinalizeCurrentPlanning) {
+      console.warn('[followUpChatbot] poll skipped: ready to finalize', guardSnapshot)
+      return
+    }
+    if (isReadyForApproval) {
+      console.warn('[followUpChatbot] poll skipped: ready for approval', guardSnapshot)
+      return
+    }
+    if (isPollingRef.current) {
+      console.warn('[followUpChatbot] poll skipped: already polling', guardSnapshot)
+      return
+    }
 
     let cancelled = false
     isPollingRef.current = true
+    console.warn('[followUpChatbot] poll started', guardSnapshot)
 
     async function pollPlanning() {
       setIsSubmitting(true)
@@ -201,6 +270,12 @@ export function usePollNextFollowUpQuestion(params: {
           const nextSession = await getPlanningSession(projectId)
           applySession(nextSession)
           const nextQuestions = mapSessionQuestions(nextSession)
+          console.warn('[followUpChatbot] poll tick resolved', {
+            projectId,
+            attempt: i + 1,
+            session: getPlanningDebugSnapshot(nextSession),
+            mappedQuestionCount: nextQuestions.length,
+          })
           if (nextQuestions.length > 0) {
             setQuestionQueue(nextQuestions)
           }
@@ -225,6 +300,10 @@ export function usePollNextFollowUpQuestion(params: {
 
           await sleep(POLLING_INTERVAL_MS)
         } catch (error) {
+          console.warn('[followUpChatbot] poll tick failed', {
+            projectId,
+            error,
+          })
           const recovery = await resolvePlanningRecovery(
             projectId,
             error,
