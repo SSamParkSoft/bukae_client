@@ -1,14 +1,17 @@
 import type { VideoAnalysisResult } from './videoAnalysis'
+import type { ProjectWorkflow } from './workflow'
 
 export interface ProjectSession {
   projectId: string
   projectStatus: string
   currentStep: string | null
+  workflow: ProjectWorkflow
 }
 
 export interface ProjectPollingState {
   projectStatus: string
   currentStep: string | null
+  workflow: ProjectWorkflow
   activeBriefVersionId: string | null
   lastSummary: string | null
   errorMessage: string | null

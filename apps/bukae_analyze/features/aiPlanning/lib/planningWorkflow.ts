@@ -5,6 +5,10 @@ import {
   getProjectWorkflowState,
   isPlanningStep,
 } from '@/lib/services/projectWorkflowState'
+import {
+  isProjectFinalizedForGeneration,
+  isProjectPlanningWorkflow,
+} from '@/lib/types/domain'
 
 const POLLING_INTERVAL_MS = 5000
 const MAX_FINALIZE_POLLING_ATTEMPTS = 60
@@ -26,8 +30,7 @@ export function mapFinalizedProjectState(
   project: Awaited<ReturnType<typeof getProjectPollingState>>
 ): FinalizedProject | null {
   if (
-    project.projectStatus !== 'BRIEF_APPROVED' ||
-    project.currentStep !== 'GENERATION' ||
+    !isProjectFinalizedForGeneration(project.workflow) ||
     !project.activeBriefVersionId
   ) {
     return null
@@ -58,7 +61,7 @@ export async function waitFinalizedProject(
     const finalizedProject = mapFinalizedProjectState(project)
     if (finalizedProject) return finalizedProject
 
-    if (isPlanningStep(project)) {
+    if (isProjectPlanningWorkflow(project.workflow)) {
       const planning = await getPlanningSession(projectId).catch(() => null)
 
       if (planning?.failure) {
@@ -81,10 +84,7 @@ export async function getStepMismatchMessage(projectId: string): Promise<string 
   if (
     !workflowState ||
     isPlanningStep(workflowState) ||
-    (
-      workflowState.projectStatus === 'BRIEF_APPROVED' &&
-      workflowState.currentStep === 'GENERATION'
-    )
+    isProjectFinalizedForGeneration(workflowState)
   ) {
     return null
   }

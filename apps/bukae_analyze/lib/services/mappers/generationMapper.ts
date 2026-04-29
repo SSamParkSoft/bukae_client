@@ -1,5 +1,6 @@
 import type { GenerationArtifactDto, GenerationRequestDto, GenerationResponseDto } from '@/lib/types/api/generation'
 import type { Generation, GenerationArtifact, GenerationFailure, GenerationStartCommand } from '@/lib/types/domain'
+import { createGenerationWorkflow, createProjectWorkflow } from '@/lib/types/domain'
 import type { ShootingGuide, ShootingScene } from '@/lib/types/domain/shootingGuide'
 
 function parseOptionalDate(value: string | null | undefined): Date | null {
@@ -453,12 +454,15 @@ function mapGuidePreviewToShootingGuide(
 export function mapGeneration(dto: GenerationResponseDto): Generation {
   const scriptPreview = dto.scriptPreview ?? ''
   const guidePreview = dto.guidePreview ?? null
+  const projectStatus = dto.projectStatus ?? null
+  const currentStep = dto.currentStep ?? null
 
   return {
     projectId: dto.projectId ?? null,
     generationRequestId: dto.generationRequestId,
     briefVersionId: dto.briefVersionId ?? null,
     generationStatus: dto.generationStatus,
+    workflow: createGenerationWorkflow(dto.generationStatus),
     generationMode: dto.generationMode ?? null,
     variantCount: dto.variantCount ?? null,
     guideUrl: dto.guideUrl ?? null,
@@ -472,8 +476,12 @@ export function mapGeneration(dto: GenerationResponseDto): Generation {
     lastErrorCode: dto.lastErrorCode ?? null,
     lastErrorMessage: dto.lastErrorMessage ?? null,
     failure: mapGenerationFailure(dto.failure),
-    projectStatus: dto.projectStatus ?? null,
-    currentStep: dto.currentStep ?? null,
+    projectStatus,
+    currentStep,
+    projectWorkflow: createProjectWorkflow({
+      status: projectStatus,
+      currentStep,
+    }),
     startedAt: parseOptionalDate(dto.startedAt),
     completedAt: parseOptionalDate(dto.completedAt),
     updatedAt: parseOptionalDate(dto.updatedAt),

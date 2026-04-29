@@ -1,28 +1,24 @@
 import { getProjectPollingState } from './projects'
+import {
+  formatProjectWorkflowState,
+  isProjectPlanningWorkflow,
+  type ProjectWorkflow,
+} from '@/lib/types/domain'
 
-export interface ProjectWorkflowState {
-  projectStatus: string | null
-  currentStep: string | null
-}
+export type ProjectWorkflowState = ProjectWorkflow
 
 export async function getProjectWorkflowState(
   projectId: string
 ): Promise<ProjectWorkflowState> {
   const project = await getProjectPollingState(projectId)
 
-  return {
-    projectStatus: project.projectStatus,
-    currentStep: project.currentStep,
-  }
+  return project.workflow
 }
 
 export function isPlanningStep(state: ProjectWorkflowState): boolean {
-  return state.currentStep === 'PLANNING' || state.projectStatus === 'PLANNING_IN_PROGRESS'
+  return isProjectPlanningWorkflow(state)
 }
 
 export function formatWorkflowState(state: ProjectWorkflowState): string {
-  return [
-    state.currentStep ? `currentStep=${state.currentStep}` : null,
-    state.projectStatus ? `projectStatus=${state.projectStatus}` : null,
-  ].filter(Boolean).join(', ') || '현재 단계를 확인할 수 없습니다'
+  return formatProjectWorkflowState(state)
 }
