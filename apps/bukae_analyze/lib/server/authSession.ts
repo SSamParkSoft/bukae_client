@@ -20,10 +20,11 @@ export async function getServerCurrentUser(): Promise<CurrentUser | null> {
   try {
     return await fetchCurrentUserWithToken(accessToken)
   } catch (error) {
-    if (
-      error instanceof ApiResponseError &&
-      (error.status === 401 || error.status === 403)
-    ) {
+    if (error instanceof ApiResponseError) {
+      console.warn('[getServerCurrentUser] auth session unavailable:', {
+        status: error.status,
+        message: error.message,
+      })
       return null
     }
 
