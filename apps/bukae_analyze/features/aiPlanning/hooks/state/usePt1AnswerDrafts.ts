@@ -12,60 +12,107 @@ export interface Pt1AnswerDraftState {
   changeFieldAnswer: (questionId: string, fieldKey: string, value: string) => void
 }
 
+interface Pt1AnswerDraftValues {
+  selectedAnswers: Record<string, string>
+  customAnswers: Record<string, string>
+  fieldAnswers: Record<string, Record<string, string>>
+}
+
+interface LocalPt1AnswerDraftState extends Pt1AnswerDraftValues {
+  cacheKey: string | null
+}
+
+function createLocalDraftState(
+  cacheKey: string | null,
+  cachedDraft: Pt1AnswerDraftValues | null
+): LocalPt1AnswerDraftState {
+  return {
+    cacheKey,
+    selectedAnswers: cachedDraft?.selectedAnswers ?? {},
+    customAnswers: cachedDraft?.customAnswers ?? {},
+    fieldAnswers: cachedDraft?.fieldAnswers ?? {},
+  }
+}
+
 export function usePt1AnswerDrafts(cacheKey: string | null = null): Pt1AnswerDraftState {
   const getCachedPt1AnswerDraft = useAnalyzeWorkflowStore((state) => state.getCachedPt1AnswerDraft)
   const cachePt1AnswerDraft = useAnalyzeWorkflowStore((state) => state.cachePt1AnswerDraft)
   const cachedDraft = cacheKey ? getCachedPt1AnswerDraft(cacheKey) : null
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>(() => cachedDraft?.selectedAnswers ?? {})
-  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>(() => cachedDraft?.customAnswers ?? {})
-  const [fieldAnswers, setFieldAnswers] = useState<Record<string, Record<string, string>>>(() => cachedDraft?.fieldAnswers ?? {})
+  const [localDraft, setLocalDraft] = useState<LocalPt1AnswerDraftState>(() => (
+    createLocalDraftState(cacheKey, cachedDraft)
+  ))
+  const currentDraft = localDraft.cacheKey === cacheKey
+    ? localDraft
+    : createLocalDraftState(cacheKey, cachedDraft)
+
+  const updateCurrentDraft = useCallback((
+    updater: (draft: LocalPt1AnswerDraftState) => LocalPt1AnswerDraftState
+  ) => {
+    setLocalDraft((prev) => updater(
+      prev.cacheKey === cacheKey
+        ? prev
+        : createLocalDraftState(
+          cacheKey,
+          cacheKey ? getCachedPt1AnswerDraft(cacheKey) : null
+        )
+    ))
+  }, [cacheKey, getCachedPt1AnswerDraft])
 
   const selectAnswer = useCallback((questionId: string, value: string) => {
-    setSelectedAnswers((prev) => ({ ...prev, [questionId]: value }))
-    if (value !== 'custom') {
-      setCustomAnswers((prev) => ({ ...prev, [questionId]: '' }))
-    }
-  }, [])
+    updateCurrentDraft((prev) => ({
+      ...prev,
+      selectedAnswers: { ...prev.selectedAnswers, [questionId]: value },
+      customAnswers: value !== 'custom'
+        ? { ...prev.customAnswers, [questionId]: '' }
+        : prev.customAnswers,
+    }))
+  }, [updateCurrentDraft])
 
   const changeCustomAnswer = useCallback((questionId: string, value: string) => {
-    setSelectedAnswers((prev) => ({ ...prev, [questionId]: 'custom' }))
-    setCustomAnswers((prev) => ({ ...prev, [questionId]: value }))
-  }, [])
+    updateCurrentDraft((prev) => ({
+      ...prev,
+      selectedAnswers: { ...prev.selectedAnswers, [questionId]: 'custom' },
+      customAnswers: { ...prev.customAnswers, [questionId]: value },
+    }))
+  }, [updateCurrentDraft])
 
   const changeFieldAnswer = useCallback((
     questionId: string,
     fieldKey: string,
     value: string
   ) => {
-    setFieldAnswers((prev) => ({
+    updateCurrentDraft((prev) => ({
       ...prev,
-      [questionId]: {
-        ...(prev[questionId] ?? {}),
-        [fieldKey]: value,
+      fieldAnswers: {
+        ...prev.fieldAnswers,
+        [questionId]: {
+          ...(prev.fieldAnswers[questionId] ?? {}),
+          [fieldKey]: value,
+        },
       },
     }))
-  }, [])
+  }, [updateCurrentDraft])
 
   useEffect(() => {
     if (!cacheKey) return
 
     cachePt1AnswerDraft(cacheKey, {
-      selectedAnswers,
-      customAnswers,
-      fieldAnswers,
+      selectedAnswers: currentDraft.selectedAnswers,
+      customAnswers: currentDraft.customAnswers,
+      fieldAnswers: currentDraft.fieldAnswers,
     })
   }, [
     cacheKey,
     cachePt1AnswerDraft,
-    customAnswers,
-    fieldAnswers,
-    selectedAnswers,
+    currentDraft.customAnswers,
+    currentDraft.fieldAnswers,
+    currentDraft.selectedAnswers,
   ])
 
   return {
-    selectedAnswers,
-    customAnswers,
-    fieldAnswers,
+    selectedAnswers: currentDraft.selectedAnswers,
+    customAnswers: currentDraft.customAnswers,
+    fieldAnswers: currentDraft.fieldAnswers,
     selectAnswer,
     changeCustomAnswer,
     changeFieldAnswer,

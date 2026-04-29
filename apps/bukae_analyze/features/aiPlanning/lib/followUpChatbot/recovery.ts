@@ -23,7 +23,7 @@ export async function resolvePlanningRecovery(
     return { finalizedProject, errorMessage: null }
   }
 
-  const stepMismatchMessage = await getStepMismatchMessage(projectId)
+  const stepMismatchMessage = await getStepMismatchMessage(projectId).catch(() => null)
   return {
     finalizedProject: null,
     errorMessage: stepMismatchMessage ?? getErrorMessage(error, fallbackMessage),

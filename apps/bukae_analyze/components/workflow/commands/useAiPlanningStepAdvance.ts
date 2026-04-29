@@ -5,8 +5,8 @@ import { startGenerationFromCommand } from '@/lib/services/generations'
 import { enterPlanningWorkspace } from '@/lib/services/planning'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
-import { buildAnalyzeWorkflowStepPath } from '../lib/analyzeWorkflowSteps'
-import type { AnalyzeWorkflowRouteState } from '../hooks/useAnalyzeWorkflowRouteState'
+import type { AnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
+import { buildAnalyzeWorkflowStepPath } from '@/components/workflow/lib/analyzeWorkflowSteps'
 
 export interface AiPlanningStepAdvanceState {
   canProceedAiPlanning: boolean

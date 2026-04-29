@@ -7,7 +7,7 @@ import {
   ANALYZE_WORKFLOW_STEPS,
   getAnalyzeWorkflowStepIndex,
   type AnalyzeWorkflowStep,
-} from '../lib/analyzeWorkflowSteps'
+} from '@/components/workflow/lib/analyzeWorkflowSteps'
 
 export interface AnalyzeWorkflowRouteState {
   pathname: string
@@ -42,9 +42,11 @@ export function useAnalyzeWorkflowRouteState(): AnalyzeWorkflowRouteState {
   const isHomePage = pathname === '/'
   const isPlanningSetupStep = pathname.startsWith('/planning-setup')
   const isAiPlanningStep = pathname.startsWith('/ai-planning')
-  const planning = isPlanningSetupStep
-    ? serializePlanningSetupAnswers(planningAnswers)
-    : planningFromQuery
+  const planning = planningFromQuery ?? (
+    isPlanningSetupStep
+      ? serializePlanningSetupAnswers(planningAnswers)
+      : null
+  )
 
   return {
     pathname,

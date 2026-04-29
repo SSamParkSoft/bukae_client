@@ -6,7 +6,8 @@ import {
   isPlanningStep,
 } from '@/lib/services/projectWorkflowState'
 
-const POLLING_INTERVAL_MS = 2000
+const POLLING_INTERVAL_MS = 5000
+const MAX_FINALIZE_POLLING_ATTEMPTS = 60
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -47,7 +48,7 @@ export async function getFinalizedProject(projectId: string): Promise<FinalizedP
 export async function waitFinalizedProject(
   projectId: string
 ): Promise<FinalizedProject> {
-  while (true) {
+  for (let attempt = 0; attempt < MAX_FINALIZE_POLLING_ATTEMPTS; attempt += 1) {
     const [project, planning] = await Promise.all([
       getProjectPollingState(projectId),
       getPlanningSession(projectId).catch(() => null),
@@ -70,6 +71,8 @@ export async function waitFinalizedProject(
 
     await sleep(POLLING_INTERVAL_MS)
   }
+
+  throw new Error('최종 기획안 생성 시간이 초과되었습니다.')
 }
 
 export async function getStepMismatchMessage(projectId: string): Promise<string | null> {

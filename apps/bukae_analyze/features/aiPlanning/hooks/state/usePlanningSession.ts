@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getPlanningSession } from '@/lib/services/planning'
 import {
   formatWorkflowState,
@@ -9,7 +9,7 @@ import {
 } from '@/lib/services/projectWorkflowState'
 import type { PlanningSession } from '@/lib/types/domain'
 
-const POLLING_INTERVAL_MS = 2000
+const POLLING_INTERVAL_MS = 5000
 const MAX_POLLING_ATTEMPTS = 40
 
 export interface PlanningSessionState {
@@ -17,6 +17,43 @@ export interface PlanningSessionState {
   isLoading: boolean
   errorMessage: string | null
   replaceSession: (nextSession: PlanningSession) => void
+}
+
+interface LocalPlanningSessionState {
+  projectId: string
+  enabled: boolean
+  initialSession: PlanningSession | null
+  session: PlanningSession | null
+  isLoading: boolean
+  errorMessage: string | null
+}
+
+function createLocalPlanningSessionState(
+  projectId: string,
+  initialSession: PlanningSession | null,
+  enabled: boolean
+): LocalPlanningSessionState {
+  return {
+    projectId,
+    enabled,
+    initialSession,
+    session: initialSession,
+    isLoading: enabled && shouldKeepPolling(initialSession),
+    errorMessage: getFailureMessage(initialSession),
+  }
+}
+
+function isCurrentPlanningSessionState(
+  state: LocalPlanningSessionState,
+  projectId: string,
+  initialSession: PlanningSession | null,
+  enabled: boolean
+): boolean {
+  return (
+    state.projectId === projectId &&
+    state.initialSession === initialSession &&
+    state.enabled === enabled
+  )
 }
 
 function getFailureMessage(session: PlanningSession | null): string | null {
@@ -41,13 +78,29 @@ export function usePlanningSession(
   initialSession: PlanningSession | null = null,
   enabled = true
 ): PlanningSessionState {
-  const [session, setSession] = useState<PlanningSession | null>(initialSession)
-  const [isLoading, setIsLoading] = useState<boolean>(() => enabled && shouldKeepPolling(initialSession))
-  const [errorMessage, setErrorMessage] = useState<string | null>(() => getFailureMessage(initialSession))
+  const [localState, setLocalState] = useState<LocalPlanningSessionState>(() => (
+    createLocalPlanningSessionState(projectId, initialSession, enabled)
+  ))
+  const currentState = isCurrentPlanningSessionState(localState, projectId, initialSession, enabled)
+    ? localState
+    : createLocalPlanningSessionState(projectId, initialSession, enabled)
   const attemptsRef = useRef(0)
+  const updateCurrentState = useCallback((
+    updater: (state: LocalPlanningSessionState) => LocalPlanningSessionState
+  ) => {
+    setLocalState((prev) => updater(
+      isCurrentPlanningSessionState(prev, projectId, initialSession, enabled)
+        ? prev
+        : createLocalPlanningSessionState(projectId, initialSession, enabled)
+    ))
+  }, [enabled, initialSession, projectId])
+  const replaceSession = useCallback((nextSession: PlanningSession) => {
+    updateCurrentState((prev) => ({ ...prev, session: nextSession }))
+  }, [updateCurrentState])
 
   useEffect(() => {
     let cancelled = false
+    let timeoutId: number | null = null
 
     attemptsRef.current = 0
 
@@ -61,29 +114,38 @@ export function usePlanningSession(
 
         if (cancelled) return
 
-        setSession(nextSession)
+        updateCurrentState((prev) => ({ ...prev, session: nextSession }))
 
         const failureMessage = getFailureMessage(nextSession)
         if (failureMessage) {
-          setErrorMessage(failureMessage)
-          setIsLoading(false)
+          updateCurrentState((prev) => ({
+            ...prev,
+            errorMessage: failureMessage,
+            isLoading: false,
+          }))
           return
         }
 
         if (!shouldKeepPolling(nextSession)) {
-          setErrorMessage(null)
-          setIsLoading(false)
+          updateCurrentState((prev) => ({
+            ...prev,
+            errorMessage: null,
+            isLoading: false,
+          }))
           return
         }
 
         attemptsRef.current += 1
         if (attemptsRef.current >= MAX_POLLING_ATTEMPTS) {
-          setErrorMessage('PT1 질문 생성 시간이 초과되었습니다.')
-          setIsLoading(false)
+          updateCurrentState((prev) => ({
+            ...prev,
+            errorMessage: 'PT1 질문 생성 시간이 초과되었습니다.',
+            isLoading: false,
+          }))
           return
         }
 
-        window.setTimeout(() => {
+        timeoutId = window.setTimeout(() => {
           void poll()
         }, POLLING_INTERVAL_MS)
       } catch (error) {
@@ -91,17 +153,21 @@ export function usePlanningSession(
 
         const workflowState = await getProjectWorkflowState(projectId).catch(() => null)
         if (workflowState && !isPlanningStep(workflowState)) {
-          setErrorMessage(`현재 프로젝트 단계가 기획 단계가 아닙니다. (${formatWorkflowState(workflowState)})`)
-          setIsLoading(false)
+          updateCurrentState((prev) => ({
+            ...prev,
+            errorMessage: `현재 프로젝트 단계가 기획 단계가 아닙니다. (${formatWorkflowState(workflowState)})`,
+            isLoading: false,
+          }))
           return
         }
 
-        setErrorMessage(
-          error instanceof Error
+        updateCurrentState((prev) => ({
+          ...prev,
+          errorMessage: error instanceof Error
             ? error.message
-            : '기획 질문을 불러오지 못했습니다.'
-        )
-        setIsLoading(false)
+            : '기획 질문을 불러오지 못했습니다.',
+          isLoading: false,
+        }))
       }
     }
 
@@ -109,13 +175,14 @@ export function usePlanningSession(
 
     return () => {
       cancelled = true
+      if (timeoutId) clearTimeout(timeoutId)
     }
-  }, [enabled, initialSession, projectId])
+  }, [enabled, initialSession, projectId, updateCurrentState])
 
   return useMemo(() => ({
-    session,
-    isLoading,
-    errorMessage,
-    replaceSession: setSession,
-  }), [session, isLoading, errorMessage])
+    session: currentState.session,
+    isLoading: currentState.isLoading,
+    errorMessage: currentState.errorMessage,
+    replaceSession,
+  }), [currentState.errorMessage, currentState.isLoading, currentState.session, replaceSession])
 }

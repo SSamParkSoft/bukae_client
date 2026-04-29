@@ -5,7 +5,7 @@ import { getGeneration } from '@/lib/services/generations'
 import { getGenerationFailureMessage, isGenerationCompleted } from '@/features/shootingGuide/lib/generationState'
 import type { Generation } from '@/lib/types/domain'
 
-const GENERATION_POLLING_INTERVAL_MS = 3000
+const GENERATION_POLLING_INTERVAL_MS = 5000
 
 export interface GenerationPollingState {
   generation: Generation | null

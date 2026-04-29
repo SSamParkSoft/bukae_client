@@ -4,8 +4,8 @@ import Link from 'next/link'
 import {
   ANALYZE_WORKFLOW_STEPS,
   buildAnalyzeWorkflowStepPath,
-} from '../lib/analyzeWorkflowSteps'
-import { useAnalyzeWorkflowRouteState } from '../hooks/useAnalyzeWorkflowRouteState'
+} from '@/components/workflow/lib/analyzeWorkflowSteps'
+import { useAnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
 
 type StepState = 'completed' | 'active' | 'upcoming'
 

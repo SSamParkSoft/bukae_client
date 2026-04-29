@@ -6,7 +6,7 @@ import {
   createAnalysisResourceSnapshot,
   type AnalysisResourceSnapshotState,
 } from '@/features/analysisPage/lib/analysisResource'
-import { createServerApiFetcher } from './apiClient'
+import { createServerApiFetcher } from '@/lib/server/apiClient'
 
 export async function fetchAnalysisBootstrap(params: {
   accessToken: string

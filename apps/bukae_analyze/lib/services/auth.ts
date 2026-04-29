@@ -13,7 +13,7 @@ export async function logout(accessToken: string): Promise<void> {
 
 export async function refreshToken(): Promise<ApiTokenResponse> {
   const res = await fetch(API_ENDPOINTS.auth.refresh, { method: 'POST' })
-  if (!res.ok) throw new Error('토큰 재발급 실패')
+  if (!res.ok) throw new ApiResponseError('토큰 재발급 실패', res.status)
   return TokenResponseSchema.parse(await res.json())
 }
 
@@ -28,6 +28,16 @@ export interface CurrentUser {
   profileImageUrl: string | null
 }
 
+export class ApiResponseError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiResponseError'
+    this.status = status
+  }
+}
+
 function mapCurrentUser(data: z.infer<typeof CurrentUserSchema>): CurrentUser {
   return {
     name: data.nickname ?? data.name,
@@ -39,7 +49,7 @@ export async function fetchCurrentUserWithToken(
   accessToken: string
 ): Promise<CurrentUser> {
   const res = await apiFetchWithToken(accessToken, API_ENDPOINTS.users.me)
-  if (!res.ok) throw new Error('사용자 정보 조회 실패')
+  if (!res.ok) throw new ApiResponseError('사용자 정보 조회 실패', res.status)
   return mapCurrentUser(CurrentUserSchema.parse(await res.json()))
 }
 

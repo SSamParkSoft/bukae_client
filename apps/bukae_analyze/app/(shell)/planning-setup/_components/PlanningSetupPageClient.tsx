@@ -23,13 +23,21 @@ export function PlanningSetupPageClient({
   return (
     <div className="pb-32">
       {submitError ? (
-        <div className="mx-6 mb-6 rounded-lg border border-red-400/30 bg-red-500/10 px-5 py-4 text-sm text-red-100">
+        <div
+          role="alert"
+          aria-live="polite"
+          className="mx-6 mb-6 rounded-lg border border-highlight/30 bg-white/8 px-5 py-4 font-16-rg text-highlight"
+        >
           {submitError}
         </div>
       ) : null}
 
       {isSubmitting ? (
-        <div className="mx-6 mb-6 rounded-lg border border-white/15 bg-white/8 px-5 py-4 text-sm text-white/80">
+        <div
+          role="status"
+          aria-live="polite"
+          className="mx-6 mb-6 rounded-lg border border-white/15 bg-white/8 px-5 py-4 font-16-rg text-white/80"
+        >
           기획 프리세팅을 저장하는 중입니다.
         </div>
       ) : null}

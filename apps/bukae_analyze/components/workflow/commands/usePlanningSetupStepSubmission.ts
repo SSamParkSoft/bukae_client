@@ -5,8 +5,8 @@ import { mapPlanningSetupAnswersToIntakeRequest, validatePlanningSetupAnswers } 
 import { submitIntakeCommand } from '@/lib/services/planning'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { usePlanningStore } from '@/store/usePlanningStore'
-import { buildAnalyzeWorkflowStepPath } from '../lib/analyzeWorkflowSteps'
-import type { AnalyzeWorkflowRouteState } from '../hooks/useAnalyzeWorkflowRouteState'
+import type { AnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
+import { buildAnalyzeWorkflowStepPath } from '@/components/workflow/lib/analyzeWorkflowSteps'
 
 export interface PlanningSetupStepSubmissionState {
   isSubmittingPlanningSetup: boolean

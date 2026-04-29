@@ -10,11 +10,13 @@ export function BenchmarkUrlSubmissionForm({
   onBenchmarkUrlChange,
   onSubmitBenchmarkUrl,
   isSubmitting = false,
+  submitError = null,
 }: {
   benchmarkUrl: string
   onBenchmarkUrlChange: (e: React.ChangeEvent<HTMLInputElement>) => void
   onSubmitBenchmarkUrl: (e: React.FormEvent<HTMLFormElement>) => void
   isSubmitting?: boolean
+  submitError?: string | null
 }) {
   return (
     <form onSubmit={onSubmitBenchmarkUrl} className="w-[70%] max-w-[1360px]">
@@ -45,6 +47,14 @@ export function BenchmarkUrlSubmissionForm({
           </button>
         </div>
       </div>
+      {submitError ? (
+        <p
+          role="alert"
+          className="mt-4 px-8 font-16-rg text-highlight"
+        >
+          {submitError}
+        </p>
+      ) : null}
     </form>
   )
 }

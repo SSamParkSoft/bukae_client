@@ -82,14 +82,11 @@ export async function submitPt1AnswerRequests(params: {
   } = params
   let latestSession: PlanningSession | null = null
 
-  requests.forEach(({ questionId }) => {
-    onQuestionSaving(questionId)
-  })
-
   for (const { questionId, command, signature } of requests) {
     if (isCancelled()) return latestSession
 
     try {
+      onQuestionSaving(questionId)
       latestSession = await submitAnswer(projectId, command)
       onQuestionSaved(questionId, signature)
     } catch {

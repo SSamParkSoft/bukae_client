@@ -2,7 +2,7 @@ import 'server-only'
 
 import type { PlanningSession } from '@/lib/types/domain'
 import { getPlanningSessionWithFetcher } from '@/lib/services/planning'
-import { createServerApiFetcher } from './apiClient'
+import { createServerApiFetcher } from '@/lib/server/apiClient'
 
 export async function fetchPlanningBootstrap(params: {
   accessToken: string

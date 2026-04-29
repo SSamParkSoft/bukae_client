@@ -1,8 +1,15 @@
 import { useAuthStore } from '@/store/useAuthStore'
-import { refreshToken } from './auth'
+import { ApiResponseError, refreshToken } from './auth'
 import { clearServerAccessToken, syncServerAccessToken } from './authSession'
 import { apiFetchWithToken } from './apiFetchCore'
 import type { ApiFetcher } from './apiFetchCore'
+
+function isAuthError(error: unknown): boolean {
+  return (
+    error instanceof ApiResponseError &&
+    (error.status === 401 || error.status === 403)
+  )
+}
 
 export const apiFetch: ApiFetcher = async (
   url: string,
@@ -25,14 +32,17 @@ export const apiFetch: ApiFetcher = async (
     await syncServerAccessToken(refreshed.accessToken).catch(() => {})
     const retryRes = await apiFetchWithToken(refreshed.accessToken, url, options)
     if (retryRes.status === 401) {
-      await clearServerAccessToken().catch(() => {})
-      clearToken()
-      throw new Error('인증이 만료되었습니다. 다시 로그인해주세요')
+      throw new ApiResponseError(
+        '인증이 만료되었습니다. 다시 로그인해주세요',
+        retryRes.status
+      )
     }
     return retryRes
   } catch (err) {
-    await clearServerAccessToken().catch(() => {})
-    clearToken()
+    if (isAuthError(err)) {
+      await clearServerAccessToken().catch(() => {})
+      clearToken()
+    }
     throw err
   }
 }

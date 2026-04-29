@@ -19,7 +19,6 @@ export async function GET(request: Request) {
   }
 
   const redirectUrl = new URL('/oauth/finalize', request.url)
-  redirectUrl.searchParams.set('accessToken', accessToken)
 
   const response = NextResponse.redirect(redirectUrl)
   response.cookies.set(

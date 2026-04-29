@@ -178,6 +178,7 @@ export function useFollowUpChatbot({
 
     setAnswer('')
     setIsSubmitting(true)
+    setErrorMessage(null)
     setStageMessage(FOLLOW_UP_STAGE_MESSAGES.reflectingAnswer)
     setPendingQA([
       { role: 'ai', text: question.question },

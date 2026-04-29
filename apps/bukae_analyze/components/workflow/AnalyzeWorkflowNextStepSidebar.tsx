@@ -1,8 +1,8 @@
 'use client'
 
-import { useAnalyzeWorkflowNextStep } from './useAnalyzeWorkflowNextStep'
-import { LAYOUT } from '../layout/layout-constants'
-import { WorkflowStepArrowButton } from './ui/WorkflowStepArrowButton'
+import { LAYOUT } from '@/components/layout/layout-constants'
+import { useAnalyzeWorkflowNextStep } from '@/components/workflow/useAnalyzeWorkflowNextStep'
+import { WorkflowStepArrowButton } from '@/components/workflow/ui/WorkflowStepArrowButton'
 
 export function AnalyzeWorkflowNextStepSidebar() {
   const {

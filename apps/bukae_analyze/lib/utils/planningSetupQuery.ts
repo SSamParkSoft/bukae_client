@@ -63,7 +63,7 @@ function sanitizeNullableEnum<T extends string>(
 
 function sanitizeFaceExposure(value: unknown): FaceExposure | null {
   if (value === 'voice-over') return 'voiceover'
-  if (value === 'custom') return 'no-face'
+  if (value === 'custom') return null
 
   return sanitizeNullableEnum(value, FACE_EXPOSURES) as FaceExposure | null
 }

@@ -2,7 +2,7 @@ import 'server-only'
 
 import type { Generation } from '@/lib/types/domain'
 import { getGenerationWithFetcher } from '@/lib/services/generations'
-import { createServerApiFetcher } from './apiClient'
+import { createServerApiFetcher } from '@/lib/server/apiClient'
 
 export async function fetchGenerationBootstrap(params: {
   accessToken: string

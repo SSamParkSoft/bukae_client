@@ -8,18 +8,21 @@ function parseCustomDurationToSeconds(value: string): number | null {
   const normalized = trim(value).toLowerCase()
   if (!normalized) return null
 
-  const numbers = normalized.match(/\d+(?:\.\d+)?/g)
-  if (!numbers || numbers.length === 0) return null
+  const minuteMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(?:분|min|minutes?)/)
+  const secondMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(?:초|sec|seconds?)/)
 
-  const raw = Number(numbers[numbers.length - 1])
+  if (minuteMatch || secondMatch) {
+    const minutes = minuteMatch ? Number(minuteMatch[1]) : 0
+    const seconds = secondMatch ? Number(secondMatch[1]) : 0
+    const totalSeconds = Math.round(minutes * 60 + seconds)
+
+    return totalSeconds > 0 ? totalSeconds : null
+  }
+
+  const raw = Number(normalized.match(/\d+(?:\.\d+)?/)?.[0])
   if (!Number.isFinite(raw) || raw <= 0) return null
 
-  const usesMinutes =
-    normalized.includes('분') ||
-    normalized.includes('min') ||
-    normalized.includes('minute')
-
-  const seconds = usesMinutes ? Math.round(raw * 60) : Math.round(raw)
+  const seconds = Math.round(raw)
   return seconds > 0 ? seconds : null
 }
 

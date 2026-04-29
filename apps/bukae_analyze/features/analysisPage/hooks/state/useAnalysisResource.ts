@@ -17,13 +17,50 @@ const POLL_INTERVAL_MS = 2500
 const COMPLETED_RESULT_RETRY_MS = 1000
 const MAX_COMPLETED_RESULT_RETRIES = 10
 
+interface LocalAnalysisResourceSnapshot {
+  projectId: string
+  initialSnapshot: AnalysisResourceSnapshotState
+  snapshot: AnalysisResourceSnapshotState
+}
+
+function createLocalAnalysisResourceSnapshot(
+  projectId: string,
+  initialSnapshot: AnalysisResourceSnapshotState,
+  snapshot: AnalysisResourceSnapshotState = initialSnapshot
+): LocalAnalysisResourceSnapshot {
+  return {
+    projectId,
+    initialSnapshot,
+    snapshot,
+  }
+}
+
+function isCurrentAnalysisResourceSnapshot(
+  state: LocalAnalysisResourceSnapshot,
+  projectId: string,
+  initialSnapshot: AnalysisResourceSnapshotState
+): boolean {
+  return (
+    state.projectId === projectId &&
+    state.initialSnapshot === initialSnapshot
+  )
+}
+
 export function useAnalysisResource(
   projectId: string,
   initialSnapshot?: AnalysisResourceSnapshotState | null
 ): AnalysisResourceState {
-  const [snapshot, setSnapshot] = useState(
-    initialSnapshot ?? EMPTY_ANALYSIS_RESOURCE_SNAPSHOT
+  const initialSnapshotState = initialSnapshot ?? EMPTY_ANALYSIS_RESOURCE_SNAPSHOT
+  const [localSnapshot, setLocalSnapshot] = useState<LocalAnalysisResourceSnapshot>(() => (
+    createLocalAnalysisResourceSnapshot(projectId, initialSnapshotState)
+  ))
+  const snapshot = isCurrentAnalysisResourceSnapshot(
+    localSnapshot,
+    projectId,
+    initialSnapshotState
   )
+    ? localSnapshot.snapshot
+    : initialSnapshotState
   const latestResultRef = useRef(snapshot.result)
 
   useEffect(() => {
@@ -55,7 +92,11 @@ export function useAnalysisResource(
           previousResult: latestResultRef.current,
         })
 
-        setSnapshot(nextSnapshot)
+        setLocalSnapshot(createLocalAnalysisResourceSnapshot(
+          projectId,
+          initialSnapshotState,
+          nextSnapshot
+        ))
 
         const reachedCompletion = nextSnapshot.isCompleted
         const hasResult = nextSnapshot.result !== null
@@ -70,10 +111,24 @@ export function useAnalysisResource(
           completedRetryCount += 1
 
           if (completedRetryCount >= MAX_COMPLETED_RESULT_RETRIES) {
-            setSnapshot((prev) => ({
-              ...prev,
-              errorMessage: '분석은 완료되었지만 결과 데이터를 불러오지 못했습니다.',
-            }))
+            setLocalSnapshot((prev) => {
+              const current = isCurrentAnalysisResourceSnapshot(
+                prev,
+                projectId,
+                initialSnapshotState
+              )
+                ? prev.snapshot
+                : initialSnapshotState
+
+              return createLocalAnalysisResourceSnapshot(
+                projectId,
+                initialSnapshotState,
+                {
+                  ...current,
+                  errorMessage: '분석은 완료되었지만 결과 데이터를 불러오지 못했습니다.',
+                }
+              )
+            })
             return
           }
         } else {
@@ -89,10 +144,24 @@ export function useAnalysisResource(
       } catch (err) {
         if (cancelled) return
         console.error('[useAnalysisResource] poll failed:', err)
-        setSnapshot((prev) => ({
-          ...prev,
-          errorMessage: '분석 상태 확인 중 오류가 발생했습니다.',
-        }))
+        setLocalSnapshot((prev) => {
+          const current = isCurrentAnalysisResourceSnapshot(
+            prev,
+            projectId,
+            initialSnapshotState
+          )
+            ? prev.snapshot
+            : initialSnapshotState
+
+          return createLocalAnalysisResourceSnapshot(
+            projectId,
+            initialSnapshotState,
+            {
+              ...current,
+              errorMessage: '분석 상태 확인 중 오류가 발생했습니다.',
+            }
+          )
+        })
         timeoutId = setTimeout(syncAnalysisResult, POLL_INTERVAL_MS)
       }
     }
@@ -103,7 +172,7 @@ export function useAnalysisResource(
       cancelled = true
       if (timeoutId) clearTimeout(timeoutId)
     }
-  }, [initialSnapshot, projectId])
+  }, [initialSnapshot, initialSnapshotState, projectId])
 
   return deriveAnalysisResourceState(snapshot)
 }

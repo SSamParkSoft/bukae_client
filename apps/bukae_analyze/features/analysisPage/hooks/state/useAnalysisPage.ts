@@ -44,6 +44,11 @@ export function useAnalysisPage(
   const viewModel = result?.videoAnalysis
     ? mapVideoAnalysisToViewModel(result.videoAnalysis)
     : null
+  const isMissingReadyResult = status === 'ready' && !viewModel
+  const resolvedErrorType = isMissingReadyResult ? 'missing_result' : errorType
+  const resolvedErrorMessage = isMissingReadyResult
+    ? '분석은 완료되었지만 화면에 표시할 결과 데이터가 없습니다.'
+    : errorMessage
 
   return {
     activeTab,
@@ -52,10 +57,10 @@ export function useAnalysisPage(
     viewModel,
     referenceUrl: result?.referenceUrl ?? '',
     videoSrc: result?.videoSrc ?? '',  // 빈 문자열 허용 — AnalysisVideoPanel에서 undefined 변환
-    isReady: status === 'ready',
+    isReady: status === 'ready' && Boolean(viewModel),
     isLoading: status === 'loading',
-    isFailed: status === 'error',
-    errorType,
-    errorMessage,
+    isFailed: status === 'error' || isMissingReadyResult,
+    errorType: resolvedErrorType,
+    errorMessage: resolvedErrorMessage,
   }
 }

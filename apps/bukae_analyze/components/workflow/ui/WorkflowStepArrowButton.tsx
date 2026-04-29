@@ -21,7 +21,8 @@ export function WorkflowStepArrowButton({
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || hidden}
+      aria-hidden={hidden}
       className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-normal tracking-[-0.04em] leading-[1.4] text-white transition-colors hover:bg-white/8 focus-visible:outline-white/30"
       style={{
         fontSize: 'clamp(14px, 1.04vw, 20px)',

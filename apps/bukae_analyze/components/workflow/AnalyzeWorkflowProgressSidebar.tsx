@@ -1,11 +1,11 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { LAYOUT } from '../layout/layout-constants'
-import { useAnalyzeWorkflowRouteState } from './hooks/useAnalyzeWorkflowRouteState'
-import { buildAnalyzeWorkflowStepPath } from './lib/analyzeWorkflowSteps'
-import { AnalyzeWorkflowStepList } from './ui/AnalyzeWorkflowStepList'
-import { WorkflowStepArrowButton } from './ui/WorkflowStepArrowButton'
+import { LAYOUT } from '@/components/layout/layout-constants'
+import { useAnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
+import { buildAnalyzeWorkflowStepPath } from '@/components/workflow/lib/analyzeWorkflowSteps'
+import { AnalyzeWorkflowStepList } from '@/components/workflow/ui/AnalyzeWorkflowStepList'
+import { WorkflowStepArrowButton } from '@/components/workflow/ui/WorkflowStepArrowButton'
 
 export function AnalyzeWorkflowProgressSidebar() {
   const router = useRouter()

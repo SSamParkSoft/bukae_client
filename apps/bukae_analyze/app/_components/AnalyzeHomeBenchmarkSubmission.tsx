@@ -9,6 +9,7 @@ export function AnalyzeHomeBenchmarkSubmission() {
     changeBenchmarkUrl,
     submitBenchmarkUrl,
     isSubmitting,
+    submitError,
   } = useBenchmarkUrlSubmission()
 
   return (
@@ -17,6 +18,7 @@ export function AnalyzeHomeBenchmarkSubmission() {
       onBenchmarkUrlChange={changeBenchmarkUrl}
       onSubmitBenchmarkUrl={submitBenchmarkUrl}
       isSubmitting={isSubmitting}
+      submitError={submitError}
     />
   )
 }

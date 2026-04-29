@@ -1,29 +1,29 @@
 'use client'
 
 import { Suspense, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { fetchCurrentUser } from '@/lib/services/auth'
+import { useRouter } from 'next/navigation'
 import { clearServerAccessToken } from '@/lib/services/authSession'
 import { useAuthStore } from '@/store/useAuthStore'
+import type { CurrentUser } from '@/lib/services/auth'
+
+interface SessionPayload {
+  accessToken: string
+  user: CurrentUser
+}
 
 function OAuthFinalizeHandler() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const setAccessToken = useAuthStore((s) => s.setAccessToken)
   const setUser = useAuthStore((s) => s.setUser)
 
   useEffect(() => {
-    const token = searchParams.get('accessToken')
-
-    if (!token) {
-      router.replace('/login')
-      return
-    }
-
-    setAccessToken(token)
-
-    fetchCurrentUser(token)
-      .then((user) => {
+    fetch('/api/auth/session', { cache: 'no-store' })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('세션 조회 실패')
+        return res.json() as Promise<SessionPayload>
+      })
+      .then(({ accessToken, user }) => {
+        setAccessToken(accessToken)
         setUser(user)
         router.replace('/')
       })
@@ -32,7 +32,7 @@ function OAuthFinalizeHandler() {
         useAuthStore.getState().clearToken()
         router.replace('/login')
       })
-  }, [router, searchParams, setAccessToken, setUser])
+  }, [router, setAccessToken, setUser])
 
   return null
 }
