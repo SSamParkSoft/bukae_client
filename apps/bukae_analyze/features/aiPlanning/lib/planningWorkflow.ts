@@ -49,18 +49,7 @@ export async function waitFinalizedProject(
   projectId: string
 ): Promise<FinalizedProject> {
   for (let attempt = 0; attempt < MAX_FINALIZE_POLLING_ATTEMPTS; attempt += 1) {
-    const [project, planning] = await Promise.all([
-      getProjectPollingState(projectId),
-      getPlanningSession(projectId).catch(() => null),
-    ])
-
-    if (planning?.failure) {
-      throw new Error(
-        planning.failure.summary ??
-        planning.failure.message ??
-        '최종 기획안 생성에 실패했습니다.'
-      )
-    }
+    const project = await getProjectPollingState(projectId)
 
     if (project.errorMessage) {
       throw new Error(project.errorMessage)
@@ -68,6 +57,18 @@ export async function waitFinalizedProject(
 
     const finalizedProject = mapFinalizedProjectState(project)
     if (finalizedProject) return finalizedProject
+
+    if (isPlanningStep(project)) {
+      const planning = await getPlanningSession(projectId).catch(() => null)
+
+      if (planning?.failure) {
+        throw new Error(
+          planning.failure.summary ??
+          planning.failure.message ??
+          '최종 기획안 생성에 실패했습니다.'
+        )
+      }
+    }
 
     await sleep(POLLING_INTERVAL_MS)
   }

@@ -1,5 +1,5 @@
-import type { PlanningQuestion, PlanningSession } from '@/lib/types/domain'
-import { getActivePlanningQuestions } from '../planningPredicates'
+import type { PlanningSession } from '@/lib/types/domain'
+import { createFollowUpQuestionWorkflow } from './workflow'
 
 export interface ActiveFollowUpQuestion {
   questionId: string
@@ -10,19 +10,8 @@ export interface ActiveFollowUpQuestion {
   slotKey: string
 }
 
-function mapPlanningQuestion(question: PlanningQuestion): ActiveFollowUpQuestion {
-  return {
-    questionId: question.questionId,
-    title: question.title,
-    question: question.question,
-    referenceInsight: question.referenceInsight,
-    reasonWhyAsked: question.reasonWhyAsked,
-    slotKey: question.slotKey,
-  }
-}
-
 export function mapSessionQuestions(session: PlanningSession | null): ActiveFollowUpQuestion[] {
-  return getActivePlanningQuestions(session).map(mapPlanningQuestion)
+  return createFollowUpQuestionWorkflow(session).activeQuestions
 }
 
 export function getUnresolvedNextQuestions(
