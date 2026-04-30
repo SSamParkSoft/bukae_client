@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useAiPlanningStepAdvance } from '@/components/workflow/commands/useAiPlanningStepAdvance'
 import { usePlanningSetupStepSubmission } from '@/components/workflow/commands/usePlanningSetupStepSubmission'
 import { useAnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
+import { useAnalyzeWorkflowStepAccess } from '@/components/workflow/hooks/useAnalyzeWorkflowStepAccess'
 import { buildAnalyzeWorkflowStepPath } from '@/components/workflow/lib/analyzeWorkflowSteps'
 
 export interface AnalyzeWorkflowNextStepState {
@@ -25,23 +26,20 @@ export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
     isPlanningSetupStep,
     isAiPlanningStep,
   } = routeState
+  const { canOpenNextStep } = useAnalyzeWorkflowStepAccess(routeState)
   const {
-    isSubmittingPlanningSetup,
     submitPlanningSetupOnceAndOpenNextStep,
   } = usePlanningSetupStepSubmission(routeState)
   const {
-    canProceedAiPlanning,
-    isAdvancingAiPlanning,
     advanceAiPlanningToNextWorkflowStep,
   } = useAiPlanningStepAdvance(routeState)
 
   const shouldRenderNextStepButton = !isHomePage && !isLastStep
-  const isNextStepButtonDisabled =
-    isSubmittingPlanningSetup ||
-    (isAiPlanningStep && (!canProceedAiPlanning || isAdvancingAiPlanning))
+  const isNextStepButtonDisabled = !canOpenNextStep
 
   async function advanceToNextWorkflowStep() {
     if (isLastStep || !nextStep) return
+    if (!canOpenNextStep) return
 
     if (isPlanningSetupStep) {
       await submitPlanningSetupOnceAndOpenNextStep(nextStep.path)

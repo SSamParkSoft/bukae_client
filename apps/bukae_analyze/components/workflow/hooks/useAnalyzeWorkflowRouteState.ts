@@ -22,6 +22,7 @@ export interface AnalyzeWorkflowRouteState {
   isHomePage: boolean
   isFirstStep: boolean
   isLastStep: boolean
+  isAnalysisStep: boolean
   isPlanningSetupStep: boolean
   isAiPlanningStep: boolean
   isChatbotMode: boolean
@@ -40,6 +41,7 @@ export function useAnalyzeWorkflowRouteState(): AnalyzeWorkflowRouteState {
   const previousStep = ANALYZE_WORKFLOW_STEPS[currentStepIndex - 1] ?? null
   const nextStep = ANALYZE_WORKFLOW_STEPS[currentStepIndex + 1] ?? null
   const isHomePage = pathname === '/'
+  const isAnalysisStep = pathname.startsWith('/analysis')
   const isPlanningSetupStep = pathname.startsWith('/planning-setup')
   const isAiPlanningStep = pathname.startsWith('/ai-planning')
   const planning = planningFromQuery ?? (
@@ -61,6 +63,7 @@ export function useAnalyzeWorkflowRouteState(): AnalyzeWorkflowRouteState {
     isHomePage,
     isFirstStep: currentStepIndex === 0,
     isLastStep: currentStepIndex === ANALYZE_WORKFLOW_STEPS.length - 1,
+    isAnalysisStep,
     isPlanningSetupStep,
     isAiPlanningStep,
     isChatbotMode: mode === 'chatbot',

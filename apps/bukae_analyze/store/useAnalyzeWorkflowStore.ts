@@ -8,10 +8,13 @@ export interface Pt1AnswerDraftCache {
 }
 
 interface AnalyzeWorkflowStore {
+  analysisCompletedByProjectId: Record<string, boolean>
   planningSessionByProjectId: Record<string, PlanningSession>
   pt1AnswerDraftByKey: Record<string, Pt1AnswerDraftCache>
   chatbotSessionByPlanningSessionId: Record<string, PlanningSession>
   generationRequestIdByBriefVersionId: Record<string, string>
+  isAnalysisCompleted: (projectId: string) => boolean
+  markAnalysisCompleted: (projectId: string) => void
   getCachedPlanningSession: (projectId: string) => PlanningSession | null
   cachePlanningSession: (projectId: string, session: PlanningSession) => void
   getCachedPt1AnswerDraft: (key: string) => Pt1AnswerDraftCache | null
@@ -24,6 +27,7 @@ interface AnalyzeWorkflowStore {
 }
 
 const INITIAL_STATE = {
+  analysisCompletedByProjectId: {} as Record<string, boolean>,
   planningSessionByProjectId: {} as Record<string, PlanningSession>,
   pt1AnswerDraftByKey: {} as Record<string, Pt1AnswerDraftCache>,
   chatbotSessionByPlanningSessionId: {} as Record<string, PlanningSession>,
@@ -32,6 +36,17 @@ const INITIAL_STATE = {
 
 export const useAnalyzeWorkflowStore = create<AnalyzeWorkflowStore>()((set, get) => ({
   ...INITIAL_STATE,
+  isAnalysisCompleted: (projectId) => (
+    get().analysisCompletedByProjectId[projectId] ?? false
+  ),
+  markAnalysisCompleted: (projectId) => {
+    set((state) => ({
+      analysisCompletedByProjectId: {
+        ...state.analysisCompletedByProjectId,
+        [projectId]: true,
+      },
+    }))
+  },
   getCachedPlanningSession: (projectId) => (
     get().planningSessionByProjectId[projectId] ?? null
   ),

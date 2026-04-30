@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { mapVideoAnalysisToViewModel } from '@/features/videoAnalysis/lib/mapVideoAnalysisToViewModel'
 import type { VideoAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
+import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import type {
   AnalysisResourceErrorType,
   AnalysisResourceSnapshotState,
@@ -36,7 +37,8 @@ export function useAnalysisPage(
   initialSnapshot?: AnalysisResourceSnapshotState | null
 ): AnalysisPageState {
   const [activeTab, setActiveTab] = useState<AnalysisTabId>('thumbnail')
-  const { status, errorType, errorMessage, result } = useAnalysisResource(
+  const markAnalysisCompleted = useAnalyzeWorkflowStore((state) => state.markAnalysisCompleted)
+  const { status, submissionStatus, analysisStatus, errorType, errorMessage, result } = useAnalysisResource(
     projectId,
     initialSnapshot
   )
@@ -49,6 +51,16 @@ export function useAnalysisPage(
   const resolvedErrorMessage = isMissingReadyResult
     ? '분석은 완료되었지만 화면에 표시할 결과 데이터가 없습니다.'
     : errorMessage
+  const hasDisplayableAnalysis = Boolean(viewModel) && !resolvedErrorMessage
+  const hasCompletedAnalysisWorkflow =
+    submissionStatus === 'COMPLETED' &&
+    analysisStatus === 'COMPLETED'
+  const isReady = hasDisplayableAnalysis
+
+  useEffect(() => {
+    if (!hasCompletedAnalysisWorkflow) return
+    markAnalysisCompleted(projectId)
+  }, [hasCompletedAnalysisWorkflow, markAnalysisCompleted, projectId])
 
   return {
     activeTab,
@@ -57,8 +69,8 @@ export function useAnalysisPage(
     viewModel,
     referenceUrl: result?.referenceUrl ?? '',
     videoSrc: result?.videoSrc ?? '',  // 빈 문자열 허용 — AnalysisVideoPanel에서 undefined 변환
-    isReady: status === 'ready' && Boolean(viewModel),
-    isLoading: status === 'loading',
+    isReady,
+    isLoading: status === 'loading' && !hasDisplayableAnalysis,
     isFailed: status === 'error' || isMissingReadyResult,
     errorType: resolvedErrorType,
     errorMessage: resolvedErrorMessage,
