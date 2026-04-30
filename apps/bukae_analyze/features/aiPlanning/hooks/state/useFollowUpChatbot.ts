@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { submitPt2FreeText } from '@/lib/services/planning'
 import type { PlanningSession } from '@/lib/types/domain'
 import {
+  FOLLOW_UP_FINALIZE_PROGRESS_MESSAGES,
   FOLLOW_UP_STAGE_MESSAGES,
   createChatbotMessages,
   createReadyBriefViewModel,
@@ -35,6 +36,8 @@ import {
   useSyncInitialPlanningSession,
 } from './followUpChatbot/useFollowUpPlanningEffects'
 
+const FINALIZE_PROGRESS_MESSAGE_INTERVAL_MS = 60_000
+
 interface UseFollowUpChatbotParams {
   projectId: string
   initialSession: PlanningSession | null
@@ -55,6 +58,7 @@ export function useFollowUpChatbot({
   const [isComplete, setIsComplete] = useState(false)
   const [readyBrief, setReadyBrief] = useState<ReadyBriefViewModel | null>(null)
   const [stageMessage, setStageMessage] = useState<FollowUpStageMessage>(FOLLOW_UP_STAGE_MESSAGES.waitingQuestion)
+  const [finalizeProgressMessageIndex, setFinalizeProgressMessageIndex] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [pendingQA, setPendingQA] = useState<ChatMessage[]>([])
 
@@ -89,6 +93,25 @@ export function useFollowUpChatbot({
   )
   const canFinalizeCurrentPlanning = canFinalizePlanning(session)
   const isReadyForApproval = Boolean(session?.readyForApproval)
+  const isWaitingFinalizedProject =
+    stageMessage === FOLLOW_UP_STAGE_MESSAGES.approving &&
+    isSubmitting &&
+    !readyBrief &&
+    !errorMessage
+
+  useEffect(() => {
+    if (!isWaitingFinalizedProject) return
+
+    const intervalId = window.setInterval(() => {
+      setFinalizeProgressMessageIndex((prev) => (
+        (prev + 1) % FOLLOW_UP_FINALIZE_PROGRESS_MESSAGES.length
+      ))
+    }, FINALIZE_PROGRESS_MESSAGE_INTERVAL_MS)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [isWaitingFinalizedProject])
 
   useSyncInitialPlanningSession({
     enabled,
@@ -159,7 +182,9 @@ export function useFollowUpChatbot({
     isSubmitting,
     canFinalizeCurrentPlanning,
     isReadyForApproval,
-    stageMessage,
+    stageMessage: isWaitingFinalizedProject
+      ? FOLLOW_UP_FINALIZE_PROGRESS_MESSAGES[finalizeProgressMessageIndex] ?? FOLLOW_UP_STAGE_MESSAGES.approving
+      : stageMessage,
   }), [
     canFinalizeCurrentPlanning,
     currentQuestions,
@@ -168,7 +193,9 @@ export function useFollowUpChatbot({
     messages,
     pendingQA,
     readyBrief,
+    finalizeProgressMessageIndex,
     stageMessage,
+    isWaitingFinalizedProject,
   ])
 
   const submitCurrentAnswer = useCallback(() => {

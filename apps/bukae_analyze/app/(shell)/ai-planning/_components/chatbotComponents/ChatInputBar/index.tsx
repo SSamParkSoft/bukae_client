@@ -11,7 +11,8 @@ interface Props {
 }
 
 export function ChatInputBar({ answer, onAnswerChange, onSubmit, isSubmitting, hasQuestions }: Props) {
-  const canSubmit = hasQuestions && answer.trim() !== '' && !isSubmitting
+  const canInput = hasQuestions && !isSubmitting
+  const canSubmit = canInput && answer.trim() !== ''
 
   return (
     <div className="shrink-0 px-6 pb-[60px] pt-5 flex flex-col gap-3">
@@ -23,10 +24,10 @@ export function ChatInputBar({ answer, onAnswerChange, onSubmit, isSubmitting, h
           value={answer}
           onChange={onAnswerChange}
           onSubmit={onSubmit}
-          disabled={!canSubmit}
+          disabled={!canInput}
         />
         <div className="flex items-center gap-4 shrink-0">
-          <ChatInputAttachButton />
+          <ChatInputAttachButton disabled={!canInput} />
           <ChatInputSubmitButton
             onClick={onSubmit}
             disabled={!canSubmit}

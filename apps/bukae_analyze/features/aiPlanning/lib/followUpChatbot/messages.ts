@@ -17,6 +17,14 @@ export const FOLLOW_UP_STAGE_MESSAGES = {
   error: '진행 중 문제가 발생했습니다.',
 } as const
 
+export const FOLLOW_UP_FINALIZE_PROGRESS_MESSAGES = [
+  '촬영가이드와 스크립트 생성을 준비 중입니다.',
+  '장면별 촬영 포인트를 정리하고 있습니다.',
+  '후킹 구간과 CTA 흐름을 다시 점검하고 있습니다.',
+  '대본 톤과 컷 구성을 다듬고 있습니다.',
+  '조금만 기다려 주세요. 결과를 거의 준비하고 있습니다.',
+] as const
+
 export type FollowUpStageMessage =
   typeof FOLLOW_UP_STAGE_MESSAGES[keyof typeof FOLLOW_UP_STAGE_MESSAGES]
 
@@ -93,7 +101,7 @@ export function createVisibleMessages(params: {
   isSubmitting: boolean
   canFinalizeCurrentPlanning: boolean
   isReadyForApproval: boolean
-  stageMessage: FollowUpStageMessage
+  stageMessage: string
 }): ChatMessage[] {
   const {
     messages,
