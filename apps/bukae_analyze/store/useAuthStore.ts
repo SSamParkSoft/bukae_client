@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { clearStoredIntakeSubmissions } from '@/components/workflow/lib/intakeSubmissionStorage'
+import { clearStoredPt1PlanningSnapshots } from '@/features/aiPlanning/lib/pt1PlanningSnapshotStorage'
 
 interface AuthUser {
   name: string
@@ -24,6 +25,7 @@ export const useAuthStore = create<AuthStore>()(
       setUser: (user) => set({ user }),
       clearToken: () => {
         clearStoredIntakeSubmissions()
+        clearStoredPt1PlanningSnapshots()
         set({ accessToken: null, user: null })
       },
     }),

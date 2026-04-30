@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAiPlanningNavigationStateSync } from '@/features/aiPlanning/hooks/state/useAiPlanningNavigationStateSync'
@@ -9,6 +9,12 @@ import { usePlanningSession } from '@/features/aiPlanning/hooks/state/usePlannin
 import { usePt1AnswerAutoSubmission } from '@/features/aiPlanning/hooks/state/usePt1AnswerAutoSubmission'
 import { usePt1AnswerDrafts } from '@/features/aiPlanning/hooks/state/usePt1AnswerDrafts'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
+import {
+  getStoredPt1PlanningSnapshot,
+  isPt1PlanningSession,
+  storePt1PlanningSnapshot,
+  type Pt1PlanningSnapshot,
+} from '@/features/aiPlanning/lib/pt1PlanningSnapshotStorage'
 import { FollowUpChatbot } from './chatbotComponents'
 import { PlanningQuestionCard } from './PlanningQuestionCard'
 import { PlanningSessionError } from './PlanningSessionError'
@@ -16,6 +22,35 @@ import { PlanningSessionLoading } from './PlanningSessionLoading'
 import type { PlanningSession } from '@/lib/types/domain'
 
 type AiPlanningMode = 'default' | 'chatbot'
+
+interface LocalPt1PlanningSnapshotState {
+  projectId: string
+  planningParam: string | null
+  snapshot: Pt1PlanningSnapshot | null
+  isLoaded: boolean
+}
+
+function createLocalPt1PlanningSnapshotState(
+  projectId: string,
+  planningParam: string | null,
+  snapshot: Pt1PlanningSnapshot | null = null,
+  isLoaded = false
+): LocalPt1PlanningSnapshotState {
+  return {
+    projectId,
+    planningParam,
+    snapshot,
+    isLoaded,
+  }
+}
+
+function isCurrentLocalPt1PlanningSnapshotState(
+  state: LocalPt1PlanningSnapshotState,
+  projectId: string,
+  planningParam: string | null
+): boolean {
+  return state.projectId === projectId && state.planningParam === planningParam
+}
 
 function buildAiPlanningHref(
   projectId: string,
@@ -51,10 +86,30 @@ export function AiPlanningPageClient({
   const router = useRouter()
   const isChatbotMode = mode === 'chatbot'
   const pt1CacheKey = `${projectId}:${planningParam ?? ''}`
+  const [localPt1SnapshotState, setLocalPt1SnapshotState] = useState<LocalPt1PlanningSnapshotState>(() => (
+    createLocalPt1PlanningSnapshotState(projectId, planningParam)
+  ))
+  const currentStoredPt1SnapshotState = isCurrentLocalPt1PlanningSnapshotState(
+    localPt1SnapshotState,
+    projectId,
+    planningParam
+  )
+    ? localPt1SnapshotState
+    : createLocalPt1PlanningSnapshotState(projectId, planningParam)
+  const storedPt1Snapshot = currentStoredPt1SnapshotState.snapshot
   const cachedPlanningSession = useAnalyzeWorkflowStore((state) => state.getCachedPlanningSession(projectId))
   const cachePlanningSession = useAnalyzeWorkflowStore((state) => state.cachePlanningSession)
-  const planningInitialSession = initialPlanningSession ?? cachedPlanningSession
-  const shouldFetchPlanningSession = !isChatbotMode && !generationRequestId
+  const cachedPt1PlanningSession = isPt1PlanningSession(cachedPlanningSession)
+    ? cachedPlanningSession
+    : null
+  const shouldUseStoredPt1Snapshot = !isChatbotMode && Boolean(storedPt1Snapshot)
+  const planningInitialSession = shouldUseStoredPt1Snapshot
+    ? storedPt1Snapshot?.session ?? null
+    : initialPlanningSession ?? cachedPt1PlanningSession ?? null
+  const shouldFetchPlanningSession =
+    !isChatbotMode &&
+    !generationRequestId &&
+    !shouldUseStoredPt1Snapshot
 
   const planningSessionState = usePlanningSession(projectId, planningInitialSession, shouldFetchPlanningSession)
   const {
@@ -64,7 +119,7 @@ export function AiPlanningPageClient({
     selectAnswer,
     changeCustomAnswer,
     changeFieldAnswer,
-  } = usePt1AnswerDrafts(pt1CacheKey)
+  } = usePt1AnswerDrafts(pt1CacheKey, storedPt1Snapshot?.draft ?? null)
   const resetAiPlanningStore = useAiPlanningStore((state) => state.reset)
   const chatbotInitialSession = useAiPlanningStore((state) => state.chatbotInitialSession)
   const replacePlanningSession = planningSessionState.replaceSession
@@ -74,11 +129,29 @@ export function AiPlanningPageClient({
     enabled: isChatbotMode,
     onSessionChange: replacePlanningSession,
   })
+  const displayedPlanningSession = isChatbotMode || isPt1PlanningSession(planningSessionState.session)
+    ? planningSessionState.session
+    : storedPt1Snapshot?.session ?? null
 
   const questions = useMemo(
-    () => planningSessionState.session?.clarifyingQuestions ?? [],
-    [planningSessionState.session]
+    () => displayedPlanningSession?.clarifyingQuestions ?? [],
+    [displayedPlanningSession]
   )
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setLocalPt1SnapshotState(createLocalPt1PlanningSnapshotState(
+        projectId,
+        planningParam,
+        getStoredPt1PlanningSnapshot(projectId, planningParam),
+        true
+      ))
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [planningParam, projectId])
 
   useEffect(() => {
     return () => {
@@ -88,9 +161,33 @@ export function AiPlanningPageClient({
 
   useEffect(() => {
     if (!planningSessionState.session) return
+    if (!isPt1PlanningSession(planningSessionState.session)) return
 
     cachePlanningSession(projectId, planningSessionState.session)
   }, [cachePlanningSession, planningSessionState.session, projectId])
+
+  useEffect(() => {
+    if (!planningSessionState.session) return
+    if (!isPt1PlanningSession(planningSessionState.session)) return
+
+    storePt1PlanningSnapshot({
+      projectId,
+      planningParam,
+      session: planningSessionState.session,
+      draft: {
+        selectedAnswers,
+        customAnswers,
+        fieldAnswers,
+      },
+    })
+  }, [
+    customAnswers,
+    fieldAnswers,
+    planningParam,
+    planningSessionState.session,
+    projectId,
+    selectedAnswers,
+  ])
 
   const enterChatbotMode = () => {
     router.push(buildAiPlanningHref(projectId, 'chatbot', planningParam))
@@ -143,7 +240,18 @@ export function AiPlanningPageClient({
     return <PlanningSessionError message={planningSessionState.errorMessage} />
   }
 
-  if (planningSessionState.isLoading && questions.length === 0) {
+  if (
+    questions.length === 0 &&
+    (
+      planningSessionState.isLoading ||
+      (
+        !isChatbotMode &&
+        !isPt1PlanningSession(planningSessionState.session) &&
+        !currentStoredPt1SnapshotState.isLoaded
+      ) ||
+      (Boolean(generationRequestId) && !currentStoredPt1SnapshotState.isLoaded)
+    )
+  ) {
     return <PlanningSessionLoading />
   }
 

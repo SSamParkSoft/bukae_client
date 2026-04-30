@@ -26,6 +26,8 @@
 - `pt1AnswerDraftByKey`
   - 사용자가 입력한 PT1 선택/커스텀/필드 답변 draft
   - 사용 위치: `features/aiPlanning/hooks/state/usePt1AnswerDrafts.ts`
+  - localStorage snapshot: `bukae_analyze:pt1-planning:{projectId}:{planningHash}`
+  - 서버 질문 세션과 사용자 PT1 답변 draft를 함께 저장해 새로고침/재진입 시 복원한다.
 - `generationRequestIdByBriefVersionId`
   - 촬영가이드 generation 시작 결과
   - 사용 위치: `components/workflow/useAiPlanningStepAdvance.ts`
@@ -64,6 +66,7 @@ projectId
 
 - `planningSessionByProjectId`는 project 기준으로 PT1 질문과 session을 복원한다.
 - `pt1AnswerDraftByKey`는 project와 planning query를 함께 사용해 입력 draft를 복원한다.
+- localStorage PT1 snapshot은 질문 세션과 답변 draft를 함께 저장한다.
 - 촬영가이드 화면에서 이전 단계로 돌아오는 경우 `generationRequestId`가 URL에 남아 있으므로 planning API 재조회와 PT1 auto-submit을 수행하지 않고 cached state를 우선 표시한다.
 
 ### Shooting guide generation

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
+import { useAnalyzeWorkflowStore, type Pt1AnswerDraftCache } from '@/store/useAnalyzeWorkflowStore'
 
 export interface Pt1AnswerDraftState {
   selectedAnswers: Record<string, string>
@@ -34,29 +34,56 @@ function createLocalDraftState(
   }
 }
 
-export function usePt1AnswerDrafts(cacheKey: string | null = null): Pt1AnswerDraftState {
+function hasDraftValues(draft: Pt1AnswerDraftValues): boolean {
+  return (
+    Object.keys(draft.selectedAnswers).length > 0 ||
+    Object.keys(draft.customAnswers).length > 0 ||
+    Object.keys(draft.fieldAnswers).length > 0
+  )
+}
+
+export function usePt1AnswerDrafts(
+  cacheKey: string | null = null,
+  initialDraft: Pt1AnswerDraftCache | null = null
+): Pt1AnswerDraftState {
   const getCachedPt1AnswerDraft = useAnalyzeWorkflowStore((state) => state.getCachedPt1AnswerDraft)
   const cachePt1AnswerDraft = useAnalyzeWorkflowStore((state) => state.cachePt1AnswerDraft)
-  const cachedDraft = cacheKey ? getCachedPt1AnswerDraft(cacheKey) : null
+  const cachedDraft = cacheKey ? getCachedPt1AnswerDraft(cacheKey) ?? initialDraft : initialDraft
   const [localDraft, setLocalDraft] = useState<LocalPt1AnswerDraftState>(() => (
     createLocalDraftState(cacheKey, cachedDraft)
   ))
-  const currentDraft = localDraft.cacheKey === cacheKey
-    ? localDraft
-    : createLocalDraftState(cacheKey, cachedDraft)
+  const currentDraft = (() => {
+    if (localDraft.cacheKey !== cacheKey) {
+      return createLocalDraftState(cacheKey, cachedDraft)
+    }
+    if (!hasDraftValues(localDraft) && initialDraft) {
+      return createLocalDraftState(cacheKey, initialDraft)
+    }
+
+    return localDraft
+  })()
 
   const updateCurrentDraft = useCallback((
     updater: (draft: LocalPt1AnswerDraftState) => LocalPt1AnswerDraftState
   ) => {
-    setLocalDraft((prev) => updater(
-      prev.cacheKey === cacheKey
-        ? prev
-        : createLocalDraftState(
-          cacheKey,
-          cacheKey ? getCachedPt1AnswerDraft(cacheKey) : null
-        )
-    ))
-  }, [cacheKey, getCachedPt1AnswerDraft])
+    setLocalDraft((prev) => {
+      const baseDraft = (() => {
+        if (prev.cacheKey !== cacheKey) {
+          return createLocalDraftState(
+            cacheKey,
+            cacheKey ? getCachedPt1AnswerDraft(cacheKey) ?? initialDraft : initialDraft
+          )
+        }
+        if (!hasDraftValues(prev) && initialDraft) {
+          return createLocalDraftState(cacheKey, initialDraft)
+        }
+
+        return prev
+      })()
+
+      return updater(baseDraft)
+    })
+  }, [cacheKey, getCachedPt1AnswerDraft, initialDraft])
 
   const selectAnswer = useCallback((questionId: string, value: string) => {
     updateCurrentDraft((prev) => ({
