@@ -7,7 +7,7 @@ interface SceneCardProps {
 
 export function SceneCard({ scene }: SceneCardProps) {
   return (
-    <div className="border border-white/40 rounded-xl overflow-hidden">
+    <div className="border border-white/40 rounded-xl overflow-hidden mb-6">
       {/* 헤더 */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/20">
         <span className="font-medium text-white bg-white/10 rounded-lg px-6 py-4" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
