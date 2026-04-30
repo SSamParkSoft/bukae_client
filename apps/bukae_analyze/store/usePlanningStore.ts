@@ -6,10 +6,8 @@ interface PlanningStore {
   setAnswers: (answers: PlanningSetupAnswers) => void
   isSubmitting: boolean
   submitError: string | null
-  lastSubmittedIntakeKey: string | null
   setSubmitting: (isSubmitting: boolean) => void
   setSubmitError: (message: string | null) => void
-  markIntakeSubmitted: (submissionKey: string) => void
 }
 
 const INITIAL_ANSWERS: PlanningSetupAnswers = {
@@ -32,8 +30,6 @@ export const usePlanningStore = create<PlanningStore>()((set) => ({
   })),
   isSubmitting: false,
   submitError: null,
-  lastSubmittedIntakeKey: null,
   setSubmitting: (isSubmitting) => set({ isSubmitting }),
   setSubmitError: (submitError) => set({ submitError }),
-  markIntakeSubmitted: (lastSubmittedIntakeKey) => set({ lastSubmittedIntakeKey }),
 }))

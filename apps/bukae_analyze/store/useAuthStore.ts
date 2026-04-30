@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { clearStoredIntakeSubmissions } from '@/components/workflow/lib/intakeSubmissionStorage'
 
 interface AuthUser {
   name: string
@@ -21,7 +22,10 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       setAccessToken: (token) => set({ accessToken: token }),
       setUser: (user) => set({ user }),
-      clearToken: () => set({ accessToken: null, user: null }),
+      clearToken: () => {
+        clearStoredIntakeSubmissions()
+        set({ accessToken: null, user: null })
+      },
     }),
     { name: 'bukae-auth' }
   )

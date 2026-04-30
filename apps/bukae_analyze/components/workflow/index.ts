@@ -23,8 +23,7 @@
  *
  *      -> usePlanningSetupStepSubmission
  *         - 기획 프리셋 입력값을 검증한다.
- *         - 현재 draft key가 아직 제출되지 않았을 때만 intake를 제출한다.
- *         - submit-once 동작을 위해 store/useAnalyzeWorkflowStore를 사용한다.
+ *         - localStorage에 현재 projectId의 intake 제출 기록이 없을 때만 intake를 제출한다.
  *
  *      -> useAiPlanningStepAdvance
  *         - 필요할 때 후속 질문 챗봇 workspace에 진입한다.
@@ -39,7 +38,7 @@
  *
  *        /planning-setup
  *          -> 기획 프리셋 입력값 검증
- *          -> 현재 draft가 제출되지 않았을 때 intake 제출
+ *          -> localStorage에 현재 projectId의 intake 제출 기록이 없을 때 intake 제출
  *          -> /ai-planning으로 이동
  *
  *        /ai-planning?mode=default

@@ -3,10 +3,13 @@
 import { useRouter } from 'next/navigation'
 import { mapPlanningSetupAnswersToIntakeRequest, validatePlanningSetupAnswers } from '@/features/planningSetup/lib/intakeRequest'
 import { submitIntakeCommand } from '@/lib/services/planning'
-import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { usePlanningStore } from '@/store/usePlanningStore'
 import type { AnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
 import { buildAnalyzeWorkflowStepPath } from '@/components/workflow/lib/analyzeWorkflowSteps'
+import {
+  hasStoredIntakeSubmission,
+  storeIntakeSubmission,
+} from '@/components/workflow/lib/intakeSubmissionStorage'
 
 export interface PlanningSetupStepSubmissionState {
   isSubmittingPlanningSetup: boolean
@@ -22,10 +25,6 @@ export function usePlanningSetupStepSubmission(
   const isSubmittingPlanningSetup = usePlanningStore((state) => state.isSubmitting)
   const setSubmitting = usePlanningStore((state) => state.setSubmitting)
   const setSubmitError = usePlanningStore((state) => state.setSubmitError)
-  const legacyLastSubmittedIntakeKey = usePlanningStore((state) => state.lastSubmittedIntakeKey)
-  const markLegacyIntakeSubmitted = usePlanningStore((state) => state.markIntakeSubmitted)
-  const hasSubmittedIntake = useAnalyzeWorkflowStore((state) => state.hasSubmittedIntake)
-  const markIntakeSubmitted = useAnalyzeWorkflowStore((state) => state.markIntakeSubmitted)
 
   async function submitPlanningSetupOnceAndOpenNextStep(nextPath: string) {
     if (!projectId || isSubmittingPlanningSetup) return
@@ -36,12 +35,9 @@ export function usePlanningSetupStepSubmission(
       return
     }
 
-    const intakeSubmissionKey = `${projectId}:${planning ?? ''}`
     const nextHref = buildAnalyzeWorkflowStepPath(nextPath, { projectId, planning })
-    if (
-      hasSubmittedIntake(intakeSubmissionKey) ||
-      legacyLastSubmittedIntakeKey === intakeSubmissionKey
-    ) {
+    if (hasStoredIntakeSubmission(projectId)) {
+      setSubmitError(null)
       router.push(nextHref)
       return
     }
@@ -51,8 +47,7 @@ export function usePlanningSetupStepSubmission(
 
     try {
       await submitIntakeCommand(projectId, mapPlanningSetupAnswersToIntakeRequest(planningAnswers))
-      markIntakeSubmitted(intakeSubmissionKey)
-      markLegacyIntakeSubmitted(intakeSubmissionKey)
+      storeIntakeSubmission(projectId)
       router.push(nextHref)
     } catch (error) {
       setSubmitError(

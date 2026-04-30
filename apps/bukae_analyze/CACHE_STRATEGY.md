@@ -17,9 +17,6 @@
 
 현재 저장하는 값:
 
-- `submittedIntakeKeys`
-  - 기획 프리셋 intake 제출 완료 여부
-  - 사용 위치: `components/workflow/usePlanningSetupStepSubmission.ts`
 - `chatbotSessionByPlanningSessionId`
   - follow-up chatbot workspace 진입 결과
   - 사용 위치: `components/workflow/useAiPlanningStepAdvance.ts`
@@ -43,11 +40,12 @@
 ### 기획 프리셋 intake
 
 ```ts
-const intakeSubmissionKey = `${projectId}:${planning ?? ''}`
+localStorage.setItem(`bukae_analyze:intake-submitted:${projectId}`, '1')
 ```
 
-- `projectId`와 serialized planning answers를 함께 사용한다.
-- 사용자가 입력값을 바꾸면 `planning` 값이 바뀌므로 다시 제출된다.
+- intake 제출 성공 후 project별 localStorage flag를 저장한다.
+- 다음 단계 클릭 시 flag가 있으면 저장 중 UI와 intake API 호출 없이 바로 이동한다.
+- 사용자가 localStorage를 지우면 같은 project에서 intake API가 다시 호출될 수 있다.
 
 ### Chatbot workspace
 
@@ -132,9 +130,9 @@ mutation 성공 후에는 둘 중 하나를 명시적으로 선택한다.
 
 서버 호출이 예상보다 적게 발생할 때:
 
-1. `useAnalyzeWorkflowStore`의 key가 이미 저장되어 있는지 확인한다.
-2. `submittedIntakeKeys`, `chatbotSessionByPlanningSessionId`, `generationRequestIdByBriefVersionId` 중 어떤 캐시가 동작했는지 확인한다.
-3. 입력값을 바꿨는데도 재제출되지 않는다면 key 생성 규칙이 입력 변경을 반영하는지 확인한다.
+1. localStorage의 intake submitted flag 또는 `useAnalyzeWorkflowStore`의 key가 이미 저장되어 있는지 확인한다.
+2. intake localStorage flag, `chatbotSessionByPlanningSessionId`, `generationRequestIdByBriefVersionId` 중 어떤 캐시가 동작했는지 확인한다.
+3. 입력값을 바꿨는데도 intake가 재제출되지 않는다면 현재 정책상 project별 1회 제출이 맞는지 확인한다.
 
 서버 호출이 예상보다 많이 발생할 때:
 
