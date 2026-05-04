@@ -8,7 +8,7 @@ import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 
 const PT1_SAVE_STATUS_CARDS = [
   {
-    title: '답변을 저장하고 있어요.',
+    title: '정보가 충분한지 분석하고 있어요.',
     description: '잠시만 기다려주세요.',
   },
   {

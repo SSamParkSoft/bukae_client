@@ -19,7 +19,7 @@ export function ShootingEnvironmentPanel({ value, onChange }: Props) {
         </div>
         <div className="flex flex-col">
           <span className="font-medium tracking-[-0.04em] leading-[1.4] text-white" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>촬영 환경 설정</span>
-          <span className="font-medium tracking-[-0.04em] leading-[1.4] text-white/60" style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}>어느 환경에서 촬영을 하실 원하시나요?</span>
+          <span className="font-medium tracking-[-0.04em] leading-[1.4] text-white/60" style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}>직접 촬영하실 때만 활성화해주세요.</span>
         </div>
       </div>
       <textarea

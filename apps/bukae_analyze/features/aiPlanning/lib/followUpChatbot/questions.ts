@@ -1,4 +1,4 @@
-import type { PlanningSession } from '@/lib/types/domain'
+import type { PlanningQuestionOption, PlanningSession } from '@/lib/types/domain'
 import { createFollowUpQuestionWorkflow } from './workflow'
 
 export interface ActiveFollowUpQuestion {
@@ -8,6 +8,10 @@ export interface ActiveFollowUpQuestion {
   referenceInsight: string | null
   reasonWhyAsked: string | null
   slotKey: string
+  responseType: string
+  allowCustom: boolean
+  customPlaceholder: string | null
+  options: PlanningQuestionOption[]
 }
 
 export function mapSessionQuestions(session: PlanningSession | null): ActiveFollowUpQuestion[] {

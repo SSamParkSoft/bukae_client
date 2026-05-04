@@ -33,6 +33,7 @@ export interface PlanningQuestion {
   responseType: string
   required: boolean
   allowCustom: boolean
+  customPlaceholder: string | null
   options: PlanningQuestionOption[]
   fields: PlanningQuestionField[]
 }

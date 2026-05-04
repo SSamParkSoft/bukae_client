@@ -7,6 +7,7 @@ import type { ChatMessage } from '../../types/chatbotViewModel'
 import { getPlanningMessageTime } from '../planningMessageTime'
 import { canFinalizePlanning, getPayloadString } from '../planningPredicates'
 import type { ActiveFollowUpQuestion } from './questions'
+import { createAnswerChatMessage, createQuestionChatMessage } from './chatHistoryStorage'
 
 const FOLLOW_UP_ANSWER_MESSAGE_TYPES = new Set([
   'free_text',
@@ -21,6 +22,10 @@ function mapQuestion(question: PlanningQuestion): ActiveFollowUpQuestion {
     referenceInsight: question.referenceInsight,
     reasonWhyAsked: question.reasonWhyAsked,
     slotKey: question.slotKey,
+    responseType: question.responseType,
+    allowCustom: question.allowCustom,
+    customPlaceholder: question.customPlaceholder,
+    options: question.options,
   }
 }
 
@@ -82,8 +87,12 @@ export function createFollowUpQuestionWorkflow(
 
     if (answer) {
       transcriptMessages.push(
-        { role: 'ai', text: question.question },
-        { role: 'user', text: getAnswerText(answer) }
+        createQuestionChatMessage(mapQuestion(question)),
+        createAnswerChatMessage({
+          questionId: question.questionId,
+          text: getAnswerText(answer),
+          createdAt: answer.createdAt?.toISOString(),
+        })
       )
       return
     }
