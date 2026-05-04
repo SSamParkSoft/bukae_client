@@ -16,6 +16,10 @@ import {
   storePt1PlanningSnapshot,
   type Pt1PlanningSnapshot,
 } from '@/features/aiPlanning/lib/pt1PlanningSnapshotStorage'
+import {
+  deriveAiPlanningStage,
+  getAnsweredPt1QuestionIds,
+} from '@/features/aiPlanning/lib/aiPlanningStage'
 import { FollowUpChatbot } from './chatbotComponents'
 import { PlanningQuestionCard } from './PlanningQuestionCard'
 import { PlanningSessionError } from './PlanningSessionError'
@@ -124,6 +128,10 @@ export function AiPlanningPageClient({
     () => displayedPlanningSession?.clarifyingQuestions ?? [],
     [displayedPlanningSession]
   )
+  const answeredPt1QuestionIds = useMemo(
+    () => getAnsweredPt1QuestionIds(displayedPlanningSession),
+    [displayedPlanningSession]
+  )
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -192,18 +200,36 @@ export function AiPlanningPageClient({
     readyForApproval: Boolean(planningSessionState.session?.readyForApproval),
     onSessionChange: replacePlanningSession,
   })
-  const canEnterPt2 =
-    planningSessionState.session?.readyForApproval ||
-    pt1AnswerSubmission.hasSavedAllAnswers
+  const isLoadingPt1Questions =
+    questions.length === 0 &&
+    (
+      planningSessionState.isLoading ||
+      (
+        !isChatbotMode &&
+        !isPt1PlanningSession(planningSessionState.session) &&
+        !currentStoredPt1SnapshotState.isLoaded
+      ) ||
+      (Boolean(generationRequestId) && !currentStoredPt1SnapshotState.isLoaded)
+    )
+  const aiPlanningStage = deriveAiPlanningStage({
+    isChatbotMode,
+    session: planningSessionState.session,
+    isLoadingPt1Questions,
+    pt1QuestionCount: questions.length,
+    hasSavedAllPt1Answers: pt1AnswerSubmission.hasSavedAllAnswers,
+    hasPendingPt1Save: pt1AnswerSubmission.hasPendingSave,
+    hasPt1SaveError: pt1AnswerSubmission.hasSaveError,
+    chatbotQuestionCount: chatbotViewModel.currentQuestions.length,
+    isSubmittingChatbotAnswer: chatbotViewModel.isSubmitting,
+    readyBrief: chatbotViewModel.readyBrief,
+  })
 
   useAiPlanningNavigationStateSync({
-    isChatbotMode,
+    stage: aiPlanningStage,
     readyBrief: chatbotViewModel.readyBrief,
     session: planningSessionState.session,
-    questions,
-    canEnterPt2: Boolean(canEnterPt2),
-    hasPendingSave: pt1AnswerSubmission.hasPendingSave,
-    hasSaveError: pt1AnswerSubmission.hasSaveError,
+    answeredQuestionIds: answeredPt1QuestionIds,
+    isSavingPt1Answers: aiPlanningStage === 'pt1_saving_answers',
   })
 
   if (isChatbotMode) {
@@ -225,22 +251,11 @@ export function AiPlanningPageClient({
     return <PlanningSessionError message={planningSessionState.errorMessage} />
   }
 
-  if (
-    questions.length === 0 &&
-    (
-      planningSessionState.isLoading ||
-      (
-        !isChatbotMode &&
-        !isPt1PlanningSession(planningSessionState.session) &&
-        !currentStoredPt1SnapshotState.isLoaded
-      ) ||
-      (Boolean(generationRequestId) && !currentStoredPt1SnapshotState.isLoaded)
-    )
-  ) {
+  if (aiPlanningStage === 'pt1_preparing_questions') {
     return <PlanningSessionLoading />
   }
 
-  if (questions.length === 0) {
+  if (aiPlanningStage === 'planning_unavailable') {
     return (
       <PlanningSessionError message="생성된 PT1 질문이 없습니다. 기획 프리세팅 제출 상태를 확인해 주세요." />
     )

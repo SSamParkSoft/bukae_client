@@ -1,9 +1,11 @@
 import type { PlanningSession } from '@/lib/types/domain'
+import type { AiPlanningStage } from '@/features/aiPlanning/lib/aiPlanningStage'
 import { create } from 'zustand'
 
 type AiPlanningNextTarget = 'chatbot' | 'shooting-guide' | null
 
 interface AiPlanningStore {
+  stage: AiPlanningStage
   canProceed: boolean
   isAdvancing: boolean
   isSavingPt1Answers: boolean
@@ -14,6 +16,7 @@ interface AiPlanningStore {
   answeredQuestionIds: string[]
   chatbotInitialSession: PlanningSession | null
   setNavigationState: (params: {
+    stage: AiPlanningStage
     canProceed: boolean
     nextTarget: AiPlanningNextTarget
     planningSessionId: string | null
@@ -28,6 +31,7 @@ interface AiPlanningStore {
 }
 
 const INITIAL_STATE = {
+  stage: 'pt1_preparing_questions' as AiPlanningStage,
   canProceed: false,
   isAdvancing: false,
   isSavingPt1Answers: false,
@@ -42,6 +46,7 @@ const INITIAL_STATE = {
 export const useAiPlanningStore = create<AiPlanningStore>()((set) => ({
   ...INITIAL_STATE,
   setNavigationState: ({
+    stage,
     canProceed,
     nextTarget,
     planningSessionId,
@@ -51,6 +56,7 @@ export const useAiPlanningStore = create<AiPlanningStore>()((set) => ({
     isSavingPt1Answers,
   }) =>
     set((state) => ({
+      stage,
       canProceed,
       nextTarget,
       planningSessionId,

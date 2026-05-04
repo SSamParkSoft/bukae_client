@@ -389,7 +389,7 @@ export function useFinalizePlanningWhenReady(params: {
   useEffect(() => {
     if (!enabled) return
     if (!session) return
-    if ((currentQuestion && !canFinalizeCurrentPlanning) || isComplete || isFinalizingRef.current) return
+    if (currentQuestion || isComplete || isFinalizingRef.current) return
     if (!canFinalizeCurrentPlanning && !isReadyForApproval) return
 
     isFinalizingRef.current = true

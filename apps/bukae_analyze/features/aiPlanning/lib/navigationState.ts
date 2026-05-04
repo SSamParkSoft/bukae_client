@@ -1,9 +1,15 @@
-import type { PlanningQuestion, PlanningSession } from '@/lib/types/domain'
+import type { PlanningSession } from '@/lib/types/domain'
 import type { ReadyBriefViewModel } from '../types/chatbotViewModel'
+import {
+  getAiPlanningStageNextTarget,
+  isAiPlanningStageProceedable,
+  type AiPlanningStage,
+} from './aiPlanningStage'
 
 export type AiPlanningNextTarget = 'chatbot' | 'shooting-guide' | null
 
 export interface AiPlanningNavigationState {
+  stage: AiPlanningStage
   canProceed: boolean
   nextTarget: AiPlanningNextTarget
   planningSessionId: string | null
@@ -14,44 +20,28 @@ export interface AiPlanningNavigationState {
 }
 
 export function createAiPlanningNavigationState(params: {
-  isChatbotMode: boolean
+  stage: AiPlanningStage
   readyBrief: ReadyBriefViewModel | null
   session: PlanningSession | null
-  questions: PlanningQuestion[]
-  canEnterPt2: boolean
-  hasPendingSave: boolean
-  hasSaveError: boolean
+  answeredQuestionIds: string[]
+  isSavingPt1Answers: boolean
 }): AiPlanningNavigationState {
   const {
-    isChatbotMode,
+    stage,
     readyBrief,
     session,
-    questions,
-    canEnterPt2,
-    hasPendingSave,
-    hasSaveError,
+    answeredQuestionIds,
+    isSavingPt1Answers,
   } = params
-  const answeredQuestionIds = questions.map((question) => question.questionId)
-
-  if (isChatbotMode) {
-    return {
-      canProceed: Boolean(readyBrief),
-      nextTarget: readyBrief ? 'shooting-guide' : null,
-      planningSessionId: session?.planningSessionId ?? null,
-      briefVersionId: readyBrief?.briefVersionId ?? null,
-      briefStatus: readyBrief?.status ?? null,
-      answeredQuestionIds,
-      isSavingPt1Answers: false,
-    }
-  }
 
   return {
-    canProceed: Boolean(canEnterPt2) && !hasPendingSave && !hasSaveError,
-    nextTarget: session?.readyForApproval ? 'shooting-guide' : 'chatbot',
+    stage,
+    canProceed: isAiPlanningStageProceedable(stage),
+    nextTarget: getAiPlanningStageNextTarget(stage),
     planningSessionId: session?.planningSessionId ?? null,
-    briefVersionId: null,
-    briefStatus: null,
+    briefVersionId: readyBrief?.briefVersionId ?? null,
+    briefStatus: readyBrief?.status ?? null,
     answeredQuestionIds,
-    isSavingPt1Answers: hasPendingSave,
+    isSavingPt1Answers,
   }
 }

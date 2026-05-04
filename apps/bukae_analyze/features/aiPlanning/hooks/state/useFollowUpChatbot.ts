@@ -81,8 +81,15 @@ export function useFollowUpChatbot({
   const isCurrentChatHistoryLoaded = chatHistoryProjectId === projectId
 
   const applySession = useCallback((nextSession: PlanningSession) => {
+    const nextQuestions = mapSessionQuestions(nextSession)
+
     appliedSessionRef.current = nextSession
     setSession(nextSession)
+    if (nextQuestions.length > 0) {
+      setIsComplete(false)
+      setReadyBrief(null)
+      setChatHistory((prev) => prev.filter((message) => message.kind !== 'readyBrief'))
+    }
     onSessionChange?.(nextSession)
   }, [onSessionChange])
 
@@ -117,16 +124,9 @@ export function useFollowUpChatbot({
     appendChatMessages([createReadyBriefChatMessage(nextReadyBrief)])
   }, [appendChatMessages, isMountedRef])
 
-  const locallyAnsweredQuestionIds = useMemo(() => (
-    new Set(
-      chatHistory
-        .filter((message) => message.kind === 'answer' && message.questionId)
-        .map((message) => message.questionId as string)
-    )
-  ), [chatHistory])
   const currentQuestion = useMemo(() => (
-    questionQueue.find((question) => !locallyAnsweredQuestionIds.has(question.questionId)) ?? null
-  ), [locallyAnsweredQuestionIds, questionQueue])
+    questionQueue[0] ?? null
+  ), [questionQueue])
   const currentQuestions = useMemo(
     () => mapCurrentQuestion(currentQuestion),
     [currentQuestion]
