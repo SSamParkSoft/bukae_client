@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { validatePlanningSetupAnswers } from '@/features/planningSetup/lib/intakeRequest'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
@@ -15,6 +15,18 @@ export interface AnalyzeWorkflowStepAccessState {
   canOpenPreviousStep: boolean
   canOpenNextStep: boolean
   canOpenStepIndex: (stepIndex: number) => boolean
+}
+
+function subscribeHydrationStore() {
+  return () => {}
+}
+
+function getClientHydrationSnapshot() {
+  return true
+}
+
+function getServerHydrationSnapshot() {
+  return false
 }
 
 export function useAnalyzeWorkflowStepAccess(
@@ -37,6 +49,11 @@ export function useAnalyzeWorkflowStepAccess(
   const canProceedAiPlanning = useAiPlanningStore((state) => state.canProceed)
   const isAdvancingAiPlanning = useAiPlanningStore((state) => state.isAdvancing)
   const aiPlanningNextTarget = useAiPlanningStore((state) => state.nextTarget)
+  const hasHydrated = useSyncExternalStore(
+    subscribeHydrationStore,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot
+  )
 
   return useMemo(() => {
     const hasProject = Boolean(projectId)
@@ -61,7 +78,7 @@ export function useAnalyzeWorkflowStepAccess(
       (isPlanningSetupStep && isPlanningSetupComplete && !isSubmittingPlanningSetup) ||
       (isAiPlanningStep && canProceedAiPlanning && !isAdvancingAiPlanning)
 
-    const maxAccessible = projectId
+    const maxAccessible = hasHydrated && projectId
       ? getMaxAccessibleStepIndex(projectId)
       : 0
 
@@ -86,6 +103,7 @@ export function useAnalyzeWorkflowStepAccess(
     canProceedAiPlanning,
     currentStepIndex,
     generationRequestId,
+    hasHydrated,
     hasCompletedAnalysis,
     isAdvancingAiPlanning,
     isAiPlanningStep,

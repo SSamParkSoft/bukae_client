@@ -46,6 +46,79 @@ function isNoBenchmarkSubmittedError(body: unknown): boolean {
   return typeof message === 'string' && message === NO_BENCHMARK_MESSAGE
 }
 
+function getObjectKeys(value: unknown): string[] {
+  if (!value || typeof value !== 'object') return []
+
+  return Object.keys(value)
+}
+
+function getNestedObjectKeys(value: unknown, key: string): string[] {
+  if (!value || typeof value !== 'object' || !(key in value)) return []
+
+  const nested = value[key as keyof typeof value]
+  return getObjectKeys(nested)
+}
+
+function getRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+
+  return value as Record<string, unknown>
+}
+
+function summarizeZodIssues(issues: unknown): Array<{
+  path: string
+  code: string | null
+  message: string | null
+}> {
+  if (!Array.isArray(issues)) return []
+
+  return issues.map((issue) => {
+    const record = getRecord(issue)
+    const path = Array.isArray(record?.path)
+      ? record.path.map(String).join('.')
+      : ''
+    const code = typeof record?.code === 'string' ? record.code : null
+    const message = typeof record?.message === 'string' ? record.message : null
+
+    return {
+      path,
+      code,
+      message,
+    }
+  })
+}
+
+function logBenchmarkAnalysisParseFallback(params: {
+  json: unknown
+  rawIssues: unknown
+}) {
+  if (process.env.NODE_ENV === 'production') return
+
+  console.warn('[benchmark-analysis] response did not match raw result schema; using polling-only schema', {
+    topLevelKeys: getObjectKeys(params.json),
+    normalizedTabsKeys: getNestedObjectKeys(params.json, 'normalized_analysis_tabs'),
+    analysisRawPayloadKeys: getNestedObjectKeys(params.json, 'analysisRawPayload'),
+    rawIssueSummaries: summarizeZodIssues(params.rawIssues),
+    rawIssues: params.rawIssues,
+  })
+}
+
+function logBenchmarkAnalysisSnapshot(params: {
+  projectId: string
+  parseMode: 'raw-result' | 'polling-only'
+  snapshot: AnalysisSnapshot
+}) {
+  if (process.env.NODE_ENV === 'production') return
+
+  console.warn('[benchmark-analysis] mapped response snapshot', {
+    projectId: params.projectId,
+    parseMode: params.parseMode,
+    polling: params.snapshot.polling,
+    hasMappedResult: params.snapshot.result !== null,
+    resultKeys: params.snapshot.result ? Object.keys(params.snapshot.result) : [],
+  })
+}
+
 function normalizeBenchmarkAnalysisResponse(
   raw: BenchmarkAnalysisRawResponseDto | BenchmarkAnalysisPollingDto
 ): BenchmarkAnalysisResponseDto {
@@ -123,12 +196,29 @@ export async function getBenchmarkAnalysisWithFetcher(
 
   const rawResult = BenchmarkAnalysisRawResponseSchema.safeParse(json)
   if (rawResult.success) {
-    return mapBenchmarkAnalysisSnapshot(normalizeBenchmarkAnalysisResponse(rawResult.data))
+    const snapshot = mapBenchmarkAnalysisSnapshot(normalizeBenchmarkAnalysisResponse(rawResult.data))
+    logBenchmarkAnalysisSnapshot({
+      projectId,
+      parseMode: 'raw-result',
+      snapshot,
+    })
+    return snapshot
   }
 
   const pollingResult = BenchmarkAnalysisPollingSchema.safeParse(json)
   if (pollingResult.success) {
-    return mapBenchmarkAnalysisSnapshot(normalizeBenchmarkAnalysisResponse(pollingResult.data))
+    logBenchmarkAnalysisParseFallback({
+      json,
+      rawIssues: rawResult.error.issues,
+    })
+
+    const snapshot = mapBenchmarkAnalysisSnapshot(normalizeBenchmarkAnalysisResponse(pollingResult.data))
+    logBenchmarkAnalysisSnapshot({
+      projectId,
+      parseMode: 'polling-only',
+      snapshot,
+    })
+    return snapshot
   }
 
   throw new Error('분석 응답 형식이 예상과 다릅니다.')

@@ -59,10 +59,10 @@ const HookTabSchema = z.object({
 })
 
 const SceneCaptureSchema = z.object({
-  status: z.string().optional(),
-  public_url: z.string().optional(),
+  status: z.string().nullable().optional(),
+  public_url: z.string().nullable().optional(),
   scene_number: z.number().optional(),
-  capture_time_sec: z.number().optional(),
+  capture_time_sec: z.number().nullable().optional(),
 })
 
 const StructureSceneSchema = z.object({
@@ -97,20 +97,20 @@ const StructureTabSchema = z.object({
 })
 
 const SourceMetadataSchema = z.object({
-  title: z.string().optional(),
-  uploader: z.string().optional(),
-  source_url: z.string().optional(),
-  view_count: z.number().optional(),
-  like_count: z.number().optional(),
-  comment_count: z.number().optional(),
-  duration_sec: z.number().optional(),
-  thumbnail_url: z.string().optional(),
-  platform_type: z.string().optional(),
+  title: z.string().nullable().optional(),
+  uploader: z.string().nullable().optional(),
+  source_url: z.string().nullable().optional(),
+  view_count: z.number().nullable().optional(),
+  like_count: z.number().nullable().optional(),
+  comment_count: z.number().nullable().optional(),
+  duration_sec: z.number().nullable().optional(),
+  thumbnail_url: z.string().nullable().optional(),
+  platform_type: z.string().nullable().optional(),
 })
 
 const SourceVideoSchema = z.object({
-  status: z.string().optional(),
-  public_url: z.string().optional(),
+  status: z.string().nullable().optional(),
+  public_url: z.string().nullable().optional(),
 })
 
 const SourceTabSchema = z.object({
