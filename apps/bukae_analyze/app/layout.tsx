@@ -3,8 +3,8 @@ import { CinematicBackground } from '@/app/_components/CinematicBackground'
 import { QueryProvider } from '@/app/_components/QueryProvider'
 
 export const metadata = {
-  title: 'Bukae Analyze',
-  description: '부캐 분석 플랫폼',
+  title: 'Bukae, 당신에게 딱 맞는 부캐',
+  description: 'AI 기반 숏폼 영상 분석 및 맞춤형 촬영가이드 제작 서비스',
   icons: {
     icon: [
       {
