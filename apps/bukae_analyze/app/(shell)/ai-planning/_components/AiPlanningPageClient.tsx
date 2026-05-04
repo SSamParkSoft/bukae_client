@@ -9,6 +9,7 @@ import { usePt1AnswerAutoSubmission } from '@/features/aiPlanning/hooks/state/us
 import { usePt1AnswerDrafts } from '@/features/aiPlanning/hooks/state/usePt1AnswerDrafts'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowStepCompletionStorage'
+import { useDebouncedValue } from '@/app/_hooks/useDebouncedValue'
 import {
   getStoredPt1PlanningSnapshot,
   isPt1PlanningSession,
@@ -25,6 +26,7 @@ import { PlanningSessionError } from './PlanningSessionError'
 import { PlanningSessionLoading } from './PlanningSessionLoading'
 
 type AiPlanningMode = 'default' | 'chatbot'
+const PT1_TEXT_ANSWER_DEBOUNCE_MS = 600
 
 interface LocalPt1PlanningSnapshotState {
   projectId: string
@@ -117,6 +119,14 @@ export function AiPlanningPageClient({
     () => getAnsweredPt1QuestionIds(displayedPlanningSession),
     [displayedPlanningSession]
   )
+  const debouncedCustomAnswers = useDebouncedValue(
+    customAnswers,
+    PT1_TEXT_ANSWER_DEBOUNCE_MS
+  )
+  const debouncedFieldAnswers = useDebouncedValue(
+    fieldAnswers,
+    PT1_TEXT_ANSWER_DEBOUNCE_MS
+  )
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -172,8 +182,8 @@ export function AiPlanningPageClient({
     enabled: !generationRequestId,
     questions,
     selectedAnswers,
-    customAnswers,
-    fieldAnswers,
+    customAnswers: debouncedCustomAnswers,
+    fieldAnswers: debouncedFieldAnswers,
     readyForApproval: Boolean(planningSessionState.session?.readyForApproval),
     onSessionChange: replacePlanningSession,
   })
