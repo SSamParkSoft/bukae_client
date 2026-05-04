@@ -23,7 +23,7 @@ import { waitFinalizedProject, type FinalizedProject } from '../../../lib/planni
 import { createFollowUpQuestionWorkflow } from '../../../lib/followUpChatbot/workflow'
 
 const POLLING_INTERVAL_MS = 2000
-const PLANNING_POLLING_LIMIT = 60
+const PLANNING_POLLING_LIMIT = 120
 
 export type RefState<T> = { current: T }
 export type StateSetter<T> = (value: T | ((prev: T) => T)) => void

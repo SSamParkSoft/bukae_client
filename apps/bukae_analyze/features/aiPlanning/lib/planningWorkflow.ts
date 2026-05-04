@@ -11,7 +11,7 @@ import {
 } from '@/lib/types/domain'
 
 const POLLING_INTERVAL_MS = 5000
-const MAX_FINALIZE_POLLING_ATTEMPTS = 60
+const MAX_FINALIZE_POLLING_ATTEMPTS = 120
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
