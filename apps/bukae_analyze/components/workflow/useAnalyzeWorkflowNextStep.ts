@@ -6,6 +6,7 @@ import { usePlanningSetupStepSubmission } from '@/components/workflow/commands/u
 import { useAnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
 import { useAnalyzeWorkflowStepAccess } from '@/components/workflow/hooks/useAnalyzeWorkflowStepAccess'
 import { buildAnalyzeWorkflowStepPath } from '@/components/workflow/lib/analyzeWorkflowSteps'
+import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowStepCompletionStorage'
 
 export interface AnalyzeWorkflowNextStepState {
   shouldRenderNextStepButton: boolean
@@ -18,7 +19,6 @@ export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
   const routeState = useAnalyzeWorkflowRouteState()
   const {
     projectId,
-    planning,
     generationRequestId,
     nextStep,
     isHomePage,
@@ -51,7 +51,11 @@ export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
       return
     }
 
-    router.push(buildAnalyzeWorkflowStepPath(nextStep.path, { projectId, planning, generationRequestId }))
+    if (projectId && nextStep.path === '/planning-setup') {
+      markWorkflowStepCompleted(projectId, 'intake')
+    }
+
+    router.push(buildAnalyzeWorkflowStepPath(nextStep.path, { projectId, generationRequestId }))
   }
 
   return {

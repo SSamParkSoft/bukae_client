@@ -8,7 +8,6 @@ export const PT1_REQUIRED_QUESTION_COUNT = 7
 export interface Pt1PlanningSnapshot {
   version: typeof SNAPSHOT_VERSION
   projectId: string
-  planningParam: string | null
   savedAt: string
   session: PlanningSession
   draft: Pt1AnswerDraftCache
@@ -26,22 +25,12 @@ export function hasCompletePt1QuestionSet(session: PlanningSession | null): sess
   )
 }
 
-function hashString(value: string): string {
-  let hash = 5381
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash = ((hash << 5) + hash) + value.charCodeAt(index)
-    hash >>>= 0
-  }
-
-  return hash.toString(36)
+function getPt1PlanningSnapshotStorageKey(projectId: string): string {
+  return `${PT1_PLANNING_SNAPSHOT_STORAGE_PREFIX}${projectId}`
 }
 
-function getPt1PlanningSnapshotStorageKey(
-  projectId: string,
-  planningParam: string | null
-): string {
-  return `${PT1_PLANNING_SNAPSHOT_STORAGE_PREFIX}${projectId}:${hashString(planningParam ?? '')}`
+function getLegacyPt1PlanningSnapshotStoragePrefix(projectId: string): string {
+  return `${PT1_PLANNING_SNAPSHOT_STORAGE_PREFIX}${projectId}:`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -62,7 +51,6 @@ function parsePt1PlanningSnapshot(value: unknown): Pt1PlanningSnapshot | null {
   if (value.version !== SNAPSHOT_VERSION) return null
   if (typeof value.projectId !== 'string') return null
   if (typeof value.savedAt !== 'string') return null
-  if (value.planningParam !== null && typeof value.planningParam !== 'string') return null
   if (!isRecord(value.session)) return null
   if (!isPt1AnswerDraftCache(value.draft)) return null
   if (!hasCompletePt1QuestionSet(value.session as unknown as PlanningSession)) return null
@@ -71,18 +59,36 @@ function parsePt1PlanningSnapshot(value: unknown): Pt1PlanningSnapshot | null {
 }
 
 export function getStoredPt1PlanningSnapshot(
-  projectId: string,
-  planningParam: string | null
+  projectId: string
 ): Pt1PlanningSnapshot | null {
   if (typeof window === 'undefined') return null
 
   try {
     const raw = window.localStorage.getItem(
-      getPt1PlanningSnapshotStorageKey(projectId, planningParam)
+      getPt1PlanningSnapshotStorageKey(projectId)
     )
-    if (!raw) return null
+    if (raw) return parsePt1PlanningSnapshot(JSON.parse(raw))
 
-    return parsePt1PlanningSnapshot(JSON.parse(raw))
+    const legacyPrefix = getLegacyPt1PlanningSnapshotStoragePrefix(projectId)
+
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index)
+      if (!key?.startsWith(legacyPrefix)) continue
+
+      const legacyRaw = window.localStorage.getItem(key)
+      if (!legacyRaw) continue
+
+      const legacySnapshot = parsePt1PlanningSnapshot(JSON.parse(legacyRaw))
+      if (!legacySnapshot) continue
+
+      window.localStorage.setItem(
+        getPt1PlanningSnapshotStorageKey(projectId),
+        JSON.stringify(legacySnapshot)
+      )
+      return legacySnapshot
+    }
+
+    return null
   } catch {
     return null
   }
@@ -90,7 +96,6 @@ export function getStoredPt1PlanningSnapshot(
 
 export function storePt1PlanningSnapshot(params: {
   projectId: string
-  planningParam: string | null
   session: PlanningSession
   draft: Pt1AnswerDraftCache
 }): void {
@@ -98,7 +103,6 @@ export function storePt1PlanningSnapshot(params: {
 
   const {
     projectId,
-    planningParam,
     session,
     draft,
   } = params
@@ -109,14 +113,13 @@ export function storePt1PlanningSnapshot(params: {
     const snapshot: Pt1PlanningSnapshot = {
       version: SNAPSHOT_VERSION,
       projectId,
-      planningParam,
       savedAt: new Date().toISOString(),
       session,
       draft,
     }
 
     window.localStorage.setItem(
-      getPt1PlanningSnapshotStorageKey(projectId, planningParam),
+      getPt1PlanningSnapshotStorageKey(projectId),
       JSON.stringify(snapshot)
     )
   } catch {

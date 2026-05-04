@@ -5,7 +5,10 @@ import { validatePlanningSetupAnswers } from '@/features/planningSetup/lib/intak
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { usePlanningStore } from '@/store/usePlanningStore'
-import { getMaxAccessibleStepIndex } from '@/components/workflow/lib/workflowStepCompletionStorage'
+import {
+  getMaxAccessibleStepIndex,
+  subscribeWorkflowStepCompletionChanges,
+} from '@/components/workflow/lib/workflowStepCompletionStorage'
 import type { AnalyzeWorkflowRouteState } from './useAnalyzeWorkflowRouteState'
 
 export interface AnalyzeWorkflowStepAccessState {
@@ -15,18 +18,6 @@ export interface AnalyzeWorkflowStepAccessState {
   canOpenPreviousStep: boolean
   canOpenNextStep: boolean
   canOpenStepIndex: (stepIndex: number) => boolean
-}
-
-function subscribeHydrationStore() {
-  return () => {}
-}
-
-function getClientHydrationSnapshot() {
-  return true
-}
-
-function getServerHydrationSnapshot() {
-  return false
 }
 
 export function useAnalyzeWorkflowStepAccess(
@@ -49,10 +40,10 @@ export function useAnalyzeWorkflowStepAccess(
   const canProceedAiPlanning = useAiPlanningStore((state) => state.canProceed)
   const isAdvancingAiPlanning = useAiPlanningStore((state) => state.isAdvancing)
   const aiPlanningNextTarget = useAiPlanningStore((state) => state.nextTarget)
-  const hasHydrated = useSyncExternalStore(
-    subscribeHydrationStore,
-    getClientHydrationSnapshot,
-    getServerHydrationSnapshot
+  const maxAccessible = useSyncExternalStore(
+    subscribeWorkflowStepCompletionChanges,
+    () => projectId ? getMaxAccessibleStepIndex(projectId) : 0,
+    () => 0
   )
 
   return useMemo(() => {
@@ -78,10 +69,6 @@ export function useAnalyzeWorkflowStepAccess(
       (isPlanningSetupStep && isPlanningSetupComplete && !isSubmittingPlanningSetup) ||
       (isAiPlanningStep && canProceedAiPlanning && !isAdvancingAiPlanning)
 
-    const maxAccessible = hasHydrated && projectId
-      ? getMaxAccessibleStepIndex(projectId)
-      : 0
-
     const canOpenStepIndex = (stepIndex: number) => {
       if (stepIndex === currentStepIndex) return true
       if (isChatbotMode) return false
@@ -103,7 +90,6 @@ export function useAnalyzeWorkflowStepAccess(
     canProceedAiPlanning,
     currentStepIndex,
     generationRequestId,
-    hasHydrated,
     hasCompletedAnalysis,
     isAdvancingAiPlanning,
     isAiPlanningStep,
@@ -111,6 +97,7 @@ export function useAnalyzeWorkflowStepAccess(
     isChatbotMode,
     isPlanningSetupStep,
     isSubmittingPlanningSetup,
+    maxAccessible,
     planningAnswers,
     projectId,
   ])

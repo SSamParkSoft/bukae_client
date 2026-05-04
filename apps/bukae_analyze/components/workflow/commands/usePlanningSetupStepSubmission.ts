@@ -7,7 +7,9 @@ import { usePlanningStore } from '@/store/usePlanningStore'
 import type { AnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
 import { buildAnalyzeWorkflowStepPath } from '@/components/workflow/lib/analyzeWorkflowSteps'
 import {
+  hasSubmittedIntake,
   hasCompletedStep,
+  markIntakeSubmitted,
   markWorkflowStepCompleted,
 } from '@/components/workflow/lib/workflowStepCompletionStorage'
 
@@ -39,7 +41,7 @@ export function usePlanningSetupStepSubmission(
   routeState: AnalyzeWorkflowRouteState
 ): PlanningSetupStepSubmissionState {
   const router = useRouter()
-  const { projectId, planning } = routeState
+  const { projectId } = routeState
   const planningAnswers = usePlanningStore((state) => state.answers)
   const isSubmittingPlanningSetup = usePlanningStore((state) => state.isSubmitting)
   const setSubmitting = usePlanningStore((state) => state.setSubmitting)
@@ -54,8 +56,8 @@ export function usePlanningSetupStepSubmission(
       return
     }
 
-    const nextHref = buildAnalyzeWorkflowStepPath(nextPath, { projectId, planning })
-    if (hasCompletedStep(projectId, 'intake')) {
+    const nextHref = buildAnalyzeWorkflowStepPath(nextPath, { projectId })
+    if (hasSubmittedIntake(projectId) || hasCompletedStep(projectId, 'planning')) {
       setSubmitError(null)
       router.push(nextHref)
       return
@@ -66,6 +68,7 @@ export function usePlanningSetupStepSubmission(
 
     try {
       await submitIntakeCommand(projectId, mapPlanningSetupAnswersToIntakeRequest(planningAnswers))
+      markIntakeSubmitted(projectId)
       markWorkflowStepCompleted(projectId, 'intake')
       router.push(nextHref)
     } catch (error) {

@@ -11,7 +11,6 @@ export function buildAnalyzeWorkflowStepPath(
   path: string,
   options: {
     projectId: string | null
-    planning: string | null
     generationRequestId?: string | null
   }
 ): string {
@@ -19,10 +18,6 @@ export function buildAnalyzeWorkflowStepPath(
 
   if (options.projectId) {
     params.set('projectId', options.projectId)
-  }
-
-  if (options.planning) {
-    params.set('planning', options.planning)
   }
 
   if (options.generationRequestId) {

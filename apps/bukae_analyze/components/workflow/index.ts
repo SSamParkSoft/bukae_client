@@ -6,7 +6,7 @@
  *      -> AnalyzeWorkflowProgressSidebar
  *         - 분석 워크플로우의 좌측 진행 상태 영역을 렌더링한다.
  *         - AnalyzeWorkflowStepList를 표시한다.
- *         - project/planning query를 유지한 채 이전 단계로 이동한다.
+ *         - projectId query를 유지한 채 이전 단계로 이동한다.
  *
  *      -> AnalyzeWorkflowNextStepSidebar
  *         - 우측 다음 단계 버튼을 렌더링한다.
@@ -19,7 +19,7 @@
  *
  *      -> useAnalyzeWorkflowRouteState
  *         - pathname/searchParams를 읽는다.
- *         - projectId, planning query, mode, 현재 단계를 계산한다.
+ *         - projectId, mode, 현재 단계를 계산한다.
  *
  *      -> usePlanningSetupStepSubmission
  *         - 기획 프리셋 입력값을 검증한다.
@@ -56,7 +56,7 @@
  * 공용 helper:
  *   -> analyzeWorkflowSteps
  *      - 워크플로우 단계 목록을 정의한다.
- *      - project/planning query를 포함한 단계 URL을 만든다.
+ *      - projectId query를 포함한 단계 URL을 만든다.
  *      - pathname에서 현재 단계 index를 계산한다.
  *
  *   -> store/useAnalyzeWorkflowStore

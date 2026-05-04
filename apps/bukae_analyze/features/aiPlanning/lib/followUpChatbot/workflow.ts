@@ -4,6 +4,7 @@ import type {
   PlanningSession,
 } from '@/lib/types/domain'
 import type { ChatMessage } from '../../types/chatbotViewModel'
+import { getPlanningMessageTime } from '../planningMessageTime'
 import { canFinalizePlanning, getPayloadString } from '../planningPredicates'
 import type { ActiveFollowUpQuestion } from './questions'
 
@@ -40,9 +41,7 @@ function getLatestFollowUpAnswersByQuestionId(
 ): Map<string, PlanningConversationMessage> {
   const answers = new Map<string, PlanningConversationMessage>()
   const sortedMessages = [...session.messages].sort((a, b) => {
-    const aTime = a.createdAt?.getTime() ?? 0
-    const bTime = b.createdAt?.getTime() ?? 0
-    return aTime - bTime
+    return getPlanningMessageTime(a) - getPlanningMessageTime(b)
   })
 
   sortedMessages.forEach((message) => {

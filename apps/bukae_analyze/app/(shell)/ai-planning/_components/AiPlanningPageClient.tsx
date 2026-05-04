@@ -9,6 +9,7 @@ import { usePlanningSession } from '@/features/aiPlanning/hooks/state/usePlannin
 import { usePt1AnswerAutoSubmission } from '@/features/aiPlanning/hooks/state/usePt1AnswerAutoSubmission'
 import { usePt1AnswerDrafts } from '@/features/aiPlanning/hooks/state/usePt1AnswerDrafts'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
+import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowStepCompletionStorage'
 import {
   getStoredPt1PlanningSnapshot,
   isPt1PlanningSession,
@@ -19,26 +20,22 @@ import { FollowUpChatbot } from './chatbotComponents'
 import { PlanningQuestionCard } from './PlanningQuestionCard'
 import { PlanningSessionError } from './PlanningSessionError'
 import { PlanningSessionLoading } from './PlanningSessionLoading'
-import type { PlanningSession } from '@/lib/types/domain'
 
 type AiPlanningMode = 'default' | 'chatbot'
 
 interface LocalPt1PlanningSnapshotState {
   projectId: string
-  planningParam: string | null
   snapshot: Pt1PlanningSnapshot | null
   isLoaded: boolean
 }
 
 function createLocalPt1PlanningSnapshotState(
   projectId: string,
-  planningParam: string | null,
   snapshot: Pt1PlanningSnapshot | null = null,
   isLoaded = false
 ): LocalPt1PlanningSnapshotState {
   return {
     projectId,
-    planningParam,
     snapshot,
     isLoaded,
   }
@@ -46,22 +43,16 @@ function createLocalPt1PlanningSnapshotState(
 
 function isCurrentLocalPt1PlanningSnapshotState(
   state: LocalPt1PlanningSnapshotState,
-  projectId: string,
-  planningParam: string | null
+  projectId: string
 ): boolean {
-  return state.projectId === projectId && state.planningParam === planningParam
+  return state.projectId === projectId
 }
 
 function buildAiPlanningHref(
   projectId: string,
-  mode: AiPlanningMode,
-  planning: string | null
+  mode: AiPlanningMode
 ): string {
   const params = new URLSearchParams({ projectId })
-
-  if (planning) {
-    params.set('planning', planning)
-  }
 
   if (mode === 'chatbot') {
     params.set('mode', 'chatbot')
@@ -73,29 +64,24 @@ function buildAiPlanningHref(
 export function AiPlanningPageClient({
   projectId,
   mode,
-  planningParam,
   generationRequestId,
-  initialPlanningSession,
 }: {
   projectId: string
   mode: AiPlanningMode
-  planningParam: string | null
   generationRequestId: string | null
-  initialPlanningSession: PlanningSession | null
 }) {
   const router = useRouter()
   const isChatbotMode = mode === 'chatbot'
-  const pt1CacheKey = `${projectId}:${planningParam ?? ''}`
+  const pt1CacheKey = projectId
   const [localPt1SnapshotState, setLocalPt1SnapshotState] = useState<LocalPt1PlanningSnapshotState>(() => (
-    createLocalPt1PlanningSnapshotState(projectId, planningParam)
+    createLocalPt1PlanningSnapshotState(projectId)
   ))
   const currentStoredPt1SnapshotState = isCurrentLocalPt1PlanningSnapshotState(
     localPt1SnapshotState,
-    projectId,
-    planningParam
+    projectId
   )
     ? localPt1SnapshotState
-    : createLocalPt1PlanningSnapshotState(projectId, planningParam)
+    : createLocalPt1PlanningSnapshotState(projectId)
   const storedPt1Snapshot = currentStoredPt1SnapshotState.snapshot
   const cachedPlanningSession = useAnalyzeWorkflowStore((state) => state.getCachedPlanningSession(projectId))
   const cachePlanningSession = useAnalyzeWorkflowStore((state) => state.cachePlanningSession)
@@ -105,10 +91,11 @@ export function AiPlanningPageClient({
   const shouldUseStoredPt1Snapshot = !isChatbotMode && Boolean(storedPt1Snapshot)
   const planningInitialSession = shouldUseStoredPt1Snapshot
     ? storedPt1Snapshot?.session ?? null
-    : initialPlanningSession ?? cachedPt1PlanningSession ?? null
+    : cachedPt1PlanningSession ?? null
   const shouldFetchPlanningSession =
     !isChatbotMode &&
     !generationRequestId &&
+    currentStoredPt1SnapshotState.isLoaded &&
     !shouldUseStoredPt1Snapshot
 
   const planningSessionState = usePlanningSession(projectId, planningInitialSession, shouldFetchPlanningSession)
@@ -142,8 +129,7 @@ export function AiPlanningPageClient({
     const timeoutId = window.setTimeout(() => {
       setLocalPt1SnapshotState(createLocalPt1PlanningSnapshotState(
         projectId,
-        planningParam,
-        getStoredPt1PlanningSnapshot(projectId, planningParam),
+        getStoredPt1PlanningSnapshot(projectId),
         true
       ))
     }, 0)
@@ -151,7 +137,7 @@ export function AiPlanningPageClient({
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [planningParam, projectId])
+  }, [projectId])
 
   useEffect(() => {
     return () => {
@@ -172,7 +158,6 @@ export function AiPlanningPageClient({
 
     storePt1PlanningSnapshot({
       projectId,
-      planningParam,
       session: planningSessionState.session,
       draft: {
         selectedAnswers,
@@ -180,21 +165,21 @@ export function AiPlanningPageClient({
         fieldAnswers,
       },
     })
+    markWorkflowStepCompleted(projectId, 'planning')
   }, [
     customAnswers,
     fieldAnswers,
-    planningParam,
     planningSessionState.session,
     projectId,
     selectedAnswers,
   ])
 
   const enterChatbotMode = () => {
-    router.push(buildAiPlanningHref(projectId, 'chatbot', planningParam))
+    router.push(buildAiPlanningHref(projectId, 'chatbot'))
   }
 
   const exitChatbotMode = () => {
-    router.push(buildAiPlanningHref(projectId, 'default', planningParam))
+    router.push(buildAiPlanningHref(projectId, 'default'))
   }
 
   const pt1AnswerSubmission = usePt1AnswerAutoSubmission({

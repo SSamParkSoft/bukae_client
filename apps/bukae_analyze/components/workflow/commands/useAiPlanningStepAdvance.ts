@@ -21,7 +21,6 @@ export function useAiPlanningStepAdvance(
   const router = useRouter()
   const {
     projectId,
-    planning,
     generationRequestId,
     isChatbotMode,
   } = routeState
@@ -78,7 +77,6 @@ export function useAiPlanningStepAdvance(
     }
 
     const params = new URLSearchParams({ projectId: projectId! })
-    if (planning) params.set('planning', planning)
     params.set('mode', 'chatbot')
     markWorkflowStepCompleted(projectId!, 'planning')
     router.push(`/ai-planning?${params.toString()}`)
@@ -87,7 +85,7 @@ export function useAiPlanningStepAdvance(
   async function startGenerationOnceAndOpenShootingGuide(nextPath: string) {
     if (generationRequestId) {
       markWorkflowStepCompleted(projectId!, 'generation')
-      router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, planning, generationRequestId }))
+      router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, generationRequestId }))
       return
     }
 
@@ -99,12 +97,11 @@ export function useAiPlanningStepAdvance(
         projectId: projectId!,
         generationRequestId,
       })
-      if (planning) params.set('planning', planning)
       router.push(`${nextPath}?${params.toString()}`)
       return
     }
 
-    router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, planning }))
+    router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId }))
   }
 
   async function startGenerationAndCacheRequestId(briefVersionId: string): Promise<string> {

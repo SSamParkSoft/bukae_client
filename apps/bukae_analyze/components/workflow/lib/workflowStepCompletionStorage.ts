@@ -8,14 +8,48 @@ const STEP_COMPLETION_ORDER = [
 export type WorkflowStepCompletion = (typeof STEP_COMPLETION_ORDER)[number]
 
 const STORAGE_PREFIX = 'bukae_analyze:workflow-step:'
-const OLD_INTAKE_STORAGE_PREFIX = 'bukae_analyze:intake-submitted:'
+const INTAKE_SUBMISSION_STORAGE_PREFIX = 'bukae_analyze:intake-submitted:'
+const WORKFLOW_STEP_COMPLETION_CHANGE_EVENT = 'bukae_analyze:workflow-step-change'
 
 function getStorageKey(projectId: string): string {
   return `${STORAGE_PREFIX}${projectId}`
 }
 
+function getIntakeSubmissionStorageKey(projectId: string): string {
+  return `${INTAKE_SUBMISSION_STORAGE_PREFIX}${projectId}`
+}
+
 function getStepIndex(step: WorkflowStepCompletion): number {
   return STEP_COMPLETION_ORDER.indexOf(step)
+}
+
+function emitWorkflowStepCompletionChange(): void {
+  if (typeof window === 'undefined') return
+
+  window.dispatchEvent(new Event(WORKFLOW_STEP_COMPLETION_CHANGE_EVENT))
+}
+
+export function subscribeWorkflowStepCompletionChanges(
+  onStoreChange: () => void
+): () => void {
+  if (typeof window === 'undefined') return () => {}
+
+  const handleStorage = (event: StorageEvent) => {
+    if (
+      event.key?.startsWith(STORAGE_PREFIX) ||
+      event.key?.startsWith(INTAKE_SUBMISSION_STORAGE_PREFIX)
+    ) {
+      onStoreChange()
+    }
+  }
+
+  window.addEventListener(WORKFLOW_STEP_COMPLETION_CHANGE_EVENT, onStoreChange)
+  window.addEventListener('storage', handleStorage)
+
+  return () => {
+    window.removeEventListener(WORKFLOW_STEP_COMPLETION_CHANGE_EVENT, onStoreChange)
+    window.removeEventListener('storage', handleStorage)
+  }
 }
 
 export function getStoredWorkflowStep(projectId: string): WorkflowStepCompletion | null {
@@ -27,11 +61,9 @@ export function getStoredWorkflowStep(projectId: string): WorkflowStepCompletion
       return value as WorkflowStepCompletion
     }
 
-    // Migration: 기존 intakeSubmissionStorage 키에서 마이그레이션
-    const oldKey = `${OLD_INTAKE_STORAGE_PREFIX}${projectId}`
-    if (window.localStorage.getItem(oldKey) === '1') {
+    if (window.localStorage.getItem(getIntakeSubmissionStorageKey(projectId)) === '1') {
       window.localStorage.setItem(getStorageKey(projectId), 'intake')
-      window.localStorage.removeItem(oldKey)
+      emitWorkflowStepCompletionChange()
       return 'intake'
     }
 
@@ -56,6 +88,27 @@ export function hasCompletedStep(
   return getStepIndex(stored) >= getStepIndex(step)
 }
 
+export function hasSubmittedIntake(projectId: string): boolean {
+  if (typeof window === 'undefined') return false
+
+  try {
+    return window.localStorage.getItem(getIntakeSubmissionStorageKey(projectId)) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function markIntakeSubmitted(projectId: string): void {
+  if (typeof window === 'undefined') return
+
+  try {
+    window.localStorage.setItem(getIntakeSubmissionStorageKey(projectId), '1')
+    emitWorkflowStepCompletionChange()
+  } catch {
+    return
+  }
+}
+
 export function markWorkflowStepCompleted(
   projectId: string,
   step: WorkflowStepCompletion
@@ -66,6 +119,7 @@ export function markWorkflowStepCompleted(
     const currentStep = getStoredWorkflowStep(projectId)
     if (!currentStep || getStepIndex(step) > getStepIndex(currentStep)) {
       window.localStorage.setItem(getStorageKey(projectId), step)
+      emitWorkflowStepCompletionChange()
     }
   } catch {
     return
@@ -80,7 +134,7 @@ export function clearWorkflowStepCompletions(): void {
 
     for (let index = 0; index < window.localStorage.length; index += 1) {
       const key = window.localStorage.key(index)
-      if (key?.startsWith(STORAGE_PREFIX) || key?.startsWith(OLD_INTAKE_STORAGE_PREFIX)) {
+      if (key?.startsWith(STORAGE_PREFIX) || key?.startsWith(INTAKE_SUBMISSION_STORAGE_PREFIX)) {
         keysToRemove.push(key)
       }
     }
@@ -88,6 +142,7 @@ export function clearWorkflowStepCompletions(): void {
     keysToRemove.forEach((key) => {
       window.localStorage.removeItem(key)
     })
+    emitWorkflowStepCompletionChange()
   } catch {
     return
   }

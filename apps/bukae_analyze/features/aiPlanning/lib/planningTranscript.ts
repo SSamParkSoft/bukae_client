@@ -1,5 +1,6 @@
 import type { PlanningConversationMessage, PlanningSession } from '@/lib/types/domain'
 import type { ChatMessage } from '../types/chatbotViewModel'
+import { getPlanningMessageTime } from './planningMessageTime'
 import { getPayloadString } from './planningPredicates'
 
 const HIDDEN_MESSAGE_TYPES = new Set([
@@ -32,9 +33,7 @@ export function mapTranscript(
   }
 
   const sortedMessages = [...session.messages].sort((a, b) => {
-    const aTime = a.createdAt?.getTime() ?? 0
-    const bTime = b.createdAt?.getTime() ?? 0
-    return aTime - bTime
+    return getPlanningMessageTime(a) - getPlanningMessageTime(b)
   })
 
   // questionId별로 최신 clarifying_question 인덱스·messageId와 최신 답변 인덱스를 사전 계산

@@ -21,7 +21,6 @@ function AnalyzeWorkflowStepLink({
   number,
   state,
   projectId,
-  planning,
   generationRequestId,
   disabled,
 }: {
@@ -29,7 +28,6 @@ function AnalyzeWorkflowStepLink({
   number: number
   state: StepState
   projectId: string | null
-  planning: string | null
   generationRequestId: string | null
   disabled: boolean
 }) {
@@ -91,7 +89,7 @@ function AnalyzeWorkflowStepLink({
 
   return (
     <Link
-      href={buildAnalyzeWorkflowStepPath(step.path, { projectId, planning, generationRequestId })}
+      href={buildAnalyzeWorkflowStepPath(step.path, { projectId, generationRequestId })}
       className={className}
     >
       {content}
@@ -103,7 +101,6 @@ export function AnalyzeWorkflowStepList() {
   const routeState = useAnalyzeWorkflowRouteState()
   const {
     projectId,
-    planning,
     generationRequestId,
     currentStepIndex,
   } = routeState
@@ -118,7 +115,6 @@ export function AnalyzeWorkflowStepList() {
             number={index + 1}
             state={resolveStepState(index, currentStepIndex)}
             projectId={projectId}
-            planning={planning}
             generationRequestId={generationRequestId}
             disabled={index !== currentStepIndex && !canOpenStepIndex(index)}
           />
