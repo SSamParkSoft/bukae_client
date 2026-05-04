@@ -2,13 +2,15 @@
 
 import { useRouter } from 'next/navigation'
 import { startGenerationFromCommand } from '@/lib/services/generations'
-import { enterPlanningWorkspace } from '@/lib/services/planning'
+import { enterPlanningWorkspace, getPlanningSession } from '@/lib/services/planning'
+import { hasPlanningWorkspaceEntryMessage } from '@/features/aiPlanning/lib/planningPredicates'
 import { waitFinalizedProject } from '@/features/aiPlanning/lib/planningWorkflow'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowStepCompletionStorage'
 import type { AnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
 import { buildAnalyzeWorkflowStepPath } from '@/components/workflow/lib/analyzeWorkflowSteps'
+import type { PlanningSession } from '@/lib/types/domain'
 
 export interface AiPlanningStepAdvanceState {
   canProceedAiPlanning: boolean
@@ -58,21 +60,49 @@ export function useAiPlanningStepAdvance(
     }
   }
 
+  function shouldSubmitWorkspaceEntry(session: PlanningSession): boolean {
+    const planningMode = session.planningMode?.toLowerCase() ?? ''
+
+    return (
+      session.planningSessionId === planningSessionId &&
+      planningMode.includes('pt1') &&
+      !session.readyForApproval &&
+      !hasPlanningWorkspaceEntryMessage(session)
+    )
+  }
+
+  async function getLatestPlanningSessionOrNull(): Promise<PlanningSession | null> {
+    return getPlanningSession(projectId!).catch(() => null)
+  }
+
+  function applyChatbotSession(session: PlanningSession | null) {
+    if (!session) return
+
+    const nextPlanningSessionId = session.planningSessionId ?? planningSessionId
+    if (nextPlanningSessionId) {
+      cacheChatbotSession(nextPlanningSessionId, session)
+    }
+    setChatbotInitialSession(session)
+  }
+
   async function enterFollowUpChatbotWorkspaceOnce() {
     if (planningSessionId) {
       const cachedSession = getCachedChatbotSession(planningSessionId)
       if (cachedSession) {
         setChatbotInitialSession(cachedSession)
       } else {
-        const chatbotSession = await enterPlanningWorkspace(projectId!, {
-          planningSessionId,
-          answeredQuestionIds,
-          answeredCount: answeredQuestionIds.length,
-        }).catch(() => null)
+        const latestSession = await getLatestPlanningSessionOrNull()
+        if (latestSession && !shouldSubmitWorkspaceEntry(latestSession)) {
+          applyChatbotSession(latestSession)
+        } else {
+          const chatbotSession = await enterPlanningWorkspace(projectId!, {
+            planningSessionId,
+            answeredQuestionIds,
+            answeredCount: answeredQuestionIds.length,
+          }).catch(() => null)
+          const recoveredSession = chatbotSession ?? await getLatestPlanningSessionOrNull()
 
-        if (chatbotSession) {
-          cacheChatbotSession(planningSessionId, chatbotSession)
-          setChatbotInitialSession(chatbotSession)
+          applyChatbotSession(recoveredSession)
         }
       }
     }

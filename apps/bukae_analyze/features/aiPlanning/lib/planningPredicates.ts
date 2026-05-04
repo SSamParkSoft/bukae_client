@@ -44,6 +44,14 @@ export function hasFinalizePlanningMessage(session: PlanningSession): boolean {
   ))
 }
 
+export function hasPlanningWorkspaceEntryMessage(session: PlanningSession): boolean {
+  return session.messages.some((message) => (
+    message.messageType === 'planning_workspace_entered' ||
+    getPayloadString(message.payload, 'event_type') === 'planning_workspace_entered' ||
+    getPayloadString(message.payload, 'message_type') === 'planning_workspace_entered'
+  ))
+}
+
 export function hasFinalizePlanningStarted(session: PlanningSession): boolean {
   return (
     session.planningStatus === 'DRAFTING' ||
