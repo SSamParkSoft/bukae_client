@@ -74,7 +74,7 @@ export function useAnalyzeWorkflowStepAccess(
     const canProceedFromCurrentStep =
       (isAnalysisStep && isAnalysisComplete) ||
       (isPlanningSetupStep && isPlanningSetupComplete && !isSubmittingPlanningSetup) ||
-      (isAiPlanningStep && canProceedAiPlanning && !isAdvancingAiPlanning)
+      (isAiPlanningStep && !isAdvancingAiPlanning && (canProceedAiPlanning || Boolean(generationRequestId)))
 
     const canOpenStepIndex = (stepIndex: number) => {
       if (stepIndex === currentStepIndex) return true

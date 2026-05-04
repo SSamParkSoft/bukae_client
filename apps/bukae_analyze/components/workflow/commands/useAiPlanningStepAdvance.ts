@@ -41,11 +41,17 @@ export function useAiPlanningStepAdvance(
   const cacheGenerationRequestId = useAnalyzeWorkflowStore((state) => state.cacheGenerationRequestId)
 
   async function advanceAiPlanningToNextWorkflowStep(nextPath: string) {
-    if (!projectId || !canProceedAiPlanning || isAdvancingAiPlanning) return
+    if (!projectId || isAdvancingAiPlanning) return
+    if (!canProceedAiPlanning && !generationRequestId) return
 
     setAdvancingAiPlanning(true)
 
     try {
+      if (generationRequestId) {
+        await startGenerationOnceAndOpenShootingGuide(nextPath)
+        return
+      }
+
       if (aiPlanningNextTarget === 'chatbot') {
         await enterFollowUpChatbotWorkspaceOnce()
         return
