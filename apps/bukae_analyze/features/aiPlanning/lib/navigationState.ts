@@ -1,9 +1,8 @@
-import type { PlanningSession } from '@/lib/types/domain'
+import type { AiPlanningStage, PlanningSession } from '@/lib/types/domain'
 import type { ReadyBriefViewModel } from '../types/chatbotViewModel'
 import {
   getAiPlanningStageNextTarget,
   isAiPlanningStageProceedable,
-  type AiPlanningStage,
 } from './aiPlanningStage'
 
 export type AiPlanningNextTarget = 'chatbot' | 'shooting-guide' | null

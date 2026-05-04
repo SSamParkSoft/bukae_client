@@ -1,5 +1,4 @@
-import type { PlanningSession } from '@/lib/types/domain'
-import type { AiPlanningStage } from '@/features/aiPlanning/lib/aiPlanningStage'
+import type { AiPlanningStage, PlanningSession } from '@/lib/types/domain'
 import { create } from 'zustand'
 
 type AiPlanningNextTarget = 'chatbot' | 'shooting-guide' | null

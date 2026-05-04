@@ -20,6 +20,7 @@ export function usePlanningSetupForm(
 ): PlanningSetupForm {
   const [answers, setAnswers] = useState<PlanningSetupAnswers>(legacyInitialAnswers)
   const [isLoaded, setIsLoaded] = useState(false)
+  const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null)
   const setStoreAnswers = usePlanningStore(state => state.setAnswers)
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export function usePlanningSetupForm(
 
       setAnswers(nextAnswers)
       setStoreAnswers(nextAnswers)
+      setLoadedProjectId(projectId)
       setIsLoaded(true)
 
       if (!storedAnswers) {
@@ -43,10 +45,11 @@ export function usePlanningSetupForm(
 
   useEffect(() => {
     if (!isLoaded) return
+    if (loadedProjectId !== projectId) return
 
     setStoreAnswers(answers)
     storePlanningSetupAnswers(projectId, answers)
-  }, [answers, isLoaded, projectId, setStoreAnswers])
+  }, [answers, isLoaded, loadedProjectId, projectId, setStoreAnswers])
 
   const update = useCallback((partial: Partial<PlanningSetupAnswers>) => {
     setAnswers(prev => ({ ...prev, ...partial }))

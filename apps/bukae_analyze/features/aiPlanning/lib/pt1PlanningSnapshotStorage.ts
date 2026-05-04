@@ -79,6 +79,7 @@ export function getStoredPt1PlanningSnapshot(
 
       const legacySnapshot = parsePt1PlanningSnapshot(JSON.parse(legacyRaw))
       if (!legacySnapshot) continue
+      if (legacySnapshot.projectId !== projectId) continue
 
       window.localStorage.setItem(
         getPt1PlanningSnapshotStorageKey(projectId),

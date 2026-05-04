@@ -14,6 +14,7 @@ export interface AnalysisResourceState {
   errorType: AnalysisResourceErrorType | null
   errorMessage: string | null
   result: VideoAnalysisResult | null
+  isCompleted: boolean
 }
 
 export interface AnalysisResourceSnapshotState {
@@ -91,6 +92,7 @@ export function deriveAnalysisResourceState(
   const hasResult = snapshot.result !== null
   const isFailedStatus =
     snapshot.submissionStatus === 'FAILED' ||
+    snapshot.analysisStatus === 'FAILED' ||
     snapshot.isProjectFailed
 
   let errorType: AnalysisResourceErrorType | null = null
@@ -111,6 +113,7 @@ export function deriveAnalysisResourceState(
       errorType: null,
       errorMessage: null,
       result: snapshot.result,
+      isCompleted: snapshot.isCompleted,
     }
   }
 
@@ -122,6 +125,7 @@ export function deriveAnalysisResourceState(
       errorType,
       errorMessage: snapshot.errorMessage,
       result: snapshot.result,
+      isCompleted: snapshot.isCompleted,
     }
   }
 
@@ -132,6 +136,7 @@ export function deriveAnalysisResourceState(
     errorType: null,
     errorMessage: null,
     result: snapshot.result,
+    isCompleted: snapshot.isCompleted,
   }
 }
 
@@ -140,6 +145,7 @@ export function isAnalysisTerminalFailure(
 ): boolean {
   return (
     snapshot.submissionStatus === 'FAILED' ||
+    snapshot.analysisStatus === 'FAILED' ||
     snapshot.isProjectFailed
   )
 }

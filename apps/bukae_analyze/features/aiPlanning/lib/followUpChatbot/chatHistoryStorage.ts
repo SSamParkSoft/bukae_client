@@ -65,7 +65,7 @@ export function createQuestionChatMessage(
   createdAt = new Date().toISOString()
 ): ChatMessage {
   return {
-    id: `question:${question.questionId}`,
+    id: `question:${question.questionId}:${hashText(question.question)}`,
     role: 'ai',
     kind: 'question',
     questionId: question.questionId,
@@ -79,13 +79,15 @@ export function createAnswerChatMessage(params: {
   text: string
   createdAt?: string
 }): ChatMessage {
+  const createdAt = params.createdAt ?? new Date().toISOString()
+
   return {
-    id: `answer:${params.questionId}`,
+    id: `answer:${params.questionId}:${createdAt}:${hashText(params.text)}`,
     role: 'user',
     kind: 'answer',
     questionId: params.questionId,
     text: params.text,
-    createdAt: params.createdAt ?? new Date().toISOString(),
+    createdAt,
   }
 }
 

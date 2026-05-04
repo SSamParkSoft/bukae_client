@@ -61,15 +61,23 @@ export function getStoredWorkflowStep(projectId: string): WorkflowStepCompletion
       return value as WorkflowStepCompletion
     }
 
-    if (window.localStorage.getItem(getIntakeSubmissionStorageKey(projectId)) === '1') {
-      window.localStorage.setItem(getStorageKey(projectId), 'intake')
-      emitWorkflowStepCompletionChange()
-      return 'intake'
-    }
-
     return null
   } catch {
     return null
+  }
+}
+
+export function migrateIntakeSubmissionStorage(projectId: string): void {
+  if (typeof window === 'undefined') return
+
+  try {
+    if (getStoredWorkflowStep(projectId)) return
+    if (window.localStorage.getItem(getIntakeSubmissionStorageKey(projectId)) !== '1') return
+
+    window.localStorage.setItem(getStorageKey(projectId), 'intake')
+    emitWorkflowStepCompletionChange()
+  } catch {
+    return
   }
 }
 

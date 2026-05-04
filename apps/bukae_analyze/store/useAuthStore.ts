@@ -13,6 +13,7 @@ interface AuthStore {
   setAccessToken: (token: string) => void
   setUser: (user: AuthUser) => void
   clearToken: () => void
+  clearAnalyzeWorkflow: () => void
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -23,8 +24,10 @@ export const useAuthStore = create<AuthStore>()(
       setAccessToken: (token) => set({ accessToken: token }),
       setUser: (user) => set({ user }),
       clearToken: () => {
-        clearAnalyzeWorkflowStorage()
         set({ accessToken: null, user: null })
+      },
+      clearAnalyzeWorkflow: () => {
+        clearAnalyzeWorkflowStorage()
       },
     }),
     { name: 'bukae-auth' }

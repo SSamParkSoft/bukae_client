@@ -48,7 +48,7 @@ export function ShootingGuidePageClient({
         </div>
       ) : null}
 
-      {!errorMessage && viewModel ? (
+      {viewModel ? (
         <>
           {viewModel.scenes.map((scene) => (
             <SceneCard key={scene.sceneLabel} scene={scene} />
@@ -57,7 +57,7 @@ export function ShootingGuidePageClient({
       ) : null}
 
       <AnalysisLoadingOverlay
-        visible={!errorMessage && (!shootingGuide || !viewModel)}
+        visible={!shootingGuide || !viewModel}
         label={getGenerationStatusMessage(generation)}
       />
     </div>

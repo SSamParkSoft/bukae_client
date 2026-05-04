@@ -4,8 +4,8 @@ import { clearStoredPlanningSetupAnswers } from '@/features/planningSetup/lib/pl
 import { clearWorkflowStepCompletions } from './workflowStepCompletionStorage'
 
 export function clearAnalyzeWorkflowStorage(): void {
-  clearWorkflowStepCompletions()
   clearStoredPlanningSetupAnswers()
   clearStoredPt1PlanningSnapshots()
   clearStoredFollowUpChatHistories()
+  clearWorkflowStepCompletions()
 }

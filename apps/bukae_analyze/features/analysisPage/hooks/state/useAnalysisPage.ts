@@ -39,7 +39,7 @@ export function useAnalysisPage(
 ): AnalysisPageState {
   const [activeTab, setActiveTab] = useState<AnalysisTabId>('thumbnail')
   const markAnalysisCompleted = useAnalyzeWorkflowStore((state) => state.markAnalysisCompleted)
-  const { status, submissionStatus, analysisStatus, errorType, errorMessage, result } = useAnalysisResource(
+  const { status, isCompleted, errorType, errorMessage, result } = useAnalysisResource(
     projectId,
     initialSnapshot
   )
@@ -53,9 +53,7 @@ export function useAnalysisPage(
     ? '분석은 완료되었지만 화면에 표시할 결과 데이터가 없습니다.'
     : errorMessage
   const hasDisplayableAnalysis = Boolean(viewModel) && !resolvedErrorMessage
-  const hasCompletedAnalysisWorkflow =
-    submissionStatus === 'COMPLETED' &&
-    analysisStatus === 'COMPLETED'
+  const hasCompletedAnalysisWorkflow = isCompleted
   const isReady = hasDisplayableAnalysis
 
   useEffect(() => {

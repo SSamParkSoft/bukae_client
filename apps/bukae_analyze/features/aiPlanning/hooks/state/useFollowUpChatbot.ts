@@ -152,7 +152,8 @@ export function useFollowUpChatbot({
   ), [session])
 
   useEffect(() => {
-    setChatHistory(getStoredFollowUpChatHistory(projectId))
+    const nextChatHistory = getStoredFollowUpChatHistory(projectId)
+    setChatHistory(nextChatHistory)
     setChatHistoryProjectId(projectId)
   }, [projectId])
 
@@ -343,7 +344,7 @@ export function useFollowUpChatbot({
   ])
 
   return useMemo((): FollowUpChatbotViewModel => ({
-    messages: chatHistory,
+    messages: isCurrentChatHistoryLoaded ? chatHistory : [],
     currentQuestions,
     readyBrief,
     answer,
@@ -356,6 +357,7 @@ export function useFollowUpChatbot({
     currentQuestions,
     isComplete,
     isSubmitting,
+    isCurrentChatHistoryLoaded,
     readyBrief,
     submitCurrentAnswer,
     chatHistory,

@@ -3,9 +3,8 @@
 import { useEffect } from 'react'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { createAiPlanningNavigationState } from '../../lib/navigationState'
-import type { PlanningSession } from '@/lib/types/domain'
+import type { AiPlanningStage, PlanningSession } from '@/lib/types/domain'
 import type { ReadyBriefViewModel } from '../../types/chatbotViewModel'
-import type { AiPlanningStage } from '../../lib/aiPlanningStage'
 
 interface UseAiPlanningNavigationStateSyncParams {
   stage: AiPlanningStage

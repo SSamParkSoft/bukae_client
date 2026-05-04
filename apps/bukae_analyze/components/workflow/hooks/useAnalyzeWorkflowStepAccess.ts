@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useSyncExternalStore } from 'react'
 import { validatePlanningSetupAnswers } from '@/features/planningSetup/lib/intakeRequest'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { usePlanningStore } from '@/store/usePlanningStore'
 import {
   getMaxAccessibleStepIndex,
+  migrateIntakeSubmissionStorage,
   subscribeWorkflowStepCompletionChanges,
 } from '@/components/workflow/lib/workflowStepCompletionStorage'
 import type { AnalyzeWorkflowRouteState } from './useAnalyzeWorkflowRouteState'
@@ -45,6 +46,12 @@ export function useAnalyzeWorkflowStepAccess(
     () => projectId ? getMaxAccessibleStepIndex(projectId) : 0,
     () => 0
   )
+
+  useEffect(() => {
+    if (!projectId) return
+
+    migrateIntakeSubmissionStorage(projectId)
+  }, [projectId])
 
   return useMemo(() => {
     const hasProject = Boolean(projectId)

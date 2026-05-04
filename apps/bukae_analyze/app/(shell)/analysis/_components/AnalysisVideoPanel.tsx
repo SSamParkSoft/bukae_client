@@ -10,8 +10,10 @@ type Props = {
  * 분석 페이지 왼쪽 영역 — 탭바와 같은 행에서 시작(상위 그리드에서 배치)
  */
 export function AnalysisVideoPanel({ posterUrl, videoSrc, className }: Props) {
-  const hasVideo = videoSrc.trim().length > 0
-  const hasPoster = posterUrl.trim().length > 0
+  const trimmedVideoSrc = videoSrc.trim()
+  const trimmedPosterUrl = posterUrl.trim()
+  const hasVideo = trimmedVideoSrc.length > 0
+  const hasPoster = trimmedPosterUrl.length > 0
   const missingMediaMessage = !hasVideo && !hasPoster
     ? '분석 영상과 썸네일 이미지를 불러오지 못했습니다.'
     : !hasVideo
@@ -31,8 +33,8 @@ export function AnalysisVideoPanel({ posterUrl, videoSrc, className }: Props) {
             disablePictureInPicture
             playsInline
             preload="metadata"
-            poster={hasPoster ? posterUrl : undefined}
-            src={videoSrc}
+            poster={hasPoster ? trimmedPosterUrl : undefined}
+            src={trimmedVideoSrc}
             onContextMenu={(e) => e.preventDefault()}
           >
             브라우저가 비디오를 지원하지 않습니다.
@@ -43,7 +45,7 @@ export function AnalysisVideoPanel({ posterUrl, videoSrc, className }: Props) {
             aria-label="분석 영상 썸네일"
             className="h-full w-full object-cover"
             style={{
-              backgroundImage: `url("${posterUrl.replaceAll('"', '\\"')}")`,
+              backgroundImage: `url("${trimmedPosterUrl.replaceAll('"', '\\"')}")`,
               backgroundPosition: 'center',
               backgroundSize: 'cover',
             }}
@@ -52,11 +54,16 @@ export function AnalysisVideoPanel({ posterUrl, videoSrc, className }: Props) {
           <div className="h-full w-full bg-white/[0.03]" />
         )}
 
-        {missingMediaMessage ? (
+        {!hasVideo && !hasPoster && missingMediaMessage ? (
           <div className="absolute inset-0 flex items-center justify-center bg-black/55 px-8 text-center">
             <p className="font-14-rg leading-[1.5] text-white/70">
               {missingMediaMessage}
             </p>
+          </div>
+        ) : null}
+        {(hasVideo || hasPoster) && missingMediaMessage ? (
+          <div className="backdrop-glass-soft absolute bottom-4 left-4 right-4 rounded-lg bg-black/45 px-3 py-2 text-center">
+            <p className="font-12-rg text-white/70">{missingMediaMessage}</p>
           </div>
         ) : null}
       </div>
