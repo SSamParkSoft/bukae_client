@@ -30,68 +30,31 @@ function firstNonEmptyMessage(
   return messages.find(hasMeaningfulText) ?? null
 }
 
-function createAnalysisContentSignals(dto: BenchmarkAnalysisResponseDto): Record<string, boolean> {
-  const tabs = dto.normalized_analysis_tabs
-
-  return {
-    hookCoreAnalysis: hasMeaningfulText(tabs?.hook?.coreAnalysis),
-    hookEvidence: (tabs?.hook?.evidence?.length ?? 0) > 0,
-    thumbnailCoreAnalysis: hasMeaningfulText(tabs?.thumbnail?.coreAnalysis),
-    thumbnailMainText: hasMeaningfulText(tabs?.thumbnail?.mainText),
-    thumbnailEvidence: (tabs?.thumbnail?.evidence?.length ?? 0) > 0,
-    thumbnailColors: (tabs?.thumbnail?.colors?.length ?? 0) > 0,
-    structureScenes: (tabs?.structure?.scenes?.length ?? 0) > 0,
-    structureTargetAudience: hasMeaningfulText(tabs?.structure?.targetAudience),
-    structureTargetAudienceKeywords: (tabs?.structure?.targetAudienceKeywords?.length ?? 0) > 0,
-    structureEditingDirections: (tabs?.structure?.editingDirections?.length ?? 0) > 0,
-    structureTrendContext: hasMeaningfulText(tabs?.structure?.trendContext),
-    structureCtaStrategy: hasMeaningfulText(tabs?.structure?.ctaStrategy),
-    hookSummary: hasMeaningfulText(dto.hookSummary),
-    editPace: hasMeaningfulText(dto.editPace),
-    subtitleStyleSummary: hasMeaningfulText(dto.subtitleStyleSummary),
-    narrationStyleSummary: hasMeaningfulText(dto.narrationStyleSummary),
-    persuasionStructureSummary: hasMeaningfulText(dto.persuasionStructureSummary),
-    targetAudienceGuess: hasMeaningfulText(dto.targetAudienceGuess),
-    benchmarkProfileSummary: hasMeaningfulText(dto.benchmarkProfile?.profile_summary),
-    benchmarkProfileTargetAudienceGuess: hasMeaningfulText(dto.benchmarkProfile?.target_audience_guess),
-  }
-}
-
 function hasAnalysisContent(dto: BenchmarkAnalysisResponseDto): boolean {
-  return Object.values(createAnalysisContentSignals(dto)).some(Boolean)
-}
-
-function logMissingAnalysisContent(dto: BenchmarkAnalysisResponseDto) {
-  if (process.env.NODE_ENV === 'production') return
-
   const tabs = dto.normalized_analysis_tabs
 
-  console.warn('[benchmark-analysis] completed response has no displayable analysis content', {
-    statuses: {
-      submissionStatus: dto.submissionStatus,
-      analysisStatus: dto.analysisStatus ?? null,
-      projectStatus: dto.projectStatus ?? null,
-      currentStep: dto.currentStep ?? null,
-      readyForCategorySelection: dto.readyForCategorySelection ?? false,
-    },
-    contentSignals: createAnalysisContentSignals(dto),
-    availableKeys: {
-      topLevel: Object.keys(dto),
-      normalizedTabs: tabs ? Object.keys(tabs) : [],
-      hook: tabs?.hook ? Object.keys(tabs.hook) : [],
-      thumbnail: tabs?.thumbnail ? Object.keys(tabs.thumbnail) : [],
-      structure: tabs?.structure ? Object.keys(tabs.structure) : [],
-      benchmarkProfile: dto.benchmarkProfile ? Object.keys(dto.benchmarkProfile) : [],
-    },
-    counts: {
-      hookEvidence: tabs?.hook?.evidence?.length ?? 0,
-      thumbnailEvidence: tabs?.thumbnail?.evidence?.length ?? 0,
-      thumbnailColors: tabs?.thumbnail?.colors?.length ?? 0,
-      structureScenes: tabs?.structure?.scenes?.length ?? 0,
-      structureEditingDirections: tabs?.structure?.editingDirections?.length ?? 0,
-      structureTargetAudienceKeywords: tabs?.structure?.targetAudienceKeywords?.length ?? 0,
-    },
-  })
+  return Boolean(
+    hasMeaningfulText(tabs?.hook?.coreAnalysis) ||
+    (tabs?.hook?.evidence?.length ?? 0) > 0 ||
+    hasMeaningfulText(tabs?.thumbnail?.coreAnalysis) ||
+    hasMeaningfulText(tabs?.thumbnail?.mainText) ||
+    (tabs?.thumbnail?.evidence?.length ?? 0) > 0 ||
+    (tabs?.thumbnail?.colors?.length ?? 0) > 0 ||
+    (tabs?.structure?.scenes?.length ?? 0) > 0 ||
+    hasMeaningfulText(tabs?.structure?.targetAudience) ||
+    (tabs?.structure?.targetAudienceKeywords?.length ?? 0) > 0 ||
+    (tabs?.structure?.editingDirections?.length ?? 0) > 0 ||
+    hasMeaningfulText(tabs?.structure?.trendContext) ||
+    hasMeaningfulText(tabs?.structure?.ctaStrategy) ||
+    hasMeaningfulText(dto.hookSummary) ||
+    hasMeaningfulText(dto.editPace) ||
+    hasMeaningfulText(dto.subtitleStyleSummary) ||
+    hasMeaningfulText(dto.narrationStyleSummary) ||
+    hasMeaningfulText(dto.persuasionStructureSummary) ||
+    hasMeaningfulText(dto.targetAudienceGuess) ||
+    hasMeaningfulText(dto.benchmarkProfile?.profile_summary) ||
+    hasMeaningfulText(dto.benchmarkProfile?.target_audience_guess)
+  )
 }
 
 function parseHookRangeSec(hookRange: string): number {
@@ -276,13 +239,6 @@ export function mapBenchmarkAnalysisSnapshot(
   dto: BenchmarkAnalysisResponseDto
 ): AnalysisSnapshot {
   const hasContent = hasAnalysisContent(dto)
-
-  if (!hasContent && (
-    dto.analysisStatus === 'COMPLETED' ||
-    dto.readyForCategorySelection
-  )) {
-    logMissingAnalysisContent(dto)
-  }
 
   return {
     polling: mapBenchmarkAnalysisPollingState(dto),

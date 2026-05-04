@@ -110,37 +110,7 @@ export function useAnalysisResource(
         if (reachedCompletion) {
           completedRetryCount += 1
 
-          if (process.env.NODE_ENV !== 'production') {
-            console.warn('[analysis-resource] completed but mapped result is missing', {
-              projectId,
-              retry: completedRetryCount,
-              maxRetries: MAX_COMPLETED_RESULT_RETRIES,
-              project: {
-                projectStatus: project.projectStatus,
-                currentStep: project.currentStep,
-                workflow: project.workflow,
-              },
-              polling: analysisSnapshot.polling,
-              snapshot: {
-                projectStatus: nextSnapshot.projectStatus,
-                submissionStatus: nextSnapshot.submissionStatus,
-                analysisStatus: nextSnapshot.analysisStatus,
-                isCompleted: nextSnapshot.isCompleted,
-                isProjectFailed: nextSnapshot.isProjectFailed,
-                hasResult,
-              },
-            })
-          }
-
           if (completedRetryCount >= MAX_COMPLETED_RESULT_RETRIES) {
-            if (process.env.NODE_ENV !== 'production') {
-              console.warn('[analysis-resource] giving up after completed-result retries', {
-                projectId,
-                retries: completedRetryCount,
-                polling: analysisSnapshot.polling,
-              })
-            }
-
             setLocalSnapshot((prev) => {
               const current = isCurrentAnalysisResourceSnapshot(
                 prev,
