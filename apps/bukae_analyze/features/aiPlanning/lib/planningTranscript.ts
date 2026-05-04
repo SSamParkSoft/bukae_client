@@ -1,5 +1,11 @@
 import type { PlanningConversationMessage, PlanningSession } from '@/lib/types/domain'
 import type { ChatMessage } from '../types/chatbotViewModel'
+import {
+  createAnswerChatMessage,
+  createQuestionChatMessage,
+  createStatusChatMessage,
+} from './followUpChatbot/chatHistoryStorage'
+import { getPlanningMessageTime } from './planningMessageTime'
 import { getPayloadString } from './planningPredicates'
 
 const HIDDEN_MESSAGE_TYPES = new Set([
@@ -25,16 +31,11 @@ export function mapTranscript(
   currentQuestionId: string | null
 ): ChatMessage[] {
   if (!session) {
-    return [{
-      role: 'ai',
-      text: 'AI가 PT1 답변을 바탕으로 다음 질문을 준비 중입니다.',
-    }]
+    return [createStatusChatMessage('AI가 PT1 답변을 바탕으로 다음 질문을 준비 중입니다.')]
   }
 
   const sortedMessages = [...session.messages].sort((a, b) => {
-    const aTime = a.createdAt?.getTime() ?? 0
-    const bTime = b.createdAt?.getTime() ?? 0
-    return aTime - bTime
+    return getPlanningMessageTime(a) - getPlanningMessageTime(b)
   })
 
   // questionId별로 최신 clarifying_question 인덱스·messageId와 최신 답변 인덱스를 사전 계산
@@ -73,12 +74,13 @@ export function mapTranscript(
   const seenUserAnswerKeys = new Set<string>()
 
   return sortedMessages
-    .map((message): ChatMessage | null => {
+    .map((message, index): ChatMessage | null => {
       const messageType = message.messageType ?? ''
       if (HIDDEN_MESSAGE_TYPES.has(messageType)) return null
 
       if (messageType === 'clarifying_question' || message.role === 'assistant') {
         const questionId = getPayloadString(message.payload, 'question_id')
+        const slotKey = getPayloadString(message.payload, 'slot_key')
         const eventType = getPayloadString(message.payload, 'event_type')
 
         if (messageType === 'clarifying_question' && eventType !== 'pt2_question') {
@@ -94,10 +96,18 @@ export function mapTranscript(
           if (questionId === currentQuestionId) return null
         }
 
-        return {
-          role: 'ai',
-          text: getQuestionTextFromMessage(message),
-        }
+        return createQuestionChatMessage({
+          questionId: questionId ?? message.messageId ?? `message-${index}`,
+          title: '',
+          question: getQuestionTextFromMessage(message),
+          referenceInsight: null,
+          reasonWhyAsked: null,
+          slotKey: slotKey ?? '',
+          responseType: '',
+          allowCustom: false,
+          customPlaceholder: null,
+          options: [],
+        }, message.createdAt?.toISOString())
       }
 
       if (
@@ -117,10 +127,11 @@ export function mapTranscript(
           seenUserAnswerKeys.add(answerKey)
         }
 
-        return {
-          role: 'user',
+        return createAnswerChatMessage({
+          questionId: dedupeScope ?? message.messageId ?? `message-${index}`,
           text: answerText,
-        }
+          createdAt: message.createdAt?.toISOString(),
+        })
       }
 
       return null

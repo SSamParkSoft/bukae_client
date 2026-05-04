@@ -6,6 +6,7 @@ import {
   buildAnalyzeWorkflowStepPath,
 } from '@/components/workflow/lib/analyzeWorkflowSteps'
 import { useAnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
+import { useAnalyzeWorkflowStepAccess } from '@/components/workflow/hooks/useAnalyzeWorkflowStepAccess'
 
 type StepState = 'completed' | 'active' | 'upcoming'
 
@@ -20,28 +21,26 @@ function AnalyzeWorkflowStepLink({
   number,
   state,
   projectId,
-  planning,
   generationRequestId,
+  disabled,
 }: {
   step: { label: string; path: string }
   number: number
   state: StepState
   projectId: string | null
-  planning: string | null
   generationRequestId: string | null
+  disabled: boolean
 }) {
   const isActive = state === 'active'
-
-  return (
-    <Link
-      href={buildAnalyzeWorkflowStepPath(step.path, { projectId, planning, generationRequestId })}
-      className={[
-        'flex items-center gap-4 w-full transition-colors',
-        isActive
-          ? 'bg-white/10 backdrop-blur-[2px] rounded-full'
-          : '',
-      ].join(' ')}
-    >
+  const className = [
+    'flex items-center gap-4 w-full transition-colors',
+    isActive
+      ? 'bg-white/10 backdrop-blur-[2px] rounded-full'
+      : '',
+    disabled ? 'cursor-not-allowed opacity-40' : '',
+  ].join(' ')
+  const content = (
+    <>
       {/* 아이콘 */}
       <div
         className={[
@@ -72,17 +71,41 @@ function AnalyzeWorkflowStepLink({
       >
         {step.label}
       </span>
+    </>
+  )
+
+  if (disabled) {
+    return (
+      <button
+        type="button"
+        disabled
+        aria-disabled="true"
+        className={className}
+      >
+        {content}
+      </button>
+    )
+  }
+
+  return (
+    <Link
+      href={buildAnalyzeWorkflowStepPath(step.path, { projectId, generationRequestId })}
+      className={className}
+    >
+      {content}
     </Link>
   )
 }
 
 export function AnalyzeWorkflowStepList() {
+  const routeState = useAnalyzeWorkflowRouteState()
   const {
     projectId,
-    planning,
     generationRequestId,
     currentStepIndex,
-  } = useAnalyzeWorkflowRouteState()
+    isChatbotMode,
+  } = routeState
+  const { canOpenStepIndex } = useAnalyzeWorkflowStepAccess(routeState)
 
   return (
     <ol className="flex flex-col gap-6">
@@ -93,8 +116,8 @@ export function AnalyzeWorkflowStepList() {
             number={index + 1}
             state={resolveStepState(index, currentStepIndex)}
             projectId={projectId}
-            planning={planning}
             generationRequestId={generationRequestId}
+            disabled={isChatbotMode || (index !== currentStepIndex && !canOpenStepIndex(index))}
           />
         </li>
       ))}

@@ -50,7 +50,7 @@ export function mapPlanningSetupAnswersToIntakeRequest(
       faceExposureCustom: resolveFaceExposureCustom(answers),
       targetDurationSec,
       shootPlanned: answers.shooting === 'yes',
-      shootEnvironment: trim(answers.shootingEnvironment),
+      shootEnvironment: answers.shooting === 'yes' ? trim(answers.shootingEnvironment) : '',
       coreMaterial: trim(answers.coreMaterial),
     },
   }

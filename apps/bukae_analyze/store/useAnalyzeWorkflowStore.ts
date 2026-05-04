@@ -8,13 +8,13 @@ export interface Pt1AnswerDraftCache {
 }
 
 interface AnalyzeWorkflowStore {
-  submittedIntakeKeys: Record<string, true>
+  analysisCompletedByProjectId: Record<string, boolean>
   planningSessionByProjectId: Record<string, PlanningSession>
   pt1AnswerDraftByKey: Record<string, Pt1AnswerDraftCache>
   chatbotSessionByPlanningSessionId: Record<string, PlanningSession>
   generationRequestIdByBriefVersionId: Record<string, string>
-  hasSubmittedIntake: (key: string) => boolean
-  markIntakeSubmitted: (key: string) => void
+  isAnalysisCompleted: (projectId: string) => boolean
+  markAnalysisCompleted: (projectId: string) => void
   getCachedPlanningSession: (projectId: string) => PlanningSession | null
   cachePlanningSession: (projectId: string, session: PlanningSession) => void
   getCachedPt1AnswerDraft: (key: string) => Pt1AnswerDraftCache | null
@@ -27,7 +27,7 @@ interface AnalyzeWorkflowStore {
 }
 
 const INITIAL_STATE = {
-  submittedIntakeKeys: {} as Record<string, true>,
+  analysisCompletedByProjectId: {} as Record<string, boolean>,
   planningSessionByProjectId: {} as Record<string, PlanningSession>,
   pt1AnswerDraftByKey: {} as Record<string, Pt1AnswerDraftCache>,
   chatbotSessionByPlanningSessionId: {} as Record<string, PlanningSession>,
@@ -36,12 +36,14 @@ const INITIAL_STATE = {
 
 export const useAnalyzeWorkflowStore = create<AnalyzeWorkflowStore>()((set, get) => ({
   ...INITIAL_STATE,
-  hasSubmittedIntake: (key) => Boolean(get().submittedIntakeKeys[key]),
-  markIntakeSubmitted: (key) => {
+  isAnalysisCompleted: (projectId) => (
+    get().analysisCompletedByProjectId[projectId] ?? false
+  ),
+  markAnalysisCompleted: (projectId) => {
     set((state) => ({
-      submittedIntakeKeys: {
-        ...state.submittedIntakeKeys,
-        [key]: true,
+      analysisCompletedByProjectId: {
+        ...state.analysisCompletedByProjectId,
+        [projectId]: true,
       },
     }))
   },

@@ -17,7 +17,7 @@ export function useHeaderProfile(
 ): HeaderProfileState {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
-  const { accessToken, clearToken } = useAuthStore.getState()
+  const { accessToken, clearAnalyzeWorkflow, clearToken } = useAuthStore.getState()
   const resolvedUser = user ?? initialUser
 
   const handleLogout = async () => {
@@ -25,6 +25,7 @@ export function useHeaderProfile(
       await logout(accessToken).catch(() => {})
     }
     await clearServerAccessToken().catch(() => {})
+    clearAnalyzeWorkflow()
     clearToken()
     router.replace('/login')
   }

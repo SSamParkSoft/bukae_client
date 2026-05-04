@@ -26,7 +26,10 @@ export function createPlanningSetupViewModel(form: PlanningSetupForm): PlanningS
     },
     shooting: {
       selected: answers.shooting,
-      onSelect: (value: ShootingAvailability) => update({ shooting: value }),
+      onSelect: (value: ShootingAvailability | null) => update({
+        shooting: value,
+        shootingEnvironment: value === 'yes' ? answers.shootingEnvironment : '',
+      }),
       environment: answers.shootingEnvironment,
       onEnvironmentChange: (value: string) => update({ shootingEnvironment: value }),
     },

@@ -1,9 +1,6 @@
 import { redirect } from 'next/navigation'
 import { PageTitle } from '@/components/page/PageTitle'
-import {
-  parsePlanningSetupAnswers,
-  serializePlanningSetupAnswers,
-} from '@/lib/utils/planningSetupQuery'
+import { parsePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
 import { PlanningSetupPageClient } from './_components/PlanningSetupPageClient'
 
@@ -34,8 +31,9 @@ export default async function PlanningSetupPage({
       />
       <div className="mx-6 mt-6 mb-10 h-px bg-white/40" />
       <PlanningSetupPageClient
-        key={resolvedPlanning ?? serializePlanningSetupAnswers(initialAnswers) ?? 'empty'}
-        initialAnswers={initialAnswers}
+        key={resolvedProjectId}
+        projectId={resolvedProjectId}
+        legacyInitialAnswers={initialAnswers}
       />
     </div>
   )

@@ -3,6 +3,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { PlanningSetupAnswers } from '@/lib/types/domain'
 import { EMPTY_PLANNING_SETUP_ANSWERS } from '@/lib/utils/planningSetupQuery'
+import {
+  getStoredPlanningSetupAnswers,
+  storePlanningSetupAnswers,
+} from '@/features/planningSetup/lib/planningSetupAnswerStorage'
 import { usePlanningStore } from '@/store/usePlanningStore'
 
 export interface PlanningSetupForm {
@@ -11,18 +15,41 @@ export interface PlanningSetupForm {
 }
 
 export function usePlanningSetupForm(
-  initialAnswers: PlanningSetupAnswers = EMPTY_PLANNING_SETUP_ANSWERS
+  projectId: string,
+  legacyInitialAnswers: PlanningSetupAnswers = EMPTY_PLANNING_SETUP_ANSWERS
 ): PlanningSetupForm {
-  const [answers, setAnswers] = useState<PlanningSetupAnswers>(initialAnswers)
+  const [answers, setAnswers] = useState<PlanningSetupAnswers>(legacyInitialAnswers)
+  const [isLoaded, setIsLoaded] = useState(false)
+  const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null)
   const setStoreAnswers = usePlanningStore(state => state.setAnswers)
 
   useEffect(() => {
-    setAnswers(initialAnswers)
-  }, [initialAnswers])
+    const timeoutId = window.setTimeout(() => {
+      const storedAnswers = getStoredPlanningSetupAnswers(projectId)
+      const nextAnswers = storedAnswers ?? legacyInitialAnswers
+
+      setAnswers(nextAnswers)
+      setStoreAnswers(nextAnswers)
+      setLoadedProjectId(projectId)
+      setIsLoaded(true)
+
+      if (!storedAnswers) {
+        storePlanningSetupAnswers(projectId, nextAnswers)
+      }
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [legacyInitialAnswers, projectId, setStoreAnswers])
 
   useEffect(() => {
+    if (!isLoaded) return
+    if (loadedProjectId !== projectId) return
+
     setStoreAnswers(answers)
-  }, [answers, setStoreAnswers])
+    storePlanningSetupAnswers(projectId, answers)
+  }, [answers, isLoaded, loadedProjectId, projectId, setStoreAnswers])
 
   const update = useCallback((partial: Partial<PlanningSetupAnswers>) => {
     setAnswers(prev => ({ ...prev, ...partial }))

@@ -1,7 +1,5 @@
 import { redirect } from 'next/navigation'
 import { PageTitle } from '@/components/page/PageTitle'
-import { fetchPlanningBootstrap } from '@/lib/server/planningBootstrap'
-import { getServerAccessToken } from '@/lib/server/authSession'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
 import { AiPlanningPageClient } from './_components/AiPlanningPageClient'
 
@@ -16,14 +14,12 @@ export default async function AiPlanningPage({
 }: {
   searchParams: Promise<{
     mode?: string | string[]
-    planning?: string | string[]
     projectId?: string | string[]
     generationRequestId?: string | string[]
   }>
 }) {
-  const { generationRequestId, mode, planning, projectId } = await searchParams
+  const { generationRequestId, mode, projectId } = await searchParams
   const resolvedProjectId = resolveSingleSearchParam(projectId)
-  const resolvedPlanning = resolveSingleSearchParam(planning)
   const resolvedGenerationRequestId = resolveSingleSearchParam(generationRequestId)
 
   if (!resolvedProjectId) {
@@ -31,22 +27,13 @@ export default async function AiPlanningPage({
   }
 
   const resolvedMode = resolveMode(resolveSingleSearchParam(mode))
-  const accessToken = await getServerAccessToken()
-  const initialPlanningSession = accessToken
-    ? await fetchPlanningBootstrap({
-      accessToken,
-      projectId: resolvedProjectId,
-    }).catch(() => null)
-    : null
 
   if (resolvedMode === 'chatbot') {
     return (
       <AiPlanningPageClient
         projectId={resolvedProjectId}
         mode={resolvedMode}
-        planningParam={resolvedPlanning}
         generationRequestId={resolvedGenerationRequestId}
-        initialPlanningSession={initialPlanningSession}
       />
     )
   }
@@ -61,9 +48,7 @@ export default async function AiPlanningPage({
       <AiPlanningPageClient
         projectId={resolvedProjectId}
         mode={resolvedMode}
-        planningParam={resolvedPlanning}
         generationRequestId={resolvedGenerationRequestId}
-        initialPlanningSession={initialPlanningSession}
       />
     </div>
   )

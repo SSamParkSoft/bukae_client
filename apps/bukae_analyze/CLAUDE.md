@@ -30,9 +30,6 @@ Component  (app/{page}/_components/)
    │  값을 받아서 보여주기만 한다
 ```
 
-**UI 개발 중 (API 미연동)**: `lib/mocks/`의 목 데이터가 Service Layer를 대신한다.
-목 데이터는 Domain Model 형태로 제공하므로 컴포넌트는 변경 없이 그대로 사용한다.
-
 ---
 
 ## Directory Structure
@@ -49,7 +46,6 @@ apps/bukae_analyze/
 │   │   └── domain/               # 앱 표준 도메인 모델
 │   ├── services/
 │   │   └── mappers/              # DTO → Domain Model 변환 함수
-│   └── mocks/                    # UI 개발용 목 데이터 (Domain Model 형태)
 └── features/
     └── {domain}/                 # 데이터/로직 전용 — UI 없음
         ├── types/                # ViewModel 타입
@@ -69,7 +65,6 @@ apps/bukae_analyze/
 | `lib/services/` | fetch + Zod 검증 + mapper 호출 |
 | `lib/services/mappers/` | DTO → Domain Model 변환 함수 |
 | `lib/services/endpoints.ts` | API 엔드포인트 상수 |
-| `lib/mocks/` | UI 개발용 목 데이터 (Domain Model 형태) |
 | `features/{domain}/hooks/form/` | Form 상태 관리 훅 (`useXxxForm`) |
 | `features/{domain}/hooks/viewmodel/` | Domain Model → ViewModel 변환 훅 (`useXxxViewModel`) |
 | `features/{domain}/hooks/state/` | 자체 상태 소유 훅 — 상태 머신, 복잡한 인터랙션 |
@@ -97,7 +92,7 @@ UI Layer       (app/{page}/)
 | Service (`lib/services/`, `lib/types/api/`) | `lib/types/domain/` | `features/`, `app/` |
 | Domain (`lib/types/domain/`) | 없음 (자체 완결) | `lib/types/api/`, `features/`, `app/` |
 | Feature (`features/`) | `lib/types/domain/` | `lib/types/api/`, `app/` |
-| UI (`app/`) | `features/`, `lib/types/domain/`, `lib/mocks/` | `lib/types/api/` |
+| UI (`app/`) | `features/`, `lib/types/domain/` | `lib/types/api/` |
 
 `lib/types/api/`(DTO)는 `lib/services/` 내부에서만 사용한다 — 외부 노출 금지.
 
@@ -120,11 +115,6 @@ UI Layer       (app/{page}/)
 - DTO → Domain Model 변환만 담당하는 순수 함수
 - **이 파일들만 DTO 타입을 알고 있다**
 - API 네이밍이 바뀌면 mapper만 수정한다
-
-### `lib/mocks/` — 목 데이터
-- Domain Model 형태로 작성한다 (DTO 형태 금지)
-- 파일 네이밍: `{domain}.ts` (ex: `channelStats.ts`)
-- API 연동 시 같은 이름의 Service 함수로 교체한다
 
 ### `features/{domain}/types/` — ViewModel
 - Domain Model을 UI에 맞게 파생한 타입
@@ -179,18 +169,8 @@ export interface ChannelStats {
 ```
 `lib/types/domain/index.ts`에 re-export 추가.
 
-### 2. 목 데이터 작성 (UI 개발용)
-```ts
-// lib/mocks/channelStats.ts
-import type { ChannelStats } from '@/lib/types/domain'
-
-export const MOCK_CHANNEL_STATS: ChannelStats = {
-  channelId: 'ch_001',
-  subscriberCount: 12345,
-  updatedAt: new Date('2024-01-15'),
-}
-```
-`lib/mocks/index.ts`에 re-export 추가.
+### 2. DTO 타입과 Service 함수 작성
+서버 응답 DTO, Zod 스키마, mapper, service 함수를 `lib/types/api`, `lib/services/mappers`, `lib/services`에 추가한다.
 
 ### 3. ViewModel 타입 정의
 ```ts
@@ -229,12 +209,13 @@ export function ChannelStatsCard({ data }: { data: ChannelStatsViewModel }) {
 ### 6. 페이지에서 조합
 ```tsx
 // app/dashboard/page.tsx
-import { MOCK_CHANNEL_STATS } from '@/lib/mocks'
+import { fetchChannelStats } from '@/lib/services/channelStats'
 import { useChannelStatsViewModel } from '@/features/channelStats/hooks/viewmodel/useChannelStatsViewModel'
 import { ChannelStatsCard } from './_components/ChannelStatsCard'
 
-export default function DashboardPage() {
-  const viewModel = useChannelStatsViewModel(MOCK_CHANNEL_STATS)
+export default async function DashboardPage() {
+  const data = await fetchChannelStats()
+  const viewModel = useChannelStatsViewModel(data)
   return <ChannelStatsCard data={viewModel} />
 }
 ```
@@ -243,15 +224,13 @@ export default function DashboardPage() {
 
 ## API 연동 시 추가할 것
 
-목 데이터를 실제 API로 교체할 때는 Service Layer만 추가하면 된다. 컴포넌트, ViewModel, Domain Model은 변경하지 않는다.
-
 ### 추가 순서
 
 1. **DTO 타입** (`lib/types/api/channelStats.ts`) — 서버 응답 raw 타입
 2. **Zod 스키마** (같은 파일 또는 별도) — 런타임 검증
 3. **Mapper** (`lib/services/mappers/channelStatsMapper.ts`) — DTO → Domain Model
 4. **Service 함수** (`lib/services/channelStats.ts`) — HTTP 호출 + 검증 + 매핑
-5. **페이지에서 교체** — `MOCK_CHANNEL_STATS` → `await fetchChannelStats()`
+5. **페이지에서 연결** — `await fetchChannelStats()`
 
 ---
 

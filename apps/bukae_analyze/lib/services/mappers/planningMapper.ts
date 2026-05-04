@@ -106,6 +106,9 @@ function mapPlanningQuestion(
     responseType,
     required: Boolean(question.required),
     allowCustom: Boolean(question.allowCustom ?? question.allow_custom),
+    customPlaceholder: asTrimmedString(
+      question.customPlaceholder ?? question.custom_placeholder
+    ) || null,
     options: (question.options ?? [])
       .map(mapPlanningQuestionOption)
       .filter((option): option is PlanningQuestionOption => option !== null),

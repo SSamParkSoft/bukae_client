@@ -9,14 +9,18 @@ export type AnalysisResourceErrorType = 'failed' | 'missing_result' | 'unknown'
 
 export interface AnalysisResourceState {
   status: AnalysisResourceStatus
+  submissionStatus: string | null
+  analysisStatus: string | null
   errorType: AnalysisResourceErrorType | null
   errorMessage: string | null
   result: VideoAnalysisResult | null
+  isCompleted: boolean
 }
 
 export interface AnalysisResourceSnapshotState {
   projectStatus: string | null
   submissionStatus: string | null
+  analysisStatus: string | null
   result: VideoAnalysisResult | null
   errorMessage: string | null
   isCompleted: boolean
@@ -26,6 +30,7 @@ export interface AnalysisResourceSnapshotState {
 export const EMPTY_ANALYSIS_RESOURCE_SNAPSHOT: AnalysisResourceSnapshotState = {
   projectStatus: null,
   submissionStatus: null,
+  analysisStatus: null,
   result: null,
   errorMessage: null,
   isCompleted: false,
@@ -73,6 +78,7 @@ export function createAnalysisResourceSnapshot(params: {
   return {
     projectStatus: project.projectStatus,
     submissionStatus: snapshot.polling.submissionStatus,
+    analysisStatus: snapshot.polling.analysisStatus,
     result: snapshot.result ?? previousResult,
     errorMessage: errorMessage ?? getAnalysisFailureMessage(project, snapshot),
     isCompleted: isAnalysisCompleted(project, snapshot),
@@ -86,6 +92,7 @@ export function deriveAnalysisResourceState(
   const hasResult = snapshot.result !== null
   const isFailedStatus =
     snapshot.submissionStatus === 'FAILED' ||
+    snapshot.analysisStatus === 'FAILED' ||
     snapshot.isProjectFailed
 
   let errorType: AnalysisResourceErrorType | null = null
@@ -101,26 +108,35 @@ export function deriveAnalysisResourceState(
   if (snapshot.isCompleted && hasResult && !snapshot.errorMessage) {
     return {
       status: 'ready',
+      submissionStatus: snapshot.submissionStatus,
+      analysisStatus: snapshot.analysisStatus,
       errorType: null,
       errorMessage: null,
       result: snapshot.result,
+      isCompleted: snapshot.isCompleted,
     }
   }
 
   if (snapshot.errorMessage) {
     return {
       status: 'error',
+      submissionStatus: snapshot.submissionStatus,
+      analysisStatus: snapshot.analysisStatus,
       errorType,
       errorMessage: snapshot.errorMessage,
       result: snapshot.result,
+      isCompleted: snapshot.isCompleted,
     }
   }
 
   return {
     status: 'loading',
+    submissionStatus: snapshot.submissionStatus,
+    analysisStatus: snapshot.analysisStatus,
     errorType: null,
     errorMessage: null,
     result: snapshot.result,
+    isCompleted: snapshot.isCompleted,
   }
 }
 
@@ -129,6 +145,7 @@ export function isAnalysisTerminalFailure(
 ): boolean {
   return (
     snapshot.submissionStatus === 'FAILED' ||
+    snapshot.analysisStatus === 'FAILED' ||
     snapshot.isProjectFailed
   )
 }

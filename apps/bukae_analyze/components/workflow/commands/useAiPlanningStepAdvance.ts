@@ -3,8 +3,10 @@
 import { useRouter } from 'next/navigation'
 import { startGenerationFromCommand } from '@/lib/services/generations'
 import { enterPlanningWorkspace } from '@/lib/services/planning'
+import { waitFinalizedProject } from '@/features/aiPlanning/lib/planningWorkflow'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
+import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowStepCompletionStorage'
 import type { AnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
 import { buildAnalyzeWorkflowStepPath } from '@/components/workflow/lib/analyzeWorkflowSteps'
 
@@ -20,7 +22,6 @@ export function useAiPlanningStepAdvance(
   const router = useRouter()
   const {
     projectId,
-    planning,
     generationRequestId,
     isChatbotMode,
   } = routeState
@@ -77,30 +78,35 @@ export function useAiPlanningStepAdvance(
     }
 
     const params = new URLSearchParams({ projectId: projectId! })
-    if (planning) params.set('planning', planning)
     params.set('mode', 'chatbot')
+    markWorkflowStepCompleted(projectId!, 'planning')
     router.push(`/ai-planning?${params.toString()}`)
   }
 
   async function startGenerationOnceAndOpenShootingGuide(nextPath: string) {
     if (generationRequestId) {
-      router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, planning, generationRequestId }))
+      markWorkflowStepCompleted(projectId!, 'generation')
+      router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, generationRequestId }))
       return
     }
 
-    if (isChatbotMode && briefVersionId) {
-      const cachedGenerationRequestId = getCachedGenerationRequestId(briefVersionId)
-      const generationRequestId = cachedGenerationRequestId ?? await startGenerationAndCacheRequestId(briefVersionId)
-      const params = new URLSearchParams({
-        projectId: projectId!,
-        generationRequestId,
-      })
-      if (planning) params.set('planning', planning)
-      router.push(`${nextPath}?${params.toString()}`)
-      return
+    if (isChatbotMode) {
+      const activeBriefVersionId = briefVersionId || await waitFinalizedProject(projectId!).then((p) => p.briefVersionId).catch(() => null)
+
+      if (activeBriefVersionId) {
+        const cachedGenerationRequestId = getCachedGenerationRequestId(activeBriefVersionId)
+        const resolvedGenerationRequestId = cachedGenerationRequestId ?? await startGenerationAndCacheRequestId(activeBriefVersionId)
+        markWorkflowStepCompleted(projectId!, 'generation')
+        const params = new URLSearchParams({
+          projectId: projectId!,
+          generationRequestId: resolvedGenerationRequestId,
+        })
+        router.push(`${nextPath}?${params.toString()}`)
+        return
+      }
     }
 
-    router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, planning }))
+    router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId }))
   }
 
   async function startGenerationAndCacheRequestId(briefVersionId: string): Promise<string> {

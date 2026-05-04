@@ -10,7 +10,6 @@
 - `features/`: 도메인별 상태와 ViewModel 로직. `form/`, `viewmodel/`, `state/`로 역할을 나눕니다.
 - `lib/types/api`, `lib/types/domain`: DTO와 앱 표준 도메인 타입 분리
 - `lib/services`, `lib/services/mappers`: API 호출, Zod 검증, DTO→Domain 변환
-- `lib/mocks`: API 미연동 구간에서 사용하는 도메인 형태 목 데이터
 - `store/`: Zustand 기반 전역 상태
 
 ## 실행 및 검증 명령어

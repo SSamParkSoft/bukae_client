@@ -4,9 +4,10 @@ import { LoadingLogoBlock } from '@/components/loading/LoadingLogoBlock'
 
 type Props = {
   visible: boolean
+  label?: string
 }
 
-export function AnalysisLoadingOverlay({ visible }: Props) {
+export function AnalysisLoadingOverlay({ visible, label = 'AI 분석중...' }: Props) {
   if (!visible) return null
 
   return (
@@ -16,7 +17,7 @@ export function AnalysisLoadingOverlay({ visible }: Props) {
 
       <div className="relative z-10 flex shrink-0 flex-col items-center gap-6">
         <LoadingLogoBlock size={200} />
-        <p className="font-24-md text-white">AI 분석중...</p>
+        <p className="font-24-md text-white">{label}</p>
       </div>
     </div>
   )

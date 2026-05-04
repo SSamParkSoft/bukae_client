@@ -11,6 +11,7 @@ interface Props {
 
 export function FollowUpChatbot({ data }: Props) {
   const scrollRef = useScrollToBottom([data.messages, data.currentQuestions])
+  const shouldShowInput = !data.isComplete && data.currentQuestions.length > 0
 
   return (
     <div className="flex flex-col h-full">
@@ -33,20 +34,20 @@ export function FollowUpChatbot({ data }: Props) {
 
       <ChatInterface
         messages={data.messages}
-        currentQuestions={data.currentQuestions}
-        isSubmitting={data.isSubmitting}
-        isComplete={data.isComplete}
         scrollRef={scrollRef}
       />
-      {!data.isComplete && (
-        <ChatInputBar
-          answer={data.answer}
-          onAnswerChange={data.onAnswerChange}
-          onSubmit={data.onSubmit}
-          isSubmitting={data.isSubmitting}
-          hasQuestions={data.currentQuestions.length > 0}
-        />
-      )}
+      <div className="shrink-0 min-h-[156px]">
+        {shouldShowInput ? (
+          <ChatInputBar
+            answer={data.answer}
+            onAnswerChange={data.onAnswerChange}
+            onSubmit={data.onSubmit}
+            isSubmitting={data.isSubmitting}
+            hasQuestions
+            question={data.currentQuestions[0] ?? null}
+          />
+        ) : null}
+      </div>
     </div>
   )
 }

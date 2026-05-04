@@ -95,25 +95,3 @@ export function parsePlanningSetupAnswers(
     return EMPTY_PLANNING_SETUP_ANSWERS
   }
 }
-
-export function hasPlanningSetupAnswers(answers: PlanningSetupAnswers): boolean {
-  return (
-    answers.category !== null ||
-    answers.categoryCustom.trim().length > 0 ||
-    answers.faceExposure !== null ||
-    answers.faceExposureCustom.trim().length > 0 ||
-    answers.videoLength !== null ||
-    answers.videoLengthCustom.trim().length > 0 ||
-    answers.shooting !== null ||
-    answers.shootingEnvironment.trim().length > 0 ||
-    answers.coreMaterial.trim().length > 0
-  )
-}
-
-export function serializePlanningSetupAnswers(
-  answers: PlanningSetupAnswers
-): string | null {
-  if (!hasPlanningSetupAnswers(answers)) return null
-
-  return JSON.stringify(answers)
-}

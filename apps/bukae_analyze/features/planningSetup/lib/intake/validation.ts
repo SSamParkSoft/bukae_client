@@ -34,7 +34,7 @@ export function validatePlanningSetupAnswers(
     return '촬영 가능 여부를 선택해 주세요.'
   }
 
-  if (!isNonEmpty(answers.shootingEnvironment)) {
+  if (answers.shooting === 'yes' && !isNonEmpty(answers.shootingEnvironment)) {
     return '촬영 환경을 입력해 주세요.'
   }
 

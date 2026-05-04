@@ -11,11 +11,13 @@ import { ShootingQuestion } from './ShootingQuestion'
 import { VideoLengthQuestion } from './VideoLengthQuestion'
 
 export function PlanningSetupPageClient({
-  initialAnswers,
+  projectId,
+  legacyInitialAnswers,
 }: {
-  initialAnswers: PlanningSetupAnswers
+  projectId: string
+  legacyInitialAnswers: PlanningSetupAnswers
 }) {
-  const form = usePlanningSetupForm(initialAnswers)
+  const form = usePlanningSetupForm(projectId, legacyInitialAnswers)
   const viewModel = createPlanningSetupViewModel(form)
   const isSubmitting = usePlanningStore((state) => state.isSubmitting)
   const submitError = usePlanningStore((state) => state.submitError)

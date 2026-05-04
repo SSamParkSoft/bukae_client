@@ -109,13 +109,14 @@ function mapHookAnalysis(dto: BenchmarkAnalysisResponseDto): HookAnalysis {
   const hook = dto.normalized_analysis_tabs?.hook
   const sourceMetadata = dto.normalized_analysis_tabs?.source?.metadata
   const hookRange = hook?.coreCard?.hookRange ?? '0~0초'
+  const durationSec = sourceMetadata?.duration_sec
 
   return {
     hookRange,
     durationSec: parseHookRangeSec(hookRange),
     videoLengthMin:
-      sourceMetadata?.duration_sec !== undefined
-        ? sourceMetadata.duration_sec / 60
+      typeof durationSec === 'number'
+        ? durationSec / 60
         : undefined,
     avgCutLengthSec: parseAvgCutLengthFromEvidence(hook?.evidence ?? []),
     openingType: hook?.coreCard?.openingType ?? '',
@@ -237,9 +238,11 @@ export function mapBenchmarkAnalysisPollingState(
 export function mapBenchmarkAnalysisSnapshot(
   dto: BenchmarkAnalysisResponseDto
 ): AnalysisSnapshot {
+  const hasContent = hasAnalysisContent(dto)
+
   return {
     polling: mapBenchmarkAnalysisPollingState(dto),
-    result: hasAnalysisContent(dto)
+    result: hasContent
       ? mapBenchmarkAnalysisResult(dto)
       : null,
   }

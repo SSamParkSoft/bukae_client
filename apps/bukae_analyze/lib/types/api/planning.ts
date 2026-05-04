@@ -54,6 +54,8 @@ const PlanningQuestionSchema = z
     required: z.boolean().optional(),
     allowCustom: z.boolean().optional(),
     allow_custom: z.boolean().optional(),
+    customPlaceholder: z.string().optional(),
+    custom_placeholder: z.string().optional(),
     options: z.array(PlanningQuestionOptionSchema).optional(),
     fields: z.array(PlanningQuestionFieldSchema).optional(),
     reasonWhyAsked: z.string().nullable().optional(),
