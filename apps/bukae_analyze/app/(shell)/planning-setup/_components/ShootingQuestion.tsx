@@ -13,7 +13,7 @@ export function ShootingQuestion({ data }: Props) {
   const isOn = data.selected === 'yes'
 
   const handleToggle = () => {
-    data.onSelect(isOn ? 'no' : 'yes')
+    data.onSelect(isOn ? null : 'yes')
   }
 
   return (

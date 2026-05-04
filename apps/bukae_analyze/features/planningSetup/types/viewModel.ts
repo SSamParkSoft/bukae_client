@@ -16,7 +16,7 @@ export interface FaceExposureQuestionViewModel {
 
 export interface ShootingViewModel {
   selected: ShootingAvailability | null
-  onSelect: (value: ShootingAvailability) => void
+  onSelect: (value: ShootingAvailability | null) => void
   environment: string
   onEnvironmentChange: (value: string) => void
 }
