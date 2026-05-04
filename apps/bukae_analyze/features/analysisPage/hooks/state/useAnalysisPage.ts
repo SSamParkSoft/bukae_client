@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { mapVideoAnalysisToViewModel } from '@/features/videoAnalysis/lib/mapVideoAnalysisToViewModel'
 import type { VideoAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
+import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowStepCompletionStorage'
 import type {
   AnalysisResourceErrorType,
   AnalysisResourceSnapshotState,
@@ -60,6 +61,7 @@ export function useAnalysisPage(
   useEffect(() => {
     if (!hasCompletedAnalysisWorkflow) return
     markAnalysisCompleted(projectId)
+    markWorkflowStepCompleted(projectId, 'benchmark-analysis')
   }, [hasCompletedAnalysisWorkflow, markAnalysisCompleted, projectId])
 
   return {

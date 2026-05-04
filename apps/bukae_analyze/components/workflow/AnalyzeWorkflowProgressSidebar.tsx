@@ -18,6 +18,7 @@ export function AnalyzeWorkflowProgressSidebar() {
     previousStep,
     isHomePage,
     isFirstStep,
+    isChatbotMode,
   } = routeState
   const { canOpenPreviousStep } = useAnalyzeWorkflowStepAccess(routeState)
 
@@ -49,7 +50,7 @@ export function AnalyzeWorkflowProgressSidebar() {
         <WorkflowStepArrowButton
           direction="prev"
           onClick={openPreviousWorkflowStep}
-          hidden={isFirstStep}
+          hidden={isFirstStep || isChatbotMode}
           disabled={!canOpenPreviousStep}
         />
       </div>

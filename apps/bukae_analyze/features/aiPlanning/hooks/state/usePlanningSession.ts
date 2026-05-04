@@ -7,6 +7,7 @@ import {
   getProjectWorkflowState,
   isPlanningStep,
 } from '@/lib/services/projectWorkflowState'
+import { PT1_REQUIRED_QUESTION_COUNT } from '@/features/aiPlanning/lib/pt1PlanningSnapshotStorage'
 import type { PlanningSession } from '@/lib/types/domain'
 
 const POLLING_INTERVAL_MS = 5000
@@ -70,6 +71,9 @@ function shouldKeepPolling(session: PlanningSession | null): boolean {
   if (!session) return true
   if (getFailureMessage(session)) return false
   if (session.readyForApproval) return false
+  if (session.planningMode?.toLowerCase().includes('pt1')) {
+    return session.clarifyingQuestions.length < PT1_REQUIRED_QUESTION_COUNT
+  }
   return session.clarifyingQuestions.length === 0
 }
 

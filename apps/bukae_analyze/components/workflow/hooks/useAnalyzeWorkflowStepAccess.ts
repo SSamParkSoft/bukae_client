@@ -5,6 +5,7 @@ import { validatePlanningSetupAnswers } from '@/features/planningSetup/lib/intak
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { usePlanningStore } from '@/store/usePlanningStore'
+import { getMaxAccessibleStepIndex } from '@/components/workflow/lib/workflowStepCompletionStorage'
 import type { AnalyzeWorkflowRouteState } from './useAnalyzeWorkflowRouteState'
 
 export interface AnalyzeWorkflowStepAccessState {
@@ -60,19 +61,16 @@ export function useAnalyzeWorkflowStepAccess(
       (isPlanningSetupStep && isPlanningSetupComplete && !isSubmittingPlanningSetup) ||
       (isAiPlanningStep && canProceedAiPlanning && !isAdvancingAiPlanning)
 
+    const maxAccessible = projectId
+      ? getMaxAccessibleStepIndex(projectId)
+      : 0
+
     const canOpenStepIndex = (stepIndex: number) => {
       if (stepIndex === currentStepIndex) return true
-      if (isChatbotMode && stepIndex < currentStepIndex) return false
-      if (stepIndex < currentStepIndex) return true
-      if (stepIndex === 1) return isAnalysisComplete
-      if (stepIndex === 2) return isAnalysisComplete && isPlanningSetupComplete
-      if (stepIndex === 3) {
-        return isAnalysisComplete && isPlanningSetupComplete && isAiPlanningComplete
-      }
-
-      return false
+      if (isChatbotMode) return false
+      return stepIndex <= maxAccessible
     }
-    const canOpenPreviousStep = currentStepIndex > 0 && canOpenStepIndex(currentStepIndex - 1)
+    const canOpenPreviousStep = !isChatbotMode && currentStepIndex > 0 && canOpenStepIndex(currentStepIndex - 1)
     const canOpenNextStep = canProceedFromCurrentStep
 
     return {

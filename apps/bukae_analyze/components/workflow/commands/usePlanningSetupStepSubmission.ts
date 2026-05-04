@@ -7,9 +7,9 @@ import { usePlanningStore } from '@/store/usePlanningStore'
 import type { AnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
 import { buildAnalyzeWorkflowStepPath } from '@/components/workflow/lib/analyzeWorkflowSteps'
 import {
-  hasStoredIntakeSubmission,
-  storeIntakeSubmission,
-} from '@/components/workflow/lib/intakeSubmissionStorage'
+  hasCompletedStep,
+  markWorkflowStepCompleted,
+} from '@/components/workflow/lib/workflowStepCompletionStorage'
 
 const INTAKE_SESSION_EXPIRED_MESSAGE = '세션이 만료되었습니다. 로그아웃 후 다시 로그인하여 새로운 프로젝트로 시작해 주세요.'
 
@@ -55,7 +55,7 @@ export function usePlanningSetupStepSubmission(
     }
 
     const nextHref = buildAnalyzeWorkflowStepPath(nextPath, { projectId, planning })
-    if (hasStoredIntakeSubmission(projectId)) {
+    if (hasCompletedStep(projectId, 'intake')) {
       setSubmitError(null)
       router.push(nextHref)
       return
@@ -66,7 +66,7 @@ export function usePlanningSetupStepSubmission(
 
     try {
       await submitIntakeCommand(projectId, mapPlanningSetupAnswersToIntakeRequest(planningAnswers))
-      storeIntakeSubmission(projectId)
+      markWorkflowStepCompleted(projectId, 'intake')
       router.push(nextHref)
     } catch (error) {
       setSubmitError(getPlanningSetupSubmitErrorMessage(error))

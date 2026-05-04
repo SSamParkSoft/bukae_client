@@ -3,6 +3,7 @@ import type { Pt1AnswerDraftCache } from '@/store/useAnalyzeWorkflowStore'
 
 const PT1_PLANNING_SNAPSHOT_STORAGE_PREFIX = 'bukae_analyze:pt1-planning:'
 const SNAPSHOT_VERSION = 1
+export const PT1_REQUIRED_QUESTION_COUNT = 7
 
 export interface Pt1PlanningSnapshot {
   version: typeof SNAPSHOT_VERSION
@@ -16,6 +17,13 @@ export interface Pt1PlanningSnapshot {
 export function isPt1PlanningSession(session: PlanningSession | null): session is PlanningSession {
   const planningMode = session?.planningMode?.toLowerCase() ?? ''
   return planningMode.includes('pt1')
+}
+
+export function hasCompletePt1QuestionSet(session: PlanningSession | null): session is PlanningSession {
+  return (
+    isPt1PlanningSession(session) &&
+    session.clarifyingQuestions.length >= PT1_REQUIRED_QUESTION_COUNT
+  )
 }
 
 function hashString(value: string): string {
@@ -57,7 +65,7 @@ function parsePt1PlanningSnapshot(value: unknown): Pt1PlanningSnapshot | null {
   if (value.planningParam !== null && typeof value.planningParam !== 'string') return null
   if (!isRecord(value.session)) return null
   if (!isPt1AnswerDraftCache(value.draft)) return null
-  if (!isPt1PlanningSession(value.session as unknown as PlanningSession)) return null
+  if (!hasCompletePt1QuestionSet(value.session as unknown as PlanningSession)) return null
 
   return value as unknown as Pt1PlanningSnapshot
 }
@@ -95,7 +103,7 @@ export function storePt1PlanningSnapshot(params: {
     draft,
   } = params
 
-  if (!isPt1PlanningSession(session)) return
+  if (!hasCompletePt1QuestionSet(session)) return
 
   try {
     const snapshot: Pt1PlanningSnapshot = {
