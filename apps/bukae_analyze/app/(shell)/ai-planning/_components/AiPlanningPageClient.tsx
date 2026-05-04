@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAiPlanningNavigationStateSync } from '@/features/aiPlanning/hooks/state/useAiPlanningNavigationStateSync'
 import { useFollowUpChatbot } from '@/features/aiPlanning/hooks/state/useFollowUpChatbot'
@@ -52,19 +51,6 @@ function isCurrentLocalPt1PlanningSnapshotState(
   return state.projectId === projectId
 }
 
-function buildAiPlanningHref(
-  projectId: string,
-  mode: AiPlanningMode
-): string {
-  const params = new URLSearchParams({ projectId })
-
-  if (mode === 'chatbot') {
-    params.set('mode', 'chatbot')
-  }
-
-  return `/ai-planning?${params.toString()}`
-}
-
 export function AiPlanningPageClient({
   projectId,
   mode,
@@ -74,7 +60,6 @@ export function AiPlanningPageClient({
   mode: AiPlanningMode
   generationRequestId: string | null
 }) {
-  const router = useRouter()
   const isChatbotMode = mode === 'chatbot'
   const pt1CacheKey = projectId
   const [localPt1SnapshotState, setLocalPt1SnapshotState] = useState<LocalPt1PlanningSnapshotState>(() => (
@@ -182,14 +167,6 @@ export function AiPlanningPageClient({
     selectedAnswers,
   ])
 
-  const enterChatbotMode = () => {
-    router.push(buildAiPlanningHref(projectId, 'chatbot'))
-  }
-
-  const exitChatbotMode = () => {
-    router.push(buildAiPlanningHref(projectId, 'default'))
-  }
-
   const pt1AnswerSubmission = usePt1AnswerAutoSubmission({
     projectId,
     enabled: !generationRequestId,
@@ -236,13 +213,6 @@ export function AiPlanningPageClient({
     return (
       <div className="relative h-full flex flex-col">
         <FollowUpChatbot data={chatbotViewModel} />
-        <button
-          type="button"
-          onClick={exitChatbotMode}
-          className="absolute top-4 right-4 z-10 text-[10px] text-white/25 transition-colors hover:text-white/50"
-        >
-          [DEV] 나가기
-        </button>
       </div>
     )
   }
@@ -281,13 +251,6 @@ export function AiPlanningPageClient({
           </div>
         ))}
       </div>
-      <button
-        type="button"
-        onClick={enterChatbotMode}
-        className="mt-10 mx-6 text-xs text-white/40 underline underline-offset-2"
-      >
-        [DEV] 정보 부족 → 챗봇 모드 테스트
-      </button>
     </div>
   )
 }
