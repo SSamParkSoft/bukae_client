@@ -3,7 +3,6 @@ import type { Pt1AnswerDraftCache } from '@/store/useAnalyzeWorkflowStore'
 
 const PT1_PLANNING_SNAPSHOT_STORAGE_PREFIX = 'bukae_analyze:pt1-planning:'
 const SNAPSHOT_VERSION = 1
-export const PT1_REQUIRED_QUESTION_COUNT = 7
 
 export interface Pt1PlanningSnapshot {
   version: typeof SNAPSHOT_VERSION
@@ -21,7 +20,7 @@ export function isPt1PlanningSession(session: PlanningSession | null): session i
 export function hasCompletePt1QuestionSet(session: PlanningSession | null): session is PlanningSession {
   return (
     isPt1PlanningSession(session) &&
-    session.clarifyingQuestions.length >= PT1_REQUIRED_QUESTION_COUNT
+    session.clarifyingQuestions.length > 0
   )
 }
 

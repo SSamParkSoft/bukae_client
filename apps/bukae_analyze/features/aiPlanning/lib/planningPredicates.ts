@@ -24,6 +24,7 @@ export function isReadyToFinalize(session: PlanningSession): boolean {
   const artifactDetailGapState = getNestedRecord(artifacts, 'detail_gap_state')
 
   return (
+    session.planningMode === 'finalize' ||
     surface?.readyToFinalize === true ||
     isTruthyRecordValue(artifacts, 'ready_to_finalize') ||
     isTruthyRecordValue(surfaceDetailGapState, 'is_sufficient') ||

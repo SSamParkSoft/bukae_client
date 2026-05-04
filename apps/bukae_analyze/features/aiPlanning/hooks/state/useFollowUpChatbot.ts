@@ -133,6 +133,7 @@ export function useFollowUpChatbot({
   )
   const canFinalizeCurrentPlanning = canFinalizePlanning(session)
   const isReadyForApproval = Boolean(session?.readyForApproval)
+  const isRevising = session?.planningMode === 'revise'
   const shouldAppendProgressMessages =
     enabled &&
     isCurrentChatHistoryLoaded &&
@@ -249,6 +250,7 @@ export function useFollowUpChatbot({
     canFinalizeCurrentPlanning,
     isComplete,
     isReadyForApproval,
+    isRevising,
     isInitialRefreshRef,
     isPollingRef,
     isFinalizingRef,

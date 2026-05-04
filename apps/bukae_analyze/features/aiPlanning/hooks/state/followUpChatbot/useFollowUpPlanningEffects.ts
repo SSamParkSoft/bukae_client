@@ -181,6 +181,7 @@ export function usePollNextFollowUpQuestion(params: {
   canFinalizeCurrentPlanning: boolean
   isComplete: boolean
   isReadyForApproval: boolean
+  isRevising: boolean
   isInitialRefreshRef: RefState<boolean>
   isPollingRef: RefState<boolean>
   isFinalizingRef: RefState<boolean>
@@ -198,6 +199,7 @@ export function usePollNextFollowUpQuestion(params: {
     canFinalizeCurrentPlanning,
     isComplete,
     isReadyForApproval,
+    isRevising,
     isInitialRefreshRef,
     isPollingRef,
     isFinalizingRef,
@@ -261,7 +263,7 @@ export function usePollNextFollowUpQuestion(params: {
 
     async function pollPlanning() {
       setIsSubmitting(true)
-      setStageMessage(FOLLOW_UP_STAGE_MESSAGES.waitingQuestion)
+      setStageMessage(isRevising ? FOLLOW_UP_STAGE_MESSAGES.finalizing : FOLLOW_UP_STAGE_MESSAGES.waitingQuestion)
 
       for (let i = 0; i < PLANNING_POLLING_LIMIT; i += 1) {
         if (cancelled) return
@@ -344,6 +346,7 @@ export function usePollNextFollowUpQuestion(params: {
     isInitialRefreshRef,
     isPollingRef,
     isReadyForApproval,
+    isRevising,
     projectId,
     setErrorMessage,
     setIsSubmitting,
@@ -417,6 +420,23 @@ export function useFinalizePlanningWhenReady(params: {
 
             throw new Error(recovery.errorMessage ?? '최종 기획안 생성 요청에 실패했습니다.')
           }
+        }
+
+        const recommendedAngle = activeSession.candidateAngles.find(
+          (angle) => angle['recommended'] === true
+        )
+        if (recommendedAngle) {
+          applyFinalizedProject({
+            briefVersionId: '',
+            title: typeof recommendedAngle['title'] === 'string'
+              ? recommendedAngle['title']
+              : '최종 기획안 준비 완료',
+            planningSummary: typeof recommendedAngle['summary'] === 'string'
+              ? recommendedAngle['summary']
+              : '',
+            status: activeSession.planningStatus ?? '',
+          })
+          return
         }
 
         setStageMessage(FOLLOW_UP_STAGE_MESSAGES.approving)

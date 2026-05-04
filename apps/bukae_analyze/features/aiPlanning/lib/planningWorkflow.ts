@@ -59,10 +59,33 @@ export async function waitFinalizedProject(
     }
 
     const finalizedProject = mapFinalizedProjectState(project)
+
+    console.warn('[waitFinalizedProject] tick', {
+      attempt,
+      projectId,
+      projectStatus: project.projectStatus,
+      currentStep: project.currentStep,
+      activeBriefVersionId: project.activeBriefVersionId,
+      workflowStep: project.workflow.step,
+      workflowStatus: project.workflow.status,
+      isFinalizedForGeneration: isProjectFinalizedForGeneration(project.workflow),
+      hasBriefVersionId: Boolean(project.activeBriefVersionId),
+      resolved: Boolean(finalizedProject),
+    })
+
     if (finalizedProject) return finalizedProject
 
     if (isProjectPlanningWorkflow(project.workflow)) {
       const planning = await getPlanningSession(projectId).catch(() => null)
+
+      console.warn('[waitFinalizedProject] planning session', {
+        attempt,
+        planningMode: planning?.planningMode ?? null,
+        planningStatus: planning?.planningStatus ?? null,
+        readyForApproval: planning?.readyForApproval ?? null,
+        hasFailure: Boolean(planning?.failure),
+        failureSummary: planning?.failure?.summary ?? null,
+      })
 
       if (planning?.failure) {
         throw new Error(

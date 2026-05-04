@@ -166,6 +166,23 @@ export function appendUniqueChatMessages(
   return [...messages, ...uniqueMessages]
 }
 
+export function clearStoredFollowUpChatHistories(): void {
+  if (typeof window === 'undefined') return
+
+  try {
+    const keysToRemove: string[] = []
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i)
+      if (key?.startsWith(FOLLOW_UP_CHAT_HISTORY_STORAGE_PREFIX)) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach((key) => window.localStorage.removeItem(key))
+  } catch {
+    return
+  }
+}
+
 export function getStoredFollowUpChatHistory(projectId: string): ChatMessage[] {
   if (typeof window === 'undefined') return []
 

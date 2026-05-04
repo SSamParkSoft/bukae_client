@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { clearWorkflowStepCompletions } from '@/components/workflow/lib/workflowStepCompletionStorage'
 import { clearStoredPt1PlanningSnapshots } from '@/features/aiPlanning/lib/pt1PlanningSnapshotStorage'
+import { clearStoredFollowUpChatHistories } from '@/features/aiPlanning/lib/followUpChatbot/chatHistoryStorage'
 import { clearStoredPlanningSetupAnswers } from '@/features/planningSetup/lib/planningSetupAnswerStorage'
 
 interface AuthUser {
@@ -28,6 +29,7 @@ export const useAuthStore = create<AuthStore>()(
         clearWorkflowStepCompletions()
         clearStoredPlanningSetupAnswers()
         clearStoredPt1PlanningSnapshots()
+        clearStoredFollowUpChatHistories()
         set({ accessToken: null, user: null })
       },
     }),

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { startGenerationFromCommand } from '@/lib/services/generations'
 import { enterPlanningWorkspace } from '@/lib/services/planning'
+import { waitFinalizedProject } from '@/features/aiPlanning/lib/planningWorkflow'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowStepCompletionStorage'
@@ -89,16 +90,20 @@ export function useAiPlanningStepAdvance(
       return
     }
 
-    if (isChatbotMode && briefVersionId) {
-      const cachedGenerationRequestId = getCachedGenerationRequestId(briefVersionId)
-      const generationRequestId = cachedGenerationRequestId ?? await startGenerationAndCacheRequestId(briefVersionId)
-      markWorkflowStepCompleted(projectId!, 'generation')
-      const params = new URLSearchParams({
-        projectId: projectId!,
-        generationRequestId,
-      })
-      router.push(`${nextPath}?${params.toString()}`)
-      return
+    if (isChatbotMode) {
+      const activeBriefVersionId = briefVersionId || await waitFinalizedProject(projectId!).then((p) => p.briefVersionId).catch(() => null)
+
+      if (activeBriefVersionId) {
+        const cachedGenerationRequestId = getCachedGenerationRequestId(activeBriefVersionId)
+        const resolvedGenerationRequestId = cachedGenerationRequestId ?? await startGenerationAndCacheRequestId(activeBriefVersionId)
+        markWorkflowStepCompleted(projectId!, 'generation')
+        const params = new URLSearchParams({
+          projectId: projectId!,
+          generationRequestId: resolvedGenerationRequestId,
+        })
+        router.push(`${nextPath}?${params.toString()}`)
+        return
+      }
     }
 
     router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId }))
