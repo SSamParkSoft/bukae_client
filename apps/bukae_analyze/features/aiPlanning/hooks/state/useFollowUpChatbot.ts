@@ -55,6 +55,14 @@ interface UseFollowUpChatbotParams {
   onSessionChange?: (nextSession: PlanningSession) => void
 }
 
+function scheduleChatHistoryTask(task: () => void): () => void {
+  const timeoutId = window.setTimeout(task, 0)
+
+  return () => {
+    window.clearTimeout(timeoutId)
+  }
+}
+
 export function useFollowUpChatbot({
   projectId,
   initialSession,
@@ -152,17 +160,21 @@ export function useFollowUpChatbot({
   ), [session])
 
   useEffect(() => {
-    const nextChatHistory = getStoredFollowUpChatHistory(projectId)
-    setChatHistory(nextChatHistory)
-    setChatHistoryProjectId(projectId)
+    return scheduleChatHistoryTask(() => {
+      const nextChatHistory = getStoredFollowUpChatHistory(projectId)
+      setChatHistory(nextChatHistory)
+      setChatHistoryProjectId(projectId)
+    })
   }, [projectId])
 
   useEffect(() => {
     if (!enabled || !isCurrentChatHistoryLoaded) return
 
-    setChatHistory((prev) => (
-      mergeChatMessages(prev, serverTranscriptMessages)
-    ))
+    return scheduleChatHistoryTask(() => {
+      setChatHistory((prev) => (
+        mergeChatMessages(prev, serverTranscriptMessages)
+      ))
+    })
   }, [enabled, isCurrentChatHistoryLoaded, serverTranscriptMessages])
 
   useEffect(() => {
@@ -174,7 +186,9 @@ export function useFollowUpChatbot({
   useEffect(() => {
     if (!enabled || !isCurrentChatHistoryLoaded || !currentQuestion) return
 
-    appendChatMessages([createQuestionChatMessage(currentQuestion)])
+    return scheduleChatHistoryTask(() => {
+      appendChatMessages([createQuestionChatMessage(currentQuestion)])
+    })
   }, [appendChatMessages, currentQuestion, enabled, isCurrentChatHistoryLoaded])
 
   useEffect(() => {
@@ -182,7 +196,9 @@ export function useFollowUpChatbot({
     if (stageMessage === FOLLOW_UP_STAGE_MESSAGES.approving) return
     if (stageMessage === FOLLOW_UP_STAGE_MESSAGES.reflectingAnswer) return
 
-    appendStatusMessage(stageMessage)
+    return scheduleChatHistoryTask(() => {
+      appendStatusMessage(stageMessage)
+    })
   }, [
     appendStatusMessage,
     enabled,
@@ -196,7 +212,9 @@ export function useFollowUpChatbot({
   useEffect(() => {
     if (!enabled || !isCurrentChatHistoryLoaded || !errorMessage) return
 
-    appendErrorMessage(`${FOLLOW_UP_STAGE_MESSAGES.error} ${errorMessage}`)
+    return scheduleChatHistoryTask(() => {
+      appendErrorMessage(`${FOLLOW_UP_STAGE_MESSAGES.error} ${errorMessage}`)
+    })
   }, [appendErrorMessage, enabled, errorMessage, isCurrentChatHistoryLoaded])
 
   useEffect(() => {
@@ -207,8 +225,10 @@ export function useFollowUpChatbot({
       FOLLOW_UP_FINALIZE_PROGRESS_MESSAGES[nextIndex] ??
       FOLLOW_UP_STAGE_MESSAGES.approving
 
-    appendStatusMessage(firstMessage)
-    nextIndex = (nextIndex + 1) % FOLLOW_UP_FINALIZE_PROGRESS_MESSAGES.length
+    const firstMessageTimeoutId = window.setTimeout(() => {
+      appendStatusMessage(firstMessage)
+      nextIndex = (nextIndex + 1) % FOLLOW_UP_FINALIZE_PROGRESS_MESSAGES.length
+    }, 0)
 
     const intervalId = window.setInterval(() => {
       const nextMessage =
@@ -220,6 +240,7 @@ export function useFollowUpChatbot({
     }, FINALIZE_PROGRESS_MESSAGE_INTERVAL_MS)
 
     return () => {
+      window.clearTimeout(firstMessageTimeoutId)
       window.clearInterval(intervalId)
     }
   }, [appendStatusMessage, shouldAppendProgressMessages])
