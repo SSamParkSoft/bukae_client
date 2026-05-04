@@ -41,7 +41,7 @@ export function usePlanningSetupStepSubmission(
   routeState: AnalyzeWorkflowRouteState
 ): PlanningSetupStepSubmissionState {
   const router = useRouter()
-  const { projectId } = routeState
+  const { projectId, generationRequestId } = routeState
   const planningAnswers = usePlanningStore((state) => state.answers)
   const isSubmittingPlanningSetup = usePlanningStore((state) => state.isSubmitting)
   const setSubmitting = usePlanningStore((state) => state.setSubmitting)
@@ -56,7 +56,7 @@ export function usePlanningSetupStepSubmission(
       return
     }
 
-    const nextHref = buildAnalyzeWorkflowStepPath(nextPath, { projectId })
+    const nextHref = buildAnalyzeWorkflowStepPath(nextPath, { projectId, generationRequestId })
     if (hasSubmittedIntake(projectId) || hasCompletedStep(projectId, 'planning')) {
       setSubmitError(null)
       router.push(nextHref)
