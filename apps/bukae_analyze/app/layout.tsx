@@ -5,6 +5,18 @@ import { QueryProvider } from '@/app/_components/QueryProvider'
 export const metadata = {
   title: 'Bukae Analyze',
   description: '부캐 분석 플랫폼',
+  icons: {
+    icon: [
+      {
+        url: '/bukae_favicon_dark.svg',
+        media: '(prefers-color-scheme: light)',
+      },
+      {
+        url: '/bukae_favicon_light.svg',
+        media: '(prefers-color-scheme: dark)',
+      },
+    ],
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
