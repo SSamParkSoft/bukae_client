@@ -10,6 +10,7 @@ export interface AiPlanningNavigationState {
   briefVersionId: string | null
   briefStatus: string | null
   answeredQuestionIds: string[]
+  isSavingPt1Answers: boolean
 }
 
 export function createAiPlanningNavigationState(params: {
@@ -40,6 +41,7 @@ export function createAiPlanningNavigationState(params: {
       briefVersionId: readyBrief?.briefVersionId ?? null,
       briefStatus: readyBrief?.status ?? null,
       answeredQuestionIds,
+      isSavingPt1Answers: false,
     }
   }
 
@@ -50,5 +52,6 @@ export function createAiPlanningNavigationState(params: {
     briefVersionId: null,
     briefStatus: null,
     answeredQuestionIds,
+    isSavingPt1Answers: hasPendingSave,
   }
 }

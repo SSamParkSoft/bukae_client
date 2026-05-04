@@ -103,6 +103,7 @@ export function AnalyzeWorkflowStepList() {
     projectId,
     generationRequestId,
     currentStepIndex,
+    isChatbotMode,
   } = routeState
   const { canOpenStepIndex } = useAnalyzeWorkflowStepAccess(routeState)
 
@@ -116,7 +117,7 @@ export function AnalyzeWorkflowStepList() {
             state={resolveStepState(index, currentStepIndex)}
             projectId={projectId}
             generationRequestId={generationRequestId}
-            disabled={index !== currentStepIndex && !canOpenStepIndex(index)}
+            disabled={isChatbotMode || (index !== currentStepIndex && !canOpenStepIndex(index))}
           />
         </li>
       ))}
