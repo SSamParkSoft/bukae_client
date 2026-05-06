@@ -1,5 +1,6 @@
 import type { BenchmarkAnalysisResponseDto } from '@/lib/types/api/benchmarkAnalysis'
 import type {
+  AnalysisProgressState,
   AnalysisPollingState,
   AnalysisSnapshot,
   HookAnalysis,
@@ -30,6 +31,28 @@ function firstNonEmptyMessage(
   return messages.find(hasMeaningfulText) ?? null
 }
 
+function clampPercent(value: number | null | undefined): number | null {
+  if (typeof value !== 'number' || Number.isNaN(value)) return null
+  return Math.min(100, Math.max(0, Math.round(value)))
+}
+
+function mapAnalysisProgress(
+  dto: BenchmarkAnalysisResponseDto
+): AnalysisProgressState | null {
+  const progress = dto.analysisProgress
+  if (!progress) return null
+
+  return {
+    stage: progress.stage ?? null,
+    status: progress.status ?? null,
+    percent: clampPercent(progress.percent),
+    stageIndex: progress.stageIndex ?? null,
+    stageLabel: progress.stageLabel ?? null,
+    stageTotal: progress.stageTotal ?? null,
+    updatedAt: progress.updatedAt ?? null,
+  }
+}
+
 function hasAnalysisContent(dto: BenchmarkAnalysisResponseDto): boolean {
   const tabs = dto.normalized_analysis_tabs
 
@@ -46,6 +69,8 @@ function hasAnalysisContent(dto: BenchmarkAnalysisResponseDto): boolean {
     (tabs?.structure?.editingDirections?.length ?? 0) > 0 ||
     hasMeaningfulText(tabs?.structure?.trendContext) ||
     hasMeaningfulText(tabs?.structure?.ctaStrategy) ||
+    hasMeaningfulText(tabs?.structure?.directorComment) ||
+    hasMeaningfulText(tabs?.structure?.director_comment) ||
     hasMeaningfulText(dto.hookSummary) ||
     hasMeaningfulText(dto.editPace) ||
     hasMeaningfulText(dto.subtitleStyleSummary) ||
@@ -191,6 +216,7 @@ function mapVideoStructureAnalysis(dto: BenchmarkAnalysisResponseDto): VideoStru
     targetAudienceAttributes: structure?.targetAudienceKeywords ?? [],
     storyStructure: mapStoryStructure(dto),
     viralPointCards: mapViralPointCards(dto),
+    directorComment: structure?.directorComment ?? structure?.director_comment,
     editingPoints: mapEditingPoints(dto),
     trendContextDescription: structure?.trendContext,
     ctaStrategy: mapCtaStrategy(dto),
@@ -232,6 +258,7 @@ export function mapBenchmarkAnalysisPollingState(
       dto.lastErrorMessage
     ),
     hasResult: hasAnalysisContent(dto),
+    progress: mapAnalysisProgress(dto),
   }
 }
 

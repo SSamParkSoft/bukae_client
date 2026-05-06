@@ -3,8 +3,8 @@ import { WhyBox } from './AnalysisPrimitives'
 
 function FieldValueBox({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-6 py-2">
-      <div className="font-16-rg leading-[1.4] text-white/80">
+    <div className="px-2 py-2">
+      <div className="font-rg leading-[1.4] text-white/80"  style={{ fontSize: 'clamp(14px, 0.86vw, 16px)' }}>
         {children ?? '—'}
       </div>
     </div>

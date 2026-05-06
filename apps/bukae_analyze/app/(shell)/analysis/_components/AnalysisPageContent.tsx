@@ -23,6 +23,7 @@ export function AnalysisPageContent() {
     isReady,
     isLoading,
     isFailed,
+    analysisProgress,
     errorType,
     errorMessage,
   } = useAnalysisPageContext()
@@ -38,7 +39,11 @@ export function AnalysisPageContent() {
   if (!isReady || isLoading || !viewModel) {
     return (
       <div className="relative flex min-w-0 flex-1 flex-col">
-        <AnalysisLoadingOverlay visible />
+        <AnalysisLoadingOverlay
+          visible
+          percent={analysisProgress?.percent}
+          stageLabel={analysisProgress?.stageLabel}
+        />
       </div>
     )
   }

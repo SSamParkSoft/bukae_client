@@ -1,4 +1,9 @@
-import type { ProjectPollingState, AnalysisSnapshot, VideoAnalysisResult } from '@/lib/types/domain'
+import type {
+  AnalysisProgressState,
+  ProjectPollingState,
+  AnalysisSnapshot,
+  VideoAnalysisResult,
+} from '@/lib/types/domain'
 import {
   isProjectCategorySelectionWorkflow,
   isProjectFailedWorkflow,
@@ -14,6 +19,7 @@ export interface AnalysisResourceState {
   errorType: AnalysisResourceErrorType | null
   errorMessage: string | null
   result: VideoAnalysisResult | null
+  progress: AnalysisProgressState | null
   isCompleted: boolean
 }
 
@@ -22,6 +28,7 @@ export interface AnalysisResourceSnapshotState {
   submissionStatus: string | null
   analysisStatus: string | null
   result: VideoAnalysisResult | null
+  progress: AnalysisProgressState | null
   errorMessage: string | null
   isCompleted: boolean
   isProjectFailed: boolean
@@ -32,6 +39,7 @@ export const EMPTY_ANALYSIS_RESOURCE_SNAPSHOT: AnalysisResourceSnapshotState = {
   submissionStatus: null,
   analysisStatus: null,
   result: null,
+  progress: null,
   errorMessage: null,
   isCompleted: false,
   isProjectFailed: false,
@@ -80,6 +88,7 @@ export function createAnalysisResourceSnapshot(params: {
     submissionStatus: snapshot.polling.submissionStatus,
     analysisStatus: snapshot.polling.analysisStatus,
     result: snapshot.result ?? previousResult,
+    progress: snapshot.polling.progress,
     errorMessage: errorMessage ?? getAnalysisFailureMessage(project, snapshot),
     isCompleted: isAnalysisCompleted(project, snapshot),
     isProjectFailed: isProjectFailedWorkflow(project.workflow),
@@ -113,6 +122,7 @@ export function deriveAnalysisResourceState(
       errorType: null,
       errorMessage: null,
       result: snapshot.result,
+      progress: snapshot.progress,
       isCompleted: snapshot.isCompleted,
     }
   }
@@ -125,6 +135,7 @@ export function deriveAnalysisResourceState(
       errorType,
       errorMessage: snapshot.errorMessage,
       result: snapshot.result,
+      progress: snapshot.progress,
       isCompleted: snapshot.isCompleted,
     }
   }
@@ -136,6 +147,7 @@ export function deriveAnalysisResourceState(
     errorType: null,
     errorMessage: null,
     result: snapshot.result,
+    progress: snapshot.progress,
     isCompleted: snapshot.isCompleted,
   }
 }

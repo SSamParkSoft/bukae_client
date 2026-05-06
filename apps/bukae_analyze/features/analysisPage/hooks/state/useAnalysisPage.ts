@@ -5,6 +5,7 @@ import { mapVideoAnalysisToViewModel } from '@/features/videoAnalysis/lib/mapVid
 import type { VideoAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowStepCompletionStorage'
+import type { AnalysisProgressState } from '@/lib/types/domain'
 import type {
   AnalysisResourceErrorType,
   AnalysisResourceSnapshotState,
@@ -29,6 +30,7 @@ export interface AnalysisPageState {
   isReady: boolean
   isLoading: boolean
   isFailed: boolean
+  analysisProgress: AnalysisProgressState | null
   errorType: AnalysisResourceErrorType | null
   errorMessage: string | null
 }
@@ -39,7 +41,7 @@ export function useAnalysisPage(
 ): AnalysisPageState {
   const [activeTab, setActiveTab] = useState<AnalysisTabId>('thumbnail')
   const markAnalysisCompleted = useAnalyzeWorkflowStore((state) => state.markAnalysisCompleted)
-  const { status, isCompleted, errorType, errorMessage, result } = useAnalysisResource(
+  const { status, isCompleted, errorType, errorMessage, result, progress } = useAnalysisResource(
     projectId,
     initialSnapshot
   )
@@ -72,6 +74,7 @@ export function useAnalysisPage(
     isReady,
     isLoading: status === 'loading' && !hasDisplayableAnalysis,
     isFailed: status === 'error' || isMissingReadyResult,
+    analysisProgress: progress,
     errorType: resolvedErrorType,
     errorMessage: resolvedErrorMessage,
   }

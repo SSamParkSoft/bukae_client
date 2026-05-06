@@ -1,5 +1,17 @@
 import { z } from 'zod'
 
+const AnalysisProgressSchema = z.object({
+  stage: z.string().nullable().optional(),
+  status: z.string().nullable().optional(),
+  percent: z.number().nullable().optional(),
+  projectId: z.string().nullable().optional(),
+  updatedAt: z.string().nullable().optional(),
+  stageIndex: z.number().nullable().optional(),
+  stageLabel: z.string().nullable().optional(),
+  stageTotal: z.number().nullable().optional(),
+  benchmarkSubmissionId: z.string().nullable().optional(),
+})
+
 export const BenchmarkAnalysisPollingSchema = z.object({
   submissionStatus: z.string(),
   analysisStatus: z.string().nullable().optional(),
@@ -7,6 +19,7 @@ export const BenchmarkAnalysisPollingSchema = z.object({
   currentStep: z.string().nullable().optional(),
   readyForCategorySelection: z.boolean().optional(),
   lastErrorMessage: z.string().nullable().optional(),
+  analysisProgress: AnalysisProgressSchema.nullable().optional(),
   failure: z
     .object({
       message: z.string().nullable().optional(),
@@ -94,6 +107,8 @@ const StructureTabSchema = z.object({
   editingDirections: z.array(EditingDirectionSchema).optional(),
   trendContext: z.string().optional(),
   ctaStrategy: z.string().optional(),
+  directorComment: z.string().optional(),
+  director_comment: z.string().optional(),
 })
 
 const SourceMetadataSchema = z.object({
