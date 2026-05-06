@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { mapPlanningSetupAnswersToIntakeRequest, validatePlanningSetupAnswers } from '@/features/planningSetup/lib/intakeRequest'
+import { resolveAppError } from '@/lib/errors/appError'
 import { submitIntakeCommand } from '@/lib/services/planning'
 import { usePlanningStore } from '@/store/usePlanningStore'
 import type { AnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
@@ -13,23 +14,8 @@ import {
   markWorkflowStepCompleted,
 } from '@/components/workflow/lib/workflowStepCompletionStorage'
 
-const INTAKE_SESSION_EXPIRED_MESSAGE = '세션이 만료되었습니다. 로그아웃 후 다시 로그인하여 새로운 프로젝트로 시작해 주세요.'
-
 function getPlanningSetupSubmitErrorMessage(error: unknown): string {
-  if (!(error instanceof Error)) {
-    return '기획 프리세팅 제출에 실패했습니다.'
-  }
-
-  const message = error.message
-  const isIntakeBadRequest =
-    message.includes('기획 프리세팅 제출 실패 (400)') ||
-    (message.includes('"status":400') && message.includes('/intake'))
-
-  if (isIntakeBadRequest) {
-    return INTAKE_SESSION_EXPIRED_MESSAGE
-  }
-
-  return message
+  return resolveAppError(error, 'planning_setup_submit').message
 }
 
 export interface PlanningSetupStepSubmissionState {
