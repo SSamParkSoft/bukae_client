@@ -19,7 +19,6 @@ export function PlanningSetupPageClient({
 }) {
   const form = usePlanningSetupForm(projectId, legacyInitialAnswers)
   const viewModel = createPlanningSetupViewModel(form)
-  const isSubmitting = usePlanningStore((state) => state.isSubmitting)
   const submitError = usePlanningStore((state) => state.submitError)
 
   return (
@@ -31,16 +30,6 @@ export function PlanningSetupPageClient({
           className="mx-6 mb-6 rounded-lg border border-highlight/30 bg-white/8 px-5 py-4 font-16-rg text-highlight"
         >
           {submitError}
-        </div>
-      ) : null}
-
-      {isSubmitting ? (
-        <div
-          role="status"
-          aria-live="polite"
-          className="mx-6 mb-6 rounded-lg border border-white/15 bg-white/8 px-5 py-4 font-16-rg text-white/80"
-        >
-          기획 프리세팅을 저장하는 중입니다.
         </div>
       ) : null}
 
