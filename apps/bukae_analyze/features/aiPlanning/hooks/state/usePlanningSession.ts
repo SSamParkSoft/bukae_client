@@ -70,9 +70,11 @@ function shouldKeepPolling(session: PlanningSession | null): boolean {
   if (!session) return true
   if (getFailureMessage(session)) return false
   if (session.readyForApproval) return false
+  if (session.clarifyingQuestions.length === 0) return true
+  if (session.planningStatus === 'WAITING_FOR_USER') return false
   const isPt1 = session.planningMode?.toLowerCase().includes('pt1') ?? false
   if (isPt1) return true
-  return session.clarifyingQuestions.length === 0
+  return false
 }
 
 export function usePlanningSession(
