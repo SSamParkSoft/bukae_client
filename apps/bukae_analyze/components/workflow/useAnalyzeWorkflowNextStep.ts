@@ -11,6 +11,7 @@ import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowSte
 export interface AnalyzeWorkflowNextStepState {
   shouldRenderNextStepButton: boolean
   isNextStepButtonDisabled: boolean
+  isSubmittingPlanningSetup: boolean
   advanceToNextWorkflowStep: () => Promise<void>
 }
 
@@ -28,6 +29,7 @@ export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
   } = routeState
   const { canOpenNextStep } = useAnalyzeWorkflowStepAccess(routeState)
   const {
+    isSubmittingPlanningSetup,
     submitPlanningSetupOnceAndOpenNextStep,
   } = usePlanningSetupStepSubmission(routeState)
   const {
@@ -35,7 +37,7 @@ export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
   } = useAiPlanningStepAdvance(routeState)
 
   const shouldRenderNextStepButton = !isHomePage && !isLastStep
-  const isNextStepButtonDisabled = !canOpenNextStep
+  const isNextStepButtonDisabled = !canOpenNextStep || isSubmittingPlanningSetup
 
   async function advanceToNextWorkflowStep() {
     if (isLastStep || !nextStep) return
@@ -61,6 +63,7 @@ export function useAnalyzeWorkflowNextStep(): AnalyzeWorkflowNextStepState {
   return {
     shouldRenderNextStepButton,
     isNextStepButtonDisabled,
+    isSubmittingPlanningSetup,
     advanceToNextWorkflowStep,
   }
 }

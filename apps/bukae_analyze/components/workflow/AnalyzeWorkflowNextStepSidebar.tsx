@@ -1,12 +1,16 @@
 'use client'
 
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import { LAYOUT } from '@/components/layout/layout-constants'
 import { useAnalyzeWorkflowNextStep } from '@/components/workflow/useAnalyzeWorkflowNextStep'
 import { WorkflowStepArrowButton } from '@/components/workflow/ui/WorkflowStepArrowButton'
+import {
+  WorkflowStepStatusCards,
+  type WorkflowStepStatusCard,
+} from '@/components/workflow/ui/WorkflowStepStatusCards'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 
-const PT1_SAVE_STATUS_CARDS = [
+const PT1_SAVE_STATUS_CARDS: WorkflowStepStatusCard[] = [
   {
     title: '정보가 충분한지 분석하고 있어요.',
     description: '잠시만 기다려주세요.',
@@ -17,13 +21,71 @@ const PT1_SAVE_STATUS_CARDS = [
   },
 ]
 
+const PLANNING_SETUP_SUBMIT_STATUS_CARD: WorkflowStepStatusCard = {
+  title: '기획 프리세팅을 저장하고 있어요.',
+  description: '잠시만 기다려주세요.',
+}
+
+type WorkflowStepStatusContent = (
+  | {
+    key: string
+    variant: 'single'
+    card: WorkflowStepStatusCard
+    cards?: never
+  }
+  | {
+    key: string
+    variant: 'stack'
+    card?: never
+    cards: WorkflowStepStatusCard[]
+  }
+)
+
+function renderWorkflowStepStatusCards(
+  statusContent: WorkflowStepStatusContent | null
+) {
+  if (!statusContent) return null
+
+  if (statusContent.variant === 'single') {
+    return (
+      <WorkflowStepStatusCards
+        key={statusContent.key}
+        variant="single"
+        card={statusContent.card}
+      />
+    )
+  }
+
+  return (
+    <WorkflowStepStatusCards
+      key={statusContent.key}
+      variant="stack"
+      cards={statusContent.cards}
+    />
+  )
+}
+
 export function AnalyzeWorkflowNextStepSidebar() {
   const {
     shouldRenderNextStepButton,
     isNextStepButtonDisabled,
+    isSubmittingPlanningSetup,
     advanceToNextWorkflowStep,
   } = useAnalyzeWorkflowNextStep()
   const isSavingPt1Answers = useAiPlanningStore((state) => state.isSavingPt1Answers)
+  const statusContent: WorkflowStepStatusContent | null = isSubmittingPlanningSetup
+    ? {
+      key: 'planning-setup-submit-status',
+      variant: 'single',
+      card: PLANNING_SETUP_SUBMIT_STATUS_CARD,
+    }
+    : isSavingPt1Answers
+      ? {
+        key: 'pt1-save-status',
+        variant: 'stack',
+        cards: PT1_SAVE_STATUS_CARDS,
+      }
+      : null
 
   if (!shouldRenderNextStepButton) return null
 
@@ -37,32 +99,7 @@ export function AnalyzeWorkflowNextStepSidebar() {
         style={{ bottom: LAYOUT.NAV_BUTTON_BOTTOM }}
       >
         <AnimatePresence>
-          {isSavingPt1Answers ? (
-            <motion.div
-              key="pt1-save-status"
-              role="status"
-              aria-live="polite"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.22, ease: 'easeOut' }}
-              className="flex w-[232px] flex-col gap-2"
-            >
-              {PT1_SAVE_STATUS_CARDS.map((card, index) => (
-                <motion.div
-                  key={card.title}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 6 }}
-                  transition={{ duration: 0.2, delay: index * 0.06, ease: 'easeOut' }}
-                  className="rounded-lg border border-white/15 bg-white/10 px-4 py-3 text-white shadow-[0_12px_32px_rgba(0,0,0,0.18)] backdrop-blur-md"
-                >
-                  <p className="font-14-md">{card.title}</p>
-                  <p className="mt-1 font-12-rg text-white/60">{card.description}</p>
-                </motion.div>
-              ))}
-            </motion.div>
-          ) : null}
+          {renderWorkflowStepStatusCards(statusContent)}
         </AnimatePresence>
 
         <WorkflowStepArrowButton

@@ -2,6 +2,7 @@
 
 import { createContext, useContext } from 'react'
 import type { AnalysisResourceSnapshotState } from '@/features/analysisPage/lib/analysisResource'
+import type { ResolvedAppError } from '@/lib/errors/appError'
 import { useAnalysisPage, type AnalysisPageState } from '../hooks/state/useAnalysisPage'
 
 const AnalysisPageContext = createContext<AnalysisPageState | null>(null)
@@ -9,13 +10,15 @@ const AnalysisPageContext = createContext<AnalysisPageState | null>(null)
 export function AnalysisPageProvider({
   initialProjectId,
   initialSnapshot,
+  initialError,
   children,
 }: {
   initialProjectId: string
   initialSnapshot?: AnalysisResourceSnapshotState | null
+  initialError?: ResolvedAppError | null
   children: React.ReactNode
 }) {
-  const value = useAnalysisPage(initialProjectId, initialSnapshot)
+  const value = useAnalysisPage(initialProjectId, initialSnapshot, initialError)
 
   return (
     <AnalysisPageContext.Provider value={value}>

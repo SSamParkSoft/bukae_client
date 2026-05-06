@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { PageTitle } from '@/components/page/PageTitle'
 import { AnalysisPageProvider } from '@/features/analysisPage/context/AnalysisPageContext'
+import { resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 import { fetchAnalysisBootstrap } from '@/lib/server/analysisBootstrap'
 import { getServerAccessToken } from '@/lib/server/authSession'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
@@ -20,18 +21,26 @@ export default async function AnalysisPage({
   }
 
   const accessToken = await getServerAccessToken()
-  const initialSnapshot = accessToken
-    ? await fetchAnalysisBootstrap({
-      accessToken,
-      projectId: initialProjectId,
-    }).catch(() => null)
-    : null
+  let initialSnapshot = null
+  let initialError: ResolvedAppError | null = null
+
+  if (accessToken) {
+    try {
+      initialSnapshot = await fetchAnalysisBootstrap({
+        accessToken,
+        projectId: initialProjectId,
+      })
+    } catch (error) {
+      initialError = resolveAppError(error, 'analysis_bootstrap')
+    }
+  }
 
   return (
     <AnalysisPageProvider
       key={initialProjectId}
       initialProjectId={initialProjectId}
       initialSnapshot={initialSnapshot}
+      initialError={initialError}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
         <AnalysisReferenceUrlBar className="mb-10" />

@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 import { getBenchmarkAnalysis } from '@/lib/services/benchmarkAnalysis'
 import { getProjectPollingState } from '@/lib/services/projects'
 import {
@@ -48,9 +49,16 @@ function isCurrentAnalysisResourceSnapshot(
 
 export function useAnalysisResource(
   projectId: string,
-  initialSnapshot?: AnalysisResourceSnapshotState | null
+  initialSnapshot?: AnalysisResourceSnapshotState | null,
+  initialError?: ResolvedAppError | null
 ): AnalysisResourceState {
-  const initialSnapshotState = initialSnapshot ?? EMPTY_ANALYSIS_RESOURCE_SNAPSHOT
+  const initialSnapshotState = useMemo(() => (
+    initialSnapshot ?? {
+      ...EMPTY_ANALYSIS_RESOURCE_SNAPSHOT,
+      errorMessage: initialError?.message ?? null,
+      appError: initialError ?? null,
+    }
+  ), [initialError, initialSnapshot])
   const [localSnapshot, setLocalSnapshot] = useState<LocalAnalysisResourceSnapshot>(() => (
     createLocalAnalysisResourceSnapshot(projectId, initialSnapshotState)
   ))
@@ -126,6 +134,7 @@ export function useAnalysisResource(
                 {
                   ...current,
                   errorMessage: '분석은 완료되었지만 결과 데이터를 불러오지 못했습니다.',
+                  appError: null,
                 }
               )
             })
@@ -141,9 +150,10 @@ export function useAnalysisResource(
             : POLL_INTERVAL_MS
 
         timeoutId = setTimeout(syncAnalysisResult, nextDelay)
-      } catch (err) {
+      } catch (error) {
         if (cancelled) return
-        console.error('[useAnalysisResource] poll failed:', err)
+        console.error('[useAnalysisResource] poll failed:', error)
+        const appError = resolveAppError(error, 'analysis_polling')
         setLocalSnapshot((prev) => {
           const current = isCurrentAnalysisResourceSnapshot(
             prev,
@@ -158,7 +168,8 @@ export function useAnalysisResource(
             initialSnapshotState,
             {
               ...current,
-              errorMessage: '분석 상태 확인 중 오류가 발생했습니다.',
+              errorMessage: appError.message,
+              appError,
             }
           )
         })

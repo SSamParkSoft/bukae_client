@@ -4,6 +4,7 @@ import type {
   AnalysisSnapshot,
   VideoAnalysisResult,
 } from '@/lib/types/domain'
+import type { ResolvedAppError } from '@/lib/errors/appError'
 import {
   isProjectCategorySelectionWorkflow,
   isProjectFailedWorkflow,
@@ -18,6 +19,7 @@ export interface AnalysisResourceState {
   analysisStatus: string | null
   errorType: AnalysisResourceErrorType | null
   errorMessage: string | null
+  appError: ResolvedAppError | null
   result: VideoAnalysisResult | null
   progress: AnalysisProgressState | null
   isCompleted: boolean
@@ -30,6 +32,7 @@ export interface AnalysisResourceSnapshotState {
   result: VideoAnalysisResult | null
   progress: AnalysisProgressState | null
   errorMessage: string | null
+  appError: ResolvedAppError | null
   isCompleted: boolean
   isProjectFailed: boolean
 }
@@ -41,6 +44,7 @@ export const EMPTY_ANALYSIS_RESOURCE_SNAPSHOT: AnalysisResourceSnapshotState = {
   result: null,
   progress: null,
   errorMessage: null,
+  appError: null,
   isCompleted: false,
   isProjectFailed: false,
 }
@@ -80,8 +84,15 @@ export function createAnalysisResourceSnapshot(params: {
   snapshot: AnalysisSnapshot
   previousResult?: VideoAnalysisResult | null
   errorMessage?: string | null
+  appError?: ResolvedAppError | null
 }): AnalysisResourceSnapshotState {
-  const { project, snapshot, previousResult = null, errorMessage } = params
+  const {
+    project,
+    snapshot,
+    previousResult = null,
+    errorMessage,
+    appError = null,
+  } = params
 
   return {
     projectStatus: project.projectStatus,
@@ -90,6 +101,7 @@ export function createAnalysisResourceSnapshot(params: {
     result: snapshot.result ?? previousResult,
     progress: snapshot.polling.progress,
     errorMessage: errorMessage ?? getAnalysisFailureMessage(project, snapshot),
+    appError,
     isCompleted: isAnalysisCompleted(project, snapshot),
     isProjectFailed: isProjectFailedWorkflow(project.workflow),
   }
@@ -121,6 +133,7 @@ export function deriveAnalysisResourceState(
       analysisStatus: snapshot.analysisStatus,
       errorType: null,
       errorMessage: null,
+      appError: null,
       result: snapshot.result,
       progress: snapshot.progress,
       isCompleted: snapshot.isCompleted,
@@ -134,6 +147,7 @@ export function deriveAnalysisResourceState(
       analysisStatus: snapshot.analysisStatus,
       errorType,
       errorMessage: snapshot.errorMessage,
+      appError: snapshot.appError,
       result: snapshot.result,
       progress: snapshot.progress,
       isCompleted: snapshot.isCompleted,
@@ -146,6 +160,7 @@ export function deriveAnalysisResourceState(
     analysisStatus: snapshot.analysisStatus,
     errorType: null,
     errorMessage: null,
+    appError: null,
     result: snapshot.result,
     progress: snapshot.progress,
     isCompleted: snapshot.isCompleted,
