@@ -12,7 +12,7 @@ export function BulletSentenceList({
   if (sentences.length === 0) return null
 
   return (
-    <ul className={['m-0 list-none space-y-3 p-0', className].filter(Boolean).join(' ')} role="list">
+    <ul className={['list-none space-y-3', className].filter(Boolean).join(' ')} role="list">
       {sentences.map((line, i) => (
         <li key={`${i}-${line.slice(0, 48)}`} className="flex gap-2">
           <span className="shrink-0 select-none text-white/80" aria-hidden>
@@ -52,11 +52,11 @@ export function StoryRow({ timeframe, title, description }: StorySegmentViewMode
 
 export function LabeledRow({ label, description }: LabeledItemViewModel) {
   return (
-    <div className="flex w-full items-center gap-4 rounded-lg px-6 py-4">
-      <span className="w-[clamp(5rem,18vw,10rem)] max-w-[72px] min-w-[70px] shrink-0 whitespace-nowrap rounded-lg bg-white/20 px-4 py-2 text-center font-fluid-16-md text-white">
+    <div className="w-full px-6 py-2">
+      <span className="block w-fit whitespace-nowrap rounded-lg bg-white/10 px-4 py-2 font-fluid-16-md text-white">
         {label}
       </span>
-      <div className="min-w-0 flex-1">
+      <div className="mt-3">
         <BulletSentenceList
           sentences={description}
           itemClassName="whitespace-pre-line font-fluid-16-md text-white/80"

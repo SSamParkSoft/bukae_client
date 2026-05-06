@@ -16,7 +16,7 @@ export function DirectorComment({ comment }: Props) {
           <div className="min-w-0 flex-1 font-fluid-20-md">
             <BulletSentenceList
               sentences={comment}
-              itemClassName="whitespace-pre-line font-fluid-20-md text-white/80 italic"
+              itemClassName="whitespace-pre-line font-fluid-16-md text-white/80 italic"
             />
           </div>
           <span className="shrink-0 text-white/30 font-16-md self-end"></span>
