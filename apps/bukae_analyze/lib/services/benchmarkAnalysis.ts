@@ -24,6 +24,7 @@ function createEmptyAnalysisSnapshot(): AnalysisSnapshot {
       readyForCategorySelection: false,
       errorMessage: null,
       hasResult: false,
+      progress: null,
     },
     result: null,
   }
@@ -75,6 +76,7 @@ function normalizeBenchmarkAnalysisResponse(
     currentStep: raw.currentStep,
     readyForCategorySelection: raw.readyForCategorySelection,
     lastErrorMessage: raw.lastErrorMessage,
+    analysisProgress: raw.analysisProgress,
     failure: raw.failure,
     normalized_analysis_tabs: rawTabs
       ? {

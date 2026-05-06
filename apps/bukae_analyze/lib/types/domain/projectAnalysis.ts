@@ -21,6 +21,16 @@ export interface BenchmarkSubmissionState extends ProjectSession {
   submissionStatus: string
 }
 
+export interface AnalysisProgressState {
+  stage: string | null
+  status: string | null
+  percent: number | null
+  stageIndex: number | null
+  stageLabel: string | null
+  stageTotal: number | null
+  updatedAt: string | null
+}
+
 export interface AnalysisPollingState {
   submissionStatus: string
   analysisStatus: string | null
@@ -29,6 +39,7 @@ export interface AnalysisPollingState {
   readyForCategorySelection: boolean
   errorMessage: string | null
   hasResult: boolean
+  progress: AnalysisProgressState | null
 }
 
 export interface AnalysisSnapshot {
