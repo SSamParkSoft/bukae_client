@@ -26,12 +26,17 @@ export function AnalysisPageContent() {
     analysisProgress,
     errorType,
     errorMessage,
+    appError,
   } = useAnalysisPageContext()
 
   if (isFailed) {
     return (
       <div className="flex min-w-0 flex-1 flex-col pt-10 pb-32">
-        <AnalysisErrorView errorType={errorType} errorMessage={errorMessage} />
+        <AnalysisErrorView
+          errorType={errorType}
+          errorMessage={errorMessage}
+          appError={appError}
+        />
       </div>
     )
   }

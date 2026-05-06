@@ -65,6 +65,11 @@ const BAD_REQUEST_ERROR_COPY_BY_CONTEXT: Partial<Record<AppErrorContext, AppErro
     title: '기획 프리세팅을 제출할 수 없습니다',
     message: '프로젝트 세션이 만료되었거나 이전 단계 정보가 부족합니다. 새로운 프로젝트로 다시 시작해주세요.',
   },
+  analysis_bootstrap: {
+    kind: 'invalid_project_state',
+    title: '분석 결과를 불러올 수 없습니다',
+    message: '분석 요청 정보가 만료되었거나 현재 프로젝트와 맞지 않습니다. 새로운 프로젝트로 다시 시작해주세요.',
+  },
   generation_bootstrap: {
     kind: 'invalid_project_state',
     title: '촬영가이드를 불러올 수 없습니다',
