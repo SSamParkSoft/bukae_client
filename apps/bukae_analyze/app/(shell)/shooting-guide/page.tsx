@@ -1,6 +1,8 @@
 import { PageTitle } from '@/components/page/PageTitle'
+import { resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 import { getServerAccessToken } from '@/lib/server/authSession'
 import { fetchGenerationBootstrap } from '@/lib/server/generationBootstrap'
+import type { Generation } from '@/lib/types/domain'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
 import { ShootingGuidePageClient } from './_components/ShootingGuidePageClient'
 
@@ -17,13 +19,20 @@ export default async function ShootingGuidePage({
   const resolvedGenerationRequestId = resolveSingleSearchParam(generationRequestId)
   const accessToken = await getServerAccessToken()
 
-  const generation = accessToken && resolvedProjectId && resolvedGenerationRequestId
-    ? await fetchGenerationBootstrap({
+  let generation: Generation | null = null
+  let initialError: ResolvedAppError | null = null
+
+  if (accessToken && resolvedProjectId && resolvedGenerationRequestId) {
+    try {
+      generation = await fetchGenerationBootstrap({
       accessToken,
       projectId: resolvedProjectId,
       generationRequestId: resolvedGenerationRequestId,
-    }).catch(() => null)
-    : null
+      })
+    } catch (error) {
+      initialError = resolveAppError(error, 'generation_bootstrap')
+    }
+  }
 
   return (
     <div className="px-8 pt-10 pb-16 space-y-4">
@@ -35,6 +44,7 @@ export default async function ShootingGuidePage({
         projectId={resolvedProjectId}
         generationRequestId={resolvedGenerationRequestId}
         initialGeneration={generation}
+        initialError={initialError}
       />
     </div>
   )

@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
+import { resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 import { getGeneration } from '@/lib/services/generations'
 import { getGenerationFailureMessage, isGenerationCompleted } from '@/features/shootingGuide/lib/generationState'
 import type { Generation } from '@/lib/types/domain'
@@ -9,13 +10,15 @@ const GENERATION_POLLING_INTERVAL_MS = 5000
 
 export interface GenerationPollingState {
   generation: Generation | null
-  errorMessage: string | null
+  error: ResolvedAppError | null
+  generationFailureMessage: string | null
 }
 
 export function useGenerationPolling(
   projectId: string | null,
   generationRequestId: string | null,
-  initialGeneration: Generation | null
+  initialGeneration: Generation | null,
+  initialError: ResolvedAppError | null
 ): GenerationPollingState {
   const query = useQuery({
     queryKey: ['generation', projectId, generationRequestId],
@@ -34,13 +37,13 @@ export function useGenerationPolling(
   })
 
   const generation = query.data ?? null
-  const errorMessage = getGenerationFailureMessage(generation) ?? (
-    query.error instanceof Error
-      ? query.error.message
-      : query.error
-        ? '촬영가이드 생성 상태를 조회하지 못했습니다.'
-        : null
-  )
+  const generationFailureMessage = getGenerationFailureMessage(generation)
+  const queryError = query.error
+    ? resolveAppError(query.error, 'generation_polling')
+    : null
+  const error = generationFailureMessage
+    ? null
+    : queryError ?? (!generation ? initialError : null)
 
-  return { generation, errorMessage }
+  return { generation, error, generationFailureMessage }
 }

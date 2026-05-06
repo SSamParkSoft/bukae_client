@@ -169,3 +169,11 @@ export function resolveAppError(
 
   return createResolvedAppError('unknown', context, status)
 }
+
+export function createAppError(
+  kind: AppErrorKind,
+  context: AppErrorContext = 'unknown',
+  status: number | null = null
+): ResolvedAppError {
+  return createResolvedAppError(kind, context, status)
+}
