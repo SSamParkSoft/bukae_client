@@ -94,6 +94,8 @@ const StructureTabSchema = z.object({
   editingDirections: z.array(EditingDirectionSchema).optional(),
   trendContext: z.string().optional(),
   ctaStrategy: z.string().optional(),
+  directorComment: z.string().optional(),
+  director_comment: z.string().optional(),
 })
 
 const SourceMetadataSchema = z.object({

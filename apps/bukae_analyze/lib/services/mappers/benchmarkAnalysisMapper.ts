@@ -46,6 +46,8 @@ function hasAnalysisContent(dto: BenchmarkAnalysisResponseDto): boolean {
     (tabs?.structure?.editingDirections?.length ?? 0) > 0 ||
     hasMeaningfulText(tabs?.structure?.trendContext) ||
     hasMeaningfulText(tabs?.structure?.ctaStrategy) ||
+    hasMeaningfulText(tabs?.structure?.directorComment) ||
+    hasMeaningfulText(tabs?.structure?.director_comment) ||
     hasMeaningfulText(dto.hookSummary) ||
     hasMeaningfulText(dto.editPace) ||
     hasMeaningfulText(dto.subtitleStyleSummary) ||
@@ -191,6 +193,7 @@ function mapVideoStructureAnalysis(dto: BenchmarkAnalysisResponseDto): VideoStru
     targetAudienceAttributes: structure?.targetAudienceKeywords ?? [],
     storyStructure: mapStoryStructure(dto),
     viralPointCards: mapViralPointCards(dto),
+    directorComment: structure?.directorComment ?? structure?.director_comment,
     editingPoints: mapEditingPoints(dto),
     trendContextDescription: structure?.trendContext,
     ctaStrategy: mapCtaStrategy(dto),
