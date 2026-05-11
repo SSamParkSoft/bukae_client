@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { usePathname } from 'next/navigation'
 import type { CurrentUser } from '@/lib/services/auth'
 import { refreshToken } from '@/lib/services/auth'
 import { syncServerAccessToken } from '@/lib/services/authSession'
@@ -11,9 +12,11 @@ interface SessionPayload {
 }
 
 export function AuthSessionBootstrap() {
+  const pathname = usePathname()
   const hasStartedRef = useRef(false)
 
   useEffect(() => {
+    if (pathname.startsWith('/oauth/')) return
     if (hasStartedRef.current) return
     hasStartedRef.current = true
 
@@ -53,7 +56,7 @@ export function AuthSessionBootstrap() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [pathname])
 
   return null
 }
