@@ -11,11 +11,8 @@ function resolveAuthEndpoint(path: string): string {
   return new URL(path, apiBaseUrl).toString()
 }
 
-export async function logout(accessToken: string): Promise<void> {
-  const res = await fetch(API_ENDPOINTS.auth.logout, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
+export async function logout(): Promise<void> {
+  const res = await fetch('/api/auth/logout', { method: 'POST' })
   if (!res.ok) throw new Error('로그아웃 실패')
 }
 

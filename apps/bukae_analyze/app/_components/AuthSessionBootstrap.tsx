@@ -2,10 +2,11 @@
 
 import { useEffect, useRef } from 'react'
 import type { CurrentUser } from '@/lib/services/auth'
+import { refreshToken } from '@/lib/services/auth'
+import { syncServerAccessToken } from '@/lib/services/authSession'
 import { useAuthStore } from '@/store/useAuthStore'
 
 interface SessionPayload {
-  accessToken: string
   user: CurrentUser
 }
 
@@ -21,15 +22,25 @@ export function AuthSessionBootstrap() {
     async function syncAuthSession() {
       try {
         const res = await fetch('/api/auth/session', { cache: 'no-store' })
+
         if (!res.ok) {
-          useAuthStore.getState().clearToken()
+          if (res.status === 401) {
+            // BFF 쿠키 만료 — refresh 시도
+            try {
+              const refreshed = await refreshToken()
+              const user = await syncServerAccessToken(refreshed.accessToken)
+              if (!cancelled) useAuthStore.getState().setUser(user)
+            } catch {
+              if (!cancelled) useAuthStore.getState().clearToken()
+            }
+          } else {
+            useAuthStore.getState().clearToken()
+          }
           return
         }
 
-        const { accessToken, user } = await res.json() as SessionPayload
-
+        const { user } = await res.json() as SessionPayload
         if (cancelled) return
-        useAuthStore.getState().setAccessToken(accessToken)
         useAuthStore.getState().setUser(user)
       } catch {
         if (cancelled) return

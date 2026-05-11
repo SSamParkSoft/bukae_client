@@ -26,9 +26,17 @@ export async function POST(request: Request) {
     )
   }
 
-  const response = NextResponse.json({ ok: true })
-  response.cookies.set(SERVER_ACCESS_TOKEN_COOKIE, accessToken, createCookieOptions())
-  return response
+  try {
+    const user = await fetchCurrentUserWithToken(accessToken)
+    const response = NextResponse.json({ ok: true, user })
+    response.cookies.set(SERVER_ACCESS_TOKEN_COOKIE, accessToken, createCookieOptions())
+    return response
+  } catch {
+    return NextResponse.json(
+      { message: '사용자 정보를 불러오지 못했습니다.' },
+      { status: 401 }
+    )
+  }
 }
 
 export async function GET() {
@@ -45,7 +53,7 @@ export async function GET() {
   try {
     const user = await fetchCurrentUserWithToken(accessToken)
     return NextResponse.json(
-      { accessToken, user },
+      { user },
       { headers: { 'cache-control': 'no-store' } }
     )
   } catch {

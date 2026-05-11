@@ -17,6 +17,17 @@ function resolveRequestUrl(url: string): string {
   return new URL(url, apiBaseUrl).toString()
 }
 
+export async function apiFetchViaProxy(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const headers = new Headers(options.headers)
+  if (options.body && !headers.has('Content-Type') && !(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json')
+  }
+  return fetch(url, { ...options, headers })
+}
+
 export async function apiFetchWithToken(
   token: string,
   url: string,
