@@ -15,10 +15,6 @@ export const metadata = {
         url: '/bukae_favicon_light.svg',
         media: '(prefers-color-scheme: dark)',
       },
-      {
-        url: '/favicon.ico',
-        sizes: 'any',
-      },
     ],
   },
 }
