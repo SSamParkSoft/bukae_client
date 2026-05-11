@@ -31,6 +31,19 @@ function firstNonEmptyMessage(
   return messages.find(hasMeaningfulText) ?? null
 }
 
+function normalizeBenchmarkFailureMessage(message: string | null): string | null {
+  if (!message) return null
+
+  if (
+    message.includes('ActivityError') &&
+    message.includes('Activity task failed')
+  ) {
+    return '분석 작업 중 일시적인 오류가 발생했습니다. 새 프로젝트로 다시 시작해주세요.'
+  }
+
+  return message
+}
+
 function clampPercent(value: number | null | undefined): number | null {
   if (typeof value !== 'number' || Number.isNaN(value)) return null
   return Math.min(100, Math.max(0, Math.round(value)))
@@ -252,11 +265,12 @@ export function mapBenchmarkAnalysisPollingState(
     projectStatus: dto.projectStatus ?? null,
     currentStep: dto.currentStep ?? null,
     readyForCategorySelection: dto.readyForCategorySelection ?? false,
-    errorMessage: firstNonEmptyMessage(
+    errorMessage: normalizeBenchmarkFailureMessage(firstNonEmptyMessage(
+      dto.failure?.userMessage,
       dto.failure?.summary,
       dto.failure?.message,
       dto.lastErrorMessage
-    ),
+    )),
     hasResult: hasAnalysisContent(dto),
     progress: mapAnalysisProgress(dto),
   }

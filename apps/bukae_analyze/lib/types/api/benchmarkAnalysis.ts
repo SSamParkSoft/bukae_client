@@ -24,6 +24,7 @@ export const BenchmarkAnalysisPollingSchema = z.object({
     .object({
       message: z.string().nullable().optional(),
       summary: z.string().nullable().optional(),
+      userMessage: z.string().nullable().optional(),
     })
     .nullable()
     .optional(),
