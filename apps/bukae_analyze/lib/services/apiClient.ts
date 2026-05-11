@@ -15,9 +15,23 @@ export const apiFetch: ApiFetcher = async (
   url: string,
   options: RequestInit = {}
 ) => {
-  const { accessToken, setAccessToken, clearToken } = useAuthStore.getState()
+  const { setAccessToken, clearToken } = useAuthStore.getState()
+  let accessToken = useAuthStore.getState().accessToken
 
-  if (!accessToken) throw new Error('인증 토큰이 없습니다')
+  if (!accessToken) {
+    try {
+      const refreshed = await refreshToken()
+      accessToken = refreshed.accessToken
+      setAccessToken(refreshed.accessToken)
+      await syncServerAccessToken(refreshed.accessToken).catch(() => {})
+    } catch (err) {
+      if (isAuthError(err)) {
+        await clearServerAccessToken().catch(() => {})
+        clearToken()
+      }
+      throw err
+    }
+  }
 
   const res = await apiFetchWithToken(accessToken, url, options)
 

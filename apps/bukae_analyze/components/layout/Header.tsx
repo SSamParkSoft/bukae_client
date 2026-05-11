@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { useSyncExternalStore } from 'react'
 import type { CurrentUser } from '@/lib/services/auth'
 import { LAYOUT } from './layout-constants'
 import logo from '@/public/logo.svg'
@@ -55,19 +54,6 @@ export function Header({
   initialUser?: CurrentUser | null
 }) {
   const user = useAuthStore((s) => s.user)
-  const hydrated = useSyncExternalStore(
-    (onStoreChange) => {
-      const unsubHydrate = useAuthStore.persist?.onHydrate(onStoreChange)
-      const unsubFinish = useAuthStore.persist?.onFinishHydration(onStoreChange)
-
-      return () => {
-        unsubHydrate?.()
-        unsubFinish?.()
-      }
-    },
-    () => useAuthStore.persist?.hasHydrated() ?? false,
-    () => false
-  )
   const resolvedUser = user ?? initialUser
 
   return (
@@ -82,8 +68,6 @@ export function Header({
       <div className="flex items-center">
         {resolvedUser ? (
           <UserProfileMenu initialUser={resolvedUser} />
-        ) : !hydrated && isAuthenticated ? (
-          <div className="h-8 w-[120px]" />
         ) : !isAuthenticated ? (
           <Link
             href="/login"

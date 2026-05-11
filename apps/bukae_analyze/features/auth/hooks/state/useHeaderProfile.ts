@@ -17,10 +17,11 @@ export function useHeaderProfile(
 ): HeaderProfileState {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
-  const { accessToken, clearAnalyzeWorkflow, clearToken } = useAuthStore.getState()
   const resolvedUser = user ?? initialUser
 
   const handleLogout = async () => {
+    const { accessToken, clearAnalyzeWorkflow, clearToken } = useAuthStore.getState()
+
     if (accessToken) {
       await logout(accessToken).catch(() => {})
     }
