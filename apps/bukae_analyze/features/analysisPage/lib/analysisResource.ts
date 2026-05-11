@@ -72,7 +72,7 @@ export function getAnalysisFailureMessage(
     return (
       project.errorMessage ??
       snapshot.polling.errorMessage ??
-      '분석에 실패했습니다. 다시 시도해주세요.'
+      '분석 작업이 실패했습니다. 새 프로젝트로 다시 시작해주세요.'
     )
   }
 
