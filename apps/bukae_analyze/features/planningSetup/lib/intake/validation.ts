@@ -12,8 +12,8 @@ export function validatePlanningSetupAnswers(
     return '카테고리를 선택해 주세요.'
   }
 
-  if (answers.category === 'custom' && !isNonEmpty(answers.categoryCustom)) {
-    return '카테고리를 직접 입력해 주세요.'
+  if (answers.category === 'custom') {
+    return '지원하는 카테고리 중 하나를 선택해 주세요.'
   }
 
   if (answers.faceExposure === null) {

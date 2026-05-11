@@ -37,4 +37,11 @@ describe('validatePlanningSetupAnswers', () => {
       coreMaterial: ' ',
     }))).toBe('영상 소스를 입력해 주세요.')
   })
+
+  it('does not allow custom category because intake requires a supported category key', () => {
+    expect(validatePlanningSetupAnswers(createValidAnswers({
+      category: 'custom',
+      categoryCustom: '직접 입력',
+    }))).toBe('지원하는 카테고리 중 하나를 선택해 주세요.')
+  })
 })
