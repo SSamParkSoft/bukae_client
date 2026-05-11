@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { refreshToken } from '@/lib/services/auth'
 import { clearServerAccessToken, syncServerAccessToken } from '@/lib/services/authSession'
@@ -25,9 +25,12 @@ function OAuthFinalizeHandler() {
         if (cancelled) return
         setUser(user)
         router.replace('/')
-      } catch {
+      } catch (error) {
         if (cancelled) return
-        clearServerAccessToken().catch(() => {})
+        console.warn('[OAuthFinalize] failed:', error)
+        clearServerAccessToken().catch((clearError) => {
+          console.warn('[OAuthFinalize] clear server access token failed:', clearError)
+        })
         useAuthStore.getState().clearToken()
         router.replace('/login')
       }
@@ -44,9 +47,5 @@ function OAuthFinalizeHandler() {
 }
 
 export default function OAuthFinalizePage() {
-  return (
-    <Suspense fallback={null}>
-      <OAuthFinalizeHandler />
-    </Suspense>
-  )
+  return <OAuthFinalizeHandler />
 }

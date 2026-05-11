@@ -17,11 +17,19 @@ export async function POST() {
   const cookieStore = await cookies()
   const accessToken = cookieStore.get(SERVER_ACCESS_TOKEN_COOKIE)?.value
 
-  if (accessToken) {
-    await fetch(`${UPSTREAM_BASE}/api/v1/auth/logout`, {
+  if (accessToken && UPSTREAM_BASE) {
+    const logoutUrl = `${UPSTREAM_BASE}/api/v1/auth/logout`
+    await fetch(logoutUrl, {
       method: 'POST',
       headers: { Authorization: `Bearer ${accessToken}` },
-    }).catch(() => {})
+    }).catch((error) => {
+      console.warn('[auth/logout] upstream logout failed:', {
+        logoutUrl,
+        error,
+      })
+    })
+  } else if (accessToken) {
+    console.warn('[auth/logout] NEXT_PUBLIC_API_BASE_URL is not configured')
   }
 
   const response = NextResponse.json({ ok: true })

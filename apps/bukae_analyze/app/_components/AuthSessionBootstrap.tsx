@@ -37,7 +37,7 @@ export function AuthSessionBootstrap() {
               if (!cancelled) useAuthStore.getState().clearToken()
             }
           } else {
-            useAuthStore.getState().clearToken()
+            if (!cancelled) useAuthStore.getState().clearToken()
           }
           return
         }

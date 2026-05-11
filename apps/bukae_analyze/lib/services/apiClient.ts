@@ -39,8 +39,6 @@ export const apiFetch: ApiFetcher = async (
     await refreshAndSync()
     const retryRes = await apiFetchViaProxy(url, options)
     if (retryRes.status === 401) {
-      await clearServerAccessToken().catch(() => {})
-      useAuthStore.getState().clearToken()
       throw new ApiResponseError(
         '인증이 만료되었습니다. 다시 로그인해주세요',
         retryRes.status

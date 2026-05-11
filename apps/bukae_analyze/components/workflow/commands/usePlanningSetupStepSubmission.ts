@@ -44,6 +44,7 @@ export function usePlanningSetupStepSubmission(
 
     const nextHref = buildAnalyzeWorkflowStepPath(nextPath, { projectId, generationRequestId })
     if (hasSubmittedIntake(projectId) || hasCompletedStep(projectId, 'planning')) {
+      markWorkflowStepCompleted(projectId, 'planning')
       setSubmitError(null)
       router.push(nextHref)
       return

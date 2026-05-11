@@ -253,7 +253,7 @@ export function AiPlanningPageClient({
   if (aiPlanningStage === 'planning_unavailable') {
     return (
       <PlanningSessionError
-        message="생성된 PT1 질문이 없습니다. 기획 프리세팅 제출 상태를 확인해 주세요."
+        message='생성된 PT1 질문이 없습니다. 기획 프리세팅 제출 상태를 확인해 주세요.'
         appError={createAppError('invalid_project_state', 'planning_session_fetch')}
       />
     )

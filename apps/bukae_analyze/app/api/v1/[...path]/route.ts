@@ -7,6 +7,13 @@ const UPSTREAM_BASE = process.env.NEXT_PUBLIC_API_BASE_URL
 const BODY_METHODS = new Set(['POST', 'PUT', 'DELETE', 'PATCH'])
 
 async function proxyRequest(request: NextRequest, segments: string[]): Promise<Response> {
+  if (!UPSTREAM_BASE) {
+    return NextResponse.json(
+      { message: '업스트림 API 설정이 없습니다.' },
+      { status: 500 }
+    )
+  }
+
   const cookieStore = await cookies()
   const accessToken = cookieStore.get(SERVER_ACCESS_TOKEN_COOKIE)?.value
 

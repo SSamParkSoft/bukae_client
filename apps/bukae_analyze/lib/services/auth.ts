@@ -3,10 +3,10 @@ import { TokenResponseSchema, type ApiTokenResponse } from '@/lib/types/api/auth
 import { apiFetchWithToken } from './apiFetchCore'
 import { API_ENDPOINTS } from './endpoints'
 
-function resolveAuthEndpoint(path: string): string {
+function resolveAuthEndpoint(path: string): string | null {
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL
 
-  if (!apiBaseUrl) return path
+  if (!apiBaseUrl) return null
 
   return new URL(path, apiBaseUrl).toString()
 }
@@ -17,7 +17,13 @@ export async function logout(): Promise<void> {
 }
 
 export async function refreshToken(): Promise<ApiTokenResponse> {
-  const res = await fetch(resolveAuthEndpoint(API_ENDPOINTS.auth.refresh), {
+  const refreshEndpoint = resolveAuthEndpoint(API_ENDPOINTS.auth.refresh)
+
+  if (!refreshEndpoint) {
+    throw new ApiResponseError('토큰 재발급 API 설정이 없습니다.', 500)
+  }
+
+  const res = await fetch(refreshEndpoint, {
     method: 'POST',
     credentials: 'include',
   })

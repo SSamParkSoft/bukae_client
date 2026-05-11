@@ -20,10 +20,8 @@ function resolveCategory(answers: PlanningSetupAnswers): VideoCategory {
   return answers.category
 }
 
-function resolveCategoryCustom(answers: PlanningSetupAnswers): string {
-  return answers.category === 'custom'
-    ? trim(answers.categoryCustom)
-    : ''
+function resolveCategoryCustom(): string {
+  return ''
 }
 
 function resolveFaceExposurePlan(answers: PlanningSetupAnswers): string | null {
@@ -55,7 +53,7 @@ export function mapPlanningSetupAnswersToIntakeRequest(
   return {
     category: resolveCategory(answers),
     payload: {
-      categoryCustom: resolveCategoryCustom(answers),
+      categoryCustom: resolveCategoryCustom(),
       faceExposurePlan,
       faceExposureCustom: resolveFaceExposureCustom(answers),
       targetDurationSec,
