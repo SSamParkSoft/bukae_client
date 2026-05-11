@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { createAppError, resolveAppError } from '@/lib/errors/appError'
 import { startGenerationFromCommand } from '@/lib/services/generations'
 import { enterPlanningWorkspace, getPlanningSession } from '@/lib/services/planning'
 import { hasPlanningWorkspaceEntryMessage } from '@/features/aiPlanning/lib/planningPredicates'
@@ -34,6 +35,7 @@ export function useAiPlanningStepAdvance(
   const briefVersionId = useAiPlanningStore((state) => state.briefVersionId)
   const answeredQuestionIds = useAiPlanningStore((state) => state.answeredQuestionIds)
   const setAdvancingAiPlanning = useAiPlanningStore((state) => state.setAdvancing)
+  const setAdvanceError = useAiPlanningStore((state) => state.setAdvanceError)
   const setChatbotInitialSession = useAiPlanningStore((state) => state.setChatbotInitialSession)
   const getCachedChatbotSession = useAnalyzeWorkflowStore((state) => state.getCachedChatbotSession)
   const cacheChatbotSession = useAnalyzeWorkflowStore((state) => state.cacheChatbotSession)
@@ -45,6 +47,7 @@ export function useAiPlanningStepAdvance(
     if (!canProceedAiPlanning && !generationRequestId) return
 
     setAdvancingAiPlanning(true)
+    setAdvanceError(null)
 
     try {
       if (generationRequestId) {
@@ -61,6 +64,13 @@ export function useAiPlanningStepAdvance(
         await startGenerationOnceAndOpenShootingGuide(nextPath)
         return
       }
+    } catch (error) {
+      setAdvanceError(resolveAppError(
+        error,
+        aiPlanningNextTarget === 'chatbot'
+          ? 'planning_workspace_entry'
+          : 'generation_start'
+      ))
     } finally {
       setAdvancingAiPlanning(false)
     }
@@ -101,16 +111,27 @@ export function useAiPlanningStepAdvance(
         if (latestSession && !shouldSubmitWorkspaceEntry(latestSession)) {
           applyChatbotSession(latestSession)
         } else {
+          let workspaceEntryError: unknown = null
           const chatbotSession = await enterPlanningWorkspace(projectId!, {
             planningSessionId,
             answeredQuestionIds,
             answeredCount: answeredQuestionIds.length,
-          }).catch(() => null)
+          }).catch((error) => {
+            workspaceEntryError = error
+            return null
+          })
           const recoveredSession = chatbotSession ?? await getLatestPlanningSessionOrNull()
 
           applyChatbotSession(recoveredSession)
+          if (!recoveredSession && workspaceEntryError) {
+            throw workspaceEntryError
+          }
         }
       }
+    }
+
+    if (!useAiPlanningStore.getState().chatbotInitialSession) {
+      throw new Error('후속 질문 세션을 준비하지 못했습니다.')
     }
 
     const params = new URLSearchParams({ projectId: projectId! })
@@ -127,11 +148,18 @@ export function useAiPlanningStepAdvance(
     }
 
     if (isChatbotMode) {
-      const activeBriefVersionId = briefVersionId || await waitFinalizedProject(projectId!).then((p) => p.briefVersionId).catch(() => null)
+      const activeBriefVersionId = briefVersionId || await waitFinalizedProject(projectId!).then((p) => p.briefVersionId).catch((error) => {
+        setAdvanceError(resolveAppError(error, 'planning_finalize_wait'))
+        return null
+      })
 
       if (activeBriefVersionId) {
         const cachedGenerationRequestId = getCachedGenerationRequestId(activeBriefVersionId)
-        const resolvedGenerationRequestId = cachedGenerationRequestId ?? await startGenerationAndCacheRequestId(activeBriefVersionId)
+        const resolvedGenerationRequestId = cachedGenerationRequestId ?? await startGenerationAndCacheRequestId(activeBriefVersionId).catch((error) => {
+          setAdvanceError(resolveAppError(error, 'generation_start'))
+          return null
+        })
+        if (!resolvedGenerationRequestId) return
         markWorkflowStepCompleted(projectId!, 'generation')
         const params = new URLSearchParams({
           projectId: projectId!,
@@ -140,6 +168,11 @@ export function useAiPlanningStepAdvance(
         router.push(`${nextPath}?${params.toString()}`)
         return
       }
+
+      if (!useAiPlanningStore.getState().advanceError) {
+        setAdvanceError(createAppError('unknown', 'generation_start'))
+      }
+      return
     }
 
     router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId }))
