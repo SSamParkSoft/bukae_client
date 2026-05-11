@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { AnalysisLoadingOverlay } from '@/components/loading/AnalysisLoadingOverlay'
 import { refreshToken } from '@/lib/services/auth'
 import { clearServerAccessToken, syncServerAccessToken } from '@/lib/services/authSession'
 import { useAuthStore } from '@/store/useAuthStore'
@@ -43,7 +44,15 @@ function OAuthFinalizeHandler() {
     }
   }, [router, setUser])
 
-  return null
+  return (
+    <main className="relative min-h-dvh">
+      <AnalysisLoadingOverlay
+        visible
+        label="로그인 처리 중..."
+        stageLabel="계정 정보를 확인하고 있습니다."
+      />
+    </main>
+  )
 }
 
 export default function OAuthFinalizePage() {
