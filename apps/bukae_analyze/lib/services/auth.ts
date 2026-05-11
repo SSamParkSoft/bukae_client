@@ -3,6 +3,14 @@ import { TokenResponseSchema, type ApiTokenResponse } from '@/lib/types/api/auth
 import { apiFetchWithToken } from './apiFetchCore'
 import { API_ENDPOINTS } from './endpoints'
 
+function resolveAuthEndpoint(path: string): string {
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL
+
+  if (!apiBaseUrl) return path
+
+  return new URL(path, apiBaseUrl).toString()
+}
+
 export async function logout(accessToken: string): Promise<void> {
   const res = await fetch(API_ENDPOINTS.auth.logout, {
     method: 'POST',
@@ -12,7 +20,10 @@ export async function logout(accessToken: string): Promise<void> {
 }
 
 export async function refreshToken(): Promise<ApiTokenResponse> {
-  const res = await fetch(API_ENDPOINTS.auth.refresh, { method: 'POST' })
+  const res = await fetch(resolveAuthEndpoint(API_ENDPOINTS.auth.refresh), {
+    method: 'POST',
+    credentials: 'include',
+  })
   if (!res.ok) throw new ApiResponseError('토큰 재발급 실패', res.status)
   return TokenResponseSchema.parse(await res.json())
 }
