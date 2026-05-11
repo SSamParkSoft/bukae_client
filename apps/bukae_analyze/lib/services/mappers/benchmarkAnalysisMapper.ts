@@ -11,6 +11,7 @@ import type {
   VideoStructureAnalysis,
   ViralPointCard,
 } from '@/lib/types/domain'
+import { normalizeFailureMessage } from '@/lib/utils/failureMessage'
 
 const SCENE_ROLE_LABEL: Record<string, string> = {
   hook: '훅',
@@ -29,19 +30,6 @@ function firstNonEmptyMessage(
   ...messages: Array<string | null | undefined>
 ): string | null {
   return messages.find(hasMeaningfulText) ?? null
-}
-
-function normalizeBenchmarkFailureMessage(message: string | null): string | null {
-  if (!message) return null
-
-  if (
-    message.includes('ActivityError') &&
-    message.includes('Activity task failed')
-  ) {
-    return '분석 작업 중 일시적인 오류가 발생했습니다. 새 프로젝트로 다시 시작해주세요.'
-  }
-
-  return message
 }
 
 function clampPercent(value: number | null | undefined): number | null {
@@ -265,7 +253,7 @@ export function mapBenchmarkAnalysisPollingState(
     projectStatus: dto.projectStatus ?? null,
     currentStep: dto.currentStep ?? null,
     readyForCategorySelection: dto.readyForCategorySelection ?? false,
-    errorMessage: normalizeBenchmarkFailureMessage(firstNonEmptyMessage(
+    errorMessage: normalizeFailureMessage(firstNonEmptyMessage(
       dto.failure?.userMessage,
       dto.failure?.summary,
       dto.failure?.message,
