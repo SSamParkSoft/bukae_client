@@ -44,6 +44,7 @@ export function usePlanningSetupStepSubmission(
 
     const nextHref = buildAnalyzeWorkflowStepPath(nextPath, { projectId, generationRequestId })
     if (hasSubmittedIntake(projectId) || hasCompletedStep(projectId, 'planning')) {
+      markWorkflowStepCompleted(projectId, 'planning')
       setSubmitError(null)
       router.push(nextHref)
       return
@@ -55,7 +56,7 @@ export function usePlanningSetupStepSubmission(
     try {
       await submitIntakeCommand(projectId, mapPlanningSetupAnswersToIntakeRequest(planningAnswers))
       markIntakeSubmitted(projectId)
-      markWorkflowStepCompleted(projectId, 'intake')
+      markWorkflowStepCompleted(projectId, 'planning')
       router.push(nextHref)
     } catch (error) {
       setSubmitError(getPlanningSetupSubmitErrorMessage(error))

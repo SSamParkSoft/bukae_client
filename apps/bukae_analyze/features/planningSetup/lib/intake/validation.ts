@@ -12,8 +12,8 @@ export function validatePlanningSetupAnswers(
     return '카테고리를 선택해 주세요.'
   }
 
-  if (answers.category === 'custom' && !isNonEmpty(answers.categoryCustom)) {
-    return '카테고리를 직접 입력해 주세요.'
+  if (answers.category === 'custom') {
+    return '지원하는 카테고리 중 하나를 선택해 주세요.'
   }
 
   if (answers.faceExposure === null) {
@@ -28,10 +28,6 @@ export function validatePlanningSetupAnswers(
     return answers.videoLength === 'custom'
       ? '목표 영상 길이를 초 또는 분 단위로 입력해 주세요.'
       : '목표 영상 길이를 선택해 주세요.'
-  }
-
-  if (answers.shooting === null) {
-    return '촬영 가능 여부를 선택해 주세요.'
   }
 
   if (answers.shooting === 'yes' && !isNonEmpty(answers.shootingEnvironment)) {

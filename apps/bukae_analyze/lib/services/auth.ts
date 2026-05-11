@@ -3,16 +3,30 @@ import { TokenResponseSchema, type ApiTokenResponse } from '@/lib/types/api/auth
 import { apiFetchWithToken } from './apiFetchCore'
 import { API_ENDPOINTS } from './endpoints'
 
-export async function logout(accessToken: string): Promise<void> {
-  const res = await fetch(API_ENDPOINTS.auth.logout, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
+function resolveAuthEndpoint(path: string): string | null {
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL
+
+  if (!apiBaseUrl) return null
+
+  return new URL(path, apiBaseUrl).toString()
+}
+
+export async function logout(): Promise<void> {
+  const res = await fetch('/api/auth/logout', { method: 'POST' })
   if (!res.ok) throw new Error('로그아웃 실패')
 }
 
 export async function refreshToken(): Promise<ApiTokenResponse> {
-  const res = await fetch(API_ENDPOINTS.auth.refresh, { method: 'POST' })
+  const refreshEndpoint = resolveAuthEndpoint(API_ENDPOINTS.auth.refresh)
+
+  if (!refreshEndpoint) {
+    throw new ApiResponseError('토큰 재발급 API 설정이 없습니다.', 500)
+  }
+
+  const res = await fetch(refreshEndpoint, {
+    method: 'POST',
+    credentials: 'include',
+  })
   if (!res.ok) throw new ApiResponseError('토큰 재발급 실패', res.status)
   return TokenResponseSchema.parse(await res.json())
 }

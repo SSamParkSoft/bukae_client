@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 export type WorkflowStepStatusCard = {
   title: string
   description: string
+  tone?: 'info' | 'error'
 }
 
 type Props = (
@@ -27,6 +28,14 @@ function WorkflowStepStatusCardItem({
   card: WorkflowStepStatusCard
   index?: number
 }) {
+  const tone = card.tone ?? 'info'
+  const className = tone === 'error'
+    ? 'rounded-lg border border-red-300/30 bg-red-500/10 px-4 py-3 text-red-100 shadow-[0_12px_32px_rgba(0,0,0,0.18)] backdrop-blur-md'
+    : 'rounded-lg border border-white/15 bg-white/10 px-4 py-3 text-white shadow-[0_12px_32px_rgba(0,0,0,0.18)] backdrop-blur-md'
+  const descriptionClassName = tone === 'error'
+    ? 'mt-1 font-12-rg text-red-100/80'
+    : 'mt-1 font-12-rg text-white/60'
+
   return (
     <motion.div
       key={card.title}
@@ -34,10 +43,10 @@ function WorkflowStepStatusCardItem({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 6 }}
       transition={{ duration: 0.2, delay: index * 0.06, ease: 'easeOut' }}
-      className="rounded-lg border border-white/15 bg-white/10 px-4 py-3 text-white shadow-[0_12px_32px_rgba(0,0,0,0.18)] backdrop-blur-md"
+      className={className}
     >
       <p className="font-14-md">{card.title}</p>
-      <p className="mt-1 font-12-rg text-white/60">{card.description}</p>
+      <p className={descriptionClassName}>{card.description}</p>
     </motion.div>
   )
 }

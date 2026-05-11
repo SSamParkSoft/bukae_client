@@ -8,6 +8,7 @@ import type {
   ProjectDetailDto,
 } from '@/lib/types/api/project'
 import { createProjectWorkflow } from '@/lib/types/domain'
+import { normalizeFailureMessage } from '@/lib/utils/failureMessage'
 
 function firstNonEmptyMessage(
   ...messages: Array<string | null | undefined>
@@ -58,10 +59,10 @@ export function mapProjectPollingState(dto: ProjectDetailDto): ProjectPollingSta
     }),
     activeBriefVersionId: dto.activeBriefVersionId ?? null,
     lastSummary: dto.lastSummary ?? null,
-    errorMessage: firstNonEmptyMessage(
+    errorMessage: normalizeFailureMessage(firstNonEmptyMessage(
       dto.failure?.summary,
       dto.failure?.message,
       dto.lastErrorMessage
-    ),
+    )),
   }
 }

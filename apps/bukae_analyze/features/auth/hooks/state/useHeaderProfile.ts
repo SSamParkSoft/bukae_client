@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation'
 import type { CurrentUser } from '@/lib/services/auth'
 import { useAuthStore } from '@/store/useAuthStore'
 import { logout } from '@/lib/services/auth'
-import { clearServerAccessToken } from '@/lib/services/authSession'
 
 export interface HeaderProfileState {
   name: string
@@ -17,14 +16,12 @@ export function useHeaderProfile(
 ): HeaderProfileState {
   const router = useRouter()
   const user = useAuthStore((s) => s.user)
-  const { accessToken, clearAnalyzeWorkflow, clearToken } = useAuthStore.getState()
   const resolvedUser = user ?? initialUser
 
   const handleLogout = async () => {
-    if (accessToken) {
-      await logout(accessToken).catch(() => {})
-    }
-    await clearServerAccessToken().catch(() => {})
+    const { clearAnalyzeWorkflow, clearToken } = useAuthStore.getState()
+
+    await logout().catch(() => {})
     clearAnalyzeWorkflow()
     clearToken()
     router.replace('/login')

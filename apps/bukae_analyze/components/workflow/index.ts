@@ -39,6 +39,7 @@
  *        /planning-setup
  *          -> 기획 프리셋 입력값 검증
  *          -> localStorage에 현재 projectId의 intake 제출 기록이 없을 때 intake 제출
+ *          -> localStorage workflow step을 planning까지 완료 처리
  *          -> /ai-planning으로 이동
  *
  *        /ai-planning?mode=default

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 import { submitPt1SlotAnswer } from '@/lib/services/planning'
 import type { PlanningQuestion, PlanningSession } from '@/lib/types/domain'
 import {
@@ -45,6 +46,7 @@ export function usePt1AnswerAutoSubmission({
 }: UsePt1AnswerAutoSubmissionParams) {
   const [saveStatusByQuestionId, setSaveStatusByQuestionId] = useState<Record<string, SaveStatus>>({})
   const [submittedSignatureByQuestionId, setSubmittedSignatureByQuestionId] = useState<Record<string, string>>({})
+  const [saveError, setSaveError] = useState<ResolvedAppError | null>(null)
   const isSubmittingAnswersRef = useRef(false)
 
   const answerRequests = useMemo(() => {
@@ -89,6 +91,8 @@ export function usePt1AnswerAutoSubmission({
     isSubmittingAnswersRef.current = true
 
     async function submitAllAnswers() {
+      setSaveError(null)
+
       const latestSession = await submitPt1AnswerRequests({
         projectId,
         requests: unsavedRequests,
@@ -101,8 +105,9 @@ export function usePt1AnswerAutoSubmission({
           setSubmittedSignatureByQuestionId((prev) => ({ ...prev, [questionId]: signature }))
           setSaveStatusByQuestionId((prev) => ({ ...prev, [questionId]: 'saved' }))
         },
-        onQuestionError: (questionId) => {
+        onQuestionError: (questionId, error) => {
           setSaveStatusByQuestionId((prev) => ({ ...prev, [questionId]: 'error' }))
+          setSaveError(resolveAppError(error, 'pt1_answer_save'))
         },
       })
 
@@ -136,5 +141,6 @@ export function usePt1AnswerAutoSubmission({
     hasSavedAllAnswers,
     hasPendingSave,
     hasSaveError,
+    saveError,
   }
 }

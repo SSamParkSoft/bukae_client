@@ -13,9 +13,17 @@ type Props = {
 }
 
 function getAnalysisErrorActions(
+  errorType: AnalysisResourceErrorType | null,
   appError: ResolvedAppError | null,
   retry: () => void
 ) {
+  if (!appError && errorType === 'failed') {
+    return [
+      { label: '상태 다시 확인', onClick: retry },
+      { label: '새 프로젝트 시작', href: '/', variant: 'secondary' as const },
+    ]
+  }
+
   switch (appError?.kind) {
     case 'auth_expired':
       return [{ label: '다시 로그인', href: '/login' }]
@@ -24,6 +32,10 @@ function getAnalysisErrorActions(
     case 'invalid_project_state':
       return [{ label: '새 프로젝트 시작', href: '/' }]
     case 'server_error':
+      return [
+        { label: '다시 시도', onClick: retry },
+        { label: '처음으로', href: '/', variant: 'secondary' as const },
+      ]
     case 'network_error':
       return [
         { label: '다시 시도', onClick: retry },
@@ -66,7 +78,7 @@ export function AnalysisErrorView({ errorType, errorMessage, appError }: Props) 
       title={title}
       description={description}
       icon={icon}
-      actions={getAnalysisErrorActions(appError, () => router.refresh())}
+      actions={getAnalysisErrorActions(errorType, appError, () => router.refresh())}
     />
   )
 }

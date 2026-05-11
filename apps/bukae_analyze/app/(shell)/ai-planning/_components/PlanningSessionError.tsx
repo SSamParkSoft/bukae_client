@@ -1,8 +1,53 @@
-export function PlanningSessionError({ message }: { message: string }) {
+'use client'
+
+import { useRouter } from 'next/navigation'
+import { FileWarning } from 'lucide-react'
+import { PageErrorState } from '@/components/errors/PageErrorState'
+import type { ResolvedAppError } from '@/lib/errors/appError'
+
+function getPlanningSessionErrorActions(
+  appError: ResolvedAppError | null,
+  retry: () => void
+) {
+  switch (appError?.kind) {
+    case 'auth_expired':
+      return [{ label: '다시 로그인', href: '/login' }]
+    case 'forbidden':
+      return [{ label: '처음으로', href: '/' }]
+    case 'invalid_project_state':
+      return [{ label: '새 프로젝트 시작', href: '/' }]
+    case 'server_error':
+    case 'network_error':
+      return [
+        { label: '다시 시도', onClick: retry },
+        { label: '처음으로', href: '/', variant: 'secondary' as const },
+      ]
+    case 'missing_result':
+    case 'unknown':
+    default:
+      return [
+        { label: '다시 시도', onClick: retry },
+        { label: '새 프로젝트 시작', href: '/', variant: 'secondary' as const },
+      ]
+  }
+}
+
+export function PlanningSessionError({
+  message,
+  appError = null,
+}: {
+  message: string
+  appError?: ResolvedAppError | null
+}) {
+  const router = useRouter()
+
   return (
-    <div className="mx-6 rounded-2xl border border-red-400/25 bg-red-500/10 px-6 py-5 text-red-100">
-      <p className="font-fluid-20-md">질문을 불러오지 못했습니다</p>
-      <p className="mt-2 font-fluid-16-rg text-red-100/80">{message}</p>
-    </div>
+    <PageErrorState
+      title={appError?.title ?? '질문을 불러오지 못했습니다'}
+      description={appError?.message ?? message}
+      icon={FileWarning}
+      className="min-h-[520px]"
+      actions={getPlanningSessionErrorActions(appError, () => router.refresh())}
+    />
   )
 }

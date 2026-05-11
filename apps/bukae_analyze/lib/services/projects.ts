@@ -1,4 +1,5 @@
 import { apiFetch } from './apiClient'
+import { throwServiceResponseError } from './apiError'
 import type { ApiFetcher } from './apiFetchCore'
 import { API_ENDPOINTS } from './endpoints'
 import {
@@ -16,12 +17,6 @@ import type {
   ProjectSession,
 } from '@/lib/types/domain'
 
-async function throwIfNotOk(res: Response, label: string): Promise<void> {
-  if (res.ok) return
-  const body = await res.text().catch(() => '')
-  throw new Error(`${label} (${res.status})${body ? `: ${body}` : ''}`)
-}
-
 export async function createProjectWithFetcher(
   fetcher: ApiFetcher,
   title?: string
@@ -30,7 +25,7 @@ export async function createProjectWithFetcher(
     method: 'POST',
     body: JSON.stringify({ title: title ?? '' }),
   })
-  await throwIfNotOk(res, '프로젝트 생성 실패')
+  await throwServiceResponseError(res, '프로젝트 생성 실패')
   return mapProjectSession(ProjectDetailSchema.parse(await res.json()))
 }
 
@@ -43,7 +38,7 @@ export async function getProjectPollingStateWithFetcher(
   projectId: string
 ): Promise<ProjectPollingState> {
   const res = await fetcher(API_ENDPOINTS.projects.detail(projectId))
-  await throwIfNotOk(res, '프로젝트 상태 조회 실패')
+  await throwServiceResponseError(res, '프로젝트 상태 조회 실패')
   return mapProjectPollingState(ProjectDetailSchema.parse(await res.json()))
 }
 
@@ -62,7 +57,7 @@ export async function submitBenchmarkWithFetcher(
     method: 'POST',
     body: JSON.stringify({ sourceUrl }),
   })
-  await throwIfNotOk(res, '벤치마크 URL 제출 실패')
+  await throwServiceResponseError(res, '벤치마크 URL 제출 실패')
   return mapBenchmarkSubmissionState(BenchmarkSubmissionSchema.parse(await res.json()))
 }
 

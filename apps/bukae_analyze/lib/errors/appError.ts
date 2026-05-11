@@ -12,7 +12,10 @@ export type AppErrorContext =
   | 'analysis_polling'
   | 'planning_setup_submit'
   | 'planning_session_fetch'
+  | 'planning_workspace_entry'
+  | 'planning_finalize_wait'
   | 'pt1_answer_save'
+  | 'generation_start'
   | 'generation_bootstrap'
   | 'generation_polling'
   | 'unknown'
@@ -69,6 +72,21 @@ const BAD_REQUEST_ERROR_COPY_BY_CONTEXT: Partial<Record<AppErrorContext, AppErro
     kind: 'invalid_project_state',
     title: '분석 결과를 불러올 수 없습니다',
     message: '분석 요청 정보가 만료되었거나 현재 프로젝트와 맞지 않습니다. 새로운 프로젝트로 다시 시작해주세요.',
+  },
+  planning_session_fetch: {
+    kind: 'invalid_project_state',
+    title: '기획 질문을 불러올 수 없습니다',
+    message: '기획 단계 정보가 만료되었거나 현재 프로젝트와 맞지 않습니다. 새로운 프로젝트로 다시 시작해주세요.',
+  },
+  planning_workspace_entry: {
+    kind: 'invalid_project_state',
+    title: '후속 질문으로 이동할 수 없습니다',
+    message: '기획 세션 정보가 만료되었거나 현재 프로젝트와 맞지 않습니다. 새로운 프로젝트로 다시 시작해주세요.',
+  },
+  generation_start: {
+    kind: 'invalid_project_state',
+    title: '촬영가이드 생성을 시작할 수 없습니다',
+    message: '최종 기획안 정보가 만료되었거나 현재 프로젝트와 맞지 않습니다. 새로운 프로젝트로 다시 시작해주세요.',
   },
   generation_bootstrap: {
     kind: 'invalid_project_state',

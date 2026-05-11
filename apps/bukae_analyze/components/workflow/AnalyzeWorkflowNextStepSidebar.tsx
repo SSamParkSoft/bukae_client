@@ -73,7 +73,21 @@ export function AnalyzeWorkflowNextStepSidebar() {
     advanceToNextWorkflowStep,
   } = useAnalyzeWorkflowNextStep()
   const isSavingPt1Answers = useAiPlanningStore((state) => state.isSavingPt1Answers)
-  const statusContent: WorkflowStepStatusContent | null = isSubmittingPlanningSetup
+  const advanceError = useAiPlanningStore((state) => state.advanceError)
+  const advanceErrorStatusCard: WorkflowStepStatusCard | null = advanceError
+    ? {
+      title: advanceError.title,
+      description: advanceError.message,
+      tone: 'error',
+    }
+    : null
+  const statusContent: WorkflowStepStatusContent | null = advanceErrorStatusCard
+    ? {
+      key: 'ai-planning-advance-error',
+      variant: 'single',
+      card: advanceErrorStatusCard,
+    }
+    : isSubmittingPlanningSetup
     ? {
       key: 'planning-setup-submit-status',
       variant: 'single',

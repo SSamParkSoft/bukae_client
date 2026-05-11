@@ -1,8 +1,24 @@
 import { useAuthStore } from '@/store/useAuthStore'
 import { ApiResponseError, refreshToken } from './auth'
-import { clearServerAccessToken, syncServerAccessToken } from './authSession'
-import { apiFetchWithToken } from './apiFetchCore'
+import { syncServerAccessToken, clearServerAccessToken } from './authSession'
+import { apiFetchViaProxy } from './apiFetchCore'
 import type { ApiFetcher } from './apiFetchCore'
+
+let _refreshingPromise: Promise<void> | null = null
+
+async function refreshAndSync(): Promise<void> {
+  if (_refreshingPromise) return _refreshingPromise
+  _refreshingPromise = (async () => {
+    try {
+      const refreshed = await refreshToken()
+      const user = await syncServerAccessToken(refreshed.accessToken)
+      useAuthStore.getState().setUser(user)
+    } finally {
+      _refreshingPromise = null
+    }
+  })()
+  return _refreshingPromise
+}
 
 function isAuthError(error: unknown): boolean {
   return (
@@ -15,22 +31,13 @@ export const apiFetch: ApiFetcher = async (
   url: string,
   options: RequestInit = {}
 ) => {
-  const { accessToken, setAccessToken, clearToken } = useAuthStore.getState()
-
-  if (!accessToken) throw new Error('인증 토큰이 없습니다')
-
-  const res = await apiFetchWithToken(accessToken, url, options)
+  const res = await apiFetchViaProxy(url, options)
 
   if (res.status !== 401) return res
 
-  // 401 → 토큰 재발급 후 1회 재시도
-  // TODO(analyze-auth): cookie-first로 전환하면 refresh와 재시도도 서버/BFF 쪽으로 옮기고,
-  // 클라이언트 store accessToken 의존을 줄인다.
   try {
-    const refreshed = await refreshToken()
-    setAccessToken(refreshed.accessToken)
-    await syncServerAccessToken(refreshed.accessToken).catch(() => {})
-    const retryRes = await apiFetchWithToken(refreshed.accessToken, url, options)
+    await refreshAndSync()
+    const retryRes = await apiFetchViaProxy(url, options)
     if (retryRes.status === 401) {
       throw new ApiResponseError(
         '인증이 만료되었습니다. 다시 로그인해주세요',
@@ -41,7 +48,7 @@ export const apiFetch: ApiFetcher = async (
   } catch (err) {
     if (isAuthError(err)) {
       await clearServerAccessToken().catch(() => {})
-      clearToken()
+      useAuthStore.getState().clearToken()
     }
     throw err
   }

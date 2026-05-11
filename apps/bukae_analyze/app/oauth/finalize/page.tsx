@@ -1,46 +1,51 @@
 'use client'
 
-import { Suspense, useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { clearServerAccessToken } from '@/lib/services/authSession'
+import { refreshToken } from '@/lib/services/auth'
+import { clearServerAccessToken, syncServerAccessToken } from '@/lib/services/authSession'
 import { useAuthStore } from '@/store/useAuthStore'
-import type { CurrentUser } from '@/lib/services/auth'
-
-interface SessionPayload {
-  accessToken: string
-  user: CurrentUser
-}
 
 function OAuthFinalizeHandler() {
   const router = useRouter()
-  const setAccessToken = useAuthStore((s) => s.setAccessToken)
   const setUser = useAuthStore((s) => s.setUser)
+  const hasStartedRef = useRef(false)
 
   useEffect(() => {
-    fetch('/api/auth/session', { cache: 'no-store' })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('세션 조회 실패')
-        return res.json() as Promise<SessionPayload>
-      })
-      .then(({ accessToken, user }) => {
-        setAccessToken(accessToken)
+    if (hasStartedRef.current) return
+    hasStartedRef.current = true
+
+    let cancelled = false
+
+    async function finalizeOAuth() {
+      try {
+        const refreshed = await refreshToken()
+        const user = await syncServerAccessToken(refreshed.accessToken)
+
+        if (cancelled) return
         setUser(user)
         router.replace('/')
-      })
-      .catch(() => {
-        clearServerAccessToken().catch(() => {})
+      } catch (error) {
+        if (cancelled) return
+        console.warn('[OAuthFinalize] failed:', error)
+        clearServerAccessToken().catch((clearError) => {
+          console.warn('[OAuthFinalize] clear server access token failed:', clearError)
+        })
         useAuthStore.getState().clearToken()
         router.replace('/login')
-      })
-  }, [router, setAccessToken, setUser])
+      }
+    }
+
+    void finalizeOAuth()
+
+    return () => {
+      cancelled = true
+    }
+  }, [router, setUser])
 
   return null
 }
 
 export default function OAuthFinalizePage() {
-  return (
-    <Suspense fallback={null}>
-      <OAuthFinalizeHandler />
-    </Suspense>
-  )
+  return <OAuthFinalizeHandler />
 }

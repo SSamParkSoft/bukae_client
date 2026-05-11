@@ -11,6 +11,7 @@ import type {
   VideoStructureAnalysis,
   ViralPointCard,
 } from '@/lib/types/domain'
+import { normalizeFailureMessage } from '@/lib/utils/failureMessage'
 
 const SCENE_ROLE_LABEL: Record<string, string> = {
   hook: '훅',
@@ -252,11 +253,12 @@ export function mapBenchmarkAnalysisPollingState(
     projectStatus: dto.projectStatus ?? null,
     currentStep: dto.currentStep ?? null,
     readyForCategorySelection: dto.readyForCategorySelection ?? false,
-    errorMessage: firstNonEmptyMessage(
+    errorMessage: normalizeFailureMessage(firstNonEmptyMessage(
+      dto.failure?.userMessage,
       dto.failure?.summary,
       dto.failure?.message,
       dto.lastErrorMessage
-    ),
+    )),
     hasResult: hasAnalysisContent(dto),
     progress: mapAnalysisProgress(dto),
   }

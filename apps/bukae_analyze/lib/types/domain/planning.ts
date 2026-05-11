@@ -1,3 +1,5 @@
+import type { VideoCategory } from './planningSetup'
+
 export interface IntakeSubmissionState {
   projectId: string
   intakeSubmissionId: string
@@ -83,7 +85,7 @@ export interface FinalizePlanningCommand {
 }
 
 export interface IntakeSubmissionCommand {
-  category: 'PRODUCT_PROMOTION'
+  category: VideoCategory
   payload: {
     categoryCustom: string
     faceExposurePlan: string

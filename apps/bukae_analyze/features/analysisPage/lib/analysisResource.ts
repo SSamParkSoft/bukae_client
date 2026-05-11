@@ -9,6 +9,7 @@ import {
   isProjectCategorySelectionWorkflow,
   isProjectFailedWorkflow,
 } from '@/lib/types/domain'
+import { normalizeFailureMessage } from '@/lib/utils/failureMessage'
 
 export type AnalysisResourceStatus = 'idle' | 'loading' | 'ready' | 'error'
 export type AnalysisResourceErrorType = 'failed' | 'missing_result' | 'unknown'
@@ -69,10 +70,10 @@ export function getAnalysisFailureMessage(
     snapshot.polling.submissionStatus === 'FAILED' ||
     snapshot.polling.analysisStatus === 'FAILED'
   ) {
-    return (
-      project.errorMessage ??
+    return normalizeFailureMessage(
       snapshot.polling.errorMessage ??
-      '분석에 실패했습니다. 다시 시도해주세요.'
+      project.errorMessage ??
+      '분석 작업이 실패했습니다. 새 프로젝트로 다시 시작해주세요.'
     )
   }
 

@@ -10,6 +10,7 @@ import { usePt1AnswerDrafts } from '@/features/aiPlanning/hooks/state/usePt1Answ
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowStepCompletionStorage'
 import { useDebouncedValue } from '@/app/_hooks/useDebouncedValue'
+import { createAppError } from '@/lib/errors/appError'
 import {
   getStoredPt1PlanningSnapshot,
   isPt1PlanningSession,
@@ -228,7 +229,21 @@ export function AiPlanningPageClient({
   }
 
   if (planningSessionState.errorMessage) {
-    return <PlanningSessionError message={planningSessionState.errorMessage} />
+    return (
+      <PlanningSessionError
+        message={planningSessionState.errorMessage}
+        appError={planningSessionState.appError}
+      />
+    )
+  }
+
+  if (pt1AnswerSubmission.saveError) {
+    return (
+      <PlanningSessionError
+        message={pt1AnswerSubmission.saveError.message}
+        appError={pt1AnswerSubmission.saveError}
+      />
+    )
   }
 
   if (aiPlanningStage === 'pt1_preparing_questions') {
@@ -237,7 +252,10 @@ export function AiPlanningPageClient({
 
   if (aiPlanningStage === 'planning_unavailable') {
     return (
-      <PlanningSessionError message="생성된 PT1 질문이 없습니다. 기획 프리세팅 제출 상태를 확인해 주세요." />
+      <PlanningSessionError
+        message='생성된 PT1 질문이 없습니다. 기획 프리세팅 제출 상태를 확인해 주세요.'
+        appError={createAppError('invalid_project_state', 'planning_session_fetch')}
+      />
     )
   }
 

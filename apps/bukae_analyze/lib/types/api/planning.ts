@@ -132,7 +132,7 @@ export const PlanningResponseSchema = z
 export type PlanningResponseDto = z.infer<typeof PlanningResponseSchema>
 
 export interface IntakeSubmissionRequestDto {
-  category: 'PRODUCT_PROMOTION'
+  category: string
   payload: {
     categoryCustom?: string
     faceExposurePlan: string

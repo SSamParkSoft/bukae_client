@@ -1,4 +1,5 @@
 import { apiFetch } from './apiClient'
+import { throwServiceResponseError } from './apiError'
 import type { ApiFetcher } from './apiFetchCore'
 import { API_ENDPOINTS } from './endpoints'
 import {
@@ -26,12 +27,6 @@ import type {
   WorkspaceEntryCommand,
 } from '@/lib/types/domain'
 
-async function throwIfNotOk(res: Response, label: string): Promise<void> {
-  if (res.ok) return
-  const body = await res.text().catch(() => '')
-  throw new Error(`${label} (${res.status})${body ? `: ${body}` : ''}`)
-}
-
 // --- Intake ---
 
 export async function submitIntakeWithFetcher(
@@ -44,7 +39,7 @@ export async function submitIntakeWithFetcher(
     body: JSON.stringify(request),
   })
 
-  await throwIfNotOk(res, '기획 프리세팅 제출 실패')
+  await throwServiceResponseError(res, '기획 프리세팅 제출 실패')
   return mapIntakeSubmissionState(
     IntakeSubmissionResponseSchema.parse(await res.json())
   )
@@ -80,7 +75,7 @@ export async function getPlanningSessionWithFetcher(
   projectId: string
 ): Promise<PlanningSession> {
   const res = await fetcher(API_ENDPOINTS.projects.planning(projectId))
-  await throwIfNotOk(res, '기획 세션 조회 실패')
+  await throwServiceResponseError(res, '기획 세션 조회 실패')
   return mapPlanningSession(PlanningResponseSchema.parse(await res.json()))
 }
 
@@ -102,7 +97,7 @@ export async function postPlanningMessageWithFetcher(
     body: JSON.stringify(request),
   })
 
-  await throwIfNotOk(res, '기획 메시지 저장 실패')
+  await throwServiceResponseError(res, '기획 메시지 저장 실패')
   return mapPlanningSession(PlanningResponseSchema.parse(await res.json()))
 }
 

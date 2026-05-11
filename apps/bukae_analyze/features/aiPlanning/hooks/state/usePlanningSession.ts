@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 import { getPlanningSession } from '@/lib/services/planning'
 import {
   formatWorkflowState,
@@ -16,6 +17,7 @@ export interface PlanningSessionState {
   session: PlanningSession | null
   isLoading: boolean
   errorMessage: string | null
+  appError: ResolvedAppError | null
   replaceSession: (nextSession: PlanningSession) => void
 }
 
@@ -26,6 +28,7 @@ interface LocalPlanningSessionState {
   session: PlanningSession | null
   isLoading: boolean
   errorMessage: string | null
+  appError: ResolvedAppError | null
 }
 
 function createLocalPlanningSessionState(
@@ -40,6 +43,7 @@ function createLocalPlanningSessionState(
     session: initialSession,
     isLoading: enabled && shouldKeepPolling(initialSession),
     errorMessage: getFailureMessage(initialSession),
+    appError: null,
   }
 }
 
@@ -125,6 +129,7 @@ export function usePlanningSession(
           updateCurrentState((prev) => ({
             ...prev,
             errorMessage: failureMessage,
+            appError: null,
             isLoading: false,
           }))
           return
@@ -134,6 +139,7 @@ export function usePlanningSession(
           updateCurrentState((prev) => ({
             ...prev,
             errorMessage: null,
+            appError: null,
             isLoading: false,
           }))
           return
@@ -144,6 +150,7 @@ export function usePlanningSession(
           updateCurrentState((prev) => ({
             ...prev,
             errorMessage: 'PT1 질문 생성 시간이 초과되었습니다.',
+            appError: null,
             isLoading: false,
           }))
           return
@@ -157,19 +164,21 @@ export function usePlanningSession(
 
         const workflowState = await getProjectWorkflowState(projectId).catch(() => null)
         if (workflowState && !isPlanningStep(workflowState)) {
+          const appError = resolveAppError(error, 'planning_session_fetch')
           updateCurrentState((prev) => ({
             ...prev,
-            errorMessage: `현재 프로젝트 단계가 기획 단계가 아닙니다. (${formatWorkflowState(workflowState)})`,
+            errorMessage: `${appError.message}\n현재 프로젝트 단계: ${formatWorkflowState(workflowState)}`,
+            appError,
             isLoading: false,
           }))
           return
         }
 
+        const appError = resolveAppError(error, 'planning_session_fetch')
         updateCurrentState((prev) => ({
           ...prev,
-          errorMessage: error instanceof Error
-            ? error.message
-            : '기획 질문을 불러오지 못했습니다.',
+          errorMessage: appError.message,
+          appError,
           isLoading: false,
         }))
       }
@@ -187,6 +196,13 @@ export function usePlanningSession(
     session: currentState.session,
     isLoading: currentState.isLoading,
     errorMessage: currentState.errorMessage,
+    appError: currentState.appError,
     replaceSession,
-  }), [currentState.errorMessage, currentState.isLoading, currentState.session, replaceSession])
+  }), [
+    currentState.appError,
+    currentState.errorMessage,
+    currentState.isLoading,
+    currentState.session,
+    replaceSession,
+  ])
 }

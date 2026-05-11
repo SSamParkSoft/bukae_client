@@ -1,4 +1,4 @@
-import type { PlanningSetupAnswers } from '@/lib/types/domain'
+import type { PlanningSetupAnswers, VideoCategory } from '@/lib/types/domain'
 import { resolveTargetDurationSec } from './duration'
 
 const FACE_EXPOSURE_PLAN_MAP: Record<Exclude<PlanningSetupAnswers['faceExposure'], null>, string> = {
@@ -10,6 +10,14 @@ const FACE_EXPOSURE_PLAN_MAP: Record<Exclude<PlanningSetupAnswers['faceExposure'
 
 function trim(value: string): string {
   return value.trim()
+}
+
+function resolveCategory(answers: PlanningSetupAnswers): VideoCategory {
+  if (!answers.category || answers.category === 'custom') {
+    throw new Error('기획 프리세팅 입력값이 올바르지 않습니다.')
+  }
+
+  return answers.category
 }
 
 function resolveCategoryCustom(): string {
@@ -43,7 +51,7 @@ export function mapPlanningSetupAnswersToIntakeRequest(
   }
 
   return {
-    category: 'PRODUCT_PROMOTION' as const,
+    category: resolveCategory(answers),
     payload: {
       categoryCustom: resolveCategoryCustom(),
       faceExposurePlan,

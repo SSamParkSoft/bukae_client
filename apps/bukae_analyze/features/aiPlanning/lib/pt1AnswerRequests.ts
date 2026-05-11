@@ -69,7 +69,7 @@ export async function submitPt1AnswerRequests(params: {
   isCancelled: () => boolean
   onQuestionSaving: (questionId: string) => void
   onQuestionSaved: (questionId: string, signature: string) => void
-  onQuestionError: (questionId: string) => void
+  onQuestionError: (questionId: string, error: unknown) => void
 }): Promise<PlanningSession | null> {
   const {
     projectId,
@@ -89,8 +89,8 @@ export async function submitPt1AnswerRequests(params: {
       onQuestionSaving(questionId)
       latestSession = await submitAnswer(projectId, command)
       onQuestionSaved(questionId, signature)
-    } catch {
-      onQuestionError(questionId)
+    } catch (error) {
+      onQuestionError(questionId, error)
       return latestSession
     }
   }
