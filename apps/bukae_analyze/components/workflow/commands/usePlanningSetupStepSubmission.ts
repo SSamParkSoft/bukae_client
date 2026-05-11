@@ -55,7 +55,7 @@ export function usePlanningSetupStepSubmission(
     try {
       await submitIntakeCommand(projectId, mapPlanningSetupAnswersToIntakeRequest(planningAnswers))
       markIntakeSubmitted(projectId)
-      markWorkflowStepCompleted(projectId, 'intake')
+      markWorkflowStepCompleted(projectId, 'planning')
       router.push(nextHref)
     } catch (error) {
       setSubmitError(getPlanningSetupSubmitErrorMessage(error))
