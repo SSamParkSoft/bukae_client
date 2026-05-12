@@ -5,6 +5,11 @@ import type {
   ShootingSceneViewModel,
 } from '../types/viewModel'
 
+function formatSceneName(name: string): string {
+  // "scene_1_hook" → "hook", "scene_2_problem" → "problem"
+  return name.replace(/^scene_\d+_/, '')
+}
+
 function formatSentenceBreaks(value: string): string[] {
   const trimmed = value.trim()
   if (!trimmed) return []
@@ -46,7 +51,7 @@ function compactItems(
 export function mapShootingGuideToViewModel(domain: ShootingGuide): ShootingGuideViewModel {
   return {
     scenes: domain.scenes.map((scene): ShootingSceneViewModel => ({
-      sceneLabel: `SCENE ${scene.sceneNumber} : ${scene.sceneName}`,
+      sceneLabel: `SCENE ${scene.sceneNumber} : ${formatSceneName(scene.sceneName)}`,
       durationLabel: `${scene.startTimeSec.toFixed(1)}s − ${scene.endTimeSec.toFixed(1)}s`,
       description: scene.description,
       visualGuideItems: compactItems([
