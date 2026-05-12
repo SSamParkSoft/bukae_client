@@ -1,58 +1,30 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAiPlanningNavigationStateSync } from '@/features/aiPlanning/hooks/state/useAiPlanningNavigationStateSync'
 import { useFollowUpChatbot } from '@/features/aiPlanning/hooks/state/useFollowUpChatbot'
-import { usePlanningSession } from '@/features/aiPlanning/hooks/state/usePlanningSession'
 import { usePt1AnswerAutoSubmission } from '@/features/aiPlanning/hooks/state/usePt1AnswerAutoSubmission'
 import { usePt1AnswerDrafts } from '@/features/aiPlanning/hooks/state/usePt1AnswerDrafts'
-import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
+import { usePt1PlanningSession } from '@/features/aiPlanning/hooks/state/usePt1PlanningSession'
 import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
 import { useDebouncedValue } from '@/app/_hooks/useDebouncedValue'
 import { createAppError } from '@/lib/errors/appError'
 import {
-  getStoredPt1PlanningSnapshot,
   isPt1PlanningSession,
   storePt1PlanningSnapshot,
-  type Pt1PlanningSnapshot,
 } from '@/features/aiPlanning/lib/pt1PlanningSnapshotStorage'
 import {
   deriveAiPlanningStage,
   getAnsweredPt1QuestionIds,
 } from '@/features/aiPlanning/lib/aiPlanningStage'
-import { FollowUpChatbot } from './chatbotComponents'
-import { PlanningQuestionCard } from './PlanningQuestionCard'
+import { FollowUpPlanningView } from './FollowUpPlanningView'
 import { PlanningSessionError } from './PlanningSessionError'
 import { PlanningSessionLoading } from './PlanningSessionLoading'
+import { Pt1PlanningView } from './Pt1PlanningView'
 
 type AiPlanningMode = 'default' | 'chatbot'
 const PT1_TEXT_ANSWER_DEBOUNCE_MS = 600
-
-interface LocalPt1PlanningSnapshotState {
-  projectId: string
-  snapshot: Pt1PlanningSnapshot | null
-  isLoaded: boolean
-}
-
-function createLocalPt1PlanningSnapshotState(
-  projectId: string,
-  snapshot: Pt1PlanningSnapshot | null = null,
-  isLoaded = false
-): LocalPt1PlanningSnapshotState {
-  return {
-    projectId,
-    snapshot,
-    isLoaded,
-  }
-}
-
-function isCurrentLocalPt1PlanningSnapshotState(
-  state: LocalPt1PlanningSnapshotState,
-  projectId: string
-): boolean {
-  return state.projectId === projectId
-}
 
 export function AiPlanningFlow({
   projectId,
@@ -65,32 +37,15 @@ export function AiPlanningFlow({
 }) {
   const isChatbotMode = mode === 'chatbot'
   const pt1CacheKey = projectId
-  const [localPt1SnapshotState, setLocalPt1SnapshotState] = useState<LocalPt1PlanningSnapshotState>(() => (
-    createLocalPt1PlanningSnapshotState(projectId)
-  ))
-  const currentStoredPt1SnapshotState = isCurrentLocalPt1PlanningSnapshotState(
-    localPt1SnapshotState,
-    projectId
-  )
-    ? localPt1SnapshotState
-    : createLocalPt1PlanningSnapshotState(projectId)
-  const storedPt1Snapshot = currentStoredPt1SnapshotState.snapshot
-  const cachedPlanningSession = useAnalyzeWorkflowStore((state) => state.getCachedPlanningSession(projectId))
-  const cachePlanningSession = useAnalyzeWorkflowStore((state) => state.cachePlanningSession)
-  const cachedPt1PlanningSession = isPt1PlanningSession(cachedPlanningSession)
-    ? cachedPlanningSession
-    : null
-  const shouldUseStoredPt1Snapshot = !isChatbotMode && Boolean(storedPt1Snapshot)
-  const planningInitialSession = shouldUseStoredPt1Snapshot
-    ? storedPt1Snapshot?.session ?? null
-    : cachedPt1PlanningSession ?? null
-  const shouldFetchPlanningSession =
-    !isChatbotMode &&
-    !generationRequestId &&
-    currentStoredPt1SnapshotState.isLoaded &&
-    !shouldUseStoredPt1Snapshot
-
-  const planningSessionState = usePlanningSession(projectId, planningInitialSession, shouldFetchPlanningSession)
+  const {
+    planningSessionState,
+    storedPt1Snapshot,
+    isStoredPt1SnapshotLoaded,
+  } = usePt1PlanningSession({
+    projectId,
+    isChatbotMode,
+    generationRequestId,
+  })
   const {
     selectedAnswers,
     customAnswers,
@@ -130,31 +85,10 @@ export function AiPlanningFlow({
   )
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setLocalPt1SnapshotState(createLocalPt1PlanningSnapshotState(
-        projectId,
-        getStoredPt1PlanningSnapshot(projectId),
-        true
-      ))
-    }, 0)
-
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
-  }, [projectId])
-
-  useEffect(() => {
     return () => {
       resetAiPlanningStore()
     }
   }, [resetAiPlanningStore])
-
-  useEffect(() => {
-    if (!planningSessionState.session) return
-    if (!isPt1PlanningSession(planningSessionState.session)) return
-
-    cachePlanningSession(projectId, planningSessionState.session)
-  }, [cachePlanningSession, planningSessionState.session, projectId])
 
   useEffect(() => {
     if (!planningSessionState.session) return
@@ -195,9 +129,9 @@ export function AiPlanningFlow({
       (
         !isChatbotMode &&
         !isPt1PlanningSession(planningSessionState.session) &&
-        !currentStoredPt1SnapshotState.isLoaded
+        !isStoredPt1SnapshotLoaded
       ) ||
-      (Boolean(generationRequestId) && !currentStoredPt1SnapshotState.isLoaded)
+      (Boolean(generationRequestId) && !isStoredPt1SnapshotLoaded)
     )
   const aiPlanningStage = deriveAiPlanningStage({
     isChatbotMode,
@@ -221,11 +155,7 @@ export function AiPlanningFlow({
   })
 
   if (isChatbotMode) {
-    return (
-      <div className="relative h-full flex flex-col">
-        <FollowUpChatbot data={chatbotViewModel} />
-      </div>
-    )
+    return <FollowUpPlanningView data={chatbotViewModel} />
   }
 
   if (planningSessionState.errorMessage) {
@@ -260,25 +190,14 @@ export function AiPlanningFlow({
   }
 
   return (
-    <div className="pb-32">
-      <div className="grid grid-cols-2 gap-y-10">
-        {questions.map((question, index) => (
-          <div key={question.questionId} className="px-6 min-w-0">
-            <PlanningQuestionCard
-              question={question}
-              index={index}
-              selectedValue={selectedAnswers[question.questionId] ?? null}
-              customValue={customAnswers[question.questionId] ?? ''}
-              fieldValues={fieldAnswers[question.questionId] ?? {}}
-              onSelect={(value) => selectAnswer(question.questionId, value)}
-              onCustomChange={(value) => changeCustomAnswer(question.questionId, value)}
-              onFieldChange={(fieldKey, value) => changeFieldAnswer(question.questionId, fieldKey, value)}
-              onCustomBlur={() => undefined}
-              onFieldBlur={() => undefined}
-            />
-          </div>
-        ))}
-      </div>
-    </div>
+    <Pt1PlanningView
+      questions={questions}
+      selectedAnswers={selectedAnswers}
+      customAnswers={customAnswers}
+      fieldAnswers={fieldAnswers}
+      onSelectAnswer={selectAnswer}
+      onChangeCustomAnswer={changeCustomAnswer}
+      onChangeFieldAnswer={changeFieldAnswer}
+    />
   )
 }
