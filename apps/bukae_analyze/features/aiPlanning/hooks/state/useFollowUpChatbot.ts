@@ -19,15 +19,13 @@ import type {
   ReadyBriefViewModel,
 } from '../../types/chatbotViewModel'
 import { createFollowUpQuestionWorkflow } from '../../lib/followUpChatbot/workflow'
+import { useFinalizePlanningWhenReady } from './followUpChatbot/useFinalizePlanningWhenReady'
 import { useFollowUpChatHistory } from './followUpChatbot/useFollowUpChatHistory'
+import { useMountedRef } from './followUpChatbot/useMountedRef'
+import { usePollNextFollowUpQuestion } from './followUpChatbot/usePollNextFollowUpQuestion'
+import { useRefreshPlanningSessionOnChatbotEntry } from './followUpChatbot/useRefreshPlanningSessionOnChatbotEntry'
 import { useSubmitFollowUpAnswer } from './followUpChatbot/useSubmitFollowUpAnswer'
-import {
-  useFinalizePlanningWhenReady,
-  useMountedRef,
-  usePollNextFollowUpQuestion,
-  useRefreshPlanningSessionOnChatbotEntry,
-  useSyncInitialPlanningSession,
-} from './followUpChatbot/useFollowUpPlanningEffects'
+import { useSyncInitialPlanningSession } from './followUpChatbot/useSyncInitialPlanningSession'
 
 interface UseFollowUpChatbotParams {
   projectId: string
