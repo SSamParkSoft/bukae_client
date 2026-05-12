@@ -10,6 +10,19 @@ function formatSceneName(name: string): string {
   return name.replace(/^scene_\d+_/, '')
 }
 
+function formatDirectorNote(value: string): string[] {
+  const trimmed = value.trim()
+  if (!trimmed) return []
+
+  const sentences = trimmed
+    .replace(/(세요|니다)\.\s+/g, '$1.\n')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  return sentences.length > 0 ? sentences : [trimmed]
+}
+
 function formatSentenceBreaks(value: string): string[] {
   const trimmed = value.trim()
   if (!trimmed) return []
@@ -70,7 +83,11 @@ export function mapShootingGuideToViewModel(domain: ShootingGuide): ShootingGuid
         toContentItem('자막', scene.subtitleText ?? scene.subtitleScript),
       ]),
       planningBasisItems: compactItems([
-        toContentItem('AI 디렉팅', scene.directorNote ?? scene.planningBasis),
+        (() => {
+          const raw = scene.directorNote ?? scene.planningBasis
+          if (!raw?.trim()) return null
+          return { label: 'AI 디렉팅', lines: formatDirectorNote(raw), withBullet: true }
+        })(),
         toContentItem('감정 목표', scene.emotionTarget),
         toContentItem('증거 요구사항', scene.proofRequirement),
         toContentItem('증거 삽입', scene.proofInsertion),

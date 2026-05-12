@@ -1,6 +1,7 @@
 export interface ShootingSceneContentItemViewModel {
   label: string
   lines: string[]
+  withBullet?: boolean
 }
 
 export interface ShootingSceneViewModel {
