@@ -39,11 +39,11 @@ export function SceneCard({ scene }: SceneCardProps) {
           <SceneContentItem title="비주얼 촬영 가이드" items={scene.visualGuideItems} columns={2} />
           <div className="h-px bg-white/20" />
           <div className="flex gap-10 items-stretch">
-            <div className="min-w-0 flex-1">
-              <SceneContentItem title="오디오 스크립트" items={scene.audioScriptItems} columns={2} />
+            <div className="min-w-0 flex-6">
+              <SceneContentItem title="오디오 스크립트" items={scene.audioScriptItems} columns="6/4" />
             </div>
             <div className="w-px shrink-0 bg-white/20" aria-hidden />
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-4">
               <SceneContentItem title="자막 스크립트" items={scene.subtitleScriptItems} />
             </div>
           </div>

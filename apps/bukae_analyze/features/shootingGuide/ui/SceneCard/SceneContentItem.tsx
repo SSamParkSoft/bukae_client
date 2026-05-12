@@ -3,15 +3,16 @@ import type { ShootingSceneContentItemViewModel } from '@/features/shootingGuide
 interface SceneContentItemProps {
   title: string
   items: ShootingSceneContentItemViewModel[]
-  columns?: 1 | 2
+  columns?: 1 | 2 | '6/4'
 }
 
 export function SceneContentItem({ title, items, columns = 1 }: SceneContentItemProps) {
   if (items.length === 0) return null
 
-  const listClassName = columns === 2
-    ? 'grid grid-cols-1 gap-y-3 sm:grid-cols-2'
-    : 'grid grid-cols-1 gap-y-3'
+  const listClassName =
+    columns === 2 ? 'grid grid-cols-1 gap-y-3 sm:grid-cols-2' :
+    columns === '6/4' ? 'grid grid-cols-1 gap-y-3 sm:grid-cols-[6fr_4fr]' :
+    'grid grid-cols-1 gap-y-3'
 
   return (
     <div className="space-y-2">
@@ -26,7 +27,7 @@ export function SceneContentItem({ title, items, columns = 1 }: SceneContentItem
               {item.label}
             </p>
             {item.withBullet ? (
-              <ul className="min-w-0 space-y-3 list-none" role="list">
+              <ul className={`min-w-0 list-none ${item.withLeading ? 'space-y-3' : 'space-y-1'}`} role="list">
                 {item.lines.map((line, index) => (
                   <li key={`${item.label}-${index}`} className="flex gap-2">
                     <span className="shrink-0 select-none text-white/80" aria-hidden>•</span>

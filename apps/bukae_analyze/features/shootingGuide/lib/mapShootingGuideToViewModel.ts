@@ -77,7 +77,10 @@ export function mapShootingGuideToViewModel(domain: ShootingGuide): ShootingGuid
       ]),
       audioScriptItems: compactItems([
         toContentItem('나레이션', scene.audioNarration ?? scene.audioScript),
-        toContentItem('필수 멘트', scene.mustSay),
+        (() => {
+          const item = toContentItem('필수 멘트', scene.mustSay)
+          return item ? { ...item, withBullet: true } : null
+        })(),
       ]),
       subtitleScriptItems: compactItems([
         toContentItem('자막', scene.subtitleText ?? scene.subtitleScript),
@@ -86,7 +89,7 @@ export function mapShootingGuideToViewModel(domain: ShootingGuide): ShootingGuid
         (() => {
           const raw = scene.directorNote ?? scene.planningBasis
           if (!raw?.trim()) return null
-          return { label: 'AI 디렉팅', lines: formatDirectorNote(raw), withBullet: true }
+          return { label: 'AI 디렉팅', lines: formatDirectorNote(raw), withBullet: true, withLeading: true }
         })(),
         toContentItem('감정 목표', scene.emotionTarget),
         toContentItem('증거 요구사항', scene.proofRequirement),
