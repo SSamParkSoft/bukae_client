@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { submitPt2FreeText } from '@/lib/services/planning'
 import type { PlanningSession } from '@/lib/types/domain'
 import {
   FOLLOW_UP_STAGE_MESSAGES,
@@ -10,18 +9,9 @@ import {
   type FollowUpStageMessage,
 } from '../../lib/followUpChatbot/messages'
 import {
-  createAnswerChatMessage,
-  createQuestionChatMessage,
-} from '../../lib/followUpChatbot/chatHistoryStorage'
-import {
-  getUnresolvedNextQuestions,
   mapSessionQuestions,
   type ActiveFollowUpQuestion,
 } from '../../lib/followUpChatbot/questions'
-import {
-  getErrorMessage,
-  resolvePlanningRecovery,
-} from '../../lib/followUpChatbot/recovery'
 import { canFinalizePlanning } from '../../lib/planningPredicates'
 import type { FinalizedProject } from '../../lib/planningWorkflow'
 import type {
@@ -30,6 +20,7 @@ import type {
 } from '../../types/chatbotViewModel'
 import { createFollowUpQuestionWorkflow } from '../../lib/followUpChatbot/workflow'
 import { useFollowUpChatHistory } from './followUpChatbot/useFollowUpChatHistory'
+import { useSubmitFollowUpAnswer } from './followUpChatbot/useSubmitFollowUpAnswer'
 import {
   useFinalizePlanningWhenReady,
   useMountedRef,
@@ -124,6 +115,22 @@ export function useFollowUpChatbot({
     appendReadyBriefMessage(nextReadyBrief)
   }, [appendReadyBriefMessage, isMountedRef])
 
+  const submitCurrentAnswer = useSubmitFollowUpAnswer({
+    projectId,
+    enabled,
+    answer,
+    currentQuestion,
+    isSubmitting,
+    appendChatMessages,
+    applySession,
+    applyFinalizedProject,
+    setAnswer,
+    setQuestionQueue,
+    setIsSubmitting,
+    setStageMessage,
+    setErrorMessage,
+  })
+
   useSyncInitialPlanningSession({
     enabled,
     initialSession,
@@ -178,70 +185,6 @@ export function useFollowUpChatbot({
     setStageMessage,
     setErrorMessage,
   })
-
-  const submitCurrentAnswer = useCallback(() => {
-    const trimmedAnswer = answer.trim()
-    const question = currentQuestion
-    if (!enabled || !trimmedAnswer || !question || isSubmitting) return
-
-    setAnswer('')
-    setIsSubmitting(true)
-    setErrorMessage(null)
-    setStageMessage(FOLLOW_UP_STAGE_MESSAGES.reflectingAnswer)
-    appendChatMessages([
-      createQuestionChatMessage(question),
-      createAnswerChatMessage({
-        questionId: question.questionId,
-        text: trimmedAnswer,
-      }),
-    ])
-
-    void submitPt2FreeText(projectId, {
-      questionId: question.questionId,
-      questionTitle: question.title,
-      question: question.question,
-      referenceInsight: question.referenceInsight,
-      reasonWhyAsked: question.reasonWhyAsked,
-      slotKey: question.slotKey,
-      message: trimmedAnswer,
-    })
-      .then((nextSession) => {
-        applySession(nextSession)
-        const unresolvedNextQuestions = getUnresolvedNextQuestions(nextSession, question)
-        setQuestionQueue((prev) => (
-          unresolvedNextQuestions.length > 0 ? unresolvedNextQuestions : prev.slice(1)
-        ))
-        setErrorMessage(null)
-      })
-      .catch((error) => {
-        void resolvePlanningRecovery(
-          projectId,
-          error,
-          '답변 전송에 실패했습니다.'
-        ).then((recovery) => {
-          if (recovery.finalizedProject) {
-            applyFinalizedProject(recovery.finalizedProject)
-            return
-          }
-
-          setErrorMessage(recovery.errorMessage)
-        }).catch(() => {
-          setErrorMessage(getErrorMessage(error, '답변 전송에 실패했습니다.'))
-        })
-      })
-      .finally(() => {
-        setIsSubmitting(false)
-      })
-  }, [
-    answer,
-    appendChatMessages,
-    applyFinalizedProject,
-    applySession,
-    currentQuestion,
-    enabled,
-    isSubmitting,
-    projectId,
-  ])
 
   return useMemo((): FollowUpChatbotViewModel => ({
     messages: isCurrentChatHistoryLoaded ? chatHistory : [],
