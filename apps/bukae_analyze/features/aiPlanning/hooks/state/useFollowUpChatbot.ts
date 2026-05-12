@@ -4,21 +4,21 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import type { PlanningSession } from '@/lib/types/domain'
 import {
   FOLLOW_UP_STAGE_MESSAGES,
-  createReadyBriefViewModel,
-  mapCurrentQuestion,
   type FollowUpStageMessage,
 } from '../../lib/followUpChatbot/messages'
 import {
-  mapSessionQuestions,
+  createFinalizedReadyBriefViewModel,
+  getFollowUpTranscriptMessages,
+  mapFollowUpCurrentQuestion,
+  mapFollowUpSessionQuestions,
   type ActiveFollowUpQuestion,
-} from '../../lib/followUpChatbot/questions'
+} from '../../lib/followUpChatbot/sessionFlow'
 import { canFinalizePlanning } from '../../lib/planningPredicates'
 import type { FinalizedProject } from '../../lib/planningWorkflow'
 import type {
   FollowUpChatbotViewModel,
   ReadyBriefViewModel,
 } from '../../types/chatbotViewModel'
-import { createFollowUpQuestionWorkflow } from '../../lib/followUpChatbot/workflow'
 import { useFinalizePlanningWhenReady } from './followUpChatbot/useFinalizePlanningWhenReady'
 import { useFollowUpChatHistory } from './followUpChatbot/useFollowUpChatHistory'
 import { useMountedRef } from './followUpChatbot/useMountedRef'
@@ -41,7 +41,7 @@ export function useFollowUpChatbot({
   onSessionChange,
 }: UseFollowUpChatbotParams): FollowUpChatbotViewModel {
   const [session, setSession] = useState<PlanningSession | null>(initialSession)
-  const [questionQueue, setQuestionQueue] = useState<ActiveFollowUpQuestion[]>(() => mapSessionQuestions(initialSession))
+  const [questionQueue, setQuestionQueue] = useState<ActiveFollowUpQuestion[]>(() => mapFollowUpSessionQuestions(initialSession))
   const [answer, setAnswer] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isComplete, setIsComplete] = useState(false)
@@ -60,16 +60,17 @@ export function useFollowUpChatbot({
     questionQueue[0] ?? null
   ), [questionQueue])
   const currentQuestions = useMemo(
-    () => mapCurrentQuestion(currentQuestion),
+    () => mapFollowUpCurrentQuestion(currentQuestion),
     [currentQuestion]
   )
   const canFinalizeCurrentPlanning = canFinalizePlanning(session)
   const isReadyForApproval = Boolean(session?.readyForApproval)
   const isRevising = session?.planningMode === 'revise'
 
-  const serverTranscriptMessages = useMemo(() => (
-    createFollowUpQuestionWorkflow(session).transcriptMessages
-  ), [session])
+  const serverTranscriptMessages = useMemo(
+    () => getFollowUpTranscriptMessages(session),
+    [session]
+  )
 
   const {
     chatHistory,
@@ -89,7 +90,7 @@ export function useFollowUpChatbot({
   })
 
   const applySession = useCallback((nextSession: PlanningSession) => {
-    const nextQuestions = mapSessionQuestions(nextSession)
+    const nextQuestions = mapFollowUpSessionQuestions(nextSession)
 
     appliedSessionRef.current = nextSession
     setSession(nextSession)
@@ -104,7 +105,7 @@ export function useFollowUpChatbot({
   const applyFinalizedProject = useCallback((finalizedProject: FinalizedProject) => {
     if (!isMountedRef.current) return
 
-    const nextReadyBrief = createReadyBriefViewModel(finalizedProject)
+    const nextReadyBrief = createFinalizedReadyBriefViewModel(finalizedProject)
     setQuestionQueue([])
     setErrorMessage(null)
     setReadyBrief(nextReadyBrief)
