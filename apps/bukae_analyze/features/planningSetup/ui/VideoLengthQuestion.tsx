@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Clock, ChevronDown, Check } from 'lucide-react'
+import { Clock } from 'lucide-react'
 import type { VideoLength } from '@/lib/types/domain'
 import type { QuestionSectionViewModel } from '@/features/planningSetup/types/viewModel'
-import { SectionHeader, CustomTextInput } from './PlanningSetupPrimitives'
+import { SectionHeader, CustomTextInput, DropdownTrigger, DropdownListbox } from './PlanningSetupPrimitives'
 
 const OPTIONS: { value: VideoLength; label: string }[] = [
   { value: 'under-15s', label: '15초 이내 (릴스 최적)' },
@@ -53,12 +53,7 @@ function useVideoLengthDropdown(onSelect: (value: VideoLength | 'custom') => voi
     }
   }, [open, close])
 
-  return {
-    open,
-    pick,
-    rootRef,
-    toggle,
-  }
+  return { open, pick, rootRef, toggle }
 }
 
 interface Props {
@@ -66,14 +61,7 @@ interface Props {
 }
 
 export function VideoLengthQuestion({ data }: Props) {
-  const {
-    open,
-    pick,
-    rootRef,
-    toggle,
-  } = useVideoLengthDropdown(data.onSelect)
-  const label = triggerLabel(data)
-  const isPlaceholder = data.selected === null
+  const { open, pick, rootRef, toggle } = useVideoLengthDropdown(data.onSelect)
 
   return (
     <div className="flex flex-col gap-6">
@@ -83,89 +71,20 @@ export function VideoLengthQuestion({ data }: Props) {
         subtitle="최종 영상의 길이를 선택하세요."
       />
       <div ref={rootRef} className="relative flex flex-col gap-4">
-        <button
-          type="button"
-          id="video-length-trigger"
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-controls="video-length-listbox"
+        <DropdownTrigger
+          label={triggerLabel(data)}
+          isPlaceholder={data.selected === null}
+          isOpen={open}
           onClick={toggle}
-          className={`flex h-[60px] w-full items-center justify-between gap-3 rounded-lg border px-6 backdrop-blur-[2px] transition-colors focus:outline-none focus-visible:border-highlight/60 focus-visible:ring-2 focus-visible:ring-highlight/25 ${
-            open
-              ? 'border-white/60 bg-white/15 text-white'
-              : 'border-white/40 bg-white/5 text-white hover:border-white/50 hover:bg-white/10'
-          }`}
-        >
-          <span
-            style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}
-            className={`min-w-0 truncate text-left font-medium tracking-[-0.04em] leading-[1.4] ${isPlaceholder ? 'text-white/50' : 'text-white/90'}`}
-          >
-            {label}
-          </span>
-          <ChevronDown
-            className={`size-5 shrink-0 text-white/60 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-            strokeWidth={1.5}
-            aria-hidden
-          />
-        </button>
-
+        />
         {open && (
-          <ul
-            id="video-length-listbox"
-            role="listbox"
-            aria-labelledby="video-length-trigger"
-            className="absolute top-[calc(100%+8px)] left-0 right-0 z-30 overflow-hidden rounded-lg border border-white/20 bg-brand/95 py-1 shadow-[0_16px_48px_rgba(0,0,0,0.45)] backdrop-glass-soft"
-          >
-            {OPTIONS.map(option => {
-              const selected = data.selected === option.value
-              return (
-                <li key={option.value} role="presentation">
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={selected}
-                    onClick={() => pick(option.value)}
-                    style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}
-                    className={`flex w-full items-center justify-between gap-3 px-6 py-3 text-left transition-colors ${
-                      selected
-                        ? 'bg-white/20 font-medium tracking-[-0.04em] text-white'
-                        : 'font-medium tracking-[-0.04em] text-white/70 hover:bg-white/10 hover:text-white'
-                    }`}
-                  >
-                    <span className="min-w-0">{option.label}</span>
-                    {selected ? (
-                      <Check className="size-5 shrink-0 text-highlight" strokeWidth={2} aria-hidden />
-                    ) : (
-                      <span className="size-5 shrink-0" aria-hidden />
-                    )}
-                  </button>
-                </li>
-              )
-            })}
-            <li role="presentation" className="mx-3 my-1 h-px bg-white/15" aria-hidden />
-            <li role="presentation">
-              <button
-                type="button"
-                role="option"
-                aria-selected={data.selected === 'custom'}
-                onClick={() => pick('custom')}
-                className={`flex w-full items-center justify-between gap-3 px-6 py-3 text-left transition-colors ${
-                  data.selected === 'custom'
-                    ? 'bg-white/20 font-16-md text-white'
-                    : 'font-16-md text-white/70 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <span>직접 입력</span>
-                {data.selected === 'custom' ? (
-                  <Check className="size-5 shrink-0 text-highlight" strokeWidth={2} aria-hidden />
-                ) : (
-                  <span className="size-5 shrink-0" aria-hidden />
-                )}
-              </button>
-            </li>
-          </ul>
+          <DropdownListbox
+            options={OPTIONS}
+            selectedValue={data.selected}
+            onPick={(value) => pick(value as VideoLength | 'custom')}
+            hasCustomOption
+          />
         )}
-
         {data.selected === 'custom' && (
           <CustomTextInput
             value={data.customValue}

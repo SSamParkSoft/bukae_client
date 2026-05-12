@@ -1,3 +1,4 @@
+import { Check, ChevronDown } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
 interface SectionHeaderProps {
@@ -55,6 +56,113 @@ export function IconButton({
       )}
       <span className="font-medium tracking-[-0.04em]" style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}>{label}</span>
     </button>
+  )
+}
+
+export function DropdownTrigger({
+  label,
+  isPlaceholder,
+  isOpen,
+  onClick,
+}: {
+  label: string
+  isPlaceholder: boolean
+  isOpen: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-haspopup="listbox"
+      aria-expanded={isOpen}
+      onClick={onClick}
+      className={`flex h-[60px] w-full items-center justify-between gap-3 rounded-lg border px-6 backdrop-blur-[2px] transition-colors focus:outline-none focus-visible:border-highlight/60 focus-visible:ring-2 focus-visible:ring-highlight/25 ${
+        isOpen
+          ? 'border-white/60 bg-white/15 text-white'
+          : 'border-white/40 bg-white/5 text-white hover:border-white/50 hover:bg-white/10'
+      }`}
+    >
+      <span
+        style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}
+        className={`min-w-0 truncate text-left font-medium tracking-[-0.04em] leading-[1.4] ${isPlaceholder ? 'text-white/50' : 'text-white/90'}`}
+      >
+        {label}
+      </span>
+      <ChevronDown
+        className={`size-5 shrink-0 text-white/60 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+        strokeWidth={1.5}
+        aria-hidden
+      />
+    </button>
+  )
+}
+
+export function DropdownListbox({
+  options,
+  selectedValue,
+  onPick,
+  hasCustomOption = false,
+}: {
+  options: Array<{ value: string; label: string }>
+  selectedValue: string | null
+  onPick: (value: string | 'custom') => void
+  hasCustomOption?: boolean
+}) {
+  return (
+    <ul
+      role="listbox"
+      className="absolute top-[calc(100%+8px)] left-0 right-0 z-30 overflow-hidden rounded-lg border border-white/20 bg-brand/95 py-1 shadow-[0_16px_48px_rgba(0,0,0,0.45)] backdrop-glass-soft"
+    >
+      {options.map((option) => {
+        const selected = selectedValue === option.value
+        return (
+          <li key={option.value} role="presentation">
+            <button
+              type="button"
+              role="option"
+              aria-selected={selected}
+              onClick={() => onPick(option.value)}
+              style={{ fontSize: 'clamp(12px, 0.83vw, 16px)' }}
+              className={`flex w-full items-center justify-between gap-3 px-6 py-3 text-left transition-colors ${
+                selected
+                  ? 'bg-white/20 font-medium tracking-[-0.04em] text-white'
+                  : 'font-medium tracking-[-0.04em] text-white/70 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <span className="min-w-0">{option.label}</span>
+              {selected
+                ? <Check className="size-5 shrink-0 text-highlight" strokeWidth={2} aria-hidden />
+                : <span className="size-5 shrink-0" aria-hidden />
+              }
+            </button>
+          </li>
+        )
+      })}
+      {hasCustomOption && (
+        <>
+          <li role="presentation" className="mx-3 my-1 h-px bg-white/15" aria-hidden />
+          <li role="presentation">
+            <button
+              type="button"
+              role="option"
+              aria-selected={selectedValue === 'custom'}
+              onClick={() => onPick('custom')}
+              className={`flex w-full items-center justify-between gap-3 px-6 py-3 text-left transition-colors font-16-md ${
+                selectedValue === 'custom'
+                  ? 'bg-white/20 text-white'
+                  : 'text-white/70 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <span>직접 입력</span>
+              {selectedValue === 'custom'
+                ? <Check className="size-5 shrink-0 text-highlight" strokeWidth={2} aria-hidden />
+                : <span className="size-5 shrink-0" aria-hidden />
+              }
+            </button>
+          </li>
+        </>
+      )}
+    </ul>
   )
 }
 

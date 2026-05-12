@@ -1,6 +1,7 @@
 'use client'
 
 import type { AiQuestionViewModel } from '@/features/aiPlanning/types/viewModel'
+import type { PlanningQuestion } from '@/lib/types/domain'
 
 // ---- QuestionBlock (새 디자인) ----
 
@@ -74,6 +75,146 @@ export function QuestionBlock({ data }: { data: AiQuestionViewModel }) {
         />
       )}
     </div>
+  )
+}
+
+// ---- PlanningQuestionCard 전용 Primitives ----
+
+export function PlanningQuestionHeader({
+  index,
+  title,
+  question,
+}: {
+  index: number
+  title: string
+  question: string
+}) {
+  return (
+    <div className="flex flex-col">
+      <p className="font-medium tracking-[-0.04em] leading-[1.4] text-white" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>
+        {`Q${index + 1}`}
+      </p>
+      <p className="font-medium tracking-[-0.04em] leading-[1.4] text-white" style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}>
+        {title}
+      </p>
+      <p className="mt-1 font-medium tracking-[-0.04em] leading-[1.4] text-white/60" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
+        {question}
+      </p>
+    </div>
+  )
+}
+
+export function ReferenceInsightBox({ text }: { text: string }) {
+  return (
+    <div className="backdrop-blur-[2px] border-b border-white/20 py-3 w-full">
+      <p className="font-medium tracking-[-0.04em] text-white/80 leading-[1.4] line-clamp-2" style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}>
+        {text}
+      </p>
+    </div>
+  )
+}
+
+export function FieldInputSection({
+  fields,
+  fieldValues,
+  onFieldChange,
+  onFieldBlur,
+}: {
+  fields: PlanningQuestion['fields']
+  fieldValues: Record<string, string>
+  onFieldChange: (fieldKey: string, value: string) => void
+  onFieldBlur: (fieldKey: string) => void
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      {fields.map((field) => (
+        <label key={field.fieldKey} className="flex flex-col gap-2">
+          <span className="font-medium tracking-[-0.04em] text-white/80" style={{ fontSize: 'clamp(13px, 0.85vw, 15px)' }}>
+            {field.label}
+          </span>
+          <input
+            type="text"
+            value={fieldValues[field.fieldKey] ?? ''}
+            onChange={(e) => onFieldChange(field.fieldKey, e.target.value)}
+            onBlur={() => onFieldBlur(field.fieldKey)}
+            placeholder={field.placeholder || '답변을 입력해 주세요.'}
+            className="w-full rounded-[8px] border border-white/20 bg-white/8 px-4 py-3 text-white placeholder:text-white/30 focus:border-white/40 focus:outline-none"
+          />
+        </label>
+      ))}
+    </div>
+  )
+}
+
+export function OptionGrid({
+  options,
+  selectedValue,
+  onSelect,
+}: {
+  options: Array<{ value: string; label: string }>
+  selectedValue: string | null
+  onSelect: (value: string) => void
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {options.map((option, optionIndex) => {
+        const isSelected = selectedValue === option.value
+        const letter = String.fromCharCode(97 + optionIndex)
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onSelect(option.value)}
+            className={[
+              'backdrop-blur-[2px] flex items-center gap-4 px-6 py-3 rounded-[8px] transition-colors',
+              isSelected ? 'bg-white/32' : 'bg-white/08 hover:bg-white/15',
+            ].join(' ')}
+          >
+            <span
+              style={{ fontSize: 'clamp(16px, 1.04vw, 20px)' }}
+              className={[
+                'shrink-0 font-medium tracking-[-0.04em] leading-[1.4] whitespace-nowrap',
+                isSelected ? 'text-white' : 'text-white/40',
+              ].join(' ')}
+            >
+              {letter}.
+            </span>
+            <span
+              style={{ fontSize: 'clamp(14px, 0.9vw, 16px)' }}
+              className={[
+                'flex-1 min-w-0 font-medium tracking-[-0.04em] leading-[1.4] text-left',
+                isSelected ? 'text-white' : 'text-white/40',
+              ].join(' ')}
+            >
+              {option.label}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+export function PlanningCustomTextarea({
+  value,
+  onChange,
+  onBlur,
+  placeholder,
+}: {
+  value: string
+  onChange: (value: string) => void
+  onBlur: () => void
+  placeholder: string
+}) {
+  return (
+    <textarea
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
+      placeholder={placeholder}
+      rows={2}
+      className="w-full rounded-[8px] border border-white/40 bg-transparent px-6 py-3 text-white placeholder:text-white/35 focus:border-white/60 focus:outline-none"
+    />
   )
 }
 
