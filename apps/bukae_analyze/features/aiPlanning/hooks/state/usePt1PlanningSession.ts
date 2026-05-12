@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { usePlanningSession } from '@/features/aiPlanning/hooks/state/usePlanningSession'
+import { getAnsweredPt1QuestionIds } from '@/features/aiPlanning/lib/aiPlanningStage'
 import {
   isPt1PlanningSession,
   type Pt1PlanningSnapshot,
@@ -48,9 +49,37 @@ export function usePt1PlanningSession(params: {
     cachePlanningSession(projectId, planningSessionState.session)
   }, [cachePlanningSession, planningSessionState.session, projectId])
 
+  const displayedPlanningSession = isChatbotMode || isPt1PlanningSession(planningSessionState.session)
+    ? planningSessionState.session
+    : storedPt1Snapshot?.session ?? null
+
+  const questions = useMemo(
+    () => displayedPlanningSession?.clarifyingQuestions ?? [],
+    [displayedPlanningSession]
+  )
+
+  const answeredPt1QuestionIds = useMemo(
+    () => getAnsweredPt1QuestionIds(displayedPlanningSession),
+    [displayedPlanningSession]
+  )
+
+  const isLoadingPt1Questions =
+    questions.length === 0 &&
+    (
+      planningSessionState.isLoading ||
+      (
+        !isChatbotMode &&
+        !isPt1PlanningSession(planningSessionState.session) &&
+        !storedPt1SnapshotState.isLoaded
+      ) ||
+      (Boolean(generationRequestId) && !storedPt1SnapshotState.isLoaded)
+    )
+
   return {
     planningSessionState,
     storedPt1Snapshot: storedPt1Snapshot as Pt1PlanningSnapshot | null,
-    isStoredPt1SnapshotLoaded: storedPt1SnapshotState.isLoaded,
+    questions,
+    answeredPt1QuestionIds,
+    isLoadingPt1Questions,
   }
 }

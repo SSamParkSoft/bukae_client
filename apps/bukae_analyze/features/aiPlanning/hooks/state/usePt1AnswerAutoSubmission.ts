@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDebouncedValue } from '@/app/_hooks/useDebouncedValue'
 import { resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 import { submitPt1SlotAnswer } from '@/lib/services/planning'
 import type { PlanningQuestion, PlanningSession } from '@/lib/types/domain'
@@ -10,6 +11,8 @@ import {
   hasSavedAllPt1Answers,
   submitPt1AnswerRequests,
 } from '../../lib/pt1AnswerRequests'
+
+const PT1_TEXT_ANSWER_DEBOUNCE_MS = 600
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -49,13 +52,16 @@ export function usePt1AnswerAutoSubmission({
   const [saveError, setSaveError] = useState<ResolvedAppError | null>(null)
   const isSubmittingAnswersRef = useRef(false)
 
+  const debouncedCustomAnswers = useDebouncedValue(customAnswers, PT1_TEXT_ANSWER_DEBOUNCE_MS)
+  const debouncedFieldAnswers = useDebouncedValue(fieldAnswers, PT1_TEXT_ANSWER_DEBOUNCE_MS)
+
   const answerRequests = useMemo(() => {
     return buildPt1AnswerRequests(questions, {
       selectedAnswers,
-      customAnswers,
-      fieldAnswers,
+      customAnswers: debouncedCustomAnswers,
+      fieldAnswers: debouncedFieldAnswers,
     })
-  }, [questions, selectedAnswers, customAnswers, fieldAnswers])
+  }, [questions, selectedAnswers, debouncedCustomAnswers, debouncedFieldAnswers])
 
   const hasAnsweredAllQuestions =
     questions.length > 0 && answerRequests.length === questions.length
