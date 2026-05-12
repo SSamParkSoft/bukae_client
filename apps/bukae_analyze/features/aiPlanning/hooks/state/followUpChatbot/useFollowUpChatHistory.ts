@@ -1,5 +1,6 @@
 'use client'
 
+// 채팅 히스토리를 localStorage와 동기화하고, 메시지 추가·삭제 함수를 제공한다.
 import { useCallback, useEffect, useState } from 'react'
 import {
   appendUniqueChatMessages,
@@ -27,7 +28,7 @@ const FINALIZE_PROGRESS_MESSAGE_INTERVAL_MS = 20_000
 interface UseFollowUpChatHistoryParams {
   projectId: string
   enabled: boolean
-  serverTranscriptMessages: ChatMessage[]
+  serverTranscriptMessages: ChatMessage[]  // 세션 transcript — 로컬 히스토리와 merge해 중복 방지
   currentQuestion: ActiveFollowUpQuestion | null
   isSubmitting: boolean
   readyBrief: ReadyBriefViewModel | null

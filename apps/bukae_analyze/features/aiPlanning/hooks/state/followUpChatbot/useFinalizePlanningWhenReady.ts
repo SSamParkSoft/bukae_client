@@ -1,5 +1,6 @@
 'use client'
 
+// 질문 큐가 소진되고 finalize 조건이 충족되면 최종 기획안을 생성·대기한다.
 import { useEffect } from 'react'
 import { finalizePlanning } from '@/lib/services/planning'
 import type { PlanningSession } from '@/lib/types/domain'
@@ -24,8 +25,8 @@ export function useFinalizePlanningWhenReady(params: {
   canFinalizeCurrentPlanning: boolean
   isComplete: boolean
   isReadyForApproval: boolean
-  isFinalizingRef: RefState<boolean>
-  isMountedRef: RefState<boolean>
+  isFinalizingRef: RefState<boolean>  // finalize 중복 실행 방지
+  isMountedRef: RefState<boolean>     // unmount 후 setState 방지
   applyFinalizedProject: (finalizedProject: FinalizedProject) => void
   setIsSubmitting: StateSetter<boolean>
   setStageMessage: StateSetter<FollowUpStageMessage>

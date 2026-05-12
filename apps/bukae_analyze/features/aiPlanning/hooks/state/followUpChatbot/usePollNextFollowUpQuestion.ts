@@ -1,5 +1,6 @@
 'use client'
 
+// 다음 질문이 준비될 때까지 서버를 반복 조회한다. 답변 제출 후 질문 큐가 비었을 때 동작한다.
 import { useEffect } from 'react'
 import { getPlanningSession } from '@/lib/services/planning'
 import type { PlanningSession } from '@/lib/types/domain'
@@ -30,9 +31,9 @@ export function usePollNextFollowUpQuestion(params: {
   isComplete: boolean
   isReadyForApproval: boolean
   isRevising: boolean
-  isInitialRefreshRef: RefState<boolean>
-  isPollingRef: RefState<boolean>
-  isFinalizingRef: RefState<boolean>
+  isInitialRefreshRef: RefState<boolean>  // entry refresh 진행 중 플래그 — refresh 완료 전 폴링 차단
+  isPollingRef: RefState<boolean>         // 폴링 중복 실행 방지
+  isFinalizingRef: RefState<boolean>      // finalize 진행 중 플래그 — finalize와 폴링이 동시에 실행되지 않도록 막음
   applySession: (nextSession: PlanningSession) => void
   applyFinalizedProject: (finalizedProject: FinalizedProject) => void
   setQuestionQueue: StateSetter<ActiveFollowUpQuestion[]>

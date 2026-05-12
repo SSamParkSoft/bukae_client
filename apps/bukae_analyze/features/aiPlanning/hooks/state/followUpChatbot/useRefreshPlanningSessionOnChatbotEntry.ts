@@ -1,5 +1,6 @@
 'use client'
 
+// 챗봇 진입 시 서버에서 최신 세션을 한 번 조회해 로컬 상태와 동기화한다.
 import { useEffect } from 'react'
 import { getPlanningSession } from '@/lib/services/planning'
 import type { PlanningSession } from '@/lib/types/domain'
@@ -15,9 +16,9 @@ import { getPlanningDebugSnapshot } from './planningEffectUtils'
 export function useRefreshPlanningSessionOnChatbotEntry(params: {
   enabled: boolean
   projectId: string
-  refreshedProjectIdRef: RefState<string | null>
-  isInitialRefreshRef: RefState<boolean>
-  isMountedRef: RefState<boolean>
+  refreshedProjectIdRef: RefState<string | null>  // 이미 refresh한 projectId — 같은 프로젝트 중복 진입 방지
+  isInitialRefreshRef: RefState<boolean>           // refresh 진행 중 플래그 — 폴링이 refresh와 겹치지 않도록 막음
+  isMountedRef: RefState<boolean>                  // unmount 후 setState 방지
   applySession: (nextSession: PlanningSession) => void
   applyFinalizedProject: (finalizedProject: FinalizedProject) => void
   setQuestionQueue: StateSetter<ActiveFollowUpQuestion[]>
