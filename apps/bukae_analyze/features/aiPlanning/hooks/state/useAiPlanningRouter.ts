@@ -5,11 +5,11 @@ import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
 import { isPt1PlanningSession, storePt1PlanningSnapshot } from '../../lib/pt1PlanningSnapshotStorage'
 import { deriveAiPlanningStage } from '../../lib/aiPlanningStage'
-import { useAiPlanningNavigationStateSync } from './useAiPlanningNavigationStateSync'
+import { useAiPlanningNavigationStateSync } from './aiPlanningRouter/useAiPlanningNavigationStateSync'
+import { usePt1AnswerAutoSubmission } from './aiPlanningRouter/usePt1AnswerAutoSubmission'
+import { usePt1AnswerDrafts } from './aiPlanningRouter/usePt1AnswerDrafts'
+import { usePt1PlanningSession } from './aiPlanningRouter/usePt1PlanningSession'
 import { useFollowUpChatbot } from './useFollowUpChatbot'
-import { usePt1AnswerAutoSubmission } from './usePt1AnswerAutoSubmission'
-import { usePt1AnswerDrafts } from './usePt1AnswerDrafts'
-import { usePt1PlanningSession } from './usePt1PlanningSession'
 
 /** PT1·챗봇 중 어떤 화면을 보여줄지 결정하는 데 필요한 데이터를 수집하고 조율한다. */
 export function useAiPlanningRouter({

@@ -8,7 +8,7 @@ import {
   isPt1PlanningSession,
   type Pt1PlanningSnapshot,
 } from '@/features/aiPlanning/lib/pt1PlanningSnapshotStorage'
-import { useStoredPt1PlanningSnapshot } from './useStoredPt1PlanningSnapshot'
+import { useStoredPt1PlanningSnapshot } from '../useStoredPt1PlanningSnapshot'
 
 export function usePt1PlanningSession(params: {
   projectId: string

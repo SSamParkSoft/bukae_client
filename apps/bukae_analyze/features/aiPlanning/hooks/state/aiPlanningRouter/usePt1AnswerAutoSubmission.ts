@@ -10,7 +10,7 @@ import {
   getUnsavedPt1AnswerRequests,
   hasSavedAllPt1Answers,
   submitPt1AnswerRequests,
-} from '../../lib/pt1AnswerRequests'
+} from '../../../lib/pt1AnswerRequests'
 
 const PT1_TEXT_ANSWER_DEBOUNCE_MS = 600
 
