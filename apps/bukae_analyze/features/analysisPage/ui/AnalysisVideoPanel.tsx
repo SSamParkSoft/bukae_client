@@ -51,12 +51,12 @@ export function AnalysisVideoPanel({ posterUrl, videoSrc, className }: Props) {
             }}
           />
         ) : (
-          <div className="h-full w-full bg-white/[0.03]" />
+          <div className="h-full w-full bg-white/3" />
         )}
 
         {!hasVideo && !hasPoster && missingMediaMessage ? (
           <div className="absolute inset-0 flex items-center justify-center bg-black/55 px-8 text-center">
-            <p className="font-14-rg leading-[1.5] text-white/70">
+            <p className="font-14-rg leading-normal text-white/70">
               {missingMediaMessage}
             </p>
           </div>
