@@ -1,6 +1,5 @@
 'use client'
 
-// 현재 질문에 대한 답변 제출 콜백을 반환한다. API 호출·세션 업데이트·실패 복구를 담당한다.
 import { useCallback, type Dispatch, type SetStateAction } from 'react'
 import { submitPt2FreeText } from '@/lib/services/planning'
 import type { PlanningSession } from '@/lib/types/domain'
@@ -39,6 +38,7 @@ interface UseSubmitFollowUpAnswerParams {
   setErrorMessage: Dispatch<SetStateAction<string | null>>
 }
 
+/** 현재 질문에 대한 답변 제출 콜백을 반환한다. API 호출·세션 업데이트·실패 복구를 담당한다. */
 export function useSubmitFollowUpAnswer({
   projectId,
   enabled,

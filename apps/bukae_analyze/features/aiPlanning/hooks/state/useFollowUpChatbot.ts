@@ -1,6 +1,5 @@
 'use client'
 
-// 후속 질문 챗봇의 전체 상태와 동작을 조립하는 최상위 오케스트레이션 훅.
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type { PlanningSession } from '@/lib/types/domain'
 import {
@@ -35,6 +34,7 @@ interface UseFollowUpChatbotParams {
   onSessionChange?: (nextSession: PlanningSession) => void
 }
 
+/** 후속 질문 챗봇의 전체 상태와 동작을 조립하는 최상위 오케스트레이션 훅. */
 export function useFollowUpChatbot({
   projectId,
   initialSession,

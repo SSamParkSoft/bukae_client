@@ -1,6 +1,5 @@
 'use client'
 
-// 다음 질문이 준비될 때까지 서버를 반복 조회한다. 답변 제출 후 질문 큐가 비었을 때 동작한다.
 import { useEffect } from 'react'
 import { getPlanningSession } from '@/lib/services/planning'
 import type { PlanningSession } from '@/lib/types/domain'
@@ -23,6 +22,7 @@ import {
   sleep,
 } from './planningEffectUtils'
 
+/** 다음 질문이 준비될 때까지 서버를 반복 조회한다. 답변 제출 후 질문 큐가 비었을 때 동작한다. */
 export function usePollNextFollowUpQuestion(params: {
   enabled: boolean
   projectId: string

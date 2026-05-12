@@ -1,6 +1,5 @@
 'use client'
 
-// 채팅 히스토리를 localStorage와 동기화하고, 메시지 추가·삭제 함수를 제공한다.
 import { useCallback, useEffect, useState } from 'react'
 import {
   appendUniqueChatMessages,
@@ -44,6 +43,7 @@ function scheduleChatHistoryTask(task: () => void): () => void {
   }
 }
 
+/** 채팅 히스토리를 localStorage와 동기화하고, 메시지 추가·삭제 함수를 제공한다. */
 export function useFollowUpChatHistory({
   projectId,
   enabled,

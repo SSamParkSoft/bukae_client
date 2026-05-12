@@ -1,6 +1,5 @@
 'use client'
 
-// prop으로 전달된 initialSession이 교체되면 로컬 session 상태를 동기화한다.
 import { useEffect } from 'react'
 import type { PlanningSession } from '@/lib/types/domain'
 import {
@@ -9,6 +8,7 @@ import {
 } from '../../../lib/followUpChatbot/questions'
 import type { RefState, StateSetter } from './planningEffectTypes'
 
+/** prop으로 전달된 initialSession이 교체되면 로컬 session 상태를 동기화한다. */
 export function useSyncInitialPlanningSession(params: {
   enabled: boolean
   initialSession: PlanningSession | null

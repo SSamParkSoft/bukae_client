@@ -1,6 +1,5 @@
 'use client'
 
-// 질문 큐가 소진되고 finalize 조건이 충족되면 최종 기획안을 생성·대기한다.
 import { useEffect } from 'react'
 import { finalizePlanning } from '@/lib/services/planning'
 import type { PlanningSession } from '@/lib/types/domain'
@@ -17,6 +16,7 @@ import { hasFinalizePlanningStarted } from '../../../lib/planningPredicates'
 import { waitFinalizedProject, type FinalizedProject } from '../../../lib/planningWorkflow'
 import type { RefState, StateSetter } from './planningEffectTypes'
 
+/** 질문 큐가 소진되고 finalize 조건이 충족되면 최종 기획안을 생성·대기한다. */
 export function useFinalizePlanningWhenReady(params: {
   enabled: boolean
   projectId: string

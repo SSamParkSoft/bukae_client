@@ -1,6 +1,5 @@
 'use client'
 
-// 챗봇 진입 시 서버에서 최신 세션을 한 번 조회해 로컬 상태와 동기화한다.
 import { useEffect } from 'react'
 import { getPlanningSession } from '@/lib/services/planning'
 import type { PlanningSession } from '@/lib/types/domain'
@@ -13,6 +12,7 @@ import type { FinalizedProject } from '../../../lib/planningWorkflow'
 import type { RefState, StateSetter } from './planningEffectTypes'
 import { getPlanningDebugSnapshot } from './planningEffectUtils'
 
+/** 챗봇 진입 시 서버에서 최신 세션을 한 번 조회해 로컬 상태와 동기화한다. */
 export function useRefreshPlanningSessionOnChatbotEntry(params: {
   enabled: boolean
   projectId: string
