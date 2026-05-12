@@ -1,52 +1,31 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { submitPt2FreeText } from '@/lib/services/planning'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import type { PlanningSession } from '@/lib/types/domain'
 import {
-  FOLLOW_UP_FINALIZE_PROGRESS_MESSAGES,
   FOLLOW_UP_STAGE_MESSAGES,
-  createReadyBriefViewModel,
-  mapCurrentQuestion,
   type FollowUpStageMessage,
 } from '../../lib/followUpChatbot/messages'
 import {
-  appendUniqueChatMessages,
-  createAnswerChatMessage,
-  createErrorChatMessage,
-  createQuestionChatMessage,
-  createReadyBriefChatMessage,
-  createStatusChatMessage,
-  getStoredFollowUpChatHistory,
-  mergeChatMessages,
-  storeFollowUpChatHistory,
-} from '../../lib/followUpChatbot/chatHistoryStorage'
-import {
-  getUnresolvedNextQuestions,
-  mapSessionQuestions,
+  createFinalizedReadyBriefViewModel,
+  getFollowUpTranscriptMessages,
+  mapFollowUpCurrentQuestion,
+  mapFollowUpSessionQuestions,
   type ActiveFollowUpQuestion,
-} from '../../lib/followUpChatbot/questions'
-import {
-  getErrorMessage,
-  resolvePlanningRecovery,
-} from '../../lib/followUpChatbot/recovery'
+} from '../../lib/followUpChatbot/sessionFlow'
 import { canFinalizePlanning } from '../../lib/planningPredicates'
 import type { FinalizedProject } from '../../lib/planningWorkflow'
 import type {
-  ChatMessage,
   FollowUpChatbotViewModel,
   ReadyBriefViewModel,
 } from '../../types/chatbotViewModel'
-import { createFollowUpQuestionWorkflow } from '../../lib/followUpChatbot/workflow'
-import {
-  useFinalizePlanningWhenReady,
-  useMountedRef,
-  usePollNextFollowUpQuestion,
-  useRefreshPlanningSessionOnChatbotEntry,
-  useSyncInitialPlanningSession,
-} from './followUpChatbot/useFollowUpPlanningEffects'
-
-const FINALIZE_PROGRESS_MESSAGE_INTERVAL_MS = 20_000
+import { useFinalizePlanningWhenReady } from './followUpChatbot/useFinalizePlanningWhenReady'
+import { useFollowUpChatHistory } from './followUpChatbot/useFollowUpChatHistory'
+import { useMountedRef } from './followUpChatbot/useMountedRef'
+import { usePollNextFollowUpQuestion } from './followUpChatbot/usePollNextFollowUpQuestion'
+import { useRefreshPlanningSessionOnChatbotEntry } from './followUpChatbot/useRefreshPlanningSessionOnChatbotEntry'
+import { useSubmitFollowUpAnswer } from './followUpChatbot/useSubmitFollowUpAnswer'
+import { useSyncInitialPlanningSession } from './followUpChatbot/useSyncInitialPlanningSession'
 
 interface UseFollowUpChatbotParams {
   projectId: string
@@ -55,14 +34,7 @@ interface UseFollowUpChatbotParams {
   onSessionChange?: (nextSession: PlanningSession) => void
 }
 
-function scheduleChatHistoryTask(task: () => void): () => void {
-  const timeoutId = window.setTimeout(task, 0)
-
-  return () => {
-    window.clearTimeout(timeoutId)
-  }
-}
-
+/** 후속 질문 챗봇의 전체 상태와 동작을 조립하는 최상위 오케스트레이션 훅. */
 export function useFollowUpChatbot({
   projectId,
   initialSession,
@@ -70,15 +42,13 @@ export function useFollowUpChatbot({
   onSessionChange,
 }: UseFollowUpChatbotParams): FollowUpChatbotViewModel {
   const [session, setSession] = useState<PlanningSession | null>(initialSession)
-  const [questionQueue, setQuestionQueue] = useState<ActiveFollowUpQuestion[]>(() => mapSessionQuestions(initialSession))
+  const [questionQueue, setQuestionQueue] = useState<ActiveFollowUpQuestion[]>(() => mapFollowUpSessionQuestions(initialSession))
   const [answer, setAnswer] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isComplete, setIsComplete] = useState(false)
   const [readyBrief, setReadyBrief] = useState<ReadyBriefViewModel | null>(null)
   const [stageMessage, setStageMessage] = useState<FollowUpStageMessage>(FOLLOW_UP_STAGE_MESSAGES.waitingQuestion)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
-  const [chatHistoryProjectId, setChatHistoryProjectId] = useState<string | null>(null)
 
   const isPollingRef = useRef(false)
   const isFinalizingRef = useRef(false)
@@ -86,164 +56,80 @@ export function useFollowUpChatbot({
   const refreshedProjectIdRef = useRef<string | null>(null)
   const appliedSessionRef = useRef<PlanningSession | null>(null)
   const isMountedRef = useMountedRef()
-  const isCurrentChatHistoryLoaded = chatHistoryProjectId === projectId
+
+  const currentQuestion = useMemo(() => (
+    questionQueue[0] ?? null
+  ), [questionQueue])
+  const currentQuestions = useMemo(
+    () => mapFollowUpCurrentQuestion(currentQuestion),
+    [currentQuestion]
+  )
+  const canFinalizeCurrentPlanning = canFinalizePlanning(session)
+  const isReadyForApproval = Boolean(session?.readyForApproval)
+  const isRevising = session?.planningMode === 'revise'
+
+  const serverTranscriptMessages = useMemo(
+    () => getFollowUpTranscriptMessages(session),
+    [session]
+  )
+
+  const {
+    chatHistory,
+    isCurrentChatHistoryLoaded,
+    appendChatMessages,
+    appendReadyBriefMessage,
+    removeReadyBriefMessages,
+  } = useFollowUpChatHistory({
+    projectId,
+    enabled,
+    serverTranscriptMessages,
+    currentQuestion,
+    isSubmitting,
+    readyBrief,
+    errorMessage,
+    stageMessage,
+  })
 
   const applySession = useCallback((nextSession: PlanningSession) => {
-    const nextQuestions = mapSessionQuestions(nextSession)
+    const nextQuestions = mapFollowUpSessionQuestions(nextSession)
 
     appliedSessionRef.current = nextSession
     setSession(nextSession)
     if (nextQuestions.length > 0) {
       setIsComplete(false)
       setReadyBrief(null)
-      setChatHistory((prev) => prev.filter((message) => message.kind !== 'readyBrief'))
+      removeReadyBriefMessages()
     }
     onSessionChange?.(nextSession)
-  }, [onSessionChange])
-
-  const appendChatMessages = useCallback((messages: ChatMessage[]) => {
-    setChatHistory((prev) => appendUniqueChatMessages(prev, messages))
-  }, [])
-
-  const appendStatusMessage = useCallback((text: string) => {
-    setChatHistory((prev) => {
-      const lastMessage = prev[prev.length - 1]
-      if (lastMessage?.kind === 'status' && lastMessage.text === text) {
-        return prev
-      }
-
-      return [...prev, createStatusChatMessage(text)]
-    })
-  }, [])
-
-  const appendErrorMessage = useCallback((text: string) => {
-    setChatHistory((prev) => [...prev, createErrorChatMessage(text)])
-  }, [])
+  }, [onSessionChange, removeReadyBriefMessages])
 
   const applyFinalizedProject = useCallback((finalizedProject: FinalizedProject) => {
     if (!isMountedRef.current) return
 
-    const nextReadyBrief = createReadyBriefViewModel(finalizedProject)
+    const nextReadyBrief = createFinalizedReadyBriefViewModel(finalizedProject)
     setQuestionQueue([])
     setErrorMessage(null)
     setReadyBrief(nextReadyBrief)
     setStageMessage(FOLLOW_UP_STAGE_MESSAGES.readyBrief)
     setIsComplete(true)
-    appendChatMessages([createReadyBriefChatMessage(nextReadyBrief)])
-  }, [appendChatMessages, isMountedRef])
+    appendReadyBriefMessage(nextReadyBrief)
+  }, [appendReadyBriefMessage, isMountedRef])
 
-  const currentQuestion = useMemo(() => (
-    questionQueue[0] ?? null
-  ), [questionQueue])
-  const currentQuestions = useMemo(
-    () => mapCurrentQuestion(currentQuestion),
-    [currentQuestion]
-  )
-  const canFinalizeCurrentPlanning = canFinalizePlanning(session)
-  const isReadyForApproval = Boolean(session?.readyForApproval)
-  const isRevising = session?.planningMode === 'revise'
-  const shouldAppendProgressMessages =
-    enabled &&
-    isCurrentChatHistoryLoaded &&
-    isSubmitting &&
-    !currentQuestion &&
-    !readyBrief &&
-    !errorMessage &&
-    (
-      stageMessage === FOLLOW_UP_STAGE_MESSAGES.waitingQuestion ||
-      stageMessage === FOLLOW_UP_STAGE_MESSAGES.finalizing ||
-      stageMessage === FOLLOW_UP_STAGE_MESSAGES.approving
-    )
-
-  const serverTranscriptMessages = useMemo(() => (
-    createFollowUpQuestionWorkflow(session).transcriptMessages
-  ), [session])
-
-  useEffect(() => {
-    return scheduleChatHistoryTask(() => {
-      const nextChatHistory = getStoredFollowUpChatHistory(projectId)
-      setChatHistory(nextChatHistory)
-      setChatHistoryProjectId(projectId)
-    })
-  }, [projectId])
-
-  useEffect(() => {
-    if (!enabled || !isCurrentChatHistoryLoaded) return
-
-    return scheduleChatHistoryTask(() => {
-      setChatHistory((prev) => (
-        mergeChatMessages(prev, serverTranscriptMessages)
-      ))
-    })
-  }, [enabled, isCurrentChatHistoryLoaded, serverTranscriptMessages])
-
-  useEffect(() => {
-    if (!enabled || !isCurrentChatHistoryLoaded) return
-
-    storeFollowUpChatHistory(projectId, chatHistory)
-  }, [chatHistory, enabled, isCurrentChatHistoryLoaded, projectId])
-
-  useEffect(() => {
-    if (!enabled || !isCurrentChatHistoryLoaded || !currentQuestion) return
-
-    return scheduleChatHistoryTask(() => {
-      appendChatMessages([createQuestionChatMessage(currentQuestion)])
-    })
-  }, [appendChatMessages, currentQuestion, enabled, isCurrentChatHistoryLoaded])
-
-  useEffect(() => {
-    if (!enabled || !isCurrentChatHistoryLoaded || !isSubmitting || readyBrief || errorMessage) return
-    if (stageMessage === FOLLOW_UP_STAGE_MESSAGES.approving) return
-    if (stageMessage === FOLLOW_UP_STAGE_MESSAGES.reflectingAnswer) return
-
-    return scheduleChatHistoryTask(() => {
-      appendStatusMessage(stageMessage)
-    })
-  }, [
-    appendStatusMessage,
+  const submitCurrentAnswer = useSubmitFollowUpAnswer({
+    projectId,
     enabled,
-    errorMessage,
-    isCurrentChatHistoryLoaded,
+    answer,
+    currentQuestion,
     isSubmitting,
-    readyBrief,
-    stageMessage,
-  ])
-
-  useEffect(() => {
-    if (!enabled || !isCurrentChatHistoryLoaded || !errorMessage) return
-
-    return scheduleChatHistoryTask(() => {
-      appendErrorMessage(`${FOLLOW_UP_STAGE_MESSAGES.error} ${errorMessage}`)
-    })
-  }, [appendErrorMessage, enabled, errorMessage, isCurrentChatHistoryLoaded])
-
-  useEffect(() => {
-    if (!shouldAppendProgressMessages) return
-
-    let nextIndex = 0
-    const firstMessage =
-      FOLLOW_UP_FINALIZE_PROGRESS_MESSAGES[nextIndex] ??
-      FOLLOW_UP_STAGE_MESSAGES.approving
-
-    const firstMessageTimeoutId = window.setTimeout(() => {
-      appendStatusMessage(firstMessage)
-      nextIndex = (nextIndex + 1) % FOLLOW_UP_FINALIZE_PROGRESS_MESSAGES.length
-    }, 0)
-
-    const intervalId = window.setInterval(() => {
-      const nextMessage =
-        FOLLOW_UP_FINALIZE_PROGRESS_MESSAGES[nextIndex] ??
-        FOLLOW_UP_STAGE_MESSAGES.approving
-
-      appendStatusMessage(nextMessage)
-      nextIndex = (nextIndex + 1) % FOLLOW_UP_FINALIZE_PROGRESS_MESSAGES.length
-    }, FINALIZE_PROGRESS_MESSAGE_INTERVAL_MS)
-
-    return () => {
-      window.clearTimeout(firstMessageTimeoutId)
-      window.clearInterval(intervalId)
-    }
-  }, [appendStatusMessage, shouldAppendProgressMessages])
+    appendChatMessages,
+    applySession,
+    applyFinalizedProject,
+    setAnswer,
+    setQuestionQueue,
+    setIsSubmitting,
+    setStageMessage,
+    setErrorMessage,
+  })
 
   useSyncInitialPlanningSession({
     enabled,
@@ -299,70 +185,6 @@ export function useFollowUpChatbot({
     setStageMessage,
     setErrorMessage,
   })
-
-  const submitCurrentAnswer = useCallback(() => {
-    const trimmedAnswer = answer.trim()
-    const question = currentQuestion
-    if (!enabled || !trimmedAnswer || !question || isSubmitting) return
-
-    setAnswer('')
-    setIsSubmitting(true)
-    setErrorMessage(null)
-    setStageMessage(FOLLOW_UP_STAGE_MESSAGES.reflectingAnswer)
-    appendChatMessages([
-      createQuestionChatMessage(question),
-      createAnswerChatMessage({
-        questionId: question.questionId,
-        text: trimmedAnswer,
-      }),
-    ])
-
-    void submitPt2FreeText(projectId, {
-      questionId: question.questionId,
-      questionTitle: question.title,
-      question: question.question,
-      referenceInsight: question.referenceInsight,
-      reasonWhyAsked: question.reasonWhyAsked,
-      slotKey: question.slotKey,
-      message: trimmedAnswer,
-    })
-      .then((nextSession) => {
-        applySession(nextSession)
-        const unresolvedNextQuestions = getUnresolvedNextQuestions(nextSession, question)
-        setQuestionQueue((prev) => (
-          unresolvedNextQuestions.length > 0 ? unresolvedNextQuestions : prev.slice(1)
-        ))
-        setErrorMessage(null)
-      })
-      .catch((error) => {
-        void resolvePlanningRecovery(
-          projectId,
-          error,
-          '답변 전송에 실패했습니다.'
-        ).then((recovery) => {
-          if (recovery.finalizedProject) {
-            applyFinalizedProject(recovery.finalizedProject)
-            return
-          }
-
-          setErrorMessage(recovery.errorMessage)
-        }).catch(() => {
-          setErrorMessage(getErrorMessage(error, '답변 전송에 실패했습니다.'))
-        })
-      })
-      .finally(() => {
-        setIsSubmitting(false)
-      })
-  }, [
-    answer,
-    appendChatMessages,
-    applyFinalizedProject,
-    applySession,
-    currentQuestion,
-    enabled,
-    isSubmitting,
-    projectId,
-  ])
 
   return useMemo((): FollowUpChatbotViewModel => ({
     messages: isCurrentChatHistoryLoaded ? chatHistory : [],

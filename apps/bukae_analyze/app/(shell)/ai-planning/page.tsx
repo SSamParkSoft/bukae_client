@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { PageTitle } from '@/components/page/PageTitle'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
-import { AiPlanningPageClient } from './_components/AiPlanningPageClient'
+import { AiPlanningFlow } from '@/features/aiPlanning'
 
 type AiPlanningMode = 'default' | 'chatbot'
 
@@ -30,7 +30,7 @@ export default async function AiPlanningPage({
 
   if (resolvedMode === 'chatbot') {
     return (
-      <AiPlanningPageClient
+      <AiPlanningFlow
         projectId={resolvedProjectId}
         mode={resolvedMode}
         generationRequestId={resolvedGenerationRequestId}
@@ -45,7 +45,7 @@ export default async function AiPlanningPage({
         description="레퍼런스 영상 분석을 바탕으로 질문에 답해 주세요. AI가 다음 영상의 기획 방향을 제안해 드릴게요."
       />
       <div className="mx-6 mt-6 mb-10 h-px bg-white/40" />
-      <AiPlanningPageClient
+      <AiPlanningFlow
         projectId={resolvedProjectId}
         mode={resolvedMode}
         generationRequestId={resolvedGenerationRequestId}

@@ -34,10 +34,10 @@ export function AuthSessionBootstrap() {
               const user = await syncServerAccessToken(refreshed.accessToken)
               if (!cancelled) useAuthStore.getState().setUser(user)
             } catch {
-              if (!cancelled) useAuthStore.getState().clearToken()
+              if (!cancelled) useAuthStore.getState().clearUser()
             }
           } else {
-            if (!cancelled) useAuthStore.getState().clearToken()
+            if (!cancelled) useAuthStore.getState().clearUser()
           }
           return
         }
@@ -47,7 +47,7 @@ export function AuthSessionBootstrap() {
         useAuthStore.getState().setUser(user)
       } catch {
         if (cancelled) return
-        useAuthStore.getState().clearToken()
+        useAuthStore.getState().clearUser()
       }
     }
 

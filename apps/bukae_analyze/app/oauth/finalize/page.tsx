@@ -32,7 +32,7 @@ function OAuthFinalizeHandler() {
         clearServerAccessToken().catch((clearError) => {
           console.warn('[OAuthFinalize] clear server access token failed:', clearError)
         })
-        useAuthStore.getState().clearToken()
+        useAuthStore.getState().clearUser()
         router.replace('/login')
       }
     }

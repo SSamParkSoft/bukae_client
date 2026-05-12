@@ -48,7 +48,7 @@ export const apiFetch: ApiFetcher = async (
   } catch (err) {
     if (isAuthError(err)) {
       await clearServerAccessToken().catch(() => {})
-      useAuthStore.getState().clearToken()
+      useAuthStore.getState().clearUser()
     }
     throw err
   }

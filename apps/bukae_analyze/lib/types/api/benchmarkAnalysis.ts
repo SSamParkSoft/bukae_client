@@ -64,12 +64,21 @@ const HookInsightBoxSchema = z.object({
   viewerPositioning: z.string().optional(),
 })
 
+const ScenePacingMetricsSchema = z.object({
+  basis: z.string().optional(),
+  cut_count: z.number().optional(),
+  duration_sec: z.number().optional(),
+  avg_cut_duration_sec: z.number().optional(),
+  cut_density_per_10_sec: z.number().optional(),
+})
+
 const HookTabSchema = z.object({
   status: z.string().optional(),
   coreCard: HookCoreCardSchema.optional(),
   evidence: z.array(z.string()).optional(),
   insightBox: HookInsightBoxSchema.optional(),
   coreAnalysis: z.string().optional(),
+  scene_pacing_metrics: ScenePacingMetricsSchema.optional(),
 })
 
 const SceneCaptureSchema = z.object({
@@ -203,6 +212,7 @@ export const BenchmarkAnalysisRawResponseSchema = BenchmarkAnalysisPollingSchema
         })
         .optional(),
       thumbnail_analysis: ThumbnailTabSchema.optional(),
+      scene_pacing_metrics: ScenePacingMetricsSchema.optional(),
     })
     .optional(),
   hookSummary: z.string().nullable().optional(),

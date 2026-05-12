@@ -5,6 +5,24 @@ import type {
   ShootingSceneViewModel,
 } from '../types/viewModel'
 
+function formatSceneName(name: string): string {
+  // "scene_1_hook" → "hook", "scene_2_problem" → "problem"
+  return name.replace(/^scene_\d+_/, '')
+}
+
+function formatDirectorNote(value: string): string[] {
+  const trimmed = value.trim()
+  if (!trimmed) return []
+
+  const sentences = trimmed
+    .replace(/(세요|니다)\.\s+/g, '$1.\n')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  return sentences.length > 0 ? sentences : [trimmed]
+}
+
 function formatSentenceBreaks(value: string): string[] {
   const trimmed = value.trim()
   if (!trimmed) return []
@@ -46,7 +64,7 @@ function compactItems(
 export function mapShootingGuideToViewModel(domain: ShootingGuide): ShootingGuideViewModel {
   return {
     scenes: domain.scenes.map((scene): ShootingSceneViewModel => ({
-      sceneLabel: `SCENE ${scene.sceneNumber} : ${scene.sceneName}`,
+      sceneLabel: `SCENE ${scene.sceneNumber} : ${formatSceneName(scene.sceneName)}`,
       durationLabel: `${scene.startTimeSec.toFixed(1)}s − ${scene.endTimeSec.toFixed(1)}s`,
       description: scene.description,
       visualGuideItems: compactItems([
@@ -59,13 +77,20 @@ export function mapShootingGuideToViewModel(domain: ShootingGuide): ShootingGuid
       ]),
       audioScriptItems: compactItems([
         toContentItem('나레이션', scene.audioNarration ?? scene.audioScript),
-        toContentItem('필수 멘트', scene.mustSay),
+        (() => {
+          const item = toContentItem('필수 멘트', scene.mustSay)
+          return item ? { ...item, withBullet: true } : null
+        })(),
       ]),
       subtitleScriptItems: compactItems([
         toContentItem('자막', scene.subtitleText ?? scene.subtitleScript),
       ]),
       planningBasisItems: compactItems([
-        toContentItem('AI 디렉팅', scene.directorNote ?? scene.planningBasis),
+        (() => {
+          const raw = scene.directorNote ?? scene.planningBasis
+          if (!raw?.trim()) return null
+          return { label: 'AI 디렉팅', lines: formatDirectorNote(raw), withBullet: true, withLeading: true }
+        })(),
         toContentItem('감정 목표', scene.emotionTarget),
         toContentItem('증거 요구사항', scene.proofRequirement),
         toContentItem('증거 삽입', scene.proofInsertion),

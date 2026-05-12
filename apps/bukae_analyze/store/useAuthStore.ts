@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { clearAnalyzeWorkflowStorage } from '@/components/workflow/lib/analyzeWorkflowStorage'
 
 interface AuthUser {
   name: string
@@ -9,15 +8,11 @@ interface AuthUser {
 interface AuthStore {
   user: AuthUser | null
   setUser: (user: AuthUser) => void
-  clearToken: () => void
-  clearAnalyzeWorkflow: () => void
+  clearUser: () => void
 }
 
 export const useAuthStore = create<AuthStore>()((set) => ({
   user: null,
   setUser: (user) => set({ user }),
-  clearToken: () => set({ user: null }),
-  clearAnalyzeWorkflow: () => {
-    clearAnalyzeWorkflowStorage()
-  },
+  clearUser: () => set({ user: null }),
 }))
