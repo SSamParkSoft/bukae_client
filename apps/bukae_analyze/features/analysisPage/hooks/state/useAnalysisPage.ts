@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { mapVideoAnalysisToViewModel } from '@/features/videoAnalysis/lib/mapVideoAnalysisToViewModel'
 import type { VideoAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
-import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
 import type { ResolvedAppError } from '@/lib/errors/appError'
 import type { AnalysisProgressState } from '@/lib/types/domain'
@@ -43,7 +42,6 @@ export function useAnalysisPage(
   initialError?: ResolvedAppError | null
 ): AnalysisPageState {
   const [activeTab, setActiveTab] = useState<AnalysisTabId>('thumbnail')
-  const markAnalysisCompleted = useAnalyzeWorkflowStore((state) => state.markAnalysisCompleted)
   const { status, isCompleted, errorType, errorMessage, appError, result, progress } = useAnalysisResource(
     projectId,
     initialSnapshot,
@@ -64,9 +62,8 @@ export function useAnalysisPage(
 
   useEffect(() => {
     if (!hasCompletedAnalysisWorkflow) return
-    markAnalysisCompleted(projectId)
     markWorkflowStepCompleted(projectId, 'benchmark-analysis')
-  }, [hasCompletedAnalysisWorkflow, markAnalysisCompleted, projectId])
+  }, [hasCompletedAnalysisWorkflow, projectId])
 
   return {
     activeTab,

@@ -7,6 +7,7 @@ import { submitIntakeCommand } from '@/lib/services/planning'
 import { usePlanningStore } from '@/store/usePlanningStore'
 import type { AnalyzeWorkflowRouteState } from '@/features/analyzeWorkflow/hooks/useAnalyzeWorkflowRouteState'
 import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
+import { getPlanningSetupAnswerSnapshot } from '@/features/planningSetup/lib/planningSetupAnswerStorage'
 import {
   hasSubmittedIntake,
   hasCompletedStep,
@@ -28,7 +29,6 @@ export function usePlanningSetupStepSubmission(
 ): PlanningSetupStepSubmissionState {
   const router = useRouter()
   const { projectId, generationRequestId } = routeState
-  const planningAnswers = usePlanningStore((state) => state.answers)
   const isSubmittingPlanningSetup = usePlanningStore((state) => state.isSubmitting)
   const setSubmitting = usePlanningStore((state) => state.setSubmitting)
   const setSubmitError = usePlanningStore((state) => state.setSubmitError)
@@ -36,6 +36,7 @@ export function usePlanningSetupStepSubmission(
   async function submitPlanningSetupOnceAndOpenNextStep(nextPath: string) {
     if (!projectId || isSubmittingPlanningSetup) return
 
+    const planningAnswers = getPlanningSetupAnswerSnapshot(projectId)
     const validationError = validatePlanningSetupAnswers(planningAnswers)
     if (validationError) {
       setSubmitError(validationError)

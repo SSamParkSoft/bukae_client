@@ -1,1 +1,1 @@
-export { AiPlanningPageClient } from './ui/AiPlanningPageClient'
+export { AiPlanningFlow } from './ui/AiPlanningFlow'

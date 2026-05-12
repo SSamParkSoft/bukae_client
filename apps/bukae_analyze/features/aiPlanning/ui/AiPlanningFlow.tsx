@@ -54,7 +54,7 @@ function isCurrentLocalPt1PlanningSnapshotState(
   return state.projectId === projectId
 }
 
-export function AiPlanningPageClient({
+export function AiPlanningFlow({
   projectId,
   mode,
   generationRequestId,

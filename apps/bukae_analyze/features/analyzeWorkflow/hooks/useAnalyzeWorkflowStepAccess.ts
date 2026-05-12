@@ -3,10 +3,14 @@
 import { useEffect, useMemo, useSyncExternalStore } from 'react'
 import { validatePlanningSetupAnswers } from '@/features/planningSetup/lib/intakeRequest'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
-import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { usePlanningStore } from '@/store/usePlanningStore'
 import {
+  getPlanningSetupAnswerSnapshot,
+  subscribePlanningSetupAnswerChanges,
+} from '@/features/planningSetup/lib/planningSetupAnswerStorage'
+import {
   getMaxAccessibleStepIndex,
+  hasCompletedStep,
   migrateIntakeSubmissionStorage,
   subscribeWorkflowStepCompletionChanges,
 } from '@/lib/storage/workflowStepCompletionStorage'
@@ -33,11 +37,17 @@ export function useAnalyzeWorkflowStepAccess(
     isAiPlanningStep,
     isChatbotMode,
   } = routeState
-  const planningAnswers = usePlanningStore((state) => state.answers)
   const isSubmittingPlanningSetup = usePlanningStore((state) => state.isSubmitting)
-  const hasCompletedAnalysis = useAnalyzeWorkflowStore((state) => (
-    projectId ? state.isAnalysisCompleted(projectId) : false
-  ))
+  const planningAnswers = useSyncExternalStore(
+    subscribePlanningSetupAnswerChanges,
+    () => projectId ? getPlanningSetupAnswerSnapshot(projectId) : getPlanningSetupAnswerSnapshot(''),
+    () => getPlanningSetupAnswerSnapshot('')
+  )
+  const hasCompletedAnalysis = useSyncExternalStore(
+    subscribeWorkflowStepCompletionChanges,
+    () => projectId ? hasCompletedStep(projectId, 'benchmark-analysis') : false,
+    () => false
+  )
   const canProceedAiPlanning = useAiPlanningStore((state) => state.canProceed)
   const isAdvancingAiPlanning = useAiPlanningStore((state) => state.isAdvancing)
   const aiPlanningNextTarget = useAiPlanningStore((state) => state.nextTarget)

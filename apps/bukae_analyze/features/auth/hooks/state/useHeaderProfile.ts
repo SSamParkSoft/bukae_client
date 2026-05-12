@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import type { CurrentUser } from '@/lib/services/auth'
 import { useAuthStore } from '@/store/useAuthStore'
 import { logout } from '@/lib/services/auth'
+import { clearAnalyzeWorkflowStorage } from '@/lib/storage/analyzeWorkflowStorage'
 
 export interface HeaderProfileState {
   name: string
@@ -19,11 +20,11 @@ export function useHeaderProfile(
   const resolvedUser = user ?? initialUser
 
   const handleLogout = async () => {
-    const { clearAnalyzeWorkflow, clearToken } = useAuthStore.getState()
+    const { clearUser } = useAuthStore.getState()
 
     await logout().catch(() => {})
-    clearAnalyzeWorkflow()
-    clearToken()
+    clearAnalyzeWorkflowStorage()
+    clearUser()
     router.replace('/login')
   }
 

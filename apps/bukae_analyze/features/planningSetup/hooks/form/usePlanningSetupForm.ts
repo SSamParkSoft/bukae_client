@@ -7,7 +7,6 @@ import {
   getStoredPlanningSetupAnswers,
   storePlanningSetupAnswers,
 } from '@/features/planningSetup/lib/planningSetupAnswerStorage'
-import { usePlanningStore } from '@/store/usePlanningStore'
 
 export interface PlanningSetupForm {
   answers: PlanningSetupAnswers
@@ -21,7 +20,6 @@ export function usePlanningSetupForm(
   const [answers, setAnswers] = useState<PlanningSetupAnswers>(legacyInitialAnswers)
   const [isLoaded, setIsLoaded] = useState(false)
   const [loadedProjectId, setLoadedProjectId] = useState<string | null>(null)
-  const setStoreAnswers = usePlanningStore(state => state.setAnswers)
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -29,7 +27,6 @@ export function usePlanningSetupForm(
       const nextAnswers = storedAnswers ?? legacyInitialAnswers
 
       setAnswers(nextAnswers)
-      setStoreAnswers(nextAnswers)
       setLoadedProjectId(projectId)
       setIsLoaded(true)
 
@@ -41,15 +38,14 @@ export function usePlanningSetupForm(
     return () => {
       window.clearTimeout(timeoutId)
     }
-  }, [legacyInitialAnswers, projectId, setStoreAnswers])
+  }, [legacyInitialAnswers, projectId])
 
   useEffect(() => {
     if (!isLoaded) return
     if (loadedProjectId !== projectId) return
 
-    setStoreAnswers(answers)
     storePlanningSetupAnswers(projectId, answers)
-  }, [answers, isLoaded, loadedProjectId, projectId, setStoreAnswers])
+  }, [answers, isLoaded, loadedProjectId, projectId])
 
   const update = useCallback((partial: Partial<PlanningSetupAnswers>) => {
     setAnswers(prev => ({ ...prev, ...partial }))
