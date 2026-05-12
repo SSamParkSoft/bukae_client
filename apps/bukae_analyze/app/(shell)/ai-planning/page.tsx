@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { PageTitle } from '@/components/page/PageTitle'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
-import { AiPlanningPageClient } from './_components/AiPlanningPageClient'
+import { AiPlanningPageClient } from '@/features/aiPlanning'
 
 type AiPlanningMode = 'default' | 'chatbot'
 

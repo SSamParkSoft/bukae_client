@@ -4,7 +4,7 @@ import { getServerAccessToken } from '@/lib/server/authSession'
 import { fetchGenerationBootstrap } from '@/lib/server/generationBootstrap'
 import type { Generation } from '@/lib/types/domain'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
-import { ShootingGuidePageClient } from './_components/ShootingGuidePageClient'
+import { ShootingGuidePageClient } from '@/features/shootingGuide'
 
 export default async function ShootingGuidePage({
   searchParams,
@@ -25,9 +25,9 @@ export default async function ShootingGuidePage({
   if (accessToken && resolvedProjectId && resolvedGenerationRequestId) {
     try {
       generation = await fetchGenerationBootstrap({
-      accessToken,
-      projectId: resolvedProjectId,
-      generationRequestId: resolvedGenerationRequestId,
+        accessToken,
+        projectId: resolvedProjectId,
+        generationRequestId: resolvedGenerationRequestId,
       })
     } catch (error) {
       initialError = resolveAppError(error, 'generation_bootstrap')

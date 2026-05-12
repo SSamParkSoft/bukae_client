@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { PageTitle } from '@/components/page/PageTitle'
 import { parsePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
-import { PlanningSetupPageClient } from './_components/PlanningSetupPageClient'
+import { PlanningSetupPageClient } from '@/features/planningSetup'
 
 export default async function PlanningSetupPage({
   searchParams,

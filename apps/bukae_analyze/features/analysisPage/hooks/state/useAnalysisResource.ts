@@ -12,7 +12,7 @@ import {
   isAnalysisTerminalFailure,
   type AnalysisResourceSnapshotState,
   type AnalysisResourceState,
-} from '@/features/analysisPage/lib/analysisResource'
+} from '@/lib/utils/analysisResource'
 
 const POLL_INTERVAL_MS = 2500
 const COMPLETED_RESULT_RETRY_MS = 1000

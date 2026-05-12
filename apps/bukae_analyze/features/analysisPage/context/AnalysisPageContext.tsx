@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext } from 'react'
-import type { AnalysisResourceSnapshotState } from '@/features/analysisPage/lib/analysisResource'
+import type { AnalysisResourceSnapshotState } from '@/lib/utils/analysisResource'
 import type { ResolvedAppError } from '@/lib/errors/appError'
 import { useAnalysisPage, type AnalysisPageState } from '../hooks/state/useAnalysisPage'
 

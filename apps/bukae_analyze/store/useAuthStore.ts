@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { clearAnalyzeWorkflowStorage } from '@/components/workflow/lib/analyzeWorkflowStorage'
+import { clearAnalyzeWorkflowStorage } from '@/lib/storage/analyzeWorkflowStorage'
 
 interface AuthUser {
   name: string

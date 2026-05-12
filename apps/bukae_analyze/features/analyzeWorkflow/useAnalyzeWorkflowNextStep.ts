@@ -1,12 +1,12 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useAiPlanningStepAdvance } from '@/components/workflow/commands/useAiPlanningStepAdvance'
-import { usePlanningSetupStepSubmission } from '@/components/workflow/commands/usePlanningSetupStepSubmission'
-import { useAnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
-import { useAnalyzeWorkflowStepAccess } from '@/components/workflow/hooks/useAnalyzeWorkflowStepAccess'
-import { buildAnalyzeWorkflowStepPath } from '@/components/workflow/lib/analyzeWorkflowSteps'
-import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowStepCompletionStorage'
+import { useAiPlanningStepAdvance } from '@/features/analyzeWorkflow/commands/useAiPlanningStepAdvance'
+import { usePlanningSetupStepSubmission } from '@/features/analyzeWorkflow/commands/usePlanningSetupStepSubmission'
+import { useAnalyzeWorkflowRouteState } from '@/features/analyzeWorkflow/hooks/useAnalyzeWorkflowRouteState'
+import { useAnalyzeWorkflowStepAccess } from '@/features/analyzeWorkflow/hooks/useAnalyzeWorkflowStepAccess'
+import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
+import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
 
 export interface AnalyzeWorkflowNextStepState {
   shouldRenderNextStepButton: boolean

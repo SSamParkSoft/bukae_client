@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react'
 import { mapVideoAnalysisToViewModel } from '@/features/videoAnalysis/lib/mapVideoAnalysisToViewModel'
 import type { VideoAnalysisViewModel } from '@/features/videoAnalysis/types/viewModel'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
-import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowStepCompletionStorage'
+import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
 import type { ResolvedAppError } from '@/lib/errors/appError'
 import type { AnalysisProgressState } from '@/lib/types/domain'
 import type {
   AnalysisResourceErrorType,
   AnalysisResourceSnapshotState,
-} from '@/features/analysisPage/lib/analysisResource'
+} from '@/lib/utils/analysisResource'
 import { useAnalysisResource } from './useAnalysisResource'
 
 const TABS = [

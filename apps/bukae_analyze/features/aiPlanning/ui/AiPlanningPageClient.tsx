@@ -8,7 +8,7 @@ import { usePlanningSession } from '@/features/aiPlanning/hooks/state/usePlannin
 import { usePt1AnswerAutoSubmission } from '@/features/aiPlanning/hooks/state/usePt1AnswerAutoSubmission'
 import { usePt1AnswerDrafts } from '@/features/aiPlanning/hooks/state/usePt1AnswerDrafts'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
-import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowStepCompletionStorage'
+import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
 import { useDebouncedValue } from '@/app/_hooks/useDebouncedValue'
 import { createAppError } from '@/lib/errors/appError'
 import {

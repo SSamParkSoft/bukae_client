@@ -1,7 +1,9 @@
 import type { CurrentUser } from '@/lib/services/auth'
 import { Header } from './Header'
-import { AnalyzeWorkflowProgressSidebar } from '../workflow/AnalyzeWorkflowProgressSidebar'
-import { AnalyzeWorkflowNextStepSidebar } from '../workflow/AnalyzeWorkflowNextStepSidebar'
+import {
+  AnalyzeWorkflowNextStepSidebar,
+  AnalyzeWorkflowProgressSidebar,
+} from '@/features/analyzeWorkflow'
 
 export function AppShell({
   children,

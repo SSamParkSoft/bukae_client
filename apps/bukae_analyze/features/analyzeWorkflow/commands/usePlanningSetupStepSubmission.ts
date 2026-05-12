@@ -5,14 +5,14 @@ import { mapPlanningSetupAnswersToIntakeRequest, validatePlanningSetupAnswers } 
 import { resolveAppError } from '@/lib/errors/appError'
 import { submitIntakeCommand } from '@/lib/services/planning'
 import { usePlanningStore } from '@/store/usePlanningStore'
-import type { AnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
-import { buildAnalyzeWorkflowStepPath } from '@/components/workflow/lib/analyzeWorkflowSteps'
+import type { AnalyzeWorkflowRouteState } from '@/features/analyzeWorkflow/hooks/useAnalyzeWorkflowRouteState'
+import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
 import {
   hasSubmittedIntake,
   hasCompletedStep,
   markIntakeSubmitted,
   markWorkflowStepCompleted,
-} from '@/components/workflow/lib/workflowStepCompletionStorage'
+} from '@/lib/storage/workflowStepCompletionStorage'
 
 function getPlanningSetupSubmitErrorMessage(error: unknown): string {
   return resolveAppError(error, 'planning_setup_submit').message

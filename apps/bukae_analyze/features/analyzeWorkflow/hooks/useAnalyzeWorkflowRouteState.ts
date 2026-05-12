@@ -5,7 +5,7 @@ import {
   ANALYZE_WORKFLOW_STEPS,
   getAnalyzeWorkflowStepIndex,
   type AnalyzeWorkflowStep,
-} from '@/components/workflow/lib/analyzeWorkflowSteps'
+} from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
 
 export interface AnalyzeWorkflowRouteState {
   pathname: string

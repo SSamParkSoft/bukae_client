@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { clearAnalyzeWorkflowStorage } from '@/components/workflow/lib/analyzeWorkflowStorage'
+import { clearAnalyzeWorkflowStorage } from '@/lib/storage/analyzeWorkflowStorage'
 
 export function AnalyzeHomeStorageReset() {
   useEffect(() => {

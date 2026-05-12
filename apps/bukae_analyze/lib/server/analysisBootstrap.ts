@@ -5,7 +5,7 @@ import { getProjectPollingStateWithFetcher } from '@/lib/services/projects'
 import {
   createAnalysisResourceSnapshot,
   type AnalysisResourceSnapshotState,
-} from '@/features/analysisPage/lib/analysisResource'
+} from '@/lib/utils/analysisResource'
 import { createServerApiFetcher } from '@/lib/server/apiClient'
 
 export async function fetchAnalysisBootstrap(params: {

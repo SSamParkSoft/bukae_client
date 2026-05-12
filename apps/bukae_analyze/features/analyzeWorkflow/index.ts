@@ -2,7 +2,7 @@
  * 분석 워크플로우 실행 지도
  *
  * app/(shell)/layout.tsx
- *   -> components/layout/AppShell
+ *   -> app/(shell)/_components/AppShell
  *      -> AnalyzeWorkflowProgressSidebar
  *         - 분석 워크플로우의 좌측 진행 상태 영역을 렌더링한다.
  *         - AnalyzeWorkflowStepList를 표시한다.
@@ -64,3 +64,5 @@
  *      - 제출된 intake draft, chatbot session, generation request를 저장하는
  *        mutation cache다.
  */
+export { AnalyzeWorkflowNextStepSidebar } from './AnalyzeWorkflowNextStepSidebar'
+export { AnalyzeWorkflowProgressSidebar } from './AnalyzeWorkflowProgressSidebar'

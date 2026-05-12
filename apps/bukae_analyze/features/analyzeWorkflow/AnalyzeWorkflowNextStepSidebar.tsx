@@ -1,13 +1,13 @@
 'use client'
 
 import { AnimatePresence } from 'framer-motion'
-import { LAYOUT } from '@/components/layout/layout-constants'
-import { useAnalyzeWorkflowNextStep } from '@/components/workflow/useAnalyzeWorkflowNextStep'
-import { WorkflowStepArrowButton } from '@/components/workflow/ui/WorkflowStepArrowButton'
+import { LAYOUT } from '@/lib/config/layout'
+import { useAnalyzeWorkflowNextStep } from '@/features/analyzeWorkflow/useAnalyzeWorkflowNextStep'
+import { WorkflowStepArrowButton } from '@/features/analyzeWorkflow/ui/WorkflowStepArrowButton'
 import {
   WorkflowStepStatusCards,
   type WorkflowStepStatusCard,
-} from '@/components/workflow/ui/WorkflowStepStatusCards'
+} from '@/features/analyzeWorkflow/ui/WorkflowStepStatusCards'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 
 const PT1_SAVE_STATUS_CARDS: WorkflowStepStatusCard[] = [

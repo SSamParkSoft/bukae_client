@@ -9,7 +9,7 @@ import {
   getMaxAccessibleStepIndex,
   migrateIntakeSubmissionStorage,
   subscribeWorkflowStepCompletionChanges,
-} from '@/components/workflow/lib/workflowStepCompletionStorage'
+} from '@/lib/storage/workflowStepCompletionStorage'
 import type { AnalyzeWorkflowRouteState } from './useAnalyzeWorkflowRouteState'
 
 export interface AnalyzeWorkflowStepAccessState {

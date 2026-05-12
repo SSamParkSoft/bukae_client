@@ -1,12 +1,14 @@
 import { redirect } from 'next/navigation'
 import { PageTitle } from '@/components/page/PageTitle'
-import { AnalysisPageProvider } from '@/features/analysisPage/context/AnalysisPageContext'
+import {
+  AnalysisPageContent,
+  AnalysisPageProvider,
+  AnalysisReferenceUrlBar,
+} from '@/features/analysisPage'
 import { resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 import { fetchAnalysisBootstrap } from '@/lib/server/analysisBootstrap'
 import { getServerAccessToken } from '@/lib/server/authSession'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
-import { AnalysisPageContent } from './_components/AnalysisPageContent'
-import { AnalysisReferenceUrlBar } from './_components/AnalysisReferenceUrlBar'
 
 export default async function AnalysisPage({
   searchParams,

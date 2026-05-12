@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { FileWarning, RefreshCw } from 'lucide-react'
 import { PageErrorState } from '@/components/errors/PageErrorState'
 import type { ResolvedAppError } from '@/lib/errors/appError'
-import type { AnalysisResourceErrorType } from '@/features/analysisPage/lib/analysisResource'
+import type { AnalysisResourceErrorType } from '@/lib/utils/analysisResource'
 
 type Props = {
   errorType: AnalysisResourceErrorType | null

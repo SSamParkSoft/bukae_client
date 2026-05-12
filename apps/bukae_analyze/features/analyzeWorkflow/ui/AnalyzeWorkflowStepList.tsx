@@ -4,9 +4,9 @@ import Link from 'next/link'
 import {
   ANALYZE_WORKFLOW_STEPS,
   buildAnalyzeWorkflowStepPath,
-} from '@/components/workflow/lib/analyzeWorkflowSteps'
-import { useAnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
-import { useAnalyzeWorkflowStepAccess } from '@/components/workflow/hooks/useAnalyzeWorkflowStepAccess'
+} from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
+import { useAnalyzeWorkflowRouteState } from '@/features/analyzeWorkflow/hooks/useAnalyzeWorkflowRouteState'
+import { useAnalyzeWorkflowStepAccess } from '@/features/analyzeWorkflow/hooks/useAnalyzeWorkflowStepAccess'
 
 type StepState = 'completed' | 'active' | 'upcoming'
 

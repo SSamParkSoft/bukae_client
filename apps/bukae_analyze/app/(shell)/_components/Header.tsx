@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { CurrentUser } from '@/lib/services/auth'
-import { LAYOUT } from './layout-constants'
+import { LAYOUT } from '@/lib/config/layout'
 import logo from '@/public/logo.svg'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useHeaderProfile } from '@/features/auth/hooks/state/useHeaderProfile'

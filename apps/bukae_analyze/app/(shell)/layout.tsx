@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { AppShell } from '@/components/layout/AppShell'
+import { AppShell } from './_components/AppShell'
 import { getServerCurrentUser } from '@/lib/server/authSession'
 
 export default async function ShellLayout({

@@ -8,9 +8,9 @@ import { hasPlanningWorkspaceEntryMessage } from '@/features/aiPlanning/lib/plan
 import { waitFinalizedProject } from '@/features/aiPlanning/lib/planningWorkflow'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
-import { markWorkflowStepCompleted } from '@/components/workflow/lib/workflowStepCompletionStorage'
-import type { AnalyzeWorkflowRouteState } from '@/components/workflow/hooks/useAnalyzeWorkflowRouteState'
-import { buildAnalyzeWorkflowStepPath } from '@/components/workflow/lib/analyzeWorkflowSteps'
+import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
+import type { AnalyzeWorkflowRouteState } from '@/features/analyzeWorkflow/hooks/useAnalyzeWorkflowRouteState'
+import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
 import type { PlanningSession } from '@/lib/types/domain'
 
 export interface AiPlanningStepAdvanceState {
