@@ -80,7 +80,12 @@ function normalizeBenchmarkAnalysisResponse(
     failure: raw.failure,
     normalized_analysis_tabs: rawTabs
       ? {
-        hook: rawTabs.hook,
+        hook: {
+          ...rawTabs.hook,
+          scene_pacing_metrics:
+            rawTabs.hook?.scene_pacing_metrics ??
+            raw.analysisRawPayload?.scene_pacing_metrics,
+        },
         source: normalizedSource,
         thumbnail:
           rawTabs.thumbnail ??

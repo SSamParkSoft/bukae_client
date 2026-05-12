@@ -136,6 +136,9 @@ function mapHookAnalysis(dto: BenchmarkAnalysisResponseDto): HookAnalysis {
   const sourceMetadata = dto.normalized_analysis_tabs?.source?.metadata
   const hookRange = hook?.coreCard?.hookRange ?? '0~0초'
   const durationSec = sourceMetadata?.duration_sec
+  const avgCutLengthSec =
+    hook?.scene_pacing_metrics?.avg_cut_duration_sec ??
+    parseAvgCutLengthFromEvidence(hook?.evidence ?? [])
 
   return {
     hookRange,
@@ -144,7 +147,7 @@ function mapHookAnalysis(dto: BenchmarkAnalysisResponseDto): HookAnalysis {
       typeof durationSec === 'number'
         ? durationSec / 60
         : undefined,
-    avgCutLengthSec: parseAvgCutLengthFromEvidence(hook?.evidence ?? []),
+    avgCutLengthSec,
     openingType: hook?.coreCard?.openingType ?? '',
     emotionTrigger: hook?.coreCard?.emotionTrigger ?? '',
     pacing: normalizePacing(hook?.coreCard?.pacing ?? 'slow'),
