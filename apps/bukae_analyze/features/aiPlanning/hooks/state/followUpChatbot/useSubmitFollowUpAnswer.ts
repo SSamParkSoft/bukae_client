@@ -89,7 +89,7 @@ export function useSubmitFollowUpAnswer({
         setErrorMessage(null)
       })
       .catch((error) => {
-        void resolvePlanningRecovery(
+        return resolvePlanningRecovery(
           projectId,
           error,
           '답변 전송에 실패했습니다.'

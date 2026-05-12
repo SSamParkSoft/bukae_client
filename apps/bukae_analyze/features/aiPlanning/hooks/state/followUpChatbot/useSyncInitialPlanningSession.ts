@@ -28,6 +28,7 @@ export function useSyncInitialPlanningSession(params: {
     if (!enabled) return
     if (initialSession && appliedSessionRef.current === initialSession) return
 
+    appliedSessionRef.current = initialSession
     setSession(initialSession)
     setQuestionQueue(mapSessionQuestions(initialSession))
   }, [appliedSessionRef, enabled, initialSession, setQuestionQueue, setSession])

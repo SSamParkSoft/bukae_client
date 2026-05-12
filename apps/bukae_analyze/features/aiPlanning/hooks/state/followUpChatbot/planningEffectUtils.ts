@@ -1,8 +1,8 @@
 import type { PlanningSession } from '@/lib/types/domain'
-import { createFollowUpQuestionWorkflow } from '../../../lib/followUpChatbot/workflow'
-import { canFinalizePlanning } from '../../../lib/planningPredicates'
+import { createFollowUpQuestionWorkflow } from '@/features/aiPlanning/lib/followUpChatbot/workflow'
+import { canFinalizePlanning } from '@/features/aiPlanning/lib/planningPredicates'
 
-export const POLLING_INTERVAL_MS = 2000
+export const POLLING_INTERVAL_MS = 5000
 export const PLANNING_POLLING_LIMIT = 120
 
 export function getPlanningDebugSnapshot(session: PlanningSession | null) {
