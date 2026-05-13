@@ -1,15 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   appendUniqueChatMessages,
   createErrorChatMessage,
   createQuestionChatMessage,
   createReadyBriefChatMessage,
   createStatusChatMessage,
-  getStoredFollowUpChatHistory,
   mergeChatMessages,
-  storeFollowUpChatHistory,
 } from '../../../lib/followUpChatbot/chatHistoryStorage'
 import {
   FOLLOW_UP_FINALIZE_PROGRESS_MESSAGES,
@@ -23,11 +21,17 @@ import type {
 } from '../../../types/chatbotViewModel'
 
 const FINALIZE_PROGRESS_MESSAGE_INTERVAL_MS = 20_000
+const EMPTY_CHAT_MESSAGES: ChatMessage[] = []
+
+interface ChatHistoryState {
+  projectId: string
+  messages: ChatMessage[]
+}
 
 interface UseFollowUpChatHistoryParams {
   projectId: string
   enabled: boolean
-  serverTranscriptMessages: ChatMessage[]  // 세션 transcript — 로컬 히스토리와 merge해 중복 방지
+  serverTranscriptMessages: ChatMessage[]  // 세션 transcript — 현재 탭의 임시 히스토리와 merge해 중복 방지
   currentQuestion: ActiveFollowUpQuestion | null
   isSubmitting: boolean
   readyBrief: ReadyBriefViewModel | null
@@ -43,7 +47,7 @@ function scheduleChatHistoryTask(task: () => void): () => void {
   }
 }
 
-/** 채팅 히스토리를 localStorage와 동기화하고, 메시지 추가·삭제 함수를 제공한다. */
+/** 현재 탭에서만 유지되는 채팅 히스토리와 메시지 추가·삭제 함수를 제공한다. */
 export function useFollowUpChatHistory({
   projectId,
   enabled,
@@ -54,13 +58,32 @@ export function useFollowUpChatHistory({
   errorMessage,
   stageMessage,
 }: UseFollowUpChatHistoryParams) {
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
-  const [chatHistoryProjectId, setChatHistoryProjectId] = useState<string | null>(null)
-  const isCurrentChatHistoryLoaded = chatHistoryProjectId === projectId
+  const [chatHistoryState, setChatHistoryState] = useState<ChatHistoryState>(() => ({
+    projectId,
+    messages: [],
+  }))
+  const isCurrentChatHistoryLoaded = true
+  const currentChatHistory = chatHistoryState.projectId === projectId
+    ? chatHistoryState.messages
+    : EMPTY_CHAT_MESSAGES
+
+  const updateChatHistory = useCallback((
+    updater: (messages: ChatMessage[]) => ChatMessage[]
+  ) => {
+    setChatHistoryState((prev) => {
+      const currentMessages = prev.projectId === projectId
+        ? prev.messages
+        : EMPTY_CHAT_MESSAGES
+
+      return {
+        projectId,
+        messages: updater(currentMessages),
+      }
+    })
+  }, [projectId])
 
   const shouldAppendProgressMessages =
     enabled &&
-    isCurrentChatHistoryLoaded &&
     isSubmitting &&
     !currentQuestion &&
     !readyBrief &&
@@ -72,11 +95,11 @@ export function useFollowUpChatHistory({
     )
 
   const appendChatMessages = useCallback((messages: ChatMessage[]) => {
-    setChatHistory((prev) => appendUniqueChatMessages(prev, messages))
-  }, [])
+    updateChatHistory((prev) => appendUniqueChatMessages(prev, messages))
+  }, [updateChatHistory])
 
   const appendStatusMessage = useCallback((text: string) => {
-    setChatHistory((prev) => {
+    updateChatHistory((prev) => {
       const lastMessage = prev[prev.length - 1]
       if (lastMessage?.kind === 'status' && lastMessage.text === text) {
         return prev
@@ -84,54 +107,32 @@ export function useFollowUpChatHistory({
 
       return [...prev, createStatusChatMessage(text)]
     })
-  }, [])
+  }, [updateChatHistory])
 
   const appendErrorMessage = useCallback((text: string) => {
-    setChatHistory((prev) => [...prev, createErrorChatMessage(text)])
-  }, [])
+    updateChatHistory((prev) => [...prev, createErrorChatMessage(text)])
+  }, [updateChatHistory])
 
   const appendReadyBriefMessage = useCallback((nextReadyBrief: ReadyBriefViewModel) => {
     appendChatMessages([createReadyBriefChatMessage(nextReadyBrief)])
   }, [appendChatMessages])
 
   const removeReadyBriefMessages = useCallback(() => {
-    setChatHistory((prev) => prev.filter((message) => message.kind !== 'readyBrief'))
-  }, [])
+    updateChatHistory((prev) => prev.filter((message) => message.kind !== 'readyBrief'))
+  }, [updateChatHistory])
 
   useEffect(() => {
-    return scheduleChatHistoryTask(() => {
-      const nextChatHistory = getStoredFollowUpChatHistory(projectId)
-      setChatHistory(nextChatHistory)
-      setChatHistoryProjectId(projectId)
-    })
-  }, [projectId])
-
-  useEffect(() => {
-    if (!enabled || !isCurrentChatHistoryLoaded) return
+    if (!enabled) return
 
     return scheduleChatHistoryTask(() => {
-      setChatHistory((prev) => (
+      updateChatHistory((prev) => (
         mergeChatMessages(prev, serverTranscriptMessages)
       ))
     })
-  }, [enabled, isCurrentChatHistoryLoaded, serverTranscriptMessages])
+  }, [enabled, serverTranscriptMessages, updateChatHistory])
 
   useEffect(() => {
-    if (!enabled || !isCurrentChatHistoryLoaded) return
-
-    storeFollowUpChatHistory(projectId, chatHistory)
-  }, [chatHistory, enabled, isCurrentChatHistoryLoaded, projectId])
-
-  useEffect(() => {
-    if (!enabled || !isCurrentChatHistoryLoaded || !currentQuestion) return
-
-    return scheduleChatHistoryTask(() => {
-      appendChatMessages([createQuestionChatMessage(currentQuestion)])
-    })
-  }, [appendChatMessages, currentQuestion, enabled, isCurrentChatHistoryLoaded])
-
-  useEffect(() => {
-    if (!enabled || !isCurrentChatHistoryLoaded || !isSubmitting || readyBrief || errorMessage) return
+    if (!enabled || !isSubmitting || readyBrief || errorMessage) return
     if (stageMessage === FOLLOW_UP_STAGE_MESSAGES.approving) return
     if (stageMessage === FOLLOW_UP_STAGE_MESSAGES.reflectingAnswer) return
 
@@ -142,19 +143,18 @@ export function useFollowUpChatHistory({
     appendStatusMessage,
     enabled,
     errorMessage,
-    isCurrentChatHistoryLoaded,
     isSubmitting,
     readyBrief,
     stageMessage,
   ])
 
   useEffect(() => {
-    if (!enabled || !isCurrentChatHistoryLoaded || !errorMessage) return
+    if (!enabled || !errorMessage) return
 
     return scheduleChatHistoryTask(() => {
       appendErrorMessage(`${FOLLOW_UP_STAGE_MESSAGES.error} ${errorMessage}`)
     })
-  }, [appendErrorMessage, enabled, errorMessage, isCurrentChatHistoryLoaded])
+  }, [appendErrorMessage, enabled, errorMessage])
 
   useEffect(() => {
     if (!shouldAppendProgressMessages) return
@@ -184,8 +184,17 @@ export function useFollowUpChatHistory({
     }
   }, [appendStatusMessage, shouldAppendProgressMessages])
 
+  const visibleChatHistory = useMemo(() => {
+    if (!enabled || !currentQuestion) return currentChatHistory
+
+    return appendUniqueChatMessages(
+      currentChatHistory,
+      [createQuestionChatMessage(currentQuestion)]
+    )
+  }, [currentChatHistory, currentQuestion, enabled])
+
   return {
-    chatHistory,
+    chatHistory: visibleChatHistory,
     isCurrentChatHistoryLoaded,
     appendChatMessages,
     appendReadyBriefMessage,
