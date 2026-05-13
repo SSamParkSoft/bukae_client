@@ -82,6 +82,7 @@ export async function submitPt1AnswerRequests(params: {
   } = params
   let latestSession: PlanningSession | null = null
 
+  // TODO: PT1 bulk answer API가 생기면 질문 순서를 유지한 단일 요청으로 교체한다.
   for (const { questionId, command, signature } of requests) {
     if (isCancelled()) return latestSession
 
