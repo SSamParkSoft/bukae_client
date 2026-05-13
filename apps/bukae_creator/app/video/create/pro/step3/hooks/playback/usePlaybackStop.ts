@@ -77,7 +77,6 @@ export function useHandlersWithStopPlayback<T extends Record<string, StopPlaybac
   stopPlaybackIfPlaying: () => void,
   handlers: T
 ): T {
-  const values = Object.values(handlers)
   return useMemo(() => {
     const result = {} as T
     for (const key of Object.keys(handlers) as (keyof T)[]) {
@@ -89,6 +88,5 @@ export function useHandlersWithStopPlayback<T extends Record<string, StopPlaybac
       result[key] = wrapped as unknown as T[keyof T]
     }
     return result
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers 객체의 값들이 의존성
-  }, [stopPlaybackIfPlaying, ...values])
+  }, [handlers, stopPlaybackIfPlaying])
 }
