@@ -32,13 +32,22 @@ export function createAiPlanningNavigationState(params: {
     answeredQuestionIds,
     isSavingPt1Answers,
   } = params
+  const nextTarget = getAiPlanningStageNextTarget(stage)
+  const briefVersionId = readyBrief?.briefVersionId.trim() || null
+  const canProceed =
+    isAiPlanningStageProceedable(stage) &&
+    (
+      nextTarget !== 'shooting-guide' ||
+      stage === 'pt1_ready_for_generation' ||
+      Boolean(briefVersionId)
+    )
 
   return {
     stage,
-    canProceed: isAiPlanningStageProceedable(stage),
-    nextTarget: getAiPlanningStageNextTarget(stage),
+    canProceed,
+    nextTarget,
     planningSessionId: session?.planningSessionId ?? null,
-    briefVersionId: readyBrief?.briefVersionId ?? null,
+    briefVersionId,
     briefStatus: readyBrief?.status ?? null,
     answeredQuestionIds,
     isSavingPt1Answers,

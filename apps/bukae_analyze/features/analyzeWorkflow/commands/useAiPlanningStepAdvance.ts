@@ -2,10 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { createAppError, resolveAppError } from '@/lib/errors/appError'
-import { startGenerationFromCommand } from '@/lib/services/generations'
 import { enterPlanningWorkspace, getPlanningSession } from '@/lib/services/planning'
 import { hasPlanningWorkspaceEntryMessage } from '@/features/aiPlanning/lib/planningPredicates'
-import { waitFinalizedProject } from '@/features/aiPlanning/lib/planningWorkflow'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
@@ -40,7 +38,6 @@ export function useAiPlanningStepAdvance(
   const getCachedChatbotSession = useAnalyzeWorkflowStore((state) => state.getCachedChatbotSession)
   const cacheChatbotSession = useAnalyzeWorkflowStore((state) => state.cacheChatbotSession)
   const getCachedGenerationRequestId = useAnalyzeWorkflowStore((state) => state.getCachedGenerationRequestId)
-  const cacheGenerationRequestId = useAnalyzeWorkflowStore((state) => state.cacheGenerationRequestId)
 
   async function advanceAiPlanningToNextWorkflowStep(nextPath: string) {
     if (!projectId || isAdvancingAiPlanning) return
@@ -148,44 +145,28 @@ export function useAiPlanningStepAdvance(
     }
 
     if (isChatbotMode) {
-      const activeBriefVersionId = briefVersionId || await waitFinalizedProject(projectId!).then((p) => p.briefVersionId).catch((error) => {
-        setAdvanceError(resolveAppError(error, 'planning_finalize_wait'))
-        return null
-      })
+      const activeBriefVersionId = briefVersionId?.trim() || null
 
       if (activeBriefVersionId) {
         const cachedGenerationRequestId = getCachedGenerationRequestId(activeBriefVersionId)
-        const resolvedGenerationRequestId = cachedGenerationRequestId ?? await startGenerationAndCacheRequestId(activeBriefVersionId).catch((error) => {
-          setAdvanceError(resolveAppError(error, 'generation_start'))
-          return null
-        })
-        if (!resolvedGenerationRequestId) return
         markWorkflowStepCompleted(projectId!, 'generation')
         const params = new URLSearchParams({
           projectId: projectId!,
-          generationRequestId: resolvedGenerationRequestId,
         })
+        if (cachedGenerationRequestId) {
+          params.set('generationRequestId', cachedGenerationRequestId)
+        } else {
+          params.set('briefVersionId', activeBriefVersionId)
+        }
         router.push(`${nextPath}?${params.toString()}`)
         return
       }
 
-      if (!useAiPlanningStore.getState().advanceError) {
-        setAdvanceError(createAppError('unknown', 'generation_start'))
-      }
+      setAdvanceError(createAppError('invalid_project_state', 'generation_start'))
       return
     }
 
     router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId }))
-  }
-
-  async function startGenerationAndCacheRequestId(briefVersionId: string): Promise<string> {
-    const generation = await startGenerationFromCommand(projectId!, {
-      briefVersionId,
-      generationMode: 'single',
-      variantCount: 1,
-    })
-    cacheGenerationRequestId(briefVersionId, generation.generationRequestId)
-    return generation.generationRequestId
   }
 
   return {

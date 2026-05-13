@@ -10,11 +10,13 @@ export default async function ShootingGuidePage({
   searchParams,
 }: {
   searchParams: Promise<{
+    briefVersionId?: string | string[]
     generationRequestId?: string | string[]
     projectId?: string | string[]
   }>
 }) {
-  const { generationRequestId, projectId } = await searchParams
+  const { briefVersionId, generationRequestId, projectId } = await searchParams
+  const resolvedBriefVersionId = resolveSingleSearchParam(briefVersionId)
   const resolvedProjectId = resolveSingleSearchParam(projectId)
   const resolvedGenerationRequestId = resolveSingleSearchParam(generationRequestId)
   const accessToken = await getServerAccessToken()
@@ -42,6 +44,7 @@ export default async function ShootingGuidePage({
       />
       <ShootingGuidePageClient
         projectId={resolvedProjectId}
+        briefVersionId={resolvedBriefVersionId}
         generationRequestId={resolvedGenerationRequestId}
         initialGeneration={generation}
         initialError={initialError}

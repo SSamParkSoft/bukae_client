@@ -11,6 +11,7 @@ export function buildAnalyzeWorkflowStepPath(
   path: string,
   options: {
     projectId: string | null
+    briefVersionId?: string | null
     generationRequestId?: string | null
   }
 ): string {
@@ -22,6 +23,10 @@ export function buildAnalyzeWorkflowStepPath(
 
   if (options.generationRequestId) {
     params.set('generationRequestId', options.generationRequestId)
+  }
+
+  if (options.briefVersionId) {
+    params.set('briefVersionId', options.briefVersionId)
   }
 
   const query = params.toString()
