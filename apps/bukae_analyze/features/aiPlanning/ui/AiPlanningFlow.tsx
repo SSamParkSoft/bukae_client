@@ -6,6 +6,7 @@ import { FollowUpPlanningView } from './FollowUpPlanningView'
 import { PlanningSessionError } from './PlanningSessionError'
 import { PlanningSessionLoading } from './PlanningSessionLoading'
 import { Pt1PlanningView } from './Pt1PlanningView'
+import type { FeedbackPromptContent } from '@/components/feedback/FeedbackPromptBanner'
 
 type AiPlanningMode = 'default' | 'chatbot'
 
@@ -13,10 +14,12 @@ export function AiPlanningFlow({
   projectId,
   mode,
   generationRequestId,
+  feedbackPrompt,
 }: {
   projectId: string
   mode: AiPlanningMode
   generationRequestId: string | null
+  feedbackPrompt?: FeedbackPromptContent
 }) {
   const { pt1, chatbot, stage } = useAiPlanningRouter({
     projectId,
@@ -24,7 +27,15 @@ export function AiPlanningFlow({
     generationRequestId,
   })
 
-  if (mode === 'chatbot') return <FollowUpPlanningView data={chatbot} />
+  if (mode === 'chatbot') {
+    return (
+      <FollowUpPlanningView
+        data={chatbot}
+        projectId={projectId}
+        feedbackPrompt={feedbackPrompt}
+      />
+    )
+  }
   if (pt1.errorMessage) return <PlanningSessionError message={pt1.errorMessage} appError={pt1.appError} />
   if (pt1.saveError) return <PlanningSessionError message={pt1.saveError.message} appError={pt1.saveError} />
   if (stage === 'pt1_preparing_questions') return <PlanningSessionLoading />

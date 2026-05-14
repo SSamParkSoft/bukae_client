@@ -15,6 +15,7 @@ import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
 import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
 import { createAppError, resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
+import { FeedbackPromptBanner, type FeedbackPromptContent } from '@/components/feedback/FeedbackPromptBanner'
 
 function getShootingGuideErrorActions(
   error: ResolvedAppError,
@@ -49,12 +50,14 @@ export function ShootingGuidePageClient({
   generationRequestId,
   initialGeneration,
   initialError,
+  feedbackPrompt,
 }: {
   projectId: string | null
   briefVersionId: string | null
   generationRequestId: string | null
   initialGeneration: Generation | null
   initialError: ResolvedAppError | null
+  feedbackPrompt: FeedbackPromptContent
 }) {
   const router = useRouter()
   const getCachedGenerationRequestId = useAnalyzeWorkflowStore((state) => state.getCachedGenerationRequestId)
@@ -182,6 +185,13 @@ export function ShootingGuidePageClient({
 
       {viewModel ? (
         <>
+          {projectId ? (
+            <FeedbackPromptBanner
+              projectId={projectId}
+              content={feedbackPrompt}
+              className="mb-6"
+            />
+          ) : null}
           {viewModel.scenes.map((scene) => (
             <SceneCard key={scene.sceneLabel} scene={scene} />
           ))}
