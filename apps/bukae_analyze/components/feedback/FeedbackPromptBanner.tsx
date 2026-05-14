@@ -37,7 +37,7 @@ export function FeedbackPromptBanner({
   const [closedPromptKey, setClosedPromptKey] = useState<string | null>(null)
   const isDismissedForProject = useSyncExternalStore(
     subscribeFeedbackPromptStore,
-    () => hasDismissedFeedbackPrompt(content.promptId, projectId),
+    () => hasDismissedFeedbackPrompt(projectId),
     () => true
   )
   const feedbackUrl = useMemo(
@@ -94,7 +94,7 @@ export function FeedbackPromptBanner({
                 type="button"
                 className="h-10 rounded-full px-3 font-14-md text-white/70 transition-colors hover:bg-white/10 hover:text-white"
                 onClick={() => {
-                  dismissFeedbackPrompt(content.promptId, projectId)
+                  dismissFeedbackPrompt(projectId)
                   setClosedPromptKey(promptKey)
                 }}
               >
