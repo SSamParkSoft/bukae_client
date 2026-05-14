@@ -8,6 +8,7 @@ import {
   getProjectWorkflowState,
   isPlanningStep,
 } from '@/lib/services/projectWorkflowState'
+import { createProjectWorkflow, isProjectFailedWorkflow } from '@/lib/types/domain'
 import type { PlanningSession } from '@/lib/types/domain'
 
 const POLLING_INTERVAL_MS = 5000
@@ -42,7 +43,7 @@ function createLocalPlanningSessionState(
     initialSession,
     session: initialSession,
     isLoading: enabled && shouldKeepPolling(initialSession),
-    errorMessage: getFailureMessage(initialSession),
+    errorMessage: getFailureMessage(initialSession) ?? getProjectStatusFailureMessage(initialSession),
     appError: null,
   }
 }
@@ -70,9 +71,24 @@ function getFailureMessage(session: PlanningSession | null): string | null {
   )
 }
 
+function getProjectStatusFailureMessage(session: PlanningSession | null): string | null {
+  if (!session) return null
+  if (!isProjectFailedWorkflow(getPlanningProjectWorkflow(session))) return null
+
+  return '기획 질문 생성에 실패했습니다. 새로운 프로젝트로 다시 시작해주세요.'
+}
+
+function getPlanningProjectWorkflow(session: PlanningSession) {
+  return session.projectWorkflow ?? createProjectWorkflow({
+    status: session.projectStatus,
+    currentStep: session.currentStep,
+  })
+}
+
 function shouldKeepPolling(session: PlanningSession | null): boolean {
   if (!session) return true
   if (getFailureMessage(session)) return false
+  if (getProjectStatusFailureMessage(session)) return false
   if (session.readyForApproval) return false
   if (session.clarifyingQuestions.length === 0) return true
   if (session.planningStatus === 'WAITING_FOR_USER') return false
@@ -124,7 +140,7 @@ export function usePlanningSession(
 
         updateCurrentState((prev) => ({ ...prev, session: nextSession }))
 
-        const failureMessage = getFailureMessage(nextSession)
+        const failureMessage = getFailureMessage(nextSession) ?? getProjectStatusFailureMessage(nextSession)
         if (failureMessage) {
           updateCurrentState((prev) => ({
             ...prev,

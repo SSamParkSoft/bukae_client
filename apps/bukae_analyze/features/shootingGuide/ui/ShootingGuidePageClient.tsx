@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { FileWarning } from 'lucide-react'
 import { PageErrorState } from '@/components/errors/PageErrorState'
@@ -10,11 +10,15 @@ import { useGenerationPolling } from '@/features/shootingGuide/hooks/state/useGe
 import { getGenerationStatusMessage, isGenerationCompleted } from '@/features/shootingGuide/lib/generationState'
 import { SceneCard } from './SceneCard'
 import type { Generation } from '@/lib/types/domain'
-import { createAppError, type ResolvedAppError } from '@/lib/errors/appError'
+import { startGenerationFromCommand } from '@/lib/services/generations'
+import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
+import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
+import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
+import { createAppError, resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 
 function getShootingGuideErrorActions(
   error: ResolvedAppError,
-  retry: () => void
+  refresh: () => void
 ) {
   switch (error.kind) {
     case 'auth_expired':
@@ -26,14 +30,14 @@ function getShootingGuideErrorActions(
     case 'server_error':
     case 'network_error':
       return [
-        { label: '다시 시도', onClick: retry },
+        { label: '새로고침', onClick: refresh },
         { label: '처음으로', href: '/', variant: 'secondary' as const },
       ]
     case 'missing_result':
     case 'unknown':
     default:
       return [
-        { label: '다시 시도', onClick: retry },
+        { label: '새로고침', onClick: refresh },
         { label: '새 프로젝트 시작', href: '/', variant: 'secondary' as const },
       ]
   }
@@ -41,19 +45,101 @@ function getShootingGuideErrorActions(
 
 export function ShootingGuidePageClient({
   projectId,
+  briefVersionId,
   generationRequestId,
   initialGeneration,
   initialError,
 }: {
   projectId: string | null
+  briefVersionId: string | null
   generationRequestId: string | null
   initialGeneration: Generation | null
   initialError: ResolvedAppError | null
 }) {
   const router = useRouter()
+  const getCachedGenerationRequestId = useAnalyzeWorkflowStore((state) => state.getCachedGenerationRequestId)
+  const cacheGenerationRequestId = useAnalyzeWorkflowStore((state) => state.cacheGenerationRequestId)
+  const [startedGenerationRequestId, setStartedGenerationRequestId] = useState<string | null>(null)
+  const [generationStartError, setGenerationStartError] = useState<{
+    key: string
+    error: ResolvedAppError
+  } | null>(null)
+  const startingGenerationKeyRef = useRef<string | null>(null)
+  const isMountedRef = useRef(false)
+  const generationStartKeyRef = useRef<string | null>(null)
+  const activeGenerationRequestId = generationRequestId ?? startedGenerationRequestId
+  const activeGenerationStartKey = projectId && briefVersionId
+    ? `${projectId}:${briefVersionId}`
+    : null
+
+  useEffect(() => {
+    isMountedRef.current = true
+
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    const generationStartKey = projectId && briefVersionId && !activeGenerationRequestId
+      ? `${projectId}:${briefVersionId}`
+      : null
+    generationStartKeyRef.current = generationStartKey
+    if (!projectId || !briefVersionId || !generationStartKey) return
+
+    const cachedGenerationRequestId = getCachedGenerationRequestId(briefVersionId)
+    if (cachedGenerationRequestId) {
+      markWorkflowStepCompleted(projectId, 'generation')
+      router.replace(buildAnalyzeWorkflowStepPath('/shooting-guide', {
+        projectId,
+        generationRequestId: cachedGenerationRequestId,
+      }))
+      return
+    }
+
+    if (startingGenerationKeyRef.current === generationStartKey) return
+    startingGenerationKeyRef.current = generationStartKey
+
+    void startGenerationFromCommand(projectId, {
+      briefVersionId,
+      generationMode: 'single',
+      variantCount: 1,
+    })
+      .then((generation) => {
+        if (!isMountedRef.current || generationStartKeyRef.current !== generationStartKey) return
+
+        cacheGenerationRequestId(briefVersionId, generation.generationRequestId)
+        markWorkflowStepCompleted(projectId, 'generation')
+        setStartedGenerationRequestId(generation.generationRequestId)
+        router.replace(buildAnalyzeWorkflowStepPath('/shooting-guide', {
+          projectId,
+          generationRequestId: generation.generationRequestId,
+        }))
+      })
+      .catch((error) => {
+        if (!isMountedRef.current || generationStartKeyRef.current !== generationStartKey) return
+        setGenerationStartError({
+          key: generationStartKey,
+          error: resolveAppError(error, 'generation_start'),
+        })
+      })
+      .finally(() => {
+        if (startingGenerationKeyRef.current === generationStartKey) {
+          startingGenerationKeyRef.current = null
+        }
+      })
+  }, [
+    activeGenerationRequestId,
+    briefVersionId,
+    cacheGenerationRequestId,
+    getCachedGenerationRequestId,
+    projectId,
+    router,
+  ])
+
   const { generation, error, generationFailureMessage } = useGenerationPolling(
     projectId,
-    generationRequestId,
+    activeGenerationRequestId,
     initialGeneration,
     initialError
   )
@@ -66,9 +152,12 @@ export function ShootingGuidePageClient({
   const viewModel = useMemo(() => (
     shootingGuide ? mapShootingGuideToViewModel(shootingGuide) : null
   ), [shootingGuide])
-  const pageError = !projectId || !generationRequestId
+  const activeGenerationStartError = generationStartError?.key === activeGenerationStartKey
+    ? generationStartError.error
+    : null
+  const pageError = !projectId || (!activeGenerationRequestId && !briefVersionId)
     ? createAppError('invalid_project_state', 'generation_bootstrap')
-    : error
+    : activeGenerationStartError ?? error
 
   if (pageError) {
     return (

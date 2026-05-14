@@ -15,11 +15,11 @@ type Props = {
 function getAnalysisErrorActions(
   errorType: AnalysisResourceErrorType | null,
   appError: ResolvedAppError | null,
-  retry: () => void
+  refresh: () => void
 ) {
   if (!appError && errorType === 'failed') {
     return [
-      { label: '상태 다시 확인', onClick: retry },
+      { label: '새로고침', onClick: refresh },
       { label: '새 프로젝트 시작', href: '/', variant: 'secondary' as const },
     ]
   }
@@ -33,19 +33,19 @@ function getAnalysisErrorActions(
       return [{ label: '새 프로젝트 시작', href: '/' }]
     case 'server_error':
       return [
-        { label: '다시 시도', onClick: retry },
+        { label: '새로고침', onClick: refresh },
         { label: '처음으로', href: '/', variant: 'secondary' as const },
       ]
     case 'network_error':
       return [
-        { label: '다시 시도', onClick: retry },
+        { label: '새로고침', onClick: refresh },
         { label: '처음으로', href: '/', variant: 'secondary' as const },
       ]
     case 'missing_result':
     case 'unknown':
     default:
       return [
-        { label: '다시 시도', onClick: retry },
+        { label: '새로고침', onClick: refresh },
         { label: '새 프로젝트 시작', href: '/', variant: 'secondary' as const },
       ]
   }
@@ -62,9 +62,9 @@ function getErrorDescription(
 ): string {
   if (errorMessage) return errorMessage
   if (errorType === 'missing_result') {
-    return '분석은 완료되었지만 화면에 표시할 결과가 없습니다. 다시 시도하거나 처음 화면에서 분석을 다시 시작해주세요.'
+    return '분석은 완료되었지만 화면에 표시할 결과가 없습니다. 화면을 새로고침하거나 처음 화면에서 분석을 다시 시작해주세요.'
   }
-  return '분석 상태를 확인하는 중 문제가 발생했습니다. 잠시 후 다시 시도해주세요.'
+  return '분석 상태를 확인하는 중 문제가 발생했습니다. 화면을 새로고침하거나 처음 화면에서 분석을 다시 시작해주세요.'
 }
 
 export function AnalysisErrorView({ errorType, errorMessage, appError }: Props) {

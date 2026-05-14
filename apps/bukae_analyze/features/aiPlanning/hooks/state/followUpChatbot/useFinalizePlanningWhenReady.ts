@@ -84,23 +84,6 @@ export function useFinalizePlanningWhenReady(params: {
           }
         }
 
-        const recommendedAngle = activeSession.candidateAngles.find(
-          (angle) => angle['recommended'] === true
-        )
-        if (recommendedAngle) {
-          applyFinalizedProject({
-            briefVersionId: '',
-            title: typeof recommendedAngle['title'] === 'string'
-              ? recommendedAngle['title']
-              : '최종 기획안 준비 완료',
-            planningSummary: typeof recommendedAngle['summary'] === 'string'
-              ? recommendedAngle['summary']
-              : '',
-            status: activeSession.planningStatus ?? '',
-          })
-          return
-        }
-
         setStageMessage(FOLLOW_UP_STAGE_MESSAGES.approving)
         const finalizedProject = await waitFinalizedProject(projectId)
 

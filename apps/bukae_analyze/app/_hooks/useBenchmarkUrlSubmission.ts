@@ -29,7 +29,7 @@ export function useBenchmarkUrlSubmission() {
       setSubmitError(
         err instanceof Error
           ? err.message
-          : '분석 요청에 실패했습니다. 잠시 후 다시 시도해주세요.'
+          : '분석 요청에 실패했습니다. 화면을 새로고침하거나 처음부터 다시 시작해주세요.'
       )
     } finally {
       setIsSubmitting(false)

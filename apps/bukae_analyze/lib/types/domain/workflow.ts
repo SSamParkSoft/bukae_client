@@ -7,6 +7,7 @@ export type ProjectWorkflowStep =
 export type ProjectWorkflowStatus =
   | 'intakeReady'
   | 'planningInProgress'
+  | 'planningReady'
   | 'briefApproved'
   | 'generationCompleted'
   | 'failed'
@@ -39,6 +40,8 @@ function mapProjectWorkflowStatus(rawStatus: string | null): ProjectWorkflowStat
       return 'intakeReady'
     case 'PLANNING_IN_PROGRESS':
       return 'planningInProgress'
+    case 'PLANNING_READY':
+      return 'planningReady'
     case 'BRIEF_APPROVED':
       return 'briefApproved'
     case 'GENERATION_COMPLETED':

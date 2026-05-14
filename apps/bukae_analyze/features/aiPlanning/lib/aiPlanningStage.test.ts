@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PlanningSession } from '@/lib/types/domain'
+import { createProjectWorkflow, type PlanningSession } from '@/lib/types/domain'
 import { deriveAiPlanningStage } from './aiPlanningStage'
 
 function createPlanningSession(overrides: Partial<PlanningSession> = {}): PlanningSession {
@@ -32,6 +32,10 @@ function createPlanningSession(overrides: Partial<PlanningSession> = {}): Planni
     failure: null,
     projectStatus: null,
     currentStep: null,
+    projectWorkflow: createProjectWorkflow({
+      status: null,
+      currentStep: null,
+    }),
     ...overrides,
   }
 }

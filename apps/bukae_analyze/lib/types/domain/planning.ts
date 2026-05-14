@@ -1,4 +1,5 @@
 import type { VideoCategory } from './planningSetup'
+import type { ProjectWorkflow } from './workflow'
 
 export interface IntakeSubmissionState {
   projectId: string
@@ -130,4 +131,5 @@ export interface PlanningSession {
   failure: PlanningFailureState | null
   projectStatus: string | null
   currentStep: string | null
+  projectWorkflow: ProjectWorkflow
 }
