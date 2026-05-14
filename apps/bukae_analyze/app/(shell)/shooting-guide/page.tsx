@@ -7,12 +7,19 @@ import { fetchGenerationBootstrap } from '@/lib/server/generationBootstrap'
 import type { Generation } from '@/lib/types/domain'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
 import { ShootingGuidePageClient } from '@/features/shootingGuide'
+import type { FeedbackPromptContent } from '@/components/feedback/FeedbackPrompt'
 
 type ShootingGuideSearchParams = Promise<{
   briefVersionId?: string | string[]
   generationRequestId?: string | string[]
   projectId?: string | string[]
 }>
+
+const SHOOTING_GUIDE_FEEDBACK_PROMPT: FeedbackPromptContent = {
+  promptId: 'shooting-guide',
+  title: '촬영가이드가 도움이 됐는지 알려주세요',
+  description: '남겨주신 의견은 다음 가이드 품질을 개선하는 데 바로 참고할게요.',
+}
 
 function ShootingGuideContentLoading() {
   return (
@@ -58,6 +65,7 @@ async function ShootingGuideContent({
       generationRequestId={resolvedGenerationRequestId}
       initialGeneration={generation}
       initialError={initialError}
+      feedbackPrompt={SHOOTING_GUIDE_FEEDBACK_PROMPT}
     />
   )
 }

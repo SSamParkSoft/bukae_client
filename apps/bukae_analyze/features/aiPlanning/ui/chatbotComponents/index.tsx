@@ -7,9 +7,10 @@ import type { FollowUpChatbotViewModel } from '@/features/aiPlanning/types/chatb
 
 interface Props {
   data: FollowUpChatbotViewModel
+  topContent?: React.ReactNode
 }
 
-export function FollowUpChatbot({ data }: Props) {
+export function FollowUpChatbot({ data, topContent }: Props) {
   const scrollRef = useScrollToBottom([data.messages, data.currentQuestions])
   const shouldShowInput = !data.isComplete && data.currentQuestions.length > 0
 
@@ -31,6 +32,11 @@ export function FollowUpChatbot({ data }: Props) {
         </p>
       </div>
       <div className="mx-6 h-px bg-white/40 shrink-0" style={{ marginTop: 'clamp(16px, 1.25vw, 24px)' }} />
+      {topContent ? (
+        <div className="shrink-0 px-6 pt-6">
+          {topContent}
+        </div>
+      ) : null}
 
       <ChatInterface
         messages={data.messages}

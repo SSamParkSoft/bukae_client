@@ -3,6 +3,13 @@ import { PageTitle } from '@/components/page/PageTitle'
 import { parsePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
 import { PlanningSetupPageClient } from '@/features/planningSetup'
+import { FeedbackPrompt, type FeedbackPromptContent } from '@/components/feedback/FeedbackPrompt'
+
+const PLANNING_SETUP_FEEDBACK_PROMPT: FeedbackPromptContent = {
+  promptId: 'planning-setup',
+  title: '기획 프리세팅 입력 과정은 괜찮았나요?',
+  description: '질문이 헷갈리거나 더 필요한 선택지가 있다면 알려주세요.',
+}
 
 export default async function PlanningSetupPage({
   searchParams,
@@ -30,6 +37,12 @@ export default async function PlanningSetupPage({
         description="영상을 기획하기 전에 사전 설정하면, AI가 더 정확한 기획안을 제안해드릴 수 있어요."
       />
       <div className="mx-6 mt-6 mb-10 h-px bg-white/40" />
+      <div className="mx-6 mb-10">
+        <FeedbackPrompt
+          projectId={resolvedProjectId}
+          content={PLANNING_SETUP_FEEDBACK_PROMPT}
+        />
+      </div>
       <PlanningSetupPageClient
         key={resolvedProjectId}
         projectId={resolvedProjectId}

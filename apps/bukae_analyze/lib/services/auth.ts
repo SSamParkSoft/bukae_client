@@ -32,12 +32,14 @@ export async function refreshToken(): Promise<ApiTokenResponse> {
 }
 
 const CurrentUserSchema = z.object({
+  email: z.string().email().nullable().optional(),
   name: z.string().optional().default(''),
   nickname: z.string().optional(),
   profileImageUrl: z.string().nullable().optional(),
 })
 
 export interface CurrentUser {
+  email: string | null
   name: string
   profileImageUrl: string | null
 }
@@ -54,6 +56,7 @@ export class ApiResponseError extends Error {
 
 function mapCurrentUser(data: z.infer<typeof CurrentUserSchema>): CurrentUser {
   return {
+    email: data.email ?? null,
     name: data.nickname ?? data.name,
     profileImageUrl: data.profileImageUrl ?? null,
   }

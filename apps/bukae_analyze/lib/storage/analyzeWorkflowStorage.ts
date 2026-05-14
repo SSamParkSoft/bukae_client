@@ -1,4 +1,5 @@
 import { clearWorkflowStepCompletions } from './workflowStepCompletionStorage'
+import { clearFeedbackPromptDismissals } from './feedbackPromptStorage'
 
 const ANALYZE_WORKFLOW_STORAGE_PREFIXES = [
   'bukae_analyze:planning-setup:',
@@ -29,5 +30,6 @@ function clearLocalStorageByPrefixes(prefixes: readonly string[]): void {
 
 export function clearAnalyzeWorkflowStorage(): void {
   clearLocalStorageByPrefixes(ANALYZE_WORKFLOW_STORAGE_PREFIXES)
+  clearFeedbackPromptDismissals()
   clearWorkflowStepCompletions()
 }
