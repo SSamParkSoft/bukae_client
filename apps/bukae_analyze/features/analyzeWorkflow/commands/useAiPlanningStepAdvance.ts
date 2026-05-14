@@ -156,6 +156,7 @@ export function useAiPlanningStepAdvance(
             generationRequestId: cachedGenerationRequestId,
           }))
         } else {
+          markWorkflowStepCompleted(projectId!, 'generation')
           router.push(buildAnalyzeWorkflowStepPath(nextPath, {
             projectId,
             briefVersionId: activeBriefVersionId,
