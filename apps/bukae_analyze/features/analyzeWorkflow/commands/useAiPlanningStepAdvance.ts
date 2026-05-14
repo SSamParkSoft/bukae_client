@@ -149,16 +149,18 @@ export function useAiPlanningStepAdvance(
 
       if (activeBriefVersionId) {
         const cachedGenerationRequestId = getCachedGenerationRequestId(activeBriefVersionId)
-        markWorkflowStepCompleted(projectId!, 'generation')
-        const params = new URLSearchParams({
-          projectId: projectId!,
-        })
         if (cachedGenerationRequestId) {
-          params.set('generationRequestId', cachedGenerationRequestId)
+          markWorkflowStepCompleted(projectId!, 'generation')
+          router.push(buildAnalyzeWorkflowStepPath(nextPath, {
+            projectId,
+            generationRequestId: cachedGenerationRequestId,
+          }))
         } else {
-          params.set('briefVersionId', activeBriefVersionId)
+          router.push(buildAnalyzeWorkflowStepPath(nextPath, {
+            projectId,
+            briefVersionId: activeBriefVersionId,
+          }))
         }
-        router.push(`${nextPath}?${params.toString()}`)
         return
       }
 

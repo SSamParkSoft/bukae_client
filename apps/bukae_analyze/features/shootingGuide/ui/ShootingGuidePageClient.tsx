@@ -12,6 +12,8 @@ import { SceneCard } from './SceneCard'
 import type { Generation } from '@/lib/types/domain'
 import { startGenerationFromCommand } from '@/lib/services/generations'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
+import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
+import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
 import { createAppError, resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 
 function getShootingGuideErrorActions(
@@ -58,11 +60,17 @@ export function ShootingGuidePageClient({
   const getCachedGenerationRequestId = useAnalyzeWorkflowStore((state) => state.getCachedGenerationRequestId)
   const cacheGenerationRequestId = useAnalyzeWorkflowStore((state) => state.cacheGenerationRequestId)
   const [startedGenerationRequestId, setStartedGenerationRequestId] = useState<string | null>(null)
-  const [generationStartError, setGenerationStartError] = useState<ResolvedAppError | null>(null)
-  const isStartingGenerationRef = useRef(false)
+  const [generationStartError, setGenerationStartError] = useState<{
+    key: string
+    error: ResolvedAppError
+  } | null>(null)
+  const startingGenerationKeyRef = useRef<string | null>(null)
   const isMountedRef = useRef(false)
   const generationStartKeyRef = useRef<string | null>(null)
   const activeGenerationRequestId = generationRequestId ?? startedGenerationRequestId
+  const activeGenerationStartKey = projectId && briefVersionId
+    ? `${projectId}:${briefVersionId}`
+    : null
 
   useEffect(() => {
     isMountedRef.current = true
@@ -73,22 +81,24 @@ export function ShootingGuidePageClient({
   }, [])
 
   useEffect(() => {
-    if (!projectId || !briefVersionId || activeGenerationRequestId) return
-    if (isStartingGenerationRef.current) return
-
-    const generationStartKey = `${projectId}:${briefVersionId}`
+    const generationStartKey = projectId && briefVersionId && !activeGenerationRequestId
+      ? `${projectId}:${briefVersionId}`
+      : null
     generationStartKeyRef.current = generationStartKey
+    if (!projectId || !briefVersionId || !generationStartKey) return
 
     const cachedGenerationRequestId = getCachedGenerationRequestId(briefVersionId)
     if (cachedGenerationRequestId) {
-      router.replace(`/shooting-guide?${new URLSearchParams({
+      markWorkflowStepCompleted(projectId, 'generation')
+      router.replace(buildAnalyzeWorkflowStepPath('/shooting-guide', {
         projectId,
         generationRequestId: cachedGenerationRequestId,
-      }).toString()}`)
+      }))
       return
     }
 
-    isStartingGenerationRef.current = true
+    if (startingGenerationKeyRef.current === generationStartKey) return
+    startingGenerationKeyRef.current = generationStartKey
 
     void startGenerationFromCommand(projectId, {
       briefVersionId,
@@ -99,19 +109,23 @@ export function ShootingGuidePageClient({
         if (!isMountedRef.current || generationStartKeyRef.current !== generationStartKey) return
 
         cacheGenerationRequestId(briefVersionId, generation.generationRequestId)
+        markWorkflowStepCompleted(projectId, 'generation')
         setStartedGenerationRequestId(generation.generationRequestId)
-        router.replace(`/shooting-guide?${new URLSearchParams({
+        router.replace(buildAnalyzeWorkflowStepPath('/shooting-guide', {
           projectId,
           generationRequestId: generation.generationRequestId,
-        }).toString()}`)
+        }))
       })
       .catch((error) => {
         if (!isMountedRef.current || generationStartKeyRef.current !== generationStartKey) return
-        setGenerationStartError(resolveAppError(error, 'generation_start'))
+        setGenerationStartError({
+          key: generationStartKey,
+          error: resolveAppError(error, 'generation_start'),
+        })
       })
       .finally(() => {
-        if (generationStartKeyRef.current === generationStartKey) {
-          isStartingGenerationRef.current = false
+        if (startingGenerationKeyRef.current === generationStartKey) {
+          startingGenerationKeyRef.current = null
         }
       })
   }, [
@@ -138,9 +152,12 @@ export function ShootingGuidePageClient({
   const viewModel = useMemo(() => (
     shootingGuide ? mapShootingGuideToViewModel(shootingGuide) : null
   ), [shootingGuide])
+  const activeGenerationStartError = generationStartError?.key === activeGenerationStartKey
+    ? generationStartError.error
+    : null
   const pageError = !projectId || (!activeGenerationRequestId && !briefVersionId)
     ? createAppError('invalid_project_state', 'generation_bootstrap')
-    : generationStartError ?? error
+    : activeGenerationStartError ?? error
 
   if (pageError) {
     return (

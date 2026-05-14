@@ -62,7 +62,6 @@ export function useFollowUpChatHistory({
     projectId,
     messages: [],
   }))
-  const isCurrentChatHistoryLoaded = true
   const currentChatHistory = chatHistoryState.projectId === projectId
     ? chatHistoryState.messages
     : EMPTY_CHAT_MESSAGES
@@ -195,7 +194,6 @@ export function useFollowUpChatHistory({
 
   return {
     chatHistory: visibleChatHistory,
-    isCurrentChatHistoryLoaded,
     appendChatMessages,
     appendReadyBriefMessage,
     removeReadyBriefMessages,

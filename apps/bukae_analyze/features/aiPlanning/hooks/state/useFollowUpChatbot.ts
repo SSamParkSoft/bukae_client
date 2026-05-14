@@ -75,7 +75,6 @@ export function useFollowUpChatbot({
 
   const {
     chatHistory,
-    isCurrentChatHistoryLoaded,
     appendChatMessages,
     appendReadyBriefMessage,
     removeReadyBriefMessages,
@@ -187,7 +186,7 @@ export function useFollowUpChatbot({
   })
 
   return useMemo((): FollowUpChatbotViewModel => ({
-    messages: isCurrentChatHistoryLoaded ? chatHistory : [],
+    messages: chatHistory,
     currentQuestions,
     readyBrief,
     answer,
@@ -200,7 +199,6 @@ export function useFollowUpChatbot({
     currentQuestions,
     isComplete,
     isSubmitting,
-    isCurrentChatHistoryLoaded,
     readyBrief,
     submitCurrentAnswer,
     chatHistory,
