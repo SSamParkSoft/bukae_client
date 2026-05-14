@@ -36,7 +36,7 @@ export function FeedbackButton({ user }: FeedbackButtonProps) {
     [pathname, projectId, queryString, user?.email, user?.name]
   )
 
-  const className = 'inline-flex h-9 items-center gap-2 rounded-full border border-white/15 px-3 font-14-md text-white/80 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white'
+  const className = 'inline-flex h-11 items-center gap-2 rounded-full bg-highlight px-4 text-sm font-semibold text-brand shadow-[0_0_24px_rgba(174,255,250,0.22)] transition-all hover:scale-[1.02] hover:bg-white hover:shadow-[0_0_32px_rgba(174,255,250,0.32)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-highlight'
 
   if (!feedbackUrl) {
     return (
@@ -46,8 +46,8 @@ export function FeedbackButton({ user }: FeedbackButtonProps) {
         disabled
         title="피드백 폼 준비 중"
       >
-        <MessageSquareText size={16} strokeWidth={1.8} aria-hidden="true" />
-        <span>피드백</span>
+        <MessageSquareText size={18} strokeWidth={2} aria-hidden="true" />
+        <span>의견 보내기</span>
       </button>
     )
   }
@@ -58,10 +58,10 @@ export function FeedbackButton({ user }: FeedbackButtonProps) {
       target="_blank"
       rel="noopener noreferrer"
       className={className}
-      title="피드백 보내기"
+      title="의견 보내기"
     >
-      <MessageSquareText size={16} strokeWidth={1.8} aria-hidden="true" />
-      <span>피드백</span>
+      <MessageSquareText size={18} strokeWidth={2} aria-hidden="true" />
+      <span>의견 보내기</span>
     </a>
   )
 }
