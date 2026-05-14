@@ -6,7 +6,7 @@ import { FollowUpPlanningView } from './FollowUpPlanningView'
 import { PlanningSessionError } from './PlanningSessionError'
 import { PlanningSessionLoading } from './PlanningSessionLoading'
 import { Pt1PlanningView } from './Pt1PlanningView'
-import type { FeedbackPromptContent } from '@/components/feedback/FeedbackPromptBanner'
+import type { FeedbackPromptContent } from '@/components/feedback/FeedbackPrompt'
 
 type AiPlanningMode = 'default' | 'chatbot'
 

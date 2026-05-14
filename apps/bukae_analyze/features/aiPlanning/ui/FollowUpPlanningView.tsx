@@ -1,5 +1,5 @@
 import type { FollowUpChatbotViewModel } from '@/features/aiPlanning/types/chatbotViewModel'
-import { FeedbackPromptBanner, type FeedbackPromptContent } from '@/components/feedback/FeedbackPromptBanner'
+import { FeedbackPrompt, type FeedbackPromptContent } from '@/components/feedback/FeedbackPrompt'
 import { FollowUpChatbot } from './chatbotComponents'
 
 export function FollowUpPlanningView({
@@ -12,7 +12,7 @@ export function FollowUpPlanningView({
   feedbackPrompt?: FeedbackPromptContent
 }) {
   const feedbackPromptBanner = feedbackPrompt ? (
-    <FeedbackPromptBanner
+    <FeedbackPrompt
       projectId={projectId}
       content={feedbackPrompt}
     />

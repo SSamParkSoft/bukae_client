@@ -20,6 +20,9 @@
 
   --glass-blur-strong: 20px;
   --glass-blur-soft: 4px;
+  --shadow-feedback-prompt: 0 0 30px color-mix(in srgb, var(--palette-highlight) 12%, transparent);
+  --shadow-feedback-button: 0 0 24px color-mix(in srgb, var(--palette-highlight) 22%, transparent);
+  --shadow-feedback-button-hover: 0 0 32px color-mix(in srgb, var(--palette-highlight) 32%, transparent);
 
   /*
    * Typography scale — SUIT
@@ -80,6 +83,11 @@
   --text-14_md-tracking: -0.04em;
   --text-14_md-leading: 1.6;
   --text-14_md-weight: 500;
+
+  --text-14_sm-size: 14px;
+  --text-14_sm-tracking: -0.04em;
+  --text-14_sm-leading: 1.6;
+  --text-14_sm-weight: 600;
 
   --text-14_rg-size: 14px;
   --text-14_rg-tracking: -0.04em;
@@ -200,6 +208,14 @@
     letter-spacing: var(--text-14_md-tracking);
     line-height: var(--text-14_md-leading);
     font-weight: var(--text-14_md-weight);
+  }
+
+  .font-14-sm {
+    font-family: var(--font-sans);
+    font-size: var(--text-14_sm-size);
+    letter-spacing: var(--text-14_sm-tracking);
+    line-height: var(--text-14_sm-leading);
+    font-weight: var(--text-14_sm-weight);
   }
 
   .font-14-rg {

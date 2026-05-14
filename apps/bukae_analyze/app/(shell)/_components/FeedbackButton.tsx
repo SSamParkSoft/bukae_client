@@ -36,7 +36,7 @@ export function FeedbackButton({ user }: FeedbackButtonProps) {
     [pathname, projectId, queryString, user?.email, user?.name]
   )
 
-  const className = 'inline-flex h-11 items-center gap-2 rounded-full bg-highlight px-4 text-sm font-semibold text-brand shadow-[0_0_24px_rgba(174,255,250,0.22)] transition-all hover:scale-[1.02] hover:bg-white hover:shadow-[0_0_32px_rgba(174,255,250,0.32)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-highlight'
+  const className = 'inline-flex h-11 items-center gap-2 rounded-full bg-highlight px-4 font-14-sm text-brand shadow-[var(--shadow-feedback-button)] transition-all hover:scale-[1.02] hover:bg-white hover:shadow-[var(--shadow-feedback-button-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-highlight'
 
   if (!feedbackUrl) {
     return (

@@ -15,7 +15,7 @@ import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
 import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
 import { createAppError, resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
-import { FeedbackPromptBanner, type FeedbackPromptContent } from '@/components/feedback/FeedbackPromptBanner'
+import { FeedbackPrompt, type FeedbackPromptContent } from '@/components/feedback/FeedbackPrompt'
 
 function getShootingGuideErrorActions(
   error: ResolvedAppError,
@@ -186,7 +186,7 @@ export function ShootingGuidePageClient({
       {viewModel ? (
         <>
           {projectId ? (
-            <FeedbackPromptBanner
+            <FeedbackPrompt
               projectId={projectId}
               content={feedbackPrompt}
               className="mb-6"

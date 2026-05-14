@@ -3,7 +3,7 @@ import { PageTitle } from '@/components/page/PageTitle'
 import { parsePlanningSetupAnswers } from '@/lib/utils/planningSetupQuery'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
 import { PlanningSetupPageClient } from '@/features/planningSetup'
-import { FeedbackPromptBanner, type FeedbackPromptContent } from '@/components/feedback/FeedbackPromptBanner'
+import { FeedbackPrompt, type FeedbackPromptContent } from '@/components/feedback/FeedbackPrompt'
 
 const PLANNING_SETUP_FEEDBACK_PROMPT: FeedbackPromptContent = {
   promptId: 'planning-setup',
@@ -38,7 +38,7 @@ export default async function PlanningSetupPage({
       />
       <div className="mx-6 mt-6 mb-10 h-px bg-white/40" />
       <div className="mx-6 mb-10">
-        <FeedbackPromptBanner
+        <FeedbackPrompt
           projectId={resolvedProjectId}
           content={PLANNING_SETUP_FEEDBACK_PROMPT}
         />

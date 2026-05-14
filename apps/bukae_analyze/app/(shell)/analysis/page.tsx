@@ -9,7 +9,7 @@ import { resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 import { fetchAnalysisBootstrap } from '@/lib/server/analysisBootstrap'
 import { getServerAccessToken } from '@/lib/server/authSession'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
-import { FeedbackPromptBanner, type FeedbackPromptContent } from '@/components/feedback/FeedbackPromptBanner'
+import { FeedbackPrompt, type FeedbackPromptContent } from '@/components/feedback/FeedbackPrompt'
 
 const ANALYSIS_FEEDBACK_PROMPT: FeedbackPromptContent = {
   promptId: 'analysis',
@@ -55,7 +55,7 @@ export default async function AnalysisPage({
         <AnalysisReferenceUrlBar className="mb-10" />
         <PageTitle title="AI 분석" description="원본 영상의 핵심 요소를 파악했습니다" />
         <hr className="mb-10 border-b border-white/10" />
-        <FeedbackPromptBanner
+        <FeedbackPrompt
           projectId={initialProjectId}
           content={ANALYSIS_FEEDBACK_PROMPT}
           className="mb-10"

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { PageTitle } from '@/components/page/PageTitle'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
 import { AiPlanningFlow } from '@/features/aiPlanning'
-import { FeedbackPromptBanner, type FeedbackPromptContent } from '@/components/feedback/FeedbackPromptBanner'
+import { FeedbackPrompt, type FeedbackPromptContent } from '@/components/feedback/FeedbackPrompt'
 
 type AiPlanningMode = 'default' | 'chatbot'
 
@@ -60,7 +60,7 @@ export default async function AiPlanningPage({
       />
       <div className="mx-6 mt-6 mb-10 h-px bg-white/40" />
       <div className="mx-6 mb-10">
-        <FeedbackPromptBanner
+        <FeedbackPrompt
           projectId={resolvedProjectId}
           content={AI_PLANNING_FEEDBACK_PROMPT}
         />

@@ -7,7 +7,7 @@ import { fetchGenerationBootstrap } from '@/lib/server/generationBootstrap'
 import type { Generation } from '@/lib/types/domain'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
 import { ShootingGuidePageClient } from '@/features/shootingGuide'
-import type { FeedbackPromptContent } from '@/components/feedback/FeedbackPromptBanner'
+import type { FeedbackPromptContent } from '@/components/feedback/FeedbackPrompt'
 
 type ShootingGuideSearchParams = Promise<{
   briefVersionId?: string | string[]
