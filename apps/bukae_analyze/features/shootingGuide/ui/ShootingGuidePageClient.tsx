@@ -18,7 +18,7 @@ import { createAppError, resolveAppError, type ResolvedAppError } from '@/lib/er
 
 function getShootingGuideErrorActions(
   error: ResolvedAppError,
-  retry: () => void
+  refresh: () => void
 ) {
   switch (error.kind) {
     case 'auth_expired':
@@ -30,14 +30,14 @@ function getShootingGuideErrorActions(
     case 'server_error':
     case 'network_error':
       return [
-        { label: '다시 시도', onClick: retry },
+        { label: '새로고침', onClick: refresh },
         { label: '처음으로', href: '/', variant: 'secondary' as const },
       ]
     case 'missing_result':
     case 'unknown':
     default:
       return [
-        { label: '다시 시도', onClick: retry },
+        { label: '새로고침', onClick: refresh },
         { label: '새 프로젝트 시작', href: '/', variant: 'secondary' as const },
       ]
   }

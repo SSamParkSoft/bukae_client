@@ -23,6 +23,7 @@ import type {
   PlanningSurface,
   WorkspaceEntryCommand,
 } from '@/lib/types/domain'
+import { createProjectWorkflow } from '@/lib/types/domain'
 
 function asTrimmedString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -181,6 +182,9 @@ export function mapIntakeSubmissionState(
 }
 
 export function mapPlanningSession(dto: PlanningResponseDto): PlanningSession {
+  const projectStatus = dto.projectStatus ?? null
+  const currentStep = dto.currentStep ?? null
+
   return {
     planningSessionId: dto.planningSessionId ?? null,
     planningStatus: dto.planningStatus ?? null,
@@ -195,8 +199,12 @@ export function mapPlanningSession(dto: PlanningResponseDto): PlanningSession {
     planningArtifacts: dto.planningArtifacts ?? null,
     readyForApproval: Boolean(dto.readyForApproval),
     failure: mapPlanningFailure(dto.failure),
-    projectStatus: dto.projectStatus ?? null,
-    currentStep: dto.currentStep ?? null,
+    projectStatus,
+    currentStep,
+    projectWorkflow: createProjectWorkflow({
+      status: projectStatus,
+      currentStep,
+    }),
   }
 }
 

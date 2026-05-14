@@ -7,7 +7,7 @@ import type { ResolvedAppError } from '@/lib/errors/appError'
 
 function getPlanningSessionErrorActions(
   appError: ResolvedAppError | null,
-  retry: () => void
+  refresh: () => void
 ) {
   switch (appError?.kind) {
     case 'auth_expired':
@@ -19,14 +19,14 @@ function getPlanningSessionErrorActions(
     case 'server_error':
     case 'network_error':
       return [
-        { label: '다시 시도', onClick: retry },
+        { label: '새로고침', onClick: refresh },
         { label: '처음으로', href: '/', variant: 'secondary' as const },
       ]
     case 'missing_result':
     case 'unknown':
     default:
       return [
-        { label: '다시 시도', onClick: retry },
+        { label: '새로고침', onClick: refresh },
         { label: '새 프로젝트 시작', href: '/', variant: 'secondary' as const },
       ]
   }

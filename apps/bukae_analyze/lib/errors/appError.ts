@@ -49,15 +49,15 @@ const DEFAULT_ERROR_COPY_BY_KIND: Record<AppErrorKind, Omit<AppErrorCopy, 'kind'
   },
   server_error: {
     title: '일시적인 서버 오류가 발생했습니다',
-    message: '잠시 후 다시 시도해주세요. 문제가 반복되면 처음 화면에서 다시 시작해주세요.',
+    message: '잠시 후 화면을 새로고침해 주세요. 문제가 반복되면 처음 화면에서 다시 시작해주세요.',
   },
   network_error: {
     title: '연결 상태를 확인해주세요',
-    message: '네트워크 문제이거나 일시적인 오류일 수 있습니다. 잠시 후 다시 시도해주세요.',
+    message: '네트워크 문제이거나 일시적인 오류일 수 있습니다. 잠시 후 화면을 새로고침해 주세요.',
   },
   unknown: {
     title: '요청을 처리하지 못했습니다',
-    message: '예상하지 못한 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+    message: '예상하지 못한 오류가 발생했습니다. 화면을 새로고침해 주세요.',
   },
 }
 
