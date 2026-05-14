@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 interface AuthUser {
+  email: string | null
   name: string
   profileImageUrl: string | null
 }

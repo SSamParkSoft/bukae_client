@@ -7,6 +7,7 @@ import { LAYOUT } from '@/lib/config/layout'
 import logo from '@/public/logo.svg'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useHeaderProfile } from '@/features/auth/hooks/state/useHeaderProfile'
+import { FeedbackButton } from './FeedbackButton'
 
 function UserProfileMenu({ initialUser }: { initialUser: CurrentUser | null }) {
   const { name, profileImageUrl, handleLogout } = useHeaderProfile(initialUser)
@@ -65,7 +66,8 @@ export function Header({
         <Image src={logo} alt="부캐 로고" />
       </Link>
 
-      <div className="flex items-center">
+      <div className="flex items-center gap-3">
+        <FeedbackButton user={resolvedUser} />
         {resolvedUser ? (
           <UserProfileMenu initialUser={resolvedUser} />
         ) : !isAuthenticated ? (
