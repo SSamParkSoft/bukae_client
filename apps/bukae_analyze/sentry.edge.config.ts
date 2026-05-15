@@ -10,6 +10,8 @@ const isProduction = process.env.NODE_ENV === 'production'
 Sentry.init({
   dsn: 'https://d4b30956d395a319f1d16b74d25fd5e9@o4511393344847872.ingest.us.sentry.io/4511393345568768',
 
+  enabled: isProduction,
+
   tracesSampleRate: isProduction ? 0.05 : 1,
 
   // Avoid sending user PII by default. Add explicit tags/context only after reviewing data sensitivity.
