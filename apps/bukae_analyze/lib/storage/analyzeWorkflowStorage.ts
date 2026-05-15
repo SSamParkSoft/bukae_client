@@ -5,6 +5,7 @@ const ANALYZE_WORKFLOW_STORAGE_PREFIXES = [
   'bukae_analyze:planning-setup:',
   'bukae_analyze:pt1-planning:',
   'bukae_analyze:follow-up-chat-history:',
+  'bukae_analyze:generation-request:',
 ] as const
 
 function clearLocalStorageByPrefixes(prefixes: readonly string[]): void {

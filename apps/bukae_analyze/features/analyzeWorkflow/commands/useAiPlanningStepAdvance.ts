@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { createAppError, resolveAppError } from '@/lib/errors/appError'
 import { enterPlanningWorkspace, getPlanningSession } from '@/lib/services/planning'
+import { startGenerationFromCommand } from '@/lib/services/generations'
 import { hasPlanningWorkspaceEntryMessage } from '@/features/aiPlanning/lib/planningPredicates'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
@@ -39,6 +40,7 @@ export function useAiPlanningStepAdvance(
   const getCachedChatbotSession = useAnalyzeWorkflowStore((state) => state.getCachedChatbotSession)
   const cacheChatbotSession = useAnalyzeWorkflowStore((state) => state.cacheChatbotSession)
   const getCachedGenerationRequestId = useAnalyzeWorkflowStore((state) => state.getCachedGenerationRequestId)
+  const cacheGenerationRequestId = useAnalyzeWorkflowStore((state) => state.cacheGenerationRequestId)
 
   async function advanceAiPlanningToNextWorkflowStep(nextPath: string) {
     if (!projectId || isAdvancingAiPlanning) return
@@ -159,10 +161,17 @@ export function useAiPlanningStepAdvance(
             generationRequestId: cachedGenerationRequestId,
           }))
         } else {
+          const generation = await startGenerationFromCommand(projectId!, {
+            briefVersionId: activeBriefVersionId,
+            generationMode: 'single',
+            variantCount: 1,
+          })
+          cacheGenerationRequestId(activeBriefVersionId, generation.generationRequestId)
+          storeGenerationRequestId(projectId, generation.generationRequestId)
           markWorkflowStepCompleted(projectId!, 'generation')
           router.push(buildAnalyzeWorkflowStepPath(nextPath, {
             projectId,
-            briefVersionId: activeBriefVersionId,
+            generationRequestId: generation.generationRequestId,
           }))
         }
         return

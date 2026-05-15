@@ -26,6 +26,11 @@ const PLANNING_SETUP_SUBMIT_STATUS_CARD: WorkflowStepStatusCard = {
   description: '잠시만 기다려주세요.',
 }
 
+const GENERATION_START_STATUS_CARD: WorkflowStepStatusCard = {
+  title: '답변을 저장하고 있어요.',
+  description: '잠시만 기다려주세요.',
+}
+
 type WorkflowStepStatusContent = (
   | {
     key: string
@@ -73,6 +78,8 @@ export function AnalyzeWorkflowNextStepSidebar() {
     advanceToNextWorkflowStep,
   } = useAnalyzeWorkflowNextStep()
   const isSavingPt1Answers = useAiPlanningStore((state) => state.isSavingPt1Answers)
+  const isAdvancingAiPlanning = useAiPlanningStore((state) => state.isAdvancing)
+  const aiPlanningNextTarget = useAiPlanningStore((state) => state.nextTarget)
   const advanceError = useAiPlanningStore((state) => state.advanceError)
   const advanceErrorStatusCard: WorkflowStepStatusCard | null = advanceError
     ? {
@@ -92,6 +99,12 @@ export function AnalyzeWorkflowNextStepSidebar() {
       key: 'planning-setup-submit-status',
       variant: 'single',
       card: PLANNING_SETUP_SUBMIT_STATUS_CARD,
+    }
+    : (isAdvancingAiPlanning && aiPlanningNextTarget === 'shooting-guide')
+    ? {
+      key: 'generation-start-status',
+      variant: 'single' as const,
+      card: GENERATION_START_STATUS_CARD,
     }
     : isSavingPt1Answers
       ? {
