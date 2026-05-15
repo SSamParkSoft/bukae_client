@@ -14,7 +14,7 @@ import { startGenerationFromCommand } from '@/lib/services/generations'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
 import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
-import { storeGenerationRequestId } from '@/lib/storage/generationRequestStorage'
+import { getStoredGenerationRequestId, storeGenerationRequestId } from '@/lib/storage/generationRequestStorage'
 import { createAppError, resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 import { FeedbackPrompt, type FeedbackPromptContent } from '@/components/feedback/FeedbackPrompt'
 
@@ -63,6 +63,7 @@ export function ShootingGuidePageClient({
   const router = useRouter()
   const getCachedGenerationRequestId = useAnalyzeWorkflowStore((state) => state.getCachedGenerationRequestId)
   const cacheGenerationRequestId = useAnalyzeWorkflowStore((state) => state.cacheGenerationRequestId)
+  const [storedGenerationRequestId] = useState<string | null>(() => getStoredGenerationRequestId(projectId))
   const [startedGenerationRequestId, setStartedGenerationRequestId] = useState<string | null>(null)
   const [generationStartError, setGenerationStartError] = useState<{
     key: string
@@ -87,6 +88,16 @@ export function ShootingGuidePageClient({
   useEffect(() => {
     storeGenerationRequestId(projectId, activeGenerationRequestId)
   }, [activeGenerationRequestId, projectId])
+
+  useEffect(() => {
+    if (generationRequestId || briefVersionId) return
+    if (!storedGenerationRequestId || !projectId) return
+
+    router.replace(buildAnalyzeWorkflowStepPath('/shooting-guide', {
+      projectId,
+      generationRequestId: storedGenerationRequestId,
+    }))
+  }, [generationRequestId, briefVersionId, storedGenerationRequestId, projectId, router])
 
   useEffect(() => {
     const generationStartKey = projectId && briefVersionId && !activeGenerationRequestId
@@ -164,7 +175,7 @@ export function ShootingGuidePageClient({
   const activeGenerationStartError = generationStartError?.key === activeGenerationStartKey
     ? generationStartError.error
     : null
-  const pageError = !projectId || (!activeGenerationRequestId && !briefVersionId)
+  const pageError = !projectId || (!activeGenerationRequestId && !briefVersionId && !storedGenerationRequestId)
     ? createAppError('invalid_project_state', 'generation_bootstrap')
     : activeGenerationStartError ?? error
 
