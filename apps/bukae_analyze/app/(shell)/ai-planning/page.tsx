@@ -42,7 +42,7 @@ export default async function AiPlanningPage({
 
   const resolvedMode = resolveMode(resolveSingleSearchParam(mode))
 
-  if (resolvedGenerationRequestId) {
+  if (resolvedMode === 'chatbot' && resolvedGenerationRequestId) {
     redirect(buildAnalyzeWorkflowStepPath('/shooting-guide', {
       projectId: resolvedProjectId,
       generationRequestId: resolvedGenerationRequestId,

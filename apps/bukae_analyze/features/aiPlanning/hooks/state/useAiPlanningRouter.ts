@@ -55,6 +55,7 @@ export function useAiPlanningRouter({
   const pt1AnswerSubmission = usePt1AnswerAutoSubmission({
     projectId,
     enabled: !generationRequestId,
+    treatCurrentAnswersAsSaved: Boolean(generationRequestId || storedPt1Snapshot),
     questions,
     selectedAnswers,
     customAnswers,
