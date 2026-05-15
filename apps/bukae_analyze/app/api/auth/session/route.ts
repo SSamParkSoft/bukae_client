@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { SERVER_ACCESS_TOKEN_COOKIE } from '@/lib/auth/sessionCookie'
+import { captureAppError, classifyApiError, getErrorStatus } from '@/lib/monitoring/sentry'
 import { fetchCurrentUserWithToken } from '@/lib/services/auth'
 
 function createCookieOptions() {
@@ -31,7 +32,22 @@ export async function POST(request: Request) {
     const response = NextResponse.json({ ok: true, user })
     response.cookies.set(SERVER_ACCESS_TOKEN_COOKIE, accessToken, createCookieOptions())
     return response
-  } catch {
+  } catch (error) {
+    captureAppError(error, {
+      flow: 'auth',
+      operation: 'sync_server_session',
+      errorKind: classifyApiError(error),
+      tags: {
+        endpoint_group: 'auth_session',
+        method: 'POST',
+        status: getErrorStatus(error),
+      },
+      context: {
+        endpoint_group: 'auth_session',
+        method: 'POST',
+        status: getErrorStatus(error) ?? null,
+      },
+    })
     return NextResponse.json(
       { message: '사용자 정보를 불러오지 못했습니다.' },
       { status: 401 }
@@ -56,7 +72,22 @@ export async function GET() {
       { user },
       { headers: { 'cache-control': 'no-store' } }
     )
-  } catch {
+  } catch (error) {
+    captureAppError(error, {
+      flow: 'auth',
+      operation: 'fetch_server_session',
+      errorKind: classifyApiError(error),
+      tags: {
+        endpoint_group: 'auth_session',
+        method: 'GET',
+        status: getErrorStatus(error),
+      },
+      context: {
+        endpoint_group: 'auth_session',
+        method: 'GET',
+        status: getErrorStatus(error) ?? null,
+      },
+    })
     return NextResponse.json(
       { message: '사용자 정보를 불러오지 못했습니다.' },
       { status: 401 }

@@ -2,6 +2,7 @@ import { apiFetch } from './apiClient'
 import type { ApiFetcher } from './apiFetchCore'
 import { API_ENDPOINTS } from './endpoints'
 import { mapBenchmarkAnalysisSnapshot } from './mappers'
+import { captureAppError, classifyApiError, getErrorStatus } from '@/lib/monitoring/sentry'
 import {
   BenchmarkAnalysisPollingSchema,
   BenchmarkAnalysisRawResponseSchema,
@@ -13,6 +14,18 @@ import {
 import type { AnalysisSnapshot } from '@/lib/types/domain'
 
 const NO_BENCHMARK_MESSAGE = '아직 제출된 벤치마크가 없습니다.'
+
+function createStatusError(message: string, status: number): Error & { status: number } {
+  const error = new Error(message) as Error & { status: number }
+  error.status = status
+  return error
+}
+
+function createValidationError(message: string): Error {
+  const error = new Error(message)
+  error.name = 'ZodValidationError'
+  return error
+}
 
 function createEmptyAnalysisSnapshot(): AnalysisSnapshot {
   return {
@@ -116,29 +129,48 @@ export async function getBenchmarkAnalysisWithFetcher(
   fetcher: ApiFetcher,
   projectId: string
 ): Promise<AnalysisSnapshot> {
-  const res = await fetcher(API_ENDPOINTS.projects.benchmarkAnalysis(projectId))
-  const text = await res.text()
-  const json = tryParseJson(text)
+  try {
+    const res = await fetcher(API_ENDPOINTS.projects.benchmarkAnalysis(projectId))
+    const text = await res.text()
+    const json = tryParseJson(text)
 
-  if (!res.ok) {
-    if (res.status === 404 && isNoBenchmarkSubmittedError(json)) {
-      return createEmptyAnalysisSnapshot()
+    if (!res.ok) {
+      if (res.status === 404 && isNoBenchmarkSubmittedError(json)) {
+        return createEmptyAnalysisSnapshot()
+      }
+
+      throw createStatusError(`분석 상태 조회 실패 (HTTP ${res.status})`, res.status)
     }
 
-    throw new Error(`분석 상태 조회 실패 (HTTP ${res.status})`)
-  }
+    const rawResult = BenchmarkAnalysisRawResponseSchema.safeParse(json)
+    if (rawResult.success) {
+      return mapBenchmarkAnalysisSnapshot(normalizeBenchmarkAnalysisResponse(rawResult.data))
+    }
 
-  const rawResult = BenchmarkAnalysisRawResponseSchema.safeParse(json)
-  if (rawResult.success) {
-    return mapBenchmarkAnalysisSnapshot(normalizeBenchmarkAnalysisResponse(rawResult.data))
-  }
+    const pollingResult = BenchmarkAnalysisPollingSchema.safeParse(json)
+    if (pollingResult.success) {
+      return mapBenchmarkAnalysisSnapshot(normalizeBenchmarkAnalysisResponse(pollingResult.data))
+    }
 
-  const pollingResult = BenchmarkAnalysisPollingSchema.safeParse(json)
-  if (pollingResult.success) {
-    return mapBenchmarkAnalysisSnapshot(normalizeBenchmarkAnalysisResponse(pollingResult.data))
+    throw createValidationError('분석 응답 형식이 예상과 다릅니다.')
+  } catch (error) {
+    captureAppError(error, {
+      flow: 'analysis',
+      operation: 'get_benchmark_analysis',
+      errorKind: classifyApiError(error),
+      tags: {
+        endpoint_group: 'benchmark_analysis',
+        method: 'GET',
+        status: getErrorStatus(error),
+      },
+      context: {
+        endpoint_group: 'benchmark_analysis',
+        method: 'GET',
+        status: getErrorStatus(error) ?? null,
+      },
+    })
+    throw error
   }
-
-  throw new Error('분석 응답 형식이 예상과 다릅니다.')
 }
 
 export async function getBenchmarkAnalysis(

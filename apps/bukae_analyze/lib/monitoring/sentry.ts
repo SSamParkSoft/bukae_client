@@ -29,6 +29,32 @@ export type CaptureAppErrorOptions = {
   context?: Record<string, unknown>
 }
 
+function getErrorRecord(error: unknown): Record<string, unknown> | null {
+  return error && typeof error === 'object'
+    ? error as Record<string, unknown>
+    : null
+}
+
+export function getErrorStatus(error: unknown): number | undefined {
+  const record = getErrorRecord(error)
+  const status = record?.status
+
+  return typeof status === 'number' ? status : undefined
+}
+
+export function classifyApiError(error: unknown): SentryErrorKind {
+  const status = getErrorStatus(error)
+  if (status) return status === 401 || status === 403 ? 'auth_error' : 'api_error'
+  if (error instanceof TypeError) return 'network_error'
+
+  const name = getErrorRecord(error)?.name
+  if (typeof name === 'string' && name.toLowerCase().includes('zod')) {
+    return 'validation_error'
+  }
+
+  return 'unexpected_error'
+}
+
 export function captureAppError(
   error: unknown,
   {
