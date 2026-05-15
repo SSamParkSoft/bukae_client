@@ -1,3 +1,5 @@
+import { getStoredGenerationRequestId } from '@/lib/storage/generationRequestStorage'
+
 export const ANALYZE_WORKFLOW_STEPS = [
   { label: 'AI 분석', path: '/analysis' },
   { label: '기획 프리세팅', path: '/planning-setup' },
@@ -16,13 +18,16 @@ export function buildAnalyzeWorkflowStepPath(
   }
 ): string {
   const params = new URLSearchParams()
+  const generationRequestId =
+    options.generationRequestId ??
+    (path === '/shooting-guide' ? getStoredGenerationRequestId(options.projectId) : null)
 
   if (options.projectId) {
     params.set('projectId', options.projectId)
   }
 
-  if (options.generationRequestId) {
-    params.set('generationRequestId', options.generationRequestId)
+  if (generationRequestId) {
+    params.set('generationRequestId', generationRequestId)
   }
 
   if (options.briefVersionId) {

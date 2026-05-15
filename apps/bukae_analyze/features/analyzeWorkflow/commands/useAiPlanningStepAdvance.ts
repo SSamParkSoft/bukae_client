@@ -9,6 +9,7 @@ import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
 import type { AnalyzeWorkflowRouteState } from '@/features/analyzeWorkflow/hooks/useAnalyzeWorkflowRouteState'
 import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
+import { storeGenerationRequestId } from '@/lib/storage/generationRequestStorage'
 import type { PlanningSession } from '@/lib/types/domain'
 
 export interface AiPlanningStepAdvanceState {
@@ -139,6 +140,7 @@ export function useAiPlanningStepAdvance(
 
   async function startGenerationOnceAndOpenShootingGuide(nextPath: string) {
     if (generationRequestId) {
+      storeGenerationRequestId(projectId!, generationRequestId)
       markWorkflowStepCompleted(projectId!, 'generation')
       router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, generationRequestId }))
       return
@@ -150,6 +152,7 @@ export function useAiPlanningStepAdvance(
       if (activeBriefVersionId) {
         const cachedGenerationRequestId = getCachedGenerationRequestId(activeBriefVersionId)
         if (cachedGenerationRequestId) {
+          storeGenerationRequestId(projectId, cachedGenerationRequestId)
           markWorkflowStepCompleted(projectId!, 'generation')
           router.push(buildAnalyzeWorkflowStepPath(nextPath, {
             projectId,

@@ -14,6 +14,7 @@ import { startGenerationFromCommand } from '@/lib/services/generations'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
 import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
+import { storeGenerationRequestId } from '@/lib/storage/generationRequestStorage'
 import { createAppError, resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 import { FeedbackPrompt, type FeedbackPromptContent } from '@/components/feedback/FeedbackPrompt'
 
@@ -84,6 +85,10 @@ export function ShootingGuidePageClient({
   }, [])
 
   useEffect(() => {
+    storeGenerationRequestId(projectId, activeGenerationRequestId)
+  }, [activeGenerationRequestId, projectId])
+
+  useEffect(() => {
     const generationStartKey = projectId && briefVersionId && !activeGenerationRequestId
       ? `${projectId}:${briefVersionId}`
       : null
@@ -112,6 +117,7 @@ export function ShootingGuidePageClient({
         if (!isMountedRef.current || generationStartKeyRef.current !== generationStartKey) return
 
         cacheGenerationRequestId(briefVersionId, generation.generationRequestId)
+        storeGenerationRequestId(projectId, generation.generationRequestId)
         markWorkflowStepCompleted(projectId, 'generation')
         setStartedGenerationRequestId(generation.generationRequestId)
         router.replace(buildAnalyzeWorkflowStepPath('/shooting-guide', {
