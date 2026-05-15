@@ -27,7 +27,7 @@ export default withSentryConfig(nextConfig, {
 
   org: 'bukae-ex',
 
-  project: 'javascript-nextjs',
+  project: 'bukae_analyze',
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
