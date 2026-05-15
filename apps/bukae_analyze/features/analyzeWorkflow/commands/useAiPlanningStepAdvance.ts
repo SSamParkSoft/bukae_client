@@ -39,8 +39,6 @@ export function useAiPlanningStepAdvance(
   const setChatbotInitialSession = useAiPlanningStore((state) => state.setChatbotInitialSession)
   const getCachedChatbotSession = useAnalyzeWorkflowStore((state) => state.getCachedChatbotSession)
   const cacheChatbotSession = useAnalyzeWorkflowStore((state) => state.cacheChatbotSession)
-  const getCachedGenerationRequestId = useAnalyzeWorkflowStore((state) => state.getCachedGenerationRequestId)
-  const cacheGenerationRequestId = useAnalyzeWorkflowStore((state) => state.cacheGenerationRequestId)
 
   async function advanceAiPlanningToNextWorkflowStep(nextPath: string) {
     if (!projectId || isAdvancingAiPlanning) return
@@ -152,28 +150,17 @@ export function useAiPlanningStepAdvance(
       const activeBriefVersionId = briefVersionId?.trim() || null
 
       if (activeBriefVersionId) {
-        const cachedGenerationRequestId = getCachedGenerationRequestId(activeBriefVersionId)
-        if (cachedGenerationRequestId) {
-          storeGenerationRequestId(projectId, cachedGenerationRequestId)
-          markWorkflowStepCompleted(projectId!, 'generation')
-          router.push(buildAnalyzeWorkflowStepPath(nextPath, {
-            projectId,
-            generationRequestId: cachedGenerationRequestId,
-          }))
-        } else {
-          const generation = await startGenerationFromCommand(projectId!, {
-            briefVersionId: activeBriefVersionId,
-            generationMode: 'single',
-            variantCount: 1,
-          })
-          cacheGenerationRequestId(activeBriefVersionId, generation.generationRequestId)
-          storeGenerationRequestId(projectId, generation.generationRequestId)
-          markWorkflowStepCompleted(projectId!, 'generation')
-          router.push(buildAnalyzeWorkflowStepPath(nextPath, {
-            projectId,
-            generationRequestId: generation.generationRequestId,
-          }))
-        }
+        const generation = await startGenerationFromCommand(projectId!, {
+          briefVersionId: activeBriefVersionId,
+          generationMode: 'single',
+          variantCount: 1,
+        })
+        storeGenerationRequestId(projectId, generation.generationRequestId)
+        markWorkflowStepCompleted(projectId!, 'generation')
+        router.push(buildAnalyzeWorkflowStepPath(nextPath, {
+          projectId,
+          generationRequestId: generation.generationRequestId,
+        }))
         return
       }
 

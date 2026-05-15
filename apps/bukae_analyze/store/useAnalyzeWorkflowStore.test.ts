@@ -7,7 +7,6 @@ describe('useAnalyzeWorkflowStore trust boundary', () => {
       planningSessionByProjectId: {},
       pt1AnswerDraftByKey: {},
       chatbotSessionByPlanningSessionId: {},
-      generationRequestIdByBriefVersionId: {},
     })
   })
 
@@ -19,16 +18,4 @@ describe('useAnalyzeWorkflowStore trust boundary', () => {
     expect(state).not.toHaveProperty('markAnalysisCompleted')
   })
 
-  it('keeps generation request ids as isolated in-memory cache entries', () => {
-    useAnalyzeWorkflowStore
-      .getState()
-      .cacheGenerationRequestId('brief-a', 'generation-a')
-
-    expect(
-      useAnalyzeWorkflowStore.getState().getCachedGenerationRequestId('brief-a')
-    ).toBe('generation-a')
-    expect(
-      useAnalyzeWorkflowStore.getState().getCachedGenerationRequestId('brief-b')
-    ).toBeNull()
-  })
 })

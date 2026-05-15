@@ -11,22 +11,18 @@ interface AnalyzeWorkflowStore {
   planningSessionByProjectId: Record<string, PlanningSession>
   pt1AnswerDraftByKey: Record<string, Pt1AnswerDraftCache>
   chatbotSessionByPlanningSessionId: Record<string, PlanningSession>
-  generationRequestIdByBriefVersionId: Record<string, string>
   getCachedPlanningSession: (projectId: string) => PlanningSession | null
   cachePlanningSession: (projectId: string, session: PlanningSession) => void
   getCachedPt1AnswerDraft: (key: string) => Pt1AnswerDraftCache | null
   cachePt1AnswerDraft: (key: string, draft: Pt1AnswerDraftCache) => void
   getCachedChatbotSession: (planningSessionId: string) => PlanningSession | null
   cacheChatbotSession: (planningSessionId: string, session: PlanningSession) => void
-  getCachedGenerationRequestId: (briefVersionId: string) => string | null
-  cacheGenerationRequestId: (briefVersionId: string, generationRequestId: string) => void
 }
 
 const INITIAL_STATE = {
   planningSessionByProjectId: {} as Record<string, PlanningSession>,
   pt1AnswerDraftByKey: {} as Record<string, Pt1AnswerDraftCache>,
   chatbotSessionByPlanningSessionId: {} as Record<string, PlanningSession>,
-  generationRequestIdByBriefVersionId: {} as Record<string, string>,
 }
 
 export const useAnalyzeWorkflowStore = create<AnalyzeWorkflowStore>()((set, get) => ({
@@ -61,17 +57,6 @@ export const useAnalyzeWorkflowStore = create<AnalyzeWorkflowStore>()((set, get)
       chatbotSessionByPlanningSessionId: {
         ...state.chatbotSessionByPlanningSessionId,
         [planningSessionId]: session,
-      },
-    }))
-  },
-  getCachedGenerationRequestId: (briefVersionId) => (
-    get().generationRequestIdByBriefVersionId[briefVersionId] ?? null
-  ),
-  cacheGenerationRequestId: (briefVersionId, generationRequestId) => {
-    set((state) => ({
-      generationRequestIdByBriefVersionId: {
-        ...state.generationRequestIdByBriefVersionId,
-        [briefVersionId]: generationRequestId,
       },
     }))
   },
