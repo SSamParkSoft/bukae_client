@@ -21,6 +21,7 @@ export function useAiPlanningRouter({
   isChatbotMode: boolean
   generationRequestId: string | null
 }) {
+  const shouldRunChatbot = isChatbotMode && !generationRequestId
   const { planningSessionState, storedPt1Snapshot, questions, answeredPt1QuestionIds, isLoadingPt1Questions } =
     usePt1PlanningSession({ projectId, isChatbotMode, generationRequestId })
 
@@ -32,8 +33,8 @@ export function useAiPlanningRouter({
 
   const chatbot = useFollowUpChatbot({
     projectId,
-    initialSession: isChatbotMode && chatbotInitialSession ? chatbotInitialSession : planningSessionState.session,
-    enabled: isChatbotMode,
+    initialSession: shouldRunChatbot && chatbotInitialSession ? chatbotInitialSession : planningSessionState.session,
+    enabled: shouldRunChatbot,
     onSessionChange: planningSessionState.replaceSession,
   })
 
