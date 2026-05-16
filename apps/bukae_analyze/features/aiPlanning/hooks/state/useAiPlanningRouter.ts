@@ -1,8 +1,12 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
-import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
+import {
+  getStoredWorkflowStep,
+  markWorkflowStepCompleted,
+  subscribeWorkflowStepCompletionChanges,
+} from '@/lib/storage/workflowStepCompletionStorage'
 import { isPt1PlanningSession, storePt1PlanningSnapshot } from '../../lib/pt1PlanningSnapshotStorage'
 import { deriveAiPlanningStage } from '../../lib/aiPlanningStage'
 import { useAiPlanningNavigationStateSync } from './aiPlanningRouter/useAiPlanningNavigationStateSync'
@@ -21,6 +25,13 @@ export function useAiPlanningRouter({
   isChatbotMode: boolean
   generationRequestId: string | null
 }) {
+  const shouldRunChatbot = isChatbotMode && !generationRequestId
+  const currentWorkflowStep = useSyncExternalStore(
+    subscribeWorkflowStepCompletionChanges,
+    () => getStoredWorkflowStep(projectId),
+    () => null
+  )
+  const canAutoSavePt1Answers = currentWorkflowStep === 'planning'
   const { planningSessionState, storedPt1Snapshot, questions, answeredPt1QuestionIds, isLoadingPt1Questions } =
     usePt1PlanningSession({ projectId, isChatbotMode, generationRequestId })
 
@@ -32,8 +43,8 @@ export function useAiPlanningRouter({
 
   const chatbot = useFollowUpChatbot({
     projectId,
-    initialSession: isChatbotMode && chatbotInitialSession ? chatbotInitialSession : planningSessionState.session,
-    enabled: isChatbotMode,
+    initialSession: shouldRunChatbot && chatbotInitialSession ? chatbotInitialSession : planningSessionState.session,
+    enabled: shouldRunChatbot,
     onSessionChange: planningSessionState.replaceSession,
   })
 
@@ -53,7 +64,8 @@ export function useAiPlanningRouter({
 
   const pt1AnswerSubmission = usePt1AnswerAutoSubmission({
     projectId,
-    enabled: !generationRequestId,
+    enabled: canAutoSavePt1Answers && !generationRequestId,
+    treatCurrentAnswersAsSaved: !canAutoSavePt1Answers || Boolean(generationRequestId || storedPt1Snapshot),
     questions,
     selectedAnswers,
     customAnswers,

@@ -3,6 +3,7 @@ import { PageTitle } from '@/components/page/PageTitle'
 import { resolveSingleSearchParam } from '@/lib/utils/searchParams'
 import { AiPlanningFlow } from '@/features/aiPlanning'
 import { FeedbackPrompt, type FeedbackPromptContent } from '@/components/feedback/FeedbackPrompt'
+import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
 
 type AiPlanningMode = 'default' | 'chatbot'
 
@@ -40,6 +41,13 @@ export default async function AiPlanningPage({
   }
 
   const resolvedMode = resolveMode(resolveSingleSearchParam(mode))
+
+  if (resolvedMode === 'chatbot' && resolvedGenerationRequestId) {
+    redirect(buildAnalyzeWorkflowStepPath('/shooting-guide', {
+      projectId: resolvedProjectId,
+      generationRequestId: resolvedGenerationRequestId,
+    }))
+  }
 
   if (resolvedMode === 'chatbot') {
     return (

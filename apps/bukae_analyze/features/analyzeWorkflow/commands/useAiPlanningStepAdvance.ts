@@ -3,12 +3,14 @@
 import { useRouter } from 'next/navigation'
 import { createAppError, resolveAppError } from '@/lib/errors/appError'
 import { enterPlanningWorkspace, getPlanningSession } from '@/lib/services/planning'
+import { startGenerationFromCommand } from '@/lib/services/generations'
 import { hasPlanningWorkspaceEntryMessage } from '@/features/aiPlanning/lib/planningPredicates'
 import { useAiPlanningStore } from '@/store/useAiPlanningStore'
 import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
 import type { AnalyzeWorkflowRouteState } from '@/features/analyzeWorkflow/hooks/useAnalyzeWorkflowRouteState'
 import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
+import { storeGenerationRequestId } from '@/lib/storage/generationRequestStorage'
 import type { PlanningSession } from '@/lib/types/domain'
 
 export interface AiPlanningStepAdvanceState {
@@ -37,7 +39,6 @@ export function useAiPlanningStepAdvance(
   const setChatbotInitialSession = useAiPlanningStore((state) => state.setChatbotInitialSession)
   const getCachedChatbotSession = useAnalyzeWorkflowStore((state) => state.getCachedChatbotSession)
   const cacheChatbotSession = useAnalyzeWorkflowStore((state) => state.cacheChatbotSession)
-  const getCachedGenerationRequestId = useAnalyzeWorkflowStore((state) => state.getCachedGenerationRequestId)
 
   async function advanceAiPlanningToNextWorkflowStep(nextPath: string) {
     if (!projectId || isAdvancingAiPlanning) return
@@ -139,6 +140,7 @@ export function useAiPlanningStepAdvance(
 
   async function startGenerationOnceAndOpenShootingGuide(nextPath: string) {
     if (generationRequestId) {
+      storeGenerationRequestId(projectId!, generationRequestId)
       markWorkflowStepCompleted(projectId!, 'generation')
       router.push(buildAnalyzeWorkflowStepPath(nextPath, { projectId, generationRequestId }))
       return
@@ -148,20 +150,17 @@ export function useAiPlanningStepAdvance(
       const activeBriefVersionId = briefVersionId?.trim() || null
 
       if (activeBriefVersionId) {
-        const cachedGenerationRequestId = getCachedGenerationRequestId(activeBriefVersionId)
-        if (cachedGenerationRequestId) {
-          markWorkflowStepCompleted(projectId!, 'generation')
-          router.push(buildAnalyzeWorkflowStepPath(nextPath, {
-            projectId,
-            generationRequestId: cachedGenerationRequestId,
-          }))
-        } else {
-          markWorkflowStepCompleted(projectId!, 'generation')
-          router.push(buildAnalyzeWorkflowStepPath(nextPath, {
-            projectId,
-            briefVersionId: activeBriefVersionId,
-          }))
-        }
+        const generation = await startGenerationFromCommand(projectId!, {
+          briefVersionId: activeBriefVersionId,
+          generationMode: 'single',
+          variantCount: 1,
+        })
+        storeGenerationRequestId(projectId, generation.generationRequestId)
+        markWorkflowStepCompleted(projectId!, 'generation')
+        router.push(buildAnalyzeWorkflowStepPath(nextPath, {
+          projectId,
+          generationRequestId: generation.generationRequestId,
+        }))
         return
       }
 

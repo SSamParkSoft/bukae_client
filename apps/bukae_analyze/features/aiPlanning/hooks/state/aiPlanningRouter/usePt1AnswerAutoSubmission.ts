@@ -19,6 +19,7 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 interface UsePt1AnswerAutoSubmissionParams {
   projectId: string
   enabled?: boolean
+  treatCurrentAnswersAsSaved?: boolean
   questions: PlanningQuestion[]
   selectedAnswers: Record<string, string>
   customAnswers: Record<string, string>
@@ -40,6 +41,7 @@ function shouldReplacePlanningSessionAfterPt1Submission(
 export function usePt1AnswerAutoSubmission({
   projectId,
   enabled = true,
+  treatCurrentAnswersAsSaved = false,
   questions,
   selectedAnswers,
   customAnswers,
@@ -62,14 +64,26 @@ export function usePt1AnswerAutoSubmission({
       fieldAnswers: debouncedFieldAnswers,
     })
   }, [questions, selectedAnswers, debouncedCustomAnswers, debouncedFieldAnswers])
+  const currentAnswerSignatureByQuestionId = useMemo(() => (
+    Object.fromEntries(
+      answerRequests.map(({ questionId, signature }) => [questionId, signature])
+    )
+  ), [answerRequests])
+  const effectiveSubmittedSignatureByQuestionId = treatCurrentAnswersAsSaved
+    ? currentAnswerSignatureByQuestionId
+    : submittedSignatureByQuestionId
 
   const hasAnsweredAllQuestions =
     questions.length > 0 && answerRequests.length === questions.length
   const hasSavedAllAnswers =
     hasAnsweredAllQuestions &&
-    hasSavedAllPt1Answers(answerRequests, submittedSignatureByQuestionId)
-  const hasPendingSave = Object.values(saveStatusByQuestionId).some((status) => status === 'saving')
-  const hasSaveError = Object.values(saveStatusByQuestionId).some((status) => status === 'error')
+    hasSavedAllPt1Answers(answerRequests, effectiveSubmittedSignatureByQuestionId)
+  const hasPendingSave =
+    !treatCurrentAnswersAsSaved &&
+    Object.values(saveStatusByQuestionId).some((status) => status === 'saving')
+  const hasSaveError =
+    !treatCurrentAnswersAsSaved &&
+    Object.values(saveStatusByQuestionId).some((status) => status === 'error')
 
   useEffect(() => {
     if (!enabled) {
@@ -86,7 +100,7 @@ export function usePt1AnswerAutoSubmission({
 
     const unsavedRequests = getUnsavedPt1AnswerRequests(
       answerRequests,
-      submittedSignatureByQuestionId
+      effectiveSubmittedSignatureByQuestionId
     )
 
     if (unsavedRequests.length === 0) {
@@ -140,7 +154,7 @@ export function usePt1AnswerAutoSubmission({
     onSessionChange,
     projectId,
     readyForApproval,
-    submittedSignatureByQuestionId,
+    effectiveSubmittedSignatureByQuestionId,
   ])
 
   return {

@@ -11,9 +11,9 @@ import { getGenerationStatusMessage, isGenerationCompleted } from '@/features/sh
 import { SceneCard } from './SceneCard'
 import type { Generation } from '@/lib/types/domain'
 import { startGenerationFromCommand } from '@/lib/services/generations'
-import { useAnalyzeWorkflowStore } from '@/store/useAnalyzeWorkflowStore'
 import { buildAnalyzeWorkflowStepPath } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
 import { markWorkflowStepCompleted } from '@/lib/storage/workflowStepCompletionStorage'
+import { getStoredGenerationRequestId, storeGenerationRequestId } from '@/lib/storage/generationRequestStorage'
 import { createAppError, resolveAppError, type ResolvedAppError } from '@/lib/errors/appError'
 import { FeedbackPrompt, type FeedbackPromptContent } from '@/components/feedback/FeedbackPrompt'
 
@@ -60,8 +60,7 @@ export function ShootingGuidePageClient({
   feedbackPrompt: FeedbackPromptContent
 }) {
   const router = useRouter()
-  const getCachedGenerationRequestId = useAnalyzeWorkflowStore((state) => state.getCachedGenerationRequestId)
-  const cacheGenerationRequestId = useAnalyzeWorkflowStore((state) => state.cacheGenerationRequestId)
+  const [storedGenerationRequestId] = useState<string | null>(() => getStoredGenerationRequestId(projectId))
   const [startedGenerationRequestId, setStartedGenerationRequestId] = useState<string | null>(null)
   const [generationStartError, setGenerationStartError] = useState<{
     key: string
@@ -84,21 +83,25 @@ export function ShootingGuidePageClient({
   }, [])
 
   useEffect(() => {
+    storeGenerationRequestId(projectId, activeGenerationRequestId)
+  }, [activeGenerationRequestId, projectId])
+
+  useEffect(() => {
+    if (generationRequestId || briefVersionId) return
+    if (!storedGenerationRequestId || !projectId) return
+
+    router.replace(buildAnalyzeWorkflowStepPath('/shooting-guide', {
+      projectId,
+      generationRequestId: storedGenerationRequestId,
+    }))
+  }, [generationRequestId, briefVersionId, storedGenerationRequestId, projectId, router])
+
+  useEffect(() => {
     const generationStartKey = projectId && briefVersionId && !activeGenerationRequestId
       ? `${projectId}:${briefVersionId}`
       : null
     generationStartKeyRef.current = generationStartKey
     if (!projectId || !briefVersionId || !generationStartKey) return
-
-    const cachedGenerationRequestId = getCachedGenerationRequestId(briefVersionId)
-    if (cachedGenerationRequestId) {
-      markWorkflowStepCompleted(projectId, 'generation')
-      router.replace(buildAnalyzeWorkflowStepPath('/shooting-guide', {
-        projectId,
-        generationRequestId: cachedGenerationRequestId,
-      }))
-      return
-    }
 
     if (startingGenerationKeyRef.current === generationStartKey) return
     startingGenerationKeyRef.current = generationStartKey
@@ -111,7 +114,7 @@ export function ShootingGuidePageClient({
       .then((generation) => {
         if (!isMountedRef.current || generationStartKeyRef.current !== generationStartKey) return
 
-        cacheGenerationRequestId(briefVersionId, generation.generationRequestId)
+        storeGenerationRequestId(projectId, generation.generationRequestId)
         markWorkflowStepCompleted(projectId, 'generation')
         setStartedGenerationRequestId(generation.generationRequestId)
         router.replace(buildAnalyzeWorkflowStepPath('/shooting-guide', {
@@ -134,8 +137,6 @@ export function ShootingGuidePageClient({
   }, [
     activeGenerationRequestId,
     briefVersionId,
-    cacheGenerationRequestId,
-    getCachedGenerationRequestId,
     projectId,
     router,
   ])
@@ -158,7 +159,7 @@ export function ShootingGuidePageClient({
   const activeGenerationStartError = generationStartError?.key === activeGenerationStartKey
     ? generationStartError.error
     : null
-  const pageError = !projectId || (!activeGenerationRequestId && !briefVersionId)
+  const pageError = !projectId || (!activeGenerationRequestId && !briefVersionId && !storedGenerationRequestId)
     ? createAppError('invalid_project_state', 'generation_bootstrap')
     : activeGenerationStartError ?? error
 

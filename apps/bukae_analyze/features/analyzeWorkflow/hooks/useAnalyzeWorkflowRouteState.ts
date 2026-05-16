@@ -6,6 +6,7 @@ import {
   getAnalyzeWorkflowStepIndex,
   type AnalyzeWorkflowStep,
 } from '@/features/analyzeWorkflow/lib/analyzeWorkflowSteps'
+import { getStoredGenerationRequestId } from '@/lib/storage/generationRequestStorage'
 
 export interface AnalyzeWorkflowRouteState {
   pathname: string
@@ -29,7 +30,8 @@ export function useAnalyzeWorkflowRouteState(): AnalyzeWorkflowRouteState {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const projectId = searchParams.get('projectId')
-  const generationRequestId = searchParams.get('generationRequestId')
+  const generationRequestId =
+    searchParams.get('generationRequestId') ?? getStoredGenerationRequestId(projectId)
   const mode = searchParams.get('mode')
   const currentStepIndex = getAnalyzeWorkflowStepIndex(pathname)
   const currentStep = ANALYZE_WORKFLOW_STEPS[currentStepIndex] ?? null
